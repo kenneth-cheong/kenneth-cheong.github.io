@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MediaOne FAQ</title>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const form = document.getElementById('queryForm');
+    const apiUrlBase = 'https://api.chatpdf.com/v1/sources/add-url';
+    const apiKey = 'sec_GaetYUfWiKO8nQ9vRz76t39J6mS6yePQ';
+    const headers = new Headers({
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey
+    });
+
+    form.addEventListener('submit', function(event) {
+        event.preventDefault();
+        const userQuery = document.getElementById('userQuery').value;
+        
+        let postData = {
+            'url': 'https://docs.google.com/spreadsheets/d/1gxSZ_gLq-E3fpIgDjtBaL1_1DaDxerxC9mCYbvYiEMg/export?format=pdf'
+        };
+
+        // First API call
+        fetch(apiUrlBase, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(postData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Success:', data);
+            const apiUrl = 'https://api.chatpdf.com/v1/chats/message';
+            postData = {
+                'sourceId': data['sourceId'],
+                'messages': [{
+                    'role': "user",
+                    'content': userQuery,
+                }]
+            };
+
+            // Second API call
+            return fetch(apiUrl, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(postData)
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok on second request');
+            }
+            return response.json();
+        })
+        .then(data => {
+            document.getElementById('result').textContent = data['content'];
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('result').textContent = 'Error: ' + error.message;
+        });
+    });
+});
+</script>
+</head>
+<body>
+<h1>MediaOne FAQ</h1>
+<form id="queryForm">
+    <input type="text" id="userQuery" placeholder="Enter your question" required style="width: 300px;">
+    <button type="submit">Submit</button>
+</form>
+<p id="result">Enter your question and click submit</p>
+</body>
+</html>
