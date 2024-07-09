@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Login Example</title>
+    <script src="https://apis.google.com/js/platform.js" async defer></script>
+    <script>
+        function onSignIn(googleUser) {
+            var profile = googleUser.getBasicProfile();
+            console.log('ID: ' + profile.getId()); // Do not send to your backend! Use an ID token instead.
+            console.log('Name: ' + profile.getName());
+            console.log('Image URL: ' + profile.getImageUrl());
+            console.log('Email: ' + profile.getEmail()); // This is null if the 'email' scope is not present.
+
+            document.getElementById('signinButton').style.display = 'none';
+            document.getElementById('signoutButton').style.display = 'block';
+            document.getElementById('userDetails').innerHTML = 'Hello, ' + profile.getName() + '! Your email is ' + profile.getEmail();
+        }
+
+        function signOut() {
+            var auth2 = gapi.auth2.getAuthInstance();
+            auth2.signOut().then(function () {
+                console.log('User signed out.');
+                document.getElementById('signinButton').style.display = 'block';
+                document.getElementById('signoutButton').style.display = 'none';
+                document.getElementById('userDetails').innerHTML = '';
+            });
+        }
+    </script>
+    <meta name="google-signin-client_id" content="365369983219-gfaro8ccrjq0gijgmrdngvv221lo9bad.apps.googleusercontent.com">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+        }
+
+        #userDetails {
+            margin-top: 20px;
+        }
+
+        #signoutButton {
+            display: none;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Google Login Integration</h1>
+    <div class="g-signin2" data-onsuccess="onSignIn" id="signinButton"></div>
+    <button onclick="signOut();" id="signoutButton">Sign out</button>
+    <div id="userDetails"></div>
+</body>
+</html>
