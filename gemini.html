@@ -2,63 +2,87 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SEO Team Query</title>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-</head>
-<body>
-    <h1>SEO Team Assistance Request</h1>
-    <button onclick="sendRequest()">Send Query</button>
-    <p id="responseText">Response will appear here after sending the query.</p>
-
+    <title>API Query Form</title>
     <script>
-        function sendRequest() {
-            const responseText = document.getElementById('responseText');
 
-            // Read the base64 content from a local .txt file
-            fetch('base64.txt')
-                .then(response => response.text())
-                .then(base64Content => {
-                    const question = "Can your SEO team help to reduce the server response time of my website??";
-                    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAkYBqT7uSa7BfbeKrbxTFrfHeU9oF34";
+         async function readFile() {
+            try {
+                const response = await fetch('base64.txt');
+                if (!response.ok) {
+                    throw new Error('Network response was not ok ' + response.statusText);
+                }
+                const text = await response.text();
+                document.getElementById('content').innerText = text;
+                // Now you have the content of base64.txt in the `text` variable.
+                // You can use it as needed, e.g., store it in a variable:
+                const base64String = text;
+                console.log(base64String);
+            } catch (error) {
+                console.error('There has been a problem with your fetch operation:', error);
+            }
+        }
 
-                    // Prepare the request payload
-                    const querystring = {
-                        "contents": [{
-                            "parts": [{
+        window.onload = readFile;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('queryForm').addEventListener('submit', function(event) {
+                event.preventDefault();
+
+                var question = document.getElementById('question').value;
+
+                var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAkYBqT7uSa7BfbeKpb0xBTFrfHeU9oF34";
+
+                var queryString = {
+                    "contents": [
+                        {
+                            "parts": [
+                                {
                                     "text": "Based on the attached csv, answer the following question concisely. If the csv does not contain the answer, try to answer it using external knowledge. If you do not know the answer, reply 'I don't know the answer, please drop us an email on your query!': " + question
                                 },
                                 {
                                     "inlineData": {
                                         "mimeType": "text/csv",
-                                        "data": base64Content.trim() // Ensure no extra whitespace
+                                        "data": text
                                     }
                                 }
                             ],
                             "role": "user"
-                        }]
-                    };
+                        }
+                    ]
+                };
 
-                    const headers = {
-                        "Accept": "application/json",
-                        "Content-Type": "application/json"
-                    };
+                var headers = {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json"
+                };
 
-                    // Make the API request using axios
-                    axios.post(url, querystring, { headers })
-                        .then(response => {
-                            responseText.textContent = response.data['candidates'][0]['content']['parts'][0]['text'];
-                        })
-                        .catch(error => {
-                            console.error('API call failed:', error);
-                            responseText.textContent = 'Failed to get a response from the API.';
-                        });
+                fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(queryString)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('apiResponse').textContent = data.candidates[0].content.parts[0].text;
                 })
                 .catch(error => {
-                    console.error('Failed to read the base64 content:', error);
-                    responseText.textContent = 'Failed to read the base64 content.';
+                    console.error('Error:', error);
+                    document.getElementById('apiResponse').textContent = "Failed to get response.";
                 });
-        }
+            });
+        });
     </script>
+</head>
+<body>
+    <h1>Ask a Question</h1>
+    <form id="queryForm">
+        <label for="question">Your question:</label>
+        <input type="text" id="question" name="question" required>
+        <br>
+        <button type="submit">Send Question</button>
+    </form>
+
+    <h2>Response:</h2>
+    <pre id="apiResponse">No response yet.</pre>
 </body>
 </html>
