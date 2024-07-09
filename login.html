@@ -3,52 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Google Login Example</title>
+    <title>Google Login</title>
     <script src="https://apis.google.com/js/platform.js" async defer></script>
+    <meta name="google-signin-client_id" content="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com">
+</head>
+<body>
+    <div class="g-signin2" data-onsuccess="onSignIn" data-theme="dark"></div>
+
     <script>
         function onSignIn(googleUser) {
             var profile = googleUser.getBasicProfile();
             console.log('ID: ' + profile.getId()); // Do not send to your backend! Use an ID token instead.
             console.log('Name: ' + profile.getName());
             console.log('Image URL: ' + profile.getImageUrl());
-            console.log('Email: ' + profile.getEmail()); // This is null if the 'email' scope is not present.
+            console.log('Email: ' + profile.getEmail());
 
-            document.getElementById('signinButton').style.display = 'none';
-            document.getElementById('signoutButton').style.display = 'block';
-            document.getElementById('userDetails').innerHTML = 'Hello, ' + profile.getName() + '! Your email is ' + profile.getEmail();
-        }
+            // Access an ID token from the Google User object.
+            var id_token = googleUser.getAuthResponse().id_token;
+            console.log('ID Token: ' + id_token);
 
-        function signOut() {
-            var auth2 = gapi.auth2.getAuthInstance();
-            auth2.signOut().then(function () {
-                console.log('User signed out.');
-                document.getElementById('signinButton').style.display = 'block';
-                document.getElementById('signoutButton').style.display = 'none';
-                document.getElementById('userDetails').innerHTML = '';
-            });
+            // Send the ID token to your backend to verify the user
+            // and exchange it for a signed-in session.
+            // ...
         }
     </script>
-    <meta name="google-signin-client_id" content="365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 40px;
-        }
-
-        #userDetails {
-            margin-top: 20px;
-        }
-
-        #signoutButton {
-            display: none;
-            margin-top: 20px;
-        }
-    </style>
-</head>
-<body>
-    <h1>Google Login Integration</h1>
-    <div class="g-signin2" data-onsuccess="onSignIn" id="signinButton"></div>
-    <button onclick="signOut();" id="signoutButton">Sign out</button>
-    <div id="userDetails"></div>
 </body>
 </html>
