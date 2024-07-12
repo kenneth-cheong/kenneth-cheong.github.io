@@ -80,6 +80,16 @@
             const base64String = text;
         }
 
+        async function readFile2() {
+            const response = await fetch('https://kenneth-cheong.github.io/consultant.txt');
+            if (!response.ok) {
+                throw new Error('Network response was not ok ' + response.statusText);
+            }
+            const text = await response.text();
+            document.getElementById('base64').innerText = text;
+            const consultantbase64String = text;
+        }
+
         window.onload = readFile;
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -89,7 +99,9 @@
                 document.getElementById('apiResponse').textContent = 'Processing your request...';
 
                 var question = document.getElementById('question').value;
-                var database = document.getElementById('base64').innerText;
+                var question = document.getElementById('company').value;
+                var faq = document.getElementById('base64').innerText;
+                var consultant = document.getElementById('consultantbase64String').innerText;
 
                 var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAkYBqT7uSa7BfbeKpb0xBTFrfHeU9oF34";
 
@@ -98,12 +110,18 @@
                         {
                             "parts": [
                                 {
-                                    "text": "Based on the attached csv, answer the following question concisely. If the csv does not contain the answer, try to answer it using external knowledge. If you do not know the answer, reply 'I don't know the answer, please drop us an email on your query!': " + question
+                                    "text": "The client's website is "+company+". Based on the attached csvs, answer the following question concisely. If the csvs does not contain the answer, try to answer it using external knowledge. If you do not know the answer, reply 'I don't know the answer, please drop us an email on your query!': " + question
                                 },
                                 {
                                     "inlineData": {
                                         "mimeType": "text/csv",
-                                        "data": database
+                                        "data": faq
+                                    }
+                                },
+                                {
+                                    "inlineData": {
+                                        "mimeType": "text/csv",
+                                        "data": consultant
                                     }
                                 }
                             ],
@@ -139,6 +157,8 @@
     <form id="queryForm">
         <label for="question">Your question:</label>
         <input type="text" id="question" name="question" required>
+        <label for="question">Your company website:</label>
+        <input type="text" id="company" name="company" required>
         <button type="submit">Submit</button>
     </form>
 
