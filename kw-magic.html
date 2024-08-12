@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KW Magic</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 20px;
+            background-color: #fbf7f5;
+            color: #333;
+        }
+
+        input,
+        select,
+        button,
+        textarea {
+            padding: 10px;
+            margin: 10px;
+            border-radius: 10px;
+            border: 1px solid #fffef7;
+            font-family: inherit;
+            font-size: 16px;
+        }
+
+        input {
+            min-width: 61%;
+        }
+
+        textarea {
+            min-width: 75%;
+            min-height: 150px;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            background-color: #fffef7;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 6px;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 12px 8px;
+            border: 1px solid #ddd;
+            font-size: 16px;
+        }
+
+        th {
+            background-color: #004c9d;
+            position: sticky;
+            color: white;
+            top: 10px; 
+        }
+
+        .error {
+            color: red;
+            margin-left: 10px;
+        }
+
+        .collapsible {
+            background-color: #004c9d;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 18px;
+            transition: background-color 0.3s ease;
+        }
+
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+
+        .content {
+            display: none;
+            padding: 20px;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+
+        button.sort-button {
+            padding: 3px 6px;
+            font-size: 12px;
+            margin-left: 5px;
+            background-color: #286b37;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button.sort-button:hover {
+            background-color: #218838;
+        }
+
+        hr {
+            border-top: 4px solid rgb(95, 103, 154);
+            border-radius: 7px;
+        }
+
+        .header-container {
+            display: flex;
+            align-items: center;
+            /* Vertically center the items in the container */
+            margin: 20px 0;
+            /* Add some margin for spacing around the header */
+        }
+
+        .header-container img {
+            margin-right: 15px;
+            /* Space between the image and the text */
+            width: 75px;
+            /* Adjust the width as needed */
+            height: auto;
+            /* Maintain aspect ratio */
+        }
+
+        h1 {
+            margin: 0;
+            /* Removes default margin */
+            font-size: 36px;
+            /* Optional: Adjust font size as needed */
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header-container">
+        <img src="https://mediaonemarketing.com.sg/wp-content/uploads/2019/10/mediaone-seo-agency-logo.jpeg"
+            alt="MediaOne SEO Agency Logo">
+        <h1>KW Magic</h1>
+    </div>
+    <hr>
+
+    <!-- Input Form for User Data -->
+    <form id="seoForm">
+        <div>
+            <label for="domain">Targeted Domain:</label>
+            <input type="url" id="domain" name="domain" required placeholder="https://example.com">
+            <span class="error" id="domainError"></span>
+        </div>
+        <div>
+            <label for="location">Targeted Location or Country:</label>
+            <select id="location" name="location" required>
+                <option value="">Select a location</option>
+                <option value="Singapore">Singapore</option>
+                <option value="Malaysia">Malaysia</option>
+                <option value="Thailand">Thailand</option>
+                <option value="India">India</option>
+                <option value="United States">United States</option>
+                <option value="Indonesia">Indonesia</option>
+            </select>
+        </div><br>
+        <div>
+            <label for="keywords">Keyword(s) of Interest (comma or newline separated):</label><br>
+            <textarea id="keywords" name="keywords" required placeholder="keyword1, keyword2"></textarea>
+            <span class="error" id="keywordsError"></span>
+        </div>
+
+        <button type="button" onclick="validateAndSubmit()">Analyze</button>
+        <button type="button" onclick="">Generate Similar Keywords</button>
+        <button type="button" onclick="">Get Ranking Keywords on Domain</button>
+
+    </form>
+    <hr>
+    <button class="collapsible">Meta Data</button>
+    <div class="content" id="metaData">
+        <p>Meta Title: <span id="metaTitle">-</span></p>
+        <p>Meta Description: <span id="metaDescription">-</span></p>
+
+    </div>
+
+    <button class="collapsible">Domain Metrics (DA, PA, PageSpeed)</button>
+    <div class="content" id="domainMetrics">
+        <p>Domain Authority (DA): <span id="da">-</span></p>
+        <p>Page Authority (PA): <span id="pa">-</span></p>
+        <p>Google PageSpeed: <span id="pagespeed">-</span></p>
+        <p>Backlinks Spam Score: <span id="spamScore">-</span></p>
+        <p>Backlinks: <span id="backlinks">-</span></p>
+        <p>Referring Domains: <span id="refDomains">-</span></p>
+        <p>Page Word Count: <span id="wordCount">-</span></p>
+        <p>Domain Rank: <span id="domainRank">-</span></p>
+
+    </div>
+
+    <!-- Section for Displaying Results -->
+    <hr>
+    <section id="results">
+        <h2>Keyword Analysis</h2>
+        <table id="keywordResultsHeader">
+            <thead>
+                <tr>
+                    <th>Keyword <button class="sort-button" onclick="sortTable(0)">Sort</button></th>
+                    <th>Ranking Position <button class="sort-button" onclick="sortTable(1)">Sort</button></th>
+                    <th>Search Volume <button class="sort-button" onclick="sortTable(2)">Sort</button></th>
+                    <th>Keyword Difficulty <button class="sort-button" onclick="sortTable(3)">Sort</button></th>
+                    <th>Estimated Time to Rank <button class="sort-button" onclick="sortTable(4)">Sort</button></th>
+                    <th>Location <button class="sort-button" onclick="sortTable(5)">Sort</button></th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="keywordResults">
+                <!-- Dynamic content will be filled here -->
+            </tbody>
+        </table>
+    </section>
+
+    <!-- JavaScript to Handle API Requests and Display Results -->
+    <script>
+        function validateAndSubmit() {
+            const domain = document.getElementById('domain').value;
+            const keywordsInput = document.getElementById('keywords').value;
+            const location = document.getElementById('location').value;
+
+            document.getElementById('domainError').textContent = '';
+            document.getElementById('keywordsError').textContent = '';
+
+            if (!domain) {
+                document.getElementById('domainError').textContent = 'Please enter a valid URL.';
+                return;
+            }
+            if (!keywordsInput) {
+                document.getElementById('keywordsError').textContent = 'Please enter one or more keywords.';
+                return;
+            }
+            if (!location) {
+                alert("Please select a location.");
+                return;
+            }
+
+            const keywords = keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+            fetchDomainMetrics(domain);
+            processKeywords(keywords, location);
+        }
+
+        function fetchDomainMetrics(domain) {
+            console.log("Fetching Domain Metrics...");
+            setTimeout(() => {
+                document.getElementById('da').innerText = '50';
+                document.getElementById('pa').innerText = '45';
+                document.getElementById('pagespeed').innerText = '89/100';
+            }, 1000);
+        }
+
+        function processKeywords(keywords, location) {
+            const table = document.getElementById('keywordResults');
+
+            keywords.forEach(keyword => {
+                // Check if keyword already exists in the table
+                let exists = false;
+                for (let i = 0; i < table.rows.length; i++) {
+                    if (table.rows[i].cells[0].textContent === keyword) {
+                        exists = true;
+                        break;
+                    }
+                }
+
+                if (!exists) {
+                    // Only add new keywords
+                    const row = table.insertRow(table.rows.length);
+                    row.insertCell(0).textContent = keyword;
+                    row.insertCell(1).textContent = Math.floor(Math.random() * 100); // Example data
+                    row.insertCell(2).textContent = Math.floor(Math.random() * 5000);
+                    row.insertCell(3).textContent = 'Medium';
+                    row.insertCell(4).textContent = Math.floor(Math.random() * 12 + 1) + ' months';
+                    row.insertCell(5).textContent = location;
+                    const actionCell = row.insertCell(6);
+                    const removeButton = document.createElement('button');
+                    removeButton.textContent = 'Remove';
+                    removeButton.onclick = function () { removeRow(this); };
+                    actionCell.appendChild(removeButton);
+                }
+            });
+        }
+
+
+        function removeRow(button) {
+            let row = button.parentNode.parentNode;
+            row.parentNode.removeChild(row);
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const coll = document.getElementsByClassName("collapsible");
+            for (let i = 0; i < coll.length; i++) {
+                coll[i].addEventListener("click", function () {
+                    this.classList.toggle("active");
+                    const content = this.nextElementSibling;
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                });
+            }
+        });
+
+        function sortTable(column) {
+            const table = document.getElementById("keywordResults");
+            const rows = Array.from(table.rows);
+            const dir = this.asc ? 'asc' : 'desc';
+            rows.sort((a, b) => {
+                const ax = a.cells[column].textContent.toLowerCase();
+                const bx = b.cells[column].textContent.toLowerCase();
+                return (ax > bx) ? (dir === 'asc' ? 1 : -1) : (ax < bx ? (dir === 'asc' ? -1 : 1) : 0);
+            });
+            rows.forEach(row => table.appendChild(row)); // Re-add sorted rows
+            this.asc = !this.asc; // Toggle sort direction
+        }
+    </script>
+
+</body>
+
+</html>
