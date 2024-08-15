@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Dynamic FAQ Page</title>
+<style>
+body {
+  font-family: 'Arial', sans-serif;
+  background-color: #f4f4f9;
+  margin: 0;
+  padding: 20px;
+  color: #333;
+}
+h1 {
+  text-align: center;
+  color: #2a2a72;
+}
+.category-container {
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 30px;
+}
+.category-title {
+  font-size: 1.5em;
+  font-weight: bold;
+  color: #2a2a72;
+  margin-bottom: 15px;
+}
+.question {
+  font-size: 1.1em;
+  cursor: pointer;
+  margin-bottom: 10px;
+  padding: 10px;
+  background-color: #e9ecef;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+.question:hover {
+  background-color: #dde;
+}
+.answer {
+  font-size: 0.9em;
+  display: none;
+  padding: 10px;
+  margin-top: 5px;
+  margin-left: 20px;
+  margin-bottom: 15px;
+  border-left: 3px solid #2a2a72;
+  background-color: #f8f9fa;
+  border-radius: 5px;
+}
+</style>
+</head>
+<body>
+
+  <h1>Frequently Asked Questions</h1>
+
+  <div id="faq-container"></div>
+
+<script>
+  const sheetUrl = 'https://corsproxy.io/?' + 'https://docs.google.com/spreadsheets/d/1C7vKA0lGNKImtAK4-2TpudNqkcp_6A3otl7rcbutDBQ/gviz/tq?tqx=out:csv&sheet=Sheet1';
+
+  fetch(sheetUrl)
+    .then(res => res.text())
+    .then(csv => {
+      const data = parseCSV(csv);
+      displayFAQ(data);
+    })
+    .catch(error => {
+      console.error("Error fetching data:", error);
+    });
+
+  function parseCSV(csv) {
+    console.log(csv);
+    const lines = csv.split('\n');
+    const data = [];
+    for (let i = 1; i < lines.length; i++) { 
+      const row = lines[i].split('","');
+        
+      data.push({
+        question: row[0]?.trim().replaceAll('"',''), 
+        answer: row[1]?.trim().replaceAll('"',''),   
+        category: row[2]?.trim().replaceAll('"','')  
+      });
+    }
+    return data;
+  }
+
+  function displayFAQ(data) {
+    const faqContainer = document.getElementById('faq-container');
+    const categories = {};
+
+    data.forEach(item => {
+      const category = item.category;
+      if (!categories[category]) {
+        categories[category] = [];
+      }
+      categories[category].push({
+        question: item.question,
+        answer: item.answer
+      });
+    });
+
+    const sortedCategories = Object.keys(categories).sort().reverse();
+
+    sortedCategories.forEach(category => {
+      const categoryDiv = document.createElement('div');
+      categoryDiv.classList.add('category-container');
+
+      const title = document.createElement('h2');
+      title.classList.add('category-title');
+      title.textContent = category;
+      categoryDiv.appendChild(title);
+
+      categories[category].forEach(qa => {
+        const questionDiv = document.createElement('div');
+        questionDiv.classList.add('question');
+        questionDiv.textContent = qa.question;
+
+        const answerDiv = document.createElement('div');
+        answerDiv.classList.add('answer');
+        answerDiv.textContent = qa.answer;
+
+        questionDiv.addEventListener('click', () => {
+          answerDiv.style.display = answerDiv.style.display === 'none' ? 'block' : 'none';
+        });
+
+        categoryDiv.appendChild(questionDiv);
+        categoryDiv.appendChild(answerDiv);
+      });
+
+      faqContainer.appendChild(categoryDiv);
+    });
+  }
+</script>
+
+</body>
+</html>
