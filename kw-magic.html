@@ -8,9 +8,55 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
+        #navbar a i {
+            margin-right: 10px;
+            /* Adjust spacing as needed */
+        }
+
+        #navbar {
+            width: 200px;
+            background-color: #004c9d;
+            color: white;
+            padding: 10px;
+            position: fixed;
+            height: 100%;
+            overflow-y: auto;
+            border-radius: 10px;
+            transition: width 0.3s;
+            /* Add a transition for smooth width change */
+        }
+
+        #navbar img {
+            display: block;
+            width: 150px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        #navbar a {
+            display: block;
+            padding: 10px 15px;
+            color: white;
+            text-decoration: none;
+            transition: background-color 0.3s;
+        }
+
+        #navbar a:hover {
+            background-color: #0056b3;
+        }
+
+        /* Adjust main content area to accommodate the navbar */
+        #main-content {
+            flex: 1;
+            /* Allow main content to take up remaining space */
+            margin-left: 240px;
+            /* Adjust margin to create space for navbar */
+            padding: 20px;
+        }
+
         body {
             font-family: 'Roboto', sans-serif;
-            margin: 20px;
+            margin: 10px;
             background-color: #fbf7f5;
             color: #333;
         }
@@ -57,7 +103,7 @@
             background-color: #004c9d;
             position: sticky;
             color: white;
-            top: 10px; 
+            top: 10px;
         }
 
         .error {
@@ -135,88 +181,124 @@
             /* Optional: Adjust font size as needed */
         }
     </style>
+    <link rel="icon"
+        href="https://mediaonemarketing.com.sg/wp-content/uploads/2023/11/cropped-MediaOne-M-favicon-logo-32x32.png"
+        sizes="32x32">
 </head>
 
 <body>
-    <div class="header-container">
-        <img src="https://mediaonemarketing.com.sg/wp-content/uploads/2019/10/mediaone-seo-agency-logo.jpeg"
+    <nav id="navbar">
+        <img src="https://static.mycareersfuture.gov.sg/images/company/logos/a42a0e5029fd642119584ecdc6218b3a/MEDIAONE%20BUSINESS%20GROUP%20PTE.%20LTD..png"
             alt="MediaOne SEO Agency Logo">
-        <h1>KW Magic</h1>
-    </div>
-    <hr>
-
-    <!-- Input Form for User Data -->
-    <form id="seoForm">
-        <div>
-            <label for="domain">Targeted Domain:</label>
-            <input type="url" id="domain" name="domain" required placeholder="https://example.com">
-            <span class="error" id="domainError"></span>
+        <a href="#keywordAnalysis"><i class="fas fa-chart-bar"></i> <span>Keyword Analysis</span></a>
+        <a href="#technicalSeo"><i class="fas fa-tools"></i> <span>Technical SEO</span></a>
+        <a href="#socialAudit"><i class="fas fa-share-alt"></i><span>Social Media Audit</span></a>
+        <a href="#SEM"><i class="fas fa-ad"></i> <span>SEM</span></a>
+        <a href="#contentGenerator"><i class="fas fa-pen"></i> <span>Content Generator</span></a>
+        <a href=""><i class="fas fa-user"></i> <span>Account</span></a>
+    </nav>
+    <div id="main-content">
+        <div class="header-container">
+            <h1>MediaOne Magic</h1>
         </div>
-        <div>
-            <label for="location">Targeted Location or Country:</label>
-            <select id="location" name="location" required>
-                <option value="">Select a location</option>
-                <option value="Singapore">Singapore</option>
-                <option value="Malaysia">Malaysia</option>
-                <option value="Thailand">Thailand</option>
-                <option value="India">India</option>
-                <option value="United States">United States</option>
-                <option value="Indonesia">Indonesia</option>
-            </select>
-        </div><br>
-        <div>
-            <label for="keywords">Keyword(s) of Interest (comma or newline separated):</label><br>
-            <textarea id="keywords" name="keywords" required placeholder="keyword1, keyword2"></textarea>
-            <span class="error" id="keywordsError"></span>
+        <hr>
+
+        <!-- Input Form for User Data -->
+        <form id="seoForm">
+            <div>
+                <label for="domain">Targeted Domain:</label>
+                <input type="url" id="domain" name="domain" required placeholder="https://example.com">
+                <span class="error" id="domainError"></span>
+            </div>
+            <div>
+                <label for="location">Targeted Location or Country:</label>
+                <select id="location" name="location" required>
+                    <option value="">Select a location</option>
+                    <option value="Singapore">Singapore</option>
+                    <option value="Malaysia">Malaysia</option>
+                    <option value="Thailand">Thailand</option>
+                    <option value="India">India</option>
+                    <option value="United States">United States</option>
+                    <option value="Indonesia">Indonesia</option>
+                </select>
+            </div><br>
+            <div>
+                <label for="keywords">Keyword(s) of Interest (comma or newline separated):</label><br>
+                <textarea id="keywords" name="keywords" required placeholder="keyword1, keyword2"></textarea>
+                <span class="error" id="keywordsError"></span>
+            </div>
+
+            <button type="button" onclick="validateAndSubmit()">Analyze</button>
+            <button type="button" onclick="">Generate Similar Keywords</button>
+            <button type="button" onclick="">Get Ranking Keywords on Domain</button>
+
+        </form>
+        <hr>
+        <button class="collapsible">Meta Data</button>
+        <div class="content" id="metaData">
+            <p>Meta Title: <span id="metaTitle">-</span></p>
+            <p>Meta Description: <span id="metaDescription">-</span></p>
+
         </div>
 
-        <button type="button" onclick="validateAndSubmit()">Analyze</button>
-        <button type="button" onclick="">Generate Similar Keywords</button>
-        <button type="button" onclick="">Get Ranking Keywords on Domain</button>
+        <button class="collapsible">Domain Metrics (DA, PA, PageSpeed)</button>
+        <div class="content" id="domainMetrics">
+            <p>Domain Authority (DA): <span id="da">-</span></p>
+            <p>Page Authority (PA): <span id="pa">-</span></p>
+            <p>Google PageSpeed: <span id="pagespeed">-</span></p>
+            <p>Backlinks Spam Score: <span id="spamScore">-</span></p>
+            <p>Backlinks: <span id="backlinks">-</span></p>
+            <p>Referring Domains: <span id="refDomains">-</span></p>
+            <p>Page Word Count: <span id="wordCount">-</span></p>
+            <p>Domain Rank: <span id="domainRank">-</span></p>
 
-    </form>
-    <hr>
-    <button class="collapsible">Meta Data</button>
-    <div class="content" id="metaData">
-        <p>Meta Title: <span id="metaTitle">-</span></p>
-        <p>Meta Description: <span id="metaDescription">-</span></p>
+        </div>
 
+        <!-- Section for Displaying Results -->
+        <hr>
+        <button class="collapsible">Keyword Analysis</button>
+        <div class="content" id="keywordAnalysis">
+            <section id="results">
+                <table id="keywordResultsHeader">
+                    <thead>
+                        <tr>
+                            <th>Keyword <button class="sort-button" onclick="sortTable(0)">Sort</button></th>
+                            <th>Rank <button class="sort-button" onclick="sortTable(1)">Sort</button></th>
+                            <th>Search Volume <buttonon class="sort-button" onclick="sortTable(2)">Sort</button></th>
+                            <th>KW Difficulty <button class="sort-button" onclick="sortTable(3)">Sort</button></th>
+                            <th>Time to Rank <button class="sort-button" onclick="sortTable(4)">Sort</button></th>
+                            <th>Location <button class="sort-button" onclick="sortTable(5)">Sort</button></th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="keywordResults">
+                        <!-- Dynamic content will be filled here -->
+                    </tbody>
+                </table>
+                <br>
+                <button id="downloadCSV">Download CSV</button>
+                <hr>
+        </div>
+        <hr>
+        <button class="collapsible">Technical SEO</button>
+        <div class="content" id="technicalSEO">
+
+        </div>
+        <hr>
+        <button class="collapsible">Social Media Audit</button>
+        <div class="content" id="socialAudit">
+        </div>
+
+        <hr>
+        <button class="collapsible">SEM</button>
+        <div class="content" id="SEM">
+        </div>
+
+        <hr>
+        <button class="collapsible">Content Generator</button>
+        <div class="content" id="contentGenerator">
+        </div>
     </div>
-
-    <button class="collapsible">Domain Metrics (DA, PA, PageSpeed)</button>
-    <div class="content" id="domainMetrics">
-        <p>Domain Authority (DA): <span id="da">-</span></p>
-        <p>Page Authority (PA): <span id="pa">-</span></p>
-        <p>Google PageSpeed: <span id="pagespeed">-</span></p>
-        <p>Backlinks Spam Score: <span id="spamScore">-</span></p>
-        <p>Backlinks: <span id="backlinks">-</span></p>
-        <p>Referring Domains: <span id="refDomains">-</span></p>
-        <p>Page Word Count: <span id="wordCount">-</span></p>
-        <p>Domain Rank: <span id="domainRank">-</span></p>
-
-    </div>
-
-    <!-- Section for Displaying Results -->
-    <hr>
-    <section id="results">
-        <h2>Keyword Analysis</h2>
-        <table id="keywordResultsHeader">
-            <thead>
-                <tr>
-                    <th>Keyword <button class="sort-button" onclick="sortTable(0)">Sort</button></th>
-                    <th>Ranking Position <button class="sort-button" onclick="sortTable(1)">Sort</button></th>
-                    <th>Search Volume <button class="sort-button" onclick="sortTable(2)">Sort</button></th>
-                    <th>Keyword Difficulty <button class="sort-button" onclick="sortTable(3)">Sort</button></th>
-                    <th>Estimated Time to Rank <button class="sort-button" onclick="sortTable(4)">Sort</button></th>
-                    <th>Location <button class="sort-button" onclick="sortTable(5)">Sort</button></th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="keywordResults">
-                <!-- Dynamic content will be filled here -->
-            </tbody>
-        </table>
-    </section>
 
     <!-- JavaScript to Handle API Requests and Display Results -->
     <script>
@@ -307,14 +389,44 @@
             const table = document.getElementById("keywordResults");
             const rows = Array.from(table.rows);
             const dir = this.asc ? 'asc' : 'desc';
+
             rows.sort((a, b) => {
-                const ax = a.cells[column].textContent.toLowerCase();
-                const bx = b.cells[column].textContent.toLowerCase();
+                // **Convert cell content to numbers before comparison:**
+                const ax = parseFloat(a.cells[column].textContent) || 0; // Use parseFloat for numbers, 0 for non-numeric
+                const bx = parseFloat(b.cells[column].textContent) || 0;
+
                 return (ax > bx) ? (dir === 'asc' ? 1 : -1) : (ax < bx ? (dir === 'asc' ? -1 : 1) : 0);
             });
-            rows.forEach(row => table.appendChild(row)); // Re-add sorted rows
-            this.asc = !this.asc; // Toggle sort direction
+
+            rows.forEach(row => table.appendChild(row));
+            this.asc = !this.asc;
         }
+
+        function downloadTableAsCSV() {
+            const table = document.getElementById("keywordResultsHeader");
+            const rows = Array.from(table.querySelectorAll("tr")); // Select all rows
+
+            // Construct the CSV content
+            let csvContent = "data:text/csv;charset=utf-8,";
+            rows.forEach(row => {
+                // Select cells, excluding the last one (Action column)
+                const cells = Array.from(row.querySelectorAll("th, td:not(:last-child)"));
+                csvContent += cells.map(cell => `"${cell.textContent.trim().replace(/"/g, '""')}"`).join(",") + "\n";
+            });
+
+            // Create a hidden link element and trigger a click to download
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "keyword_analysis.csv");
+            document.body.appendChild(link); // Required for Firefox
+
+            link.click(); // This will download the data file
+            document.body.removeChild(link); // Cleanup 
+        }
+
+        // Attach the download function to the button
+        document.getElementById("downloadCSV").addEventListener("click", downloadTableAsCSV);
     </script>
 
 </body>

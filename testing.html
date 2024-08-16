@@ -1,16 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MediaOne FAQ</title>
     <style>
         body {
-          font-family: Arial, sans-serif;
-          background-color: #f4f4f9;
-          margin: 0;
-          padding: 20px;
-          color: #333;
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+            color: #333;
         }
 
         h1 {
@@ -21,7 +22,7 @@
             background: white;
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             width: auto;
             margin: 0 auto;
         }
@@ -65,7 +66,8 @@
             word-wrap: break-word;
         }
 
-        #base64, #consultant {
+        #base64,
+        #consultant {
             display: none;
         }
     </style>
@@ -88,17 +90,15 @@
             document.getElementById('consultant').innerText = text;
         }
 
-        window.onload = function() {
+        window.onload = function () {
             readFile();
             readConsultantFile();
         };
 
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('queryForm').addEventListener('submit', function(event) {
+        document.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('queryForm').addEventListener('submit', function (event) {
                 event.preventDefault();
-
                 document.getElementById('apiResponse').textContent = 'Processing your request...';
-
                 var question = document.getElementById('question').value;
                 var website = document.getElementById('website').value || "N/A";
                 var database = document.getElementById('base64').innerText;
@@ -111,7 +111,7 @@
                         {
                             "parts": [
                                 {
-                                    "text": "Parse the output nicely in text only without any additional asterisks and do not mention the csv files. You are client whose website is "+website+". Based on the attached csv, answer the following question concisely. If the csv does not contain the answer, try to answer it using external knowledge. If you do not know the answer, reply 'I don't know the answer, please drop us an email on your query!': " + question 
+                                    "text": "Parse the output nicely in text only without any additional asterisks and do not mention the csv files. You are client whose website is " + website + ". Based on the attached csv, answer the following question concisely. If the csv does not contain the answer, try to answer it using external knowledge. If you do not know the answer, reply 'I don't know the answer, please drop us an email on your query!': " + question
                                 },
                                 {
                                     "inlineData": {
@@ -141,18 +141,42 @@
                     headers: headers,
                     body: JSON.stringify(queryString)
                 })
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('apiResponse').textContent = data.candidates[0].content.parts[0].text;
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    document.getElementById('apiResponse').textContent = "Failed to get response.";
-                });
+                    .then(response => response.json())
+                    .then(data => {
+                        var apiResponseText = data.candidates[0].content.parts[0].text;
+                        document.getElementById('apiResponse').textContent = apiResponseText;
+                        return apiResponseText;
+                    })
+                    .then(responseText => {
+                        // Post to Google Sheet
+                        var postData = JSON.stringify({ question: question, website: website, response: responseText });
+                        fetch('https://proxy.cors.sh/'+'https://script.google.com/a/macros/mediaone.co/s/AKfycbzxDmCcpWcbhY2Ph1AszUEH3QtYuZhtj1Ev_w0uqFD5tNZ6YWZ5Wr-KrN2uWWJOEzs/exec', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: postData
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        document.getElementById('apiResponse').textContent = "Failed to get response.";
+                        // Even if error, send data to Google Sheet
+                        var postData = JSON.stringify({ question: question, website: website, response: 'Error getting response' });
+                        fetch('https://proxy.cors.sh/'+'https://script.google.com/a/macros/mediaone.co/s/AKfycbzxDmCcpWcbhY2Ph1AszUEH3QtYuZhtj1Ev_w0uqFD5tNZ6YWZ5Wr-KrN2uWWJOEzs/exec', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: postData
+                        });
+                    });
             });
         });
+
     </script>
 </head>
+
 <body>
     <h1>MediaOne FAQ</h1>
     <form id="queryForm">
@@ -171,4 +195,5 @@
     <p id="base64"></p>
     <p id="consultant"></p>
 </body>
+
 </html>

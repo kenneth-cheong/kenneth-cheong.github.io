@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEO Report Dashboard</title>
+    <style>
+       body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f9;
+            margin: 10px;
+            padding: 0;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .login-container,
+        .content-container {
+            display: none;
+            flex-direction: column;
+            width: 100%; /* Ensuring it uses full width */
+            max-width: 100%; /* Removing max width limitation */
+            height: 100%; /* Use full viewport height for the content */
+        }
+
+        .visible {
+            display: flex;
+        }
+
+        input,
+        button {
+            padding: 10px;
+            margin: 10px;
+            width: calc(100% - 20px); /* Adjust width to allow for padding */
+        }
+
+        .navbar {
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            width: 100%;
+        }
+
+        .navbar a {
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            transition: background 0.3s ease;
+        }
+
+        .navbar a:hover {
+            background-color: #555;
+        }
+
+        #iframe-container {
+            padding: 0;
+            background: white;
+            margin: 0;
+            width: 100%; /* Full width */
+            height: 1000px; /* Adjust height accounting for navbar */
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        #faq {
+            padding: 20px;
+            background: white;
+            margin: 5px;
+            border-radius: 8px;
+        }
+
+        .category-container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .category-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #2a2a72;
+            margin-bottom: 15px;
+        }
+
+        .question {
+            font-size: 1.1em;
+            cursor: pointer;
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .question:hover {
+            background-color: #dde;
+        }
+
+        .answer {
+            font-size: 0.9em;
+            display: none;
+            padding: 10px;
+            margin-top: 5px;
+            margin-left: 20px;
+            margin-bottom: 15px;
+            border-left: 3px solid #2a2a72;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container visible">
+        <h1>Login to Access the Dashboard</h1>
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="login()">Login</button>
+    </div>
+
+    <div class="content-container">
+        <div class="navbar">
+            <a href="#dashboard">Dashboard</a>
+            <a href="#faq">FAQ</a>
+        </div>
+
+        <div id="dashboard">
+            <! --<h1>SEO Report</h1>->
+            <div id="iframe-container">
+                <iframe src="https://seo.mm.com.sg/report/10355090/tkn.cb607ef297c17aeb0ccf21c2bedf0505">
+                    Sorry, your browser does not support inline frames.
+                </iframe>
+            </div>
+        </div>
+
+        <div id="faq" style="padding: 20px; background: white; margin: 20px; border-radius: 8px;">
+            <h1>Frequently Asked Questions</h1>
+            <div id="faq-container"></div>
+        </div>
+    </div>
+
+    <script>
+        const sheetUrl = 'https://corsproxy.io/?' + 'https://docs.google.com/spreadsheets/d/1C7vKA0lGNKImtAK4-2TpudNqkcp_6A3otl7rcbutDBQ/gviz/tq?tqx=out:csv&sheet=Sheet1';
+
+        fetch(sheetUrl)
+            .then(res => res.text())
+            .then(csv => {
+                const data = parseCSV(csv);
+                displayFAQ(data);
+            })
+            .catch(error => {
+                console.error("Error fetching data:", error);
+            });
+
+        function parseCSV(csv) {
+            console.log(csv);
+            const lines = csv.split('\n');
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                const row = lines[i].split('","');
+
+                data.push({
+                    question: row[0]?.trim().replaceAll('"', ''),
+                    answer: row[1]?.trim().replaceAll('"', ''),
+                    category: row[2]?.trim().replaceAll('"', '')
+                });
+            }
+            return data;
+        }
+
+        function displayFAQ(data) {
+            const faqContainer = document.getElementById('faq-container');
+            const categories = {};
+
+            data.forEach(item => {
+                const category = item.category;
+                if (!categories[category]) {
+                    categories[category] = [];
+                }
+                categories[category].push({
+                    question: item.question,
+                    answer: item.answer
+                });
+            });
+
+            const sortedCategories = Object.keys(categories).sort().reverse();
+
+            sortedCategories.slice(1).forEach(category => {
+                const categoryDiv = document.createElement('div');
+                categoryDiv.classList.add('category-container');
+
+                const title = document.createElement('h2');
+                title.classList.add('category-title');
+                title.textContent = category;
+                categoryDiv.appendChild(title);
+
+                categories[category].forEach(qa => {
+                    const questionDiv = document.createElement('div');
+                    questionDiv.classList.add('question');
+                    questionDiv.textContent = qa.question;
+
+                    const answerDiv = document.createElement('div');
+                    answerDiv.classList.add('answer');
+                    answerDiv.textContent = qa.answer;
+
+                    questionDiv.addEventListener('click', () => {
+                        answerDiv.style.display = answerDiv.style.display === 'none' ? 'block' : 'none';
+                    });
+
+                    categoryDiv.appendChild(questionDiv);
+                    categoryDiv.appendChild(answerDiv);
+                });
+
+                faqContainer.appendChild(categoryDiv);
+            });
+        }
+        function login() {
+            var username = document.getElementById('username').value;
+            var password = document.getElementById('password').value;
+
+            if (username === 'admin' && password === 'password') { // Replace these with your own credentials
+                document.querySelector('.login-container').classList.remove('visible');
+                document.querySelector('.content-container').classList.add('visible');
+            } else {
+                alert('Invalid credentials!');
+            }
+        }
+    </script>
+</body>
+
+</html>
