@@ -72,6 +72,80 @@
         }
     </style>
     <script>
+  const sheetUrl = 'https://corsproxy.io/?' + 'https://docs.google.com/spreadsheets/d/1C7vKA0lGNKImtAK4-2TpudNqkcp_6A3otl7rcbutDBQ/gviz/tq?tqx=out:csv&sheet=Sheet1';
+
+  fetch(sheetUrl)
+    .then(res => res.text())
+    .then(csv => {
+      const data = parseCSV(csv);
+      displayFAQ(data);
+    })
+    .catch(error => {
+      console.error("Error fetching data:", error);
+    });
+
+  function parseCSV(csv) {
+    console.log(csv);
+    const lines = csv.split('\n');
+    const data = [];
+    for (let i = 1; i < lines.length; i++) { 
+      const row = lines[i].split('","');
+        
+      data.push({
+        question: row[0]?.trim().replaceAll('"',''), 
+        answer: row[1]?.trim().replaceAll('"',''),   
+        category: row[2]?.trim().replaceAll('"','')  
+      });
+    }
+    return data;
+  }
+
+  function displayFAQ(data) {
+    const faqContainer = document.getElementById('faq-container');
+    const categories = {};
+
+    data.forEach(item => {
+      const category = item.category;
+      if (!categories[category]) {
+        categories[category] = [];
+      }
+      categories[category].push({
+        question: item.question,
+        answer: item.answer
+      });
+    });
+
+    const sortedCategories = Object.keys(categories).sort().reverse();
+
+    sortedCategories.slice(1).forEach(category => {
+      const categoryDiv = document.createElement('div');
+      categoryDiv.classList.add('category-container');
+
+      const title = document.createElement('h2');
+      title.classList.add('category-title');
+      title.textContent = category;
+      categoryDiv.appendChild(title);
+
+      categories[category].forEach(qa => {
+        const questionDiv = document.createElement('div');
+        questionDiv.classList.add('question');
+        questionDiv.textContent = qa.question;
+
+        const answerDiv = document.createElement('div');
+        answerDiv.classList.add('answer');
+        answerDiv.textContent = qa.answer;
+
+        questionDiv.addEventListener('click', () => {
+          answerDiv.style.display = answerDiv.style.display === 'none' ? 'block' : 'none';
+        });
+
+        categoryDiv.appendChild(questionDiv);
+        categoryDiv.appendChild(answerDiv);
+      });
+
+      faqContainer.appendChild(categoryDiv);
+    });
+  }
         async function readFile() {
             const response = await fetch('https://kenneth-cheong.github.io/base64.txt');
             if (!response.ok) {
@@ -104,7 +178,7 @@
                 var database = document.getElementById('base64').innerText;
                 var consultantData = document.getElementById('consultant').innerText;
 
-                var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAkYBqT7uSa7BfbeKpb0xBTFrfHeU9oF34";
+                var url = "";
 
                 var queryString = {
                     "contents": [
