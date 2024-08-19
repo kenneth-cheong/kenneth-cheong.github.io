@@ -72,80 +72,97 @@
         }
     </style>
     <script>
-  const sheetUrl = 'https://corsproxy.io/?' + 'https://docs.google.com/spreadsheets/d/1C7vKA0lGNKImtAK4-2TpudNqkcp_6A3otl7rcbutDBQ/gviz/tq?tqx=out:csv&sheet=Sheet1';
 
-  fetch(sheetUrl)
-    .then(res => res.text())
-    .then(csv => {
-      const data = parseCSV(csv);
-      displayFAQ(data);
-    })
-    .catch(error => {
-      console.error("Error fetching data:", error);
-    });
+        let apiKey = null; // Store the API key globally
 
-  function parseCSV(csv) {
-    console.log(csv);
-    const lines = csv.split('\n');
-    const data = [];
-    for (let i = 1; i < lines.length; i++) { 
-      const row = lines[i].split('","');
-        
-      data.push({
-        question: row[0]?.trim().replaceAll('"',''), 
-        answer: row[1]?.trim().replaceAll('"',''),   
-        category: row[2]?.trim().replaceAll('"','')  
-      });
-    }
-    return data;
-  }
+        async function fetchApiKey() {
+            try {
+                const response = await fetch('https://0uecxpfmyc.execute-api.ap-southeast-1.amazonaws.com/new');
+                if (!response.ok) {
+                    throw new Error('Error fetching API key: ' + response.statusText);
+                }
+                const data = await response.json();
+                apiKey = data.apiKey; // Assuming the API returns the key in a property named 'apiKey'
+            } catch (error) {
+                console.error('Error fetching API key:', error);
+                // Handle error, e.g., display an error message to the user
+            }
+        }
 
-  function displayFAQ(data) {
-    const faqContainer = document.getElementById('faq-container');
-    const categories = {};
 
-    data.forEach(item => {
-      const category = item.category;
-      if (!categories[category]) {
-        categories[category] = [];
-      }
-      categories[category].push({
-        question: item.question,
-        answer: item.answer
-      });
-    });
+        const sheetUrl = 'https://corsproxy.io/?' + 'https://docs.google.com/spreadsheets/d/1C7vKA0lGNKImtAK4-2TpudNqkcp_6A3otl7rcbutDBQ/gviz/tq?tqx=out:csv&sheet=Sheet1';
 
-    const sortedCategories = Object.keys(categories).sort().reverse();
+        fetch(sheetUrl)
+            .then(res => res.text())
+            .then(csv => {
+                const data = parseCSV(csv);
+                displayFAQ(data);
+            })
+            .catch(error => {
+                console.error("Error fetching data:", error);
+            });
 
-    sortedCategories.slice(1).forEach(category => {
-      const categoryDiv = document.createElement('div');
-      categoryDiv.classList.add('category-container');
+        function parseCSV(csv) {
+            const lines = csv.split('\n');
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                const row = lines[i].split('","');
 
-      const title = document.createElement('h2');
-      title.classList.add('category-title');
-      title.textContent = category;
-      categoryDiv.appendChild(title);
+                data.push({
+                    question: row[0]?.trim().replaceAll('"', ''),
+                    answer: row[1]?.trim().replaceAll('"', ''),
+                    category: row[2]?.trim().replaceAll('"', '')
+                });
+            }
+            return data;
+        }
 
-      categories[category].forEach(qa => {
-        const questionDiv = document.createElement('div');
-        questionDiv.classList.add('question');
-        questionDiv.textContent = qa.question;
+        function displayFAQ(data) {
+            const faqContainer = document.getElementById('faq-container');
+            const categories = {};
 
-        const answerDiv = document.createElement('div');
-        answerDiv.classList.add('answer');
-        answerDiv.textContent = qa.answer;
+            data.forEach(item => {
+                const category = item.category;
+                if (!categories[category]) {
+                    categories[category] = [];
+                }
+                categories[category].push({
+                    question: item.question,
+                    answer: item.answer
+                });
+            });
 
-        questionDiv.addEventListener('click', () => {
-          answerDiv.style.display = answerDiv.style.display === 'none' ? 'block' : 'none';
-        });
+            const sortedCategories = Object.keys(categories).sort().reverse();
 
-        categoryDiv.appendChild(questionDiv);
-        categoryDiv.appendChild(answerDiv);
-      });
+            sortedCategories.slice(1).forEach(category => {
+                const categoryDiv = document.createElement('div');
+                categoryDiv.classList.add('category-container');
 
-      faqContainer.appendChild(categoryDiv);
-    });
-  }
+                const title = document.createElement('h2');
+                title.classList.add('category-title');
+                title.textContent = category;
+                categoryDiv.appendChild(title);
+
+                categories[category].forEach(qa => {
+                    const questionDiv = document.createElement('div');
+                    questionDiv.classList.add('question');
+                    questionDiv.textContent = qa.question;
+
+                    const answerDiv = document.createElement('div');
+                    answerDiv.classList.add('answer');
+                    answerDiv.textContent = qa.answer;
+
+                    questionDiv.addEventListener('click', () => {
+                        answerDiv.style.display = answerDiv.style.display === 'none' ? 'block' : 'none';
+                    });
+
+                    categoryDiv.appendChild(questionDiv);
+                    categoryDiv.appendChild(answerDiv);
+                });
+
+                faqContainer.appendChild(categoryDiv);
+            });
+        }
         async function readFile() {
             const response = await fetch('https://kenneth-cheong.github.io/base64.txt');
             if (!response.ok) {
@@ -155,18 +172,9 @@
             document.getElementById('base64').innerText = text;
         }
 
-        async function readConsultantFile() {
-            const response = await fetch('https://kenneth-cheong.github.io/consultant.txt');
-            if (!response.ok) {
-                throw new Error('Network response was not ok ' + response.statusText);
-            }
-            const text = await response.text();
-            document.getElementById('consultant').innerText = text;
-        }
-
         window.onload = function () {
             readFile();
-            readConsultantFile();
+            fetchApiKey(); 
         };
 
         document.addEventListener('DOMContentLoaded', function () {
@@ -174,18 +182,15 @@
                 event.preventDefault();
                 document.getElementById('apiResponse').textContent = 'Processing your request...';
                 var question = document.getElementById('question').value;
-                var website = document.getElementById('website').value || "N/A";
                 var database = document.getElementById('base64').innerText;
-                var consultantData = document.getElementById('consultant').innerText;
 
-                var url = "";
-
+                var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
                 var queryString = {
                     "contents": [
                         {
                             "parts": [
                                 {
-                                    "text": "Parse the output nicely in text only without any additional asterisks and do not mention the csv files. You are client whose website is " + website + ". Based on the attached csv, answer the following question concisely. If the csv does not contain the answer, try to answer it using external knowledge. If you do not know the answer, reply 'I don't know the answer, please drop us an email on your query!': " + question
+                                    "text": "Parse the output nicely in text only without any additional asterisks and do not mention the csv files. Based on the attached csv, answer the following question concisely as a friendly service provider. If the csv does not contain the answer, try to answer it using external knowledge. If you do not know the answer, reply 'I don't know the answer, please drop us an email on your query!': " + question
                                 },
                                 {
                                     "inlineData": {
@@ -193,12 +198,6 @@
                                         "data": database
                                     }
                                 },
-                                {
-                                    "inlineData": {
-                                        "mimeType": "text/plain",
-                                        "data": consultantData
-                                    }
-                                }
                             ],
                             "role": "user"
                         }
@@ -223,8 +222,8 @@
                     })
                     .then(responseText => {
                         // Post to Google Sheet
-                        var postData = JSON.stringify({ question: question, website: website, response: responseText });
-                        fetch('https://proxy.cors.sh/'+'https://script.google.com/a/macros/mediaone.co/s/AKfycbzxDmCcpWcbhY2Ph1AszUEH3QtYuZhtj1Ev_w0uqFD5tNZ6YWZ5Wr-KrN2uWWJOEzs/exec', {
+                        var postData = JSON.stringify({"question": question, "answer": responseText });
+                        fetch('https://2n915q607f.execute-api.ap-southeast-1.amazonaws.com/new', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -236,8 +235,8 @@
                         console.error('Error:', error);
                         document.getElementById('apiResponse').textContent = "Failed to get response.";
                         // Even if error, send data to Google Sheet
-                        var postData = JSON.stringify({ question: question, website: website, response: 'Error getting response' });
-                        fetch('https://proxy.cors.sh/'+'https://script.google.com/a/macros/mediaone.co/s/AKfycbzxDmCcpWcbhY2Ph1AszUEH3QtYuZhtj1Ev_w0uqFD5tNZ6YWZ5Wr-KrN2uWWJOEzs/exec', {
+                        var postData = JSON.stringify({ "question": question, "answer": responseText });
+                        fetch('https://2n915q607f.execute-api.ap-southeast-1.amazonaws.com/new', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
@@ -256,10 +255,6 @@
     <form id="queryForm">
         <label for="question">Your question:</label>
         <input type="text" id="question" name="question" required>
-
-        <label for="website">Your website (optional):</label>
-        <input type="text" id="website" name="website">
-
         <button type="submit">Submit</button>
     </form>
 
@@ -267,7 +262,6 @@
     <p id="apiResponse">Enter your question and hit Enter or click 'Submit'!</p>
 
     <p id="base64"></p>
-    <p id="consultant"></p>
 </body>
 
 </html>
