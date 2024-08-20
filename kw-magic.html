@@ -9,12 +9,12 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
         #navbar a i {
-            margin-right: 10px;
+            margin-right: 5%;
             /* Adjust spacing as needed */
         }
 
         #navbar {
-            width: 200px;
+            width: 15%;
             background-color: #004c9d;
             color: white;
             padding: 10px;
@@ -23,14 +23,34 @@
             overflow-y: auto;
             border-radius: 10px;
             transition: width 0.3s;
-            /* Add a transition for smooth width change */
+        }
+
+        /* Styles for smaller screens (e.g., mobile) */
+        @media screen and (max-width: 768px) { 
+            #navbar {
+                width: 60px; /* Reduced width for smaller screens */
+            }
+
+            #navbar img {
+                width: 100%; /* Smaller logo */
+            }
+
+            #navbar span { 
+                display: none; /* Hide text labels */
+            }
+
+            #main-content {
+                margin-left: 80px; /* Adjusted margin for smaller navbar */
+            }
         }
 
         #navbar img {
             display: block;
-            width: 150px;
+            width: 80%;
             margin-left: auto;
             margin-right: auto;
+            margin-bottom: 10%;
+            margin-top: 10%;
         }
 
         #navbar a {
@@ -49,7 +69,7 @@
         #main-content {
             flex: 1;
             /* Allow main content to take up remaining space */
-            margin-left: 240px;
+            margin-left: 17%;
             /* Adjust margin to create space for navbar */
             padding: 20px;
         }
@@ -74,11 +94,11 @@
         }
 
         input {
-            min-width: 61%;
+            min-width: 90%;
         }
 
         textarea {
-            min-width: 75%;
+            min-width: 90%;
             min-height: 150px;
         }
 
@@ -129,6 +149,10 @@
             background-color: #0056b3;
         }
 
+        .collapsible-loading {
+            background-color: #ffad33;
+        }
+
         .content {
             display: none;
             padding: 20px;
@@ -155,6 +179,7 @@
         hr {
             border-top: 4px solid rgb(95, 103, 154);
             border-radius: 7px;
+            width: 100%;
         }
 
         .header-container {
@@ -180,6 +205,95 @@
             font-size: 36px;
             /* Optional: Adjust font size as needed */
         }
+
+        #keywordListContainer {
+            display: flex;
+            /* Enable Flexbox layout for columns */
+            flex-direction: column;
+            /* Stack columns vertically */
+            max-width: 100%;
+            padding: 2px;
+            margin-left: 20px;
+        }
+
+        #keywordListContainer h3 {
+            font-size: 1em;
+            margin-top: 0;
+            /* Reduce default margin */
+        }
+
+        .keyword-row {
+            /* Style each row */
+            display: flex;
+            /* Use Flexbox for each row */
+            align-items: center;
+            /* Vertically center content in each row */
+            margin-bottom: 5px;
+            max-width: 90%;
+        }
+
+        .keyword-column {
+            /* Style for each column */
+            flex: 1;
+            /* Each column takes equal width */
+            margin-right: 5px;
+            /* Space between columns */
+        }
+
+        .keyword-column:nth-child(1) {
+            /* Keyword column */
+            flex: 0 0 50%;
+        }
+
+        .keyword-column:nth-child(2) {
+            /* Search Volume column */
+            flex: 0 0 20%;
+        }
+
+        .keyword-column:nth-child(3) {
+            /* Difficulty column */
+            flex: 0 0 10%;
+        }
+
+        .checkbox-column {
+            flex: 0 0 5%;
+            margin-right: 0;
+        }
+
+        .column {
+            float: left;
+            width: 50%;
+        }
+
+        ul {
+            max-height: 365px;
+            overflow: auto;
+            width: 100%;
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            background-color: Window;
+        }
+
+        li {
+            margin: 5px;
+            padding: 0px;
+            align-items: left;
+        }
+
+        label {
+            display: block;
+            color: WindowText;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+        }
+
+        label:hover {
+            background-color: #0056b3;
+            color: white;
+        }
     </style>
     <link rel="icon"
         href="https://mediaonemarketing.com.sg/wp-content/uploads/2023/11/cropped-MediaOne-M-favicon-logo-32x32.png"
@@ -204,44 +318,63 @@
         <hr>
 
         <!-- Input Form for User Data -->
-        <form id="seoForm">
-            <div>
-                <label for="domain">Targeted Domain:</label>
-                <input type="url" id="domain" name="domain" required placeholder="https://example.com">
-                <span class="error" id="domainError"></span>
-            </div>
-            <div>
-                <label for="location">Targeted Location or Country:</label>
-                <select id="location" name="location" required>
-                    <option value="">Select a location</option>
-                    <option value="Singapore">Singapore</option>
-                    <option value="Malaysia">Malaysia</option>
-                    <option value="Thailand">Thailand</option>
-                    <option value="India">India</option>
-                    <option value="United States">United States</option>
-                    <option value="Indonesia">Indonesia</option>
-                </select>
-            </div><br>
-            <div>
-                <label for="keywords">Keyword(s) of Interest (comma or newline separated):</label><br>
-                <textarea id="keywords" name="keywords" required placeholder="keyword1, keyword2"></textarea>
-                <span class="error" id="keywordsError"></span>
-            </div>
+        <div class="column">
+            <form id="seoForm">
+                <div>
+                    <label for="domain">Targeted Domain:</label>
+                    <input type="url" id="domain" name="domain" required placeholder="with https and www if applicable">
+                    <span class="error" id="domainError"></span>
+                </div>
+                <div>
+                    <label for="location">Targeted Location or Country:</label>
+                    <select id="location" name="location" required>
+                        <option value="">Select a location</option>
+                        <option value="Singapore">Singapore</option>
+                        <option value="Malaysia">Malaysia</option>
+                        <option value="Thailand">Thailand</option>
+                        <option value="India">India</option>
+                        <option value="United States">United States</option>
+                        <option value="Indonesia">Indonesia</option>
+                    </select>
+                </div><br>
+                <div>
+                    <label for="keywords">Keyword(s) of Interest (comma or newline separated):</label><br>
+                    <textarea id="keywords" name="keywords" required placeholder="keyword1, keyword2"></textarea>
+                    <span class="error" id="keywordsError"></span>
+                </div>
 
-            <button type="button" onclick="validateAndSubmit()">Analyze</button>
-            <button type="button" onclick="">Generate Similar Keywords</button>
-            <button type="button" onclick="">Get Ranking Keywords on Domain</button>
+                <button type="button" id="analyze" onclick="validateAndSubmit()">Analyze</button>
+                <button type="button" id = "similar" onclick="similarKeywords()">Generate Similar Keywords</button>
+                <button type="button" onclick="">Get Ranking Keywords on Domain</button>
 
-        </form>
+            </form>
+        </div>
+
+
+        <div class="column">
+
+            <div id="keywordListContainer">
+                <h3>Keyword Suggestions:</h3>
+                <div class="keyword-row" id="keywordHeaderRow">
+                    <div class="keyword-column"><strong>Keyword</strong></div>
+                    <div class="keyword-column"><strong>Search Vol</strong></div>
+                    <div class="keyword-column"><strong>Difficulty</strong></div>
+                    <div class="checkbox-column"></div><strong>Choose</strong>
+                </div>
+                <ul id="keywordList">
+                </ul>
+            </div>
+        </div>
+
         <hr>
-        <button class="collapsible">Meta Data</button>
+        <button class="collapsible" id="meta_data">Meta Data</button>
         <div class="content" id="metaData">
             <p>Meta Title: <span id="metaTitle">-</span></p>
             <p>Meta Description: <span id="metaDescription">-</span></p>
 
         </div>
 
-        <button class="collapsible">Domain Metrics (DA, PA, PageSpeed)</button>
+        <button class="collapsible" id="domain_metrics">Domain Metrics (DA, PA, PageSpeed)</button>
         <div class="content" id="domainMetrics">
             <p>Domain Authority (DA): <span id="da">-</span></p>
             <p>Page Authority (PA): <span id="pa">-</span></p>
@@ -264,7 +397,7 @@
                         <tr>
                             <th>Keyword <button class="sort-button" onclick="sortTable(0)">Sort</button></th>
                             <th>Rank <button class="sort-button" onclick="sortTable(1)">Sort</button></th>
-                            <th>Search Volume <buttonon class="sort-button" onclick="sortTable(2)">Sort</button></th>
+                            <th>Search Volume <button class="sort-button" onclick="sortTable(2)">Sort</button></th>
                             <th>KW Difficulty <button class="sort-button" onclick="sortTable(3)">Sort</button></th>
                             <th>Time to Rank <button class="sort-button" onclick="sortTable(4)">Sort</button></th>
                             <th>Location <button class="sort-button" onclick="sortTable(5)">Sort</button></th>
@@ -302,6 +435,113 @@
 
     <!-- JavaScript to Handle API Requests and Display Results -->
     <script>
+
+        let DFSapiKey = null; // Store the API key globally
+
+        async function fetchApiKey() {
+            try {
+                const response = await fetch('https://w27787oos5.execute-api.ap-southeast-1.amazonaws.com/new');
+                if (!response.ok) {
+                    throw new Error('Error fetching API key: ' + response.statusText);
+                }
+                const data = await response.json();
+                DFSapiKey = data.apiKey; // Assuming the API returns the key in a property named 'apiKey'
+            } catch (error) {
+                console.error('Error fetching API key:', error);
+                // Handle error, e.g., display an error message to the user
+            }
+        }
+        window.onload = function () {
+            fetchApiKey();
+        };
+
+        function similarKeywords() {
+            const keywordsInput = document.getElementById('keywords').value.split(/[\n,]+/).map(k => k.trim());
+            const location = document.getElementById('location').value;
+            document.getElementById('similar').innerText = "Generating...";
+
+            var url = "https://api.dataforseo.com/v3/keywords_data/google_ads/keywords_for_keywords/live";
+            var queryString = [{
+                "keywords": keywordsInput,
+                "location_name": location,
+                "sort_by": "search_volume" 
+            }];
+            var headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Authorization": DFSapiKey
+            };
+            fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(queryString)
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Similar Keywords:", data); 
+                    displaySimilarKeywords(data.tasks[0].result); 
+                    document.getElementById('similar').innerText = "Generate Similar Keywords";
+                })
+                .catch(error => {
+                    console.error("Error fetching data:", error);
+                    document.getElementById('similar').innerText = "Generate Similar Keywords";
+                });
+        }
+
+        // Function to display in the Keyword Suggestions table
+        function displaySimilarKeywords(keywordsData) {
+            const keywordList = document.getElementById('keywordList');
+            keywordList.innerHTML = ''; // Clear previous keywords
+
+            const headerCells = Array.from(document.querySelectorAll('#keywordHeaderRow .keyword-column'));
+
+            keywordsData.forEach((keywordObj, index) => {
+                const listItem = document.createElement('li');
+                listItem.classList.add('keyword-row');
+
+                // Keyword column
+                const keywordDiv = document.createElement('div');
+                keywordDiv.classList.add('keyword-column');
+                keywordDiv.style.width = `${headerCells[0].offsetWidth}px`; 
+                keywordDiv.textContent = keywordObj.keyword;
+                listItem.appendChild(keywordDiv);
+
+                // Search Volume column
+                const searchVolumeDiv = document.createElement('div');
+                searchVolumeDiv.classList.add('keyword-column');
+                searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`; 
+                searchVolumeDiv.textContent = keywordObj.search_volume || '-'; 
+                listItem.appendChild(searchVolumeDiv);
+
+                // Difficulty column
+                const difficultyDiv = document.createElement('div');
+                difficultyDiv.classList.add('keyword-column');
+                difficultyDiv.style.width = `${headerCells[2].offsetWidth}px`; 
+                difficultyDiv.textContent = keywordObj.competition || '-'; // Assuming 'competition' is the difficulty key
+                listItem.appendChild(difficultyDiv);
+
+                // Checkbox column (keep existing style)
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.classList.add('checkbox-column');
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.name = `chk${index + 1}`;
+                checkbox.id = `chk${index + 1}`;
+                checkbox.value = keywordObj.keyword; 
+                checkbox.checked = false;
+                checkboxDiv.appendChild(checkbox);
+                listItem.appendChild(checkboxDiv);
+
+                keywordList.appendChild(listItem);
+            });
+        }
+
         function validateAndSubmit() {
             const domain = document.getElementById('domain').value;
             const keywordsInput = document.getElementById('keywords').value;
@@ -324,17 +564,132 @@
             }
 
             const keywords = keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+
+            document.getElementById('metaTitle').innerText = "";
+            document.getElementById('metaDescription').innerText = "";
+            document.getElementById('wordCount').innerText = "";
+            document.getElementById('da').innerText = "";
+            document.getElementById('pa').innerText = "";
+            document.getElementById('spamScore').innerText = "";
+            document.getElementById('pagespeed').innerText = '-/100';
+            document.getElementById('backlinks').innerText = "";
+            document.getElementById('refDomains').innerText = "";
+
             fetchDomainMetrics(domain);
             processKeywords(keywords, location);
         }
 
         function fetchDomainMetrics(domain) {
+            document.getElementById('analyze').innerText = "Analyzing...";
+
             console.log("Fetching Domain Metrics...");
-            setTimeout(() => {
-                document.getElementById('da').innerText = '50';
-                document.getElementById('pa').innerText = '45';
-                document.getElementById('pagespeed').innerText = '89/100';
-            }, 1000);
+
+            document.getElementById("domain_metrics").style.backgroundColor = "orange";
+            document.getElementById("meta_data").style.backgroundColor = "orange";
+
+            //moz 
+            var url = "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
+            var queryString = {
+                "domain": domain
+            };
+            var headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            };
+            fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(queryString)
+            })
+                .then(response => {
+                    // Check if the response is successful
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Domain Metrics:", data); // Log the received data
+                    document.getElementById('da').innerText = data.body.results[0].domain_authority;
+                    document.getElementById('pa').innerText = data.body.results[0].page_authority;
+                    document.getElementById('spamScore').innerText = data.body.results[0].spam_score;
+                    document.getElementById('pagespeed').innerText = '-/100';
+                    document.getElementById('backlinks').innerText = data.body.results[0].pages_to_root_domain.toLocaleString();
+                    document.getElementById('refDomains').innerText = data.body.results[0].root_domains_to_root_domain.toLocaleString();
+                })
+                .catch(error => {
+                    console.error("Error fetching data:", error); // Log any errors
+                    // Handle the error gracefully, perhaps display an error message to the user
+                });
+
+            //dataforseo
+            var url = "https://api.dataforseo.com/v3/on_page/instant_pages";
+            var queryString = [{
+                "url": domain,
+                "enable_javascript": true
+            }];
+            var headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Authorization": DFSapiKey
+            };
+            fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(queryString)
+            })
+                .then(response => {
+                    // Check if the response is successful
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Domain Metrics:", data); // Log the received data
+                    document.getElementById('metaTitle').innerText = data.tasks[0].result[0].items[0].meta.title;
+                    document.getElementById('metaDescription').innerText = data.tasks[0].result[0].items[0].meta.description;
+                    document.getElementById('wordCount').innerText = data.tasks[0].result[0].items[0].meta.content.plain_text_word_count.toLocaleString();
+                })
+                .catch(error => {
+                    console.error("Error fetching data:", error); // Log any errors
+                    // Handle the error gracefully, perhaps display an error message to the user
+                });
+
+            var url = "https://api.dataforseo.com/v3/backlinks/summary/live";
+            var queryString = [{
+                "target": domain.replace("www.", "").replace("http://", "").replace("https://", "")
+            }];
+            var headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Authorization": DFSapiKey
+            };
+            fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(queryString)
+            })
+                .then(response => {
+                    // Check if the response is successful
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Domain Metrics:", data); // Log the received data
+                    document.getElementById('domainRank').innerText = data.tasks[0].result[0].rank.toLocaleString();
+                })
+                .catch(error => {
+                    console.error("Error fetching data:", error); // Log any errors
+                    // Handle the error gracefully, perhaps display an error message to the user
+                });
+
+            document.getElementById("domain_metrics").style.backgroundColor = "green";
+            document.getElementById("meta_data").style.backgroundColor = "green";
+            document.getElementById('analyze').innerText = "Analyze";
+
         }
 
         function processKeywords(keywords, location) {
@@ -365,6 +720,52 @@
                     removeButton.onclick = function () { removeRow(this); };
                     actionCell.appendChild(removeButton);
                 }
+            });
+
+            const keywordList = document.getElementById('keywordList');
+            keywordList.innerHTML = ''; // Clear previous keywords
+
+            const headerCells = Array.from(document.querySelectorAll('#keywordHeaderRow .keyword-column'));
+
+            keywords.forEach((keyword, index) => {
+                const listItem = document.createElement('li');
+                listItem.classList.add('keyword-row');
+
+                // Keyword column
+                const keywordDiv = document.createElement('div');
+                keywordDiv.classList.add('keyword-column');
+                keywordDiv.style.width = `${headerCells[0].offsetWidth}px`; // Set width from header
+                keywordDiv.textContent = keyword;
+                listItem.appendChild(keywordDiv);
+
+                // Search Volume column
+                const searchVolumeDiv = document.createElement('div');
+                searchVolumeDiv.classList.add('keyword-column');
+                searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`; // Set width from header
+                searchVolumeDiv.textContent = Math.floor(Math.random() * 5000);
+                listItem.appendChild(searchVolumeDiv);
+
+                // Difficulty column
+                const difficultyDiv = document.createElement('div');
+                difficultyDiv.classList.add('keyword-column');
+                difficultyDiv.style.width = `${headerCells[2].offsetWidth}px`; // Set width from header
+                difficultyDiv.textContent = 'Medium';
+                listItem.appendChild(difficultyDiv);
+
+                // Checkbox column (keep existing style)
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.classList.add('checkbox-column');
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.name = `chk${index + 1}`;
+                checkbox.id = `chk${index + 1}`;
+                checkbox.value = keyword;
+                checkbox.checked = true;
+                checkboxDiv.appendChild(checkbox);
+                listItem.appendChild(checkboxDiv);
+
+                keywordList.appendChild(listItem);
             });
         }
 
