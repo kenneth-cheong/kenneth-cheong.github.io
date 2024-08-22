@@ -136,6 +136,7 @@
             padding: 12px 8px;
             border: 1px solid #ddd;
             font-size: 16px;
+            background-color: white;
         }
 
         th {
@@ -155,7 +156,7 @@
             font-weight: bold;
             color: white;
             cursor: pointer;
-            padding: 18px;
+            padding: 20px;
             width: 100%;
             border: none;
             text-align: left;
@@ -258,6 +259,11 @@
             /* Space between columns */
         }
 
+        .keyword-column:hover {
+            font-size: 1.1em;
+            cursor: pointer;
+        }
+
         .keyword-column:nth-child(1) {
             /* Keyword column */
             flex: 0 0 50%;
@@ -270,7 +276,7 @@
 
         .keyword-column:nth-child(3) {
             /* Difficulty column */
-            flex: 0 0 10%;
+            flex: 0 0 40%;
         }
 
         .checkbox-column {
@@ -313,6 +319,92 @@
             background-color: #0056b3;
             color: white;
         }
+
+        .modal {
+            display: none;
+            /* Hidden by default */
+            position: fixed;
+            /* Stay in place */
+            z-index: 1;
+            /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%;
+            /* Full width */
+            height: 100%;
+            /* Full height */
+            overflow: auto;
+            /* Enable scroll if needed */
+            background-color: rgb(0, 0, 0);
+            /* Fallback color */
+            background-color: rgba(0, 0, 0, 0.4);
+            /* Black w/ opacity */
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            /* 15% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: 90%;
+            /* Could be more or less, depending on screen size */
+            height: auto;
+            overflow-y: auto;
+        }
+
+        .close {
+            color: #aaa;
+            float: left;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .modal-content .table-container {
+            overflow-x: auto;
+            /* Allows horizontal scrolling */
+            max-width: 100%;
+            /* Limits the width of the container */
+        }
+
+        .modal-content table {
+            width: 100%;
+            border-collapse: collapse;
+            /* Ensures borders are neat */
+        }
+
+        .modal-content th,
+        .modal-content td {
+            min-width: 120px;
+            /* Ensures that all cells have a minimum width */
+            padding: 8px;
+            /* Adds space inside cells */
+            /* Adds borders to cells */
+        }
+
+        .modal-content th:nth-child(1),
+        .modal-content td:nth-child(1),
+        .modal-content th:nth-child(2),
+        .modal-content td:nth-child(2) {
+            position: sticky;
+            left: 0;
+            /* Sticks to the left edge */
+            z-index: 2;
+            /* Makes sure the column stays on top while scrolling horizontally */
+        }
+
+        .modal-content th:nth-child(2),
+        .modal-content td:nth-child(2) {
+            left: 10px;
+            /* Adjust based on the width of the first column */
+        }
     </style>
     <link rel="icon"
         href="https://mediaonemarketing.com.sg/wp-content/uploads/2023/11/cropped-MediaOne-M-favicon-logo-32x32.png"
@@ -341,7 +433,8 @@
             <form id="seoForm">
                 <div>
                     <label-fixed for="domain">Targeted Domain:</label-fixed>
-                    <input type="url" id="domain" name="domain" required placeholder="with https and www if applicable">
+                    <input type="url" id="domain" name="domain" required
+                        placeholder="Domain: example.com | Webpage: https://www.example.com/">
                     <span class="error" id="domainError"></span>
                 </div>
                 <div>
@@ -370,8 +463,8 @@
         </div>
 
         <div class="column">
-            <button class="collapsible" id="domain_metrics">Keyword Suggestions</button>
-            <div class="content" id="domainMetrics">
+            <button class="collapsible" id="keyword_suggestions">Keyword Suggestions</button>
+            <div class="content" id="keywordSuggestions">
                 <div id="keywordListContainer">
                     <h3>Keyword Suggestions:</h3>
                     <div class="keyword-row" id="keywordHeaderRow">
@@ -393,8 +486,8 @@
 
             <br>
 
-            <button class="collapsible" id="domain_metrics">Ranking Keywords</button>
-            <div class="content" id="domainMetrics">
+            <button class="collapsible" id="ranking_keywords">Ranking Keywords</button>
+            <div class="content" id="rankingKeywords">
                 <div id="keywordListContainer">
                     <h3>Ranked Keywords:</h3>
                     <div class="keyword-row" id="rankedKeywordHeaderRow">
@@ -462,6 +555,7 @@
                 </table>
                 <br>
                 <button id="downloadCSV">Download CSV</button>
+                <button id="open_modal" onclick="openModal()">Sample</button>
                 <hr>
         </div>
         <hr>
@@ -485,585 +579,772 @@
         </div>
     </div>
 
-    <!-- JavaScript to Handle API Requests and Display Results -->
-    <script>
+    <div id="keywordModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <table id="modalTable">
+                <thead>
+                    <tr>
+                        <th>Keyword</th>
+                        <th>Rank</th>
+                        <th>URL</th>
+                        <th>Title</th>
+                        <th>Description</th>
+                        <th>Domain Rank</th>
+                        <th>Backlinks</th>
+                        <th>Backlinks Spam Score</th>
+                        <th>Referring Domains</th>
+                        <th>Internal Links Count</th>
+                        <th>External Links Count</th>
+                        <th>H1</th>
+                        <th>H2</th>
+                        <th>H3</th>
+                        <th>Image</th>
+                        <th>Schema</th>
+                        <th>Wordcount</th>
+                        <th>Readability</th>
+                        <th>Alt Text</th>
+                        <th>Table</th>
+                        <th>Video</th>
+                        <th>List</th>
+                        <th>P Tag</th>
+                        <th>Word Frequency</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Dynamic content will be filled here -->
+                </tbody>
+            </table>
+        </div>
 
-        let DFSapiKey = null; // Store the API key globally
+        <!-- JavaScript to Handle API Requests and Display Results -->
+        <script>
 
-        async function fetchApiKey() {
-            try {
-                const response = await fetch('https://w27787oos5.execute-api.ap-southeast-1.amazonaws.com/new');
-                if (!response.ok) {
-                    throw new Error('Error fetching API key: ' + response.statusText);
-                }
-                const data = await response.json();
-                DFSapiKey = data.apiKey; // Assuming the API returns the key in a property named 'apiKey'
-            } catch (error) {
-                console.error('Error fetching API key:', error);
-                // Handle error, e.g., display an error message to the user
-            }
-        }
-        window.onload = function () {
-            fetchApiKey();
-        };
+            let DFSapiKey = null; // Store the API key globally
 
-        function similarKeywords() {
-            const keywordsInput = document.getElementById('keywords').value.split(/[\n,]+/).map(k => k.trim());
-            const location = document.getElementById('location').value;
-            document.getElementById('similar').innerText = "Generating...";
-
-            var url = "https://api.dataforseo.com/v3/keywords_data/google_ads/keywords_for_keywords/live";
-            var queryString = [{
-                "keywords": keywordsInput,
-                "location_name": location,
-                "sort_by": "search_volume"
-            }];
-            var headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "Authorization": DFSapiKey
-            };
-            fetch(url, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(queryString)
-            })
-                .then(response => {
+            async function fetchApiKey() {
+                try {
+                    const response = await fetch('https://w27787oos5.execute-api.ap-southeast-1.amazonaws.com/new');
                     if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
+                        throw new Error('Error fetching API key: ' + response.statusText);
                     }
-                    return response.json();
+                    const data = await response.json();
+                    DFSapiKey = data.apiKey; // Assuming the API returns the key in a property named 'apiKey'
+                } catch (error) {
+                    console.error('Error fetching API key:', error);
+                    // Handle error, e.g., display an error message to the user
+                }
+            }
+            window.onload = function () {
+                fetchApiKey();
+            };
+
+            function similarKeywords() {
+                const keywordsInput = document.getElementById('keywords').value.split(/[\n,]+/).map(k => k.trim());
+                const location = document.getElementById('location').value;
+                document.getElementById('similar').innerText = "Generating...";
+
+                var url = "https://api.dataforseo.com/v3/keywords_data/google_ads/keywords_for_keywords/live";
+                var queryString = [{
+                    "keywords": keywordsInput,
+                    "location_name": location,
+                    "sort_by": "search_volume"
+                }];
+                var headers = {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "Authorization": DFSapiKey
+                };
+                fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(queryString)
                 })
-                .then(data => {
-                    console.log("Similar Keywords:", data);
-                    displaySimilarKeywords(data.tasks[0].result);
-                    document.getElementById('similar').innerText = "Generate Similar Keywords";
-                })
-                .catch(error => {
-                    console.error("Error fetching data:", error);
-                    document.getElementById('similar').innerText = "Generate Similar Keywords";
-                });
-        }
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log("Similar Keywords:", data);
+                        displaySimilarKeywords(data.tasks[0].result);
+                        document.getElementById('similar').innerText = "Generate Similar Keywords";
+                    })
+                    .catch(error => {
+                        console.error("Error fetching data:", error);
+                        document.getElementById('similar').innerText = "Generate Similar Keywords";
+                    });
+                document.getElementById("keyword_suggestions").style.backgroundColor = "green";
+            }
 
-        function rankingKeywords() {
-            var domain = document.getElementById('domain').value;
-            var location = document.getElementById('location').value;
-            document.getElementById('ranking').innerText = "Generating...";
+            function rankingKeywords() {
+                var domain = document.getElementById('domain').value;
+                var location = document.getElementById('location').value;
+                document.getElementById('ranking').innerText = "Generating...";
 
-            var url = "https://api.dataforseo.com/v3/dataforseo_labs/ranked_keywords/live";
+                var url = "https://api.dataforseo.com/v3/dataforseo_labs/ranked_keywords/live";
 
-            var queryString = [{
-                "target": domain,
-                "location_name": location,
-                "filters": ["ranked_serp_element.serp_item.type", "=", "organic"],
-                "sort_by": ["search_volume", "desc"],
-                "limit": 1000
-            }];
-
-            if (domain.includes("http") || domain.includes("www")) {
                 var queryString = [{
                     "target": domain,
                     "location_name": location,
-                    "sort_by": "search_volume",
-                    "filters": [
-                        "ranked_serp_element.serp_item.type", "=", "organic",
-                        "ranked_serp_element.serp_item.relative_url", "=", "/"],
-                    "sort_by": ["search_volume", "desc"]
+                    "filters": ["ranked_serp_element.serp_item.type", "=", "organic"],
+                    "sort_by": ["search_volume", "desc"],
+                    "limit": 1000
                 }];
-            }
 
-            var headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "Authorization": DFSapiKey
-            };
-            fetch(url, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(queryString)
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log("Ranking Keywords:", data);
-                    displayRankedKeywords(data.tasks[0].result[0].items);
-                    document.getElementById('ranking').innerText = "Get Ranking Keywords";
-                })
-                .catch(error => {
-                    console.error("Error fetching data:", error);
-                    document.getElementById('ranking').innerText = "Get Ranking Keywords";
-                });
-
-        }
-
-        function displayRankedKeywords(rankedKeywordsData) {
-            const rankedKeywordList = document.getElementById('rankedKeywordList');
-            rankedKeywordList.innerHTML = ''; // Clear previous keywords
-
-            const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column'));
-
-            rankedKeywordsData.forEach((item, index) => {
-                const keywordData = item.keyword_data;
-                const keywordInfo = item.keyword_data.keyword_info;
-                const rankGroup = item.ranked_serp_element.serp_item.rank_group;
-
-                const listItem = document.createElement('li');
-                listItem.classList.add('keyword-row');
-
-                // Keyword column
-                const keywordDiv = document.createElement('div');
-                keywordDiv.classList.add('keyword-column');
-                keywordDiv.style.width = `${headerCells[0].offsetWidth}px`;
-                keywordDiv.textContent = keywordData.keyword;
-                listItem.appendChild(keywordDiv);
-
-                // Search Volume column
-                const searchVolumeDiv = document.createElement('div');
-                searchVolumeDiv.classList.add('keyword-column');
-                searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`;
-                searchVolumeDiv.textContent = keywordInfo.search_volume.toLocaleString() || '-';
-                listItem.appendChild(searchVolumeDiv);
-
-                // Rank column
-                const rankDiv = document.createElement('div');
-                rankDiv.classList.add('keyword-column');
-                rankDiv.style.width = `${headerCells[2].offsetWidth}px`;
-                rankDiv.textContent = rankGroup || '-';
-                listItem.appendChild(rankDiv);
-
-                // Difficulty column
-                const difficultyDiv = document.createElement('div');
-                difficultyDiv.classList.add('keyword-column');
-                difficultyDiv.style.width = `${headerCells[3].offsetWidth}px`;
-                difficultyDiv.textContent = Math.round(keywordInfo.competition * 100) / 100 || '-';
-                listItem.appendChild(difficultyDiv);
-
-                // Checkbox column (keep existing style)
-                const checkboxDiv = document.createElement('div');
-                checkboxDiv.classList.add('checkbox-column');
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.name = `chk${index + 1}`;
-                checkbox.id = `chk${index + 1}`;
-                checkbox.value = keywordData.keyword;
-                checkbox.checked = false;
-                checkboxDiv.appendChild(checkbox);
-                listItem.appendChild(checkboxDiv);
-
-                rankedKeywordList.appendChild(listItem);
-            });
-        }
-
-        // Function to display in the Keyword Suggestions table
-        function displaySimilarKeywords(keywordsData) {
-            const keywordList = document.getElementById('keywordList');
-            keywordList.innerHTML = ''; // Clear previous keywords
-
-            const headerCells = Array.from(document.querySelectorAll('#keywordHeaderRow .keyword-column'));
-
-            keywordsData.forEach((keywordObj, index) => {
-                const listItem = document.createElement('li');
-                listItem.classList.add('keyword-row');
-
-                // Keyword column
-                const keywordDiv = document.createElement('div');
-                keywordDiv.classList.add('keyword-column');
-                keywordDiv.style.width = `${headerCells[0].offsetWidth}px`;
-                keywordDiv.textContent = keywordObj.keyword;
-                listItem.appendChild(keywordDiv);
-
-                // Search Volume column
-                const searchVolumeDiv = document.createElement('div');
-                searchVolumeDiv.classList.add('keyword-column');
-                searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`;
-                searchVolumeDiv.textContent = keywordObj.search_volume.toLocaleString() || '-';
-                listItem.appendChild(searchVolumeDiv);
-
-                // Difficulty column
-                const difficultyDiv = document.createElement('div');
-                difficultyDiv.classList.add('keyword-column');
-                difficultyDiv.style.width = `${headerCells[2].offsetWidth}px`;
-                difficultyDiv.textContent = keywordObj.competition || '-'; // Assuming 'competition' is the difficulty key
-                listItem.appendChild(difficultyDiv);
-
-                // Checkbox column (keep existing style)
-                const checkboxDiv = document.createElement('div');
-                checkboxDiv.classList.add('checkbox-column');
-
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.name = `chk${index + 1}`;
-                checkbox.id = `chk${index + 1}`;
-                checkbox.value = keywordObj.keyword;
-                checkbox.checked = false;
-                checkboxDiv.appendChild(checkbox);
-                listItem.appendChild(checkboxDiv);
-
-                keywordList.appendChild(listItem);
-            });
-        }
-
-        function validateAndSubmit() {
-            const domain = document.getElementById('domain').value;
-            const keywordsInput = document.getElementById('keywords').value;
-            const location = document.getElementById('location').value;
-
-            document.getElementById('domainError').textContent = '';
-            document.getElementById('keywordsError').textContent = '';
-
-            if (!domain) {
-                document.getElementById('domainError').textContent = 'Please enter a valid URL.';
-                return;
-            }
-            if (!keywordsInput) {
-                document.getElementById('keywordsError').textContent = 'Please enter one or more keywords.';
-                return;
-            }
-            if (!location) {
-                alert("Please select a location.");
-                return;
-            }
-
-            const keywords = keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
-
-            document.getElementById('metaTitle').innerText = "";
-            document.getElementById('metaDescription').innerText = "";
-            document.getElementById('wordCount').innerText = "";
-            document.getElementById('da').innerText = "";
-            document.getElementById('pa').innerText = "";
-            document.getElementById('spamScore').innerText = "";
-            document.getElementById('pagespeed').innerText = '-/100';
-            document.getElementById('backlinks').innerText = "";
-            document.getElementById('refDomains').innerText = "";
-
-            fetchDomainMetrics(domain);
-            processKeywords(keywords, location);
-        }
-
-        function fetchDomainMetrics(domain) {
-            document.getElementById("domain_metrics").style.backgroundColor = "orange";
-            document.getElementById("meta_data").style.backgroundColor = "orange";
-
-            document.getElementById('analyze').innerText = "Analyzing...";
-
-            console.log("Fetching Domain Metrics...");
-
-            //moz 
-            var url = "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
-            var queryString = {
-                "domain": domain
-            };
-            var headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json"
-            };
-            fetch(url, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(queryString)
-            })
-                .then(response => {
-                    // Check if the response is successful
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log("Domain Metrics:", data); // Log the received data
-                    document.getElementById('da').innerText = data.body.results[0].domain_authority;
-                    document.getElementById('pa').innerText = data.body.results[0].page_authority;
-                    document.getElementById('spamScore').innerText = data.body.results[0].spam_score;
-                    document.getElementById('pagespeed').innerText = '-/100';
-                    document.getElementById('backlinks').innerText = data.body.results[0].pages_to_root_domain.toLocaleString();
-                    document.getElementById('refDomains').innerText = data.body.results[0].root_domains_to_root_domain.toLocaleString();
-                })
-                .catch(error => {
-                    console.error("Error fetching data:", error); // Log any errors
-                    // Handle the error gracefully, perhaps display an error message to the user
-                });
-
-            //dataforseo
-            var url = "https://api.dataforseo.com/v3/on_page/instant_pages";
-            var queryString = [{
-                "url": domain,
-                "enable_javascript": true
-            }];
-            var headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "Authorization": DFSapiKey
-            };
-            fetch(url, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(queryString)
-            })
-                .then(response => {
-                    // Check if the response is successful
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log("Domain Metrics:", data); // Log the received data
-                    document.getElementById('metaTitle').innerText = data.tasks[0].result[0].items[0].meta.title;
-                    document.getElementById('metaDescription').innerText = data.tasks[0].result[0].items[0].meta.description;
-                    document.getElementById('wordCount').innerText = data.tasks[0].result[0].items[0].meta.content.plain_text_word_count.toLocaleString();
-                })
-                .catch(error => {
-                    console.error("Error fetching data:", error); // Log any errors
-                    // Handle the error gracefully, perhaps display an error message to the user
-                });
-
-            var url = "https://api.dataforseo.com/v3/backlinks/summary/live";
-            var queryString = [{
-                "target": domain.replace("www.", "").replace("http://", "").replace("https://", "")
-            }];
-            var headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "Authorization": DFSapiKey
-            };
-            fetch(url, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(queryString)
-            })
-                .then(response => {
-                    // Check if the response is successful
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log("Domain Metrics:", data); // Log the received data
-                    document.getElementById('domainRank').innerText = data.tasks[0].result[0].rank.toLocaleString();
-                })
-                .catch(error => {
-                    console.error("Error fetching data:", error); // Log any errors
-                    // Handle the error gracefully, perhaps display an error message to the user
-                });
-
-            document.getElementById("domain_metrics").style.backgroundColor = "green";
-            document.getElementById("meta_data").style.backgroundColor = "green";
-            document.getElementById('analyze').innerText = "Analyze";
-
-        }
-
-        function processKeywords(keywords, location) {
-            const table = document.getElementById('keywordResults');
-
-            keywords.forEach(keyword => {
-                // Check if keyword already exists in the table
-                let exists = false;
-                for (let i = 0; i < table.rows.length; i++) {
-                    if (table.rows[i].cells[0].textContent === keyword) {
-                        exists = true;
-                        break;
-                    }
+                if (domain.includes("http") || domain.includes("www")) {
+                    var queryString = [{
+                        "target": domain,
+                        "location_name": location,
+                        "sort_by": "search_volume",
+                        "filters": [
+                            "ranked_serp_element.serp_item.type", "=", "organic",
+                            "ranked_serp_element.serp_item.relative_url", "=", "/"],
+                        "sort_by": ["search_volume", "desc"]
+                    }];
                 }
 
-                if (!exists) {
-                    // Only add new keywords
-                    const row = table.insertRow(table.rows.length);
-                    row.insertCell(0).textContent = keyword;
-                    row.insertCell(1).textContent = Math.floor(Math.random() * 100); // Example data
-                    row.insertCell(2).textContent = Math.floor(Math.random() * 5000);
-                    row.insertCell(3).textContent = 'Medium';
-                    row.insertCell(4).textContent = Math.floor(Math.random() * 12 + 1) + ' months';
-                    row.insertCell(5).textContent = location;
-                    const actionCell = row.insertCell(6);
-                    const removeButton = document.createElement('button');
-                    removeButton.textContent = 'Remove';
-                    removeButton.onclick = function () { removeRow(this); };
-                    actionCell.appendChild(removeButton);
+                var headers = {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "Authorization": DFSapiKey
+                };
+                fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(queryString)
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log("Ranking Keywords:", data);
+                        displayRankedKeywords(data.tasks[0].result[0].items);
+                        document.getElementById('ranking').innerText = "Get Ranking Keywords";
+                    })
+                    .catch(error => {
+                        console.error("Error fetching data:", error);
+                        document.getElementById('ranking').innerText = "Get Ranking Keywords";
+                    });
+                document.getElementById("ranking_keywords").style.backgroundColor = "green";
+
+            }
+
+            function displayRankedKeywords(rankedKeywordsData) {
+                const rankedKeywordList = document.getElementById('rankedKeywordList');
+                rankedKeywordList.innerHTML = ''; // Clear previous keywords
+
+                const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column'));
+
+                rankedKeywordsData.forEach((item, index) => {
+                    const keywordData = item.keyword_data;
+                    const keywordInfo = item.keyword_data.keyword_info;
+                    const rankGroup = item.ranked_serp_element.serp_item.rank_group;
+
+                    const listItem = document.createElement('li');
+                    listItem.classList.add('keyword-row');
+
+                    // Keyword column
+                    const keywordDiv = document.createElement('div');
+                    keywordDiv.classList.add('keyword-column');
+                    keywordDiv.style.width = `${headerCells[0].offsetWidth}px`;
+                    keywordDiv.textContent = keywordData.keyword;
+                    listItem.appendChild(keywordDiv);
+
+                    // Search Volume column
+                    const searchVolumeDiv = document.createElement('div');
+                    searchVolumeDiv.classList.add('keyword-column');
+                    searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`;
+                    searchVolumeDiv.textContent = keywordInfo.search_volume.toLocaleString() || '-';
+                    listItem.appendChild(searchVolumeDiv);
+
+                    // Rank column
+                    const rankDiv = document.createElement('div');
+                    rankDiv.classList.add('keyword-column');
+                    rankDiv.style.width = `${headerCells[2].offsetWidth}px`;
+                    rankDiv.textContent = rankGroup || '-';
+                    listItem.appendChild(rankDiv);
+
+                    // Difficulty column
+                    const difficultyDiv = document.createElement('div');
+                    difficultyDiv.classList.add('keyword-column');
+                    difficultyDiv.style.width = `${headerCells[3].offsetWidth}px`;
+                    difficultyDiv.textContent = Math.round(keywordInfo.competition * 100) / 100 || '-';
+                    listItem.appendChild(difficultyDiv);
+
+                    // Checkbox column (keep existing style)
+                    const checkboxDiv = document.createElement('div');
+                    checkboxDiv.classList.add('checkbox-column');
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.name = `chk${index + 1}`;
+                    checkbox.id = `chk${index + 1}`;
+                    checkbox.value = keywordData.keyword;
+                    checkbox.checked = false;
+                    checkboxDiv.appendChild(checkbox);
+                    listItem.appendChild(checkboxDiv);
+
+                    rankedKeywordList.appendChild(listItem);
+                });
+            }
+
+            // Function to display in the Keyword Suggestions table
+            function displaySimilarKeywords(keywordsData) {
+                const keywordList = document.getElementById('keywordList');
+                keywordList.innerHTML = ''; // Clear previous keywords
+
+                const headerCells = Array.from(document.querySelectorAll('#keywordHeaderRow .keyword-column'));
+
+                keywordsData.forEach((keywordObj, index) => {
+                    const listItem = document.createElement('li');
+                    listItem.classList.add('keyword-row');
+
+                    // Keyword column
+                    const keywordDiv = document.createElement('div');
+                    keywordDiv.classList.add('keyword-column');
+                    keywordDiv.style.width = `${headerCells[0].offsetWidth}px`;
+                    keywordDiv.textContent = keywordObj.keyword;
+                    listItem.appendChild(keywordDiv);
+
+                    // Search Volume column
+                    const searchVolumeDiv = document.createElement('div');
+                    searchVolumeDiv.classList.add('keyword-column');
+                    searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`;
+                    searchVolumeDiv.textContent = keywordObj.search_volume.toLocaleString() || '-';
+                    listItem.appendChild(searchVolumeDiv);
+
+                    // Difficulty column
+                    const difficultyDiv = document.createElement('div');
+                    difficultyDiv.classList.add('keyword-column');
+                    difficultyDiv.style.width = `${headerCells[2].offsetWidth}px`;
+                    difficultyDiv.textContent = keywordObj.competition || '-'; // Assuming 'competition' is the difficulty key
+                    listItem.appendChild(difficultyDiv);
+
+                    // Checkbox column (keep existing style)
+                    const checkboxDiv = document.createElement('div');
+                    checkboxDiv.classList.add('checkbox-column');
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.name = `chk${index + 1}`;
+                    checkbox.id = `chk${index + 1}`;
+                    checkbox.value = keywordObj.keyword;
+                    checkbox.checked = false;
+                    checkboxDiv.appendChild(checkbox);
+                    listItem.appendChild(checkboxDiv);
+
+                    keywordList.appendChild(listItem);
+                });
+            }
+
+            function validateAndSubmit() {
+                const domain = document.getElementById('domain').value;
+                const keywordsInput = document.getElementById('keywords').value;
+                const location = document.getElementById('location').value;
+
+                document.getElementById('domainError').textContent = '';
+                document.getElementById('keywordsError').textContent = '';
+
+                if (!domain) {
+                    document.getElementById('domainError').textContent = 'Please enter a valid URL.';
+                    return;
+                }
+                if (!keywordsInput) {
+                    document.getElementById('keywordsError').textContent = 'Please enter one or more keywords.';
+                    return;
+                }
+                if (!location) {
+                    alert("Please select a location.");
+                    return;
+                }
+
+                const keywords = keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+
+                document.getElementById('metaTitle').innerText = "";
+                document.getElementById('metaDescription').innerText = "";
+                document.getElementById('wordCount').innerText = "";
+                document.getElementById('da').innerText = "";
+                document.getElementById('pa').innerText = "";
+                document.getElementById('spamScore').innerText = "";
+                document.getElementById('pagespeed').innerText = '-/100';
+                document.getElementById('backlinks').innerText = "";
+                document.getElementById('refDomains').innerText = "";
+
+                fetchDomainMetrics(domain);
+                processKeywords(keywords, location);
+            }
+
+            function fetchDomainMetrics(domain) {
+                document.getElementById("domain_metrics").style.backgroundColor = "orange";
+                document.getElementById("meta_data").style.backgroundColor = "orange";
+
+                document.getElementById('analyze').innerText = "Analyzing...";
+
+                console.log("Fetching Domain Metrics...");
+
+                //moz 
+                var url = "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
+                var queryString = {
+                    "domain": domain
+                };
+                var headers = {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json"
+                };
+                fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(queryString)
+                })
+                    .then(response => {
+                        // Check if the response is successful
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log("Domain Metrics:", data); // Log the received data
+                        document.getElementById('da').innerText = data.body.results[0].domain_authority;
+                        document.getElementById('pa').innerText = data.body.results[0].page_authority;
+                        document.getElementById('spamScore').innerText = data.body.results[0].spam_score;
+                        document.getElementById('pagespeed').innerText = '-/100';
+                        document.getElementById('backlinks').innerText = data.body.results[0].pages_to_root_domain.toLocaleString();
+                        document.getElementById('refDomains').innerText = data.body.results[0].root_domains_to_root_domain.toLocaleString();
+                    })
+                    .catch(error => {
+                        console.error("Error fetching data:", error); // Log any errors
+                        // Handle the error gracefully, perhaps display an error message to the user
+                    });
+
+                //dataforseo
+                var url = "https://api.dataforseo.com/v3/on_page/instant_pages";
+                var queryString = [{
+                    "url": domain,
+                    "enable_javascript": true
+                }];
+                var headers = {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "Authorization": DFSapiKey
+                };
+                fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(queryString)
+                })
+                    .then(response => {
+                        // Check if the response is successful
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log("Domain Metrics:", data); // Log the received data
+                        document.getElementById('metaTitle').innerText = data.tasks[0].result[0].items[0].meta.title;
+                        document.getElementById('metaDescription').innerText = data.tasks[0].result[0].items[0].meta.description;
+                        document.getElementById('wordCount').innerText = data.tasks[0].result[0].items[0].meta.content.plain_text_word_count.toLocaleString();
+                    })
+                    .catch(error => {
+                        console.error("Error fetching data:", error); // Log any errors
+                        // Handle the error gracefully, perhaps display an error message to the user
+                    });
+
+                var url = "https://api.dataforseo.com/v3/backlinks/summary/live";
+                var queryString = [{
+                    "target": domain.replace("www.", "").replace("http://", "").replace("https://", "")
+                }];
+                var headers = {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "Authorization": DFSapiKey
+                };
+                fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(queryString)
+                })
+                    .then(response => {
+                        // Check if the response is successful
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log("Domain Metrics:", data); // Log the received data
+                        document.getElementById('domainRank').innerText = data.tasks[0].result[0].rank.toLocaleString();
+                    })
+                    .catch(error => {
+                        console.error("Error fetching data:", error); // Log any errors
+                        // Handle the error gracefully, perhaps display an error message to the user
+                    });
+
+                document.getElementById("domain_metrics").style.backgroundColor = "green";
+                document.getElementById("meta_data").style.backgroundColor = "green";
+                document.getElementById('analyze').innerText = "Analyze";
+
+            }
+
+            function processKeywords(keywords, location) {
+                const table = document.getElementById('keywordResults');
+
+                keywords.forEach(keyword => {
+                    // Check if keyword already exists in the table
+                    let exists = false;
+                    for (let i = 0; i < table.rows.length; i++) {
+                        if (table.rows[i].cells[0].textContent === keyword) {
+                            exists = true;
+                            break;
+                        }
+                    }
+
+                    if (!exists) {
+                        // Only add new keywords
+                        const row = table.insertRow(table.rows.length);
+                        row.insertCell(0).textContent = keyword;
+                        row.insertCell(1).textContent = Math.floor(Math.random() * 100); // Example data
+                        row.insertCell(2).textContent = Math.floor(Math.random() * 5000);
+                        row.insertCell(3).textContent = 'Medium';
+                        row.insertCell(4).textContent = Math.floor(Math.random() * 12 + 1) + ' months';
+                        row.insertCell(5).textContent = location;
+                        const actionCell = row.insertCell(6);
+                        const removeButton = document.createElement('button');
+                        removeButton.textContent = 'Remove';
+                        removeButton.onclick = function () { removeRow(this); };
+                        actionCell.appendChild(removeButton);
+                    }
+                });
+
+                const keywordList = document.getElementById('keywordList');
+                keywordList.innerHTML = ''; // Clear previous keywords
+
+                const headerCells = Array.from(document.querySelectorAll('#keywordHeaderRow .keyword-column'));
+
+                keywords.forEach((keyword, index) => {
+                    const listItem = document.createElement('li');
+                    listItem.classList.add('keyword-row');
+
+                    // Keyword column
+                    const keywordDiv = document.createElement('div');
+                    keywordDiv.classList.add('keyword-column');
+                    keywordDiv.style.width = `${headerCells[0].offsetWidth}px`; // Set width from header
+                    keywordDiv.textContent = keyword;
+                    listItem.appendChild(keywordDiv);
+
+                    // Search Volume column
+                    const searchVolumeDiv = document.createElement('div');
+                    searchVolumeDiv.classList.add('keyword-column');
+                    searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`; // Set width from header
+                    searchVolumeDiv.textContent = Math.floor(Math.random() * 5000).toLocaleString();
+                    listItem.appendChild(searchVolumeDiv);
+
+                    // Difficulty column
+                    const difficultyDiv = document.createElement('div');
+                    difficultyDiv.classList.add('keyword-column');
+                    difficultyDiv.style.width = `${headerCells[2].offsetWidth}px`; // Set width from header
+                    difficultyDiv.textContent = 'Medium';
+                    listItem.appendChild(difficultyDiv);
+
+                    // Checkbox column (keep existing style)
+                    const checkboxDiv = document.createElement('div');
+                    checkboxDiv.classList.add('checkbox-column');
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.name = `chk${index + 1}`;
+                    checkbox.id = `chk${index + 1}`;
+                    checkbox.value = keyword;
+                    checkbox.checked = true;
+                    checkboxDiv.appendChild(checkbox);
+                    listItem.appendChild(checkboxDiv);
+
+                    //keywordList.appendChild(listItem);
+                });
+                document.getElementById("keywordAnalysis").style.backgroundColor = "green";
+            }
+
+
+            function removeRow(button) {
+                let row = button.parentNode.parentNode;
+                row.parentNode.removeChild(row);
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                const coll = document.getElementsByClassName("collapsible");
+                for (let i = 0; i < coll.length; i++) {
+                    coll[i].addEventListener("click", function () {
+                        this.classList.toggle("active");
+                        const content = this.nextElementSibling;
+                        content.style.display = content.style.display === "block" ? "none" : "block";
+                    });
                 }
             });
 
-            const keywordList = document.getElementById('keywordList');
-            keywordList.innerHTML = ''; // Clear previous keywords
+            function sortTable(column) {
+                const table = document.getElementById("keywordResults");
+                const rows = Array.from(table.rows);
+                const dir = this.asc ? 'asc' : 'desc';
 
-            const headerCells = Array.from(document.querySelectorAll('#keywordHeaderRow .keyword-column'));
+                rows.sort((a, b) => {
+                    // **Convert cell content to numbers before comparison:**
+                    const ax = parseFloat(a.cells[column].textContent) || 0; // Use parseFloat for numbers, 0 for non-numeric
+                    const bx = parseFloat(b.cells[column].textContent) || 0;
 
-            keywords.forEach((keyword, index) => {
-                const listItem = document.createElement('li');
-                listItem.classList.add('keyword-row');
-
-                // Keyword column
-                const keywordDiv = document.createElement('div');
-                keywordDiv.classList.add('keyword-column');
-                keywordDiv.style.width = `${headerCells[0].offsetWidth}px`; // Set width from header
-                keywordDiv.textContent = keyword;
-                listItem.appendChild(keywordDiv);
-
-                // Search Volume column
-                const searchVolumeDiv = document.createElement('div');
-                searchVolumeDiv.classList.add('keyword-column');
-                searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`; // Set width from header
-                searchVolumeDiv.textContent = Math.floor(Math.random() * 5000).toLocaleString();
-                listItem.appendChild(searchVolumeDiv);
-
-                // Difficulty column
-                const difficultyDiv = document.createElement('div');
-                difficultyDiv.classList.add('keyword-column');
-                difficultyDiv.style.width = `${headerCells[2].offsetWidth}px`; // Set width from header
-                difficultyDiv.textContent = 'Medium';
-                listItem.appendChild(difficultyDiv);
-
-                // Checkbox column (keep existing style)
-                const checkboxDiv = document.createElement('div');
-                checkboxDiv.classList.add('checkbox-column');
-
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.name = `chk${index + 1}`;
-                checkbox.id = `chk${index + 1}`;
-                checkbox.value = keyword;
-                checkbox.checked = true;
-                checkboxDiv.appendChild(checkbox);
-                listItem.appendChild(checkboxDiv);
-
-                keywordList.appendChild(listItem);
-            });
-            document.getElementById("keywordAnalysis").style.backgroundColor = "green";
-        }
-
-
-        function removeRow(button) {
-            let row = button.parentNode.parentNode;
-            row.parentNode.removeChild(row);
-        }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            const coll = document.getElementsByClassName("collapsible");
-            for (let i = 0; i < coll.length; i++) {
-                coll[i].addEventListener("click", function () {
-                    this.classList.toggle("active");
-                    const content = this.nextElementSibling;
-                    content.style.display = content.style.display === "block" ? "none" : "block";
+                    return (ax > bx) ? (dir === 'asc' ? 1 : -1) : (ax < bx ? (dir === 'asc' ? -1 : 1) : 0);
                 });
-            }
-        });
 
-        function sortTable(column) {
-            const table = document.getElementById("keywordResults");
-            const rows = Array.from(table.rows);
-            const dir = this.asc ? 'asc' : 'desc';
-
-            rows.sort((a, b) => {
-                // **Convert cell content to numbers before comparison:**
-                const ax = parseFloat(a.cells[column].textContent) || 0; // Use parseFloat for numbers, 0 for non-numeric
-                const bx = parseFloat(b.cells[column].textContent) || 0;
-
-                return (ax > bx) ? (dir === 'asc' ? 1 : -1) : (ax < bx ? (dir === 'asc' ? -1 : 1) : 0);
-            });
-
-            rows.forEach(row => table.appendChild(row));
-            this.asc = !this.asc;
-        }
-
-        function downloadTableAsCSV() {
-            const table = document.getElementById("keywordResultsHeader");
-            const rows = Array.from(table.querySelectorAll("tr")); // Select all rows
-
-            // Construct the CSV content
-            let csvContent = "data:text/csv;charset=utf-8,";
-            rows.forEach(row => {
-                // Select cells, excluding the last one (Action column)
-                const cells = Array.from(row.querySelectorAll("th, td:not(:last-child)"));
-                csvContent += cells.map(cell => `"${cell.textContent.trim().replace(/"/g, '""')}"`).join(",") + "\n";
-            });
-
-            // Create a hidden link element and trigger a click to download
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "keyword_analysis.csv");
-            document.body.appendChild(link); // Required for Firefox
-
-            link.click(); // This will download the data file
-            document.body.removeChild(link); // Cleanup 
-        }
-
-        // Attach the download function to the button
-        document.getElementById("downloadCSV").addEventListener("click", downloadTableAsCSV);
-
-        let currentKeywordSortColumn = null;
-        let keywordSortAscending = true;
-
-        let currentRankedKeywordSortColumn = null;
-        let rankedKeywordSortAscending = true;
-
-        function sortKeywordSuggestions(column) {
-            const keywordList = document.getElementById('keywordList');
-            const listItems = Array.from(keywordList.children);
-
-            if (column === currentKeywordSortColumn) {
-                keywordSortAscending = !keywordSortAscending;
-            } else {
-                keywordSortAscending = true;
-                currentKeywordSortColumn = column;
+                rows.forEach(row => table.appendChild(row));
+                this.asc = !this.asc;
             }
 
-            listItems.sort((a, b) => {
-                const aValue = a.children[column].textContent;
-                const bValue = b.children[column].textContent;
+            function downloadTableAsCSV() {
+                const table = document.getElementById("keywordResultsHeader");
+                const rows = Array.from(table.querySelectorAll("tr")); // Select all rows
 
-                // Convert to number for sorting if possible
-                const aNum = parseFloat(aValue.replace(/,/g, ''));
-                const bNum = parseFloat(bValue.replace(/,/g, ''));
+                // Construct the CSV content
+                let csvContent = "data:text/csv;charset=utf-8,";
+                rows.forEach(row => {
+                    // Select cells, excluding the last one (Action column)
+                    const cells = Array.from(row.querySelectorAll("th, td:not(:last-child)"));
+                    csvContent += cells.map(cell => `"${cell.textContent.trim().replace(/"/g, '""')}"`).join(",") + "\n";
+                });
 
-                if (!isNaN(aNum) && !isNaN(bNum)) {
-                    return keywordSortAscending ? aNum - bNum : bNum - aNum;
+                // Create a hidden link element and trigger a click to download
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "keyword_analysis.csv");
+                document.body.appendChild(link); // Required for Firefox
+
+                link.click(); // This will download the data file
+                document.body.removeChild(link); // Cleanup 
+            }
+
+            // Attach the download function to the button
+            document.getElementById("downloadCSV").addEventListener("click", downloadTableAsCSV);
+
+            let currentKeywordSortColumn = null;
+            let keywordSortAscending = true;
+
+            let currentRankedKeywordSortColumn = null;
+            let rankedKeywordSortAscending = true;
+
+            function sortKeywordSuggestions(column) {
+                const keywordList = document.getElementById('keywordList');
+                const listItems = Array.from(keywordList.children);
+
+                if (column === currentKeywordSortColumn) {
+                    keywordSortAscending = !keywordSortAscending;
                 } else {
-                    return keywordSortAscending
-                        ? aValue.localeCompare(bValue)
-                        : bValue.localeCompare(aValue);
+                    keywordSortAscending = true;
+                    currentKeywordSortColumn = column;
                 }
-            });
 
-            listItems.forEach(item => keywordList.appendChild(item));
-        }
+                listItems.sort((a, b) => {
+                    const aValue = a.children[column].textContent;
+                    const bValue = b.children[column].textContent;
 
+                    // Convert to number for sorting if possible
+                    const aNum = parseFloat(aValue.replace(/,/g, ''));
+                    const bNum = parseFloat(bValue.replace(/,/g, ''));
 
-        function sortRankedKeywords(column) {
-            const keywordList = document.getElementById('rankedKeywordList');
-            const listItems = Array.from(keywordList.children);
+                    if (!isNaN(aNum) && !isNaN(bNum)) {
+                        return keywordSortAscending ? aNum - bNum : bNum - aNum;
+                    } else {
+                        return keywordSortAscending
+                            ? aValue.localeCompare(bValue)
+                            : bValue.localeCompare(aValue);
+                    }
+                });
 
-            if (column === currentRankedKeywordSortColumn) {
-                rankedKeywordSortAscending = !rankedKeywordSortAscending; // Toggle sort direction
-            } else {
-                rankedKeywordSortAscending = true; // Start in ascending order
-                currentRankedKeywordSortColumn = column;
+                listItems.forEach(item => keywordList.appendChild(item));
             }
 
-            listItems.sort((a, b) => {
-                const aValue = a.children[column].textContent;
-                const bValue = b.children[column].textContent;
 
-                // Convert to number for sorting if possible
-                const aNum = parseFloat(aValue.replace(/,/g, ''));
-                const bNum = parseFloat(bValue.replace(/,/g, ''));
+            function sortRankedKeywords(column) {
+                const keywordList = document.getElementById('rankedKeywordList');
+                const listItems = Array.from(keywordList.children);
 
-                if (!isNaN(aNum) && !isNaN(bNum)) {
-                    return rankedKeywordSortAscending ? aNum - bNum : bNum - aNum;
+                if (column === currentRankedKeywordSortColumn) {
+                    rankedKeywordSortAscending = !rankedKeywordSortAscending; // Toggle sort direction
                 } else {
-                    return rankedKeywordSortAscending
-                        ? aValue.localeCompare(bValue)
-                        : bValue.localeCompare(aValue);
+                    rankedKeywordSortAscending = true; // Start in ascending order
+                    currentRankedKeywordSortColumn = column;
                 }
-            });
 
-            listItems.forEach(item => keywordList.appendChild(item));
-        }
-    </script>
+                listItems.sort((a, b) => {
+                    const aValue = a.children[column].textContent;
+                    const bValue = b.children[column].textContent;
+
+                    // Convert to number for sorting if possible
+                    const aNum = parseFloat(aValue.replace(/,/g, ''));
+                    const bNum = parseFloat(bValue.replace(/,/g, ''));
+
+                    if (!isNaN(aNum) && !isNaN(bNum)) {
+                        return rankedKeywordSortAscending ? aNum - bNum : bNum - aNum;
+                    } else {
+                        return rankedKeywordSortAscending
+                            ? aValue.localeCompare(bValue)
+                            : bValue.localeCompare(aValue);
+                    }
+                });
+
+                listItems.forEach(item => keywordList.appendChild(item));
+            }
+
+            // When the user clicks on a keyword, open the modal with dummy data
+            function openModal(keyword) {
+                // Clear existing data in the modal content
+                modalContent.innerHTML = '';
+
+                var modal = document.getElementById("keywordModal");
+                modal.style.display = "block";
+
+                // Dummy data for demonstration; you would replace this with actual data retrieval logic
+                let keywordData = [
+                    {
+                        kewyord: "keyword",
+                        rank: 1,
+                        url: "https://www.example.com",
+                        title: "Example Title",
+                        description: "This is an example of a keyword description",
+                        domainRank: "50",
+                        backlinks: "150",
+                        backlinksSpamScore: "5%",
+                        referringDomains: "40",
+                        internalLinksCount: "200",
+                        externalLinksCount: "150",
+                        h1: "Main Heading",
+                        h2: "Subheading",
+                        h3: "Minor Heading",
+                        image: "5 images",
+                        schema: "Organization, Breadcrumb",
+                        wordcount: "1200",
+                        readability: "75%",
+                        altText: "5 alt texts",
+                        table: "2 tables",
+                        video: "1 video",
+                        list: "3 lists",
+                        p_tag: "20 paragraphs",
+                        wordFrequency: "Keyword appears 10 times"
+                    },
+                    {
+                        kewyord: "keyword",
+                        rank: 2,
+                        url: "https://www.example.com",
+                        title: "Example Title",
+                        description: "This is an example of a keyword description",
+                        domainRank: "50",
+                        backlinks: "150",
+                        backlinksSpamScore: "5%",
+                        referringDomains: "40",
+                        internalLinksCount: "200",
+                        externalLinksCount: "150",
+                        h1: "Main Heading",
+                        h2: "Subheading",
+                        h3: "Minor Heading",
+                        image: "5 images",
+                        schema: "Organization, Breadcrumb",
+                        wordcount: "1200",
+                        readability: "75%",
+                        altText: "5 alt texts",
+                        table: "2 tables",
+                        video: "1 video",
+                        list: "3 lists",
+                        p_tag: "20 paragraphs",
+                        wordFrequency: "Keyword appears 10 times"
+                    },
+                    {
+                        kewyord: "keyword",
+                        rank: 3,
+                        url: "https://www.example.com",
+                        title: "Example Title",
+                        description: "This is an example of a keyword description",
+                        domainRank: "50",
+                        backlinks: "150",
+                        backlinksSpamScore: "5%",
+                        referringDomains: "40",
+                        internalLinksCount: "200",
+                        externalLinksCount: "150",
+                        h1: "Main Heading",
+                        h2: "Subheading",
+                        h3: "Minor Heading",
+                        image: "5 images",
+                        schema: "Organization, Breadcrumb",
+                        wordcount: "1200",
+                        readability: "75%",
+                        altText: "5 alt texts",
+                        table: "2 tables",
+                        video: "1 video",
+                        list: "3 lists",
+                        p_tag: "20 paragraphs",
+                        wordFrequency: "Keyword appears 10 times"
+                    },
+                    {
+                        kewyord: "keyword",
+                        rank: 4,
+                        url: "https://www.example.com",
+                        title: "Example Title",
+                        description: "This is an example of a keyword description",
+                        domainRank: "50",
+                        backlinks: "150",
+                        backlinksSpamScore: "5%",
+                        referringDomains: "40",
+                        internalLinksCount: "200",
+                        externalLinksCount: "150",
+                        h1: "Main Heading",
+                        h2: "Subheading",
+                        h3: "Minor Heading",
+                        image: "5 images",
+                        schema: "Organization, Breadcrumb",
+                        wordcount: "1200",
+                        readability: "75%",
+                        altText: "5 alt texts",
+                        table: "2 tables",
+                        video: "1 video",
+                        list: "3 lists",
+                        p_tag: "20 paragraphs",
+                        wordFrequency: "Keyword appears 10 times"
+                    }
+                ];
+
+                // Loop over the keyword data to populate the modal
+                keywordData.forEach(data => {
+                    let row = modalContent.insertRow(); // Create a new row in the table body
+                    Object.values(data).forEach(text => {
+                        let cell = row.insertCell(); // Create a new cell for each property
+                        cell.textContent = text; // Set the text content to the data
+                    });
+                });
+
+                modal.style.display = "block"; // Display the modal
+            }
+
+            // Get the modal
+            var modal = document.getElementById("keywordModal");
+            var modalContent = document.getElementById("modalTable").querySelector("tbody");
+
+            // Get the <span> element that closes the modal
+            var span = document.getElementsByClassName("close")[0];
+
+            // When the user clicks on <span> (x), close the modal
+            span.onclick = function () {
+                modal.style.display = "none";
+            }
+
+            // When the user clicks anywhere outside of the modal, close it
+            window.onclick = function (event) {
+                if (event.target == modal) {
+                    modal.style.display = "none";
+                }
+            }
+        </script>
 
 </body>
 
