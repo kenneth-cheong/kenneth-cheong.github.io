@@ -343,8 +343,7 @@
 
         .modal-content {
             background-color: #fefefe;
-            margin: 15% auto;
-            /* 15% from the top and centered */
+            margin: 5% auto;
             padding: 20px;
             border: 1px solid #888;
             width: 90%;
@@ -555,8 +554,7 @@
                 </table>
                 <br>
                 <button id="downloadCSV">Download CSV</button>
-                <button id="open_modal" onclick="openModal()">Sample</button>
-                <hr>
+                <button id="open_modal" onclick="openModal()">Open Modal</button>
         </div>
         <hr>
         <button class="collapsible">Technical SEO</button>
@@ -585,7 +583,6 @@
             <table id="modalTable">
                 <thead>
                     <tr>
-                        <th>Keyword</th>
                         <th>Rank</th>
                         <th>URL</th>
                         <th>Title</th>
@@ -908,7 +905,7 @@
                         return response.json();
                     })
                     .then(data => {
-                        console.log("Domain Metrics:", data); // Log the received data
+                        console.log("Moz Metrics:", data); // Log the received data
                         document.getElementById('da').innerText = data.body.results[0].domain_authority;
                         document.getElementById('pa').innerText = data.body.results[0].page_authority;
                         document.getElementById('spamScore').innerText = data.body.results[0].spam_score;
@@ -945,7 +942,7 @@
                         return response.json();
                     })
                     .then(data => {
-                        console.log("Domain Metrics:", data); // Log the received data
+                        console.log("Instant Pages Metrics:", data); // Log the received data
                         document.getElementById('metaTitle').innerText = data.tasks[0].result[0].items[0].meta.title;
                         document.getElementById('metaDescription').innerText = data.tasks[0].result[0].items[0].meta.description;
                         document.getElementById('wordCount').innerText = data.tasks[0].result[0].items[0].meta.content.plain_text_word_count.toLocaleString();
@@ -977,7 +974,7 @@
                         return response.json();
                     })
                     .then(data => {
-                        console.log("Domain Metrics:", data); // Log the received data
+                        console.log("Backlinks Data:", data); // Log the received data
                         document.getElementById('domainRank').innerText = data.tasks[0].result[0].rank.toLocaleString();
                     })
                     .catch(error => {
@@ -991,7 +988,7 @@
 
             }
 
-            function processKeywords(keywords, location) {
+            async function processKeywords(keywords, location) {
                 const table = document.getElementById('keywordResults');
 
                 keywords.forEach(keyword => {
@@ -1067,8 +1064,204 @@
                     //keywordList.appendChild(listItem);
                 });
                 document.getElementById("keywordAnalysis").style.backgroundColor = "green";
+
+                domain = document.getElementById('domain').value;
+                language = 'English'; // You can add language selection if needed
+
+                // Loop through each keyword and make API calls
+                for (const keyword of keywords) {
+                    apiEndpoint = "https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new";
+                    requestBody = {
+                        location: location,
+                        keyword: keyword,
+                        targeted_url: domain,
+                        language: language
+                    };
+
+                    try {
+                        response = await fetch(apiEndpoint, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(requestBody)
+                        });
+
+                        data = await response.json();
+
+                        console.log(data);
+
+                        // Process and display the API response in the modal table
+                        if (response.ok) {
+                            displayApiResponse(data);
+                        } else {
+                            console.error('API Error:', data);
+                            // Handle API errors gracefully, e.g., display an error message in the modal
+                            alert('Error fetching data from the API.');
+                        }
+                        const urls = Array.from(document.querySelectorAll("#modalTable tbody tr td:nth-child(2)"))
+                            .map(cell => cell.textContent);
+                        const secondApiEndpoint = "https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new";
+                        const secondRequestBody = { url_list: urls };
+
+                        const secondResponse = await fetch(secondApiEndpoint, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(secondRequestBody)
+                        });
+
+                        const secondApiData = await secondResponse.json();
+
+                        if (secondResponse.ok) {
+                            console.log("Second API Response:", secondApiData);
+                            updateModalTableWithDomainData(secondApiData);
+                        } else {
+                            console.error('Second API Error:', secondApiData);
+                            alert('Error fetching domain data from the API.');
+                        }
+                        // Third API call for time to rank data
+                        const thirdApiEndpoint = "https://v21e9kd3h1.execute-api.ap-southeast-1.amazonaws.com/timetoRank3";
+                        const thirdRequestBody = { url_list: urls.join(",") }; // Format as requested by the API
+
+                        console.log(thirdRequestBody);
+
+                        const thirdResponse = await fetch(thirdApiEndpoint, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(thirdRequestBody)
+                        });
+
+                        const thirdApiData = await thirdResponse.json();
+
+                        if (thirdResponse.ok) {
+                            console.log("Third API Response:", thirdApiData);
+                            updateModalTableWithTimeToRankData(thirdApiData);
+                        } else {
+                            console.error('Third API Error:', thirdApiData);
+                            alert('Error fetching time-to-rank data from the API.');
+                        }
+
+                    } catch (error) {
+                        console.error('Third API Fetch Error:', error);
+                        alert('Error communicating with the time-to-rank API.');
+                    }
+                }
             }
 
+            function updateModalTableWithTimeToRankData(timeToRankData) {
+                const modalTable = document.getElementById("modalTable").querySelector("tbody");
+                const rows = modalTable.querySelectorAll("tr");
+
+                rows.forEach(row => {
+                    const urlCell = row.querySelector("td:nth-child(2)");
+                    const url = urlCell.textContent;
+
+                    if (timeToRankData.body[url]) {
+                        const pageData = timeToRankData.body[url];
+
+                        // Add data to the respective cells (create cells if they don't exist)
+                        addDataToCell(row, "H1", pageData.h1 ? pageData.h1.join(", ") : "-");
+                        addDataToCell(row, "H2", pageData.h2 ? pageData.h2.join(", ") : "-");
+                        addDataToCell(row, "H3", pageData.h3 ? pageData.h3.join(", ") : "-");
+                        addDataToCell(row, "Image Count", pageData.image || "-");
+                        addDataToCell(row, "Schema", pageData.schema ? "Yes" : "No");
+                        addDataToCell(row, "Word Count", pageData.word_count || "-");
+                        addDataToCell(row, "Readability", pageData.readability || "-");
+                        // Add more data to cells for other properties as needed
+
+                    } else {
+                        // Handle the case where the API doesn't return data for the URL
+                        console.warn("No time-to-rank data found for:", url);
+                    }
+                });
+            }
+
+            function addDataToCell(row, headerText, data) {
+                let cellIndex = Array.from(document.querySelectorAll("#modalTable thead tr th"))
+                    .findIndex(th => th.textContent === headerText);
+
+                if (cellIndex !== -1) {
+                    // Cell exists, add data to it
+                    if (row.cells.length > cellIndex) {
+                        row.cells[cellIndex].textContent = data;
+                    } else {
+                        // Create the cell and add data
+                        row.insertCell(cellIndex).textContent = data;
+                    }
+                } else {
+                    console.warn(`Header '${headerText}' not found in the table.`);
+                }
+            }
+
+            function updateModalTableWithDomainData(domainData) {
+                const modalTable = document.getElementById("modalTable").querySelector("tbody");
+                const rows = modalTable.querySelectorAll("tr");
+
+                rows.forEach(row => {
+                    const urlCell = row.querySelector("td:nth-child(2)");
+                    const url = urlCell.textContent;
+
+                    if (domainData.body[url]) {
+                        const domainMetrics = domainData.body[url];
+                        row.insertCell().textContent = domainMetrics.domain_rank || "-";
+                        row.insertCell().textContent = domainMetrics.backlinks || "-";
+                        row.insertCell().textContent = domainMetrics.backlinks_spam_score || "-";
+                        row.insertCell().textContent = domainMetrics.referring_domains || "-";
+                        row.insertCell().textContent = domainMetrics.internal_links_count || "-";
+                        row.insertCell().textContent = domainMetrics.external_links_count || "-";
+                        // Add more cells for other domain metrics as needed
+                    } else {
+                        // If no data is returned for a URL, add empty cells or "-"
+                        for (let i = 0; i < 6; i++) { // Add 6 empty cells (for each metric)
+                            row.insertCell().textContent = "-";
+                        }
+                    }
+                });
+            }
+
+            function displayApiResponse(data) {
+                const modalTable = document
+                    .getElementById("modalTable")
+                    .querySelector("tbody");
+                modalTable.innerHTML = ""; // Clear previous content
+
+                if (data.statusCode === 200 && data.body) {
+                    // Assuming the API response body is an object with numbered keys
+                    for (const key in data.body) {
+                        if (data.body.hasOwnProperty(key)) {
+                            const item = data.body[key];
+                            const row = modalTable.insertRow();
+                            row.insertCell().textContent = key; // Item number
+                            row.insertCell().textContent = item.url;
+                            row.insertCell().textContent = item.title;
+                            row.insertCell().textContent = item.description;
+                        }
+                    }
+                } else {
+                    // Handle cases where the API response doesn't have the expected structure
+                    const row = modalTable.insertRow();
+                    const cell = row.insertCell();
+                    cell.colSpan = 4; // Span across all columns
+                    cell.textContent = "No data found.";
+                }
+
+                openModal();
+            }
+
+
+            // Function to open the modal
+            function openModal() {
+                document.getElementById("keywordModal").style.display = "block";
+            }
+
+            // Function to close the modal
+            function closeModal() {
+                document.getElementById("keywordModal").style.display = "none";
+            }
 
             function removeRow(button) {
                 let row = button.parentNode.parentNode;
@@ -1199,132 +1392,7 @@
             }
 
             // When the user clicks on a keyword, open the modal with dummy data
-            function openModal(keyword) {
-                // Clear existing data in the modal content
-                modalContent.innerHTML = '';
 
-                var modal = document.getElementById("keywordModal");
-                modal.style.display = "block";
-
-                // Dummy data for demonstration; you would replace this with actual data retrieval logic
-                let keywordData = [
-                    {
-                        kewyord: "keyword",
-                        rank: 1,
-                        url: "https://www.example.com",
-                        title: "Example Title",
-                        description: "This is an example of a keyword description",
-                        domainRank: "50",
-                        backlinks: "150",
-                        backlinksSpamScore: "5%",
-                        referringDomains: "40",
-                        internalLinksCount: "200",
-                        externalLinksCount: "150",
-                        h1: "Main Heading",
-                        h2: "Subheading",
-                        h3: "Minor Heading",
-                        image: "5 images",
-                        schema: "Organization, Breadcrumb",
-                        wordcount: "1200",
-                        readability: "75%",
-                        altText: "5 alt texts",
-                        table: "2 tables",
-                        video: "1 video",
-                        list: "3 lists",
-                        p_tag: "20 paragraphs",
-                        wordFrequency: "Keyword appears 10 times"
-                    },
-                    {
-                        kewyord: "keyword",
-                        rank: 2,
-                        url: "https://www.example.com",
-                        title: "Example Title",
-                        description: "This is an example of a keyword description",
-                        domainRank: "50",
-                        backlinks: "150",
-                        backlinksSpamScore: "5%",
-                        referringDomains: "40",
-                        internalLinksCount: "200",
-                        externalLinksCount: "150",
-                        h1: "Main Heading",
-                        h2: "Subheading",
-                        h3: "Minor Heading",
-                        image: "5 images",
-                        schema: "Organization, Breadcrumb",
-                        wordcount: "1200",
-                        readability: "75%",
-                        altText: "5 alt texts",
-                        table: "2 tables",
-                        video: "1 video",
-                        list: "3 lists",
-                        p_tag: "20 paragraphs",
-                        wordFrequency: "Keyword appears 10 times"
-                    },
-                    {
-                        kewyord: "keyword",
-                        rank: 3,
-                        url: "https://www.example.com",
-                        title: "Example Title",
-                        description: "This is an example of a keyword description",
-                        domainRank: "50",
-                        backlinks: "150",
-                        backlinksSpamScore: "5%",
-                        referringDomains: "40",
-                        internalLinksCount: "200",
-                        externalLinksCount: "150",
-                        h1: "Main Heading",
-                        h2: "Subheading",
-                        h3: "Minor Heading",
-                        image: "5 images",
-                        schema: "Organization, Breadcrumb",
-                        wordcount: "1200",
-                        readability: "75%",
-                        altText: "5 alt texts",
-                        table: "2 tables",
-                        video: "1 video",
-                        list: "3 lists",
-                        p_tag: "20 paragraphs",
-                        wordFrequency: "Keyword appears 10 times"
-                    },
-                    {
-                        kewyord: "keyword",
-                        rank: 4,
-                        url: "https://www.example.com",
-                        title: "Example Title",
-                        description: "This is an example of a keyword description",
-                        domainRank: "50",
-                        backlinks: "150",
-                        backlinksSpamScore: "5%",
-                        referringDomains: "40",
-                        internalLinksCount: "200",
-                        externalLinksCount: "150",
-                        h1: "Main Heading",
-                        h2: "Subheading",
-                        h3: "Minor Heading",
-                        image: "5 images",
-                        schema: "Organization, Breadcrumb",
-                        wordcount: "1200",
-                        readability: "75%",
-                        altText: "5 alt texts",
-                        table: "2 tables",
-                        video: "1 video",
-                        list: "3 lists",
-                        p_tag: "20 paragraphs",
-                        wordFrequency: "Keyword appears 10 times"
-                    }
-                ];
-
-                // Loop over the keyword data to populate the modal
-                keywordData.forEach(data => {
-                    let row = modalContent.insertRow(); // Create a new row in the table body
-                    Object.values(data).forEach(text => {
-                        let cell = row.insertCell(); // Create a new cell for each property
-                        cell.textContent = text; // Set the text content to the data
-                    });
-                });
-
-                modal.style.display = "block"; // Display the modal
-            }
 
             // Get the modal
             var modal = document.getElementById("keywordModal");
