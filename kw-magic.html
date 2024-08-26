@@ -132,10 +132,9 @@
 
         th,
         td {
-            text-align: left;
             padding: 12px 8px;
             border: 1px solid #ddd;
-            font-size: 16px;
+            font-size: 14px;
             background-color: white;
         }
 
@@ -343,13 +342,14 @@
 
         .modal-content {
             background-color: #fefefe;
-            margin: 5% auto;
+            margin: 2% auto;
             padding: 20px;
             border: 1px solid #888;
             width: 90%;
             /* Could be more or less, depending on screen size */
             height: auto;
             overflow-y: auto;
+            border-radius: 10px;
         }
 
         .close {
@@ -381,9 +381,7 @@
 
         .modal-content th,
         .modal-content td {
-            min-width: 120px;
-            /* Ensures that all cells have a minimum width */
-            padding: 8px;
+            padding: 5px;
             /* Adds space inside cells */
             /* Adds borders to cells */
         }
@@ -401,7 +399,7 @@
 
         .modal-content th:nth-child(2),
         .modal-content td:nth-child(2) {
-            left: 10px;
+            left: 43px;
             /* Adjust based on the width of the first column */
         }
     </style>
@@ -988,6 +986,74 @@
 
             }
 
+            async function fetchSerpResults(keyword, location, domain) {
+                const apiEndpoint = "https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new";
+                const requestBody = {
+                    location: location,
+                    keyword: keyword,
+                    targeted_url: domain,
+                    language: 'English'
+                };
+
+                try {
+                    const response = await fetch(apiEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+
+                    const data = await response.json();
+                    return data;
+                } catch (error) {
+                    console.error('Error fetching SERP data:', error);
+                    return null;
+                }
+            }
+
+            async function fetchDomainData(urls) {
+                const apiEndpoint = "https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new";
+                const requestBody = { url_list: urls };
+
+                try {
+                    const response = await fetch(apiEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+
+                    const data = await response.json();
+                    return data;
+                } catch (error) {
+                    console.error('Error fetching domain data:', error);
+                    return null;
+                }
+            }
+
+            async function fetchContentAnalysisData(url) {
+                const apiEndpoint = "https://v21e9kd3h1.execute-api.ap-southeast-1.amazonaws.com/timetoRank3";
+                const requestBody = { url: url };
+
+                try {
+                    const response = await fetch(apiEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+
+                    const data = await response.json();
+                    return data;
+                } catch (error) {
+                    console.error('Error fetching content analysis data:', error);
+                    return null;
+                }
+            }
+
             async function processKeywords(keywords, location) {
                 const table = document.getElementById('keywordResults');
 
@@ -1060,124 +1126,117 @@
                     checkbox.checked = true;
                     checkboxDiv.appendChild(checkbox);
                     listItem.appendChild(checkboxDiv);
-
-                    //keywordList.appendChild(listItem);
                 });
                 document.getElementById("keywordAnalysis").style.backgroundColor = "green";
 
+
+                // get SERPs
                 domain = document.getElementById('domain').value;
-                language = 'English'; // You can add language selection if needed
-
-                // Loop through each keyword and make API calls
+                language = 'English'; // You can add language selection if neede
+                
+                // Loop through each keyword and make API call
                 for (const keyword of keywords) {
-                    apiEndpoint = "https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new";
-                    requestBody = {
-                        location: location,
-                        keyword: keyword,
-                        targeted_url: domain,
-                        language: language
-                    };
+                    // 1. Fetch SERP Results
+                    const serpData = await fetchSerpResults(keyword, location, domain);
+                    if (serpData && serpData.statusCode === 200 && serpData.body) {
+                        displayApiResponse(serpData); // Assuming this function populates the initial modal table
 
-                    try {
-                        response = await fetch(apiEndpoint, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(requestBody)
-                        });
-
-                        data = await response.json();
-
-                        console.log(data);
-
-                        // Process and display the API response in the modal table
-                        if (response.ok) {
-                            displayApiResponse(data);
-                        } else {
-                            console.error('API Error:', data);
-                            // Handle API errors gracefully, e.g., display an error message in the modal
-                            alert('Error fetching data from the API.');
-                        }
-                        const urls = Array.from(document.querySelectorAll("#modalTable tbody tr td:nth-child(2)"))
-                            .map(cell => cell.textContent);
-                        const secondApiEndpoint = "https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new";
-                        const secondRequestBody = { url_list: urls };
-
-                        const secondResponse = await fetch(secondApiEndpoint, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(secondRequestBody)
-                        });
-
-                        const secondApiData = await secondResponse.json();
-
-                        if (secondResponse.ok) {
-                            console.log("Second API Response:", secondApiData);
-                            updateModalTableWithDomainData(secondApiData);
-                        } else {
-                            console.error('Second API Error:', secondApiData);
-                            alert('Error fetching domain data from the API.');
-                        }
-                        // Third API call for time to rank data
-                        const thirdApiEndpoint = "https://v21e9kd3h1.execute-api.ap-southeast-1.amazonaws.com/timetoRank3";
-                        const thirdRequestBody = { url_list: urls.join(",") }; // Format as requested by the API
-
-                        console.log(thirdRequestBody);
-
-                        const thirdResponse = await fetch(thirdApiEndpoint, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(thirdRequestBody)
-                        });
-
-                        const thirdApiData = await thirdResponse.json();
-
-                        if (thirdResponse.ok) {
-                            console.log("Third API Response:", thirdApiData);
-                            updateModalTableWithTimeToRankData(thirdApiData);
-                        } else {
-                            console.error('Third API Error:', thirdApiData);
-                            alert('Error fetching time-to-rank data from the API.');
+                        // 2. Fetch Domain Data (if needed, based on serpData)
+                        const urls = Object.values(serpData.body).map(item => item.url);
+                        const domainData = await fetchDomainData(urls);
+                        if (domainData && domainData.statusCode === 200 && domainData.body) {
+                            updateModalTableWithDomainData(domainData);
                         }
 
-                    } catch (error) {
-                        console.error('Third API Fetch Error:', error);
-                        alert('Error communicating with the time-to-rank API.');
+                        // 3. Fetch Content Analysis Data for each URL from SERP
+                        for (const url of urls) {
+                            const contentData = await fetchContentAnalysisData(url);
+                            if (contentData && contentData.statusCode === 200 && contentData.body) {
+                                const modalTable = document
+                                    .getElementById("modalTable")
+                                    .querySelector("tbody");
+                                const rows = modalTable.querySelectorAll("tr");
+
+                                const targetRow = Array.from(rows).find(row => row.cells[1].textContent === url);
+                                if (targetRow) {
+                                    updateModalTableRow(targetRow, contentData.body);
+                                }
+                            }
+                        }
+
+                        // 4. Fetch On-Page Data for each URL from SERP
+                        await fetchOnPageDetails(urls)
+
+                    } else {
+                        // Handle error for fetchSerpResults
+                    }
+
+                   
+                   
+                }
+                hideLoadingIndicator(modalTable);
+            }
+
+            async function fetchOnPageDetails(urls) {
+                for (const url of urls) {
+                    const onPageData = await fetchOnPageAnalysisData(url);
+                    if (onPageData && onPageData.statusCode === 200 && onPageData.body) {
+                        const modalTable = document
+                            .getElementById("modalTable")
+                            .querySelector("tbody");
+                        const rows = modalTable.querySelectorAll("tr");
+
+                        const targetRow = Array.from(rows).find(row => row.cells[1].textContent === url);
+                        if (targetRow) {
+                            updateModalTableRowWithOnPageDetails(targetRow, onPageData.body);
+                        }
                     }
                 }
             }
 
-            function updateModalTableWithTimeToRankData(timeToRankData) {
-                const modalTable = document.getElementById("modalTable").querySelector("tbody");
-                const rows = modalTable.querySelectorAll("tr");
+            async function fetchOnPageAnalysisData(url) {
+                const apiEndpoint = "https://zx3pzbiooa.execute-api.ap-southeast-1.amazonaws.com/function4";
+                const requestBody = { url: url };
 
-                rows.forEach(row => {
-                    const urlCell = row.querySelector("td:nth-child(2)");
-                    const url = urlCell.textContent;
+                try {
+                    const response = await fetch(apiEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
 
-                    if (timeToRankData.body[url]) {
-                        const pageData = timeToRankData.body[url];
+                    const data = await response.json();
+                    return data;
+                } catch (error) {
+                    console.error('Error fetching on-page analysis data:', error);
+                    return null;
+                }
+            }
 
-                        // Add data to the respective cells (create cells if they don't exist)
-                        addDataToCell(row, "H1", pageData.h1 ? pageData.h1.join(", ") : "-");
-                        addDataToCell(row, "H2", pageData.h2 ? pageData.h2.join(", ") : "-");
-                        addDataToCell(row, "H3", pageData.h3 ? pageData.h3.join(", ") : "-");
-                        addDataToCell(row, "Image Count", pageData.image || "-");
-                        addDataToCell(row, "Schema", pageData.schema ? "Yes" : "No");
-                        addDataToCell(row, "Word Count", pageData.word_count || "-");
-                        addDataToCell(row, "Readability", pageData.readability || "-");
-                        // Add more data to cells for other properties as needed
+            function updateModalTableRowWithOnPageDetails(row, data) {
+                // ... Map the data fields from the API response to the correct columns ... 
+                addDataToCell(row, "Alt Text", data.alt_text.join(", ") || "-");
+                addDataToCell(row, "Table", data.table || "-");
+                addDataToCell(row, "Video", data.video || "-");
+                addDataToCell(row, "List", data.list || "-");
+                addDataToCell(row, "P Tag", data.p_tag || "-");
+                addDataToCell(row, "Word Frequency", JSON.stringify(data.word_frequency) || "-"); // You might need to format this
+            }
 
-                    } else {
-                        // Handle the case where the API doesn't return data for the URL
-                        console.warn("No time-to-rank data found for:", url);
-                    }
-                });
+            // --- Helper functions to show and hide the loading indicator ---
+            function showLoadingIndicator(parent) {
+                const loadingIndicator = document.getElementById("loadingIndicator");
+                parent.parentNode.insertBefore(loadingIndicator, parent); // Insert before the table
+                parent.classList.add("loading");
+                loadingIndicator.style.display = "block";
+            }
+
+            function hideLoadingIndicator(parent) {
+                const loadingIndicator = document.getElementById("loadingIndicator");
+                loadingIndicator.style.display = "none";
+                parent.classList.remove("loading");
             }
 
             function addDataToCell(row, headerText, data) {
@@ -1195,6 +1254,18 @@
                 } else {
                     console.warn(`Header '${headerText}' not found in the table.`);
                 }
+            }
+
+            function updateModalTableRow(row, data) {
+                // Assuming data.h1, data.h2, etc. structure in the second API response
+                addDataToCell(row, "H1", data.h1.join(", ") || "-"); // Join array elements if needed
+                addDataToCell(row, "H2", data.h2.join(", ") || "-");
+                addDataToCell(row, "H3", data.h3.join(", ") || "-");
+                addDataToCell(row, "Image", data.image || "-");
+                addDataToCell(row, "Schema", data.schema || "-");
+                addDataToCell(row, "Wordcount", data.word_count || "-");
+                addDataToCell(row, "Readability", data.readabilty || "-");
+                // ... Add more data fields as needed ...
             }
 
             function updateModalTableWithDomainData(domainData) {
