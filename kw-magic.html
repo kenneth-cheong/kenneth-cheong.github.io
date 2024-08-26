@@ -247,7 +247,7 @@
             align-items: center;
             /* Vertically center content in each row */
             margin-bottom: 5px;
-            max-width: 75%;
+            max-width: 65%;
         }
 
         .keyword-column {
@@ -256,6 +256,7 @@
             /* Each column takes equal width */
             margin-right: 5px;
             /* Space between columns */
+            min-width: 50px;
         }
 
         .keyword-column:hover {
@@ -265,18 +266,23 @@
 
         .keyword-column:nth-child(1) {
             /* Keyword column */
-            flex: 0 0 50%;
+            flex: 0 0 60%;
         }
 
         .keyword-column:nth-child(2) {
             /* Search Volume column */
-            flex: 0 0 20%;
+            flex: 0 0 30%;
         }
 
         .keyword-column:nth-child(3) {
             /* Difficulty column */
-            flex: 0 0 40%;
+            flex: 0 0 22%;
         }
+
+        input[type="checkbox"] {
+            width: 3em;
+        }
+
 
         .checkbox-column {
             flex: 0 0 5%;
@@ -347,7 +353,7 @@
             border: 1px solid #888;
             width: 90%;
             /* Could be more or less, depending on screen size */
-            height: auto;
+            height: 90%;
             overflow-y: auto;
             border-radius: 10px;
         }
@@ -384,6 +390,14 @@
             padding: 5px;
             /* Adds space inside cells */
             /* Adds borders to cells */
+
+            overflow: auto;
+            white-space: pre;
+            max-width: 300px;
+        }
+
+        .modal-content td {
+            max-height: 40px;
         }
 
         .modal-content th:nth-child(1),
@@ -1055,6 +1069,8 @@
             }
 
             async function processKeywords(keywords, location) {
+                document.getElementById("keywordAnalysis").style.backgroundColor = "orange";
+                document.getElementById('analyze').innerText = "Analyzing...";
                 const table = document.getElementById('keywordResults');
 
                 keywords.forEach(keyword => {
@@ -1133,7 +1149,7 @@
                 // get SERPs
                 domain = document.getElementById('domain').value;
                 language = 'English'; // You can add language selection if neede
-                
+
                 // Loop through each keyword and make API call
                 for (const keyword of keywords) {
                     // 1. Fetch SERP Results
@@ -1171,8 +1187,8 @@
                         // Handle error for fetchSerpResults
                     }
 
-                   
-                   
+
+
                 }
                 hideLoadingIndicator(modalTable);
             }
@@ -1264,7 +1280,12 @@
                 addDataToCell(row, "Image", data.image || "-");
                 addDataToCell(row, "Schema", data.schema || "-");
                 addDataToCell(row, "Wordcount", data.word_count || "-");
-                addDataToCell(row, "Readability", data.readabilty || "-");
+                try {
+                    addDataToCell(row, "Readability", data.readability.toFixed(2) || "-");
+                } catch (errror) {
+                    addDataToCell(row, "Readability", data.readability || "-");
+                }
+
                 // ... Add more data fields as needed ...
             }
 
