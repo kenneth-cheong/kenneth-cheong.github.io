@@ -1,154 +1,270 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<title>Content Analysis Tool</title>
-<style>
-table {
-  border-collapse: collapse;
-  width: 100%;
-  margin-bottom: 20px;
-}
-th, td {
-  border: 1px solid black;
-  padding: 8px;
-  text-align: left;
-}
-th {
-  background-color: #f2f2f2;
-}
-</style>
-</head>
-<body>
-
-<h1>Content Analysis Tool</h1>
-
-<label for="urls">Enter URLs (separated by commas):</label><br>
-<textarea id="urls" rows="4" cols="50"></textarea><br>
-<button onclick="analyzeContent()">Analyze</button>
-
-<div id="results"></div>
-<div id="categoryResults"></div> <div id="tableForGemini"></div>
-
-<script>
-async function analyzeContent() {
-  const urls = document.getElementById('urls').value.split(',').map(url => url.trim());
-  const resultsDiv = document.getElementById('results');
-  const categoryResultsDiv = document.getElementById('categoryResults');
-  resultsDiv.innerHTML = ''; 
-  categoryResultsDiv.innerHTML = ''; 
-
-  // Store all topic data for later aggregation
-  let allTopics = {};
-  let topicSummaryForAPI = {}; // Variable to store topic summary for API
-
-  // Loop through each URL and fetch data
-  for (const url of urls) {
-    if (url) {
-      resultsDiv.innerHTML += `<h2>Analyzing: ${url}</h2>`;
-      const table = document.createElement('table');
-
-      try {
-        // Fetch word count
-        const response1 = await fetch('https://tpl2mrhmc0.execute-api.ap-southeast-1.amazonaws.com/new', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ 'url': url })
-        });
-        const data1 = await response1.json();
-        const wordCount = data1.body.word_count;
-
-        // Update table with word count
-        table.innerHTML = `
-          <tr><th>URL</th><td>${url}</td></tr>
-          <tr><th>Word Count</th><td>${wordCount}</td></tr>
-        `;
-
-        // Fetch topics and word counts
-        const response2 = await fetch('https://rdw2fy7u6e.execute-api.ap-southeast-1.amazonaws.com/contentTopics', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ 'page_text': data1.body.visible_text })
-        });
-        const data2 = await response2.json();
-
-        topicSummaryForAPI[url] = data2.output; // Store topic data for API
-
-        // Update table with topics and word counts
-        for (const [topic, count] of Object.entries(data2.output)) {
-          const row = table.insertRow();
-          row.innerHTML = `<td>${topic}</td><td>${count}</td>`;
-
-          // Update allTopics for the summary table
-          if (!allTopics[topic]) {
-            allTopics[topic] = {};
-          }
-          allTopics[topic][url] = count;
+    <title>Content Analysis Tool</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 10px;
+            background-color: #fbf7f5;
+            color: #333;
         }
 
-        resultsDiv.appendChild(table);
+        input,
+        select,
+        button,
+        textarea {
+            padding: 10px;
+            margin: 10px;
+            border-radius: 10px;
+            border: 1px solid #fffef7;
+            font-family: inherit;
+            font-size: 16px;
+        }
 
-      } catch (error) {
-        console.error(`Error fetching data for ${url}:`, error);
-        resultsDiv.innerHTML += `<p>Error analyzing ${url}</p>`;
-      }
-    }
-  }
+        button {
+            transition: background-color 0.3s, transform 0.1s;
+            /* Add transform for a subtle lift effect */
+        }
 
-  // Create and display the summary table 
-  if (Object.keys(allTopics).length > 0) {
-    resultsDiv.innerHTML += '<h2>Topic Summary</h2>';
-    const summaryTable = document.createElement('table');
-    summaryTable.innerHTML = '<tr><th>Category</th>' + urls.map(url => `<th>${url}</th>`).join('') + '</tr>';
+        button:hover {
+            background-color: #004c9d;
+            /* Darker blue on hover */
+            transform: translateY(-2px);
+            /* Move up slightly on hover */
+            cursor: pointer;
+            /* Change cursor to a pointer on hover */
+            color: white;
+        }
 
-    for (const topic in allTopics) {
-      const row = summaryTable.insertRow();
-      row.innerHTML = `<td>${topic}</td>` + urls.map(url => {
-        return `<td>${allTopics[topic][url] ? allTopics[topic][url] : '-'}</td>`;
-      }).join(''); 
-    }
+        input {
+            min-width: 90%;
+        }
 
-    resultsDiv.appendChild(summaryTable);
-  }
+        textarea {
+            min-width: 90%;
+            min-height: 150px;
+        }
 
-  console.log("Topic Summary for API:", topicSummaryForAPI); // Log the data for API
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            background-color: #fffef7;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 6px;
+        }
 
-  // API call to get categorized topics
-  try {
-    const response3 = await fetch('https://2swrnt693d.execute-api.ap-southeast-1.amazonaws.com/contentCategories', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 'topic_summary': topicSummaryForAPI })
-    });
-    const data3 = await response3.json();
+        th,
+        td {
+            padding: 12px 8px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+            background-color: white;
+        }
 
-    console.log(data3);
+        th {
+            background-color: #004c9d;
+            position: sticky;
+            color: white;
+            top: 10px;
+        }
 
-    // Create and display the category summary table
-    categoryResultsDiv.innerHTML += '<h2>Category Summary</h2>';
-    const categoryTable = document.createElement('table');
-    categoryTable.innerHTML = '<tr><th>Category</th>' + urls.map(url => `<th>${url}</th>`).join('') + '</tr>';
+        .collapsible {
+            background-color: #004c9d;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            padding: 20px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 18px;
+            transition: background-color 0.3s ease;
+        }
 
-    for (const category in data3.output) {
-      const row = categoryTable.insertRow();
-      row.innerHTML = `<td>${category}</td>` + urls.map(url => {
-        return `<td>${data3[category][url] ? data3[category][url] : '-'}</td>`;
-      }).join('');
-    }
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
 
-    categoryResultsDiv.appendChild(categoryTable);
+        .collapsible-loading {
+            background-color: #ffad33;
+        }
+    </style>
+</head>
 
-  } catch (error) {
-    console.error("Error fetching category data:", error);
-    categoryResultsDiv.innerHTML += `<p>Error fetching category data</p>`;
-  }
-}
-</script>
+<body>
+
+    <h1>Content Analysis Tool</h1>
+
+    <label for="urls">Enter URLs (separated by commas):</label><br>
+    <textarea id="urls" rows="4" cols="50"></textarea><br>
+    <button onclick="analyzeContent()">Analyze</button>
+
+    <div id="results"></div>
+    <div id="categoryResults"></div>
+    <div id="tableForGemini"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const coll = document.getElementsByClassName("collapsible");
+            for (let i = 0; i < coll.length; i++) {
+                coll[i].addEventListener("click", function () {
+                    this.classList.toggle("active");
+                    const content = this.nextElementSibling;
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                });
+            }
+        });
+
+        async function analyzeContent() {
+            const urls = document.getElementById('urls').value.split(',').map(url => url.trim());
+            const resultsDiv = document.getElementById('results');
+            const categoryResultsDiv = document.getElementById('categoryResults');
+            resultsDiv.innerHTML = '';
+            categoryResultsDiv.innerHTML = '';
+
+            // Store all topic data for later aggregation
+            let allTopics = {};
+            let topicSummaryForAPI = {}; // Variable to store topic summary for API
+
+            // Loop through each URL and fetch data
+            for (const url of urls) {
+                if (url) {
+                    resultsDiv.innerHTML += `<button class="collapsible">Analyzing: ${url}</button><div style="display: none;">`;
+                    const table = document.createElement('table');
+
+                    try {
+                        // Fetch word count
+                        const response1 = await fetch('https://tpl2mrhmc0.execute-api.ap-southeast-1.amazonaws.com/new', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ 'url': url })
+                        });
+                        const data1 = await response1.json();
+                        const wordCount = data1.body.word_count;
+
+                        // Update table with word count
+                        table.innerHTML = `
+                            <tr><th>URL</th><td>${url}</td></tr>
+                            <tr><th>Word Count</th><td>${wordCount} words</td></tr>
+                        `;
+
+                        // Fetch topics and word counts
+                        const response2 = await fetch('https://rdw2fy7u6e.execute-api.ap-southeast-1.amazonaws.com/contentTopics', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ 'page_text': data1.body.visible_text })
+                        });
+                        const data2 = await response2.json();
+
+                        topicSummaryForAPI[url] = data2.output; // Store topic data for API
+
+                        // Update table with topics and word counts
+                        for (const [topic, count] of Object.entries(data2.output)) {
+                            const row = table.insertRow();
+                            row.innerHTML = `<td>${topic}</td><td class="word-count" data-count="${count}">${count} words</td>`;
+
+                            // Update allTopics for the summary table
+                            if (!allTopics[topic]) {
+                                allTopics[topic] = {};
+                            }
+                            allTopics[topic][url] = count;
+                        }
+
+                        resultsDiv.appendChild(table);
+                        resultsDiv.innerHTML += `</div>`; // Close the collapsible div
+
+                    } catch (error) {
+                        console.error(`Error fetching data for ${url}:`, error);
+                        resultsDiv.innerHTML += `<p>Error analyzing ${url}</p></div>`; // Close the collapsible div
+                    }
+                }
+            }
+
+            // Create and display the summary table 
+            if (Object.keys(allTopics).length > 0) {
+                resultsDiv.innerHTML += '<h2>Topic Summary</h2>';
+                const summaryTable = document.createElement('table');
+                summaryTable.innerHTML = '<tr><th>Category</th>' + urls.map(url => `<th>${url}</th>`).join('') + '</tr>';
+
+                for (const topic in allTopics) {
+                    const row = summaryTable.insertRow();
+                    row.innerHTML = `<td>${topic}</td>` + urls.map(url => {
+                        const count = allTopics[topic][url] || 0;
+                        return `<td class="word-count" data-count="${count}">${count ? count + ' words' : '-'}</td>`; 
+                    }).join('');
+                    applyGradient(row);
+                }
+
+                resultsDiv.appendChild(summaryTable);
+            }
+
+            console.log("Topic Summary for API:", topicSummaryForAPI); // Log the data for API
+
+            // API call to get categorized topics
+            try {
+                const response3 = await fetch('https://2swrnt693d.execute-api.ap-southeast-1.amazonaws.com/contentCategories', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 'topic_summary': topicSummaryForAPI })
+                });
+                const data3 = await response3.json();
+
+                console.log(data3.output);
+
+                // Create and display the category summary table
+                categoryResultsDiv.innerHTML += '<h2>Category Summary</h2>';
+                const categoryTable = document.createElement('table');
+                categoryTable.innerHTML = '<tr><th>Category</th>' + urls.map(url => `<th>${url}</th>`).join('') + '</tr>';
+
+                for (const category in data3.output) {
+                    const row = categoryTable.insertRow();
+                    row.innerHTML = `<td>${category}</td>` + urls.map(url => {
+                        const count = data3.output[category][url] ? parseInt(data3.output[category][url].split(' ')[0]) : 0; // Extract number
+                        return `<td class="word-count" data-count="${count}">${data3.output[category][url] || '-'}</td>`;
+                    }).join('');
+                    applyGradient(row);
+                }
+
+                categoryResultsDiv.appendChild(categoryTable);
+
+            } catch (error) {
+                console.error("Error fetching category data:", error);
+                categoryResultsDiv.innerHTML += `<p>Error fetching category data</p>`;
+            }
+        }
+
+        function applyGradient(row) {
+            const wordCounts = Array.from(row.querySelectorAll('.word-count')).map(cell => {
+                return cell.dataset.count ? parseInt(cell.dataset.count) : 0;
+            });
+
+            const maxCount = Math.max(...wordCounts);
+            const minCount = Math.min(...wordCounts);
+
+            row.querySelectorAll('.word-count').forEach(cell => {
+                const count = parseInt(cell.dataset.count);
+                if (count > 0) {
+                    const percent = (count - minCount) / (maxCount - minCount);
+                    const red = Math.round(255 * (1 - percent));
+                    const green = Math.round(255 * percent);
+                    cell.style.backgroundColor = `rgb(${red}, ${green}, 0)`;
+                }
+            });
+        }
+    </script>
 
 </body>
+
 </html>
