@@ -74,7 +74,7 @@
         }
 
         .message {
-            animation: cycleMessages 10s linear infinite;
+            animation: cycleMessages 5s linear infinite;
             /* Adjust duration (10s) as needed */
             opacity: 0;
         }
@@ -239,18 +239,21 @@
                 const tableHTML = createAnalysisTable(analysisData.body.data);
                 resultsDiv.innerHTML = `<div id="tableContainer">${tableHTML}</div>`;
 
-                // 4. Display the recommendations 
+                // 4. Apply gradient to each row
+                applyGradientsToRows();
+
+                // 5. Display the recommendations 
                 resultsDiv.innerHTML += `<br><hr><h2>Content Analysis Results:</h2>
                                         <pre>${analysisData.body.recommendation}</pre>`;
 
                 loadingMessagesDiv.classList.remove('active'); 
-                analyzeBtn.innerHTML = 'Analyze';
+                analyzeBtn.innerHTML = 'Analyze (up to 3 mins)';
 
             } catch (error) {
                 resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
                 loadingMessagesDiv.classList.remove('active');
                 clearInterval(loadingMessageInterval); // Stop cycling messages
-                analyzeBtn.innerHTML = 'Analyze';
+                analyzeBtn.innerHTML = 'Analyze (up to 3 mins)';
             }
         });
 
@@ -269,7 +272,7 @@
             // Add Word Count row
             tableHTML += '<tr><td>Word Count</td>';
             urls.forEach(url => {
-                tableHTML += `<td>${data[url].word_count}</td>`;
+                tableHTML += `<td data-value="${data[url].word_count}">${data[url].word_count}</td>`; // Add data-value attribute
             });
             tableHTML += '</tr>';
 
@@ -291,7 +294,8 @@
             uniqueTopics.forEach(topic => {
                 tableHTML += `<tr><td>${topic}</td>`;
                 urls.forEach(url => {
-                    tableHTML += `<td>${data[url].topics[topic] || 0}</td>`; // Display 0 if topic doesn't exist
+                    const value = data[url].topics[topic] || 0;
+                    tableHTML += `<td data-value="${value}">${value}</td>`; // Add data-value attribute
                 });
                 tableHTML += '</tr>';
             });
@@ -300,6 +304,36 @@
             return tableHTML;
         }
 
+        // Function to apply gradients to table rows
+        function applyGradientsToRows() {
+            const table = document.getElementById('analysisTable');
+            for (let i = 1; i < table.rows.length; i++) { // Start from row 1 to skip header
+                applyGradientToRow(table.rows[i]);
+            }
+        }
+
+        // Function to apply gradient to a single row
+        function applyGradientToRow(row) {
+            const values = Array.from(row.cells)
+                .slice(1) // Skip the first cell (topic name)
+                .map(cell => {
+                    const value = parseFloat(cell.dataset.value);
+                    return isNaN(value) ? -1 : value; // Assign -1 for non-numeric values
+                }); 
+
+            const max = Math.max(...values);
+            const min = Math.min(...values);
+
+            values.forEach((value, index) => {
+                const cell = row.cells[index + 1]; // +1 to account for the first cell
+                if (!isNaN(value) && value !== -1) { // Apply gradient only to numeric values
+                    const percent = (value - min) / (max - min); 
+                    const red = Math.round(255 * (1 - percent));
+                    const green = Math.round(255 * percent);
+                    cell.style.backgroundColor = `rgb(${red}, ${green}, 0)`;
+                }
+            });
+        }
     </script>
 </body>
 
