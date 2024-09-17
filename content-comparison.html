@@ -111,10 +111,24 @@
     <label for="input">Enter URLs or a Keyword:</label><br>
     <textarea id="input" rows="4" cols="50"
         placeholder="Enter URLs separated by commas, one URL per line, or a single keyword"></textarea><br>
+
+    <label for="language">Language:</label>
+    <select id="language" name="language">
+        <option value="English" selected>English</option>
+        </select>
+
+    <label for="location">Location:</label>
+    <select id="location" name="location">
+        <option value="Malaysia" selected>Malaysia</option>
+        <option value="Singapore" selected>Singapore</option>
+        </select><br><br>
+
     <button onclick="analyzeContent()">Analyze</button>
 
     <div id="results"></div>
     <div id="categoryResults"></div>
+    <br>
+    <hr>
     <div id="tableForGemini"></div>
 
     <script>
@@ -131,6 +145,8 @@
 
         async function analyzeContent() {
             const input = document.getElementById('input').value.trim();
+            const language = document.getElementById('language').value; 
+            const location = document.getElementById('location').value; 
             const resultsDiv = document.getElementById('results');
             const categoryResultsDiv = document.getElementById('categoryResults');
             resultsDiv.innerHTML = '';
@@ -152,8 +168,8 @@
                         body: JSON.stringify({
                             'targeted_url': '',
                             'keyword': input,
-                            'language': "English",
-                            'location': 'Singapore'
+                            'language': language,
+                            'location': location
                         })
                     });
                     const data = await response.json();
@@ -252,7 +268,7 @@
                 });
                 const data3 = await response3.json();
 
-                console.log(data3.output);
+                console.log(data3);
 
                 // Create and display the category summary table
                 categoryResultsDiv.innerHTML += '<h2>Category Summary</h2>';
@@ -262,7 +278,7 @@
                 for (const category in data3.output) {
                     const row = categoryTable.insertRow();
                     row.innerHTML = `<td>${category}</td>` + urls.map(url => {
-                        const count = data3.output[category][url] ? parseInt(data3.output[category][url].split(' ')[0]) : 0;
+                        const count = data3.output[category][url] ? parseInt(data3.output[category][url]) : 0;
                         return `<td class="word-count" data-count="${count}">${data3.output[category][url] || '-'}</td>`;
                     }).join('');
                     applyGradient(row);
