@@ -335,11 +335,6 @@
             width: 100%;
         }
 
-        label:hover {
-            background-color: #0056b3;
-            color: white;
-        }
-
         .modal {
             display: none;
             /* Hidden by default */
@@ -762,7 +757,7 @@
                     }
 
                     // Start cycling loading messages
-                    const loadingMessageInterval = setInterval(updateLoadingMessage, 1500);
+                    const loadingMessageInterval = setInterval(updateLoadingMessage, 4000);
 
                     // 1. Fetch SERP data
                     const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
@@ -787,7 +782,7 @@
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({ urls: [...serpUrls, ...urls] }), // Combine SERP and user URLs
+                        body: JSON.stringify({ urls: [...serpUrls, ...urls] }),
                     });
 
                     const analysisData = await analysisResponse.json();
@@ -796,9 +791,11 @@
                         throw new Error(`Content Analysis API Error: ${analysisData.body || analysisData.errorMessage}`);
                     }
 
-                    clearInterval(loadingMessageInterval); // Stop cycling messages
+                    // --- Data is ready, stop loading messages ---
+                    clearInterval(loadingMessageInterval);
+                    loadingMessagesDiv.classList.remove('active');
 
-                    // 3. Create and display the table within a scrollable container
+                    // 3. Create and display the table 
                     const tableHTML = createAnalysisTable(analysisData.body.data);
                     resultsDiv.innerHTML = `<div id="tableContainer">${tableHTML}</div>`;
 
@@ -807,15 +804,15 @@
 
                     // 5. Display the recommendations 
                     resultsDiv.innerHTML += `<br><hr><h2>Content Analysis Results:</h2>
-                                        <pre>${analysisData.body.recommendation}</pre>`;
+                                <pre>${analysisData.body.recommendation}</pre>`;
 
-                    loadingMessagesDiv.classList.remove('active');
                     analyzeBtn.innerHTML = 'Analyze (up to 3 mins)';
 
                 } catch (error) {
                     resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                    // ---  Error occurred, ensure loading messages are stopped ---
+                    clearInterval(loadingMessageInterval);
                     loadingMessagesDiv.classList.remove('active');
-                    clearInterval(loadingMessageInterval); // Stop cycling messages
                     analyzeBtn.innerHTML = 'Analyze (up to 3 mins)';
                 }
             });
