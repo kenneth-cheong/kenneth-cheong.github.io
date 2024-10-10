@@ -755,6 +755,8 @@
                     // Start cycling loading messages
                     const loadingMessageInterval = setInterval(updateLoadingMessage, 4000);
 
+                    if (keyword!=""){
+
                     // 1. Fetch SERP data
                     const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
                         method: 'POST',
@@ -770,7 +772,12 @@
                         throw new Error(`SERP API Error: ${serpData.body || serpData.errorMessage}`);
                     }
 
-                    const serpUrls = Object.values(serpData.body).map(result => result.url);
+                    serpUrls = Object.values(serpData.body).map(result => result.url);
+                }
+
+                    else {
+                        serpUrls = urls;
+                    }
 
                     // 2. Fetch content analysis
                     const analysisResponse = await fetch('https://tx6jcc1h9g.execute-api.ap-southeast-1.amazonaws.com/gptTopics', {
@@ -786,6 +793,9 @@
                     if (analysisData.statusCode !== 200) {
                         throw new Error(`Content Analysis API Error: ${analysisData.body || analysisData.errorMessage}`);
                     }
+                
+                
+                
 
                     // --- Data is ready, stop loading messages ---
                     clearInterval(loadingMessageInterval);
