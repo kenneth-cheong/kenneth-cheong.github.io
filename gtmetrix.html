@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTMetrix Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .gauge-container {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .gauge {
+            width: 200px;
+            height: 100px;
+            border-radius: 150px 150px 0 0;
+            background-color: #ccc;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .gauge-arrow {
+            width: 5px;
+            height: 95px;
+            background-color: black;
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform-origin: 50% 100%;
+            transform: translateX(-50%) rotate(-90deg);
+        }
+
+        .gauge-value {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -100%);
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>GTMetrix Report</h1>
+
+    <label for="urlInput">Enter Website URL:</label>
+    <input type="text" id="urlInput" placeholder="https://example.com">
+    <button id="submitBtn">Submit</button>
+
+    <div id="results" style="display: none;">
+        <h2>Report for: <span id="reportUrl"></span></h2>
+        <div class="gauge-container">
+            <div class="gauge" id="cumulativeLayoutShiftGauge">
+                <div class="gauge-arrow"></div>
+                <div class="gauge-value"></div>
+                <p>Cumulative Layout Shift</p>
+            </div>
+            <div class="gauge" id="largestContentfulPaintGauge">
+                <div class="gauge-arrow"></div>
+                <div class="gauge-value"></div>
+                <p>Largest Contentful Paint</p>
+            </div>
+        </div>
+        <div class="gauge-container">
+            <div class="gauge" id="totalBlockingTimeGauge">
+                <div class="gauge-arrow"></div>
+                <div class="gauge-value"></div>
+                <p>Total Blocking Time</p>
+            </div>
+            <div class="gauge" id="performanceScoreGauge">
+                <div class="gauge-arrow"></div>
+                <div class="gauge-value"></div>
+                <p>Performance Score</p>
+            </div>
+        </div>
+        <div class="gauge-container">
+            <div class="gauge" id="gtmetrixGradeGauge">
+                <div class="gauge-arrow"></div>
+                <div class="gauge-value"></div>
+                <p>GTMetrix Grade</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const submitBtn = document.getElementById('submitBtn');
+        const resultsDiv = document.getElementById('results');
+        const reportUrlSpan = document.getElementById('reportUrl');
+        const cumulativeLayoutShiftGauge = document.getElementById('cumulativeLayoutShiftGauge');
+        const largestContentfulPaintGauge = document.getElementById('largestContentfulPaintGauge');
+        const totalBlockingTimeGauge = document.getElementById('totalBlockingTimeGauge');
+        const performanceScoreGauge = document.getElementById('performanceScoreGauge');
+        const gtmetrixGradeGauge = document.getElementById('gtmetrixGradeGauge');
+
+        submitBtn.addEventListener('click', () => {
+            const url = document.getElementById('urlInput').value;
+
+            fetch('https://y5830908vh.execute-api.ap-southeast-1.amazonaws.com/gtmetrix', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url: url })
+            })
+            .then(response => response.json())
+            .then(data => {
+                resultsDiv.style.display = 'block';
+                reportUrlSpan.textContent = data.body.data.links.report_url;
+
+                // Update gauges (add logic for color-coding based on values)
+                updateGauge(cumulativeLayoutShiftGauge, data.body.data.attributes.cumulative_layout_shift, 0, 0.1, 0.25);
+                updateGauge(largestContentfulPaintGauge, data.body.data.attributes.largest_contentful_paint / 1000, 0, 2.5, 4);
+                updateGauge(totalBlockingTimeGauge, data.body.data.attributes.total_blocking_time, 0, 300, 600);
+                updateGauge(performanceScoreGauge, data.body.data.attributes.performance_score, 0, 50, 90);
+                updateGauge(gtmetrixGradeGauge, gradeToNumber(data.body.data.attributes.gtmetrix_grade), 0, 2, 4);
+            })
+            .catch(error => {
+                console.error('Error fetching data:', error);
+            });
+        });
+
+        function updateGauge(gaugeElement, value, min, goodThreshold, badThreshold) {
+            const gaugeArrow = gaugeElement.querySelector('.gauge-arrow');
+            const gaugeValue = gaugeElement.querySelector('.gauge-value');
+
+            // Calculate rotation angle (180 degrees for the range)
+            const rotation = ((value - min) / (badThreshold - min)) * 180;
+            gaugeArrow.style.transform = `translateX(-50%) rotate(${rotation}deg)`;
+            gaugeValue.textContent = value;
+
+            // Color coding
+            if (value <= goodThreshold) {
+                gaugeElement.style.backgroundColor = 'green';
+            } else if (value <= badThreshold) {
+                gaugeElement.style.backgroundColor = 'orange';
+            } else {
+                gaugeElement.style.backgroundColor = 'red';
+            }
+        }
+
+        function gradeToNumber(grade) {
+            switch (grade) {
+                case 'A': return 5;
+                case 'B': return 4;
+                case 'C': return 3;
+                case 'D': return 2;
+                case 'E': return 1;
+                default: return 0;
+            }
+        }
+    </script>
+</body>
+</html>
