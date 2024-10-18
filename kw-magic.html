@@ -188,6 +188,7 @@
             background-color: #f0f0f0;
             border: 1px solid #ccc;
             border-top: none;
+            border-radius: 10px;
         }
 
         button.sort-button {
@@ -669,14 +670,6 @@
                             <td>GTmetrix Performance Score</td>
                             <td id="performance"></td>
                         </tr>
-                        <tr>
-                            <td>Copyscape Test Link</td>
-                            <td id="copyscapeUrl"></td>
-                        </tr>
-                        <tr>
-                            <td>Copyscape Percentage</td>
-                            <td id="percentMatched"></td>
-                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -949,23 +942,6 @@
                         //gtmetrixReportDiv.style.display = 'block';
                     })
                     .catch(error => console.error('Error fetching GTMetrix data:', error));
-
-                //copyscape
-                fetch("https://x96evbamgb.execute-api.ap-southeast-1.amazonaws.com/copyscape", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ url: url })
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        document.getElementById('copyscapeUrl').innerHTML = '<a href="' + data.body.allviewurl + '" target="_blank" rel="noopener noreferrer">' + data.body.allviewurl + '</a>';
-                        document.getElementById('percentMatched').textContent = data.body.allpercentmatched;
-
-                        gtmetrixReportDiv.style.display = 'block';
-                    })
-                    .catch(error => console.error('Error fetching copyscape data:', error));
 
                 // Crawler API call
                 fetch("https://464q7iox7h.execute-api.ap-southeast-1.amazonaws.com/crawler", {
