@@ -516,7 +516,7 @@
                     <span class="error" id="keywordsError"></span>
                 </div>
 
-                <button type="button" id="analyze" onclick="validateAndSubmit()">Analyze</button>
+                <button type="button" id="analyze" onclick="validateAndSubmit()">Analyse</button>
                 <button type="button" id="similar" onclick="similarKeywords()">Generate Similar Keywords</button>
                 <button type="button" id="ranking" onclick="rankingKeywords()">Get Ranking Keywords</button>
 
@@ -621,14 +621,72 @@
         <hr>
         <button class="collapsible">Technical SEO</button>
         <div class="content" id="technicalSEO">
-            <form id="technicalSeoForm">
-                <div>
-                    <label-fixed for="domain">Start URL:</label-fixed>
-                    <input type="url" id="start_url" name="start_url" required
-                        placeholder="https://www.example.com/">
-                </div>
-                <button type="button" id="runTecnical" onclick="startAnalysis()">Start Analysis</button>
-            </form>
+            <label for="urlInput">Enter URL:</label>
+            <input type="text" id="urlInput">
+
+            <label for="maxPagesInput">Max Pages to Crawl:</label>
+            <input type="number" id="maxPagesInput" value="5">
+
+            <button id="submitBtn">Analyse Website</button>
+
+            <br><br>
+
+            <div id="gtmetrixReport" style="display:none;">
+                <h2>GTMetrix Report</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Report URL</td>
+                            <td id="reportUrl"></td>
+                        </tr>
+                        <tr>
+                            <td>Cumulative Layout Shift</td>
+                            <td id="cls"></td>
+                        </tr>
+                        <tr>
+                            <td>Largest Contentful Paint</td>
+                            <td id="lcp"></td>
+                        </tr>
+                        <tr>
+                            <td>Total Blocking Time</td>
+                            <td id="tbt"></td>
+                        </tr>
+                        <tr>
+                            <td>GTmetrix Grade</td>
+                            <td id="grade"></td>
+                        </tr>
+                        <tr>
+                            <td>Performance Score</td>
+                            <td id="performance"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <br><br>
+
+            <div id="crawlerReport" style="display:none;">
+                <h2>Crawler Report</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>URL</th>
+                            <th>Code</th>
+                            <th>Title</th>
+                            <th>Description</th>
+                            <th>Canonical</th>
+                            <th>Hreflang</th>
+                        </tr>
+                    </thead>
+                    <tbody id="crawlerTableBody">
+                    </tbody>
+                </table>
+            </div>
 
         </div>
         <hr>
@@ -652,15 +710,15 @@
                 placeholder="e.g., https://example.com, https://another-example.com"></textarea>
             <br>
             <div class="column">
-            <label for="comparison-language">Language:</label>
-            <input type="text" id="comparison-language" value="English" placeholder="e.g., English">
-        </div>
+                <label for="comparison-language">Language:</label>
+                <input type="text" id="comparison-language" value="English" placeholder="e.g., English">
+            </div>
             <div class="column">
-            <label for="comparison-location">Location:</label>
-            <input type="text" id="comparison-location" value="Singapore" placeholder="e.g., Singapore">
-        </div>
+                <label for="comparison-location">Location:</label>
+                <input type="text" id="comparison-location" value="Singapore" placeholder="e.g., Singapore">
+            </div>
             <br>
-            <button id="analyzeBtn">Analyze (up to 3 mins)</button>
+            <button id="analyzeBtn">Analyse (up to 3 mins)</button>
 
             <div id="loading-messages">
                 <p class="message"></p>
@@ -835,6 +893,12 @@
 
         <!-- JavaScript to Handle API Requests and Display Results -->
         <script>
+            const submitBtn = document.getElementById('submitBtn');
+            const gtmetrixReportDiv = document.getElementById('gtmetrixReport');
+            const crawlerReportDiv = document.getElementById('crawlerReport');
+            const crawlerTableBody = document.getElementById('crawlerTableBody');
+
+
             const analyzeBtn = document.getElementById('analyzeBtn');
             const resultsDiv = document.getElementById('comparison-results');
             const loadingMessagesDiv = document.getElementById('loading-messages');
@@ -848,10 +912,71 @@
             ];
             let currentMessageIndex = 0;
 
+            submitBtn.addEventListener('click', () => {
+                const url = document.getElementById('urlInput').value;
+                const maxPages = document.getElementById('maxPagesInput').value;
+
+                submitBtn.innerHTML = 'Analysing...';
+
+                // GTMetrix API call
+                fetch("https://y5830908vh.execute-api.ap-southeast-1.amazonaws.com/gtmetrix", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('reportUrl').textContent = data.body.data.links.report_url;
+                        document.getElementById('cls').textContent = data.body.data.attributes.cumulative_layout_shift;
+                        document.getElementById('lcp').textContent = data.body.data.attributes.largest_contentful_paint;
+                        document.getElementById('tbt').textContent = data.body.data.attributes.total_blocking_time;
+                        document.getElementById('grade').textContent = data.body.data.attributes.gtmetrix_grade;
+                        document.getElementById('performance').textContent = data.body.data.attributes.performance_score;
+
+                        gtmetrixReportDiv.style.display = 'block';
+                    })
+                    .catch(error => console.error('Error fetching GTMetrix data:', error));
+
+                // Crawler API call
+                fetch("https://464q7iox7h.execute-api.ap-southeast-1.amazonaws.com/crawler", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url, max_pages: parseInt(maxPages) })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        crawlerTableBody.innerHTML = ''; // Clear previous data
+
+                        for (const pageUrl in data.body) {
+                            const pageData = data.body[pageUrl];
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                        <td>${pageUrl}</td>
+                        <td>${pageData.code}</td>
+                        <td>${pageData.title}</td>
+                        <td>${pageData.description}</td>
+                        <td>${pageData.canonical}</td>
+                        <td>${pageData.hreflang}</td>
+                    `;
+                            crawlerTableBody.appendChild(row);
+                        }
+
+                        crawlerReportDiv.style.display = 'block';
+                        submitBtn.innerHTML = 'Analyse Website';
+                    })
+                    .catch(error => {console.error('Error fetching crawler data:', error);
+                    submitBtn.innerHTML = 'Analyse Website';});
+                
+            });
+
             analyzeBtn.addEventListener('click', async () => {
                 // Show loading messages, hide previous results
                 resultsDiv.innerHTML = '';
-                analyzeBtn.innerHTML = 'Analyzing...';
+                analyzeBtn.innerHTML = 'Analysing...';
                 loadingMessagesDiv.classList.add('active');
 
                 const keyword = document.getElementById('comparison-keyword').value;
@@ -927,14 +1052,14 @@
                     resultsDiv.innerHTML += `<br><hr><h2>Content Analysis Results:</h2>
                                 <pre>${analysisData.body.recommendation}</pre>`;
 
-                    analyzeBtn.innerHTML = 'Analyze (up to 3 mins)';
+                    analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
 
                 } catch (error) {
                     resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
                     // ---  Error occurred, ensure loading messages are stopped ---
                     clearInterval(loadingMessageInterval);
                     loadingMessagesDiv.classList.remove('active');
-                    analyzeBtn.innerHTML = 'Analyze (up to 3 mins)';
+                    analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
                 }
             });
 
@@ -1340,7 +1465,7 @@
                 document.getElementById("domain_metrics").style.backgroundColor = "orange";
                 document.getElementById("meta_data").style.backgroundColor = "orange";
 
-                document.getElementById('analyze').innerText = "Analyzing...";
+                document.getElementById('analyze').innerText = "Analysing...";
 
                 console.log("Fetching Domain Metrics...");
 
@@ -1445,7 +1570,7 @@
 
                 document.getElementById("domain_metrics").style.backgroundColor = "green";
                 document.getElementById("meta_data").style.backgroundColor = "green";
-                document.getElementById('analyze').innerText = "Analyze";
+                document.getElementById('analyze').innerText = "Analyse";
 
             }
 
@@ -1519,7 +1644,7 @@
 
             async function processKeywords(keywords, location) {
                 document.getElementById("keywordAnalysis").style.backgroundColor = "orange";
-                document.getElementById('analyze').innerText = "Analyzing...";
+                document.getElementById('analyze').innerText = "Analysing...";
                 const table = document.getElementById('keywordResults');
 
                 keywords.forEach(keyword => {
