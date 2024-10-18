@@ -450,6 +450,10 @@
             /* Key for fitting to screen */
         }
 
+        #analysisTable a {
+            color: white;
+        }
+
         #analysisTable th,
         #analysisTable td {
             border: 1px solid #ddd;
@@ -623,7 +627,7 @@
         <div class="content" id="technicalSEO">
             <label for="urlInput">Enter URL:</label>
             <input type="text" id="urlInput">
-
+            <br>
             <label for="maxPagesInput">Max Pages to Crawl:</label>
             <input type="number" id="maxPagesInput" value="5">
 
@@ -928,7 +932,7 @@
                 })
                     .then(response => response.json())
                     .then(data => {
-                        document.getElementById('reportUrl').textContent = data.body.data.links.report_url;
+                        document.getElementById('reportUrl').innerHTML = '<a href="' + data.body.data.links.report_url + '" target="_blank" rel="noopener noreferrer">' + data.body.data.links.report_url + '</a>';
                         document.getElementById('cls').textContent = data.body.data.attributes.cumulative_layout_shift;
                         document.getElementById('lcp').textContent = data.body.data.attributes.largest_contentful_paint;
                         document.getElementById('tbt').textContent = data.body.data.attributes.total_blocking_time;
@@ -968,9 +972,11 @@
                         crawlerReportDiv.style.display = 'block';
                         submitBtn.innerHTML = 'Analyse Website';
                     })
-                    .catch(error => {console.error('Error fetching crawler data:', error);
-                    submitBtn.innerHTML = 'Analyse Website';});
-                
+                    .catch(error => {
+                        console.error('Error fetching crawler data:', error);
+                        submitBtn.innerHTML = 'Analyse Website';
+                    });
+
             });
 
             analyzeBtn.addEventListener('click', async () => {
@@ -1013,6 +1019,10 @@
                         }
 
                         serpUrls = Object.values(serpData.body).map(result => result.url);
+
+                        if(urls != ""){
+                            serpUrls.push(urls);
+                        }
                     }
 
                     else {
@@ -1033,9 +1043,6 @@
                     if (analysisData.statusCode !== 200) {
                         throw new Error(`Content Analysis API Error: ${analysisData.body || analysisData.errorMessage}`);
                     }
-
-
-
 
                     // --- Data is ready, stop loading messages ---
                     clearInterval(loadingMessageInterval);
@@ -1065,13 +1072,23 @@
 
             // Function to create the HTML table from the analysis data
             function createAnalysisTable(data) {
+                const urlsInput = document.getElementById('comparison-urls').value;
+                const target_urls = urlsInput.split(/[\s,]+/).filter(url => url.trim() !== "");
+                const keyword = document.getElementById('comparison-keyword').value;
+                
                 let tableHTML = '<table id="analysisTable">';
                 tableHTML += '<tr><th>URL</th>'; // Add URL as the first header
 
                 // Get all unique URLs for column headers
                 const urls = Object.keys(data);
                 urls.forEach(url => {
-                    tableHTML += `<th>${url}</th>`;
+                    console.log(target_urls);
+                    console.log(url);
+                    if (target_urls.includes(url) && keyword != ""){
+                        tableHTML += `<th style="background-color: darkorange;"><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></th>`;
+                    } else {
+                        tableHTML += `<th><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></th>`;
+                    }
                 });
                 tableHTML += '</tr>';
 
