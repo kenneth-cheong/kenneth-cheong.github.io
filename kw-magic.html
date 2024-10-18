@@ -666,8 +666,16 @@
                             <td id="grade"></td>
                         </tr>
                         <tr>
-                            <td>Performance Score</td>
+                            <td>GTmetrix Performance Score</td>
                             <td id="performance"></td>
+                        </tr>
+                        <tr>
+                            <td>Copyscape Test Link</td>
+                            <td id="copyscapeUrl"></td>
+                        </tr>
+                        <tr>
+                            <td>Copyscape Percentage</td>
+                            <td id="percentMatched"></td>
                         </tr>
                     </tbody>
                 </table>
@@ -902,7 +910,6 @@
             const crawlerReportDiv = document.getElementById('crawlerReport');
             const crawlerTableBody = document.getElementById('crawlerTableBody');
 
-
             const analyzeBtn = document.getElementById('analyzeBtn');
             const resultsDiv = document.getElementById('comparison-results');
             const loadingMessagesDiv = document.getElementById('loading-messages');
@@ -939,9 +946,26 @@
                         document.getElementById('grade').textContent = data.body.data.attributes.gtmetrix_grade;
                         document.getElementById('performance').textContent = data.body.data.attributes.performance_score;
 
-                        gtmetrixReportDiv.style.display = 'block';
+                        //gtmetrixReportDiv.style.display = 'block';
                     })
                     .catch(error => console.error('Error fetching GTMetrix data:', error));
+
+                //copyscape
+                fetch("https://x96evbamgb.execute-api.ap-southeast-1.amazonaws.com/copyscape", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('copyscapeUrl').innerHTML = '<a href="' + data.body.allviewurl + '" target="_blank" rel="noopener noreferrer">' + data.body.allviewurl + '</a>';
+                        document.getElementById('percentMatched').textContent = data.body.allpercentmatched;
+
+                        gtmetrixReportDiv.style.display = 'block';
+                    })
+                    .catch(error => console.error('Error fetching copyscape data:', error));
 
                 // Crawler API call
                 fetch("https://464q7iox7h.execute-api.ap-southeast-1.amazonaws.com/crawler", {
