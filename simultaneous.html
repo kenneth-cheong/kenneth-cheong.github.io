@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keyword Search Tool</title>
+    <style>
+        #results-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        #results-table th,
+        #results-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 4px solid #f3f3f3;
+            /* Light grey */
+            border-top: 4px solid #3498db;
+            /* Blue */
+            border-radius: 50%;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Keyword Search Tool</h1>
+
+    <label for="keyword">Keyword:</label>
+    <input type="text" id="keyword" name="keyword"><br><br>
+
+    <label for="location">Location:</label>
+    <input type="text" id="location" name="location"><br><br>
+
+    <label for="language">Language:</label>
+    <input type="text" id="language" name="language"><br><br>
+
+    <button onclick="search()">Search</button>
+
+    <table id="results-table">
+        <thead>
+            <tr>
+                <th>URL</th>
+                <th>Title</th>
+                <th>Description</th>
+                <th>H1</th>
+                <th>H2</th>
+                <th>H3</th>
+                <th>Image Count</th>
+                <th>Schema</th>
+                <th>Word Count</th>
+                <th>Readability</th>
+                <th>Alt Text</th>
+                <th>Table</th>
+                <th>Video</th>
+                <th>List</th>
+                <th>P Tag</th>
+                <th>Word Frequency</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        async function search() {
+            const keyword = document.getElementById("keyword").value;
+            const location = document.getElementById("location").value;
+            const language = document.getElementById("language").value;
+            const targeted_url = "https://mediaonemarketing.com.sg/"; // Replace with actual URL if needed
+            const apiUrl1 = "https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new";
+            const apiUrl2 = "https://v21e9kd3h1.execute-api.ap-southeast-1.amazonaws.com/timetoRank3";
+
+
+            const tableBody = document.querySelector("#results-table tbody");
+            tableBody.innerHTML = ""; // Clear previous results
+
+
+            try {
+                const response1 = await fetch(apiUrl1, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ keyword, location, targeted_url, language })
+                });
+
+                const data1 = await response1.json();
+                const results = data1.body;
+
+                const promises = []; // Array to hold API call promises
+
+
+                for (const key in results) {
+                    const result = results[key];
+                    const row = tableBody.insertRow();
+
+                    // Create loading cells initially
+                    const urlCell = row.insertCell();
+                    const titleCell = row.insertCell();
+                    const descriptionCell = row.insertCell();
+                    const h1Cell = row.insertCell();
+                    const h2Cell = row.insertCell();
+                    const h3Cell = row.insertCell();
+                    const imageCell = row.insertCell();
+                    const schemaCell = row.insertCell();
+                    const wordCountCell = row.insertCell();
+                    const readabilityCell = row.insertCell();
+                    const altTextCell = row.insertCell();
+                    const tableCell = row.insertCell();
+                    const videoCell = row.insertCell();
+                    const listCell = row.insertCell();
+                    const pTagCell = row.insertCell();
+                    const wordFreqCell = row.insertCell();
+
+
+                    [urlCell, titleCell, descriptionCell, h1Cell, h2Cell, h3Cell, imageCell, schemaCell, wordCountCell, readabilityCell, altTextCell, tableCell, videoCell, listCell, pTagCell, wordFreqCell].forEach(cell => {
+                        cell.innerHTML = '<div class="loading-spinner"></div>';
+                    });
+
+                    urlCell.textContent = result.url;
+                    titleCell.textContent = result.title;
+                    descriptionCell.textContent = result.description;
+
+
+
+                    const api2Promise = fetch(apiUrl2, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ url: result.url })
+                    }).then(response2 => {
+                        if (!response2.ok) {
+                            throw new Error(`API 2 request failed with status ${response2.status}`);
+                        }
+                        return response2.json();
+                    }).then(data2 => {
+                        const body2 = data2.body;
+                        h1Cell.textContent = body2.h1.join(", ");
+                        h2Cell.textContent = body2.h2.join(", ");
+                        h3Cell.textContent = body2.h3.join(", ");
+                        imageCell.textContent = body2.image;
+                        schemaCell.textContent = body2.schema;
+                        wordCountCell.textContent = body2.word_count;
+                        readabilityCell.textContent = body2.readability;
+                    }).catch(error2 => {
+                        console.error("Error fetching data from API 2:", error2);
+                        // Display error message in cells
+                        h1Cell.textContent = "Error";
+                        h2Cell.textContent = "Error";
+                        h3Cell.textContent = "Error";
+                        imageCell.textContent = "Error";
+                        schemaCell.textContent = "Error";
+                        wordCountCell.textContent = "Error";
+                        readabilityCell.textContent = "Error";
+                    });
+
+                    const api3Promise = fetch("https://zx3pzbiooa.execute-api.ap-southeast-1.amazonaws.com/function4", {  // New API Call
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ url: result.url })
+                    }).then(response3 => response3.json()).then(data3 => {
+                        const body3 = data3.body;
+                        altTextCell.textContent = body3.alt_text.join(", ");
+                        tableCell.textContent = body3.table;
+                        videoCell.textContent = body3.video;
+                        listCell.textContent = body3.list;
+                        pTagCell.textContent = body3.p_tag;
+                        wordFreqCell.textContent = JSON.stringify(body3.word_frequency); // Convert to string for display
+
+
+                    }).catch(error3 => {
+                        console.error("Error fetching data from API 3:", error3);
+                        altTextCell.textContent = "Error";
+                        tableCell.textContent = "Error";
+                        videoCell.textContent = "Error";
+                        listCell.textContent = "Error";
+                        pTagCell.textContent = "Error";
+                        wordFreqCell.textContent = "Error";
+
+
+                    });
+
+                    promises.push(api2Promise); 
+                    promises.push(api3Promise);
+
+
+                }
+
+                // Wait for all API calls to complete
+                await Promise.all(promises);
+
+            } catch (error1) {
+                console.error("Error fetching data from API 1:", error1);
+                tableBody.innerHTML = "<tr><td colspan='10'>Error fetching data</td></tr>";
+            }
+        }
+    </script>
+
+</body>
+
+</html>
