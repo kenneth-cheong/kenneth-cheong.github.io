@@ -47,15 +47,15 @@
     <h1>Keyword Search Tool</h1>
 
     <label for="keyword">Keyword:</label>
-    <input type="text" id="keyword" name="keyword"><br><br>
+    <input type="text" id="keyword" name="keyword" value="digital marketing"><br><br>
 
     <label for="location">Location:</label>
-    <input type="text" id="location" name="location"><br><br>
+    <input type="text" id="location" name="location" value="Singapore"><br><br>
 
     <label for="language">Language:</label>
-    <input type="text" id="language" name="language"><br><br>
+    <input type="text" id="language" name="language" value="English"><br><br>
 
-    <button onclick="search()">Search</button>
+    <button id="searchBtn" onclick="search()">Get Results</button>
 
     <table id="results-table">
         <thead>
@@ -93,6 +93,8 @@
 
             const tableBody = document.querySelector("#results-table tbody");
             tableBody.innerHTML = ""; // Clear previous results
+
+            document.getElementById('searchBtn').innerHTML="Getting Results..";
 
 
             try {
@@ -141,8 +143,6 @@
                     titleCell.textContent = result.title;
                     descriptionCell.textContent = result.description;
 
-
-
                     const api2Promise = fetch(apiUrl2, {
                         method: "POST",
                         headers: {
@@ -163,6 +163,13 @@
                         schemaCell.textContent = body2.schema;
                         wordCountCell.textContent = body2.word_count;
                         readabilityCell.textContent = body2.readability;
+                        altTextCell.textContent = body2.alt_text.join(", ");
+                        tableCell.textContent = body2.table;
+                        videoCell.textContent = body2.video;
+                        listCell.textContent = body2.list;
+                        pTagCell.textContent = body2.p_tag;
+                        wordFreqCell.textContent = JSON.stringify(body2.word_frequency); // Convert to string for display
+
                     }).catch(error2 => {
                         console.error("Error fetching data from API 2:", error2);
                         // Display error message in cells
@@ -173,40 +180,14 @@
                         schemaCell.textContent = "Error";
                         wordCountCell.textContent = "Error";
                         readabilityCell.textContent = "Error";
-                    });
-
-                    const api3Promise = fetch("https://zx3pzbiooa.execute-api.ap-southeast-1.amazonaws.com/function4", {  // New API Call
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({ url: result.url })
-                    }).then(response3 => response3.json()).then(data3 => {
-                        const body3 = data3.body;
-                        altTextCell.textContent = body3.alt_text.join(", ");
-                        tableCell.textContent = body3.table;
-                        videoCell.textContent = body3.video;
-                        listCell.textContent = body3.list;
-                        pTagCell.textContent = body3.p_tag;
-                        wordFreqCell.textContent = JSON.stringify(body3.word_frequency); // Convert to string for display
-
-
-                    }).catch(error3 => {
-                        console.error("Error fetching data from API 3:", error3);
                         altTextCell.textContent = "Error";
                         tableCell.textContent = "Error";
                         videoCell.textContent = "Error";
                         listCell.textContent = "Error";
                         pTagCell.textContent = "Error";
                         wordFreqCell.textContent = "Error";
-
-
                     });
-
                     promises.push(api2Promise); 
-                    promises.push(api3Promise);
-
-
                 }
 
                 // Wait for all API calls to complete
@@ -216,6 +197,7 @@
                 console.error("Error fetching data from API 1:", error1);
                 tableBody.innerHTML = "<tr><td colspan='10'>Error fetching data</td></tr>";
             }
+            document.getElementById('searchBtn').innerHTML="Get Results";
         }
     </script>
 
