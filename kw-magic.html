@@ -637,7 +637,7 @@
             <br><br>
 
             <div id="gtmetrixReport" style="display:none;">
-                <h2>Analysis Results</h2>
+                <h2>GTmetrix Results</h2>
                 <table>
                     <thead>
                         <tr>
@@ -675,6 +675,37 @@
             </div>
             <br><br>
 
+            <div id="pageAuditReport" style="display:none;">
+                <h2>Page Analysis Results</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>PageSpeed (Desktop)</td>
+                            <td id="pagespeed"></td>
+                        </tr>
+                        <tr>
+                            <td>Malware</td>
+                            <td id="malware"></td>
+                        </tr>
+                        <tr>
+                            <td>robots.txt</td>
+                            <td id="robots"></td>
+                        </tr>
+                        <tr>
+                            <td>Sitemap</td>
+                            <td id="sitemap"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <br><br>
+
             <div id="crawlerReport" style="display:none;">
                 <h2>Crawler Report</h2>
                 <table>
@@ -686,6 +717,9 @@
                             <th>Description</th>
                             <th>Canonical</th>
                             <th>Hreflang</th>
+                            <th>Alt Text</th>
+                            <th>H1</th>
+                            <th>H2</th>
                         </tr>
                     </thead>
                     <tbody id="crawlerTableBody">
@@ -943,6 +977,27 @@
                     })
                     .catch(error => console.error('Error fetching GTMetrix data:', error));
 
+                
+                // Webpage Audit
+                fetch("https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('malware').textContent = data.body.malware;
+                        document.getElementById('sitemap').textContent = data.body.sitemap;
+                        document.getElementById('robots').textContent = data.body.robots;
+                        document.getElementById('pagespeed').textContent = data.body.pagespeed;
+
+                        pageAuditReportDiv.style.display = 'block';
+                    })
+                    .catch(error => console.error('Error fetching Webpage Audit data:', error));
+
+
                 // Crawler API call
                 fetch("https://464q7iox7h.execute-api.ap-southeast-1.amazonaws.com/crawler", {
                     method: 'POST',
@@ -965,6 +1020,9 @@
                         <td>${pageData.description}</td>
                         <td>${pageData.canonical}</td>
                         <td>${pageData.hreflang}</td>
+                        <td>${pageData.alt_text}</td>
+                        <td>${pageData.h1}</td>
+                        <td>${pageData.h2}</td>
                     `;
                             crawlerTableBody.appendChild(row);
                         }
