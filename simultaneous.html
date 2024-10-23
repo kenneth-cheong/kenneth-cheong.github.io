@@ -135,7 +135,8 @@
                     const wordFreqCell = row.insertCell();
 
 
-                    [urlCell, titleCell, descriptionCell, h1Cell, h2Cell, h3Cell, imageCell, schemaCell, wordCountCell, readabilityCell, altTextCell, tableCell, videoCell, listCell, pTagCell, wordFreqCell].forEach(cell => {
+                    //[urlCell, titleCell, descriptionCell, h1Cell, h2Cell, h3Cell, imageCell, schemaCell, wordCountCell, readabilityCell, altTextCell, tableCell, videoCell, listCell, pTagCell, wordFreqCell].forEach(cell => {
+                        [urlCell, titleCell, descriptionCell, h1Cell, h2Cell, h3Cell, imageCell, schemaCell, wordCountCell, readabilityCell, altTextCell, tableCell, videoCell, listCell, pTagCell].forEach(cell => {
                         cell.innerHTML = '<div class="loading-spinner"></div>';
                     });
 
@@ -163,12 +164,16 @@
                         schemaCell.textContent = body2.schema;
                         wordCountCell.textContent = body2.word_count;
                         readabilityCell.textContent = body2.readability;
-                        altTextCell.textContent = body2.alt_text.join(", ");
+                        try{
+                            altTextCell.textContent = body2.alt_text.join(", ");
+                        } catch (error){
+                            altTextCell.textContent = "";
+                        }
                         tableCell.textContent = body2.table;
                         videoCell.textContent = body2.video;
                         listCell.textContent = body2.list;
                         pTagCell.textContent = body2.p_tag;
-                        wordFreqCell.textContent = JSON.stringify(body2.word_frequency); // Convert to string for display
+                        //wordFreqCell.textContent = JSON.stringify(body2.word_frequency); // Convert to string for display
 
                     }).catch(error2 => {
                         console.error("Error fetching data from API 2:", error2);
@@ -187,7 +192,7 @@
                         pTagCell.textContent = "Error";
                         wordFreqCell.textContent = "Error";
                     });
-                    promises.push(api2Promise); 
+                    promises.push(api2Promise);
                 }
 
                 // Wait for all API calls to complete
