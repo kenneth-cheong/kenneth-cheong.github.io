@@ -138,6 +138,26 @@
             background-color: #fffef7;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             border-radius: 6px;
+            table-layout: auto;
+            display: block;
+            
+            overflow-y: scroll;
+        }
+
+        #crawlerReport table {
+            height: 600px;
+        }
+
+        #crawlerReport th,
+        #crawlerReport td {
+            width: 10%;
+            /* Adjust as needed for column distribution */
+            overflow-x: auto;
+            /* white-space: nowrap; Prevent text from wrapping */
+            max-width: 200px;
+            /* Adjust as needed */
+            overflow-x: auto;
+            vertical-align: top;
         }
 
         th,
@@ -152,7 +172,6 @@
             background-color: #004c9d;
             position: sticky;
             color: white;
-            top: 10px;
         }
 
         .error {
@@ -636,6 +655,8 @@
 
             <br><br>
 
+            <div id="auditSummary"></div>
+
             <button class="collapsible" id="gtButton">GTmetrix Results</button>
             <div class="content" id="gtMetrix">
                 <div id="gtmetrixReport" style="display:none;">
@@ -725,6 +746,7 @@
                                 <th>Alt Text</th>
                                 <th>H1</th>
                                 <th>H2</th>
+                                <th>Word Count</th>
                             </tr>
                         </thead>
                         <tbody id="crawlerTableBody">
@@ -1038,38 +1060,32 @@
                         <td>${pageData.alt_text}</td>
                         <td>${pageData.h1}</td>
                         <td>${pageData.h2}</td>
+                        <td>${pageData.word_count}</td>
                     `;
                             crawlerTableBody.appendChild(row);
                         }
-
                         crawlerReportDiv.style.display = 'block';
                         submitBtn.innerHTML = 'Analyse Website';
                         document.getElementById("crawlerButton").style.backgroundColor = "green";
-
-
-
-
-
-
-                        console.log(document.getElementById("cls").textContent);
-                        console.log(document.getElementById("lcp").textContent);
-                        console.log(document.getElementById("tbt").textContent);
-                        console.log(document.getElementById("pagespeed_audit").textContent);
-                        console.log(document.getElementById("malware").textContent);
-                        console.log(document.getElementById("robots").textContent);
-                        console.log(document.getElementById("sitemap").textContent);
-                        console.log(document.getElementById("crawlerTableBody").outerHTML);
-
-
-
-
-
-
                     })
                     .catch(error => {
                         console.error('Error fetching crawler data:', error);
                         submitBtn.innerHTML = 'Analyse Website';
                     });
+
+                 // Audit Summary
+                fetch("https://ccgdpp7dna.execute-api.ap-southeast-1.amazonaws.com/techAuditSummary", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                    //body: JSON.stringify({ url: url })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('auditSummary').innerHTML = data.body;
+                    })
+                    .catch(error => console.error('Error fetching Audt Summary API:', error));
 
             });
 
@@ -1785,7 +1801,7 @@
 
                 const keywordList = document.getElementById('keywordList');
                 keywordList.innerHTML = ''; // Clear previous keywords
-                
+
                 const headerCells = Array.from(document.querySelectorAll('#keywordHeaderRow .keyword-column'));
 
                 keywords.forEach((keyword, index) => {
