@@ -989,6 +989,8 @@
                 document.getElementById("pageButton").style.backgroundColor = "#004c9d";
                 document.getElementById("crawlerButton").style.backgroundColor = "#004c9d";
 
+                document.getElementById('auditSummary').innerHTML = "";
+
                 // GTMetrix API call
                 fetch("https://y5830908vh.execute-api.ap-southeast-1.amazonaws.com/gtmetrix", {
                     method: 'POST',
@@ -1067,25 +1069,26 @@
                         crawlerReportDiv.style.display = 'block';
                         submitBtn.innerHTML = 'Analyse Website';
                         document.getElementById("crawlerButton").style.backgroundColor = "green";
+                        
+                         // Audit Summary
+                        fetch("https://ccgdpp7dna.execute-api.ap-southeast-1.amazonaws.com/techAuditSummary", {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ crawl: data })
+                        })
+                            .then(response => response.json())
+                            .then(data => {
+                                document.getElementById('auditSummary').innerHTML = data.body;
+                            })
+                            .catch(error => console.error('Error fetching Audt Summary API:', error));
+
                     })
                     .catch(error => {
                         console.error('Error fetching crawler data:', error);
                         submitBtn.innerHTML = 'Analyse Website';
-                    });
-
-                 // Audit Summary
-                fetch("https://ccgdpp7dna.execute-api.ap-southeast-1.amazonaws.com/techAuditSummary", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                    //body: JSON.stringify({ url: url })
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        document.getElementById('auditSummary').innerHTML = data.body;
                     })
-                    .catch(error => console.error('Error fetching Audt Summary API:', error));
 
             });
 
