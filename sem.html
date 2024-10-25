@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Website Analyzer Tool</title>
+<style>
+  #output {
+    white-space: pre-wrap; /* Preserve whitespace and allow wrapping */
+  }
+</style>
+</head>
+<body>
+
+  <h1>Website Analyser</h1>
+
+  <label for="company_name">Company Name:</label>
+  <input type="text" id="company_name"><br><br>
+
+  <label for="website">Website:</label>
+  <input type="text" id="website"><br><br>
+
+  <label for="country">Country:</label>
+  <input type="text" id="country"><br><br>
+
+  <button onclick="analyzeWebsite()">Analyze</button>
+
+  <div id="output"></div>
+
+  <script>
+    async function analyzeWebsite() {
+      const companyName = document.getElementById("company_name").value;
+      const website = document.getElementById("website").value;
+      const country = document.getElementById("country").value;
+
+      const data = {
+        "company_name": companyName,
+        "website": website,
+        "country": country
+      };
+
+      try {
+        const response = await fetch("https://sk7akfiy89.execute-api.ap-southeast-1.amazonaws.com/semWebsiteAnalyser", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(data)
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const responseData = await response.json();
+
+        document.getElementById("output").innerHTML = responseData.body;
+
+      } catch (error) {
+        console.error("Error:", error);
+        document.getElementById("output").innerText = "An error occurred. Please check the console for details.";
+      }
+    }
+  </script>
+
+</body>
+</html>

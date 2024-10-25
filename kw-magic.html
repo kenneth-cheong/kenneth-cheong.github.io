@@ -140,7 +140,7 @@
             border-radius: 6px;
             table-layout: auto;
             display: block;
-            
+
             overflow-y: scroll;
         }
 
@@ -461,6 +461,13 @@
             /* Adjust based on the width of the first column */
         }
 
+        #auditSummary table {
+            width: 50%;
+            float: right;
+            padding: 20px;
+            height: 600px;
+        }
+
         /* Table styling */
         #analysisTable {
             width: 100%;
@@ -649,7 +656,7 @@
             <input type="text" id="urlInput">
             <br>
             <label for="maxPagesInput">Max Pages to Crawl:</label>
-            <input type="number" id="maxPagesInput" value="5">
+            <input type="number" id="maxPagesInput" value="10">
 
             <button id="submitBtn">Analyse Website</button>
 
@@ -747,6 +754,7 @@
                                 <th>H1</th>
                                 <th>H2</th>
                                 <th>Word Count</th>
+                                <th>UI/UX</th>
                             </tr>
                         </thead>
                         <tbody id="crawlerTableBody">
@@ -1000,13 +1008,13 @@
                     body: JSON.stringify({ url: url })
                 })
                     .then(response => response.json())
-                    .then(data => {
-                        document.getElementById('reportUrl').innerHTML = '<a href="' + data.body.data.links.report_url + '" target="_blank" rel="noopener noreferrer">' + data.body.data.links.report_url + '</a>';
-                        document.getElementById('cls').textContent = data.body.data.attributes.cumulative_layout_shift;
-                        document.getElementById('lcp').textContent = data.body.data.attributes.largest_contentful_paint;
-                        document.getElementById('tbt').textContent = data.body.data.attributes.total_blocking_time;
-                        document.getElementById('grade').textContent = data.body.data.attributes.gtmetrix_grade;
-                        document.getElementById('performance').textContent = data.body.data.attributes.performance_score;
+                    .then(gt_data => {
+                        document.getElementById('reportUrl').innerHTML = '<a href="' + gt_data.body.data.links.report_url + '" target="_blank" rel="noopener noreferrer">' + gt_data.body.data.links.report_url + '</a>';
+                        document.getElementById('cls').textContent = gt_data.body.data.attributes.cumulative_layout_shift;
+                        document.getElementById('lcp').textContent = gt_data.body.data.attributes.largest_contentful_paint;
+                        document.getElementById('tbt').textContent = gt_data.body.data.attributes.total_blocking_time;
+                        document.getElementById('grade').textContent = gt_data.body.data.attributes.gtmetrix_grade;
+                        document.getElementById('performance').textContent = gt_data.body.data.attributes.performance_score;
 
                         gtmetrixReportDiv.style.display = 'block';
                         document.getElementById("gtButton").style.backgroundColor = "green";
@@ -1024,11 +1032,11 @@
                     body: JSON.stringify({ url: url })
                 })
                     .then(response => response.json())
-                    .then(data => {
-                        document.getElementById('malware').textContent = data.body.malware;
-                        document.getElementById('sitemap').textContent = data.body.sitemap;
-                        document.getElementById('robots').innerHTML = data.body.robots;
-                        document.getElementById('pagespeed_audit').textContent = data.body.pagespeed;
+                    .then(webpage_audit_data => {
+                        document.getElementById('malware').textContent = webpage_audit_data.body.malware;
+                        document.getElementById('sitemap').textContent = webpage_audit_data.body.sitemap;
+                        document.getElementById('robots').innerHTML = webpage_audit_data.body.robots;
+                        document.getElementById('pagespeed_audit').textContent = webpage_audit_data.body.pagespeed;
 
                         pageAuditReportDiv.style.display = 'block';
                         document.getElementById("pageButton").style.backgroundColor = "green";
@@ -1063,24 +1071,29 @@
                         <td>${pageData.h1}</td>
                         <td>${pageData.h2}</td>
                         <td>${pageData.word_count}</td>
+                        <td>${pageData.uiux}</td>
                     `;
                             crawlerTableBody.appendChild(row);
                         }
                         crawlerReportDiv.style.display = 'block';
                         submitBtn.innerHTML = 'Analyse Website';
-                        document.getElementById("crawlerButton").style.backgroundColor = "green";
                         
-                         // Audit Summary
+
+                        // Audit Summary
+                        gt_data = {"cumulative_layout_shift":document.getElementById('cls').textContent,"largest_contentful_paint": document.getElementById('lcp').textContent,"total_blocking_time":document.getElementById('tbt').textContent};
+                        webpage_audit_data = {'google_safe_site': document.getElementById('malware').textContent,'sitemap':document.getElementById('sitemap').textContent ,'robots_txt':document.getElementById('robots').innerHTML,'pagespeed':document.getElementById('pagespeed_audit').textContent};
+
                         fetch("https://ccgdpp7dna.execute-api.ap-southeast-1.amazonaws.com/techAuditSummary", {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json'
                             },
-                            body: JSON.stringify({ crawl: data })
+                            body: JSON.stringify({ crawl: data, gtmetrix: gt_data, webpage_audit: webpage_audit_data })
                         })
                             .then(response => response.json())
                             .then(data => {
                                 document.getElementById('auditSummary').innerHTML = data.body;
+                                document.getElementById("crawlerButton").style.backgroundColor = "green";
                             })
                             .catch(error => console.error('Error fetching Audt Summary API:', error));
 
