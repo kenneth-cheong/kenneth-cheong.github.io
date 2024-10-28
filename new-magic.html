@@ -118,14 +118,14 @@
 
 
         function createSERPTable(index, serpResults, pageMetrics, keyword) {
-            let serpTableHtml = `<table class="hidden-table" id="serp-table-${index}">`;
+            let serpTableHtml = `<br><br><table class="hidden-table" id="serp-table-${index}">`;
             serpTableHtml += `<tr><th>No.</th><th>URL</th><th>Title</th><th>Description</th><th>Domain Rank</th><th>Backlinks</th><th>Spam Score</th><th>Referring Domains</th><th>KW in URL</th><th>KW in Title</th><th>KW in Desc</th></tr>`;
             for (const rank in serpResults) {
                 const result = serpResults[rank];
                 const metrics = pageMetrics[result.url] || {};
                 const evalMetrics = metrics.eval || {};
 
-                serpTableHtml += `<tr><td>${parseInt(rank) + 1}</td><td>${result.url}</td><td>${result.title}</td><td>${result.description}</td>
+                serpTableHtml += `<tr><td>${parseInt(rank)}</td><td>${result.url}</td><td>${result.title}</td><td>${result.description}</td>
                              <td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td>
                               <td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td></tr>`;
 
@@ -138,6 +138,12 @@
                     const backlinksCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(6)`);
                     backlinksCell.innerHTML = metrics.backlinks || '-';
 
+                    const spamCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(7)`);
+                    spamCell.innerHTML = metrics.backlinks_spam_score || '-';
+
+                    const referringhDomainsCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(8)`);
+                    referringhDomainsCell.innerHTML = metrics.referring_domains || '-';
+
                     // ... similarly update other cells (spam score, referring domains, etc.) ...
                     const kwInUrlCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(9)`);
                     kwInUrlCell.innerHTML = evalMetrics.kw_in_url || '-';
@@ -148,7 +154,7 @@
                     const kwInDescCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(11)`);
                     kwInDescCell.innerHTML = evalMetrics.kw_in_desc || '-';
 
-                }, 0);
+                }, 60000);
 
 
             }
