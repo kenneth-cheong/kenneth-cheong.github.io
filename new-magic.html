@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>SEO Tool</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .hidden-table {
+            display: none;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 4px solid #f3f3f3;
+            /* Light grey */
+            border-top: 4px solid #3498db;
+            /* Blue */
+            border-radius: 50%;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>SEO Analysis Tool</h1>
+
+    <label for="domain">Targeted Domain/Webpage:</label>
+    <input type="text" id="domain" name="domain"><br><br>
+
+    <label for="keywords">Targeted Keywords (comma or newline separated):</label>
+    <textarea id="keywords" name="keywords"></textarea><br><br>
+
+    <label for="location">Location:</label>
+    <input type="text" id="location" name="location"><br><br>
+
+    <label for="language">Language:</label>
+    <input type="text" id="language" name="language" value="English"><br><br>
+
+    <button onclick="analyze()">Analyze</button>
+
+    <div id="results">
+    </div>
+
+
+    <script>
+        async function analyze() {
+            const domain = document.getElementById("domain").value;
+            const keywords = document.getElementById("keywords").value.split(/[\n,]+/).map(s => s.trim()).filter(s => s !== "");
+            const location = document.getElementById("location").value;
+            const language = document.getElementById("language").value;
+
+            const resultsDiv = document.getElementById("results");
+            resultsDiv.innerHTML = ""; // Clear previous results
+
+            const keywordMetrics = await Promise.all(keywords.map(keyword =>
+                fetch('https://785lzorod8.execute-api.ap-southeast-1.amazonaws.com/kwMetrics', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keyword, location, language })
+                }).then(res => res.json())
+            ));
+
+
+            let tableHtml = "<table><tr><th>No.</th><th>Keyword</th><th>Search Volume</th><th>KW Difficulty</th><th>Time To Rank</th></tr>";
+            keywordMetrics.forEach((data, index) => {
+                tableHtml += `<tr onclick="showSERPs(${index})"><td>${index + 1}</td><td id="keyword-${index}">${data.body.keyword}</td><td>${data.body.search_volume}</td><td>${data.body.competition}</td><td><div class="loading-spinner"></div></td></tr>`; // Spinner for Time to Rank
+            });
+            tableHtml += "</table>";
+            resultsDiv.innerHTML = tableHtml;
+
+            const serpData = {};
+            const pageMetrics = {};
+
+            await Promise.all(keywords.map(async (keyword, index) => {
+                const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ location, keyword, language })
+                }).then(res => res.json());
+                serpData[index] = serpResponse.body;
+
+                await Promise.all(Object.values(serpResponse.body).map(async result => {
+                    const metricsResponse = await fetch('https://5zdbpwaia5.execute-api.ap-southeast-1.amazonaws.com/pageDomainMetrics', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: result.url, keyword })
+                    }).then(res => res.json());
+                    pageMetrics[result.url] = metricsResponse.body; // Store by URL
+                }));
+
+                createSERPTable(index, serpData[index], pageMetrics, keyword); // create and initially hide the tables
+            }));
+        }
+
+
+        function createSERPTable(index, serpResults, pageMetrics, keyword) {
+            let serpTableHtml = `<table class="hidden-table" id="serp-table-${index}">`;
+            serpTableHtml += `<tr><th>No.</th><th>URL</th><th>Title</th><th>Description</th><th>Domain Rank</th><th>Backlinks</th><th>Spam Score</th><th>Referring Domains</th><th>KW in URL</th><th>KW in Title</th><th>KW in Desc</th></tr>`;
+            for (const rank in serpResults) {
+                const result = serpResults[rank];
+                const metrics = pageMetrics[result.url] || {};
+                const evalMetrics = metrics.eval || {};
+
+                serpTableHtml += `<tr><td>${parseInt(rank) + 1}</td><td>${result.url}</td><td>${result.title}</td><td>${result.description}</td>
+                             <td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td>
+                              <td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td></tr>`;
+
+
+                // ***MOVE THE FOLLOWING CODE INSIDE THE LOOP***
+                setTimeout(() => { // Use setTimeout to ensure elements are created
+                    const domainRankCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(5)`); // +2 because of header row and 1-based indexing
+                    domainRankCell.innerHTML = metrics.domain_rank || '-';
+
+                    const backlinksCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(6)`);
+                    backlinksCell.innerHTML = metrics.backlinks || '-';
+
+                    // ... similarly update other cells (spam score, referring domains, etc.) ...
+                    const kwInUrlCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(9)`);
+                    kwInUrlCell.innerHTML = evalMetrics.kw_in_url || '-';
+
+                    const kwInTitleCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(10)`);
+                    kwInTitleCell.innerHTML = evalMetrics.kw_in_title || '-';
+
+                    const kwInDescCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(11)`);
+                    kwInDescCell.innerHTML = evalMetrics.kw_in_desc || '-';
+
+                }, 0);
+
+
+            }
+            serpTableHtml += "</table>";
+            document.getElementById("results").innerHTML += serpTableHtml;
+
+        }
+
+
+
+
+        function showSERPs(index) {
+            const serpTable = document.getElementById(`serp-table-${index}`);
+            serpTable.style.display = (serpTable.style.display === "none" || serpTable.style.display === "") ? "table" : "none";
+
+
+
+            // Hide other SERP tables:
+            const allSERPTables = document.querySelectorAll('.hidden-table');
+            allSERPTables.forEach(table => {
+                if (table.id !== `serp-table-${index}`) {
+                    table.style.display = "none";
+                }
+            });
+
+        }
+
+
+
+    </script>
+
+</body>
+
+</html>
