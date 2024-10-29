@@ -587,10 +587,10 @@
                     <span class="error" id="keywordsError"></span>
                 </div>
 
-                <button type="button" id="analyze" onclick="validateAndSubmit()">Analyse</button>
+                <button type="button" id="keyword-research-analysis-button" onclick="validateAndSubmit()">Analyse</button>
                 <button type="button" id="similar" onclick="similarKeywords()" disabled>Generate Similar
                     Keywords</button>
-                <button type="button" id="keyword-research-analysis-button" onclick="rankingKeywords()">Get Ranking Keywords</button>
+                <button type="button" id="ranking" onclick="rankingKeywords()">Get Ranking Keywords</button>
 
             </form>
         </div>
@@ -647,8 +647,9 @@
         <hr>
         <button class="collapsible" id="meta_data">Meta Data</button>
         <div class="content" id="metaData">
-            <p>Meta Title: <span id="metaTitle">-</span></p>
-            <p>Meta Description: <span id="metaDescription">-</span></p>
+            <p>Meta Title: <span id="targetTitle">-</span></p>
+            <p>Meta Description: <span id="targetDescription">-</span></p>
+            <p>h1 Header: <span id="targetH1">-</span></p>
 
         </div>
 
@@ -656,12 +657,20 @@
         <div class="content" id="domainMetrics">
             <p>Domain Authority (DA): <span id="da">-</span></p>
             <p>Page Authority (PA): <span id="pa">-</span></p>
-            <p>Google PageSpeed: <span id="pagespeed">-</span></p>
-            <p>Backlinks Spam Score: <span id="spamScore">-</span></p>
-            <p>Backlinks: <span id="backlinks">-</span></p>
-            <p>Referring Domains: <span id="refDomains">-</span></p>
-            <p>Page Word Count: <span id="wordCount">-</span></p>
-            <p>Domain Rank: <span id="domainRank">-</span></p>
+            <p>Google PageSpeed: <span id="targetPagespeed">-</span></p>
+            <p>Backlinks Spam Score: <span id="targetSpamScore">-</span></p>
+            <p>Backlinks: <span id="targetBacklinks">-</span></p>
+            <p>Referring Domains: <span id="targetRefDomains">-</span></p>
+            <p>Domain Rank: <span id="targetDomainRank">-</span></p>
+            <p>Page Word Count: <span id="targetWordCount">-</span></p>
+            <p>Internal Links: <span id="targetInternalLinks">-</span></p>
+            <p>External Links: <span id="targetExternalLinks">-</span></p>
+            <p>Flesch Readability: <span id="targetReadability">-</span></p>
+            <p>Images: <span id="targetImages">-</span></p>
+            <p>CLS: <span id="targetCls">-</span></p>
+            <p>LCP: <span id="targetLcp">-</span></p>
+            <p>FID: <span id="targetFid">-</span></p>
+            <p>Schema: <span id="targetSchema">-</span></p>
 
         </div>
 
@@ -1592,15 +1601,26 @@
 
                 const keywords = keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
 
-                document.getElementById('metaTitle').innerText = "";
-                document.getElementById('metaDescription').innerText = "";
-                document.getElementById('wordCount').innerText = "";
-                document.getElementById('da').innerText = "";
-                document.getElementById('pa').innerText = "";
-                document.getElementById('spamScore').innerText = "";
-                document.getElementById('pagespeed').innerText = '-/100';
-                document.getElementById('backlinks').innerText = "";
-                document.getElementById('refDomains').innerText = "";
+                        document.getElementById('targetTitle').innerText = "";
+                        document.getElementById('targetDescription').innerText = "";
+                        document.getElementById('targetDomainRank').innerText = "";
+                        document.getElementById('targetBacklinks').innerText = "";
+                        document.getElementById('targetSpamScore').innerText = "";
+                        document.getElementById('targetPagespeed').innerText = '-/100';
+                        document.getElementById('targetRefDomains').innerText = "";
+                        document.getElementById('targetInternalLinks').innerText = "";
+                        document.getElementById('targetExternalLinks').innerText = "";
+                        document.getElementById('targetH1').innerText = "";
+                        document.getElementById('targetImages').innerText = "";
+                        document.getElementById('targetCls').innerText = "";
+                        document.getElementById('targetLcp').innerText = "";
+                        document.getElementById('targetFid').innerText = "";
+                        document.getElementById('targetSchema').innerText = "";
+                        document.getElementById('targetReadability').innerText = "";
+                        document.getElementById('targetWordCount').innerText = "";
+
+                        document.getElementById("meta_data").style.backgroundColor = "#004c9d";
+                        document.getElementById("domain_metrics").style.backgroundColor = "#004c9d";
 
                 fetchDomainMetrics(domain);
                 keywordAnalysis();
@@ -1771,12 +1791,7 @@
             }
 
             function fetchDomainMetrics(domain) {
-                document.getElementById("domain_metrics").style.backgroundColor = "orange";
-                document.getElementById("meta_data").style.backgroundColor = "orange";
-
-                document.getElementById('analyze').innerText = "Analysing...";
-
-                console.log("Fetching Domain Metrics...");
+                document.getElementById('keyword-research-analysis-button').innerText = "Analysing...";
 
                 //moz 
                 var url = "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
@@ -1800,86 +1815,56 @@
                         return response.json();
                     })
                     .then(data => {
-                        console.log("Moz Metrics:", data); // Log the received data
                         document.getElementById('da').innerText = data.body.results[0].domain_authority;
                         document.getElementById('pa').innerText = data.body.results[0].page_authority;
-                        document.getElementById('spamScore').innerText = data.body.results[0].spam_score;
-                        document.getElementById('pagespeed').innerText = '-/100';
-                        document.getElementById('backlinks').innerText = data.body.results[0].pages_to_root_domain.toLocaleString();
-                        document.getElementById('refDomains').innerText = data.body.results[0].root_domains_to_root_domain.toLocaleString();
                     })
                     .catch(error => {
                         console.error("Error fetching data:", error); // Log any errors
                         // Handle the error gracefully, perhaps display an error message to the user
                     });
 
-                //dataforseo
-                var url = "https://api.dataforseo.com/v3/on_page/instant_pages";
-                var queryString = [{
-                    "url": domain,
-                    "enable_javascript": true
-                }];
+                api_url = "https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new";
                 var headers = {
                     "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "Authorization": DFSapiKey
+                    "Content-Type": "application/json"
                 };
-                fetch(url, {
+                fetch(api_url, {
                     method: 'POST',
                     headers: headers,
-                    body: JSON.stringify(queryString)
-                })
-                    .then(response => {
+                    body: JSON.stringify({url: domain})
+                }).then(response => {
                         // Check if the response is successful
                         if (!response.ok) {
-                            throw new Error(`HTTP error! Status: ${response.status}`);
+                            throw new Error(`Error obtaining domain metrics Status: ${response.status}`);
                         }
                         return response.json();
                     })
                     .then(data => {
-                        console.log("Instant Pages Metrics:", data); // Log the received data
-                        document.getElementById('metaTitle').innerText = data.tasks[0].result[0].items[0].meta.title;
-                        document.getElementById('metaDescription').innerText = data.tasks[0].result[0].items[0].meta.description;
-                        document.getElementById('wordCount').innerText = data.tasks[0].result[0].items[0].meta.content.plain_text_word_count.toLocaleString();
+                        document.getElementById('targetTitle').innerText = data.body.title;
+                        document.getElementById('targetDescription').innerText = data.body.description;
+                        document.getElementById('targetDomainRank').innerText = data.body.domain_rank;
+                        document.getElementById('targetBacklinks').innerText = data.body.backlinks;
+                        document.getElementById('targetSpamScore').innerText = data.body.backlinks_spam_score;
+                        document.getElementById('targetPagespeed').innerText = '-/100';
+                        document.getElementById('targetRefDomains').innerText = data.body.referring_domains;
+                        document.getElementById('targetInternalLinks').innerText = data.body.internal_links_count;
+                        document.getElementById('targetExternalLinks').innerText = data.body.external_links_count;
+                        document.getElementById('targetH1').innerText = data.body.h1;
+                        document.getElementById('targetImages').innerText = data.body.image;
+                        document.getElementById('targetCls').innerText = data.body.cls;
+                        document.getElementById('targetLcp').innerText = data.body.lcp;
+                        document.getElementById('targetFid').innerText = data.body.fid;
+                        document.getElementById('targetSchema').innerText = data.body.schema;
+                        document.getElementById('targetReadability').innerText = data.body.readability;
+                        document.getElementById('targetWordCount').innerText = data.body.word_count;
+
                         document.getElementById("meta_data").style.backgroundColor = "green";
-                    })
-                    .catch(error => {
-                        console.error("Error fetching data:", error); // Log any errors
-                        // Handle the error gracefully, perhaps display an error message to the user
-                    });
-
-                var url = "https://api.dataforseo.com/v3/backlinks/summary/live";
-                var queryString = [{
-                    "target": domain.replace("www.", "").replace("http://", "").replace("https://", "")
-                }];
-                var headers = {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "Authorization": DFSapiKey
-                };
-                fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(queryString)
-                })
-                    .then(response => {
-                        // Check if the response is successful
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! Status: ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        console.log("Backlinks Data:", data); // Log the received data
-                        document.getElementById('domainRank').innerText = data.tasks[0].result[0].rank.toLocaleString();
                         document.getElementById("domain_metrics").style.backgroundColor = "green";
                     })
                     .catch(error => {
-                        console.error("Error fetching data:", error); // Log any errors
+                        console.error("Error fetching targeted domain data:", error); // Log any errors
                         // Handle the error gracefully, perhaps display an error message to the user
                     });
-                document.getElementById('analyze').innerText = "Analyse";
-
             }
 
             async function fetchSerpResults(keyword, location, domain) {
@@ -1904,27 +1889,6 @@
                     return data;
                 } catch (error) {
                     console.error('Error fetching SERP data:', error);
-                    return null;
-                }
-            }
-
-            async function fetchDomainData(urls) {
-                const apiEndpoint = "https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new";
-                const requestBody = { url_list: urls };
-
-                try {
-                    const response = await fetch(apiEndpoint, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(requestBody)
-                    });
-
-                    const data = await response.json();
-                    return data;
-                } catch (error) {
-                    console.error('Error fetching domain data:', error);
                     return null;
                 }
             }
