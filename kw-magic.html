@@ -587,7 +587,8 @@
                     <span class="error" id="keywordsError"></span>
                 </div>
 
-                <button type="button" id="keyword-research-analysis-button" onclick="validateAndSubmit()">Analyse</button>
+                <button type="button" id="keyword-research-analysis-button"
+                    onclick="validateAndSubmit()">Analyse</button>
                 <button type="button" id="similar" onclick="similarKeywords()" disabled>Generate Similar
                     Keywords</button>
                 <button type="button" id="ranking" onclick="rankingKeywords()">Get Ranking Keywords</button>
@@ -1147,7 +1148,7 @@
                 const urlsInput = document.getElementById('comparison-urls').value;
                 const language = document.getElementById('comparison-language').value;
                 const location = document.getElementById('comparison-location').value;
-                const urls = urlsInput.split(/[\s,]+/).filter(url => url.trim() !== "");
+                urls = urlsInput.split(/[\s,]+/).filter(url => url.trim() !== "");
 
                 try {
                     // Function to cycle through loading messages
@@ -1206,12 +1207,16 @@
                     clearInterval(loadingMessageInterval);
                     loadingMessagesDiv.classList.remove('active');
 
-                    // 3. Create and display the table 
-                    const tableHTML = createAnalysisTable(analysisData.body.data);
-                    resultsDiv.innerHTML = `<div id="tableContainer">${tableHTML}</div>`;
+                    try {
+                        // 3. Create and display the table 
+                        comparisonTableHTML = createAnalysisTable(analysisData.body.data);
+                        resultsDiv.innerHTML = `<div id="tableContainer">${comparisonTableHTML}</div>`;
 
-                    // 4. Apply gradient to each row
-                    applyGradientsToRows();
+                        // 4. Apply gradient to each row
+                        applyGradientsToRows();
+                    } catch (error) {
+                        console.log("The comparison table could not be displayed.");
+                    }
 
                     // 5. Display the recommendations 
                     resultsDiv.innerHTML += `<br><hr><h2>Content Analysis Results:</h2>
@@ -1221,8 +1226,10 @@
 
                 } catch (error) {
                     resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
-                    // ---  Error occurred, ensure loading messages are stopped ---
-                    clearInterval(loadingMessageInterval);
+                    try {
+                        clearInterval(loadingMessageInterval);
+                    } catch (error) {
+                    }
                     loadingMessagesDiv.classList.remove('active');
                     analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
                 }
@@ -1234,35 +1241,35 @@
                 const target_urls = urlsInput.split(/[\s,]+/).filter(url => url.trim() !== "");
                 const keyword = document.getElementById('comparison-keyword').value;
 
-                let tableHTML = '<table id="analysisTable">';
-                tableHTML += '<tr><th>URL</th>'; // Add URL as the first header
+                console.log(data);
+
+                let comparisonTableHTML = '<table id="analysisTable">';
+                comparisonTableHTML += '<tr><th>URL</th>'; // Add URL as the first header
 
                 // Get all unique URLs for column headers
-                const urls = Object.keys(data);
+                urls = Object.keys(data);
                 urls.forEach(url => {
-                    console.log(target_urls);
-                    console.log(url);
                     if (target_urls.includes(url) && keyword != "") {
-                        tableHTML += `<th style="background-color: darkorange;"><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></th>`;
+                        comparisonTableHTML += `<th style="background-color: darkorange;"><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></th>`;
                     } else {
-                        tableHTML += `<th><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></th>`;
+                        comparisonTableHTML += `<th><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></th>`;
                     }
                 });
-                tableHTML += '</tr>';
+                comparisonTableHTML += '</tr>';
 
                 // Add Word Count row
-                tableHTML += '<tr><td>Word Count</td>';
+                comparisonTableHTML += '<tr><td>Word Count</td>';
                 urls.forEach(url => {
-                    tableHTML += `<td data-value="${data[url].word_count}">${data[url].word_count}</td>`; // Add data-value attribute
+                    comparisonTableHTML += `<td data-value="${data[url].word_count}">${data[url].word_count}</td>`; // Add data-value attribute
                 });
-                tableHTML += '</tr>';
+                comparisonTableHTML += '</tr>';
 
                 // Add Page Type row
-                tableHTML += '<tr><td>Page Type</td>';
+                comparisonTableHTML += '<tr><td>Page Type</td>';
                 urls.forEach(url => {
-                    tableHTML += `<td>${data[url].page_type}</td>`;
+                    comparisonTableHTML += `<td>${data[url].page_type}</td>`;
                 });
-                tableHTML += '</tr>';
+                comparisonTableHTML += '</tr>';
 
                 // Get all unique topics for row headers
                 let allTopics = [];
@@ -1273,16 +1280,16 @@
 
                 // Add Topic rows
                 uniqueTopics.forEach(topic => {
-                    tableHTML += `<tr><td>${topic}</td>`;
+                    comparisonTableHTML += `<tr><td>${topic}</td>`;
                     urls.forEach(url => {
                         const value = data[url].topics[topic] || 0;
-                        tableHTML += `<td data-value="${value}">${value}</td>`; // Add data-value attribute
+                        comparisonTableHTML += `<td data-value="${value}">${value}</td>`; // Add data-value attribute
                     });
-                    tableHTML += '</tr>';
+                    comparisonTableHTML += '</tr>';
                 });
 
-                tableHTML += '</table>';
-                return tableHTML;
+                comparisonTableHTML += '</table>';
+                return comparisonTableHTML;
             }
 
             // Function to apply gradients to table rows
@@ -1602,29 +1609,29 @@
 
                 const keywords = keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
 
-                        document.getElementById('targetTitle').innerText = "";
-                        document.getElementById('targetDescription').innerText = "";
-                        document.getElementById('targetDomainRank').innerText = "";
-                        document.getElementById('targetBacklinks').innerText = "";
-                        document.getElementById('targetSpamScore').innerText = "";
-                        document.getElementById('targetPagespeed').innerText = '-/100';
-                        document.getElementById('targetRefDomains').innerText = "";
-                        document.getElementById('targetInternalLinks').innerText = "";
-                        document.getElementById('targetExternalLinks').innerText = "";
-                        document.getElementById('targetH1').innerText = "";
-                        document.getElementById('targetImages').innerText = "";
-                        document.getElementById('targetCls').innerText = "";
-                        document.getElementById('targetLcp').innerText = "";
-                        document.getElementById('targetFid').innerText = "";
-                        document.getElementById('targetSchema').innerText = "";
-                        document.getElementById('targetReadability').innerText = "";
-                        document.getElementById('targetWordCount').innerText = "";
-                        document.getElementById('da').innerText = "";
-                        document.getElementById('pa').innerText = "";
+                document.getElementById('targetTitle').innerText = "";
+                document.getElementById('targetDescription').innerText = "";
+                document.getElementById('targetDomainRank').innerText = "";
+                document.getElementById('targetBacklinks').innerText = "";
+                document.getElementById('targetSpamScore').innerText = "";
+                document.getElementById('targetPagespeed').innerText = '-/100';
+                document.getElementById('targetRefDomains').innerText = "";
+                document.getElementById('targetInternalLinks').innerText = "";
+                document.getElementById('targetExternalLinks').innerText = "";
+                document.getElementById('targetH1').innerText = "";
+                document.getElementById('targetImages').innerText = "";
+                document.getElementById('targetCls').innerText = "";
+                document.getElementById('targetLcp').innerText = "";
+                document.getElementById('targetFid').innerText = "";
+                document.getElementById('targetSchema').innerText = "";
+                document.getElementById('targetReadability').innerText = "";
+                document.getElementById('targetWordCount').innerText = "";
+                document.getElementById('da').innerText = "";
+                document.getElementById('pa').innerText = "";
 
-                        document.getElementById("meta_data").style.backgroundColor = "#004c9d";
-                        document.getElementById("domain_metrics").style.backgroundColor = "#004c9d";
-                        document.getElementById("keywordAnalysis").style.backgroundColor = "#004c9d";
+                document.getElementById("meta_data").style.backgroundColor = "#004c9d";
+                document.getElementById("domain_metrics").style.backgroundColor = "#004c9d";
+                document.getElementById("keywordAnalysis").style.backgroundColor = "#004c9d";
 
                 fetchDomainMetrics(domain);
                 keywordAnalysis();
@@ -1650,12 +1657,12 @@
                 ));
 
 
-                let tableHtml = "<table><tr><th>No.</th><th>Keyword</th><th>Search Volume</th><th>KW Difficulty</th><th>Current Rank</th><th>Time To Rank</th><th>Comments</th></tr>";
+                let keywordTableHtml = "<table><tr><th>No.</th><th>Keyword</th><th>Search Volume</th><th>KW Difficulty</th><th>Current Rank</th><th>Time To Rank</th><th>Comments</th></tr>";
                 keywordMetrics.forEach((data, index) => {
-                    tableHtml += `<tr onclick="showSERPs(${index})"><td>${index + 1}</td><td id="keyword-${index}" class="keyword-cell">${data.body.keyword}       <div class="loading-spinner" id="spinner-${index}"></div></td><td>${data.body.search_volume}</td><td>${data.body.competition}</td><td>${data.body.rank}</td><td><div class="loading-spinner" id="kw-${index}-time-to-rank"></div></td><td><div class="loading-spinner" id="kw-${index}-time-to-rank-reason"></div></td></tr>`; // Spinner for Time to Rank and keyword
+                    keywordTableHtml += `<tr onclick="showSERPs(${index})"><td>${index + 1}</td><td id="keyword-${index}" class="keyword-cell">${data.body.keyword}       <div class="loading-spinner" id="spinner-${index}"></div></td><td>${data.body.search_volume}</td><td>${data.body.competition}</td><td>${data.body.rank}</td><td><div class="loading-spinner" id="kw-${index}-time-to-rank"></div></td><td><div class="loading-spinner" id="kw-${index}-time-to-rank-reason"></div></td></tr>`; // Spinner for Time to Rank and keyword
                 });
-                tableHtml += "</table>";
-                keywordAnalysisResults.innerHTML = tableHtml;
+                keywordTableHtml += "</table>";
+                keywordAnalysisResults.innerHTML = keywordTableHtml;
                 document.getElementById("keywordAnalysis").style.backgroundColor = "green";
 
                 const serpData = {};
@@ -1702,10 +1709,10 @@
 
                     // Update the correct row in the first table (keywordMetrics table)
                     document.getElementById(`kw-${index}-time-to-rank`).classList.remove('loading-spinner');
-                    document.getElementById(`kw-${index}-time-to-rank`).innerHTML = timeTakenToRankData.body.choice.replaceAll('"','').replace('choice: ','').replace('{','');
+                    document.getElementById(`kw-${index}-time-to-rank`).innerHTML = timeTakenToRankData.body.choice.replaceAll('"', '').replace('choice: ', '').replace('{', '');
 
                     document.getElementById(`kw-${index}-time-to-rank-reason`).classList.remove('loading-spinner');
-                    document.getElementById(`kw-${index}-time-to-rank-reason`).innerHTML = timeTakenToRankData.body.reason.replaceAll('"','').replace('reason: ','').replace('}','');
+                    document.getElementById(`kw-${index}-time-to-rank-reason`).innerHTML = timeTakenToRankData.body.reason.replaceAll('"', '').replace('reason: ', '').replace('}', '');
 
                 } catch (error) {
                     console.error(`Error getting Time To Rank for ${keyword}:`, error);
@@ -1842,14 +1849,14 @@
                 fetch(api_url, {
                     method: 'POST',
                     headers: headers,
-                    body: JSON.stringify({url: domain})
+                    body: JSON.stringify({ url: domain })
                 }).then(response => {
-                        // Check if the response is successful
-                        if (!response.ok) {
-                            throw new Error(`Error obtaining domain metrics Status: ${response.status}`);
-                        }
-                        return response.json();
-                    })
+                    // Check if the response is successful
+                    if (!response.ok) {
+                        throw new Error(`Error obtaining domain metrics Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                     .then(data => {
                         document.getElementById('targetTitle').innerText = data.body.title;
                         document.getElementById('targetDescription').innerText = data.body.description;
