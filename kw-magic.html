@@ -1623,6 +1623,7 @@
 
                         document.getElementById("meta_data").style.backgroundColor = "#004c9d";
                         document.getElementById("domain_metrics").style.backgroundColor = "#004c9d";
+                        document.getElementById("keywordAnalysis").style.backgroundColor = "#004c9d";
 
                 fetchDomainMetrics(domain);
                 keywordAnalysis();
@@ -1648,12 +1649,13 @@
                 ));
 
 
-                let tableHtml = "<table><tr><th>No.</th><th>Keyword</th><th>Search Volume</th><th>KW Difficulty</th><th>Current Rank</th><th>Time To Rank</th></tr>";
+                let tableHtml = "<table><tr><th>No.</th><th>Keyword</th><th>Search Volume</th><th>KW Difficulty</th><th>Current Rank</th><th>Time To Rank</th><th>Comments</th></tr>";
                 keywordMetrics.forEach((data, index) => {
-                    tableHtml += `<tr onclick="showSERPs(${index})"><td>${index + 1}</td><td id="keyword-${index}" class="keyword-cell">${data.body.keyword}       <div class="loading-spinner" id="spinner-${index}"></div></td><td>${data.body.search_volume}</td><td>${data.body.competition}</td><td>${data.body.rank}</td><td><div class="loading-spinner" id="kw-${index}-time-to-rank"></div></td></tr>`; // Spinner for Time to Rank and keyword
+                    tableHtml += `<tr onclick="showSERPs(${index})"><td>${index + 1}</td><td id="keyword-${index}" class="keyword-cell">${data.body.keyword}       <div class="loading-spinner" id="spinner-${index}"></div></td><td>${data.body.search_volume}</td><td>${data.body.competition}</td><td>${data.body.rank}</td><td><div class="loading-spinner" id="kw-${index}-time-to-rank"></div></td><td><div class="loading-spinner" id="kw-${index}-time-to-rank-reason"></div></td></tr>`; // Spinner for Time to Rank and keyword
                 });
                 tableHtml += "</table>";
                 keywordAnalysisResults.innerHTML = tableHtml;
+                document.getElementById("keywordAnalysis").style.backgroundColor = "green";
 
                 const serpData = {};
                 const pageMetrics = {};
@@ -1693,19 +1695,25 @@
                     });
 
                     const timeTakenToRankData = await res.json();
-                    console.log(`Time to Rank for ${keyword}:`, timeTakenToRankData.body);
+                    console.log(timeTakenToRankData);
+                    console.log(`Time to Rank for ${keyword}:`, timeTakenToRankData.body.choice);
 
 
                     // Update the correct row in the first table (keywordMetrics table)
                     document.getElementById(`kw-${index}-time-to-rank`).classList.remove('loading-spinner');
-                    document.getElementById(`kw-${index}-time-to-rank`).innerHTML = timeTakenToRankData.body;
+                    document.getElementById(`kw-${index}-time-to-rank`).innerHTML = timeTakenToRankData.body.choice.replaceAll('"','').replace('choice: ','').replace('{','');
 
+                    document.getElementById(`kw-${index}-time-to-rank-reason`).classList.remove('loading-spinner');
+                    document.getElementById(`kw-${index}-time-to-rank-reason`).innerHTML = timeTakenToRankData.body.reason.replaceAll('"','').replace('reason: ','').replace('}','');
 
                 } catch (error) {
                     console.error(`Error getting Time To Rank for ${keyword}:`, error);
                     // Handle the error appropriately (e.g., display an error message in the table)
                     document.getElementById(`kw-${index}-time-to-rank`).classList.remove('loading-spinner');
                     document.getElementById(`kw-${index}-time-to-rank`).innerHTML = "Error"; // Or some error message
+
+                    document.getElementById(`kw-${index}-time-to-rank-reason`).classList.remove('loading-spinner');
+                    document.getElementById(`kw-${index}-time-to-rank-reason`).innerHTML = "Error"; // Or some error message
 
                 }
             }
