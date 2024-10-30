@@ -1441,7 +1441,7 @@
                     "location_name": location,
 
                 };
-                
+
                 fetch(url, {
                     method: 'POST',
                     headers: headers,
@@ -1471,10 +1471,17 @@
 
                 const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column'));
 
-                rankedKeywordsData.forEach((item, index) => {
-                    const keywordData = item.keyword_data;
-                    const keywordInfo = item.keyword_data.keyword_info;
-                    const rankGroup = item.ranked_serp_element.serp_item.rank_group;
+                // Convert the object to an array of objects, suitable for sorting
+                const rankedKeywordsArray = Object.entries(rankedKeywordsData).map(([keyword, data]) => ({
+                    keyword: keyword,
+                    search_volume: data.search_volume,
+                    rank: data.rank,
+                    difficulty: null // Add difficulty here later if available
+                }));
+
+
+
+                rankedKeywordsArray.forEach((item, index) => {
 
                     const listItem = document.createElement('li');
                     listItem.classList.add('keyword-row');
@@ -1483,41 +1490,46 @@
                     const keywordDiv = document.createElement('div');
                     keywordDiv.classList.add('keyword-column');
                     keywordDiv.style.width = `${headerCells[0].offsetWidth}px`;
-                    keywordDiv.textContent = keywordData.keyword;
+                    keywordDiv.textContent = item.keyword;
                     listItem.appendChild(keywordDiv);
 
                     // Search Volume column
                     const searchVolumeDiv = document.createElement('div');
                     searchVolumeDiv.classList.add('keyword-column');
                     searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`;
-                    searchVolumeDiv.textContent = keywordInfo.search_volume.toLocaleString() || '-';
+                    searchVolumeDiv.textContent = item.search_volume.toLocaleString() || '-';
                     listItem.appendChild(searchVolumeDiv);
+
 
                     // Rank column
                     const rankDiv = document.createElement('div');
                     rankDiv.classList.add('keyword-column');
                     rankDiv.style.width = `${headerCells[2].offsetWidth}px`;
-                    rankDiv.textContent = rankGroup || '-';
+                    rankDiv.textContent = item.rank || '-';
                     listItem.appendChild(rankDiv);
 
-                    // Difficulty column
+
+                    // Difficulty column (placeholder for now)
                     const difficultyDiv = document.createElement('div');
                     difficultyDiv.classList.add('keyword-column');
                     difficultyDiv.style.width = `${headerCells[3].offsetWidth}px`;
-                    difficultyDiv.textContent = Math.round(keywordInfo.competition * 100) / 100 || '-';
+                    difficultyDiv.textContent = item.difficulty || '-'; // Display '-' or the actual value if you get it later
                     listItem.appendChild(difficultyDiv);
+
 
                     // Checkbox column (keep existing style)
                     const checkboxDiv = document.createElement('div');
                     checkboxDiv.classList.add('checkbox-column');
                     const checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
-                    checkbox.name = `chk${index + 1}`;
+                    checkbox.name = `chk${index + 1}`; // Use index for unique names
                     checkbox.id = `chk${index + 1}`;
-                    checkbox.value = keywordData.keyword;
+                    checkbox.value = item.keyword;
                     checkbox.checked = false;
                     checkboxDiv.appendChild(checkbox);
                     listItem.appendChild(checkboxDiv);
+
+
 
                     rankedKeywordList.appendChild(listItem);
                 });
