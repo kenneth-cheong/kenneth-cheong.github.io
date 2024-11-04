@@ -590,11 +590,11 @@
 
                 <button type="button" id="keyword-research-analysis-button"
                     onclick="validateAndSubmit()">Analyse</button>
-                <button type="button" id="similar" onclick="similarKeywords()" disabled>Generate Similar
+                <button type="button" id="similar" onclick="similarKeywords()">Generate Similar
                     Keywords</button>
                 <button type="button" id="ranking" onclick="rankingKeywords()">Get Ranking Keywords</button>
-
             </form>
+            <div id = "rankingError"></div>
         </div>
 
         <div class="column">
@@ -1391,16 +1391,14 @@
                 const location = document.getElementById('location').value;
                 document.getElementById('similar').innerText = "Generating...";
 
-                var url = "https://api.dataforseo.com/v3/keywords_data/google_ads/keywords_for_keywords/live";
+                var url = "https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords";
                 var queryString = [{
                     "keywords": keywordsInput,
-                    "location_name": location,
-                    "sort_by": "search_volume"
+                    "location": location,
                 }];
                 var headers = {
                     "Accept": "application/json",
                     "Content-Type": "application/json",
-                    "Authorization": DFSapiKey
                 };
                 fetch(url, {
                     method: 'POST',
@@ -1415,7 +1413,7 @@
                     })
                     .then(data => {
                         console.log("Similar Keywords:", data);
-                        displaySimilarKeywords(data.tasks[0].result);
+                        displaySimilarKeywords(data.body);
                         document.getElementById('similar').innerText = "Generate Similar Keywords";
                         document.getElementById("keyword_suggestions").style.backgroundColor = "green";
                     })
@@ -1428,6 +1426,18 @@
             function rankingKeywords() {
                 var domain = document.getElementById('domain').value;
                 var location = document.getElementById('location').value;
+
+                document.getElementById('rankingError').textContent = '';
+
+                if (!domain) {
+                    document.getElementById('rankingError').textContent = 'Please enter a URL or domain.';
+                    return;
+                }
+                if (!location) {
+                    document.getElementById('rankingError').textContent = 'Please select a location.';
+                    return;
+                }
+                
                 document.getElementById('ranking').innerText = "Generating...";
 
                 var url = "https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords";
