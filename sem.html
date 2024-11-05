@@ -1,49 +1,91 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<title>Website Analyzer Tool</title>
-<style>
-  #output {
-    white-space: pre-wrap; /* Preserve whitespace and allow wrapping */
-  }
-</style>
+  <title>Website Analyzer Tool</title>
+  <style>
+    #output {
+      white-space: pre-wrap;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f2f2f2;
+    }
+
+    .column {
+      float: left;
+      width: 46%;
+      padding: 2%;
+    }
+
+    #selected textarea {
+      width: 100%;
+      height: 200px;
+      /* Adjust height as needed */
+      resize: vertical;
+      /* Allow vertical resizing */
+    }
+  </style>
 </head>
+
 <body>
 
   <h1>Website Analyser</h1>
-
   <label for="company_name">Company Name:</label>
-  <input type="text" id="company_name"><br><br>
+  <input type="text" id="company_name" value="MediaOne"><br><br>
 
   <label for="website">Website:</label>
-  <input type="text" id="website"><br><br>
+  <input type="text" id="website" value="https://mediaonemarketing.com.sg/"><br><br>
 
   <label for="country">Country:</label>
-  <input type="text" id="country"><br><br>
+  <input type="text" id="country" value="Singapore"><br><br>
 
-  <button onclick="analyzeWebsite()">Analyze</button>
+  <label for="additional">Addtional Information (optional):</label><br>
+  <textarea id="additional"></textarea>
+  <br>
 
-  <div id="output"></div>
+  <button id="semButton" onclick="analyzeWebsite()">Analyse</button>
+  <br>
+  <div class="column" id="output"></div>
+  <div class="column" id="selected" style="display:none;">
+    <h2>Selected</h2><textarea id="selectedText"></textarea>
+    <br><br>
+    <button id="generateSem" onclick="generateGoogle()">Generate</button>
+    <h2>Generated</h2>
+    <div id= "generated"></div>
+  </div>
+
 
   <script>
-    async function analyzeWebsite() {
-      const companyName = document.getElementById("company_name").value;
-      const website = document.getElementById("website").value;
-      const country = document.getElementById("country").value;
+    selectedItems = {};
 
-      const data = {
-        "company_name": companyName,
-        "website": website,
-        "country": country
-      };
+    async function analyzeWebsite() {
+      const semButton = document.getElementById("semButton");
+      semButton.innerText = "Analysing...";
 
       try {
         const response = await fetch("https://sk7akfiy89.execute-api.ap-southeast-1.amazonaws.com/semWebsiteAnalyser", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(data)
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            company_name: document.getElementById("company_name").value,
+            website: document.getElementById("website").value,
+            country: document.getElementById("country").value,
+            additional: document.getElementById("additional").value,
+          })
         });
 
         if (!response.ok) {
@@ -51,15 +93,111 @@
         }
 
         const responseData = await response.json();
+        const body = responseData.body;
 
-        document.getElementById("output").innerHTML = responseData.body;
+        selectedItems = {}; // Clear selections
+        document.getElementById('selected').style.display = 'block';
+        document.getElementById("selectedText").value = ""; // Clear textarea
+        document.getElementById("output").innerHTML = createTables(body);
+
+        semButton.innerText = "Analyse";
 
       } catch (error) {
         console.error("Error:", error);
         document.getElementById("output").innerText = "An error occurred. Please check the console for details.";
+        semButton.innerText = "Analyse";
+      }
+    }
+
+    function createTables(data) {
+      let tablesHTML = "";
+      const categories = ["short_keywords", "long_keywords", "usp", "target_audience_name"];
+      const titles = ["Short-tail Keywords", "Long-tail Keywords", "USPs", "Target Audience"];
+
+
+      for (let i = 0; i < categories.length; i++) {
+        const category = categories[i];
+        const title = titles[i];
+        const items = data[category];
+
+        let tableHTML = `<h2>${title}</h2><table><tr><th>Select</th><th>Value</th></tr>`;
+        for (const item of items) {
+          const value = typeof item === 'object' ? Object.values(item)[0] : item;
+          tableHTML += `<tr><td><input type="checkbox" onchange="updateSelected('${value}', '${title}')"></td><td>${value}</td></tr>`;
+        }
+        tableHTML += '</table>';
+        tablesHTML += tableHTML;
+      }
+      return tablesHTML;
+    }
+
+
+    function updateSelected(value, category) {
+      if (!selectedItems[category]) {
+        selectedItems[category] = [];
+      }
+
+      const index = selectedItems[category].indexOf(value);
+      if (index > -1) {
+        selectedItems[category].splice(index, 1);
+      } else {
+        selectedItems[category].push(value);
+      }
+
+      displaySelectedItems();
+    }
+
+
+    function displaySelectedItems() {
+      let selectedText = "";
+      for (const category in selectedItems) {
+        if (selectedItems[category].length > 0) {
+          selectedText += `${category}\n`;
+          selectedItems[category].forEach(item => {
+            selectedText += `${item}\n`;
+          });
+          selectedText += "\n"; // Add extra newline between categories
+        }
+      }
+      document.getElementById("selectedText").value = selectedText;  // Update textarea value
+    }
+
+    async function generateGoogle() {
+      document.getElementById("generateSem").innerText = "Generating...";
+
+      try {
+        const response = await fetch("https://bztsly2z89.execute-api.ap-southeast-1.amazonaws.com/generateSemGoogle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            company_name: document.getElementById("company_name").value,
+            website: document.getElementById("website").value,
+            country: document.getElementById("country").value,
+            input: document.getElementById("selectedText").value,
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const responseData = await response.json();
+        const body = responseData.body;
+
+        document.getElementById('generated').textContent = body.headlines;
+
+        document.getElementById('generated').style.display = 'block';
+
+        document.getElementById("generateSem").innerText = "Generate";
+
+      } catch (error) {
+        console.error("Error:", error);
+        document.getElementById("generated").innerText = "An error occurred. Please check the console for details.";
+        document.getElementById("generateSem").innerText = "Generate";
       }
     }
   </script>
 
 </body>
+
 </html>
