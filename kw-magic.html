@@ -570,7 +570,10 @@
                         <option value="Thailand">Thailand</option>
                         <option value="India">India</option>
                         <option value="Indonesia">Indonesia</option>
+                        <option value="Japan">Japan</option>
+                        <option value="South Korea">South Korea</option>
                         <option value="United States">United States</option>
+                        <option value="Vietnam">Vietnam</option>
 
                     </select>
                 </div>
@@ -580,6 +583,15 @@
                     <select id="language" name="language" required>
                         <option value="">Select a language</option>
                         <option value="English">English</option>
+                        <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+                        <option value="Chinese (Traditional)">Chinese (Traditional)</option>
+                        <option value="Indonesian">Indonesian</option>
+                        <option value="Japanese">Japanese</option>
+                        <option value="Korean">Korean</option>
+                        <option value="Malay">Malay</option>
+                        <option value="Tamil">Tamil</option>
+                        <option value="Thai">Thai</option>
+                        <option value="Vietnamnese">Vietnamnese</option>
                     </select>
                 </div><br>
                 <div>
@@ -649,30 +661,30 @@
         <hr>
         <button class="collapsible" id="meta_data">Meta Data</button>
         <div class="content" id="metaData">
-            <p>Meta Title: <span id="targetTitle">-</span></p>
-            <p>Meta Description: <span id="targetDescription">-</span></p>
-            <p>h1 Header: <span id="targetH1">-</span></p>
+            <p><b>Meta Title: </b><span id="targetTitle">-</span></p>
+            <p><b>Meta Description: </b><span id="targetDescription">-</span></p>
+            <p><b>h1 Header: </b><span id="targetH1">-</span></p>
 
         </div>
 
         <button class="collapsible" id="domain_metrics">Domain Metrics (DA, PA, PageSpeed)</button>
         <div class="content" id="domainMetrics">
-            <p>Domain Authority (DA): <span id="da">-</span></p>
-            <p>Page Authority (PA): <span id="pa">-</span></p>
-            <p>Google PageSpeed: <span id="targetPagespeed">-</span></p>
-            <p>Backlinks Spam Score: <span id="targetSpamScore">-</span></p>
-            <p>Backlinks: <span id="targetBacklinks">-</span></p>
-            <p>Referring Domains: <span id="targetRefDomains">-</span></p>
-            <p>Domain Rank: <span id="targetDomainRank">-</span></p>
-            <p>Page Word Count: <span id="targetWordCount">-</span></p>
-            <p>Internal Links: <span id="targetInternalLinks">-</span></p>
-            <p>External Links: <span id="targetExternalLinks">-</span></p>
-            <p>Flesch Readability: <span id="targetReadability">-</span></p>
-            <p>Images: <span id="targetImages">-</span></p>
-            <p>CLS: <span id="targetCls">-</span></p>
-            <p>LCP: <span id="targetLcp">-</span></p>
-            <p>FID: <span id="targetFid">-</span></p>
-            <p>Schema: <span id="targetSchema">-</span></p>
+            <p><b>Domain Authority (DA): </b><span id="da">-</span></p>
+            <p><b>Page Authority (PA): </b><span id="pa">-</span></p>
+            <p><b>Google PageSpeed: </b><span id="targetPagespeed">-</span></p>
+            <p><b>Backlinks Spam Score: </b><span id="targetSpamScore">-</span></p>
+            <p><b>Backlinks: </b><span id="targetBacklinks">-</span></p>
+            <p><b>Referring Domains: </b><span id="targetRefDomains">-</span></p>
+            <p><b>Domain Rank: </b><span id="targetDomainRank">-</span></p>
+            <p><b>Page Word Count: </b><span id="targetWordCount">-</span></p>
+            <p><b>Internal Links: </b><span id="targetInternalLinks">-</span></p>
+            <p><b>External Links: </b><span id="targetExternalLinks">-</span></p>
+            <p><b>Flesch Readability: </b><span id="targetReadability">-</span></p>
+            <p><b>Images: </b><span id="targetImages">-</span></p>
+            <p><b>CLS: </b><span id="targetCls">-</span></p>
+            <p><b>LCP: </b><span id="targetLcp">-</span></p>
+            <p><b>FID: </b><span id="targetFid">-</span></p>
+            <p><b>Schema: </b><span id="targetSchema">-</span></p>
 
         </div>
 
@@ -1398,7 +1410,8 @@
                     document.getElementById('rankingError').textContent = 'Please select a location.';
                     return;
                 }
-
+                
+                document.getElementById("keyword_suggestions").style.backgroundColor = "#004c9d";
                 document.getElementById('similar').innerText = "Generating...";
 
                 var url = "https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords";
@@ -1430,6 +1443,7 @@
                     .catch(error => {
                         console.error("Error fetching data:", error);
                         document.getElementById('similar').innerText = "Generate Similar Keywords";
+                        document.getElementById("keyword_suggestions").style.backgroundColor = "#004c9d";
                     });
             }
 
@@ -1438,6 +1452,7 @@
                 var location = document.getElementById('location').value;
 
                 document.getElementById('rankingError').textContent = '';
+                document.getElementById("ranking_keywords").style.backgroundColor = "#004c9d";
 
                 if (!domain) {
                     document.getElementById('rankingError').textContent = 'Please enter a URL or domain.';
@@ -1482,6 +1497,7 @@
                     .catch(error => {
                         console.error("Error fetching data:", error);
                         document.getElementById('ranking').innerText = "Get Ranking Keywords";
+                        document.getElementById("ranking_keywords").style.backgroundColor = "#004c9d";
                     });
             }
 
@@ -1496,7 +1512,7 @@
                     keyword: keyword,
                     search_volume: data.search_volume,
                     rank: data.rank,
-                    difficulty: null // Add difficulty here later if available
+                    difficulty: data.difficulty // Add difficulty here later if available
                 }));
 
 
@@ -1931,7 +1947,7 @@
                     location: location,
                     keyword: keyword,
                     targeted_url: domain,
-                    language: 'English'
+                    language: document.getElementById("location").value
                 };
 
                 try {
