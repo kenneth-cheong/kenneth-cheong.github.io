@@ -62,15 +62,16 @@
   <div class="column" id="output"></div>
   <div class="column" id="selected" style="display:none;">
     <h2>Selected</h2><textarea id="selectedText"></textarea>
-    <br><br>
+    <br>
     <button id="generateSem" onclick="generateGoogle()">Generate</button>
     <h2>Generated</h2>
-    <div id= "generated"></div>
+    <div id="generated"></div>
   </div>
 
 
   <script>
     selectedItems = {};
+    generatedData = {};
 
     async function analyzeWebsite() {
       const semButton = document.getElementById("semButton");
@@ -184,10 +185,13 @@
         const responseData = await response.json();
         const body = responseData.body;
 
-        document.getElementById('generated').textContent = body.headlines;
-
-        document.getElementById('generated').style.display = 'block';
-
+        for (const key in body) {
+          if (!generatedData[key]) {
+            generatedData[key] = [];
+          }
+          generatedData[key] = generatedData[key].concat(body[key]); // Concatenate new data
+        }
+        displayGeneratedData(); // Call function to update HTML
         document.getElementById("generateSem").innerText = "Generate";
 
       } catch (error) {
@@ -195,6 +199,32 @@
         document.getElementById("generated").innerText = "An error occurred. Please check the console for details.";
         document.getElementById("generateSem").innerText = "Generate";
       }
+    }
+
+    function displayGeneratedData() {
+      let generatedHTML = "";
+      for (const category in generatedData) {
+        if (generatedData[category].length > 0) {
+          generatedHTML += `<h3>${category.replace(/_/g, ' ').toUpperCase()}</h3>`; // Nicer titles
+          generatedHTML += `<table>`;
+          generatedHTML += `<tr><th>Value</th><th>Remove</th></tr>`; // Add remove column header
+          generatedData[category].forEach((item, index) => { // Add index for row removal
+            generatedHTML += `<tr>
+                                <td>${item}</td>
+                                <td><span class="remove-row" onclick="removeGeneratedRow('${category}', ${index})">X</span></td>
+                             </tr>`;
+          });
+
+          generatedHTML += `</table>`;
+        }
+      }
+      document.getElementById("generated").innerHTML = generatedHTML;
+    }
+
+
+    function removeGeneratedRow(category, index) {
+      generatedData[category].splice(index, 1);
+      displayGeneratedData(); // Redraw the table
     }
   </script>
 
