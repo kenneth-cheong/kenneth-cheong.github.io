@@ -571,7 +571,7 @@
                         <option value="India">India</option>
                         <option value="Indonesia">Indonesia</option>
                         <option value="United States">United States</option>
-                        
+
                     </select>
                 </div>
 
@@ -594,7 +594,7 @@
                     Keywords</button>
                 <button type="button" id="ranking" onclick="rankingKeywords()">Get Ranking Keywords</button>
             </form>
-            <div id = "rankingError"></div>
+            <div id="rankingError"></div>
         </div>
 
         <div class="column">
@@ -1389,6 +1389,16 @@
             function similarKeywords() {
                 const keywordsInput = document.getElementById('keywords').value.split(/[\n,]+/).map(k => k.trim());
                 const location = document.getElementById('location').value;
+
+                if (keywordsInput[0] == "") {
+                    document.getElementById('rankingError').textContent = 'Please enter keyword(s).';
+                    return;
+                }
+                if (!location) {
+                    document.getElementById('rankingError').textContent = 'Please select a location.';
+                    return;
+                }
+
                 document.getElementById('similar').innerText = "Generating...";
 
                 var url = "https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords";
@@ -1412,8 +1422,8 @@
                         return response.json();
                     })
                     .then(data => {
-                        console.log("Similar Keywords:", data);
-                        displaySimilarKeywords(data.body);
+                        //console.log("Similar Keywords:", data);
+                        displaySimilarKeywords(data);
                         document.getElementById('similar').innerText = "Generate Similar Keywords";
                         document.getElementById("keyword_suggestions").style.backgroundColor = "green";
                     })
@@ -1437,7 +1447,7 @@
                     document.getElementById('rankingError').textContent = 'Please select a location.';
                     return;
                 }
-                
+
                 document.getElementById('ranking').innerText = "Generating...";
 
                 var url = "https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords";
@@ -1539,20 +1549,26 @@
                     checkboxDiv.appendChild(checkbox);
                     listItem.appendChild(checkboxDiv);
 
-
+                    checkbox.addEventListener('change', updateKeywordsField);
 
                     rankedKeywordList.appendChild(listItem);
                 });
             }
 
-            // Function to display in the Keyword Suggestions table
             function displaySimilarKeywords(keywordsData) {
                 const keywordList = document.getElementById('keywordList');
                 keywordList.innerHTML = ''; // Clear previous keywords
 
                 const headerCells = Array.from(document.querySelectorAll('#keywordHeaderRow .keyword-column'));
 
-                keywordsData.forEach((keywordObj, index) => {
+                // 1. Transform the data:
+                const keywordsArray = Object.entries(keywordsData.body).map(([keyword, data]) => ({
+                    keyword,
+                    search_volume: data.search_volume,
+                    competition: data.competition
+                }));
+
+                keywordsArray.forEach((keywordObj, index) => {
                     const listItem = document.createElement('li');
                     listItem.classList.add('keyword-row');
 
@@ -1567,20 +1583,19 @@
                     const searchVolumeDiv = document.createElement('div');
                     searchVolumeDiv.classList.add('keyword-column');
                     searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`;
-                    searchVolumeDiv.textContent = keywordObj.search_volume.toLocaleString() || '-';
+                    searchVolumeDiv.textContent = keywordObj.search_volume != null ? keywordObj.search_volume.toLocaleString() : '-'; // Handle null search volume
                     listItem.appendChild(searchVolumeDiv);
 
                     // Difficulty column
                     const difficultyDiv = document.createElement('div');
                     difficultyDiv.classList.add('keyword-column');
                     difficultyDiv.style.width = `${headerCells[2].offsetWidth}px`;
-                    difficultyDiv.textContent = keywordObj.competition || '-'; // Assuming 'competition' is the difficulty key
+                    difficultyDiv.textContent = keywordObj.competition || '-';
                     listItem.appendChild(difficultyDiv);
 
-                    // Checkbox column (keep existing style)
+                    // Checkbox column
                     const checkboxDiv = document.createElement('div');
                     checkboxDiv.classList.add('checkbox-column');
-
                     const checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
                     checkbox.name = `chk${index + 1}`;
@@ -1590,8 +1605,25 @@
                     checkboxDiv.appendChild(checkbox);
                     listItem.appendChild(checkboxDiv);
 
+                    checkbox.addEventListener('change', updateKeywordsField);
+
                     keywordList.appendChild(listItem);
                 });
+            }
+
+            function updateKeywordsField() {
+                const keywordsTextArea = document.getElementById('keywords');
+                const checkedKeywords = [];
+
+                // Get checked keywords from both tables
+                const similarKeywordsCheckboxes = document.querySelectorAll('#keywordList input[type="checkbox"]:checked');
+                const rankedKeywordsCheckboxes = document.querySelectorAll('#rankedKeywordList input[type="checkbox"]:checked');
+
+                similarKeywordsCheckboxes.forEach(checkbox => checkedKeywords.push(checkbox.value));
+                rankedKeywordsCheckboxes.forEach(checkbox => checkedKeywords.push(checkbox.value));
+
+                keywordsTextArea.value = checkedKeywords.join(', '); // Update the textarea
+
             }
 
             function validateAndSubmit() {
