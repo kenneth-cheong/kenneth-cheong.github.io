@@ -1982,9 +1982,17 @@
             // Construct the CSV content
             let csvContent = "data:text/csv;charset=utf-8,";
             rows.forEach(row => {
-                // Select cells, excluding the last one (Action column)
-                const cells = Array.from(row.querySelectorAll("th, td:not(:last-child)"));
-                csvContent += cells.map(cell => `"${cell.textContent.trim().replace(/"/g, '""')}"`).join(",") + "\n";
+                // Select *all* cells in the row (including th and td)
+                const cells = Array.from(row.querySelectorAll("th, td"));
+                csvContent += cells.map(cell => {
+                    let cellText = cell.textContent.trim();
+
+                    // Handle innerHTML (for loading spinners) gracefully
+                    if (!cellText && cell.innerHTML) {  // Check if textContent is empty but innerHTML exists
+                        cellText = cell.innerHTML.replace(/<[^>]*>/g, "").trim(); // Remove HTML tags
+                    }
+                    return `"${cellText.replace(/"/g, '""')}"` // Escape double quotes
+                }).join(",") + "\n";
             });
 
             // Create a hidden link element and trigger a click to download
@@ -1993,7 +2001,6 @@
             link.setAttribute("href", encodedUri);
             link.setAttribute("download", "keyword_analysis.csv");
             document.body.appendChild(link); // Required for Firefox
-
             link.click(); // This will download the data file
             document.body.removeChild(link); // Cleanup 
         }
