@@ -276,7 +276,10 @@
         h3 {
             text-wrap: wrap;
             font-family: 'Roboto', sans-serif;
-            margin: 0px;
+        }
+
+        h2 {
+            margin-top: 20px;
         }
 
         h1 {
@@ -384,39 +387,6 @@
             width: 100%;
         }
 
-        .modal {
-            display: none;
-            /* Hidden by default */
-            position: fixed;
-            /* Stay in place */
-            z-index: 1;
-            /* Sit on top */
-            left: 0;
-            top: 0;
-            width: 100%;
-            /* Full width */
-            height: 100%;
-            /* Full height */
-            overflow: auto;
-            /* Enable scroll if needed */
-            background-color: rgb(0, 0, 0);
-            /* Fallback color */
-            background-color: rgba(0, 0, 0, 0.4);
-            /* Black w/ opacity */
-        }
-
-        .modal-content {
-            background-color: #fefefe;
-            margin: 2% auto;
-            padding: 20px;
-            border: 1px solid #888;
-            width: 90%;
-            /* Could be more or less, depending on screen size */
-            height: 90%;
-            overflow-y: auto;
-            border-radius: 10px;
-        }
-
         .close {
             color: #aaa;
             float: left;
@@ -429,58 +399,6 @@
             color: black;
             text-decoration: none;
             cursor: pointer;
-        }
-
-        .modal-content .table-container {
-            overflow-x: auto;
-            /* Allows horizontal scrolling */
-            max-width: 100%;
-            /* Limits the width of the container */
-        }
-
-        .modal-content table {
-            width: 100%;
-            border-collapse: collapse;
-            /* Ensures borders are neat */
-        }
-
-        .modal-content th,
-        .modal-content td {
-            padding: 5px;
-            /* Adds space inside cells */
-            /* Adds borders to cells */
-
-            overflow: auto;
-            white-space: pre;
-            max-width: 300px;
-        }
-
-        .modal-content td {
-            max-height: 40px;
-        }
-
-        .modal-content td:last-child {
-            max-height: 100px;
-            /* Set a maximum height for the cell */
-            overflow-y: auto;
-            /* Enable vertical scrolling */
-        }
-
-        .modal-content th:nth-child(1),
-        .modal-content td:nth-child(1),
-        .modal-content th:nth-child(2),
-        .modal-content td:nth-child(2) {
-            position: sticky;
-            left: 0;
-            /* Sticks to the left edge */
-            z-index: 2;
-            /* Makes sure the column stays on top while scrolling horizontally */
-        }
-
-        .modal-content th:nth-child(2),
-        .modal-content td:nth-child(2) {
-            left: 43px;
-            /* Adjust based on the width of the first column */
         }
 
         #auditSummary table {
@@ -530,6 +448,22 @@
             100% {
                 transform: rotate(360deg);
             }
+        }
+
+        #SEM .column {
+            width: 48%;
+            /* Adjust as needed */
+            float: left;
+            /* Float columns side by side */
+            margin-right: 2%;
+            /* Add spacing between columns */
+            box-sizing: border-box;
+            /* Include padding and border in width calculation */
+        }
+
+        #SEM .column:last-child {
+            margin-right: 0;
+            /* No margin on the last column */
         }
     </style>
 </head>
@@ -818,6 +752,28 @@
         <hr>
         <button class="collapsible">SEM</button>
         <div class="content" id="SEM">
+            <label for="sem_company_name">Company Name:</label>
+            <input type="text" id="sem_company_name" value="MediaOne"><br>
+            <label for="sem_website">Website:</label><br>
+            <input type="text" id="sem_website" value="https://mediaonemarketing.com.sg/"><br>
+            <label for="sem_country">Country:</label><br>
+            <input type="text" id="sem_country" value="Singapore"><br>
+            <label for="sem_additional">Addtional Information (optional):</label><br>
+            <textarea id="sem_additional"></textarea>
+            <br>
+            <button id="semAnalyse" onclick="semAnalyseWebsite()">Analyse</button>
+            <br>
+
+            <div class="column" id="output"></div>
+            <div class="column" id="selected" style="display:none;">
+                <h2>Selected</h2>
+                <textarea id="selectedText" rows="20"></textarea><br>
+                <button id="generateSem" onclick="generateGoogle()">Generate</button>
+                <h2>Generated</h2>
+                <div id="generated"></div>
+            </div>
+            <div style="clear: both;"></div>
+            <div> </div> <!-- Clearfix -->
         </div>
 
         <hr>
@@ -975,138 +931,101 @@
         </div>
     </div>
 
-    <div id="keywordModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <table id="modalTable">
-                <thead>
-                    <tr>
-                        <th>Rank</th>
-                        <th>URL</th>
-                        <th>Title</th>
-                        <th>Description</th>
-                        <th>Domain Rank</th>
-                        <th>Backlinks</th>
-                        <th>Backlinks Spam Score</th>
-                        <th>Referring Domains</th>
-                        <th>Internal Links Count</th>
-                        <th>External Links Count</th>
-                        <th>H1</th>
-                        <th>H2</th>
-                        <th>H3</th>
-                        <th>Image</th>
-                        <th>Schema</th>
-                        <th>Wordcount</th>
-                        <th>Readability</th>
-                        <th>Alt Text</th>
-                        <th>Table</th>
-                        <th>Video</th>
-                        <th>List</th>
-                        <th>P Tag</th>
-                        <th>Word Frequency</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Dynamic content will be filled here -->
-                </tbody>
-            </table>
-        </div>
+    <!-- JavaScript to Handle API Requests and Display Results -->
+    <script>
+        const submitBtn = document.getElementById('submitBtn');
+        const gtmetrixReportDiv = document.getElementById('gtmetrixReport');
+        const crawlerReportDiv = document.getElementById('crawlerReport');
+        const crawlerTableBody = document.getElementById('crawlerTableBody');
+        const pageAuditReportDiv = document.getElementById('pageAuditReport');
 
-        <!-- JavaScript to Handle API Requests and Display Results -->
-        <script>
-            const submitBtn = document.getElementById('submitBtn');
-            const gtmetrixReportDiv = document.getElementById('gtmetrixReport');
-            const crawlerReportDiv = document.getElementById('crawlerReport');
-            const crawlerTableBody = document.getElementById('crawlerTableBody');
-            const pageAuditReportDiv = document.getElementById('pageAuditReport');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const resultsDiv = document.getElementById('comparison-results');
+        const loadingMessagesDiv = document.getElementById('loading-messages');
+        const messageElement = document.querySelector('.message');
+        const messages = [
+            'Getting SERP results...',
+            'Analysing Page Content...',
+            'Formulating Content Topics...',
+            'Comparing Topics Across Results...',
+            'Collating Findings...'
+        ];
+        let currentMessageIndex = 0;
 
-            const analyzeBtn = document.getElementById('analyzeBtn');
-            const resultsDiv = document.getElementById('comparison-results');
-            const loadingMessagesDiv = document.getElementById('loading-messages');
-            const messageElement = document.querySelector('.message');
-            const messages = [
-                'Getting SERP results...',
-                'Analysing Page Content...',
-                'Formulating Content Topics...',
-                'Comparing Topics Across Results...',
-                'Collating Findings...'
-            ];
-            let currentMessageIndex = 0;
+        submitBtn.addEventListener('click', () => {
+            const url = document.getElementById('urlInput').value;
+            const maxPages = document.getElementById('maxPagesInput').value;
 
-            submitBtn.addEventListener('click', () => {
-                const url = document.getElementById('urlInput').value;
-                const maxPages = document.getElementById('maxPagesInput').value;
+            submitBtn.innerHTML = 'Analysing...';
+            document.getElementById("technicalButton").style.backgroundColor = "#004c9d";
+            document.getElementById("gtButton").style.backgroundColor = "#004c9d";
+            document.getElementById("pageButton").style.backgroundColor = "#004c9d";
+            document.getElementById("crawlerButton").style.backgroundColor = "#004c9d";
 
-                submitBtn.innerHTML = 'Analysing...';
-                document.getElementById("technicalButton").style.backgroundColor = "#004c9d";
-                document.getElementById("gtButton").style.backgroundColor = "#004c9d";
-                document.getElementById("pageButton").style.backgroundColor = "#004c9d";
-                document.getElementById("crawlerButton").style.backgroundColor = "#004c9d";
+            document.getElementById('auditSummary').innerHTML = "";
 
-                document.getElementById('auditSummary').innerHTML = "";
+            // GTMetrix API call
+            fetch("https://y5830908vh.execute-api.ap-southeast-1.amazonaws.com/gtmetrix", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url: url })
+            })
+                .then(response => response.json())
+                .then(gt_data => {
+                    document.getElementById('reportUrl').innerHTML = '<a href="' + gt_data.body.data.links.report_url + '" target="_blank" rel="noopener noreferrer">' + gt_data.body.data.links.report_url + '</a>';
+                    document.getElementById('cls').textContent = gt_data.body.data.attributes.cumulative_layout_shift;
+                    document.getElementById('lcp').textContent = gt_data.body.data.attributes.largest_contentful_paint;
+                    document.getElementById('tbt').textContent = gt_data.body.data.attributes.total_blocking_time;
+                    document.getElementById('grade').textContent = gt_data.body.data.attributes.gtmetrix_grade;
+                    document.getElementById('performance').textContent = gt_data.body.data.attributes.performance_score;
 
-                // GTMetrix API call
-                fetch("https://y5830908vh.execute-api.ap-southeast-1.amazonaws.com/gtmetrix", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ url: url })
+                    gtmetrixReportDiv.style.display = 'block';
+                    document.getElementById("gtButton").style.backgroundColor = "green";
+
                 })
-                    .then(response => response.json())
-                    .then(gt_data => {
-                        document.getElementById('reportUrl').innerHTML = '<a href="' + gt_data.body.data.links.report_url + '" target="_blank" rel="noopener noreferrer">' + gt_data.body.data.links.report_url + '</a>';
-                        document.getElementById('cls').textContent = gt_data.body.data.attributes.cumulative_layout_shift;
-                        document.getElementById('lcp').textContent = gt_data.body.data.attributes.largest_contentful_paint;
-                        document.getElementById('tbt').textContent = gt_data.body.data.attributes.total_blocking_time;
-                        document.getElementById('grade').textContent = gt_data.body.data.attributes.gtmetrix_grade;
-                        document.getElementById('performance').textContent = gt_data.body.data.attributes.performance_score;
-
-                        gtmetrixReportDiv.style.display = 'block';
-                        document.getElementById("gtButton").style.backgroundColor = "green";
-
-                    })
-                    .catch(error => console.error('Error fetching GTMetrix data:', error));
+                .catch(error => console.error('Error fetching GTMetrix data:', error));
 
 
-                // Webpage Audit
-                fetch("https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ url: url })
+            // Webpage Audit
+            fetch("https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url: url })
+            })
+                .then(response => response.json())
+                .then(webpage_audit_data => {
+                    document.getElementById('malware').textContent = webpage_audit_data.body.malware;
+                    document.getElementById('sitemap').textContent = webpage_audit_data.body.sitemap;
+                    document.getElementById('robots').innerHTML = webpage_audit_data.body.robots;
+                    document.getElementById('pagespeed_audit').textContent = webpage_audit_data.body.pagespeed;
+
+                    pageAuditReportDiv.style.display = 'block';
+                    document.getElementById("pageButton").style.backgroundColor = "green";
+                    document.getElementById("technicalButton").style.backgroundColor = "green";
                 })
-                    .then(response => response.json())
-                    .then(webpage_audit_data => {
-                        document.getElementById('malware').textContent = webpage_audit_data.body.malware;
-                        document.getElementById('sitemap').textContent = webpage_audit_data.body.sitemap;
-                        document.getElementById('robots').innerHTML = webpage_audit_data.body.robots;
-                        document.getElementById('pagespeed_audit').textContent = webpage_audit_data.body.pagespeed;
-
-                        pageAuditReportDiv.style.display = 'block';
-                        document.getElementById("pageButton").style.backgroundColor = "green";
-                        document.getElementById("technicalButton").style.backgroundColor = "green";
-                    })
-                    .catch(error => console.error('Error fetching Webpage Audit data:', error));
+                .catch(error => console.error('Error fetching Webpage Audit data:', error));
 
 
-                // Crawler API call
-                fetch("https://464q7iox7h.execute-api.ap-southeast-1.amazonaws.com/crawler", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ url: url, max_pages: parseInt(maxPages) })
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        crawlerTableBody.innerHTML = ''; // Clear previous data
+            // Crawler API call
+            fetch("https://464q7iox7h.execute-api.ap-southeast-1.amazonaws.com/crawler", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url: url, max_pages: parseInt(maxPages) })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    crawlerTableBody.innerHTML = ''; // Clear previous data
 
-                        for (const pageUrl in data.body) {
-                            const pageData = data.body[pageUrl];
-                            const row = document.createElement('tr');
-                            row.innerHTML = `   
+                    for (const pageUrl in data.body) {
+                        const pageData = data.body[pageUrl];
+                        const row = document.createElement('tr');
+                        row.innerHTML = `   
                         <td>${pageUrl}</td>
                         <td>${pageData.code}</td>
                         <td>${pageData.title}</td>
@@ -1119,1187 +1038,1168 @@
                         <td>${pageData.word_count}</td>
                         <td>${pageData.uiux}</td>
                     `;
-                            crawlerTableBody.appendChild(row);
-                        }
-                        crawlerReportDiv.style.display = 'block';
-                        submitBtn.innerHTML = 'Analyse Website';
-
-
-                        // Audit Summary
-                        gt_data = { "cumulative_layout_shift": document.getElementById('cls').textContent, "largest_contentful_paint": document.getElementById('lcp').textContent, "total_blocking_time": document.getElementById('tbt').textContent };
-                        webpage_audit_data = { 'google_safe_site': document.getElementById('malware').textContent, 'sitemap': document.getElementById('sitemap').textContent, 'robots_txt': document.getElementById('robots').innerHTML, 'pagespeed': document.getElementById('pagespeed_audit').textContent };
-
-                        fetch("https://ccgdpp7dna.execute-api.ap-southeast-1.amazonaws.com/techAuditSummary", {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ crawl: data, gtmetrix: gt_data, webpage_audit: webpage_audit_data })
-                        })
-                            .then(response => response.json())
-                            .then(data => {
-                                document.getElementById('auditSummary').innerHTML = data.body;
-                                document.getElementById("crawlerButton").style.backgroundColor = "green";
-                            })
-                            .catch(error => console.error('Error fetching Audt Summary API:', error));
-
-                    })
-                    .catch(error => {
-                        console.error('Error fetching crawler data:', error);
-                        submitBtn.innerHTML = 'Analyse Website';
-                    })
-
-            });
-
-            analyzeBtn.addEventListener('click', async () => {
-                // Show loading messages, hide previous results
-                resultsDiv.innerHTML = '';
-                analyzeBtn.innerHTML = 'Analysing...';
-                loadingMessagesDiv.classList.add('active');
-
-                const keyword = document.getElementById('comparison-keyword').value;
-                const urlsInput = document.getElementById('comparison-urls').value;
-                const language = document.getElementById('comparison-language').value;
-                const location = document.getElementById('comparison-location').value;
-                urls = urlsInput.split(/[\s,]+/).filter(url => url.trim() !== "");
-
-                try {
-                    // Function to cycle through loading messages
-                    function updateLoadingMessage() {
-                        messageElement.textContent = messages[currentMessageIndex];
-                        currentMessageIndex = (currentMessageIndex + 1) % messages.length;
+                        crawlerTableBody.appendChild(row);
                     }
+                    crawlerReportDiv.style.display = 'block';
+                    submitBtn.innerHTML = 'Analyse Website';
 
-                    // Start cycling loading messages
-                    const loadingMessageInterval = setInterval(updateLoadingMessage, 4000);
 
-                    if (keyword != "") {
+                    // Audit Summary
+                    gt_data = { "cumulative_layout_shift": document.getElementById('cls').textContent, "largest_contentful_paint": document.getElementById('lcp').textContent, "total_blocking_time": document.getElementById('tbt').textContent };
+                    webpage_audit_data = { 'google_safe_site': document.getElementById('malware').textContent, 'sitemap': document.getElementById('sitemap').textContent, 'robots_txt': document.getElementById('robots').innerHTML, 'pagespeed': document.getElementById('pagespeed_audit').textContent };
 
-                        // 1. Fetch SERP data
-                        const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({ keyword, language, location }),
-                        });
-
-                        const serpData = await serpResponse.json();
-
-                        if (serpData.statusCode !== 200) {
-                            throw new Error(`SERP API Error: ${serpData.body || serpData.errorMessage}`);
-                        }
-
-                        serpUrls = Object.values(serpData.body).map(result => result.url);
-
-                        if (urls != "") {
-                            serpUrls.push(urls);
-                        }
-                    }
-
-                    else {
-                        serpUrls = urls;
-                    }
-
-                    // 2. Fetch content analysis
-                    const analysisResponse = await fetch('https://tx6jcc1h9g.execute-api.ap-southeast-1.amazonaws.com/gptTopics', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ urls: [...serpUrls, ...urls] }),
-                    });
-
-                    const analysisData = await analysisResponse.json();
-
-                    if (analysisData.statusCode !== 200) {
-                        throw new Error(`Content Analysis API Error: ${analysisData.body || analysisData.errorMessage}`);
-                    }
-
-                    // --- Data is ready, stop loading messages ---
-                    clearInterval(loadingMessageInterval);
-                    loadingMessagesDiv.classList.remove('active');
-
-                    try {
-                        // 3. Create and display the table 
-                        comparisonTableHTML = createAnalysisTable(analysisData.body.data);
-                        resultsDiv.innerHTML = `<div id="tableContainer">${comparisonTableHTML}</div>`;
-
-                        // 4. Apply gradient to each row
-                        applyGradientsToRows();
-                    } catch (error) {
-                        console.log("The comparison table could not be displayed.");
-                    }
-
-                    // 5. Display the recommendations 
-                    resultsDiv.innerHTML += `<br><hr><h2>Content Analysis Results:</h2>
-                                <pre>${analysisData.body.recommendation}</pre>`;
-
-                    analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
-
-                } catch (error) {
-                    resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
-                    try {
-                        clearInterval(loadingMessageInterval);
-                    } catch (error) {
-                    }
-                    loadingMessagesDiv.classList.remove('active');
-                    analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
-                }
-            });
-
-            // Function to create the HTML table from the analysis data
-            function createAnalysisTable(data) {
-                const urlsInput = document.getElementById('comparison-urls').value;
-                const target_urls = urlsInput.split(/[\s,]+/).filter(url => url.trim() !== "");
-                const keyword = document.getElementById('comparison-keyword').value;
-
-                console.log(data);
-
-                let comparisonTableHTML = '<table id="analysisTable">';
-                comparisonTableHTML += '<tr><th>URL</th>'; // Add URL as the first header
-
-                // Get all unique URLs for column headers
-                urls = Object.keys(data);
-                urls.forEach(url => {
-                    if (target_urls.includes(url) && keyword != "") {
-                        comparisonTableHTML += `<th style="background-color: darkorange;"><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></th>`;
-                    } else {
-                        comparisonTableHTML += `<th><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></th>`;
-                    }
-                });
-                comparisonTableHTML += '</tr>';
-
-                // Add Word Count row
-                comparisonTableHTML += '<tr><td>Word Count</td>';
-                urls.forEach(url => {
-                    comparisonTableHTML += `<td data-value="${data[url].word_count}">${data[url].word_count}</td>`; // Add data-value attribute
-                });
-                comparisonTableHTML += '</tr>';
-
-                // Add Page Type row
-                comparisonTableHTML += '<tr><td>Page Type</td>';
-                urls.forEach(url => {
-                    comparisonTableHTML += `<td>${data[url].page_type}</td>`;
-                });
-                comparisonTableHTML += '</tr>';
-
-                // Get all unique topics for row headers
-                let allTopics = [];
-                urls.forEach(url => {
-                    allTopics = [...allTopics, ...Object.keys(data[url].topics)];
-                });
-                const uniqueTopics = [...new Set(allTopics)]; // Remove duplicates
-
-                // Add Topic rows
-                uniqueTopics.forEach(topic => {
-                    comparisonTableHTML += `<tr><td>${topic}</td>`;
-                    urls.forEach(url => {
-                        const value = data[url].topics[topic] || 0;
-                        comparisonTableHTML += `<td data-value="${value}">${value}</td>`; // Add data-value attribute
-                    });
-                    comparisonTableHTML += '</tr>';
-                });
-
-                comparisonTableHTML += '</table>';
-                return comparisonTableHTML;
-            }
-
-            // Function to apply gradients to table rows
-            function applyGradientsToRows() {
-                const table = document.getElementById('analysisTable');
-                for (let i = 1; i < table.rows.length; i++) { // Start from row 1 to skip header
-                    applyGradientToRow(table.rows[i]);
-                }
-            }
-
-            // Function to apply gradient to a single row
-            function applyGradientToRow(row) {
-                const values = Array.from(row.cells)
-                    .slice(1) // Skip the first cell (topic name)
-                    .map(cell => {
-                        const value = parseFloat(cell.dataset.value);
-                        return isNaN(value) ? -1 : value; // Assign -1 for non-numeric values
-                    });
-
-                const max = Math.max(...values);
-                const min = Math.min(...values);
-
-                values.forEach((value, index) => {
-                    const cell = row.cells[index + 1]; // +1 to account for the first cell
-                    if (!isNaN(value) && value !== -1) { // Apply gradient only to numeric values
-                        const percent = (value - min) / (max - min);
-                        const red = Math.round(255 * (1 - percent));
-                        const green = Math.round(255 * percent);
-                        cell.style.backgroundColor = `rgb(${red}, ${green}, 0)`;
-                    }
-                });
-            }
-
-            const form = document.getElementById('content-form');
-            const generatedContentDiv = document.getElementById('generated-content');
-            const generateButton = document.getElementById('generate-button');
-
-            form.addEventListener('submit', async (event) => {
-                event.preventDefault();
-
-                // Disable the button and change text
-                generateButton.disabled = true;
-                generateButton.textContent = 'Generating Content...';
-
-                const formData = new FormData(form);
-                const contentData = {
-                    "url": formData.get('reference-url'),
-                    "reference_post": formData.get('sample-text'),
-                    "content_type": formData.get('content-type'),
-                    "post_info": formData.get('post-info'),
-                    "gender": formData.get('gender'),
-                    "age-range": formData.get('age-range'),
-                    "occupation": formData.get('occupation'),
-                    "income": formData.get('income'),
-                    "subgroups": formData.get('subgroups'),
-                    "painpoints": formData.get('painpoints'),
-                    "audience_goal": formData.get('audience_goal'),
-                    "product_service": formData.get('product_service'),
-                    "desired_action": formData.get('desired_action'),
-                    "post_objectives": formData.get('post_objectives'),
-                    "word_count": formData.get('word_count'),
-                    "tone": formData.get('tone'),
-                    "usp": formData.get('usp'),
-                    "pov": formData.get('pov'),
-                    "emojis": formData.get('emojis'),
-                    "hashtags": formData.get('hashtags')
-                };
-
-                try {
-                    const response = await fetch('https://panc0eazwj.execute-api.ap-southeast-1.amazonaws.com/content-generator', {
+                    fetch("https://ccgdpp7dna.execute-api.ap-southeast-1.amazonaws.com/techAuditSummary", {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify(contentData)
-                    });
+                        body: JSON.stringify({ crawl: data, gtmetrix: gt_data, webpage_audit: webpage_audit_data })
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            document.getElementById('auditSummary').innerHTML = data.body;
+                            document.getElementById("crawlerButton").style.backgroundColor = "green";
+                        })
+                        .catch(error => console.error('Error fetching Audt Summary API:', error));
 
-                    const data = await response.json();
-
-                    // Display the API response or error
-                    if (response.ok) {
-                        generatedContentDiv.innerHTML = `<p>${data}</p>`;
-                    } else {
-                        generatedContentDiv.innerHTML = `<p class="error">Error: ${data.error || response.statusText}</p>`;
-                    }
-                } catch (error) {
-                    console.error('Error fetching data:', error);
-                    generatedContentDiv.innerHTML = '<p class="error">An error occurred while fetching data.</p>';
-                } finally {
-                    // Re-enable the button and reset text
-                    generateButton.disabled = false;
-                    generateButton.textContent = 'Generate Content';
-                }
-            });
-
-            function similarKeywords() {
-                const keywordsInput = document.getElementById('keywords').value.split(/[\n,]+/).map(k => k.trim());
-                const location = document.getElementById('location').value;
-
-                if (keywordsInput[0] == "") {
-                    document.getElementById('rankingError').textContent = 'Please enter keyword(s).';
-                    return;
-                }
-                if (!location) {
-                    document.getElementById('rankingError').textContent = 'Please select a location.';
-                    return;
-                }
-                
-                document.getElementById("keyword_suggestions").style.backgroundColor = "#004c9d";
-                document.getElementById('similar').innerText = "Generating...";
-
-                var url = "https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords";
-                var queryString = [{
-                    "keywords": keywordsInput,
-                    "location": location,
-                }];
-                var headers = {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                };
-                fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(queryString)
                 })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! Status: ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        //console.log("Similar Keywords:", data);
-                        displaySimilarKeywords(data);
-                        document.getElementById('similar').innerText = "Generate Similar Keywords";
-                        document.getElementById("keyword_suggestions").style.backgroundColor = "green";
-                    })
-                    .catch(error => {
-                        console.error("Error fetching data:", error);
-                        document.getElementById('similar').innerText = "Generate Similar Keywords";
-                        document.getElementById("keyword_suggestions").style.backgroundColor = "#004c9d";
-                    });
-            }
-
-            function rankingKeywords() {
-                var domain = document.getElementById('domain').value;
-                var location = document.getElementById('location').value;
-
-                document.getElementById('rankingError').textContent = '';
-                document.getElementById("ranking_keywords").style.backgroundColor = "#004c9d";
-
-                if (!domain) {
-                    document.getElementById('rankingError').textContent = 'Please enter a URL or domain.';
-                    return;
-                }
-                if (!location) {
-                    document.getElementById('rankingError').textContent = 'Please select a location.';
-                    return;
-                }
-
-                document.getElementById('ranking').innerText = "Generating...";
-
-                var url = "https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords";
-
-                var headers = {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                };
-
-                var queryString = {
-                    "target": domain,
-                    "location": location,
-                };
-
-                fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(queryString)
+                .catch(error => {
+                    console.error('Error fetching crawler data:', error);
+                    submitBtn.innerHTML = 'Analyse Website';
                 })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! Status: ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        console.log("Ranking Keywords:", data.body);
-                        displayRankedKeywords(data.body);
-                        document.getElementById('ranking').innerText = "Get Ranking Keywords";
-                        document.getElementById("ranking_keywords").style.backgroundColor = "green";
-                    })
-                    .catch(error => {
-                        console.error("Error fetching data:", error);
-                        document.getElementById('ranking').innerText = "Get Ranking Keywords";
-                        document.getElementById("ranking_keywords").style.backgroundColor = "#004c9d";
-                    });
-            }
 
-            function displayRankedKeywords(rankedKeywordsData) {
-                const rankedKeywordList = document.getElementById('rankedKeywordList');
-                rankedKeywordList.innerHTML = ''; // Clear previous keywords
+        });
 
-                const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column'));
+        analyzeBtn.addEventListener('click', async () => {
+            // Show loading messages, hide previous results
+            resultsDiv.innerHTML = '';
+            analyzeBtn.innerHTML = 'Analysing...';
+            loadingMessagesDiv.classList.add('active');
 
-                // Convert the object to an array of objects, suitable for sorting
-                const rankedKeywordsArray = Object.entries(rankedKeywordsData).map(([keyword, data]) => ({
-                    keyword: keyword,
-                    search_volume: data.search_volume,
-                    rank: data.rank,
-                    difficulty: data.difficulty // Add difficulty here later if available
-                }));
+            const keyword = document.getElementById('comparison-keyword').value;
+            const urlsInput = document.getElementById('comparison-urls').value;
+            const language = document.getElementById('comparison-language').value;
+            const location = document.getElementById('comparison-location').value;
+            urls = urlsInput.split(/[\s,]+/).filter(url => url.trim() !== "");
 
-
-
-                rankedKeywordsArray.forEach((item, index) => {
-
-                    const listItem = document.createElement('li');
-                    listItem.classList.add('keyword-row');
-
-                    // Keyword column
-                    const keywordDiv = document.createElement('div');
-                    keywordDiv.classList.add('keyword-column');
-                    keywordDiv.style.width = `${headerCells[0].offsetWidth}px`;
-                    keywordDiv.textContent = item.keyword;
-                    listItem.appendChild(keywordDiv);
-
-                    // Search Volume column
-                    const searchVolumeDiv = document.createElement('div');
-                    searchVolumeDiv.classList.add('keyword-column');
-                    searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`;
-                    searchVolumeDiv.textContent = item.search_volume || '-';
-                    listItem.appendChild(searchVolumeDiv);
-
-
-                    // Rank column
-                    const rankDiv = document.createElement('div');
-                    rankDiv.classList.add('keyword-column');
-                    rankDiv.style.width = `${headerCells[2].offsetWidth}px`;
-                    rankDiv.textContent = item.rank || '-';
-                    listItem.appendChild(rankDiv);
-
-
-                    // Difficulty column (placeholder for now)
-                    const difficultyDiv = document.createElement('div');
-                    difficultyDiv.classList.add('keyword-column');
-                    difficultyDiv.style.width = `${headerCells[3].offsetWidth}px`;
-                    difficultyDiv.textContent = item.difficulty || '-'; // Display '-' or the actual value if you get it later
-                    listItem.appendChild(difficultyDiv);
-
-
-                    // Checkbox column (keep existing style)
-                    const checkboxDiv = document.createElement('div');
-                    checkboxDiv.classList.add('checkbox-column');
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox';
-                    checkbox.name = `chk${index + 1}`; // Use index for unique names
-                    checkbox.id = `chk${index + 1}`;
-                    checkbox.value = item.keyword;
-                    checkbox.checked = false;
-                    checkboxDiv.appendChild(checkbox);
-                    listItem.appendChild(checkboxDiv);
-
-                    checkbox.addEventListener('change', updateKeywordsField);
-
-                    rankedKeywordList.appendChild(listItem);
-                });
-            }
-
-            function displaySimilarKeywords(keywordsData) {
-                const keywordList = document.getElementById('keywordList');
-                keywordList.innerHTML = ''; // Clear previous keywords
-
-                const headerCells = Array.from(document.querySelectorAll('#keywordHeaderRow .keyword-column'));
-
-                // 1. Transform the data:
-                const keywordsArray = Object.entries(keywordsData.body).map(([keyword, data]) => ({
-                    keyword,
-                    search_volume: data.search_volume,
-                    competition: data.competition
-                }));
-
-                keywordsArray.forEach((keywordObj, index) => {
-                    const listItem = document.createElement('li');
-                    listItem.classList.add('keyword-row');
-
-                    // Keyword column
-                    const keywordDiv = document.createElement('div');
-                    keywordDiv.classList.add('keyword-column');
-                    keywordDiv.style.width = `${headerCells[0].offsetWidth}px`;
-                    keywordDiv.textContent = keywordObj.keyword;
-                    listItem.appendChild(keywordDiv);
-
-                    // Search Volume column
-                    const searchVolumeDiv = document.createElement('div');
-                    searchVolumeDiv.classList.add('keyword-column');
-                    searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`;
-                    searchVolumeDiv.textContent = keywordObj.search_volume != null ? keywordObj.search_volume.toLocaleString() : '-'; // Handle null search volume
-                    listItem.appendChild(searchVolumeDiv);
-
-                    // Difficulty column
-                    const difficultyDiv = document.createElement('div');
-                    difficultyDiv.classList.add('keyword-column');
-                    difficultyDiv.style.width = `${headerCells[2].offsetWidth}px`;
-                    difficultyDiv.textContent = keywordObj.competition || '-';
-                    listItem.appendChild(difficultyDiv);
-
-                    // Checkbox column
-                    const checkboxDiv = document.createElement('div');
-                    checkboxDiv.classList.add('checkbox-column');
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox';
-                    checkbox.name = `chk${index + 1}`;
-                    checkbox.id = `chk${index + 1}`;
-                    checkbox.value = keywordObj.keyword;
-                    checkbox.checked = false;
-                    checkboxDiv.appendChild(checkbox);
-                    listItem.appendChild(checkboxDiv);
-
-                    checkbox.addEventListener('change', updateKeywordsField);
-
-                    keywordList.appendChild(listItem);
-                });
-            }
-
-            function updateKeywordsField() {
-                const keywordsTextArea = document.getElementById('keywords');
-                const checkedKeywords = [];
-
-                // Get checked keywords from both tables
-                const similarKeywordsCheckboxes = document.querySelectorAll('#keywordList input[type="checkbox"]:checked');
-                const rankedKeywordsCheckboxes = document.querySelectorAll('#rankedKeywordList input[type="checkbox"]:checked');
-
-                similarKeywordsCheckboxes.forEach(checkbox => checkedKeywords.push(checkbox.value));
-                rankedKeywordsCheckboxes.forEach(checkbox => checkedKeywords.push(checkbox.value));
-
-                keywordsTextArea.value = checkedKeywords.join(', '); // Update the textarea
-
-            }
-
-            function validateAndSubmit() {
-                const domain = document.getElementById('domain').value;
-                const keywordsInput = document.getElementById('keywords').value;
-                const location = document.getElementById('location').value;
-
-                document.getElementById('domainError').textContent = '';
-                document.getElementById('keywordsError').textContent = '';
-
-                if (!domain) {
-                    document.getElementById('domainError').textContent = 'Please enter a valid URL.';
-                    return;
-                }
-                if (!keywordsInput) {
-                    document.getElementById('keywordsError').textContent = 'Please enter one or more keywords.';
-                    return;
-                }
-                if (!location) {
-                    alert("Please select a location.");
-                    return;
+            try {
+                // Function to cycle through loading messages
+                function updateLoadingMessage() {
+                    messageElement.textContent = messages[currentMessageIndex];
+                    currentMessageIndex = (currentMessageIndex + 1) % messages.length;
                 }
 
-                const keywords = keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+                // Start cycling loading messages
+                const loadingMessageInterval = setInterval(updateLoadingMessage, 4000);
 
-                document.getElementById('targetTitle').innerText = "";
-                document.getElementById('targetDescription').innerText = "";
-                document.getElementById('targetDomainRank').innerText = "";
-                document.getElementById('targetBacklinks').innerText = "";
-                document.getElementById('targetSpamScore').innerText = "";
-                document.getElementById('targetPagespeed').innerText = '-/100';
-                document.getElementById('targetRefDomains').innerText = "";
-                document.getElementById('targetInternalLinks').innerText = "";
-                document.getElementById('targetExternalLinks').innerText = "";
-                document.getElementById('targetH1').innerText = "";
-                document.getElementById('targetImages').innerText = "";
-                document.getElementById('targetCls').innerText = "";
-                document.getElementById('targetLcp').innerText = "";
-                document.getElementById('targetFid').innerText = "";
-                document.getElementById('targetSchema').innerText = "";
-                document.getElementById('targetReadability').innerText = "";
-                document.getElementById('targetWordCount').innerText = "";
-                document.getElementById('da').innerText = "";
-                document.getElementById('pa').innerText = "";
+                if (keyword != "") {
 
-                document.getElementById("meta_data").style.backgroundColor = "#004c9d";
-                document.getElementById("domain_metrics").style.backgroundColor = "#004c9d";
-                document.getElementById("keywordAnalysis").style.backgroundColor = "#004c9d";
-
-                fetchDomainMetrics(domain);
-                keywordAnalysis();
-            }
-
-            async function keywordAnalysis() {
-                document.getElementById("keyword-research-analysis-button").innerHTML = "Analysing...";
-                const domain = document.getElementById("domain").value;
-                const keywords = document.getElementById("keywords").value.split(/[\n,]+/).map(s => s.trim()).filter(s => s !== "");
-                const location = document.getElementById("location").value;
-                const language = document.getElementById("language").value;
-
-                const keywordAnalysisResults = document.getElementById("keywordAnalysisResults");
-                keywordAnalysisResults.innerHTML = ""; // Clear previous results
-
-
-                const keywordMetrics = await Promise.all(keywords.map(keyword =>
-                    fetch('https://785lzorod8.execute-api.ap-southeast-1.amazonaws.com/kwMetrics', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ keyword, location, language, target_url: domain })
-                    }).then(res => res.json())
-                ));
-
-
-                let keywordTableHtml = "<table><tr><th>No.</th><th>Keyword</th><th>Search Volume</th><th>KW Difficulty</th><th>Current Rank</th><th>Time To Rank</th><th>Comments</th></tr>";
-                keywordMetrics.forEach((data, index) => {
-                    keywordTableHtml += `<tr onclick="showSERPs(${index})"><td>${index + 1}</td><td id="keyword-${index}" class="keyword-cell">${data.body.keyword}       <div class="loading-spinner" id="spinner-${index}"></div></td><td>${data.body.search_volume}</td><td>${data.body.competition}</td><td>${data.body.rank}</td><td><div class="loading-spinner" id="kw-${index}-time-to-rank"></div></td><td><div class="loading-spinner" id="kw-${index}-time-to-rank-reason"></div></td></tr>`; // Spinner for Time to Rank and keyword
-                });
-                keywordTableHtml += "</table>";
-                keywordAnalysisResults.innerHTML = keywordTableHtml;
-                document.getElementById("keywordAnalysis").style.backgroundColor = "green";
-
-                const serpData = {};
-                const pageMetrics = {};
-
-                await Promise.all(keywords.map(async (keyword, index) => {
+                    // 1. Fetch SERP data
                     const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ location, keyword, language })
-                    }).then(res => res.json());
-                    serpData[index] = serpResponse.body;
-
-                    await Promise.all(Object.values(serpResponse.body).map(async result => {
-                        const metricsResponse = await fetch('https://5zdbpwaia5.execute-api.ap-southeast-1.amazonaws.com/pageDomainMetrics', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ url: result.url, keyword })
-                        }).then(res => res.json());
-                        pageMetrics[result.url] = metricsResponse.body; // Store by URL
-                    }));
-
-                    await createSERPTable(index, serpData[index], pageMetrics, keyword); // create and initially hide the tables
-                    await getTimeTakenToRank(index, keyword);
-
-                    const spinner = document.getElementById(`spinner-${index}`);
-                    spinner.remove(); // Remove spinner element completely
-                }));
-            }
-
-            async function getTimeTakenToRank(index, keyword) {
-                const serpTable = document.getElementById(`serp-table-${index}`);
-                try {
-                    const res = await fetch('https://6qyc0fatt2.execute-api.ap-southeast-1.amazonaws.com/timeTakenToRank', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ data: serpTable.innerHTML, url: domain, keyword, location, language })
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ keyword, language, location }),
                     });
 
-                    const timeTakenToRankData = await res.json();
-                    console.log(timeTakenToRankData);
-                    console.log(`Time to Rank for ${keyword}:`, timeTakenToRankData.body.choice);
+                    const serpData = await serpResponse.json();
 
+                    if (serpData.statusCode !== 200) {
+                        throw new Error(`SERP API Error: ${serpData.body || serpData.errorMessage}`);
+                    }
 
-                    // Update the correct row in the first table (keywordMetrics table)
-                    document.getElementById(`kw-${index}-time-to-rank`).classList.remove('loading-spinner');
-                    document.getElementById(`kw-${index}-time-to-rank`).innerHTML = timeTakenToRankData.body.choice.replaceAll('"', '').replace('choice: ', '').replace('{', '');
+                    serpUrls = Object.values(serpData.body).map(result => result.url);
 
-                    document.getElementById(`kw-${index}-time-to-rank-reason`).classList.remove('loading-spinner');
-                    document.getElementById(`kw-${index}-time-to-rank-reason`).innerHTML = timeTakenToRankData.body.reason.replaceAll('"', '').replace('reason: ', '').replace('}', '');
-
-                } catch (error) {
-                    console.error(`Error getting Time To Rank for ${keyword}:`, error);
-                    // Handle the error appropriately (e.g., display an error message in the table)
-                    document.getElementById(`kw-${index}-time-to-rank`).classList.remove('loading-spinner');
-                    document.getElementById(`kw-${index}-time-to-rank`).innerHTML = "Error"; // Or some error message
-
-                    document.getElementById(`kw-${index}-time-to-rank-reason`).classList.remove('loading-spinner');
-                    document.getElementById(`kw-${index}-time-to-rank-reason`).innerHTML = "Error"; // Or some error message
-
+                    if (urls != "") {
+                        serpUrls.push(urls);
+                    }
                 }
+
+                else {
+                    serpUrls = urls;
+                }
+
+                // 2. Fetch content analysis
+                const analysisResponse = await fetch('https://tx6jcc1h9g.execute-api.ap-southeast-1.amazonaws.com/gptTopics', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ urls: [...serpUrls, ...urls] }),
+                });
+
+                const analysisData = await analysisResponse.json();
+
+                if (analysisData.statusCode !== 200) {
+                    throw new Error(`Content Analysis API Error: ${analysisData.body || analysisData.errorMessage}`);
+                }
+
+                // --- Data is ready, stop loading messages ---
+                clearInterval(loadingMessageInterval);
+                loadingMessagesDiv.classList.remove('active');
+
+                try {
+                    // 3. Create and display the table 
+                    comparisonTableHTML = createAnalysisTable(analysisData.body.data);
+                    resultsDiv.innerHTML = `<div id="tableContainer">${comparisonTableHTML}</div>`;
+
+                    // 4. Apply gradient to each row
+                    applyGradientsToRows();
+                } catch (error) {
+                    console.log("The comparison table could not be displayed.");
+                }
+
+                // 5. Display the recommendations 
+                resultsDiv.innerHTML += `<br><hr><h2>Content Analysis Results:</h2>
+                                <pre>${analysisData.body.recommendation}</pre>`;
+
+                analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                try {
+                    clearInterval(loadingMessageInterval);
+                } catch (error) {
+                }
+                loadingMessagesDiv.classList.remove('active');
+                analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
+            }
+        });
+
+        // Function to create the HTML table from the analysis data
+        function createAnalysisTable(data) {
+            const urlsInput = document.getElementById('comparison-urls').value;
+            const target_urls = urlsInput.split(/[\s,]+/).filter(url => url.trim() !== "");
+            const keyword = document.getElementById('comparison-keyword').value;
+
+            console.log(data);
+
+            let comparisonTableHTML = '<table id="analysisTable">';
+            comparisonTableHTML += '<tr><th>URL</th>'; // Add URL as the first header
+
+            // Get all unique URLs for column headers
+            urls = Object.keys(data);
+            urls.forEach(url => {
+                if (target_urls.includes(url) && keyword != "") {
+                    comparisonTableHTML += `<th style="background-color: darkorange;"><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></th>`;
+                } else {
+                    comparisonTableHTML += `<th><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></th>`;
+                }
+            });
+            comparisonTableHTML += '</tr>';
+
+            // Add Word Count row
+            comparisonTableHTML += '<tr><td>Word Count</td>';
+            urls.forEach(url => {
+                comparisonTableHTML += `<td data-value="${data[url].word_count}">${data[url].word_count}</td>`; // Add data-value attribute
+            });
+            comparisonTableHTML += '</tr>';
+
+            // Add Page Type row
+            comparisonTableHTML += '<tr><td>Page Type</td>';
+            urls.forEach(url => {
+                comparisonTableHTML += `<td>${data[url].page_type}</td>`;
+            });
+            comparisonTableHTML += '</tr>';
+
+            // Get all unique topics for row headers
+            let allTopics = [];
+            urls.forEach(url => {
+                allTopics = [...allTopics, ...Object.keys(data[url].topics)];
+            });
+            const uniqueTopics = [...new Set(allTopics)]; // Remove duplicates
+
+            // Add Topic rows
+            uniqueTopics.forEach(topic => {
+                comparisonTableHTML += `<tr><td>${topic}</td>`;
+                urls.forEach(url => {
+                    const value = data[url].topics[topic] || 0;
+                    comparisonTableHTML += `<td data-value="${value}">${value}</td>`; // Add data-value attribute
+                });
+                comparisonTableHTML += '</tr>';
+            });
+
+            comparisonTableHTML += '</table>';
+            return comparisonTableHTML;
+        }
+
+        // Function to apply gradients to table rows
+        function applyGradientsToRows() {
+            const table = document.getElementById('analysisTable');
+            for (let i = 1; i < table.rows.length; i++) { // Start from row 1 to skip header
+                applyGradientToRow(table.rows[i]);
+            }
+        }
+
+        // Function to apply gradient to a single row
+        function applyGradientToRow(row) {
+            const values = Array.from(row.cells)
+                .slice(1) // Skip the first cell (topic name)
+                .map(cell => {
+                    const value = parseFloat(cell.dataset.value);
+                    return isNaN(value) ? -1 : value; // Assign -1 for non-numeric values
+                });
+
+            const max = Math.max(...values);
+            const min = Math.min(...values);
+
+            values.forEach((value, index) => {
+                const cell = row.cells[index + 1]; // +1 to account for the first cell
+                if (!isNaN(value) && value !== -1) { // Apply gradient only to numeric values
+                    const percent = (value - min) / (max - min);
+                    const red = Math.round(255 * (1 - percent));
+                    const green = Math.round(255 * percent);
+                    cell.style.backgroundColor = `rgb(${red}, ${green}, 0)`;
+                }
+            });
+        }
+
+        const form = document.getElementById('content-form');
+        const generatedContentDiv = document.getElementById('generated-content');
+        const generateButton = document.getElementById('generate-button');
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            // Disable the button and change text
+            generateButton.disabled = true;
+            generateButton.textContent = 'Generating Content...';
+
+            const formData = new FormData(form);
+            const contentData = {
+                "url": formData.get('reference-url'),
+                "reference_post": formData.get('sample-text'),
+                "content_type": formData.get('content-type'),
+                "post_info": formData.get('post-info'),
+                "gender": formData.get('gender'),
+                "age-range": formData.get('age-range'),
+                "occupation": formData.get('occupation'),
+                "income": formData.get('income'),
+                "subgroups": formData.get('subgroups'),
+                "painpoints": formData.get('painpoints'),
+                "audience_goal": formData.get('audience_goal'),
+                "product_service": formData.get('product_service'),
+                "desired_action": formData.get('desired_action'),
+                "post_objectives": formData.get('post_objectives'),
+                "word_count": formData.get('word_count'),
+                "tone": formData.get('tone'),
+                "usp": formData.get('usp'),
+                "pov": formData.get('pov'),
+                "emojis": formData.get('emojis'),
+                "hashtags": formData.get('hashtags')
+            };
+
+            try {
+                const response = await fetch('https://panc0eazwj.execute-api.ap-southeast-1.amazonaws.com/content-generator', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(contentData)
+                });
+
+                const data = await response.json();
+
+                // Display the API response or error
+                if (response.ok) {
+                    generatedContentDiv.innerHTML = `<p>${data}</p>`;
+                } else {
+                    generatedContentDiv.innerHTML = `<p class="error">Error: ${data.error || response.statusText}</p>`;
+                }
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                generatedContentDiv.innerHTML = '<p class="error">An error occurred while fetching data.</p>';
+            } finally {
+                // Re-enable the button and reset text
+                generateButton.disabled = false;
+                generateButton.textContent = 'Generate Content';
+            }
+        });
+
+        function similarKeywords() {
+            const keywordsInput = document.getElementById('keywords').value.split(/[\n,]+/).map(k => k.trim());
+            const location = document.getElementById('location').value;
+
+            if (keywordsInput[0] == "") {
+                document.getElementById('rankingError').textContent = 'Please enter keyword(s).';
+                return;
+            }
+            if (!location) {
+                document.getElementById('rankingError').textContent = 'Please select a location.';
+                return;
             }
 
-            function createSERPTable(index, serpResults, pageMetrics, keyword) {
-                let serpTableHtml = `<br><table class="hidden-table" id="serp-table-${index}">`;
-                serpTableHtml += `<tr><th>Rank</th><th>URL</th><th>Title</th><th>Description</th><th>Domain Rank</th><th>Backlinks</th><th>Spam Score</th><th>Referring Domains</th><th>KW in URL</th><th>KW in Title</th><th>KW in Desc</th><th>KW in H1</th><th>KW in H2</th><th>KW in Alt</th><th>KW in Text</th><th>Word Count</th></tr>`;
+            document.getElementById("keyword_suggestions").style.backgroundColor = "#004c9d";
+            document.getElementById('similar').innerText = "Generating...";
 
-                rowsPopulated = 0;
+            var url = "https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords";
+            var queryString = [{
+                "keywords": keywordsInput,
+                "location": location,
+            }];
+            var headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            };
+            fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(queryString)
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    //console.log("Similar Keywords:", data);
+                    displaySimilarKeywords(data);
+                    document.getElementById('similar').innerText = "Generate Similar Keywords";
+                    document.getElementById("keyword_suggestions").style.backgroundColor = "green";
+                })
+                .catch(error => {
+                    console.error("Error fetching data:", error);
+                    document.getElementById('similar').innerText = "Generate Similar Keywords";
+                    document.getElementById("keyword_suggestions").style.backgroundColor = "#004c9d";
+                });
+        }
 
-                for (const rank in serpResults) {
-                    const result = serpResults[rank];
-                    const metrics = pageMetrics[result.url] || {};
-                    const evalMetrics = metrics.eval || {};
+        function rankingKeywords() {
+            var domain = document.getElementById('domain').value;
+            var location = document.getElementById('location').value;
 
-                    serpTableHtml += `<tr><td>${parseInt(rank)}</td><td>${result.url}</td><td>${result.title}</td><td>${result.description}</td>
+            document.getElementById('rankingError').textContent = '';
+            document.getElementById("ranking_keywords").style.backgroundColor = "#004c9d";
+
+            if (!domain) {
+                document.getElementById('rankingError').textContent = 'Please enter a URL or domain.';
+                return;
+            }
+            if (!location) {
+                document.getElementById('rankingError').textContent = 'Please select a location.';
+                return;
+            }
+
+            document.getElementById('ranking').innerText = "Generating...";
+
+            var url = "https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords";
+
+            var headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            };
+
+            var queryString = {
+                "target": domain,
+                "location": location,
+            };
+
+            fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(queryString)
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Ranking Keywords:", data.body);
+                    displayRankedKeywords(data.body);
+                    document.getElementById('ranking').innerText = "Get Ranking Keywords";
+                    document.getElementById("ranking_keywords").style.backgroundColor = "green";
+                })
+                .catch(error => {
+                    console.error("Error fetching data:", error);
+                    document.getElementById('ranking').innerText = "Get Ranking Keywords";
+                    document.getElementById("ranking_keywords").style.backgroundColor = "#004c9d";
+                });
+        }
+
+        function displayRankedKeywords(rankedKeywordsData) {
+            const rankedKeywordList = document.getElementById('rankedKeywordList');
+            rankedKeywordList.innerHTML = ''; // Clear previous keywords
+
+            const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column'));
+
+            // Convert the object to an array of objects, suitable for sorting
+            const rankedKeywordsArray = Object.entries(rankedKeywordsData).map(([keyword, data]) => ({
+                keyword: keyword,
+                search_volume: data.search_volume,
+                rank: data.rank,
+                difficulty: data.difficulty // Add difficulty here later if available
+            }));
+
+
+
+            rankedKeywordsArray.forEach((item, index) => {
+
+                const listItem = document.createElement('li');
+                listItem.classList.add('keyword-row');
+
+                // Keyword column
+                const keywordDiv = document.createElement('div');
+                keywordDiv.classList.add('keyword-column');
+                keywordDiv.style.width = `${headerCells[0].offsetWidth}px`;
+                keywordDiv.textContent = item.keyword;
+                listItem.appendChild(keywordDiv);
+
+                // Search Volume column
+                const searchVolumeDiv = document.createElement('div');
+                searchVolumeDiv.classList.add('keyword-column');
+                searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`;
+                searchVolumeDiv.textContent = item.search_volume || '-';
+                listItem.appendChild(searchVolumeDiv);
+
+
+                // Rank column
+                const rankDiv = document.createElement('div');
+                rankDiv.classList.add('keyword-column');
+                rankDiv.style.width = `${headerCells[2].offsetWidth}px`;
+                rankDiv.textContent = item.rank || '-';
+                listItem.appendChild(rankDiv);
+
+
+                // Difficulty column (placeholder for now)
+                const difficultyDiv = document.createElement('div');
+                difficultyDiv.classList.add('keyword-column');
+                difficultyDiv.style.width = `${headerCells[3].offsetWidth}px`;
+                difficultyDiv.textContent = item.difficulty || '-'; // Display '-' or the actual value if you get it later
+                listItem.appendChild(difficultyDiv);
+
+
+                // Checkbox column (keep existing style)
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.classList.add('checkbox-column');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.name = `chk${index + 1}`; // Use index for unique names
+                checkbox.id = `chk${index + 1}`;
+                checkbox.value = item.keyword;
+                checkbox.checked = false;
+                checkboxDiv.appendChild(checkbox);
+                listItem.appendChild(checkboxDiv);
+
+                checkbox.addEventListener('change', updateKeywordsField);
+
+                rankedKeywordList.appendChild(listItem);
+            });
+        }
+
+        function displaySimilarKeywords(keywordsData) {
+            const keywordList = document.getElementById('keywordList');
+            keywordList.innerHTML = ''; // Clear previous keywords
+
+            const headerCells = Array.from(document.querySelectorAll('#keywordHeaderRow .keyword-column'));
+
+            // 1. Transform the data:
+            const keywordsArray = Object.entries(keywordsData.body).map(([keyword, data]) => ({
+                keyword,
+                search_volume: data.search_volume,
+                competition: data.competition
+            }));
+
+            keywordsArray.forEach((keywordObj, index) => {
+                const listItem = document.createElement('li');
+                listItem.classList.add('keyword-row');
+
+                // Keyword column
+                const keywordDiv = document.createElement('div');
+                keywordDiv.classList.add('keyword-column');
+                keywordDiv.style.width = `${headerCells[0].offsetWidth}px`;
+                keywordDiv.textContent = keywordObj.keyword;
+                listItem.appendChild(keywordDiv);
+
+                // Search Volume column
+                const searchVolumeDiv = document.createElement('div');
+                searchVolumeDiv.classList.add('keyword-column');
+                searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`;
+                searchVolumeDiv.textContent = keywordObj.search_volume != null ? keywordObj.search_volume.toLocaleString() : '-'; // Handle null search volume
+                listItem.appendChild(searchVolumeDiv);
+
+                // Difficulty column
+                const difficultyDiv = document.createElement('div');
+                difficultyDiv.classList.add('keyword-column');
+                difficultyDiv.style.width = `${headerCells[2].offsetWidth}px`;
+                difficultyDiv.textContent = keywordObj.competition || '-';
+                listItem.appendChild(difficultyDiv);
+
+                // Checkbox column
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.classList.add('checkbox-column');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.name = `chk${index + 1}`;
+                checkbox.id = `chk${index + 1}`;
+                checkbox.value = keywordObj.keyword;
+                checkbox.checked = false;
+                checkboxDiv.appendChild(checkbox);
+                listItem.appendChild(checkboxDiv);
+
+                checkbox.addEventListener('change', updateKeywordsField);
+
+                keywordList.appendChild(listItem);
+            });
+        }
+
+        function updateKeywordsField() {
+            const keywordsTextArea = document.getElementById('keywords');
+            const checkedKeywords = [];
+
+            // Get checked keywords from both tables
+            const similarKeywordsCheckboxes = document.querySelectorAll('#keywordList input[type="checkbox"]:checked');
+            const rankedKeywordsCheckboxes = document.querySelectorAll('#rankedKeywordList input[type="checkbox"]:checked');
+
+            similarKeywordsCheckboxes.forEach(checkbox => checkedKeywords.push(checkbox.value));
+            rankedKeywordsCheckboxes.forEach(checkbox => checkedKeywords.push(checkbox.value));
+
+            keywordsTextArea.value = checkedKeywords.join(', '); // Update the textarea
+
+        }
+
+        function validateAndSubmit() {
+            const domain = document.getElementById('domain').value;
+            const keywordsInput = document.getElementById('keywords').value;
+            const location = document.getElementById('location').value;
+
+            document.getElementById('domainError').textContent = '';
+            document.getElementById('keywordsError').textContent = '';
+
+            if (!domain) {
+                document.getElementById('domainError').textContent = 'Please enter a valid URL.';
+                return;
+            }
+            if (!keywordsInput) {
+                document.getElementById('keywordsError').textContent = 'Please enter one or more keywords.';
+                return;
+            }
+            if (!location) {
+                alert("Please select a location.");
+                return;
+            }
+
+            const keywords = keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+
+            document.getElementById('targetTitle').innerText = "";
+            document.getElementById('targetDescription').innerText = "";
+            document.getElementById('targetDomainRank').innerText = "";
+            document.getElementById('targetBacklinks').innerText = "";
+            document.getElementById('targetSpamScore').innerText = "";
+            document.getElementById('targetPagespeed').innerText = '-/100';
+            document.getElementById('targetRefDomains').innerText = "";
+            document.getElementById('targetInternalLinks').innerText = "";
+            document.getElementById('targetExternalLinks').innerText = "";
+            document.getElementById('targetH1').innerText = "";
+            document.getElementById('targetImages').innerText = "";
+            document.getElementById('targetCls').innerText = "";
+            document.getElementById('targetLcp').innerText = "";
+            document.getElementById('targetFid').innerText = "";
+            document.getElementById('targetSchema').innerText = "";
+            document.getElementById('targetReadability').innerText = "";
+            document.getElementById('targetWordCount').innerText = "";
+            document.getElementById('da').innerText = "";
+            document.getElementById('pa').innerText = "";
+
+            document.getElementById("meta_data").style.backgroundColor = "#004c9d";
+            document.getElementById("domain_metrics").style.backgroundColor = "#004c9d";
+            document.getElementById("keywordAnalysis").style.backgroundColor = "#004c9d";
+
+            fetchDomainMetrics(domain);
+            keywordAnalysis();
+        }
+
+        async function keywordAnalysis() {
+            document.getElementById("keyword-research-analysis-button").innerHTML = "Analysing...";
+            const domain = document.getElementById("domain").value;
+            const keywords = document.getElementById("keywords").value.split(/[\n,]+/).map(s => s.trim()).filter(s => s !== "");
+            const location = document.getElementById("location").value;
+            const language = document.getElementById("language").value;
+
+            const keywordAnalysisResults = document.getElementById("keywordAnalysisResults");
+            keywordAnalysisResults.innerHTML = ""; // Clear previous results
+
+
+            const keywordMetrics = await Promise.all(keywords.map(keyword =>
+                fetch('https://785lzorod8.execute-api.ap-southeast-1.amazonaws.com/kwMetrics', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keyword, location, language, target_url: domain })
+                }).then(res => res.json())
+            ));
+
+
+            let keywordTableHtml = "<table><tr><th>No.</th><th>Keyword</th><th>Search Volume</th><th>KW Difficulty</th><th>Current Rank</th><th>Time To Rank</th><th>Comments</th></tr>";
+            keywordMetrics.forEach((data, index) => {
+                keywordTableHtml += `<tr onclick="showSERPs(${index})"><td>${index + 1}</td><td id="keyword-${index}" class="keyword-cell" onmouseover="" style="cursor: pointer;">${data.body.keyword}       <div class="loading-spinner" id="spinner-${index}"></div></td><td>${data.body.search_volume}</td><td>${data.body.competition}</td><td>${data.body.rank}</td><td><div class="loading-spinner" id="kw-${index}-time-to-rank"></div></td><td><div class="loading-spinner" id="kw-${index}-time-to-rank-reason"></div></td></tr>`; // Spinner for Time to Rank and keyword
+            });
+            keywordTableHtml += "</table>";
+            keywordAnalysisResults.innerHTML = keywordTableHtml;
+            document.getElementById("keywordAnalysis").style.backgroundColor = "green";
+
+            const serpData = {};
+            const pageMetrics = {};
+
+            await Promise.all(keywords.map(async (keyword, index) => {
+                const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ location, keyword, language })
+                }).then(res => res.json());
+                serpData[index] = serpResponse.body;
+
+                await Promise.all(Object.values(serpResponse.body).map(async result => {
+                    const metricsResponse = await fetch('https://5zdbpwaia5.execute-api.ap-southeast-1.amazonaws.com/pageDomainMetrics', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: result.url, keyword })
+                    }).then(res => res.json());
+                    pageMetrics[result.url] = metricsResponse.body; // Store by URL
+                }));
+
+                await createSERPTable(index, serpData[index], pageMetrics, keyword); // create and initially hide the tables
+                await getTimeTakenToRank(index, keyword);
+
+                const spinner = document.getElementById(`spinner-${index}`);
+                spinner.remove(); // Remove spinner element completely
+            }));
+        }
+
+        async function getTimeTakenToRank(index, keyword) {
+            const serpTable = document.getElementById(`serp-table-${index}`);
+            try {
+                const res = await fetch('https://6qyc0fatt2.execute-api.ap-southeast-1.amazonaws.com/timeTakenToRank', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: serpTable.innerHTML, url: domain, keyword, location, language })
+                });
+
+                const timeTakenToRankData = await res.json();
+                console.log(timeTakenToRankData);
+                console.log(`Time to Rank for ${keyword}:`, timeTakenToRankData.body.choice);
+
+
+                // Update the correct row in the first table (keywordMetrics table)
+                document.getElementById(`kw-${index}-time-to-rank`).classList.remove('loading-spinner');
+                document.getElementById(`kw-${index}-time-to-rank`).innerHTML = timeTakenToRankData.body.choice.replaceAll('"', '').replace('choice: ', '').replace('{', '');
+
+                document.getElementById(`kw-${index}-time-to-rank-reason`).classList.remove('loading-spinner');
+                document.getElementById(`kw-${index}-time-to-rank-reason`).innerHTML = timeTakenToRankData.body.reason.replaceAll('"', '').replace('reason: ', '').replace('}', '');
+
+            } catch (error) {
+                console.error(`Error getting Time To Rank for ${keyword}:`, error);
+                // Handle the error appropriately (e.g., display an error message in the table)
+                document.getElementById(`kw-${index}-time-to-rank`).classList.remove('loading-spinner');
+                document.getElementById(`kw-${index}-time-to-rank`).innerHTML = "Error"; // Or some error message
+
+                document.getElementById(`kw-${index}-time-to-rank-reason`).classList.remove('loading-spinner');
+                document.getElementById(`kw-${index}-time-to-rank-reason`).innerHTML = "Error"; // Or some error message
+
+            }
+        }
+
+        function createSERPTable(index, serpResults, pageMetrics, keyword) {
+            let serpTableHtml = `<br><table class="hidden-table" id="serp-table-${index}">`;
+            serpTableHtml += `<tr><th>Rank</th><th>URL</th><th>Title</th><th>Description</th><th>Domain Rank</th><th>Backlinks</th><th>Spam Score</th><th>Referring Domains</th><th>KW in URL</th><th>KW in Title</th><th>KW in Desc</th><th>KW in H1</th><th>KW in H2</th><th>KW in Alt</th><th>KW in Text</th><th>Word Count</th></tr>`;
+
+            rowsPopulated = 0;
+
+            for (const rank in serpResults) {
+                const result = serpResults[rank];
+                const metrics = pageMetrics[result.url] || {};
+                const evalMetrics = metrics.eval || {};
+
+                serpTableHtml += `<tr><td>${parseInt(rank)}</td><td>${result.url}</td><td>${result.title}</td><td>${result.description}</td>
                              <td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td>
                               <td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td>
                               <td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td>
                               <td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td></tr>`;
 
-                    setTimeout(() => { // Use setTimeout to ensure elements are created
-                        const domainRankCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(5)`);
-                        domainRankCell.innerHTML = metrics.domain_rank || '-';
+                setTimeout(() => { // Use setTimeout to ensure elements are created
+                    const domainRankCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(5)`);
+                    domainRankCell.innerHTML = metrics.domain_rank || '-';
 
-                        const backlinksCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(6)`);
-                        backlinksCell.innerHTML = metrics.backlinks || '-';
+                    const backlinksCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(6)`);
+                    backlinksCell.innerHTML = metrics.backlinks || '-';
 
-                        const spamCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(7)`);
-                        spamCell.innerHTML = metrics.backlinks_spam_score || '-';
+                    const spamCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(7)`);
+                    spamCell.innerHTML = metrics.backlinks_spam_score || '-';
 
-                        const referringhDomainsCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(8)`);
-                        referringhDomainsCell.innerHTML = metrics.referring_domains || '-';
+                    const referringhDomainsCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(8)`);
+                    referringhDomainsCell.innerHTML = metrics.referring_domains || '-';
 
-                        // ... similarly update other cells (spam score, referring domains, etc.) ...
-                        const kwInUrlCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(9)`);
-                        kwInUrlCell.innerHTML = evalMetrics.kw_in_url || '-';
+                    // ... similarly update other cells (spam score, referring domains, etc.) ...
+                    const kwInUrlCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(9)`);
+                    kwInUrlCell.innerHTML = evalMetrics.kw_in_url || '-';
 
-                        const kwInTitleCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(10)`);
-                        kwInTitleCell.innerHTML = evalMetrics.kw_in_title || '-';
+                    const kwInTitleCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(10)`);
+                    kwInTitleCell.innerHTML = evalMetrics.kw_in_title || '-';
 
-                        const kwInDescCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(11)`);
-                        kwInDescCell.innerHTML = evalMetrics.kw_in_desc || '-';
+                    const kwInDescCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(11)`);
+                    kwInDescCell.innerHTML = evalMetrics.kw_in_desc || '-';
 
-                        const kwInH1Cell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(12)`);
-                        kwInH1Cell.innerHTML = evalMetrics.kw_in_h1 || '-';
+                    const kwInH1Cell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(12)`);
+                    kwInH1Cell.innerHTML = evalMetrics.kw_in_h1 || '-';
 
-                        const kwInH2Cell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(13)`);
-                        kwInH2Cell.innerHTML = evalMetrics.kw_in_h2 || '-';
+                    const kwInH2Cell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(13)`);
+                    kwInH2Cell.innerHTML = evalMetrics.kw_in_h2 || '-';
 
-                        const kwInAltCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(14)`);
-                        kwInAltCell.innerHTML = evalMetrics.kw_in_alt || '-';
+                    const kwInAltCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(14)`);
+                    kwInAltCell.innerHTML = evalMetrics.kw_in_alt || '-';
 
-                        const kwInTextCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(15)`);
-                        kwInTextCell.innerHTML = evalMetrics.kw_in_text || '-';
+                    const kwInTextCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(15)`);
+                    kwInTextCell.innerHTML = evalMetrics.kw_in_text || '-';
 
-                        const wordCountCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(16)`);
-                        wordCountCell.innerHTML = metrics.word_count || '-';
+                    const wordCountCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(16)`);
+                    wordCountCell.innerHTML = metrics.word_count || '-';
 
-                        rowsPopulated++;
+                    rowsPopulated++;
 
-                        if (rowsPopulated === Object.keys(serpResults).length) {
-                            const serpTable = document.getElementById(`serp-table-${index}`);
-                            //console.log(`SERP Table ${index + 1} innerHTML:`, serpTable.innerHTML);
-                        }
-
-                    }, 15000); // Keep the timeout
-                    document.getElementById("keyword-research-analysis-button").innerHTML = "Analyse";
-                }
-                serpTableHtml += "</table>";
-                document.getElementById("keywordAnalysisResults").innerHTML += serpTableHtml;
-            }
-
-            function showSERPs(index) {
-                const serpTable = document.getElementById(`serp-table-${index}`);
-                serpTable.style.display = (serpTable.style.display === "none" || serpTable.style.display === "") ? "table" : "none";
-
-                // Hide other SERP tables:
-                const allSERPTables = document.querySelectorAll('.hidden-table');
-                allSERPTables.forEach(table => {
-                    if (table.id !== `serp-table-${index}`) {
-                        table.style.display = "none";
+                    if (rowsPopulated === Object.keys(serpResults).length) {
+                        const serpTable = document.getElementById(`serp-table-${index}`);
+                        //console.log(`SERP Table ${index + 1} innerHTML:`, serpTable.innerHTML);
                     }
-                });
+
+                }, 15000); // Keep the timeout
+                document.getElementById("keyword-research-analysis-button").innerHTML = "Analyse";
             }
+            serpTableHtml += "</table>";
+            document.getElementById("keywordAnalysisResults").innerHTML += serpTableHtml;
+        }
 
-            function fetchDomainMetrics(domain) {
-                document.getElementById('keyword-research-analysis-button').innerText = "Analysing...";
+        function showSERPs(index) {
+            const serpTable = document.getElementById(`serp-table-${index}`);
+            serpTable.style.display = (serpTable.style.display === "none" || serpTable.style.display === "") ? "table" : "none";
 
-                //moz 
-                var url = "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
-                var queryString = {
-                    "domain": domain
-                };
-                var headers = {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json"
-                };
-                fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(queryString)
-                })
-                    .then(response => {
-                        // Check if the response is successful
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! Status: ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        document.getElementById('da').innerText = data.body.results[0].domain_authority;
-                        document.getElementById('pa').innerText = data.body.results[0].page_authority;
-                    })
-                    .catch(error => {
-                        console.error("Error fetching data:", error); // Log any errors
-                        // Handle the error gracefully, perhaps display an error message to the user
-                    });
+            // Hide other SERP tables:
+            const allSERPTables = document.querySelectorAll('.hidden-table');
+            allSERPTables.forEach(table => {
+                if (table.id !== `serp-table-${index}`) {
+                    table.style.display = "none";
+                }
+            });
+        }
 
-                api_url = "https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new";
-                var headers = {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json"
-                };
-                fetch(api_url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify({ url: domain })
-                }).then(response => {
+        function fetchDomainMetrics(domain) {
+            document.getElementById('keyword-research-analysis-button').innerText = "Analysing...";
+
+            //moz 
+            var url = "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
+            var queryString = {
+                "domain": domain
+            };
+            var headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            };
+            fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(queryString)
+            })
+                .then(response => {
                     // Check if the response is successful
                     if (!response.ok) {
-                        throw new Error(`Error obtaining domain metrics Status: ${response.status}`);
+                        throw new Error(`HTTP error! Status: ${response.status}`);
                     }
                     return response.json();
                 })
-                    .then(data => {
-                        document.getElementById('targetTitle').innerText = data.body.title;
-                        document.getElementById('targetDescription').innerText = data.body.description;
-                        document.getElementById('targetDomainRank').innerText = data.body.domain_rank;
-                        document.getElementById('targetBacklinks').innerText = data.body.backlinks;
-                        document.getElementById('targetSpamScore').innerText = data.body.backlinks_spam_score;
-                        document.getElementById('targetPagespeed').innerText = '-/100';
-                        document.getElementById('targetRefDomains').innerText = data.body.referring_domains;
-                        document.getElementById('targetInternalLinks').innerText = data.body.internal_links_count;
-                        document.getElementById('targetExternalLinks').innerText = data.body.external_links_count;
-                        document.getElementById('targetH1').innerText = data.body.h1;
-                        document.getElementById('targetImages').innerText = data.body.image;
-                        document.getElementById('targetCls').innerText = data.body.cls;
-                        document.getElementById('targetLcp').innerText = data.body.lcp;
-                        document.getElementById('targetFid').innerText = data.body.fid;
-                        document.getElementById('targetSchema').innerText = data.body.schema;
-                        document.getElementById('targetReadability').innerText = data.body.readability;
-                        document.getElementById('targetWordCount').innerText = data.body.word_count;
+                .then(data => {
+                    document.getElementById('da').innerText = data.body.results[0].domain_authority;
+                    document.getElementById('pa').innerText = data.body.results[0].page_authority;
+                })
+                .catch(error => {
+                    console.error("Error fetching data:", error); // Log any errors
+                    // Handle the error gracefully, perhaps display an error message to the user
+                });
 
-                        document.getElementById("meta_data").style.backgroundColor = "green";
-                        document.getElementById("domain_metrics").style.backgroundColor = "green";
-                    })
-                    .catch(error => {
-                        console.error("Error fetching targeted domain data:", error); // Log any errors
-                        // Handle the error gracefully, perhaps display an error message to the user
-                    });
-            }
-
-            async function fetchSerpResults(keyword, location, domain) {
-                const apiEndpoint = "https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new";
-                const requestBody = {
-                    location: location,
-                    keyword: keyword,
-                    targeted_url: domain,
-                    language: document.getElementById("location").value
-                };
-
-                try {
-                    const response = await fetch(apiEndpoint, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(requestBody)
-                    });
-
-                    const data = await response.json();
-                    return data;
-                } catch (error) {
-                    console.error('Error fetching SERP data:', error);
-                    return null;
+            api_url = "https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new";
+            var headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            };
+            fetch(api_url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({ url: domain })
+            }).then(response => {
+                // Check if the response is successful
+                if (!response.ok) {
+                    throw new Error(`Error obtaining domain metrics Status: ${response.status}`);
                 }
+                return response.json();
+            })
+                .then(data => {
+                    document.getElementById('targetTitle').innerText = data.body.title;
+                    document.getElementById('targetDescription').innerText = data.body.description;
+                    document.getElementById('targetDomainRank').innerText = data.body.domain_rank;
+                    document.getElementById('targetBacklinks').innerText = data.body.backlinks;
+                    document.getElementById('targetSpamScore').innerText = data.body.backlinks_spam_score;
+                    document.getElementById('targetPagespeed').innerText = '-/100';
+                    document.getElementById('targetRefDomains').innerText = data.body.referring_domains;
+                    document.getElementById('targetInternalLinks').innerText = data.body.internal_links_count;
+                    document.getElementById('targetExternalLinks').innerText = data.body.external_links_count;
+                    document.getElementById('targetH1').innerText = data.body.h1;
+                    document.getElementById('targetImages').innerText = data.body.image;
+                    document.getElementById('targetCls').innerText = data.body.cls;
+                    document.getElementById('targetLcp').innerText = data.body.lcp;
+                    document.getElementById('targetFid').innerText = data.body.fid;
+                    document.getElementById('targetSchema').innerText = data.body.schema;
+                    document.getElementById('targetReadability').innerText = data.body.readability;
+                    document.getElementById('targetWordCount').innerText = data.body.word_count;
+
+                    document.getElementById("meta_data").style.backgroundColor = "green";
+                    document.getElementById("domain_metrics").style.backgroundColor = "green";
+                })
+                .catch(error => {
+                    console.error("Error fetching targeted domain data:", error); // Log any errors
+                    // Handle the error gracefully, perhaps display an error message to the user
+                });
+        }
+
+        async function fetchSerpResults(keyword, location, domain) {
+            const apiEndpoint = "https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new";
+            const requestBody = {
+                location: location,
+                keyword: keyword,
+                targeted_url: domain,
+                language: document.getElementById("location").value
+            };
+
+            try {
+                const response = await fetch(apiEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error fetching SERP data:', error);
+                return null;
             }
+        }
 
-            async function fetchContentAnalysisData(url) {
-                const apiEndpoint = "https://v21e9kd3h1.execute-api.ap-southeast-1.amazonaws.com/timetoRank3";
-                const requestBody = { url: url };
+        async function fetchContentAnalysisData(url) {
+            const apiEndpoint = "https://v21e9kd3h1.execute-api.ap-southeast-1.amazonaws.com/timetoRank3";
+            const requestBody = { url: url };
 
-                try {
-                    const response = await fetch(apiEndpoint, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(requestBody)
-                    });
+            try {
+                const response = await fetch(apiEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
 
-                    const data = await response.json();
-                    return data;
-                } catch (error) {
-                    console.error('Error fetching content analysis data:', error);
-                    return null;
-                }
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error fetching content analysis data:', error);
+                return null;
             }
+        }
 
-            async function fetchOnPageDetails(urls) {
-                for (const url of urls) {
-                    const onPageData = await fetchOnPageAnalysisData(url);
-                    if (onPageData && onPageData.statusCode === 200 && onPageData.body) {
-                        const modalTable = document
-                            .getElementById("modalTable")
-                            .querySelector("tbody");
-                        const rows = modalTable.querySelectorAll("tr");
+        async function fetchOnPageAnalysisData(url) {
+            const apiEndpoint = "https://tpl2mrhmc0.execute-api.ap-southeast-1.amazonaws.com/new";
+            const requestBody = { url: url };
 
-                        const targetRow = Array.from(rows).find(row => row.cells[1].textContent === url);
-                        if (targetRow) {
-                            updateModalTableRowWithOnPageDetails(targetRow, onPageData.body);
-                        }
-                    }
-                }
+            try {
+                const response = await fetch(apiEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error fetching on-page analysis data:', error);
+                return null;
             }
+        }
 
-            async function fetchOnPageAnalysisData(url) {
-                const apiEndpoint = "https://tpl2mrhmc0.execute-api.ap-southeast-1.amazonaws.com/new";
-                const requestBody = { url: url };
+        // --- Helper functions to show and hide the loading indicator ---
+        function showLoadingIndicator(parent) {
+            const loadingIndicator = document.getElementById("loadingIndicator");
+            parent.parentNode.insertBefore(loadingIndicator, parent); // Insert before the table
+            parent.classList.add("loading");
+            loadingIndicator.style.display = "block";
+        }
 
-                try {
-                    const response = await fetch(apiEndpoint, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(requestBody)
-                    });
+        function hideLoadingIndicator(parent) {
+            const loadingIndicator = document.getElementById("loadingIndicator");
+            loadingIndicator.style.display = "none";
+            parent.classList.remove("loading");
+        }
 
-                    const data = await response.json();
-                    return data;
-                } catch (error) {
-                    console.error('Error fetching on-page analysis data:', error);
-                    return null;
-                }
-            }
+        function removeRow(button) {
+            let row = button.parentNode.parentNode;
+            row.parentNode.removeChild(row);
+        }
 
-            function updateModalTableRowWithOnPageDetails(row, data) {
-                // ... Map the data fields from the API response to the correct columns ... 
-                addDataToCell(row, "Alt Text", data.alt_text.join(", ") || "-");
-                addDataToCell(row, "Table", data.table || "-");
-                addDataToCell(row, "Video", data.video || "-");
-                addDataToCell(row, "List", data.list || "-");
-                addDataToCell(row, "P Tag", data.p_tag || "-");
-                addDataToCell(row, "Word Frequency", JSON.stringify(data.word_frequency) || "-"); // You might need to format this
-            }
-
-            // --- Helper functions to show and hide the loading indicator ---
-            function showLoadingIndicator(parent) {
-                const loadingIndicator = document.getElementById("loadingIndicator");
-                parent.parentNode.insertBefore(loadingIndicator, parent); // Insert before the table
-                parent.classList.add("loading");
-                loadingIndicator.style.display = "block";
-            }
-
-            function hideLoadingIndicator(parent) {
-                const loadingIndicator = document.getElementById("loadingIndicator");
-                loadingIndicator.style.display = "none";
-                parent.classList.remove("loading");
-            }
-
-            function addDataToCell(row, headerText, data) {
-                let cellIndex = Array.from(document.querySelectorAll("#modalTable thead tr th"))
-                    .findIndex(th => th.textContent === headerText);
-
-                if (cellIndex !== -1) {
-                    // Cell exists, add data to it
-                    if (row.cells.length > cellIndex) {
-                        row.cells[cellIndex].textContent = data;
-                    } else {
-                        // Create the cell and add data
-                        row.insertCell(cellIndex).textContent = data;
-                    }
-                } else {
-                    console.warn(`Header '${headerText}' not found in the table.`);
-                }
-            }
-
-            function updateModalTableRow(row, data) {
-                // Assuming data.h1, data.h2, etc. structure in the second API response
-                addDataToCell(row, "H1", data.h1.join(", ") || "-"); // Join array elements if needed
-                addDataToCell(row, "H2", data.h2.join(", ") || "-");
-                addDataToCell(row, "H3", data.h3.join(", ") || "-");
-                addDataToCell(row, "Image", data.image || "-");
-                addDataToCell(row, "Schema", data.schema || "-");
-                addDataToCell(row, "Wordcount", data.word_count || "-");
-                try {
-                    addDataToCell(row, "Readability", data.readability.toFixed(2) || "-");
-                } catch (errror) {
-                    addDataToCell(row, "Readability", data.readability || "-");
-                }
-
-                // ... Add more data fields as needed ...
-            }
-
-            function updateModalTableWithDomainData(domainData) {
-                const modalTable = document.getElementById("modalTable").querySelector("tbody");
-                const rows = modalTable.querySelectorAll("tr");
-
-                rows.forEach(row => {
-                    const urlCell = row.querySelector("td:nth-child(2)");
-                    const url = urlCell.textContent;
-
-                    if (domainData.body[url]) {
-                        const domainMetrics = domainData.body[url];
-                        row.insertCell().textContent = domainMetrics.domain_rank || "-";
-                        row.insertCell().textContent = domainMetrics.backlinks || "-";
-                        row.insertCell().textContent = domainMetrics.backlinks_spam_score || "-";
-                        row.insertCell().textContent = domainMetrics.referring_domains || "-";
-                        row.insertCell().textContent = domainMetrics.internal_links_count || "-";
-                        row.insertCell().textContent = domainMetrics.external_links_count || "-";
-                        // Add more cells for other domain metrics as needed
-                    } else {
-                        // If no data is returned for a URL, add empty cells or "-"
-                        for (let i = 0; i < 6; i++) { // Add 6 empty cells (for each metric)
-                            row.insertCell().textContent = "-";
-                        }
-                    }
+        document.addEventListener('DOMContentLoaded', function () {
+            const coll = document.getElementsByClassName("collapsible");
+            for (let i = 0; i < coll.length; i++) {
+                coll[i].addEventListener("click", function () {
+                    this.classList.toggle("active");
+                    const content = this.nextElementSibling;
+                    content.style.display = content.style.display === "block" ? "none" : "block";
                 });
             }
+        });
 
-            function displayApiResponse(data) {
-                const modalTable = document
-                    .getElementById("modalTable")
-                    .querySelector("tbody");
-                modalTable.innerHTML = ""; // Clear previous content
+        function sortTable(column) {
+            const table = document.getElementById("keywordResults");
+            const rows = Array.from(table.rows);
+            const dir = this.asc ? 'asc' : 'desc';
 
-                if (data.statusCode === 200 && data.body) {
-                    // Assuming the API response body is an object with numbered keys
-                    for (const key in data.body) {
-                        if (data.body.hasOwnProperty(key)) {
-                            const item = data.body[key];
-                            const row = modalTable.insertRow();
-                            row.insertCell().textContent = key; // Item number
-                            row.insertCell().textContent = item.url;
-                            row.insertCell().textContent = item.title;
-                            row.insertCell().textContent = item.description;
-                        }
-                    }
+            rows.sort((a, b) => {
+                // **Convert cell content to numbers before comparison:**
+                const ax = parseFloat(a.cells[column].textContent) || 0; // Use parseFloat for numbers, 0 for non-numeric
+                const bx = parseFloat(b.cells[column].textContent) || 0;
+
+                return (ax > bx) ? (dir === 'asc' ? 1 : -1) : (ax < bx ? (dir === 'asc' ? -1 : 1) : 0);
+            });
+
+            rows.forEach(row => table.appendChild(row));
+            this.asc = !this.asc;
+        }
+
+        function downloadTableAsCSV() {
+            const table = document.getElementById("keywordAnalysisResults").querySelector('table');
+            const rows = Array.from(table.querySelectorAll("tr")); // Select all rows
+
+            // Construct the CSV content
+            let csvContent = "data:text/csv;charset=utf-8,";
+            rows.forEach(row => {
+                // Select cells, excluding the last one (Action column)
+                const cells = Array.from(row.querySelectorAll("th, td:not(:last-child)"));
+                csvContent += cells.map(cell => `"${cell.textContent.trim().replace(/"/g, '""')}"`).join(",") + "\n";
+            });
+
+            // Create a hidden link element and trigger a click to download
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "keyword_analysis.csv");
+            document.body.appendChild(link); // Required for Firefox
+
+            link.click(); // This will download the data file
+            document.body.removeChild(link); // Cleanup 
+        }
+
+        // Attach the download function to the button
+        document.getElementById("downloadCSV").addEventListener("click", downloadTableAsCSV);
+
+        let currentKeywordSortColumn = null;
+        let keywordSortAscending = true;
+
+        let currentRankedKeywordSortColumn = null;
+        let rankedKeywordSortAscending = true;
+
+        function sortKeywordSuggestions(column) {
+            const keywordList = document.getElementById('keywordList');
+            const listItems = Array.from(keywordList.children);
+
+            if (column === currentKeywordSortColumn) {
+                keywordSortAscending = !keywordSortAscending;
+            } else {
+                keywordSortAscending = true;
+                currentKeywordSortColumn = column;
+            }
+
+            listItems.sort((a, b) => {
+                const aValue = a.children[column].textContent;
+                const bValue = b.children[column].textContent;
+
+                // Convert to number for sorting if possible
+                const aNum = parseFloat(aValue.replace(/,/g, ''));
+                const bNum = parseFloat(bValue.replace(/,/g, ''));
+
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                    return keywordSortAscending ? aNum - bNum : bNum - aNum;
                 } else {
-                    // Handle cases where the API response doesn't have the expected structure
-                    const row = modalTable.insertRow();
-                    const cell = row.insertCell();
-                    cell.colSpan = 4; // Span across all columns
-                    cell.textContent = "No data found.";
-                }
-
-                openModal();
-            }
-
-
-            // Function to open the modal
-            function openModal() {
-                document.getElementById("keywordModal").style.display = "block";
-            }
-
-            // Function to close the modal
-            function closeModal() {
-                document.getElementById("keywordModal").style.display = "none";
-            }
-
-            function removeRow(button) {
-                let row = button.parentNode.parentNode;
-                row.parentNode.removeChild(row);
-            }
-
-            document.addEventListener('DOMContentLoaded', function () {
-                const coll = document.getElementsByClassName("collapsible");
-                for (let i = 0; i < coll.length; i++) {
-                    coll[i].addEventListener("click", function () {
-                        this.classList.toggle("active");
-                        const content = this.nextElementSibling;
-                        content.style.display = content.style.display === "block" ? "none" : "block";
-                    });
+                    return keywordSortAscending
+                        ? aValue.localeCompare(bValue)
+                        : bValue.localeCompare(aValue);
                 }
             });
 
-            function sortTable(column) {
-                const table = document.getElementById("keywordResults");
-                const rows = Array.from(table.rows);
-                const dir = this.asc ? 'asc' : 'desc';
+            listItems.forEach(item => keywordList.appendChild(item));
+        }
 
-                rows.sort((a, b) => {
-                    // **Convert cell content to numbers before comparison:**
-                    const ax = parseFloat(a.cells[column].textContent) || 0; // Use parseFloat for numbers, 0 for non-numeric
-                    const bx = parseFloat(b.cells[column].textContent) || 0;
 
-                    return (ax > bx) ? (dir === 'asc' ? 1 : -1) : (ax < bx ? (dir === 'asc' ? -1 : 1) : 0);
-                });
+        function sortRankedKeywords(column) {
+            const keywordList = document.getElementById('rankedKeywordList');
+            const listItems = Array.from(keywordList.children);
 
-                rows.forEach(row => table.appendChild(row));
-                this.asc = !this.asc;
+            if (column === currentRankedKeywordSortColumn) {
+                rankedKeywordSortAscending = !rankedKeywordSortAscending; // Toggle sort direction
+            } else {
+                rankedKeywordSortAscending = true; // Start in ascending order
+                currentRankedKeywordSortColumn = column;
             }
 
-            function downloadTableAsCSV() {
-                const table = document.getElementById("keywordAnalysisResults").querySelector('table');
-                const rows = Array.from(table.querySelectorAll("tr")); // Select all rows
+            listItems.sort((a, b) => {
+                const aValue = a.children[column].textContent;
+                const bValue = b.children[column].textContent;
 
-                // Construct the CSV content
-                let csvContent = "data:text/csv;charset=utf-8,";
-                rows.forEach(row => {
-                    // Select cells, excluding the last one (Action column)
-                    const cells = Array.from(row.querySelectorAll("th, td:not(:last-child)"));
-                    csvContent += cells.map(cell => `"${cell.textContent.trim().replace(/"/g, '""')}"`).join(",") + "\n";
-                });
+                // Convert to number for sorting if possible
+                const aNum = parseFloat(aValue.replace(/,/g, ''));
+                const bNum = parseFloat(bValue.replace(/,/g, ''));
 
-                // Create a hidden link element and trigger a click to download
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute("download", "keyword_analysis.csv");
-                document.body.appendChild(link); // Required for Firefox
-
-                link.click(); // This will download the data file
-                document.body.removeChild(link); // Cleanup 
-            }
-
-            // Attach the download function to the button
-            document.getElementById("downloadCSV").addEventListener("click", downloadTableAsCSV);
-
-            let currentKeywordSortColumn = null;
-            let keywordSortAscending = true;
-
-            let currentRankedKeywordSortColumn = null;
-            let rankedKeywordSortAscending = true;
-
-            function sortKeywordSuggestions(column) {
-                const keywordList = document.getElementById('keywordList');
-                const listItems = Array.from(keywordList.children);
-
-                if (column === currentKeywordSortColumn) {
-                    keywordSortAscending = !keywordSortAscending;
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                    return rankedKeywordSortAscending ? aNum - bNum : bNum - aNum;
                 } else {
-                    keywordSortAscending = true;
-                    currentKeywordSortColumn = column;
+                    return rankedKeywordSortAscending
+                        ? aValue.localeCompare(bValue)
+                        : bValue.localeCompare(aValue);
                 }
+            });
 
-                listItems.sort((a, b) => {
-                    const aValue = a.children[column].textContent;
-                    const bValue = b.children[column].textContent;
+            listItems.forEach(item => keywordList.appendChild(item));
+        }
 
-                    // Convert to number for sorting if possible
-                    const aNum = parseFloat(aValue.replace(/,/g, ''));
-                    const bNum = parseFloat(bValue.replace(/,/g, ''));
-
-                    if (!isNaN(aNum) && !isNaN(bNum)) {
-                        return keywordSortAscending ? aNum - bNum : bNum - aNum;
-                    } else {
-                        return keywordSortAscending
-                            ? aValue.localeCompare(bValue)
-                            : bValue.localeCompare(aValue);
-                    }
+        selectedItems = {};
+        generatedData = {};
+        async function semAnalyseWebsite() {
+            const semButton = document.getElementById("semAnalyse");
+            semButton.innerText = "Analysing...";
+            try {
+                const response = await fetch("https://sk7akfiy89.execute-api.ap-southeast-1.amazonaws.com/semWebsiteAnalyser", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        company_name: document.getElementById("sem_company_name").value,
+                        website: document.getElementById("sem_website").value,
+                        country: document.getElementById("sem_country").value,
+                        additional: document.getElementById("sem_additional").value,
+                    })
                 });
-
-                listItems.forEach(item => keywordList.appendChild(item));
-            }
-
-
-            function sortRankedKeywords(column) {
-                const keywordList = document.getElementById('rankedKeywordList');
-                const listItems = Array.from(keywordList.children);
-
-                if (column === currentRankedKeywordSortColumn) {
-                    rankedKeywordSortAscending = !rankedKeywordSortAscending; // Toggle sort direction
-                } else {
-                    rankedKeywordSortAscending = true; // Start in ascending order
-                    currentRankedKeywordSortColumn = column;
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
-
-                listItems.sort((a, b) => {
-                    const aValue = a.children[column].textContent;
-                    const bValue = b.children[column].textContent;
-
-                    // Convert to number for sorting if possible
-                    const aNum = parseFloat(aValue.replace(/,/g, ''));
-                    const bNum = parseFloat(bValue.replace(/,/g, ''));
-
-                    if (!isNaN(aNum) && !isNaN(bNum)) {
-                        return rankedKeywordSortAscending ? aNum - bNum : bNum - aNum;
-                    } else {
-                        return rankedKeywordSortAscending
-                            ? aValue.localeCompare(bValue)
-                            : bValue.localeCompare(aValue);
-                    }
+                const responseData = await response.json();
+                const body = responseData.body;
+                selectedItems = {}; // Clear selections
+                document.getElementById('selected').style.display = 'block';
+                document.getElementById("selectedText").value = ""; // Clear textarea
+                document.getElementById("output").innerHTML = createSemTables(body);
+                semButton.innerText = "Analyse";
+            } catch (error) {
+                console.error("Error:", error);
+                document.getElementById("output").innerText = "An error occurred. Please check the console for details.";
+                semButton.innerText = "Analyse";
+            }
+        }
+        function createSemTables(data) {
+            let tablesHTML = "";
+            const categories = ["short_keywords", "long_keywords", "usp", "target_audience_name"];
+            const titles = ["Short-tail Keywords", "Long-tail Keywords", "USPs", "Target Audience"];
+            for (let i = 0; i < categories.length; i++) {
+                const category = categories[i];
+                const title = titles[i];
+                const items = data[category];
+                let tableHTML = `<h2>${title}</h2><table><tr><th>Select</th><th>Value</th></tr>`;
+                for (const item of items) {
+                    const value = typeof item === 'object' ? Object.values(item)[0] : item;
+                    tableHTML += `<tr><td><input type="checkbox" onchange="updateSemSelected('${value}', '${title}')"></td><td>${value}</td></tr>`;
+                }
+                tableHTML += '</table>';
+                tablesHTML += tableHTML;
+            }
+            return tablesHTML;
+        }
+        function updateSemSelected(value, category) {
+            if (!selectedItems[category]) {
+                selectedItems[category] = [];
+            }
+            const index = selectedItems[category].indexOf(value);
+            if (index > -1) {
+                selectedItems[category].splice(index, 1);
+            } else {
+                selectedItems[category].push(value);
+            }
+            displaySemSelectedItems();
+        }
+        function displaySemSelectedItems() {
+            let selectedText = "";
+            for (const category in selectedItems) {
+                if (selectedItems[category].length > 0) {
+                    selectedText += `${category}\n`;
+                    selectedItems[category].forEach(item => {
+                        selectedText += `${item}\n`;
+                    });
+                    selectedText += "\n"; // Add extra newline between categories
+                }
+            }
+            document.getElementById("selectedText").value = selectedText;  // Update textarea value
+        }
+        async function generateGoogle() {
+            document.getElementById("generateSem").innerText = "Generating...";
+            try {
+                const response = await fetch("https://bztsly2z89.execute-api.ap-southeast-1.amazonaws.com/generateSemGoogle", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        company_name: document.getElementById("sem_company_name").value,
+                        website: document.getElementById("sem_website").value,
+                        country: document.getElementById("sem_country").value,
+                        input: document.getElementById("selectedText").value,
+                    })
                 });
-
-                listItems.forEach(item => keywordList.appendChild(item));
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const responseData = await response.json();
+                const body = responseData.body;
+                for (const key in body) {
+                    if (!generatedData[key]) {
+                        generatedData[key] = [];
+                    }
+                    generatedData[key] = generatedData[key].concat(body[key]); // Concatenate new data
+                }
+                displaySemGeneratedData(); // Call function to update HTML
+                document.getElementById("generateSem").innerText = "Generate";
+            } catch (error) {
+                console.error("Error:", error);
+                document.getElementById("generated").innerText = "An error occurred. Please check the console for details.";
+                document.getElementById("generateSem").innerText = "Generate";
             }
-
-            // When the user clicks on a keyword, open the modal with dummy data
-
-
-            // Get the modal
-            var modal = document.getElementById("keywordModal");
-            var modalContent = document.getElementById("modalTable").querySelector("tbody");
-
-            // Get the <span> element that closes the modal
-            var span = document.getElementsByClassName("close")[0];
-
-            // When the user clicks on <span> (x), close the modal
-            span.onclick = function () {
-                modal.style.display = "none";
-            }
-
-            // When the user clicks anywhere outside of the modal, close it
-            window.onclick = function (event) {
-                if (event.target == modal) {
-                    modal.style.display = "none";
+        }
+        function displaySemGeneratedData() {
+            let generatedHTML = "";
+            for (const category in generatedData) {
+                if (generatedData[category].length > 0) {
+                    generatedHTML += `<h3>${category.replace(/_/g, ' ').toUpperCase()}</h3>`; // Nicer titles
+                    generatedHTML += `<table>`;
+                    generatedHTML += `<tr><th>Value</th><th>Remove</th></tr>`; // Add remove column header
+                    generatedData[category].forEach((item, index) => { // Add index for row removal
+                        generatedHTML += `<tr>
+                            <td>${item}</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('${category}', ${index})" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr>`;
+                    });
+                    generatedHTML += `</table>`;
                 }
             }
-        </script>
+            document.getElementById("generated").innerHTML = generatedHTML;
+        }
+        function removeSemGeneratedRow(category, index) {
+            generatedData[category].splice(index, 1);
+            displaySemGeneratedData(); // Redraw the table
+        }
+    </script>
 
 </body>
 

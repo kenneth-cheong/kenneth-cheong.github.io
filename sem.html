@@ -44,20 +44,20 @@
 <body>
 
   <h1>Website Analyser</h1>
-  <label for="company_name">Company Name:</label>
-  <input type="text" id="company_name" value="MediaOne"><br><br>
+  <label for="sem_company_name">Company Name:</label>
+  <input type="text" id="sem_company_name" value="MediaOne"><br><br>
 
-  <label for="website">Website:</label>
-  <input type="text" id="website" value="https://mediaonemarketing.com.sg/"><br><br>
+  <label for="sem_website">Website:</label>
+  <input type="text" id="sem_website" value="https://mediaonemarketing.com.sg/"><br><br>
 
-  <label for="country">Country:</label>
-  <input type="text" id="country" value="Singapore"><br><br>
+  <label for="sem_country">Country:</label>
+  <input type="text" id="sem_country" value="Singapore"><br><br>
 
-  <label for="additional">Addtional Information (optional):</label><br>
-  <textarea id="additional"></textarea>
+  <label for="sem_additional">Addtional Information (optional):</label><br>
+  <textarea id="sem_additional"></textarea>
   <br>
 
-  <button id="semButton" onclick="analyzeWebsite()">Analyse</button>
+  <button id="semAnalyse" onclick="semAnalyseWebsite()">Analyse</button>
   <br>
   <div class="column" id="output"></div>
   <div class="column" id="selected" style="display:none;">
@@ -73,8 +73,8 @@
     selectedItems = {};
     generatedData = {};
 
-    async function analyzeWebsite() {
-      const semButton = document.getElementById("semButton");
+    async function semAnalyseWebsite() {
+      const semButton = document.getElementById("semAnalyse");
       semButton.innerText = "Analysing...";
 
       try {
@@ -82,10 +82,10 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            company_name: document.getElementById("company_name").value,
-            website: document.getElementById("website").value,
-            country: document.getElementById("country").value,
-            additional: document.getElementById("additional").value,
+            company_name: document.getElementById("sem_company_name").value,
+            website: document.getElementById("sem_website").value,
+            country: document.getElementById("sem_country").value,
+            additional: document.getElementById("sem_additional").value,
           })
         });
 
@@ -99,7 +99,7 @@
         selectedItems = {}; // Clear selections
         document.getElementById('selected').style.display = 'block';
         document.getElementById("selectedText").value = ""; // Clear textarea
-        document.getElementById("output").innerHTML = createTables(body);
+        document.getElementById("output").innerHTML = createSemTables(body);
 
         semButton.innerText = "Analyse";
 
@@ -110,7 +110,7 @@
       }
     }
 
-    function createTables(data) {
+    function createSemTables(data) {
       let tablesHTML = "";
       const categories = ["short_keywords", "long_keywords", "usp", "target_audience_name"];
       const titles = ["Short-tail Keywords", "Long-tail Keywords", "USPs", "Target Audience"];
@@ -124,7 +124,7 @@
         let tableHTML = `<h2>${title}</h2><table><tr><th>Select</th><th>Value</th></tr>`;
         for (const item of items) {
           const value = typeof item === 'object' ? Object.values(item)[0] : item;
-          tableHTML += `<tr><td><input type="checkbox" onchange="updateSelected('${value}', '${title}')"></td><td>${value}</td></tr>`;
+          tableHTML += `<tr><td><input type="checkbox" onchange="updateSemSelected('${value}', '${title}')"></td><td>${value}</td></tr>`;
         }
         tableHTML += '</table>';
         tablesHTML += tableHTML;
@@ -133,7 +133,7 @@
     }
 
 
-    function updateSelected(value, category) {
+    function updateSemSelected(value, category) {
       if (!selectedItems[category]) {
         selectedItems[category] = [];
       }
@@ -145,11 +145,11 @@
         selectedItems[category].push(value);
       }
 
-      displaySelectedItems();
+      displaySemSelectedItems();
     }
 
 
-    function displaySelectedItems() {
+    function displaySemSelectedItems() {
       let selectedText = "";
       for (const category in selectedItems) {
         if (selectedItems[category].length > 0) {
@@ -171,9 +171,9 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            company_name: document.getElementById("company_name").value,
-            website: document.getElementById("website").value,
-            country: document.getElementById("country").value,
+            company_name: document.getElementById("sem_company_name").value,
+            website: document.getElementById("sem_website").value,
+            country: document.getElementById("sem_country").value,
             input: document.getElementById("selectedText").value,
           })
         });
@@ -191,7 +191,7 @@
           }
           generatedData[key] = generatedData[key].concat(body[key]); // Concatenate new data
         }
-        displayGeneratedData(); // Call function to update HTML
+        displaySemGeneratedData(); // Call function to update HTML
         document.getElementById("generateSem").innerText = "Generate";
 
       } catch (error) {
@@ -201,7 +201,7 @@
       }
     }
 
-    function displayGeneratedData() {
+    function displaySemGeneratedData() {
       let generatedHTML = "";
       for (const category in generatedData) {
         if (generatedData[category].length > 0) {
@@ -211,7 +211,7 @@
           generatedData[category].forEach((item, index) => { // Add index for row removal
             generatedHTML += `<tr>
                                 <td>${item}</td>
-                                <td><span class="remove-row" onclick="removeGeneratedRow('${category}', ${index})">X</span></td>
+                                <td><span class="remove-row" onclick="removeSemGeneratedRow('${category}', ${index})">X</span></td>
                              </tr>`;
           });
 
@@ -222,9 +222,9 @@
     }
 
 
-    function removeGeneratedRow(category, index) {
+    function removeSemGeneratedRow(category, index) {
       generatedData[category].splice(index, 1);
-      displayGeneratedData(); // Redraw the table
+      displaySemGeneratedData(); // Redraw the table
     }
   </script>
 
