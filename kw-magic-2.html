@@ -630,7 +630,8 @@
         <button class="collapsible" id="keywordAnalysis">Keyword Analysis</button>
         <div class="content" id="keywordAnalysis">
             <div id="keywordAnalysisResults"></div>
-            <button id="downloadKeywordAnalysisCSVButton" onclick="downloadKeywordAnalysisTableAsCSV()" style="display:none;">Download .csv</button>
+            <button id="downloadKeywordAnalysisCSVButton" onclick="downloadKeywordAnalysisTableAsCSV()"
+                style="display:none;">Download .csv</button>
         </div>
         <hr>
         <button class="collapsible" id="technicalButton">Technical SEO</button>
@@ -1623,8 +1624,15 @@
             const language = document.getElementById("language").value;
 
             const keywordAnalysisResults = document.getElementById("keywordAnalysisResults");
-            keywordAnalysisResults.innerHTML = ""; // Clear previous results
 
+            // *** Get or create the table ***
+            let table = keywordAnalysisResults.querySelector('table'); // Check if table exists
+            if (!table) {  // If table doesn't exist, create it
+                table = document.createElement('table');
+                table.innerHTML = "<thead><tr><th>No.</th><th>Keyword</th><th>Search Volume</th><th>KW Difficulty</th><th>Current Rank</th><th>Time To Rank</th><th>Comments</th></tr></thead><tbody></tbody>"; // Start with header and empty body
+                keywordAnalysisResults.appendChild(table);
+            }
+            const tbody = table.querySelector('tbody');  // Get the table body
 
             const keywordMetrics = await Promise.all(keywords.map(keyword =>
                 fetch('https://785lzorod8.execute-api.ap-southeast-1.amazonaws.com/kwMetrics', {
@@ -1634,13 +1642,14 @@
                 }).then(res => res.json())
             ));
 
+            let currentRowNumber = tbody.rows.length + 1; // Start numbering from where the table left off
 
-            let keywordTableHtml = "<table><tr><th>No.</th><th>Keyword</th><th>Search Volume</th><th>KW Difficulty</th><th>Current Rank</th><th>Time To Rank</th><th>Comments</th></tr>";
             keywordMetrics.forEach((data, index) => {
-                keywordTableHtml += `<tr onclick="showSERPs(${index})"><td>${index + 1}</td><td id="keyword-${index}" class="keyword-cell" onmouseover="" style="cursor: pointer;">${data.body.keyword}       <div class="loading-spinner" id="spinner-${index}"></div></td><td>${data.body.search_volume}</td><td>${data.body.competition}</td><td>${data.body.rank}</td><td><div class="loading-spinner" id="kw-${index}-time-to-rank"></div></td><td><div class="loading-spinner" id="kw-${index}-time-to-rank-reason"></div></td></tr>`; // Spinner for Time to Rank and keyword
+                const row = tbody.insertRow(); // *** Insert rows into the body ***
+                row.innerHTML = `<tr onclick="showSERPs(${tbody.rows.length - 1})"><td>${currentRowNumber + index}</td><td id="keyword-${currentRowNumber + index - 1}" class="keyword-cell" onmouseover="" style="cursor: pointer;">${data.body.keyword}<div class="loading-spinner" id="spinner-${currentRowNumber + index - 1}"></div></td><td>${data.body.search_volume}</td><td>${data.body.competition}</td><td>${data.body.rank}</td><td><div class="loading-spinner" id="kw-${currentRowNumber + index - 1}-time-to-rank"></div></td><td><div class="loading-spinner" id="kw-${currentRowNumber + index - 1}-time-to-rank-reason"></div></td></tr>`; // Updated IDs and indexing
+
+
             });
-            keywordTableHtml += "</table>";
-            keywordAnalysisResults.innerHTML = keywordTableHtml;
             document.getElementById("keywordAnalysis").style.backgroundColor = "green";
 
             const serpData = {};
@@ -1663,11 +1672,17 @@
                     pageMetrics[result.url] = metricsResponse.body; // Store by URL
                 }));
 
-                await createSERPTable(index, serpData[index], pageMetrics, keyword); // create and initially hide the tables
-                await getTimeTakenToRank(index, keyword);
+                await createSERPTable(currentRowNumber + index - 1, serpData[index], pageMetrics, keyword);
+                await getTimeTakenToRank(currentRowNumber + index - 1, keyword);
 
-                const spinner = document.getElementById(`spinner-${index}`);
-                spinner.remove(); // Remove spinner element completely
+                try{
+                    const spinner = document.getElementById(`spinner-${currentRowNumber + index - 1}`);
+                    spinner.remove(); // Remove spinner element completely
+                } catch (error){
+                    const spinner = document.getElementById(`spinner-${index}`);
+                    spinner.remove(); // Remove spinner element completely
+                }
+                document.getElementById("downloadKeywordAnalysisCSVButton").style.display = "block";
             }));
         }
 
