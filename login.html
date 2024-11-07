@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KW Magic - Login</title>
+    <script src="https://accounts.google.com/gsi/client" async></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="icon"
+        href="https://mediaonemarketing.com.sg/wp-content/uploads/2023/11/cropped-MediaOne-M-favicon-logo-32x32.png"
+        sizes="32x32">
+    <style>
+        #main-content {
+            flex: 1;
+            /* Allow main content to take up remaining space */
+            margin-left: 17%;
+            /* Adjust margin to create space for navbar */
+            padding: 20px;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 10px;
+            background-color: #fbf7f5;
+            color: #333;
+            text-wrap: wrap;
+        }
+
+        input,
+        select,
+        button,
+        textarea {
+            padding: 10px;
+            margin: 10px;
+            border-radius: 10px;
+            border: 1px solid #fffef7;
+            font-family: inherit;
+            font-size: 16px;
+        }
+
+        button {
+            transition: background-color 0.3s, transform 0.1s;
+            /* Add transform for a subtle lift effect */
+            background-color: #c8c9ca;
+        }
+
+        button:hover {
+            background-color: #004c9d;
+            /* Darker blue on hover */
+            transform: translateY(-2px);
+            /* Move up slightly on hover */
+            cursor: pointer;
+            /* Change cursor to a pointer on hover */
+            color: white;
+        }
+
+        input {
+            min-width: 90%;
+        }
+
+        .input-short {
+            min-width: 30%;
+        }
+
+        textarea {
+            min-width: 90%;
+            min-height: 50px;
+            max-width: 90%;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            background-color: #fffef7;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 6px;
+            table-layout: auto;
+            display: block;
+            table-layout: fixed;
+            overflow-y: scroll;
+        }
+
+        #crawlerReport table {
+            height: 600px;
+        }
+
+        .hidden-table {
+            display: none;
+        }
+
+        th {
+            resize: horizontal;
+        }
+
+        #crawlerReport th,
+        #crawlerReport td {
+            width: 10%;
+            /* Adjust as needed for column distribution */
+            overflow-x: auto;
+            /* white-space: nowrap; Prevent text from wrapping */
+            max-width: 200px;
+            /* Adjust as needed */
+            overflow-x: auto;
+            vertical-align: top;
+        }
+
+        th,
+        td {
+            padding: 12px 8px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+            background-color: white;
+            overflow: hidden;
+        }
+
+        th {
+            background-color: #004c9d;
+            position: sticky;
+            color: white;
+            top: 0;
+        }
+
+        .error {
+            color: red;
+            margin-left: 10px;
+        }
+
+        .collapsible {
+            background-color: #004c9d;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            padding: 20px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 18px;
+            transition: background-color 0.3s ease;
+        }
+
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+
+        .collapsible-loading {
+            background-color: #ffad33;
+        }
+
+        .content {
+            display: none;
+            padding: 20px;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-top: none;
+            border-radius: 10px;
+        }
+
+        button.sort-button {
+            padding: 3px 6px;
+            font-size: 12px;
+            margin-left: 5px;
+            background-color: #286b37;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button.sort-button:hover {
+            background-color: #218838;
+        }
+
+        hr {
+            border-top: 4px solid rgb(95, 103, 154);
+            border-radius: 7px;
+            width: 100%;
+        }
+
+        .header-container {
+            display: flex;
+            align-items: center;
+            /* Vertically center the items in the container */
+            margin: 20px 0;
+            /* Add some margin for spacing around the header */
+        }
+
+        .header-container img {
+            margin-right: 15px;
+            /* Space between the image and the text */
+            width: 75px;
+            /* Adjust the width as needed */
+            height: auto;
+            /* Maintain aspect ratio */
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 4px solid #f3f3f3;
+            /* Light grey */
+            border-top: 4px solid #3498db;
+            /* Blue */
+            border-radius: 50%;
+            animation: spin 2s linear infinite;
+        }
+
+        p,
+        h1,
+        h2,
+        h3 {
+            text-wrap: wrap;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        h2 {
+            margin-top: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            /* Removes default margin */
+            font-size: 36px;
+            /* Optional: Adjust font size as needed */
+        }
+
+        #keywordListContainer {
+            display: flex;
+            /* Enable Flexbox layout for columns */
+            flex-direction: column;
+            /* Stack columns vertically */
+            max-width: 100%;
+            padding: 2px;
+        }
+
+        #keywordListContainer h3 {
+            font-size: 1em;
+            margin-top: 0;
+            /* Reduce default margin */
+        }
+
+        .keyword-row {
+            /* Style each row */
+            display: flex;
+            /* Use Flexbox for each row */
+            align-items: center;
+            /* Vertically center content in each row */
+            margin-bottom: 5px;
+            max-width: 65%;
+        }
+
+        .keyword-column {
+            /* Style for each column */
+            flex: 1;
+            /* Each column takes equal width */
+            margin-right: 5px;
+            /* Space between columns */
+            min-width: 50px;
+        }
+
+        .keyword-column:hover {
+            font-size: 1.1em;
+            cursor: pointer;
+        }
+
+        .keyword-column:nth-child(1) {
+            /* Keyword column */
+            flex: 0 0 60%;
+        }
+
+        .keyword-column:nth-child(2) {
+            /* Search Volume column */
+            flex: 0 0 30%;
+        }
+
+        .keyword-column:nth-child(3) {
+            /* Difficulty column */
+            flex: 0 0 22%;
+        }
+
+        input[type="checkbox"] {
+            width: 3em;
+        }
+
+
+        .checkbox-column {
+            flex: 0 0 5%;
+            margin-right: 0;
+        }
+
+        .column {
+            float: left;
+            width: 50%;
+        }
+
+        ul {
+            max-height: 350px;
+            overflow: auto;
+            width: 100%;
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            background-color: Window;
+        }
+
+        li {
+            margin: 5px;
+            padding: 0px;
+            align-items: left;
+        }
+
+        label,
+        label-fixed {
+            color: WindowText;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+        }
+
+        .label-short {
+            width: 100%;
+        }
+
+        .close {
+            color: #aaa;
+            float: left;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        #auditSummary table {
+            width: 50%;
+            float: right;
+            padding: 20px;
+            height: 600px;
+        }
+
+        /* Table styling */
+        #analysisTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            table-layout: fixed;
+            /* Key for fitting to screen */
+        }
+
+        #analysisTable a {
+            color: white;
+        }
+
+        #analysisTable th,
+        #analysisTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            word-wrap: break-word;
+            /* Allow long URLs to break */
+            overflow: hidden;
+            /* Hide content that overflows */
+            text-overflow: ellipsis;
+            /* Add ellipsis (...) for overflow */
+        }
+
+        /* Make the table scrollable if it's too wide */
+        #tableContainer {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        #SEM .column {
+            width: 48%;
+            /* Adjust as needed */
+            float: left;
+            /* Float columns side by side */
+            margin-right: 2%;
+            /* Add spacing between columns */
+            box-sizing: border-box;
+            /* Include padding and border in width calculation */
+        }
+
+        #SEM .column:last-child {
+            margin-right: 0;
+            /* No margin on the last column */
+        }
+
+        /* Login Page Specific Styles */
+        #login-container {
+            display: flex;
+            justify-content: center;
+            /* Horizontally center the container */
+            align-items: center;
+            /* Vertically center the container */
+            height: 80vh;
+            /* Occupy 80% of the viewport height */
+        }
+
+        #login-form {
+            background-color: #fffef7;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            /* Adjust width as needed */
+        }
+
+        #login-form input {
+            width: calc(100% - 22px);
+            /* Account for padding and margin */
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="login-container">
+        <form id="login-form">
+            <h2>Login</h2>
+            <label for="username">Username:</label><br>
+            <input type="text" id="username" name="username" required><br><br>
+
+            <label for="password">Password:</label><br>
+            <input type="password" id="password" name="password" required><br><br>
+            <div id="g_id_onload"
+                data-client_id="365369983219-g016m4r7hrujle224ss104e8kbrrltot.apps.googleusercontent.com"
+                data-context="signin" data-ux_mode="popup" data-login_uri="https://kenneth-cheong.github.io/kw-magic-2"
+                data-nonce="" data-auto_select="true" data-itp_support="true">
+            </div>
+
+            <div class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline"
+                data-text="signin_with" data-size="large" data-logo_alignment="left">
+            </div>
+
+            <button type="submit">Login</button>
+        </form>
+    </div>
+
+
+</body>
+
+</html>
