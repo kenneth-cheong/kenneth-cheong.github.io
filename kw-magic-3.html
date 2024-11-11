@@ -854,9 +854,17 @@
             <label for="sem_additional">Addtional Information (optional):</label><br>
             <textarea id="sem_additional"
                 placeholder="You can input information that is not found in the webpage(s) content or focus area(s) here"></textarea></textarea>
+
             <br>
-            <button id="semAnalyse" onclick="semAnalyseWebsite()">Analyse</button>
+            <button id="getProducts" onclick="semWebpageProducts()">Step 1: Identify
+                products/services/brand/company</button>
             <br>
+            <div id="products"></div>
+            <br>
+            <button id="semAnalyse" onclick="semAnalyseWebsite()">Step 2: Analyse</button>
+            <br>
+
+
 
             <div class="column" id="output"></div>
             <div class="column" id="selected" style="display:none;">
@@ -2173,6 +2181,74 @@
 
         selectedItems = {};
         generatedData = {};
+
+        async function semWebpageProducts() {
+            const getProducts = document.getElementById("getProducts");
+            getProducts.innerText = "Analysing...";
+            if (document.getElementById("semProductFocus").checked) {
+                productFocus = true;
+            } else {
+                productFocus = false;
+            }
+            if (document.getElementById("semBrandFocus").checked) {
+                brandFocus = true;
+            } else {
+                brandFocus = false;
+            }
+
+            urls = document.getElementById("sem_webpages").value.split(/[\s,]+/).filter(url => url.trim() !== "");
+
+            try {
+                const response = await fetch("https://13kntbziug.execute-api.ap-southeast-1.amazonaws.com/webpageProducts", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        pages: urls,
+                        brand: brandFocus,
+                        product: productFocus,
+                        additional: document.getElementById("sem_additional").value,
+                    })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const responseData = await response.json();
+                const body = JSON.parse(responseData.body);
+
+                formattedString = "";
+
+                console.log(body['product/service']);
+
+                if (body['product/service'].length>0){
+                    formattedString+= "Product/Service: ";
+                    for (value in body['product/service']){
+                        formattedString+= body['product/service'][value]+ ", ";
+                    }
+                    formattedString - formattedString.slice(0, -3)
+                }
+
+                if (formattedString!=""){
+                    formattedString+="\n\n";
+                }
+
+                if (body['brand/company'].length>0){
+                    formattedString+= "Brand/Company: ";
+                    for (value in body['brand/company']){
+                        formattedString+= body['brand/company'][value]+ ", ";
+                    }
+                    formattedString - formattedString.slice(0, -3)
+
+                }
+
+                document.getElementById("products").innerHTML = '<label for="identifiedProducts">Identfied Products/Services/Brand/Company</label><br><textarea id="identifiedProducts">' + formattedString + '</textarea>';
+                getProducts.innerText = "Step 1: Identify products/services/brand/company";
+            } catch (error) {
+                console.error("Error:", error);
+                document.getElementById("output").innerText = "An error occurred with semWebpageProducts. Please check the console for details.";
+                getProducts.innerText = "Step 1: Identify products/services/brand/company";
+            }
+        }
+
         async function semAnalyseWebsite() {
             const semButton = document.getElementById("semAnalyse");
             semButton.innerText = "Analysing...";
@@ -2198,7 +2274,7 @@
                 semButton.innerText = "Analyse";
             } catch (error) {
                 console.error("Error:", error);
-                document.getElementById("output").innerText = "An error occurred. Please check the console for details.";
+                document.getElementById("output").innerText = "An error occurred with semWebsiteAnalyser. Please check the console for details.";
                 semButton.innerText = "Analyse";
             }
         }
