@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KW Magic</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <script src="https://amazon-cognito-identity-js.min.js"></script>
     <link rel="icon"
         href="https://mediaonemarketing.com.sg/wp-content/uploads/2023/11/cropped-MediaOne-M-favicon-logo-32x32.png"
         sizes="32x32">
@@ -1026,8 +1026,38 @@
         </div>
     </div>
 
-    <!-- JavaScript to Handle API Requests and Display Results -->
     <script>
+        const poolData = {
+            UserPoolId: 'ap-southeast-1_398tyKf8D', // Replace with your user pool ID
+            ClientId: '	4jog0jp49nfcpnd9a2fg0q33d2'       // Replace with your client ID
+        };
+        const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+
+        // Check for authenticated user on page load
+        window.onload = function () {
+            const cognitoUser = userPool.getCurrentUser();
+            if (cognitoUser != null) {
+                cognitoUser.getSession(function (err, session) {
+                    if (err) {
+                        console.log(err);
+                        redirectToLogin(); // Redirect to login if there's an error
+                    } else if (session.isValid()) {
+                        console.log('User is authenticated');
+                        // User is authenticated, show the content
+                    } else {
+                        redirectToLogin(); // Redirect to login if session is invalid
+                    }
+                });
+            } else {
+                redirectToLogin(); // Redirect to login if no user is found
+            }
+        };
+
+        function redirectToLogin() {
+            window.location.href = 'YOUR_LOGIN_PAGE_URL';  // Replace with your login page URL
+        }
+
+
         const submitBtn = document.getElementById('submitBtn');
         const gtmetrixReportDiv = document.getElementById('gtmetrixReport');
         const crawlerReportDiv = document.getElementById('crawlerReport');
