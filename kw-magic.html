@@ -2100,6 +2100,54 @@
             this.asc = !this.asc;
         }
 
+        function downloadSemCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,";
+
+            const generatedDiv = document.getElementById('generated');
+            const tablesAndHeadings = Array.from(generatedDiv.querySelectorAll('h3, table')); // Select both h3 and table
+
+            tablesAndHeadings.forEach((element, index) => {
+                if (element.tagName === 'H3') {  // Check if it's a heading
+                    const headingText = element.textContent.trim().replace(/_/g, ' ').toUpperCase(); //Add same formatting
+                    const nextElement = tablesAndHeadings[index + 1]; // Check if next element exists
+
+                    if (nextElement && nextElement.tagName === 'TABLE') {
+                        const rows = Array.from(nextElement.querySelectorAll("tr"));
+
+                        rows.forEach(row => {
+                            const cells = Array.from(row.querySelectorAll("th, td"));
+
+                            if (cells.length >= 2) { //Check if remove cell exists
+                                cells.splice(1, 1); //Remove remove cell
+                            }
+                            //Replace 'Value' with headingText
+                            if (cells.length > 0 && cells[0].textContent.trim() === 'Value') {
+                                cells[0].textContent = headingText;
+                            }
+
+                            const rowText = cells.map(cell => `"${cell.textContent.trim().replace(/"/g, '""')}"`).join(",");
+                            csvContent += rowText + "\n";
+
+                        });
+
+                        csvContent += "\n"; // Add an empty row after each table's data
+                    }
+
+
+                }
+            });
+
+
+            // Create a hidden link element and trigger a click to download
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "generated_sem.csv");
+            document.body.appendChild(link); // Required for Firefox
+            link.click(); // This will download the data file
+            document.body.removeChild(link); // Cleanup 
+        }
+
         function downloadKeywordAnalysisTableAsCSV() {
             const table = document.getElementById("keywordAnalysisResults").querySelector('table');
             const rows = Array.from(table.querySelectorAll("tr")); // Select all rows
@@ -2402,6 +2450,8 @@
                 }
             }
             document.getElementById("generated").innerHTML = generatedHTML;
+            document.getElementById("generated").innerHTML = document.getElementById("generated").innerHTML + '<br><button id="downloadSem" onclick="downloadSemCSV()">Download .csv</button>'
+            document.getElementById("downloadSem").addEventListener("click", downloadSemCSV);
         }
         function removeSemGeneratedRow(category, index) {
             generatedData[category].splice(index, 1);
