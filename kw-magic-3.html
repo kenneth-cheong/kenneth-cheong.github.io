@@ -2217,30 +2217,35 @@
 
                 formattedString = "";
 
-                console.log(body['product/service']);
-
-                if (body['product/service'].length>0){
-                    formattedString+= "Product/Service: ";
-                    for (value in body['product/service']){
-                        formattedString+= body['product/service'][value]+ ", ";
+                if (body['product/service'].length > 0) {
+                    formattedString += "Product/Service: ";
+                    if (Object.prototype.toString.call(body['product/service']) === '[object Array]') {
+                        for (value in body['product/service']) {
+                            formattedString += body['product/service'][value] + ", ";
+                        }
+                        formattedString = formattedString.slice(0, -2)
+                    } else {
+                        formattedString += body['product/service']
                     }
-                    formattedString - formattedString.slice(0, -3)
                 }
 
-                if (formattedString!=""){
-                    formattedString+="\n\n";
+                if (formattedString != "") {
+                    formattedString += "\n\n";
                 }
 
-                if (body['brand/company'].length>0){
-                    formattedString+= "Brand/Company: ";
-                    for (value in body['brand/company']){
-                        formattedString+= body['brand/company'][value]+ ", ";
+                if (body['brand/company'].length > 0) {
+                    formattedString += "Brand/Company: ";
+                    if (Object.prototype.toString.call(body['brand/company']) === '[object Array]') {
+                        for (value in body['brand/company']) {
+                            formattedString += body['brand/company'][value] + ", ";
+                        }
+                        formattedString = formattedString.slice(0, -2)
+                    } else {
+                        formattedString += body['brand/company']
                     }
-                    formattedString - formattedString.slice(0, -3)
-
                 }
 
-                document.getElementById("products").innerHTML = '<label for="identifiedProducts">Identfied Products/Services/Brand/Company:</label><br><textarea id="identifiedProducts">' + formattedString + '</textarea>';
+                document.getElementById("products").innerHTML = '<label for="identifiedProducts">Identfied Products/Services/Brand/Company:</label><br><textarea rows="6" id="identifiedProducts">' + formattedString + '</textarea>';
                 getProducts.innerText = "Step 1: Identify products/services/brand/company";
             } catch (error) {
                 console.error("Error:", error);
@@ -2257,9 +2262,9 @@
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        website: document.getElementById("sem_website").value,
                         country: document.getElementById("sem_country").value,
                         additional: document.getElementById("sem_additional").value,
+                        products: document.getElementById("identifiedProducts").value
                     })
                 });
                 if (!response.ok) {
@@ -2328,10 +2333,9 @@
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        company_name: document.getElementById("sem_company_name").value,
-                        website: document.getElementById("sem_website").value,
                         country: document.getElementById("sem_country").value,
                         input: document.getElementById("selectedText").value,
+                        tone: document.getElementById("sem_tone").value
                     })
                 });
                 if (!response.ok) {
