@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>File Upload to Base64 and API</title>
+<script>
+  function uploadFile() {
+    const fileInput = document.getElementById('fileInput');
+    const file = fileInput.files[0];
+
+    if (!file) {
+      alert('Please select a file.');
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+      const base64String = e.target.result.split(',')[1]; // Remove the data URL prefix
+
+      // Send the base64 string to the API endpoint
+      fetch('https://rsaerwegf6.execute-api.ap-southeast-1.amazonaws.com/fileUpload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json' // Or appropriate content type
+        },
+        body: JSON.stringify({ file: base64String, filename: file.name }) // Include filename
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json(); // Or appropriate response type
+      })
+      .then(data => {
+        console.log('Success:', data);
+        document.getElementById('results').innerText = data;
+        alert('File uploaded successfully!'); // Or a more user-friendly notification
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('Error uploading file. Please try again.');
+      });
+
+    };
+
+    reader.readAsDataURL(file);  // Read the file as a data URL
+  }
+</script>
+</head>
+<body>
+
+  <h1>File Upload</h1>
+
+  <input type="file" id="fileInput">
+  <button onclick="uploadFile()">Upload</button>
+
+  <div id="results"></div>
+
+</body>
+</html>
