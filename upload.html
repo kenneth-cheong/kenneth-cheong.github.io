@@ -1,60 +1,78 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<title>File Upload to Base64 and API</title>
-<script>
-  function uploadFile() {
-    const fileInput = document.getElementById('fileInput');
-    const file = fileInput.files[0];
+    <title>Multiple File Upload to Base64 and API</title>
+    <script>
+        async function uploadFiles() {  // Use async to handle asynchronous operations
+            const fileInput = document.getElementById('fileInput');
+            const files = fileInput.files;
+            const question = document.getElementById('question').value;
 
-    if (!file) {
-      alert('Please select a file.');
-      return;
-    }
+            if (files.length === 0) {
+                alert('Please select at least one file.');
+                return;
+            }
 
-    const reader = new FileReader();
+            const fileData = []; // Array to store file data and names
 
-    reader.onload = function(e) {
-      const base64String = e.target.result.split(',')[1]; // Remove the data URL prefix
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const base64String = await toBase64(file);  // Use the helper function
+                fileData.push({ file: base64String, filename: file.name });
+            }
 
-      // Send the base64 string to the API endpoint
-      fetch('https://rsaerwegf6.execute-api.ap-southeast-1.amazonaws.com/fileUpload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json' // Or appropriate content type
-        },
-        body: JSON.stringify({ file: base64String, filename: file.name }) // Include filename
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
+
+            // Send the data to the API endpoint
+            fetch('https://rsaerwegf6.execute-api.ap-southeast-1.amazonaws.com/fileUpload', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ files: fileData, question: question }) // Send array of files and question
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Success:', data);
+                    document.getElementById('results').innerHTML = data; // Display results
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error uploading files.');
+                });
         }
-        return response.json(); // Or appropriate response type
-      })
-      .then(data => {
-        console.log('Success:', data);
-        document.getElementById('results').innerText = data;
-        alert('File uploaded successfully!'); // Or a more user-friendly notification
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        alert('Error uploading file. Please try again.');
-      });
 
-    };
+        // Helper function to convert file to Base64
+        function toBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
 
-    reader.readAsDataURL(file);  // Read the file as a data URL
-  }
-</script>
+    </script>
 </head>
+
 <body>
 
-  <h1>File Upload</h1>
+    <h1>File Upload</h1>
 
-  <input type="file" id="fileInput">
-  <button onclick="uploadFile()">Upload</button>
+    <input type="file" id="fileInput" multiple> <br><br>
 
-  <div id="results"></div>
+    <label for="question">Your query:</label><br>
+    <textarea id="question" placeholder="tell me about the attachments. "></textarea><br><br>
+
+    <button onclick="uploadFiles()">Query</button> <br><br>
+
+    <div id="results"></div>
 
 </body>
+
 </html>
