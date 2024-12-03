@@ -160,16 +160,15 @@
             );
 
             // Wait for *all* content analysis calls to complete
-            const analysisDataArray = await Promise.all(analysisPromises);
+            analysisDataArray = await Promise.all(analysisPromises);
 
             document.getElementById('serp-results').innerText = JSON.stringify(analysisDataArray);
 
             // Combine analysis data, handling potential errors from individual API calls
-            const analysisData = {};
+            analysisData = {};
             analysisDataArray = JSON.parse(document.getElementById('serp-results').innerText);
             analysisDataArray.forEach(item => {
-                console.log(Object.keys(item['body'][0]));
-                const url = Object.keys(item['body'][0]);
+                url = Object.keys(item['body'])[0];
                 try {
                     analysisData[url] = item[url];
                 } catch (error) {
