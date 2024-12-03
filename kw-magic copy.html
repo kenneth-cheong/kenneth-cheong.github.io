@@ -1253,22 +1253,34 @@
                     fetch('https://u24f9208q0.execute-api.ap-southeast-1.amazonaws.com/gptTopicsPerUrl', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url, keyword }), // Include keyword here
-                    }).then(res => res.json())
+                        body: JSON.stringify({ url, keyword }),
+                    }).then(res => {
+                        if (!res.ok) {  // Check for errors
+                            throw new Error(`Content analysis API error for ${url}: ${res.status} ${res.statusText}`);
+                        }
+                        return res.json();
+                    })
                 );
+
+                // Wait for *all* content analysis calls to complete
                 const analysisDataArray = await Promise.all(analysisPromises);
 
-
-                // Combine analysis data into a single object keyed by URL
+                // Combine analysis data, handling potential errors from individual API calls
                 const analysisData = {};
                 analysisDataArray.forEach(item => {
-                    if (Object.keys(item).length > 0) { //check if item contains data
-                        const url = Object.keys(item)[0];
+                    try {  // Check if item is not null and contains data
+                        const url = Object.keys(item['body'])[0];
                         analysisData[url] = item[url];
+                    } catch (error){
                     }
                 });
 
                 console.log(analysisData);
+
+                // Check if analysisData is empty after combining results.
+                if (Object.keys(analysisData).length === 0) {
+                    throw new Error("Content analysis failed for all URLs. Please check the URLs and try again.");
+                }
 
                 // --- Data is ready, stop loading messages ---
                 clearInterval(loadingMessageInterval);
@@ -1338,14 +1350,22 @@
             // Add Word Count row
             comparisonTableHTML += '<tr><td>Word Count</td>';
             urls.forEach(url => {
+                try{
                 comparisonTableHTML += `<td data-value="${data[url].word_count}">${data[url].word_count}</td>`; // Add data-value attribute
+                } catch (error) {
+                    comparisonTableHTML += `<td data-value="0">0</td>`; // Add data-value attribute
+                }
             });
             comparisonTableHTML += '</tr>';
 
             // Add Page Type row
             comparisonTableHTML += '<tr><td>Page Type</td>';
             urls.forEach(url => {
+                try{
                 comparisonTableHTML += `<td>${data[url].page_type}</td>`;
+                } catch (error) {
+                    comparisonTableHTML += `<td>-</td>`;
+                }
             });
             comparisonTableHTML += '</tr>';
 

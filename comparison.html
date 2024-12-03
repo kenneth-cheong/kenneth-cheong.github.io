@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<style>
+    /* Table styling */
+    #analysisTable,
+    #comparisonTable {
+        /* Apply to both tables */
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        table-layout: fixed;
+        /* Key for fitting to screen */
+    }
+
+    #analysisTable a,
+    #comparisonTable a {
+        /* Apply to both tables */
+        color: white;
+    }
+
+    #analysisTable th,
+    #analysisTable td,
+    #comparisonTable th,
+    #comparisonTable td {
+        /* Apply to both tables */
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+        word-wrap: break-word;
+        /* Allow long URLs to break */
+        overflow: hidden;
+        /* Hide content that overflows */
+        text-overflow: ellipsis;
+        /* Add ellipsis (...) for overflow */
+    }
+
+    /* Make the table scrollable if it's too wide */
+    #tableContainer {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    /* Style for target URL cells */
+    .targetUrl {
+        background-color: darkorange;
+    }
+
+    /* Loading message styles */
+    #loading-messages {
+        display: none;
+        /* Initially hidden */
+        margin-top: 10px;
+    }
+
+    #loading-messages.active {
+        display: block;
+    }
+</style>
+
+<button class="collapsible">Content Comparison</button>
+<div class="content" id="contentComparison">
+    <label for="comparison-keyword">Keyword:</label>
+    <input type="text" id="comparison-keyword" placeholder="e.g., digital marketing">
+    <br>
+    <label for="comparison-urls">or URLs (separate by new line or comma):</label>
+    <textarea id="comparison-urls" placeholder="e.g., https://example.com, https://another-example.com"></textarea>
+    <br>
+    <div class="column">
+        <label for="comparison-language">Language:</label>
+        <input type="text" id="comparison-language" value="English" placeholder="e.g., English">
+    </div>
+    <div class="column">
+        <label for="comparison-location">Location:</label>
+        <input type="text" id="comparison-location" value="Singapore" placeholder="e.g., Singapore">
+    </div>
+    <br>
+    <button id="analyzeBtn">Analyse (up to 3 mins)</button>
+
+    <div id="loading-messages">
+        <p class="message"></p>
+    </div>
+
+    <div id="serp-results"></div>
+
+    <div id="comparison-results"></div>
+</div>
+
+<script>
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const resultsDiv = document.getElementById('comparison-results');
+    const loadingMessagesDiv = document.getElementById('loading-messages');
+    const messageElement = document.querySelector('.message');
+    const messages = [
+        'Getting SERP results...',
+        'Analysing Page Content...',
+        'Formulating Content Topics...',
+        'Comparing Topics Across Results...',
+        'Collating Findings...'
+    ];
+    let currentMessageIndex = 0;
+
+    analyzeBtn.addEventListener('click', async () => {
+        // Show loading messages, hide previous results
+        resultsDiv.innerHTML = '';
+        analyzeBtn.innerHTML = 'Analysing...';
+        loadingMessagesDiv.classList.add('active');
+
+        keyword = document.getElementById('comparison-keyword').value;
+        const urlsInput = document.getElementById('comparison-urls').value;
+        const language = document.getElementById('comparison-language').value;
+        const location = document.getElementById('comparison-location').value;
+        urls = urlsInput.split(/[\s,]+/).filter(url => url.trim() !== "");
+
+        try {
+            // Function to cycle through loading messages
+            function updateLoadingMessage() {
+                messageElement.textContent = messages[currentMessageIndex];
+                currentMessageIndex = (currentMessageIndex + 1) % messages.length;
+            }
+
+            // Start cycling loading messages
+            const loadingMessageInterval = setInterval(updateLoadingMessage, 4000);
+
+            let serpUrls = [];
+            if (keyword != "") {
+                // 1. Fetch URLs from SERP API
+                const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keyword, language, location }),
+                });
+                const serpData = await serpResponse.json();
+                if (serpData.statusCode !== 200) {
+                    throw new Error(`SERP API Error: ${serpData.body || serpData.errorMessage}`);
+                }
+                serpUrls = Object.values(serpData.body).map(result => result.url);
+
+                if (urls != "") {
+                    serpUrls = [...new Set([...serpUrls, ...urls])]; // Combine and deduplicate
+                }
+
+            } else {
+                serpUrls = urls;
+            }
+
+
+            // 2. Fetch content analysis for each URL *concurrently*
+            const analysisPromises = serpUrls.map(url =>
+                fetch('https://u24f9208q0.execute-api.ap-southeast-1.amazonaws.com/gptTopicsPerUrl', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, keyword }),
+                }).then(res => {
+                    if (!res.ok) {  // Check for errors
+                        throw new Error(`Content analysis API error for ${url}: ${res.status} ${res.statusText}`);
+                    }
+                    return res.json();
+                })
+            );
+
+            // Wait for *all* content analysis calls to complete
+            const analysisDataArray = await Promise.all(analysisPromises);
+
+            console.log(analysisDataArray);
+
+            document.getElementById('serp-results').innerText = analysisDataArray;
+
+            // Combine analysis data, handling potential errors from individual API calls
+            const analysisData = {};
+            analysisDataArray.forEach(item => {
+                try {  // Check if item is not null and contains data
+                    const url = Object.keys(item['body'])[0];
+                    analysisData[url] = item[url];
+                } catch (error) {
+                }
+            });
+
+            console.log(analysisData);
+
+            // Check if analysisData is empty after combining results.
+            if (Object.keys(analysisData).length === 0) {
+                throw new Error("Content analysis failed for all URLs. Please check the URLs and try again.");
+            }
+
+            // --- Data is ready, stop loading messages ---
+            clearInterval(loadingMessageInterval);
+            loadingMessagesDiv.classList.remove('active');
+
+            // 3. Create and display the table (modified createAnalysisTable function below)
+            comparisonTableHTML = createAnalysisTable(analysisData, keyword, urls);  // Pass keyword and target URLs
+            resultsDiv.innerHTML = `<div id="tableContainer">${comparisonTableHTML}</div>`;
+
+            // 4. Apply gradients (no change needed)
+            applyGradientsToRows();
+
+
+            // 5. Submit table data to comparisonRecommender API
+            const comparisonResponse = await fetch('https://33v5mhjt47.execute-api.ap-southeast-1.amazonaws.com/comparisonRecommender', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ output: analysisData, keyword }), // Send analysisData directly
+            });
+            const comparisonData = await comparisonResponse.json();
+
+            // Display recommendations and output table from comparison API
+            const recommendation = comparisonData.body.recommendation;
+
+            console.log(comparisonData.body.output);
+            const outputTableHTML = createHTMLTableFromJSON(JSON.parse(comparisonData.body.output)); // Parse JSON string to object
+
+
+
+            resultsDiv.innerHTML += `<br><hr><h2>Comparison Results:</h2>${outputTableHTML}<pre>${recommendation}</pre>`;
+
+
+            analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
+
+        } catch (error) {
+            resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            try {
+                clearInterval(loadingMessageInterval);
+            } catch (error) {
+            }
+            loadingMessagesDiv.classList.remove('active');
+            analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
+        }
+    });
+
+    function createAnalysisTable(data, keyword, targetUrls) {
+        let tableHTML = '<table id="analysisTable">';
+        tableHTML += '<tr><th>URL</th>';
+
+        const urls = Object.keys(data);
+        urls.forEach(url => {
+            tableHTML += `<th ${targetUrls.includes(url) && keyword ? 'class="targetUrl"' : ''}>
+                        <a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></th>`;
+        });
+        tableHTML += '</tr>';
+
+
+        // Add Word Count row
+        tableHTML += '<tr><td>Word Count</td>';
+        urls.forEach(url => {
+            try {
+                tableHTML += `<td data-value="${data[url].word_count}">${data[url].word_count}</td>`;
+            } catch (error) {
+                tableHTML += `<td data-value="0">0</td>`;
+            }
+        });
+        tableHTML += '</tr>';
+
+        // Add Page Type row
+        tableHTML += '<tr><td>Page Type</td>';
+        urls.forEach(url => {
+            try {
+                tableHTML += `<td>${data[url].page_type}</td>`;
+            } catch (error) {
+                tableHTML += `<td>-</td>`;
+            }
+        });
+        tableHTML += '</tr>';
+
+        // Get all unique topics, handling missing topics
+        let allTopics = [];
+        urls.forEach(url => {
+            if (data[url] && data[url].topics) {
+                allTopics = [...allTopics, ...Object.keys(data[url].topics)];
+            }
+        });
+        const uniqueTopics = [...new Set(allTopics)];
+
+        // Add Topic rows (handling missing topic data)
+        uniqueTopics.forEach(topic => {
+            tableHTML += `<tr><td>${topic}</td>`;
+            urls.forEach(url => {
+                const value = (data[url] && data[url].topics && data[url].topics[topic]) ? data[url].topics[topic] : 0;
+                tableHTML += `<td data-value="${value}">${value}</td>`;
+            });
+            tableHTML += '</tr>';
+        });
+
+        tableHTML += '</table>';
+        return tableHTML;
+    }
+
+    function applyGradientsToRows() {
+        const table = document.getElementById('analysisTable');
+        for (let i = 1; i < table.rows.length; i++) { // Start from row 1 to skip header
+            applyGradientToRow(table.rows[i]);
+        }
+    }
+
+    function applyGradientToRow(row) {
+        const values = Array.from(row.cells)
+            .slice(1) // Skip the first cell (topic name)
+            .map(cell => {
+                const value = parseFloat(cell.dataset.value);
+                return isNaN(value) ? -1 : value; // Assign -1 for non-numeric values
+            });
+
+        const max = Math.max(...values);
+        const min = Math.min(...values);
+
+        values.forEach((value, index) => {
+            const cell = row.cells[index + 1]; // +1 to account for the first cell
+            if (!isNaN(value) && value !== -1) { // Apply gradient only to numeric values
+                const percent = (value - min) / (max - min);
+                const red = Math.round(255 * (1 - percent));
+                const green = Math.round(255 * percent);
+                cell.style.backgroundColor = `rgb(${red}, ${green}, 0)`;
+            }
+        });
+    }
+
+    function createHTMLTableFromJSON(jsonData) {
+        if (!jsonData) return ""; // Handle empty or null data
+
+        let tableHTML = '<table id="comparisonTable">';
+        tableHTML += "<tr>";
+
+        if (Object.keys(jsonData).length > 0) { //check for empty object to avoid errors
+
+            for (let header in jsonData[Object.keys(jsonData)[0]]) {  // Get headers from the first object if any available
+                tableHTML += `<th>${header}</th>`;
+            }
+            tableHTML += "</tr>";
+
+            for (let rowKey in jsonData) {
+                tableHTML += "<tr>";
+                for (let cellKey in jsonData[rowKey]) {
+                    // Check if the cell value is an object (like topics)
+                    if (typeof jsonData[rowKey][cellKey] === 'object') {
+                        tableHTML += `<td>${JSON.stringify(jsonData[rowKey][cellKey])}</td>`; // Display as JSON string
+                    } else if (Array.isArray(jsonData[rowKey][cellKey])) {   // Check if it is an array (h1, h2, h3)
+                        tableHTML += `<td>${jsonData[rowKey][cellKey].join("<br>")}</td>`; // Join array items with line break
+                    } else {
+                        tableHTML += `<td>${jsonData[rowKey][cellKey]}</td>`; // regular values as-is
+                    }
+                }
+                tableHTML += "</tr>";
+            }
+        } else {
+            // If object is empty display warning message
+            tableHTML += `<tr><td>No Data Available</td></tr>`;
+        }
+
+
+        tableHTML += "</table>";
+        return tableHTML;
+    }
+</script>
