@@ -558,7 +558,7 @@
     </nav>
     <div id="main-content">
         <div class="header-container">
-            <img src = "Digimetrics Logo-02.png">
+            <img src="Digimetrics Logo-02.png">
         </div>
         <hr>
 
@@ -1225,31 +1225,35 @@
                 // Start cycling loading messages
                 const loadingMessageInterval = setInterval(updateLoadingMessage, 4000);
 
-                if (keyword != "") {
+                try {
 
-                    // 1. Fetch SERP data
-                    const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ keyword, language, location }),
-                    });
+                    if (keyword != "") {
+                        // 1. Fetch SERP data
+                        const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ keyword, language, location }),
+                        });
 
-                    const serpData = await serpResponse.json();
+                        const serpData = await serpResponse.json();
 
-                    if (serpData.statusCode !== 200) {
-                        throw new Error(`SERP API Error: ${serpData.body || serpData.errorMessage}`);
+                        if (serpData.statusCode !== 200) {
+                            throw new Error(`SERP API Error: ${serpData.body || serpData.errorMessage}`);
+                        }
+
+                        serpUrls = Object.values(serpData.body).map(result => result.url);
+
+                        if (urls != "") {
+                            serpUrls.push(urls);
+                        }
                     }
 
-                    serpUrls = Object.values(serpData.body).map(result => result.url);
-
-                    if (urls != "") {
-                        serpUrls.push(urls);
+                    else {
+                        serpUrls = urls;
                     }
-                }
-
-                else {
+                } catch (error) {
                     serpUrls = urls;
                 }
 
