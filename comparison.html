@@ -79,10 +79,7 @@
     <div id="loading-messages">
         <p class="message"></p>
     </div>
-
-    <div id="serp-results"></div>
-    <div id="serp-dict"></div>
-
+    <div id="initial-table"></div>
     <div id="comparison-results"></div>
 </div>
 
@@ -123,31 +120,30 @@
             const loadingMessageInterval = setInterval(updateLoadingMessage, 4000);
 
             let serpUrls = [];
-             /*
-            if (keyword != "") {
-                // 1. Fetch URLs from SERP API
-                const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ keyword, language, location }),
-                });
-                const serpData = await serpResponse.json();
-                if (serpData.statusCode !== 200) {
-                    throw new Error(`SERP API Error: ${serpData.body || serpData.errorMessage}`);
-                }
-                serpUrls = Object.values(serpData.body).map(result => result.url);
+            try {   
+                if (keyword != "") {
+                    // 1. Fetch URLs from SERP API
+                    const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ keyword, language, location }),
+                    });
+                    const serpData = await serpResponse.json();
+                    if (serpData.statusCode !== 200) {
+                        throw new Error(`SERP API Error: ${serpData.body || serpData.errorMessage}`);
+                    }
+                    serpUrls = Object.values(serpData.body).map(result => result.url);
 
-                if (urls != "") {
-                    serpUrls = [...new Set([...serpUrls, ...urls])]; // Combine and deduplicate
-                }
+                    if (urls != "") {
+                        serpUrls = [...new Set([...serpUrls, ...urls])]; // Combine and deduplicate
+                    }
 
-            } else {
+                } else {
+                    serpUrls = urls;
+                }
+            } catch (error) {
                 serpUrls = urls;
             }
-
-            */
-
-            serpUrls = urls;
 
             // 2. Fetch content analysis for each URL *concurrently*
             const analysisPromises = serpUrls.map(url =>
@@ -166,22 +162,13 @@
             // Wait for *all* content analysis calls to complete
             analysisDataArray = await Promise.all(analysisPromises);
 
-            document.getElementById('serp-results').innerText = JSON.stringify(analysisDataArray);
-
             // Combine analysis data, handling potential errors from individual API calls
             analysisData = {};
-            analysisDataArray = JSON.parse(document.getElementById('serp-results').innerText);
             analysisDataArray.forEach(item => {
                 url = Object.keys(item['body'])[0];
-                try {
-                    analysisData[url] = item[url];
-                } catch (error) {
-
-                }
+                analysisData[url] = item['body'][url];
             }
-            );  
-
-            document.getElementById('serp-dict').innerText = JSON.stringify(analysisDataArray);
+            );
 
             // Check if analysisData is empty after combining results.
             if (Object.keys(analysisData).length === 0) {
@@ -194,11 +181,10 @@
 
             // 3. Create and display the table (modified createAnalysisTable function below)
             comparisonTableHTML = createAnalysisTable(analysisData, keyword, urls);  // Pass keyword and target URLs
-            resultsDiv.innerHTML = `<div id="tableContainer">${comparisonTableHTML}</div>`;
+            document.getElementById('initial-table').innerHTML = `<div id="tableContainer">${comparisonTableHTML}</div>`;
 
             // 4. Apply gradients (no change needed)
             applyGradientsToRows();
-
 
             // 5. Submit table data to comparisonRecommender API
             const comparisonResponse = await fetch('https://33v5mhjt47.execute-api.ap-southeast-1.amazonaws.com/comparisonRecommender', {
@@ -208,15 +194,14 @@
             });
             const comparisonData = await comparisonResponse.json();
 
+            console.log(comparisonData);
+
             // Display recommendations and output table from comparison API
-            const recommendation = comparisonData.body.recommendation;
+            const recommendation = comparisonData.body.output.recommendation;
 
             const outputTableHTML = createHTMLTableFromJSON(JSON.parse(comparisonData.body.output)); // Parse JSON string to object
 
-
-
             resultsDiv.innerHTML += `<br><hr><h2>Comparison Results:</h2>${outputTableHTML}<pre>${recommendation}</pre>`;
-
 
             analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
 
