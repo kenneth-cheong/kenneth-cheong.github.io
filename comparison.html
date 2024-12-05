@@ -81,6 +81,7 @@
     </div>
     <div id="initial-table"></div>
     <div id="comparison-results"></div>
+    <div id="analysis-data"></div>
 </div>
 
 <script>
@@ -120,7 +121,7 @@
             const loadingMessageInterval = setInterval(updateLoadingMessage, 4000);
 
             let serpUrls = [];
-            try {   
+            try {
                 if (keyword != "") {
                     // 1. Fetch URLs from SERP API
                     const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
@@ -175,10 +176,6 @@
                 throw new Error("Content analysis failed for all URLs. Please check the URLs and try again.");
             }
 
-            // --- Data is ready, stop loading messages ---
-            clearInterval(loadingMessageInterval);
-            loadingMessagesDiv.classList.remove('active');
-
             // 3. Create and display the table (modified createAnalysisTable function below)
             comparisonTableHTML = createAnalysisTable(analysisData, keyword, urls);  // Pass keyword and target URLs
             document.getElementById('initial-table').innerHTML = `<div id="tableContainer">${comparisonTableHTML}</div>`;
@@ -194,14 +191,27 @@
             });
             const comparisonData = await comparisonResponse.json();
 
-            console.log(comparisonData);
-
             // Display recommendations and output table from comparison API
-            const recommendation = comparisonData.body.output.recommendation;
+            const recommendation = comparisonData.body.recommendation;
 
-            const outputTableHTML = createHTMLTableFromJSON(JSON.parse(comparisonData.body.output)); // Parse JSON string to object
+            try {
+                //const outputTableHTML = createHTMLTableFromJSON(comparisonData.body.output); // Parse JSON string to object
+                const outputTableHTML = createAnalysisTable(comparisonData.body.output, keyword, urls)
 
-            resultsDiv.innerHTML += `<br><hr><h2>Comparison Results:</h2>${outputTableHTML}<pre>${recommendation}</pre>`;
+                document.getElementById('initial-table').innerHTML = `<div id="tableContainer">${outputTableHTML}</div>`;
+                resultsDiv.innerHTML += `<pre>${recommendation}</pre>`;
+
+                // 4. Apply gradients (no change needed)
+                applyGradientsToRows();
+
+            } catch (error) {
+                console.log(error)
+                resultsDiv.innerHTML += `<pre>${recommendation}</pre>`;
+            }
+
+            // --- Data is ready, stop loading messages ---
+            clearInterval(loadingMessageInterval);
+            loadingMessagesDiv.classList.remove('active');
 
             analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
 
@@ -300,42 +310,5 @@
                 cell.style.backgroundColor = `rgb(${red}, ${green}, 0)`;
             }
         });
-    }
-
-    function createHTMLTableFromJSON(jsonData) {
-        if (!jsonData) return ""; // Handle empty or null data
-
-        let tableHTML = '<table id="comparisonTable">';
-        tableHTML += "<tr>";
-
-        if (Object.keys(jsonData).length > 0) { //check for empty object to avoid errors
-
-            for (let header in jsonData[Object.keys(jsonData)[0]]) {  // Get headers from the first object if any available
-                tableHTML += `<th>${header}</th>`;
-            }
-            tableHTML += "</tr>";
-
-            for (let rowKey in jsonData) {
-                tableHTML += "<tr>";
-                for (let cellKey in jsonData[rowKey]) {
-                    // Check if the cell value is an object (like topics)
-                    if (typeof jsonData[rowKey][cellKey] === 'object') {
-                        tableHTML += `<td>${JSON.stringify(jsonData[rowKey][cellKey])}</td>`; // Display as JSON string
-                    } else if (Array.isArray(jsonData[rowKey][cellKey])) {   // Check if it is an array (h1, h2, h3)
-                        tableHTML += `<td>${jsonData[rowKey][cellKey].join("<br>")}</td>`; // Join array items with line break
-                    } else {
-                        tableHTML += `<td>${jsonData[rowKey][cellKey]}</td>`; // regular values as-is
-                    }
-                }
-                tableHTML += "</tr>";
-            }
-        } else {
-            // If object is empty display warning message
-            tableHTML += `<tr><td>No Data Available</td></tr>`;
-        }
-
-
-        tableHTML += "</table>";
-        return tableHTML;
     }
 </script>
