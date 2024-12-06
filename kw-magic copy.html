@@ -877,7 +877,7 @@
             <div class="column" id="selected" style="display:none;">
                 <h2>Selected</h2>
                 <textarea id="selectedText" rows="20"></textarea><br>
-                <button id="generateSem" onclick="generateGoogle()">Step 3: Generate</button>
+                <button id="generateSem" onclick="generateGoogle()">Step 3: Select checkboxes then click here</button>
                 <h2>Generated</h2>
                 <div id="generated"></div>
             </div>
@@ -911,7 +911,6 @@
             </div>
             <div id="initial-table"></div>
             <div id="comparison-results"></div>
-            <div id="analysis-data"></div>
         </div>
 
         <hr>
@@ -1303,9 +1302,10 @@
                 try {
                     //const outputTableHTML = createHTMLTableFromJSON(comparisonData.body.output); // Parse JSON string to object
                     const outputTableHTML = createAnalysisTable(comparisonData.body.output, keyword, urls)
-
+                    document.getElementById('initial-table').innerHTML = "";
                     document.getElementById('initial-table').innerHTML = `<div id="tableContainer">${outputTableHTML}</div>`;
                     resultsDiv.innerHTML += `<pre>${recommendation}</pre>`;
+                    console.log('refresh succesful');
 
                     // 4. Apply gradients (no change needed)
                     applyGradientsToRows();
@@ -2497,11 +2497,11 @@
                     generatedData[key] = generatedData[key].concat(body[key]); // Concatenate new data
                 }
                 displaySemGeneratedData(); // Call function to update HTML
-                document.getElementById("generateSem").innerText = "Step 3: Generate";
+                document.getElementById("generateSem").innerText = "Step 3: Select checkboxes then click here";
             } catch (error) {
                 console.error("Error:", error);
                 document.getElementById("generated").innerText = "An error occurred. Please check the console for details.";
-                document.getElementById("generateSem").innerText = "Step 3: Generate";
+                document.getElementById("generateSem").innerText = "Step 3: Select checkboxes then click here";
             }
         }
         function displaySemGeneratedData() {
