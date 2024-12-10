@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Keyword Rank Checker</title>
+    <style>
+        table,
+        th,
+        td {
+            border: 1px solid black;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 5px;
+            text-align: left;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Keyword Rank Checker</h1>
+
+    <form id="keywordForm">
+        Target URL: <input type="text" name="target" id="target" required><br><br>
+        Language: <input type="text" name="language" id="language" required><br><br>
+        Location: <input type="text" name="location" id="location" required><br><br>
+        <input type="submit" value="Submit">
+    </form>
+
+    <br>
+
+    <table id="keywordTable">
+        <tr>
+            <th>Keyword</th>
+            <th>Search Volume</th>
+            <th>Competition</th>
+            <th>Rank</th>
+        </tr>
+    </table>
+
+    <br> <!-- Space between tables -->
+
+    <table id="top100Table">
+        <tr>
+            <th>Keyword</th>
+            <th>Search Volume</th>
+            <th>Competition</th>
+            <th>Rank</th>
+        </tr>
+    </table>
+
+    <script>
+        const form = document.getElementById('keywordForm');
+        const keywordTable = document.getElementById('keywordTable');
+        const top100Table = document.getElementById('top100Table'); // Get the second table
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const target = document.getElementById('target').value;
+            const language = document.getElementById('language').value;
+            const location = document.getElementById('location').value;
+
+            const apiUrl = 'https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite';
+            const requestBody = {
+                location: location,
+                language: language,
+                target: target
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Clear existing table rows (except header)
+                while (keywordTable.rows.length > 1) {
+                    keywordTable.deleteRow(1);
+                }
+
+                // Clear top100Table rows (except header) before new data is added
+                while (top100Table.rows.length > 1) {
+                    top100Table.deleteRow(1);
+                }
+
+
+                const rankCheckerPromises = []; // Store promises for rank checking API calls
+
+                for (const keyword in data) {
+                    const row = keywordTable.insertRow();
+                    const keywordCell = row.insertCell();
+                    const volumeCell = row.insertCell();
+                    const competitionCell = row.insertCell();
+                    const rankCell = row.insertCell(); // New cell for rank
+
+                    keywordCell.innerHTML = keyword;
+                    volumeCell.innerHTML = data[keyword].search_volume;
+                    competitionCell.innerHTML = data[keyword].competition || "N/A"; // Handle null competition
+
+                    // Make rank checker API call and update rankCell when resolved
+                    const rankCheckerApiUrl = 'https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker';
+                    const rankRequestBody = {
+                        keyword: keyword,
+                        language: language,
+                        location: location,
+                        target: target
+                    };
+
+                    const rankPromise = fetch(rankCheckerApiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(rankRequestBody)
+                    }).then(res => {
+                        if (!res.ok) {
+                            throw new Error(`Rank checker HTTP error! status: ${res.status}`);
+                        }
+                        return res.json();
+                    }).then(rankData => {
+                        rankCell.innerHTML = rankData || 999; // Handle cases where rank is unavailable
+
+                        const rank = parseInt(rankData); // Parse rankData to integer
+                        if (rank >= 1 && rank <= 100) {
+                            const top100Row = top100Table.insertRow();
+                            const top100KeywordCell = top100Row.insertCell();
+                            const top100VolumeCell = top100Row.insertCell();
+                            const top100CompetitionCell = top100Row.insertCell();
+                            const top100RankCell = top100Row.insertCell();
+
+
+                            top100KeywordCell.innerHTML = keyword;
+                            top100VolumeCell.innerHTML = data[keyword].search_volume;
+                            top100CompetitionCell.innerHTML = data[keyword].competition || "N/A";
+                            top100RankCell.innerHTML = rank;
+                        }
+                    }).catch(error => {
+                        console.error('Error checking rank:', error);
+                        rankCell.innerHTML = "Error"; // Indicate an error in the rank cell
+                    });
+                    rankCheckerPromises.push(rankPromise);
+                }
+                // Wait for all rank checking API calls to complete
+                await Promise.all(rankCheckerPromises);
+
+
+            } catch (error) {
+                console.error('Error fetching keyword data:', error);
+                // Display error message in the table or elsewhere on the page
+                keywordTable.innerHTML = "<tr><td>Error fetching data.</td></tr>";
+
+            }
+        });
+
+
+    </script>
+
+</body>
+
+</html>
