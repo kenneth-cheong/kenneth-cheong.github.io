@@ -568,7 +568,7 @@
                 <div>
                     <label-fixed for="domain">Targeted Domain / URL:</label-fixed>
                     <input type="url" id="domain" name="domain" required
-                        placeholder="Domain: example.com | Webpage: https://www.example.com/"> 
+                        placeholder="Domain: example.com | Webpage: https://www.example.com/">
                     <span class="error" id="domainError"></span>
                 </div>
                 <div>
@@ -617,6 +617,24 @@
                 <button type="button" id="ranking" onclick="rankingKeywords()">Get Ranking Keywords</button>
             </form>
             <div id="rankingError"></div>
+            <table id="keywordTable" style="display: none;">
+                <tr>
+                    <th>Keyword</th>
+                    <th>Search Volume</th>
+                    <th>Competition</th>
+                    <th>Rank</th>
+                </tr>
+            </table>
+
+            <table id="top100Table" style="display: none;">
+                <tr>
+                    <th>Keyword</th>
+                    <th>Search Volume</th>
+                    <th>Competition</th>
+                    <th>Rank</th>
+                </tr>
+            </table>
+
         </div>
 
         <div class="column">
@@ -1623,74 +1641,29 @@
             const rankedKeywordList = document.getElementById('rankedKeywordList');
             rankedKeywordList.innerHTML = ''; // Clear previous keywords
 
-            const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column'));
+            const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column')); 
 
             // Convert the object to an array of objects, suitable for sorting
             const rankedKeywordsArray = Object.entries(rankedKeywordsData).map(([keyword, data]) => ({
                 keyword: keyword,
                 search_volume: data.search_volume,
                 rank: data.rank,
-                difficulty: data.difficulty // Add difficulty here later if available
+                difficulty: data.difficulty
             }));
 
             rankedKeywordsArray.forEach((item, index) => {
-
-                const listItem = document.createElement('li');
-                listItem.classList.add('keyword-row');
-
-                // Keyword column
-                const keywordDiv = document.createElement('div');
-                keywordDiv.classList.add('keyword-column');
-                keywordDiv.style.width = `${headerCells[0].offsetWidth}px`;
-                keywordDiv.textContent = item.keyword;
-                listItem.appendChild(keywordDiv);
-
-                // Search Volume column
-                const searchVolumeDiv = document.createElement('div');
-                searchVolumeDiv.classList.add('keyword-column');
-                searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`;
-                searchVolumeDiv.textContent = item.search_volume || '-';
-                listItem.appendChild(searchVolumeDiv);
-
-
-                // Rank column
-                const rankDiv = document.createElement('div');
-                rankDiv.classList.add('keyword-column');
-                rankDiv.style.width = `${headerCells[2].offsetWidth}px`;
-                rankDiv.textContent = item.rank || '-';
-                listItem.appendChild(rankDiv);
-
-
-                // Difficulty column (placeholder for now)
-                const difficultyDiv = document.createElement('div');
-                difficultyDiv.classList.add('keyword-column');
-                difficultyDiv.style.width = `${headerCells[3].offsetWidth}px`;
-                difficultyDiv.textContent = item.difficulty || '-'; // Display '-' or the actual value if you get it later
-                listItem.appendChild(difficultyDiv);
-
-
-                // Checkbox column (keep existing style)
-                const checkboxDiv = document.createElement('div');
-                checkboxDiv.classList.add('checkbox-column');
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.name = `chk${index + 1}`; // Use index for unique names
-                checkbox.id = `chk${index + 1}`;
-                checkbox.value = item.keyword;
-                checkbox.checked = false;
-                checkboxDiv.appendChild(checkbox);
-                listItem.appendChild(checkboxDiv);
-
-                checkbox.addEventListener('change', updateKeywordsField);
-
-                rankedKeywordList.appendChild(listItem);
+                appendRankedKeyword(item, index, headerCells, rankedKeywordList); // Use the function for appending
             });
 
             rankedKeywordList.innerHTML += '<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Get More Keywords</button>';
-
         }
 
-        function getMoreRanked() {
+
+        const keywordTable = document.getElementById('keywordTable');
+        const top100Table = document.getElementById('top100Table');
+
+        async function getMoreRanked() {
+            document.getElementById('rankedKeywordList').innerHTML = document.getElementById('rankedKeywordList').innerHTML.replace('<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Get More Keywords</button>','<button type="button" disabled id="get-more-keywords-button" onclick="getMoreRanked()">Getting Keywords</button>')
             const target = document.getElementById('domain').value;
             const language = document.getElementById('language').value;
             const location = document.getElementById('location').value;
@@ -1702,6 +1675,161 @@
                 target: target
             };
 
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Clear existing table rows (except header)
+                while (keywordTable.rows.length > 1) {
+                    keywordTable.deleteRow(1);
+                }
+
+                // Clear top100Table rows (except header) before new data is added
+                while (top100Table.rows.length > 1) {
+                    top100Table.deleteRow(1);
+                }
+
+
+                const rankCheckerPromises = []; // Store promises for rank checking API calls
+
+                for (const keyword in data) {
+                    const row = keywordTable.insertRow();
+                    const keywordCell = row.insertCell();
+                    const volumeCell = row.insertCell();
+                    const competitionCell = row.insertCell();
+                    const rankCell = row.insertCell(); // New cell for rank
+
+                    keywordCell.innerHTML = keyword;
+                    volumeCell.innerHTML = data[keyword].search_volume;
+                    competitionCell.innerHTML = data[keyword].competition || "N/A"; // Handle null competition
+
+                    // Make rank checker API call and update rankCell when resolved
+                    const rankCheckerApiUrl = 'https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker';
+                    const rankRequestBody = {
+                        keyword: keyword,
+                        language: language,
+                        location: location,
+                        target: target
+                    };
+
+                    const rankPromise = fetch(rankCheckerApiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(rankRequestBody)
+                    }).then(res => {
+                        if (!res.ok) {
+                            throw new Error(`Rank checker HTTP error! status: ${res.status}`);
+                        }
+                        return res.json();
+                    }).then(rankData => {
+                        rankCell.innerHTML = rankData || 999; // Handle cases where rank is unavailable
+
+                        const rank = parseInt(rankData); // Parse rankData to integer
+                        if (rank >= 1 && rank <= 100) {
+                            const top100Row = top100Table.insertRow();
+                            const top100KeywordCell = top100Row.insertCell();
+                            const top100VolumeCell = top100Row.insertCell();
+                            const top100CompetitionCell = top100Row.insertCell();
+                            const top100RankCell = top100Row.insertCell();
+
+                            top100KeywordCell.innerHTML = keyword;
+                            top100VolumeCell.innerHTML = data[keyword].search_volume;
+                            top100CompetitionCell.innerHTML = data[keyword].competition || "N/A";
+                            top100RankCell.innerHTML = rank;
+
+                            const rankedKeywordList = document.getElementById('rankedKeywordList');
+                            const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column')); 
+                            rankedKeywordList.innerHTML = rankedKeywordList.innerHTML.replace('<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Get More Keywords</button>', '');
+
+                            // Append to rankedKeywordList (using a separate function for clarity)
+                            appendRankedKeyword({ // Pass data as an object
+                                keyword: keyword,
+                                search_volume: data[keyword].search_volume,
+                                rank: rank, // Use the parsed rank value
+                                difficulty: data[keyword].competition || "N/A"
+                            }, rankedKeywordList.children.length, headerCells, rankedKeywordList); // Use children.length to get correct index
+                        }
+                    }).catch(error => {
+                        console.error('Error checking rank:', error);
+                        rankCell.innerHTML = "Error"; // Indicate an error in the rank cell
+                    });
+                    rankCheckerPromises.push(rankPromise);
+                }
+                // Wait for all rank checking API calls to complete
+                await Promise.all(rankCheckerPromises);
+
+
+            } catch (error) {
+                console.error('Error fetching keyword data:', error);
+                // Display error message in the table or elsewhere on the page
+                keywordTable.innerHTML = "<tr><td>Error fetching data.</td></tr>";
+
+            }
+
+        }
+
+        function appendRankedKeyword(item, index, headerCells, rankedKeywordList) {
+            const listItem = document.createElement('li');
+            listItem.classList.add('keyword-row');
+
+            // Keyword column
+            const keywordDiv = document.createElement('div');
+            keywordDiv.classList.add('keyword-column');
+            keywordDiv.style.width = `${headerCells[0].offsetWidth}px`; // Dynamic width from header
+            keywordDiv.textContent = item.keyword;
+            listItem.appendChild(keywordDiv);
+
+            // Search Volume column
+            const searchVolumeDiv = document.createElement('div');
+            searchVolumeDiv.classList.add('keyword-column');
+            searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`; // Dynamic width
+            searchVolumeDiv.textContent = item.search_volume || '-';
+            listItem.appendChild(searchVolumeDiv);
+
+            // Rank column
+            const rankDiv = document.createElement('div');
+            rankDiv.classList.add('keyword-column');
+            rankDiv.style.width = `${headerCells[2].offsetWidth}px`; // Dynamic width
+            rankDiv.textContent = item.rank || '-';
+            listItem.appendChild(rankDiv);
+
+            // Difficulty column
+            const difficultyDiv = document.createElement('div');
+            difficultyDiv.classList.add('keyword-column');
+            difficultyDiv.style.width = `${headerCells[3].offsetWidth}px`; // Dynamic width
+            difficultyDiv.textContent = item.difficulty || '-';
+            listItem.appendChild(difficultyDiv);
+
+
+            // Checkbox column
+            const checkboxDiv = document.createElement('div');
+            checkboxDiv.classList.add('checkbox-column');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.name = `chk${index + 1}`; // Unique name
+            checkbox.id = `chk${index + 1}`;
+            checkbox.value = item.keyword;
+            checkbox.checked = false;
+            checkbox.addEventListener('change', updateKeywordsField);  // Attach listener here
+            checkboxDiv.appendChild(checkbox);
+            listItem.appendChild(checkboxDiv);
+
+            rankedKeywordList.appendChild(listItem);
+
+            document.getElementById('rankedKeywordList').innerHTML = document.getElementById('rankedKeywordList').innerHTML.replace('<button type="button" disabled id="get-more-keywords-button" onclick="getMoreRanked()">Getting Keywords</button>','');
         }
 
         function displaySimilarKeywords(keywordsData) {
