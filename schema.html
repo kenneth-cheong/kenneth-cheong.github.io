@@ -544,6 +544,25 @@
             width: 400px;
             height: auto;
         }
+
+        .faq-item {
+            display: flex;
+            align-items: flex-start;
+            /* Align to top */
+            margin-bottom: 10px;
+        }
+
+        .faq-item input,
+        .faq-item textarea {
+            flex-grow: 1;
+            margin-right: 10px;
+            min-width: 0;
+            /* Prevent inputs from taking minimum width */
+        }
+
+        .faq-item textarea {
+            min-height: 80px;
+        }
     </style>
 </head>
 
@@ -600,13 +619,31 @@
 </script>
 
     <script id="breadcrumblist-template" type="text/x-handlebars-template">
-    <label for="itemListElement">Item List Element (JSON-LD):</label><textarea id="itemListElement" oninput="updateSchema()"></textarea><br>
-    *(This needs to be structured JSON-LD representing your breadcrumbs)
-</script>
+    <div id="breadcrumb-items">
+        <div class="breadcrumb-item">
+            <input type="text" id="name1" placeholder="Page #1's name" oninput="updateSchema()">
+            <input type="url" id="url1" placeholder="URL #1" oninput="updateSchema()">
+            <button class="remove-item" onclick="removeItem(this)">x</button>
+        </div>
+        <div class="breadcrumb-item">
+            <input type="text" id="name2" placeholder="Page #2's name" oninput="updateSchema()">
+            <input type="url" id="url2" placeholder="URL #2" oninput="updateSchema()">
+             <button class="remove-item" onclick="removeItem(this)">x</button>
+        </div>
+    </div>
+    <button onclick="addItem()"> + ADD URL </button>
+
+  </script>
 
     <script id="faqpage-template" type="text/x-handlebars-template">
-  <label for="mainEntity">Main Entity (Array of Questions & Answers - JSON-LD):</label><textarea id="mainEntity" oninput="updateSchema()"></textarea><br>
-    * Example:  `[{"@type": "Question", "name": "Question 1?", "acceptedAnswer": {"@type": "Answer", "text": "Answer 1."}}, ...]`
+    <div id="faq-items">
+        <div class="faq-item">
+            <input type="text" id="question1" placeholder="Question #1" oninput="updateSchema()">
+            <textarea id="answer1" placeholder="Answer" oninput="updateSchema()"></textarea>
+            <button class="remove-item" onclick="removeFaqItem(this)">x</button> <br>
+        </div>
+    </div>
+    <button onclick="addFaqItem()">+ ADD QUESTION</button>
 </script>
 
     <script id="howto-template" type="text/x-handlebars-template">
@@ -624,7 +661,6 @@
     <label for="employmentType">Employment Type:</label><input type="text" id="employmentType" oninput="updateSchema()"><br>
     <label for="hiringOrganization">Hiring Organization (Name):</label><input type="text" id="hiringOrganization_name" oninput="updateSchema()"><br>
    <label for="hiringOrganization">Hiring Organization (Website):</label><input type="url" id="hiringOrganization_sameAs" oninput="updateSchema()"><br>
-    <!-- Add more JobPosting fields as needed -->
   </script>
 
 
@@ -632,13 +668,11 @@
     <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
     <label for="url">URL:</label><input type="url" id="url" oninput="updateSchema()"><br>
     <label for="logo">Logo URL:</label><input type="url" id="logo" oninput="updateSchema()"><br>
-    <!-- Add more Organization fields as needed -->
   </script>
 
     <script id="person-template" type="text/x-handlebars-template">
     <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
     <label for="jobTitle">Job Title:</label><input type="text" id="jobTitle" oninput="updateSchema()"><br>
-  
   
   </script>
 
@@ -675,6 +709,62 @@
             "Website": Handlebars.compile(document.getElementById('website-template').innerHTML),
         }
 
+        let faqItemCount = 1;
+
+
+        function addFaqItem() {
+            faqItemCount++;
+            const faqItemsDiv = document.getElementById('faq-items');
+            const newFaqItem = document.createElement('div');
+            newFaqItem.className = "faq-item";
+            newFaqItem.innerHTML = `
+            <input type="text" id="question${faqItemCount}" placeholder="Question #${faqItemCount}" oninput="updateSchema()">
+            <textarea id="answer${faqItemCount}" placeholder="Answer" oninput="updateSchema()"></textarea>
+            <button class="remove-item" onclick="removeFaqItem(this)">x</button> <br>
+        `;
+            faqItemsDiv.appendChild(newFaqItem);
+
+            // Attach event listeners to new FAQ elements:
+            newFaqItem.querySelectorAll('input, textarea').forEach(element => {
+                element.addEventListener('input', updateSchema);
+            });
+            updateSchema();
+        }
+
+
+        function removeFaqItem(button) {
+            const item = button.parentNode;
+            item.remove();
+            updateSchema(); // Update the schema after removing an item
+        }
+
+        let breadcrumbItemCount = 2; // Start with 2 items
+        function addItem() {
+            breadcrumbItemCount++;
+            const breadcrumbItemsDiv = document.getElementById('breadcrumb-items');
+            const newItem = document.createElement('div');
+            newItem.className = "breadcrumb-item";
+            newItem.innerHTML = `
+            <input type="text" id="name${breadcrumbItemCount}" placeholder="Page #${breadcrumbItemCount}'s name" oninput="updateSchema()">
+            <input type="url" id="url${breadcrumbItemCount}" placeholder="URL #${breadcrumbItemCount}" oninput="updateSchema()">
+            <button class="remove-item" onclick="removeItem(this)">x</button>
+        `;
+            breadcrumbItemsDiv.appendChild(newItem);
+
+            // Attach event listeners to new elements
+            newItem.querySelectorAll('input').forEach(input => {
+                input.addEventListener('input', updateSchema);
+            });
+
+            updateSchema();
+        }
+
+        function removeItem(button) {
+            const item = button.parentNode;
+            item.remove();
+            updateSchema();
+        }
+
         function updateSchema() {
             const selectedType = schemaTypeSelect.value;
             const data = {};
@@ -698,6 +788,57 @@
                 }
                 if (selectedType === "BreadcrumbList" && data.itemListElement) {
                     schema.itemListElement = JSON.parse(data.itemListElement);
+                }
+
+                if (selectedType === "BreadcrumbList") {
+                    const itemListElement = [];
+
+                    for (let i = 1; i <= breadcrumbItemCount; i++) {
+                        const name = document.getElementById(`name${i}`);
+                        const url = document.getElementById(`url${i}`);
+
+                        if (name && url && name.value && url.value) {
+                            itemListElement.push({
+                                "@type": "ListItem",
+                                "position": i,
+                                "name": name.value,
+                                "item": url.value
+                            });
+                        }
+
+                    }
+                    if (itemListElement.length > 0) {
+                        schema.itemListElement = itemListElement;
+                    }
+
+                }
+
+
+                if (selectedType === "FAQPage") {
+                    const mainEntity = [];
+
+
+                    for (let i = 1; document.getElementById(`question${i}`); i++) {
+                        const question = document.getElementById(`question${i}`).value;
+                        const answer = document.getElementById(`answer${i}`).value;
+
+                        if (question && answer) {  // Make sure both question and answer are filled
+                            mainEntity.push({
+                                "@type": "Question",
+                                "name": question,
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": answer
+                                }
+                            });
+                        }
+
+                    }
+
+                    if (mainEntity.length > 0) { // Only add mainEntity if there are FAQ items
+                        schema.mainEntity = mainEntity;
+                    }
+
                 }
 
                 schemaOutputDiv.textContent = '<script type="application/ld+json">\n' + JSON.stringify(schema, null, 2) + '\n<\/script>';
