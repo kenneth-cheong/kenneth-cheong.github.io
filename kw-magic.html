@@ -664,7 +664,7 @@
             <button class="collapsible" id="ranking_keywords">Ranking Keywords</button>
             <div class="content" id="rankingKeywords">
                 <div id="keywordListContainer">
-                    <h3 id= "rankedKeywordsCount">Ranked Keywords:</h3>
+                    <h3 id="rankedKeywordsCount">Ranked Keywords:</h3>
                     <div class="keyword-row" id="rankedKeywordHeaderRow">
                         <div class="keyword-column" onclick="sortRankedKeywords(0)">
                             <strong>Keyword</strong>
@@ -1641,7 +1641,7 @@
             const rankedKeywordList = document.getElementById('rankedKeywordList');
             rankedKeywordList.innerHTML = ''; // Clear previous keywords
 
-            const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column')); 
+            const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column'));
 
             // Convert the object to an array of objects, suitable for sorting
             const rankedKeywordsArray = Object.entries(rankedKeywordsData).map(([keyword, data]) => ({
@@ -1655,6 +1655,8 @@
                 appendRankedKeyword(item, index, headerCells, rankedKeywordList); // Use the function for appending
             });
 
+            updateRankedKeywordsCount();
+
             rankedKeywordList.innerHTML += '<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Get More Keywords</button>';
         }
 
@@ -1663,7 +1665,7 @@
         const top100Table = document.getElementById('top100Table');
 
         async function getMoreRanked() {
-            document.getElementById('rankedKeywordList').innerHTML = document.getElementById('rankedKeywordList').innerHTML.replace('<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Get More Keywords</button>','<button type="button" disabled id="get-more-keywords-button" onclick="getMoreRanked()">Getting Keywords</button>')
+            document.getElementById('rankedKeywordList').innerHTML = document.getElementById('rankedKeywordList').innerHTML.replace('<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Get More Keywords</button>', '<button type="button" disabled id="get-more-keywords-button" onclick="getMoreRanked()">Getting Keywords</button>')
             const target = document.getElementById('domain').value;
             const language = document.getElementById('language').value;
             const location = document.getElementById('location').value;
@@ -1751,7 +1753,8 @@
                             top100RankCell.innerHTML = rank;
 
                             const rankedKeywordList = document.getElementById('rankedKeywordList');
-                            const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column')); 
+                            const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column'));
+                            const currentKeywordCount = rankedKeywordList.querySelectorAll('li.keyword-row').length; //Correct length
                             rankedKeywordList.innerHTML = rankedKeywordList.innerHTML.replace('<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Get More Keywords</button>', '');
 
                             // Append to rankedKeywordList (using a separate function for clarity)
@@ -1828,8 +1831,9 @@
             listItem.appendChild(checkboxDiv);
 
             rankedKeywordList.appendChild(listItem);
+            updateRankedKeywordsCount();
 
-            document.getElementById('rankedKeywordList').innerHTML = document.getElementById('rankedKeywordList').innerHTML.replace('<button type="button" disabled id="get-more-keywords-button" onclick="getMoreRanked()">Getting Keywords</button>','');
+            document.getElementById('rankedKeywordList').innerHTML = document.getElementById('rankedKeywordList').innerHTML.replace('<button type="button" disabled id="get-more-keywords-button" onclick="getMoreRanked()">Getting Keywords</button>', '');
         }
 
         function displaySimilarKeywords(keywordsData) {
@@ -1886,6 +1890,14 @@
 
                 keywordList.appendChild(listItem);
             });
+        }
+
+        function updateRankedKeywordsCount() {
+            const rankedKeywordList = document.getElementById('rankedKeywordList');
+            const count = rankedKeywordList.querySelectorAll('li.keyword-row').length; // Count only the keyword rows (li elements)
+            const heading = document.getElementById('rankedKeywordsCount');
+            heading.textContent = `Ranked Keywords (${count}):`; // Update the heading text
+
         }
 
         function updateKeywordsField() {
