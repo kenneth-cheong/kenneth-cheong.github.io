@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Schema Markup Generator</title>
+    <script src="https://cdn.jsdelivr.net/npm/handlebars@latest/dist/handlebars.js"></script>
+    <style>
+        #schema-output {
+            white-space: pre-wrap;
+            /* Allow line breaks */
+            border: 1px solid #ccc;
+            padding: 10px;
+            font-family: monospace;
+        }
+
+        #navbar a i {
+            margin-right: 5%;
+            /* Adjust spacing as needed */
+        }
+
+        #navbar {
+            width: 15%;
+            background-color: #004c9d;
+            color: white;
+            padding: 10px;
+            position: fixed;
+            height: 100%;
+            overflow-y: auto;
+            border-radius: 10px;
+            transition: width 0.3s;
+        }
+
+        /* Styles for smaller screens (e.g., mobile) */
+        @media screen and (max-width: 768px) {
+            #navbar {
+                width: 60px;
+                /* Reduced width for smaller screens */
+            }
+
+            #navbar img {
+                width: 100%;
+                /* Smaller logo */
+            }
+
+            #navbar span {
+                display: none;
+                /* Hide text labels */
+            }
+
+            #main-content {
+                margin-left: 80px;
+                /* Adjusted margin for smaller navbar */
+            }
+        }
+
+        #navbar img {
+            display: block;
+            width: 80%;
+            margin-left: auto;
+            margin-right: auto;
+            margin-bottom: 10%;
+            margin-top: 10%;
+        }
+
+        #navbar a {
+            display: block;
+            padding: 10px 15px;
+            color: white;
+            text-decoration: none;
+            transition: background-color 0.3s;
+        }
+
+        #navbar a:hover {
+            background-color: #0056b3;
+        }
+
+        /* Adjust main content area to accommodate the navbar */
+        #main-content {
+            flex: 1;
+            /* Allow main content to take up remaining space */
+            margin-left: 17%;
+            /* Adjust margin to create space for navbar */
+            padding: 20px;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 10px;
+            background-color: #fbf7f5;
+            color: #333;
+            text-wrap: wrap;
+        }
+
+        input,
+        select,
+        button,
+        textarea {
+            padding: 10px;
+            margin: 10px;
+            border-radius: 10px;
+            border: 1px solid #c8c8c8;
+            font-family: inherit;
+            font-size: 16px;
+        }
+
+        button {
+            transition: background-color 0.3s, transform 0.1s;
+            /* Add transform for a subtle lift effect */
+            background-color: #c8c9ca;
+        }
+
+        button:hover {
+            background-color: #004c9d;
+            /* Darker blue on hover */
+            transform: translateY(-2px);
+            /* Move up slightly on hover */
+            cursor: pointer;
+            /* Change cursor to a pointer on hover */
+            color: white;
+        }
+
+        input {
+            min-width: 90%;
+        }
+
+        .input-short {
+            min-width: 30%;
+        }
+
+        textarea {
+            min-width: 90%;
+            min-height: 50px;
+            max-width: 90%;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            background-color: #fffef7;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 6px;
+            table-layout: auto;
+            display: block;
+            table-layout: fixed;
+            overflow-y: scroll;
+        }
+
+        #crawlerReport table {
+            height: 600px;
+        }
+
+        .hidden-table {
+            display: none;
+        }
+
+        th {
+            resize: horizontal;
+        }
+
+        #crawlerReport th,
+        #crawlerReport td {
+            width: 10%;
+            /* Adjust as needed for column distribution */
+            overflow-x: auto;
+            /* white-space: nowrap; Prevent text from wrapping */
+            max-width: 200px;
+            /* Adjust as needed */
+            overflow-x: auto;
+            vertical-align: top;
+        }
+
+        th,
+        td {
+            padding: 12px 8px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+            background-color: white;
+            overflow: hidden;
+        }
+
+        th {
+            background-color: #004c9d;
+            position: sticky;
+            color: white;
+            top: 0;
+        }
+
+        .error {
+            color: red;
+            margin-left: 10px;
+        }
+
+        .collapsible {
+            background-color: #004c9d;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            padding: 20px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 18px;
+            transition: background-color 0.3s ease;
+        }
+
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+
+        .collapsible-loading {
+            background-color: #ffad33;
+        }
+
+        .content {
+            display: none;
+            padding: 20px;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-top: none;
+            border-radius: 10px;
+        }
+
+        button.sort-button {
+            padding: 3px 6px;
+            font-size: 12px;
+            margin-left: 5px;
+            background-color: #286b37;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button.sort-button:hover {
+            background-color: #218838;
+        }
+
+        hr {
+            border-top: 4px solid rgb(95, 103, 154);
+            border-radius: 7px;
+            width: 100%;
+        }
+
+        .header-container {
+            display: flex;
+            align-items: center;
+            /* Vertically center the items in the container */
+            margin: 20px 0;
+            /* Add some margin for spacing around the header */
+            background-color: black;
+            height: 70px;
+            border-radius: 10px;
+        }
+
+        .header-container img {
+            margin-right: 15px;
+            /* Space between the image and the text */
+            width: 75px;
+            /* Adjust the width as needed */
+            height: auto;
+            /* Maintain aspect ratio */
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 4px solid #f3f3f3;
+            /* Light grey */
+            border-top: 4px solid #3498db;
+            /* Blue */
+            border-radius: 50%;
+            animation: spin 2s linear infinite;
+        }
+
+        p,
+        h1,
+        h2,
+        h3 {
+            text-wrap: wrap;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        h2 {
+            margin-top: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            /* Removes default margin */
+            font-size: 36px;
+            /* Optional: Adjust font size as needed */
+        }
+
+        #keywordListContainer {
+            display: flex;
+            /* Enable Flexbox layout for columns */
+            flex-direction: column;
+            /* Stack columns vertically */
+            max-width: 100%;
+            padding: 2px;
+        }
+
+        #keywordListContainer h3 {
+            font-size: 1em;
+            margin-top: 0;
+            /* Reduce default margin */
+        }
+
+        .keyword-row {
+            /* Style each row */
+            display: flex;
+            /* Use Flexbox for each row */
+            align-items: center;
+            /* Vertically center content in each row */
+            margin-bottom: 5px;
+            max-width: 65%;
+        }
+
+        .keyword-column {
+            /* Style for each column */
+            flex: 1;
+            /* Each column takes equal width */
+            margin-right: 5px;
+            /* Space between columns */
+            min-width: 50px;
+        }
+
+        .keyword-column:hover {
+            font-size: 1.1em;
+            cursor: pointer;
+        }
+
+        .keyword-column:nth-child(1) {
+            /* Keyword column */
+            flex: 0 0 60%;
+        }
+
+        .keyword-column:nth-child(2) {
+            /* Search Volume column */
+            flex: 0 0 30%;
+        }
+
+        .keyword-column:nth-child(3) {
+            /* Difficulty column */
+            flex: 0 0 22%;
+        }
+
+        input[type="checkbox"] {
+            width: 3em;
+        }
+
+
+        .checkbox-column {
+            flex: 0 0 5%;
+            margin-right: 0;
+        }
+
+        .column {
+            float: left;
+            width: 50%;
+        }
+
+        ul {
+            max-height: 350px;
+            overflow: auto;
+            width: 100%;
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            background-color: Window;
+        }
+
+        li {
+            margin: 5px;
+            padding: 0px;
+            align-items: left;
+        }
+
+        label,
+        label-fixed {
+            color: WindowText;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+        }
+
+        .label-short {
+            width: 100%;
+        }
+
+        .close {
+            color: #aaa;
+            float: left;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        #auditSummary table {
+            width: 50%;
+            float: right;
+            padding: 20px;
+            height: 600px;
+        }
+
+        /* Table styling */
+        #analysisTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            /* Remove display: block and table-layout: fixed  */
+            max-height: 700px;
+            /* Or whatever max height you want */
+            overflow: auto;
+            /* Scrollbars appear only when needed */
+        }
+
+        #analysisTable a {
+            color: white;
+        }
+
+        #analysisTable th,
+        #analysisTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            word-wrap: break-word;
+            vertical-align: top;
+            /* Align content to the top of each cell */
+        }
+
+        /* Make the table scrollable if it's too wide */
+        #tableContainer {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        #SEM .column {
+            width: 48%;
+            /* Adjust as needed */
+            float: left;
+            /* Float columns side by side */
+            margin-right: 2%;
+            /* Add spacing between columns */
+            box-sizing: border-box;
+            /* Include padding and border in width calculation */
+        }
+
+        #SEM .column:last-child {
+            margin-right: 0;
+            /* No margin on the last column */
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 3em;
+            height: 1.5em;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            -webkit-transition: .4s;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 1em;
+            width: 1em;
+            left: 3px;
+            bottom: 4px;
+            background-color: white;
+            -webkit-transition: .4s;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #004c9d;
+        }
+
+        input:focus+.slider {
+            box-shadow: 0 0 1px #004c9d;
+        }
+
+        input:checked+.slider:before {
+            -webkit-transform: translateX(26px);
+            -ms-transform: translateX(26px);
+            transform: translateX(26px);
+        }
+
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .toggle-label {
+            margin-right: 10px;
+        }
+
+        .toggle-label-right {
+            margin-left: 10px;
+        }
+
+        .header-container img {
+            margin-left: 20px;
+            width: 400px;
+            height: auto;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Schema Markup Generator</h1>
+
+    <label for="schema-type">Schema Type:</label>
+    <select id="schema-type">
+        <option value="LocalBusiness">Local Business</option>
+        <option value="Product">Product</option>
+        <option value="Event">Event</option>
+        <option value="Article">Article</option>
+        <option value="BreadcrumbList">Breadcrumb</option>
+        <option value="Event">Event</option>
+        <option value="FAQPage">FAQ Page</option>
+        <option value="HowTo">How-to</option>
+        <option value="JobPosting">Job Posting</option>
+        <option value="Organization">Organisation</option>
+        <option value="Person">Person</option>
+        <option value="Product">Product</option>
+        <option value="VideoObject">Video</option>
+        <option value="Website">Website</option>
+        <!-- Add more schema types as needed -->
+    </select>
+
+    <div id="input-fields"></div>
+    <div id="schema-output"></div>
+
+    <script id="local-business-template" type="text/x-handlebars-template">
+  <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+  <label for="address">Address:</label><input type="text" id="address" oninput="updateSchema()"><br>
+  <label for="telephone">Telephone:</label><input type="text" id="telephone" oninput="updateSchema()"><br>
+</script>
+
+    <script id="product-template" type="text/x-handlebars-template">
+    <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+    <label for="description">Description:</label><input type="text" id="description" oninput="updateSchema()"><br>
+    <label for="brand">Brand:</label><input type="text" id="brand" oninput="updateSchema()"><br>
+</script>
+
+    <script id="event-template" type="text/x-handlebars-template">
+    <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+    <label for="startDate">Start Date:</label><input type="date" id="startDate" oninput="updateSchema()"><br>
+    <label for="location">Location:</label><input type="text" id="location" oninput="updateSchema()"><br>
+    <label for="description">Description:</label><textarea id="description" oninput="updateSchema()"></textarea><br>
+</script>
+
+    <script id="article-template" type="text/x-handlebars-template">
+    <label for="headline">Headline:</label><input type="text" id="headline" oninput="updateSchema()"><br>
+    <label for="author">Author:</label><input type="text" id="author" oninput="updateSchema()"><br>
+    <label for="datePublished">Date Published:</label><input type="date" id="datePublished" oninput="updateSchema()"><br>
+    <label for="articleBody">Article Body:</label><textarea id="articleBody" oninput="updateSchema()"></textarea><br>
+</script>
+
+    <script id="breadcrumblist-template" type="text/x-handlebars-template">
+    <label for="itemListElement">Item List Element (JSON-LD):</label><textarea id="itemListElement" oninput="updateSchema()"></textarea><br>
+    *(This needs to be structured JSON-LD representing your breadcrumbs)
+</script>
+
+    <script id="faqpage-template" type="text/x-handlebars-template">
+  <label for="mainEntity">Main Entity (Array of Questions & Answers - JSON-LD):</label><textarea id="mainEntity" oninput="updateSchema()"></textarea><br>
+    * Example:  `[{"@type": "Question", "name": "Question 1?", "acceptedAnswer": {"@type": "Answer", "text": "Answer 1."}}, ...]`
+</script>
+
+    <script id="howto-template" type="text/x-handlebars-template">
+    <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+    <label for="description">Description:</label><textarea id="description" oninput="updateSchema()"></textarea><br>
+    <label for="supply">Supply (JSON-LD array of HowToSupply objects):</label><textarea id="supply" class="json-ld" oninput="updateSchema()"></textarea><br>
+    <label for="step">Steps (JSON-LD array of HowToStep objects):</label><textarea id="step" class="json-ld" oninput="updateSchema()"></textarea><br>
+    * See schema.org/HowTo for details on HowToSupply and HowToStep structure.
+  </script>
+
+    <script id="jobposting-template" type="text/x-handlebars-template">
+    <label for="title">Job Title:</label><input type="text" id="title" oninput="updateSchema()"><br>
+    <label for="description">Job Description:</label><textarea id="description" oninput="updateSchema()"></textarea><br>
+    <label for="datePosted">Date Posted:</label><input type="date" id="datePosted" oninput="updateSchema()"><br>
+    <label for="employmentType">Employment Type:</label><input type="text" id="employmentType" oninput="updateSchema()"><br>
+    <label for="hiringOrganization">Hiring Organization (Name):</label><input type="text" id="hiringOrganization_name" oninput="updateSchema()"><br>
+   <label for="hiringOrganization">Hiring Organization (Website):</label><input type="url" id="hiringOrganization_sameAs" oninput="updateSchema()"><br>
+    <!-- Add more JobPosting fields as needed -->
+  </script>
+
+
+    <script id="organization-template" type="text/x-handlebars-template">
+    <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+    <label for="url">URL:</label><input type="url" id="url" oninput="updateSchema()"><br>
+    <label for="logo">Logo URL:</label><input type="url" id="logo" oninput="updateSchema()"><br>
+    <!-- Add more Organization fields as needed -->
+  </script>
+
+    <script id="person-template" type="text/x-handlebars-template">
+    <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+    <label for="jobTitle">Job Title:</label><input type="text" id="jobTitle" oninput="updateSchema()"><br>
+  
+  
+  </script>
+
+
+    <script id="video-object-template" type="text/x-handlebars-template">
+      <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+      <label for="description">Description:</label><input type="text" id="description" oninput="updateSchema()"><br>
+      <label for="uploadDate">Upload Date:</label><input type="date" id="uploadDate" oninput="updateSchema()"><br>
+      <label for="thumbnailUrl">Thumbnail URL:</label><input type="url" id="thumbnailUrl" oninput="updateSchema()"><br>
+  </script>
+
+    <script id="website-template" type="text/x-handlebars-template">
+      <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+      <label for="url">URL:</label><input type="url" id="url" oninput="updateSchema()"><br>
+  </script>
+
+    <script>
+        const schemaTypeSelect = document.getElementById('schema-type');
+        const inputFieldsDiv = document.getElementById('input-fields');
+        const schemaOutputDiv = document.getElementById('schema-output');
+
+        const templates = {
+            "LocalBusiness": Handlebars.compile(document.getElementById('local-business-template').innerHTML),
+            "Product": Handlebars.compile(document.getElementById('product-template').innerHTML),
+            "Event": Handlebars.compile(document.getElementById('event-template').innerHTML),
+            "Article": Handlebars.compile(document.getElementById('article-template').innerHTML),
+            "BreadcrumbList": Handlebars.compile(document.getElementById('breadcrumblist-template').innerHTML),
+            "FAQPage": Handlebars.compile(document.getElementById('faqpage-template').innerHTML),
+            "HowTo": Handlebars.compile(document.getElementById('howto-template').innerHTML),
+            "JobPosting": Handlebars.compile(document.getElementById('jobposting-template').innerHTML),
+            "Organization": Handlebars.compile(document.getElementById('organization-template').innerHTML),
+            "Person": Handlebars.compile(document.getElementById('person-template').innerHTML),
+            "VideoObject": Handlebars.compile(document.getElementById('video-object-template').innerHTML),
+            "Website": Handlebars.compile(document.getElementById('website-template').innerHTML),
+        }
+
+        function updateSchema() {
+            const selectedType = schemaTypeSelect.value;
+            const data = {};
+
+            // Gather input values based on the selected schema type
+            for (const input of inputFieldsDiv.querySelectorAll('input')) {
+                data[input.id] = input.value;
+            }
+
+            try {
+
+                const schema = {
+                    "@context": "https://schema.org",
+                    "@type": selectedType,
+                    ...data // Spread the input data into the schema object
+                };
+
+                // Special handling for fields that require JSON-LD structures:
+                if (selectedType === "FAQPage" && data.mainEntity) {
+                    schema.mainEntity = JSON.parse(data.mainEntity);
+                }
+                if (selectedType === "BreadcrumbList" && data.itemListElement) {
+                    schema.itemListElement = JSON.parse(data.itemListElement);
+                }
+
+                schemaOutputDiv.textContent = '<script type="application/ld+json">\n' + JSON.stringify(schema, null, 2) + '\n<\/script>';
+
+            } catch (error) {
+                schemaOutputDiv.textContent = "Invalid JSON-LD input in one of the fields.";
+                console.error("JSON Parsing Error:", error);
+            }
+        }
+
+        schemaTypeSelect.addEventListener('change', () => {
+            const selectedType = schemaTypeSelect.value;
+            const template = templates[selectedType];
+
+            if (template) {
+                inputFieldsDiv.innerHTML = template();
+                updateSchema(); // Initial update after template render
+            } else {
+                inputFieldsDiv.innerHTML = ''; // Clear if no template exists
+                schemaOutputDiv.textContent = '';
+            }
+
+
+            // Add event listeners after rendering the template
+            inputFieldsDiv.querySelectorAll('input').forEach(input => {
+                input.addEventListener('input', updateSchema);
+            });
+        });
+
+        // Initial setup (trigger the change event once to populate fields for default type)
+        schemaTypeSelect.dispatchEvent(new Event('change'));
+
+    </script>
+</body>
+
+</html>
