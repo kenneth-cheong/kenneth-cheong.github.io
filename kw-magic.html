@@ -9,9 +9,19 @@
     <link rel="icon"
         href="https://mediaonemarketing.com.sg/wp-content/uploads/2023/11/cropped-MediaOne-M-favicon-logo-32x32.png"
         sizes="32x32">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="..." crossorigin="anonymous" referrerpolicy="no-referrer" />
+        <script src="https://cdn.jsdelivr.net/npm/handlebars@latest/dist/handlebars.js"></script>
     <style>
+       #schema-output {
+            white-space: pre-wrap;
+            /* Allow line breaks */
+            border: 1px solid #ccc;
+            padding: 10px;
+            font-family: monospace;
+        }
+
         #navbar a i {
-            margin-right: 5%;
+            margin-right: 2%;
             /* Adjust spacing as needed */
         }
 
@@ -541,6 +551,46 @@
             width: 400px;
             height: auto;
         }
+
+        .faq-item {
+            display: flex;
+            align-items: flex-start;
+            /* Align to top */
+            margin-bottom: 10px;
+        }
+
+        .faq-item input,
+        .faq-item textarea {
+            flex-grow: 1;
+            margin-right: 10px;
+            min-width: 0;
+            /* Prevent inputs from taking minimum width */
+        }
+
+        .faq-item textarea {
+            min-height: 80px;
+        }
+
+        #navbar ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            background-color: #004c9d;
+            max-height: None;
+        }
+
+        #navbar li {
+            padding-left: 10px; /* Base indentation */
+        }
+
+        #navbar li ul li {
+            padding-left: 20px; /* Increased indentation for sub-items */
+        }
+
+        /* You can add more levels as needed */
+        #navbar li ul li ul li {
+            padding-left: 30px;
+        }
     </style>
 </head>
 
@@ -548,308 +598,516 @@
     <nav id="navbar">
         <img src="https://static.mycareersfuture.gov.sg/images/company/logos/a42a0e5029fd642119584ecdc6218b3a/MEDIAONE%20BUSINESS%20GROUP%20PTE.%20LTD..png"
             alt="MediaOne SEO Agency Logo">
-        <a href="#keywordAnalysis"><i class="fas fa-chart-bar"></i> <span>Keyword Analysis</span></a>
-        <a href="#technicalSeo"><i class="fas fa-tools"></i> <span>Technical SEO</span></a>
-        <a href="#socialAudit"><i class="fas fa-share-alt"></i> <span>Social Media Audit</span></a>
-        <a href="#SEM"><i class="fas fa-ad"></i> <span>SEM</span></a>
-        <a href="#contentComparison"><i class="fa fa-search"></i> <span>Content Comparison</span></a>
-        <a href="#contentGenerator"><i class="fas fa-pen"></i> <span>Content Generator</span></a>
-        <a href=""><i class="fas fa-user"></i> <span>Account</span></a>
-    </nav>
+            <ul>
+                <li><a href="#seoSection"><i class="fas fa-search"></i> <span>SEO</span></a>
+                    <ul>
+                        <li><a href="#keywordAnalysis"><i class="fas fa-chart-bar"></i> <span>Keyword Analysis</span></a></li>
+                        <li><a href="#technicalSeo"><i class="fas fa-tools"></i> <span>Technical SEO</span></a></li>
+                        <li><a href="#contentComparison"><i class="fa fa-balance-scale"></i> <span>Content Comparison</span></a></li>
+                        <li><a href="#schema"><i class="fas fa-code"></i> <span>Schema Generator</span></a></li>
+                    </ul>
+                </li>
+                <li><a href="#socialMedia"><i class="fas fa-share-alt"></i> <span>SMM</span></a>
+                    <ul>
+                        <li><a href="#contentGenerator"><i class="fas fa-pen"></i> <span>Content Generator</span></a></li>
+                    </ul>
+                </li>
+                <li><a href="#SEM"><i class="fas fa-ad"></i> <span>SEM</span></a></li>
+            </ul>
+        </nav>
+        </nav>
     <div id="main-content">
         <div class="header-container">
             <img src="Digimetrics Logo-02.png">
         </div>
         <hr>
 
-        <!-- Input Form for User Data -->
-        <div class="column">
-            <form id="seoForm">
-                <div>
-                    <label-fixed for="domain">Targeted Domain / URL:</label-fixed>
-                    <input type="url" id="domain" name="domain" required
-                        placeholder="Domain: example.com | Webpage: https://www.example.com/">
-                    <span class="error" id="domainError"></span>
-                </div>
-                <div>
-                    <label-fixed for="location">Targeted Location or Country (required):</label-fixed>
-                    <select id="location" name="location" required>
-                        <option value="">Select a location</option>
-                        <option value="Singapore">Singapore</option>
-                        <option value="Malaysia">Malaysia</option>
-                        <option value="Thailand">Thailand</option>
-                        <option value="India">India</option>
-                        <option value="Indonesia">Indonesia</option>
-                        <option value="Japan">Japan</option>
-                        <option value="South Korea">South Korea</option>
-                        <option value="United States">United States</option>
-                        <option value="Vietnam">Vietnam</option>
+        <button class="collapsible" id="seo">Search Engine Optimisation (SEO)</button>
+        <div class="content" id="seoSection">
 
-                    </select>
-                </div>
-
-                <div>
-                    <label-fixed for="language">Language (required):</label-fixed>
-                    <select id="language" name="language" required>
-                        <option value="">Select a language</option>
-                        <option value="English">English</option>
-                        <option value="Chinese (Simplified)">Chinese (Simplified)</option>
-                        <option value="Chinese (Traditional)">Chinese (Traditional)</option>
-                        <option value="Indonesian">Indonesian</option>
-                        <option value="Japanese">Japanese</option>
-                        <option value="Korean">Korean</option>
-                        <option value="Malay">Malay</option>
-                        <option value="Tamil">Tamil</option>
-                        <option value="Thai">Thai</option>
-                        <option value="Vietnamnese">Vietnamnese</option>
-                    </select>
-                </div><br>
-                <div>
-                    <label-fixed for="keywords">Keyword(s) of Interest (comma or newline separated):</label-fixed><br>
-                    <textarea id="keywords" name="keywords" required placeholder="keyword1, keyword2"></textarea>
-                    <span class="error" id="keywordsError"></span>
-                </div>
-
-                <button type="button" id="keyword-research-analysis-button"
-                    onclick="validateAndSubmit()">Analyse</button>
-                <button type="button" id="similar" onclick="similarKeywords()">Generate Similar
-                    Keywords</button>
-                <button type="button" id="ranking" onclick="rankingKeywords()">Get Ranking Keywords</button>
-            </form>
-            <div id="rankingError"></div>
-            <table id="keywordTable" style="display: none;">
-                <tr>
-                    <th>Keyword</th>
-                    <th>Search Volume</th>
-                    <th>Competition</th>
-                    <th>Rank</th>
-                </tr>
-            </table>
-
-            <table id="top100Table" style="display: none;">
-                <tr>
-                    <th>Keyword</th>
-                    <th>Search Volume</th>
-                    <th>Competition</th>
-                    <th>Rank</th>
-                </tr>
-            </table>
-
-        </div>
-
-        <div class="column">
-            <button class="collapsible" id="keyword_suggestions">Keyword Suggestions</button>
-            <div class="content" id="keywordSuggestions">
-                <div id="keywordListContainer">
-                    <h3>Keyword Suggestions:</h3>
-                    <div class="keyword-row" id="keywordHeaderRow">
-                        <div class="keyword-column" onclick="sortKeywordSuggestions(0)">
-                            <strong>Keyword</strong>
-                        </div>
-                        <div class="keyword-column" onclick="sortKeywordSuggestions(1)">
-                            <strong>Search Vol</strong>
-                        </div>
-                        <div class="keyword-column" onclick="sortKeywordSuggestions(2)">
-                            <strong>Difficulty</strong>
-                        </div>
-                        <div class="checkbox-column"></div><strong>Choose</strong>
-                    </div>
-                    <ul id="keywordList">
-                    </ul>
-                </div>
-            </div>
-
-            <br>
-
-            <button class="collapsible" id="ranking_keywords">Ranking Keywords</button>
-            <div class="content" id="rankingKeywords">
-                <div id="keywordListContainer">
-                    <h3 id="rankedKeywordsCount">Ranked Keywords:</h3>
-                    <div class="keyword-row" id="rankedKeywordHeaderRow">
-                        <div class="keyword-column" onclick="sortRankedKeywords(0)">
-                            <strong>Keyword</strong>
-                        </div>
-                        <div class="keyword-column" onclick="sortRankedKeywords(1)">
-                            <strong>Search Vol</strong>
-                        </div>
-                        <div class="keyword-column" onclick="sortRankedKeywords(2)">
-                            <strong>Rank</strong>
-                        </div>
-                        <div class="keyword-column" onclick="sortRankedKeywords(3)">
-                            <strong>Difficulty</strong>
-                        </div>
-                        <div class="checkbox-column"></div><strong>Choose</strong>
-                    </div>
-                    <ul id="rankedKeywordList"></ul>
-                </div>
-            </div>
-        </div>
-
-
-        <hr>
-        <button class="collapsible" id="meta_data">Meta Data</button>
-        <div class="content" id="metaData">
-            <p><b>Meta Title: </b><span id="targetTitle">-</span></p>
-            <p><b>Meta Description: </b><span id="targetDescription">-</span></p>
-            <p><b>h1 Header: </b><span id="targetH1">-</span></p>
-
-        </div>
-
-        <button class="collapsible" id="domain_metrics">Domain Metrics (DA, PA, PageSpeed)</button>
-        <div class="content" id="domainMetrics">
+            <!-- Input Form for User Data -->
             <div class="column">
-                <p><b>Domain Authority (DA): </b><span id="da">-</span></p>
-                <p><b>Page Authority (PA): </b><span id="pa">-</span></p>
-                <p><b>Google PageSpeed: </b><span id="targetPagespeed">-</span></p>
-                <p><b>Backlinks Spam Score: </b><span id="targetSpamScore">-</span></p>
-                <p><b>Backlinks: </b><span id="targetBacklinks">-</span></p>
-                <p><b>Referring Domains: </b><span id="targetRefDomains">-</span></p>
-                <p><b>Domain Rank: </b><span id="targetDomainRank">-</span></p>
-                <p><b>Page Word Count: </b><span id="targetWordCount">-</span></p>
+                <form id="seoForm">
+                    <div>
+                        <label-fixed for="domain">Targeted Domain / URL:</label-fixed>
+                        <input type="url" id="domain" name="domain" required
+                            placeholder="Domain: example.com | Webpage: https://www.example.com/">
+                        <span class="error" id="domainError"></span>
+                    </div>
+                    <div>
+                        <label-fixed for="location">Targeted Location or Country (required):</label-fixed>
+                        <select id="location" name="location" required>
+                            <option value="">Select a location</option>
+                            <option value="Singapore">Singapore</option>
+                            <option value="Malaysia">Malaysia</option>
+                            <option value="Thailand">Thailand</option>
+                            <option value="India">India</option>
+                            <option value="Indonesia">Indonesia</option>
+                            <option value="Japan">Japan</option>
+                            <option value="South Korea">South Korea</option>
+                            <option value="United States">United States</option>
+                            <option value="Vietnam">Vietnam</option>
+
+                        </select>
+                    </div>
+
+                    <div>
+                        <label-fixed for="language">Language (required):</label-fixed>
+                        <select id="language" name="language" required>
+                            <option value="">Select a language</option>
+                            <option value="English">English</option>
+                            <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+                            <option value="Chinese (Traditional)">Chinese (Traditional)</option>
+                            <option value="Indonesian">Indonesian</option>
+                            <option value="Japanese">Japanese</option>
+                            <option value="Korean">Korean</option>
+                            <option value="Malay">Malay</option>
+                            <option value="Tamil">Tamil</option>
+                            <option value="Thai">Thai</option>
+                            <option value="Vietnamnese">Vietnamnese</option>
+                        </select>
+                    </div><br>
+                    <div>
+                        <label-fixed for="keywords">Keyword(s) of Interest (comma or newline
+                            separated):</label-fixed><br>
+                        <textarea id="keywords" name="keywords" required placeholder="keyword1, keyword2"></textarea>
+                        <span class="error" id="keywordsError"></span>
+                    </div>
+
+                    <button type="button" id="keyword-research-analysis-button"
+                        onclick="validateAndSubmit()">Analyse</button>
+                    <button type="button" id="similar" onclick="similarKeywords()">Generate Similar
+                        Keywords</button>
+                    <button type="button" id="ranking" onclick="rankingKeywords()">Get Ranking Keywords</button>
+                </form>
+                <div id="rankingError"></div>
+                <table id="keywordTable" style="display: none;">
+                    <tr>
+                        <th>Keyword</th>
+                        <th>Search Volume</th>
+                        <th>Competition</th>
+                        <th>Rank</th>
+                    </tr>
+                </table>
+
+                <table id="top100Table" style="display: none;">
+                    <tr>
+                        <th>Keyword</th>
+                        <th>Search Volume</th>
+                        <th>Competition</th>
+                        <th>Rank</th>
+                    </tr>
+                </table>
+
             </div>
+
             <div class="column">
-                <p><b>Internal Links: </b><span id="targetInternalLinks">-</span></p>
-                <p><b>External Links: </b><span id="targetExternalLinks">-</span></p>
-                <p><b>Flesch Readability: </b><span id="targetReadability">-</span></p>
-                <p><b>Images: </b><span id="targetImages">-</span></p>
-                <p><b>CLS: </b><span id="targetCls">-</span></p>
-                <p><b>LCP: </b><span id="targetLcp">-</span></p>
-                <p><b>FID: </b><span id="targetFid">-</span></p>
-                <p><b>Schema: </b><span id="targetSchema">-</span></p>
+                <button class="collapsible" id="keyword_suggestions">Keyword Suggestions</button>
+                <div class="content" id="keywordSuggestions">
+                    <div id="keywordListContainer">
+                        <h3>Keyword Suggestions:</h3>
+                        <div class="keyword-row" id="keywordHeaderRow">
+                            <div class="keyword-column" onclick="sortKeywordSuggestions(0)">
+                                <strong>Keyword</strong>
+                            </div>
+                            <div class="keyword-column" onclick="sortKeywordSuggestions(1)">
+                                <strong>Search Vol</strong>
+                            </div>
+                            <div class="keyword-column" onclick="sortKeywordSuggestions(2)">
+                                <strong>Difficulty</strong>
+                            </div>
+                            <div class="checkbox-column"></div><strong>Choose</strong>
+                        </div>
+                        <ul id="keywordList">
+                        </ul>
+                    </div>
+                </div>
+
+                <br>
+
+                <button class="collapsible" id="ranking_keywords">Ranking Keywords</button>
+                <div class="content" id="rankingKeywords">
+                    <div id="keywordListContainer">
+                        <h3 id="rankedKeywordsCount">Ranked Keywords:</h3>
+                        <div class="keyword-row" id="rankedKeywordHeaderRow">
+                            <div class="keyword-column" onclick="sortRankedKeywords(0)">
+                                <strong>Keyword</strong>
+                            </div>
+                            <div class="keyword-column" onclick="sortRankedKeywords(1)">
+                                <strong>Search Vol</strong>
+                            </div>
+                            <div class="keyword-column" onclick="sortRankedKeywords(2)">
+                                <strong>Rank</strong>
+                            </div>
+                            <div class="keyword-column" onclick="sortRankedKeywords(3)">
+                                <strong>Difficulty</strong>
+                            </div>
+                            <div class="checkbox-column"></div><strong>Choose</strong>
+                        </div>
+                        <ul id="rankedKeywordList"></ul>
+                    </div>
+                </div>
             </div>
-            <div style="clear: both;"></div>
-            <div> </div> <!-- Clearfix -->
+
+
+            <hr>
+            <button class="collapsible" id="meta_data">Meta Data</button>
+            <div class="content" id="metaData">
+                <p><b>Meta Title: </b><span id="targetTitle">-</span></p>
+                <p><b>Meta Description: </b><span id="targetDescription">-</span></p>
+                <p><b>h1 Header: </b><span id="targetH1">-</span></p>
+
+            </div>
+
+            <button class="collapsible" id="domain_metrics">Domain Metrics (DA, PA, PageSpeed)</button>
+            <div class="content" id="domainMetrics">
+                <div class="column">
+                    <p><b>Domain Authority (DA): </b><span id="da">-</span></p>
+                    <p><b>Page Authority (PA): </b><span id="pa">-</span></p>
+                    <p><b>Google PageSpeed: </b><span id="targetPagespeed">-</span></p>
+                    <p><b>Backlinks Spam Score: </b><span id="targetSpamScore">-</span></p>
+                    <p><b>Backlinks: </b><span id="targetBacklinks">-</span></p>
+                    <p><b>Referring Domains: </b><span id="targetRefDomains">-</span></p>
+                    <p><b>Domain Rank: </b><span id="targetDomainRank">-</span></p>
+                    <p><b>Page Word Count: </b><span id="targetWordCount">-</span></p>
+                </div>
+                <div class="column">
+                    <p><b>Internal Links: </b><span id="targetInternalLinks">-</span></p>
+                    <p><b>External Links: </b><span id="targetExternalLinks">-</span></p>
+                    <p><b>Flesch Readability: </b><span id="targetReadability">-</span></p>
+                    <p><b>Images: </b><span id="targetImages">-</span></p>
+                    <p><b>CLS: </b><span id="targetCls">-</span></p>
+                    <p><b>LCP: </b><span id="targetLcp">-</span></p>
+                    <p><b>FID: </b><span id="targetFid">-</span></p>
+                    <p><b>Schema: </b><span id="targetSchema">-</span></p>
+                </div>
+                <div style="clear: both;"></div>
+                <div> </div> <!-- Clearfix -->
+            </div>
+            <hr>
+            <button class="collapsible" id="keywordAnalysis">Keyword Analysis</button>
+            <div class="content" id="keywordAnalysis">
+                <div id="keywordAnalysisResults"></div>
+                <button id="downloadKeywordAnalysisCSVButton" onclick="downloadKeywordAnalysisTableAsCSV()"
+                    style="display:none;">Download .csv</button>
+            </div>
+            <hr>
+            <button class="collapsible" id="technicalButton">Technical SEO</button>
+            <div class="content" id="technicalSeo">
+                <label for="urlInput">Enter URL:</label>
+                <input type="text" id="urlInput">
+                <br>
+                <label for="maxPagesInput">Max Pages to Crawl:</label>
+                <input type="number" id="maxPagesInput" value="10">
+
+                <button id="submitBtn">Analyse Website</button>
+
+                <br><br>
+
+                <div id="auditSummary"></div>
+
+                <button class="collapsible" id="gtButton">GTmetrix Results</button>
+                <div class="content" id="gtMetrix">
+                    <div id="gtmetrixReport" style="display:none;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Report URL</td>
+                                    <td id="reportUrl"></td>
+                                </tr>
+                                <tr>
+                                    <td>Cumulative Layout Shift</td>
+                                    <td id="cls"></td>
+                                </tr>
+                                <tr>
+                                    <td>Largest Contentful Paint</td>
+                                    <td id="lcp"></td>
+                                </tr>
+                                <tr>
+                                    <td>Total Blocking Time</td>
+                                    <td id="tbt"></td>
+                                </tr>
+                                <tr>
+                                    <td>GTmetrix Grade</td>
+                                    <td id="grade"></td>
+                                </tr>
+                                <tr>
+                                    <td>GTmetrix Performance Score</td>
+                                    <td id="performance"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <br><br>
+                    </div>
+                </div>
+
+                <button class="collapsible" id="pageButton">Page Analysis Results</button>
+                <div class="content" id="pageAnalysis">
+                    <div id="pageAuditReport" style="display:none;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>PageSpeed (Desktop)</td>
+                                    <td id="pagespeed_audit"></td>
+                                </tr>
+                                <tr>
+                                    <td>Malware</td>
+                                    <td id="malware"></td>
+                                </tr>
+                                <tr>
+                                    <td>robots.txt</td>
+                                    <td id="robots"></td>
+                                </tr>
+                                <tr>
+                                    <td>Sitemap</td>
+                                    <td id="sitemap"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <br><br>
+                    </div>
+                </div>
+
+                <button class="collapsible" id="crawlerButton">Crawler Report</button>
+                <div class="content" id="crawlerSection">
+                    <div id="crawlerReport" style="display:none;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>URL</th>
+                                    <th>Code</th>
+                                    <th>Title</th>
+                                    <th>Description</th>
+                                    <th>Canonical</th>
+                                    <th>Hreflang</th>
+                                    <th>Alt Text</th>
+                                    <th>H1</th>
+                                    <th>H2</th>
+                                    <th>Word Count</th>
+                                    <th>UI/UX</th>
+                                </tr>
+                            </thead>
+                            <tbody id="crawlerTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <hr>
+            <button class="collapsible">Content Comparison</button>
+            <div class="content" id="contentComparison">
+                <label for="comparison-keyword">Keyword:</label>
+                <input type="text" id="comparison-keyword" placeholder="e.g., digital marketing">
+                <br>
+                <label for="comparison-urls">or URLs (separate by new line or comma):</label>
+                <textarea id="comparison-urls"
+                    placeholder="e.g., https://example.com, https://another-example.com"></textarea>
+                <br>
+                <div class="column">
+                    <label for="comparison-language">Language:</label>
+                    <input type="text" id="comparison-language" value="English" placeholder="e.g., English">
+                </div>
+                <div class="column">
+                    <label for="comparison-location">Location:</label>
+                    <input type="text" id="comparison-location" value="Singapore" placeholder="e.g., Singapore">
+                </div>
+                <br>
+                <button id="analyzeBtn">Analyse (up to 3 mins)</button>
+
+                <div id="loading-messages">
+                    <p class="message"></p>
+                </div>
+                <div id="initial-table"></div>
+                <div id="comparison-results"></div>
+            </div>
+
+            <hr>
+
+            <button class="collapsible">Schema Generator</button>
+            <div class="content" id="schema">
+                <label for="schema-type">Schema Type:</label>
+                <select id="schema-type">
+                    <option value="LocalBusiness">Local Business</option>
+                    <option value="Product">Product</option>
+                    <option value="Event">Event</option>
+                    <option value="Article">Article</option>
+                    <option value="BreadcrumbList">Breadcrumb</option>
+                    <option value="Event">Event</option>
+                    <option value="FAQPage">FAQ Page</option>
+                    <option value="HowTo">How-to</option>
+                    <option value="JobPosting">Job Posting</option>
+                    <option value="Organization">Organisation</option>
+                    <option value="Person">Person</option>
+                    <option value="Product">Product</option>
+                    <option value="VideoObject">Video</option>
+                    <option value="Website">Website</option>
+                    <!-- Add more schema types as needed -->
+                </select>
+
+                <div id="input-fields"></div>
+                <div id="schema-output"></div>
+            </div>
         </div>
         <hr>
-        <button class="collapsible" id="keywordAnalysis">Keyword Analysis</button>
-        <div class="content" id="keywordAnalysis">
-            <div id="keywordAnalysisResults"></div>
-            <button id="downloadKeywordAnalysisCSVButton" onclick="downloadKeywordAnalysisTableAsCSV()"
-                style="display:none;">Download .csv</button>
-        </div>
-        <hr>
-        <button class="collapsible" id="technicalButton">Technical SEO</button>
-        <div class="content" id="technicalSeo">
-            <label for="urlInput">Enter URL:</label>
-            <input type="text" id="urlInput">
-            <br>
-            <label for="maxPagesInput">Max Pages to Crawl:</label>
-            <input type="number" id="maxPagesInput" value="10">
+        <button class="collapsible">Social Media (SMM)</button>
+        <div class="content" id="socialMedia">
+            <button class="collapsible">Content Generator</button>
+            <div class="content" id="contentGenerator">
+                <form id="content-form">
+                    <div class="column">
+                        <div class="column">
+                            <label for="gender">Gender:</label><br>
+                            <select id="gender" name="gender">
+                                <option value=""></option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                                <option value="non-specfic-gender">Non-Specific</option>
+                            </select>
+                        </div>
+                        <div class="column">
+                            <label for="age-range">Age e.g. Students, 30-40 years old:</label>
+                            <input class="input-short" type="text" id="age-range" name="age-range">
+                        </div>
 
-            <button id="submitBtn">Analyse Website</button>
+                        <div style="clear: both;"></div>
 
-            <br><br>
+                        <label for="occupation">Occupation e.g. Homemakers, Professionals:</label><br>
+                        <input type="text" id="occupation" name="occupation">
 
-            <div id="auditSummary"></div>
+                        <label for="income">Income (e.g. Mid Income):</label>
+                        <input type="text" id="income" name="income">
 
-            <button class="collapsible" id="gtButton">GTmetrix Results</button>
-            <div class="content" id="gtMetrix">
-                <div id="gtmetrixReport" style="display:none;">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Metric</th>
-                                <th>Value</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Report URL</td>
-                                <td id="reportUrl"></td>
-                            </tr>
-                            <tr>
-                                <td>Cumulative Layout Shift</td>
-                                <td id="cls"></td>
-                            </tr>
-                            <tr>
-                                <td>Largest Contentful Paint</td>
-                                <td id="lcp"></td>
-                            </tr>
-                            <tr>
-                                <td>Total Blocking Time</td>
-                                <td id="tbt"></td>
-                            </tr>
-                            <tr>
-                                <td>GTmetrix Grade</td>
-                                <td id="grade"></td>
-                            </tr>
-                            <tr>
-                                <td>GTmetrix Performance Score</td>
-                                <td id="performance"></td>
-                            </tr>
-                        </tbody>
-                    </table>
+                        <label for="reference-url">Reference Webpage URL (Optional):</label>
+                        <input type="url" id="reference-url" name="reference-url">
+
+                    </div>
+
+                    <div class="column">
+
+                        <label for="subgroups">Sub-Groups (e.g. Badminton Players):</label>
+                        <input type="text" id="subgroups" name="subgroups">
+
+                        <label for="painpoints">Pain Points (e.g. not enough time):</label>
+                        <input type="text" id="painpoints" name="painpoints">
+
+                        <label for="audience_goal">Audience Goals (e.g. Convenience):</label>
+                        <input type="text" id="audience_goal" name="audience_goal">
+
+                    </div>
+
+
+                    <br>
+
+                    <label for="reference-files">Reference Files/Brand Guide (Optional - Up to 5):</label>
+                    <input class="input-short" type="file" id="reference-files" name="reference-files" multiple
+                        disabled>
                     <br><br>
-                </div>
-            </div>
 
-            <button class="collapsible" id="pageButton">Page Analysis Results</button>
-            <div class="content" id="pageAnalysis">
-                <div id="pageAuditReport" style="display:none;">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Metric</th>
-                                <th>Value</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>PageSpeed (Desktop)</td>
-                                <td id="pagespeed_audit"></td>
-                            </tr>
-                            <tr>
-                                <td>Malware</td>
-                                <td id="malware"></td>
-                            </tr>
-                            <tr>
-                                <td>robots.txt</td>
-                                <td id="robots"></td>
-                            </tr>
-                            <tr>
-                                <td>Sitemap</td>
-                                <td id="sitemap"></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <br><br>
-                </div>
-            </div>
+                    <label for="sample-text">Sample Text/Post (Optional):</label><br>
+                    <textarea id="sample-text" name="sample-text"></textarea><br><br>
 
-            <button class="collapsible" id="crawlerButton">Crawler Report</button>
-            <div class="content" id="crawlerSection">
-                <div id="crawlerReport" style="display:none;">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>URL</th>
-                                <th>Code</th>
-                                <th>Title</th>
-                                <th>Description</th>
-                                <th>Canonical</th>
-                                <th>Hreflang</th>
-                                <th>Alt Text</th>
-                                <th>H1</th>
-                                <th>H2</th>
-                                <th>Word Count</th>
-                                <th>UI/UX</th>
-                            </tr>
-                        </thead>
-                        <tbody id="crawlerTableBody">
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                    <label for="post-info">Content of Post:</label><br>
+                    <textarea id="post-info" name="post-info"></textarea><br><br>
 
+                    <div class="column">
+
+                        <label for="product_service">Product / Service:</label>
+                        <input type="text" id="product_service" name="product_service">
+
+                        <label for="desired_action">Desired Action e.g. Contact us:</label>
+                        <input type="text" id="desired_action" name="desired_action">
+                        <br>
+
+                        <label for="post_objectives">Post Objectives e.g. Branding, Lifestyle, Seasonal
+                            Greetings:</label>
+                        <input type="text" id="post_objectives" name="post_objectives">
+
+                        <div class="column">
+                            <label for="content-type">Type of Content:</label><br>
+                            <select id="content-type" name="content-type">
+                                <option value="blog-post">Blog Post</option>
+                                <option value="instagram-caption">Instagram Caption</option>
+                                <option value="facebook-post">Facebook Post</option>
+                                <option value="linkedin-post">LinkedIn Post</option>
+                            </select>
+                        </div>
+
+                        <br>
+                        <div class="column">
+
+                            <label for="word_count">Word Count e.g. Long, 100 words:</label>
+                            <input class="input-short" type="text" id="word_count" name="word_count">
+                        </div>
+
+
+                    </div>
+
+                    <div class="column">
+
+                        <label for="tone">Tone of Voice e.g. Luxury, Professional, Casual:</label>
+                        <input type="text" id="tone" name="tone">
+                        <br>
+
+                        <label for="usp">Unique Selling Point e.g. Available 24/7, Budget friendly:</label>
+                        <input type="text" id="usp" name="usp">
+
+                        <label for="pov">POV e.g. 1st person, 3rd person:</label>
+                        <input type="text" id="pov" name="pov">
+                        <br>
+
+                        <div class="column">
+                            <label for="emojis">Emojis:</label><br>
+                            <select id="emojis" name="emojis">
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
+                            </select>
+                        </div>
+                        <div class="column">
+                            <label for="hashtags">Hashtags:</label><br>
+                            <select id="hashtags" name="hashtags">
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="clear: both;"></div>
+
+                    <button type="submit" id="generate-button">Generate Content</button>
+                </form>
+
+                <div id="generated-content"></div>
+            </div>
         </div>
-        <hr>
-        <button class="collapsible" disabled>Social Media Audit</button>
-        <div class="content" id="socialAudit">
-        </div>
 
         <hr>
-        <button class="collapsible">SEM</button>
+        <button class="collapsible">Search Engine Marketing (SEM)</button>
         <div class="content" id="SEM">
+            <label for="ad_format">Ad Formats:</label><br>
+            <select id="ad_format" name="ad_format">
+                <option value="yes">Google Responsive Search Ads</option>
+                <option value="no">Google Performance Max Ads</option>
+                <option value="no">Meta Image Ads</option>
+                <option value="no"> Meta Video Ads</option>
+                <option value="no">Meta Carousel Ads</option>
+                <option value="no">Meta Collection Ads</option>
+                <option value="no">Google Performance Max Ads</option>
+
+
+                , , LinkedIn Image Ads, LinkedIn Carousel Ads, LinkedIn Video Ads, LinkedIn Click To Message Ads
+            </select>
+            <br>
             <label for="sem_webpages">Webpages (seperated by commas or new lines):</label><br>
             <textarea id="sem_webpages" placeholder="e.g., https://example.com, https://another-example.com"></textarea>
             <br>
@@ -899,170 +1157,114 @@
             <div class="column" id="selected" style="display:none;">
                 <h2>Selected</h2>
                 <textarea id="selectedText" rows="20"></textarea><br>
-                <button id="generateSem" onclick="generateGoogle()">Step 3: Select checkboxes then click here</button>
+                <button id="generateSem" onclick="generateGoogle()">Step 3: Select checkboxes then click
+                    here</button>
                 <h2>Generated</h2>
                 <div id="generated"></div>
             </div>
             <div style="clear: both;"></div>
             <div> </div> <!-- Clearfix -->
         </div>
-
-        <hr>
-        <button class="collapsible">Content Comparison</button>
-        <div class="content" id="contentComparison">
-            <label for="comparison-keyword">Keyword:</label>
-            <input type="text" id="comparison-keyword" placeholder="e.g., digital marketing">
-            <br>
-            <label for="comparison-urls">or URLs (separate by new line or comma):</label>
-            <textarea id="comparison-urls"
-                placeholder="e.g., https://example.com, https://another-example.com"></textarea>
-            <br>
-            <div class="column">
-                <label for="comparison-language">Language:</label>
-                <input type="text" id="comparison-language" value="English" placeholder="e.g., English">
-            </div>
-            <div class="column">
-                <label for="comparison-location">Location:</label>
-                <input type="text" id="comparison-location" value="Singapore" placeholder="e.g., Singapore">
-            </div>
-            <br>
-            <button id="analyzeBtn">Analyse (up to 3 mins)</button>
-
-            <div id="loading-messages">
-                <p class="message"></p>
-            </div>
-            <div id="initial-table"></div>
-            <div id="comparison-results"></div>
-        </div>
-
-        <hr>
-        <button class="collapsible">Content Generator</button>
-        <div class="content" id="contentGenerator">
-            <form id="content-form">
-                <div class="column">
-                    <div class="column">
-                        <label for="gender">Gender:</label><br>
-                        <select id="gender" name="gender">
-                            <option value=""></option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                            <option value="non-specfic-gender">Non-Specific</option>
-                        </select>
-                    </div>
-                    <div class="column">
-                        <label for="age-range">Age e.g. Students, 30-40 years old:</label>
-                        <input class="input-short" type="text" id="age-range" name="age-range">
-                    </div>
-
-                    <div style="clear: both;"></div>
-
-                    <label for="occupation">Occupation e.g. Homemakers, Professionals:</label><br>
-                    <input type="text" id="occupation" name="occupation">
-
-                    <label for="income">Income (e.g. Mid Income):</label>
-                    <input type="text" id="income" name="income">
-
-                    <label for="reference-url">Reference Webpage URL (Optional):</label>
-                    <input type="url" id="reference-url" name="reference-url">
-
-                </div>
-
-                <div class="column">
-
-                    <label for="subgroups">Sub-Groups (e.g. Badminton Players):</label>
-                    <input type="text" id="subgroups" name="subgroups">
-
-                    <label for="painpoints">Pain Points (e.g. not enough time):</label>
-                    <input type="text" id="painpoints" name="painpoints">
-
-                    <label for="audience_goal">Audience Goals (e.g. Convenience):</label>
-                    <input type="text" id="audience_goal" name="audience_goal">
-
-                </div>
-
-
-                <br>
-
-                <label for="reference-files">Reference Files/Brand Guide (Optional - Up to 5):</label>
-                <input class="input-short" type="file" id="reference-files" name="reference-files" multiple disabled>
-                <br><br>
-
-                <label for="sample-text">Sample Text/Post (Optional):</label><br>
-                <textarea id="sample-text" name="sample-text"></textarea><br><br>
-
-                <label for="post-info">Content of Post:</label><br>
-                <textarea id="post-info" name="post-info"></textarea><br><br>
-
-                <div class="column">
-
-                    <label for="product_service">Product / Service:</label>
-                    <input type="text" id="product_service" name="product_service">
-
-                    <label for="desired_action">Desired Action e.g. Contact us:</label>
-                    <input type="text" id="desired_action" name="desired_action">
-                    <br>
-
-                    <label for="post_objectives">Post Objectives e.g. Branding, Lifestyle, Seasonal Greetings:</label>
-                    <input type="text" id="post_objectives" name="post_objectives">
-
-                    <div class="column">
-                        <label for="content-type">Type of Content:</label><br>
-                        <select id="content-type" name="content-type">
-                            <option value="blog-post">Blog Post</option>
-                            <option value="instagram-caption">Instagram Caption</option>
-                            <option value="facebook-post">Facebook Post</option>
-                            <option value="linkedin-post">LinkedIn Post</option>
-                        </select>
-                    </div>
-
-                    <br>
-                    <div class="column">
-
-                        <label for="word_count">Word Count e.g. Long, 100 words:</label>
-                        <input class="input-short" type="text" id="word_count" name="word_count">
-                    </div>
-
-
-                </div>
-
-                <div class="column">
-
-                    <label for="tone">Tone of Voice e.g. Luxury, Professional, Casual:</label>
-                    <input type="text" id="tone" name="tone">
-                    <br>
-
-                    <label for="usp">Unique Selling Point e.g. Available 24/7, Budget friendly:</label>
-                    <input type="text" id="usp" name="usp">
-
-                    <label for="pov">POV e.g. 1st person, 3rd person:</label>
-                    <input type="text" id="pov" name="pov">
-                    <br>
-
-                    <div class="column">
-                        <label for="emojis">Emojis:</label><br>
-                        <select id="emojis" name="emojis">
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                        </select>
-                    </div>
-                    <div class="column">
-                        <label for="hashtags">Hashtags:</label><br>
-                        <select id="hashtags" name="hashtags">
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                        </select>
-                    </div>
-                </div>
-                <div style="clear: both;"></div>
-
-                <button type="submit" id="generate-button">Generate Content</button>
-            </form>
-
-            <div id="generated-content"></div>
-        </div>
     </div>
 
+    <script id="local-business-template" type="text/x-handlebars-template">
+        <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+        <label for="address">Address:</label><input type="text" id="address" oninput="updateSchema()"><br>
+        <label for="telephone">Telephone:</label><input type="text" id="telephone" oninput="updateSchema()"><br>
+      </script>
+
+    <script id="product-template" type="text/x-handlebars-template">
+          <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+          <label for="description">Description:</label><input type="text" id="description" oninput="updateSchema()"><br>
+          <label for="brand">Brand:</label><input type="text" id="brand" oninput="updateSchema()"><br>
+      </script>
+
+    <script id="event-template" type="text/x-handlebars-template">
+          <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+          <label for="startDate">Start Date:</label><input type="date" id="startDate" oninput="updateSchema()"><br>
+          <label for="location">Location:</label><input type="text" id="location" oninput="updateSchema()"><br>
+          <label for="description">Description:</label><textarea id="description" oninput="updateSchema()"></textarea><br>
+      </script>
+
+    <script id="article-template" type="text/x-handlebars-template">
+          <label for="headline">Headline:</label><input type="text" id="headline" oninput="updateSchema()"><br>
+          <label for="author">Author:</label><input type="text" id="author" oninput="updateSchema()"><br>
+          <label for="datePublished">Date Published:</label><input type="date" id="datePublished" oninput="updateSchema()"><br>
+          <label for="articleBody">Article Body:</label><textarea id="articleBody" oninput="updateSchema()"></textarea><br>
+      </script>
+
+    <script id="breadcrumblist-template" type="text/x-handlebars-template">
+          <div id="breadcrumb-items">
+              <div class="breadcrumb-item">
+                  <input type="text" id="name1" placeholder="Page #1's name" oninput="updateSchema()">
+                  <input type="url" id="url1" placeholder="URL #1" oninput="updateSchema()">
+                  <button class="remove-item" onclick="removeItem(this)">x</button>
+              </div>
+              <div class="breadcrumb-item">
+                  <input type="text" id="name2" placeholder="Page #2's name" oninput="updateSchema()">
+                  <input type="url" id="url2" placeholder="URL #2" oninput="updateSchema()">
+                   <button class="remove-item" onclick="removeItem(this)">x</button>
+              </div>
+          </div>
+          <button onclick="addItem()"> + ADD URL </button>
+      
+        </script>
+
+    <script id="faqpage-template" type="text/x-handlebars-template">
+          <div id="faq-items">
+              <div class="faq-item">
+                  <input type="text" id="question1" placeholder="Question #1" oninput="updateSchema()">
+                  <textarea id="answer1" placeholder="Answer" oninput="updateSchema()"></textarea>
+                  <button class="remove-item" onclick="removeFaqItem(this)">x</button> <br>
+              </div>
+          </div>
+          <button onclick="addFaqItem()">+ ADD QUESTION</button>
+      </script>
+    <script id="howto-template" type="text/x-handlebars-template">
+          <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+          <label for="description">Description:</label><textarea id="description" oninput="updateSchema()"></textarea><br>
+          <label for="supply">Supply (JSON-LD array of HowToSupply objects):</label><textarea id="supply" class="json-ld" oninput="updateSchema()"></textarea><br>
+          <label for="step">Steps (JSON-LD array of HowToStep objects):</label><textarea id="step" class="json-ld" oninput="updateSchema()"></textarea><br>
+          * See schema.org/HowTo for details on HowToSupply and HowToStep structure.
+        </script>
+
+    <script id="jobposting-template" type="text/x-handlebars-template">
+          <label for="title">Job Title:</label><input type="text" id="title" oninput="updateSchema()"><br>
+          <label for="description">Job Description:</label><textarea id="description" oninput="updateSchema()"></textarea><br>
+          <label for="datePosted">Date Posted:</label><input type="date" id="datePosted" oninput="updateSchema()"><br>
+          <label for="employmentType">Employment Type:</label><input type="text" id="employmentType" oninput="updateSchema()"><br>
+          <label for="hiringOrganization">Hiring Organization (Name):</label><input type="text" id="hiringOrganization_name" oninput="updateSchema()"><br>
+         <label for="hiringOrganization">Hiring Organization (Website):</label><input type="url" id="hiringOrganization_sameAs" oninput="updateSchema()"><br>
+        </script>
+
+
+    <script id="organization-template" type="text/x-handlebars-template">
+          <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+          <label for="url">URL:</label><input type="url" id="url" oninput="updateSchema()"><br>
+          <label for="logo">Logo URL:</label><input type="url" id="logo" oninput="updateSchema()"><br>
+        </script>
+
+    <script id="person-template" type="text/x-handlebars-template">
+          <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+          <label for="jobTitle">Job Title:</label><input type="text" id="jobTitle" oninput="updateSchema()"><br>
+        
+        </script>
+
+
+    <script id="video-object-template" type="text/x-handlebars-template">
+            <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+            <label for="description">Description:</label><input type="text" id="description" oninput="updateSchema()"><br>
+            <label for="uploadDate">Upload Date:</label><input type="date" id="uploadDate" oninput="updateSchema()"><br>
+            <label for="thumbnailUrl">Thumbnail URL:</label><input type="url" id="thumbnailUrl" oninput="updateSchema()"><br>
+        </script>
+
+    <script id="website-template" type="text/x-handlebars-template">
+            <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
+            <label for="url">URL:</label><input type="url" id="url" oninput="updateSchema()"><br>
+        </script>
+
     <script>
+
         const submitBtn = document.getElementById('submitBtn');
         const gtmetrixReportDiv = document.getElementById('gtmetrixReport');
         const crawlerReportDiv = document.getElementById('crawlerReport');
@@ -1533,6 +1735,167 @@
                 generateButton.textContent = 'Generate Content';
             }
         });
+
+
+        function removeFaqItem(button) {
+            const item = button.parentNode;
+            item.remove();
+            updateSchema(); // Update the schema after removing an item
+        }
+
+        let breadcrumbItemCount = 2; // Start with 2 items
+        function addItem() {
+            breadcrumbItemCount++;
+            const breadcrumbItemsDiv = document.getElementById('breadcrumb-items');
+            const newItem = document.createElement('div');
+            newItem.className = "breadcrumb-item";
+            newItem.innerHTML = `
+            <input type="text" id="name${breadcrumbItemCount}" placeholder="Page #${breadcrumbItemCount}'s name" oninput="updateSchema()">
+            <input type="url" id="url${breadcrumbItemCount}" placeholder="URL #${breadcrumbItemCount}" oninput="updateSchema()">
+            <button class="remove-item" onclick="removeItem(this)">x</button>
+        `;
+            breadcrumbItemsDiv.appendChild(newItem);
+
+            // Attach event listeners to new elements
+            newItem.querySelectorAll('input').forEach(input => {
+                input.addEventListener('input', updateSchema);
+            });
+
+            updateSchema();
+        }
+
+        function removeItem(button) {
+            const item = button.parentNode;
+            item.remove();
+            updateSchema();
+        }
+
+        const schemaTypeSelect = document.getElementById('schema-type');
+        const inputFieldsDiv = document.getElementById('input-fields');
+        const schemaOutputDiv = document.getElementById('schema-output');
+
+        const templates = {
+            "LocalBusiness": Handlebars.compile(document.getElementById('local-business-template').innerHTML),
+            "Product": Handlebars.compile(document.getElementById('product-template').innerHTML),
+            "Event": Handlebars.compile(document.getElementById('event-template').innerHTML),
+            "Article": Handlebars.compile(document.getElementById('article-template').innerHTML),
+            "BreadcrumbList": Handlebars.compile(document.getElementById('breadcrumblist-template').innerHTML),
+            "FAQPage": Handlebars.compile(document.getElementById('faqpage-template').innerHTML),
+            "HowTo": Handlebars.compile(document.getElementById('howto-template').innerHTML),
+            "JobPosting": Handlebars.compile(document.getElementById('jobposting-template').innerHTML),
+            "Organization": Handlebars.compile(document.getElementById('organization-template').innerHTML),
+            "Person": Handlebars.compile(document.getElementById('person-template').innerHTML),
+            "VideoObject": Handlebars.compile(document.getElementById('video-object-template').innerHTML),
+            "Website": Handlebars.compile(document.getElementById('website-template').innerHTML),
+        }
+
+        let faqItemCount = 1;
+
+        schemaTypeSelect.addEventListener('change', () => {
+            const selectedType = schemaTypeSelect.value;
+            const template = templates[selectedType];
+
+            if (template) {
+                inputFieldsDiv.innerHTML = template();
+                updateSchema(); // Initial update after template render
+            } else {
+                inputFieldsDiv.innerHTML = ''; // Clear if no template exists
+                schemaOutputDiv.textContent = '';
+            }
+
+
+            // Add event listeners after rendering the template
+            inputFieldsDiv.querySelectorAll('input').forEach(input => {
+                input.addEventListener('input', updateSchema);
+            });
+        });
+
+        // Initial setup (trigger the change event once to populate fields for default type)
+        schemaTypeSelect.dispatchEvent(new Event('change'));
+
+        function updateSchema() {
+            const selectedType = schemaTypeSelect.value;
+            const data = {};
+
+            // Gather input values based on the selected schema type
+            for (const input of inputFieldsDiv.querySelectorAll('input')) {
+                data[input.id] = input.value;
+            }
+
+            try {
+
+                const schema = {
+                    "@context": "https://schema.org",
+                    "@type": selectedType,
+                    ...data // Spread the input data into the schema object
+                };
+
+                // Special handling for fields that require JSON-LD structures:
+                if (selectedType === "FAQPage" && data.mainEntity) {
+                    schema.mainEntity = JSON.parse(data.mainEntity);
+                }
+                if (selectedType === "BreadcrumbList" && data.itemListElement) {
+                    schema.itemListElement = JSON.parse(data.itemListElement);
+                }
+
+                if (selectedType === "BreadcrumbList") {
+                    const itemListElement = [];
+
+                    for (let i = 1; i <= breadcrumbItemCount; i++) {
+                        const name = document.getElementById(`name${i}`);
+                        const url = document.getElementById(`url${i}`);
+
+                        if (name && url && name.value && url.value) {
+                            itemListElement.push({
+                                "@type": "ListItem",
+                                "position": i,
+                                "name": name.value,
+                                "item": url.value
+                            });
+                        }
+
+                    }
+                    if (itemListElement.length > 0) {
+                        schema.itemListElement = itemListElement;
+                    }
+
+                }
+
+
+                if (selectedType === "FAQPage") {
+                    const mainEntity = [];
+
+
+                    for (let i = 1; document.getElementById(`question${i}`); i++) {
+                        const question = document.getElementById(`question${i}`).value;
+                        const answer = document.getElementById(`answer${i}`).value;
+
+                        if (question && answer) {  // Make sure both question and answer are filled
+                            mainEntity.push({
+                                "@type": "Question",
+                                "name": question,
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "text": answer
+                                }
+                            });
+                        }
+
+                    }
+
+                    if (mainEntity.length > 0) { // Only add mainEntity if there are FAQ items
+                        schema.mainEntity = mainEntity;
+                    }
+
+                }
+
+                schemaOutputDiv.textContent = '<script type="application/ld+json">\n' + JSON.stringify(schema, null, 2) + '\n<\/script>';
+
+            } catch (error) {
+                schemaOutputDiv.textContent = "Invalid JSON-LD input in one of the fields.";
+                console.error("JSON Parsing Error:", error);
+            }
+        }
 
         function similarKeywords() {
             const keywordsInput = document.getElementById('keywords').value.split(/[\n,]+/).map(k => k.trim());
