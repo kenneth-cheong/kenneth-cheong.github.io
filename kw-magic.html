@@ -2157,45 +2157,36 @@
             const listItem = document.createElement('li');
             listItem.classList.add('keyword-row');
 
-            // Keyword column
+            // Column 0: Keyword
             const keywordDiv = document.createElement('div');
             keywordDiv.classList.add('keyword-column');
-            keywordDiv.style.width = `${headerCells[0].offsetWidth}px`; // Dynamic width from header
             keywordDiv.textContent = item.keyword;
             listItem.appendChild(keywordDiv);
 
-            // Search Volume column
+            // Column 1: Search Volume
             const searchVolumeDiv = document.createElement('div');
             searchVolumeDiv.classList.add('keyword-column');
-            searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`; // Dynamic width
             searchVolumeDiv.textContent = item.search_volume || '-';
             listItem.appendChild(searchVolumeDiv);
 
-            // Rank column
+            // Column 2: Rank
             const rankDiv = document.createElement('div');
             rankDiv.classList.add('keyword-column');
-            rankDiv.style.width = `${headerCells[2].offsetWidth}px`; // Dynamic width
             rankDiv.textContent = item.rank || '-';
             listItem.appendChild(rankDiv);
 
-            // Difficulty column
+            // Column 3: Difficulty
             const difficultyDiv = document.createElement('div');
             difficultyDiv.classList.add('keyword-column');
-            difficultyDiv.style.width = `${headerCells[3].offsetWidth}px`; // Dynamic width
             difficultyDiv.textContent = item.difficulty || '-';
             listItem.appendChild(difficultyDiv);
 
-
-            // Checkbox column
+            // Column 4: Checkbox
             const checkboxDiv = document.createElement('div');
             checkboxDiv.classList.add('checkbox-column');
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
-            checkbox.name = `chk${index + 1}`; // Unique name
-            checkbox.id = `chk${index + 1}`;
             checkbox.value = item.keyword;
-            checkbox.checked = false;
-            checkbox.addEventListener('change', updateKeywordsField);  // Attach listener here
             checkboxDiv.appendChild(checkbox);
             listItem.appendChild(checkboxDiv);
 
@@ -2827,18 +2818,22 @@
             const keywordList = document.getElementById('rankedKeywordList');
             const listItems = Array.from(keywordList.children);
 
+            // Toggle sort direction if same column is clicked
             if (column === currentRankedKeywordSortColumn) {
-                rankedKeywordSortAscending = !rankedKeywordSortAscending; // Toggle sort direction
+                rankedKeywordSortAscending = !rankedKeywordSortAscending;
             } else {
-                rankedKeywordSortAscending = true; // Start in ascending order
+                rankedKeywordSortAscending = true;
                 currentRankedKeywordSortColumn = column;
             }
 
-            listItems.sort((a, b) => {
-                const aValue = a.children[column].textContent;
-                const bValue = b.children[column].textContent;
+            // Debugging: Check what values are being sorted
+            console.log("Sorting column:", column, "Ascending?", rankedKeywordSortAscending);
 
-                // Convert to number for sorting if possible
+            listItems.sort((a, b) => {
+                const aValue = a.children[column].textContent.trim();
+                const bValue = b.children[column].textContent.trim();
+                console.log("Comparing:", aValue, "vs", bValue);
+
                 const aNum = parseFloat(aValue.replace(/,/g, ''));
                 const bNum = parseFloat(bValue.replace(/,/g, ''));
 
