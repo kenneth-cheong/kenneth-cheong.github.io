@@ -2006,7 +2006,7 @@
                 });
         }
 
-        function displayRankedKeywords(rankedKeywordsData) {
+        function displayRankedKeywords2(rankedKeywordsData) {
             const rankedKeywordList = document.getElementById('rankedKeywordList');
             rankedKeywordList.innerHTML = ''; // Clear previous keywords
 
@@ -2026,6 +2026,72 @@
 
             updateRankedKeywordsCount();
 
+            rankedKeywordList.innerHTML += '<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Get More Keywords</button>';
+        }
+
+        function displayRankedKeywords(rankedKeywordsData) {
+            const rankedKeywordList = document.getElementById('rankedKeywordList');
+            rankedKeywordList.innerHTML = ''; // Clear previous keywords
+
+            const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column'));
+
+            // 1. Transform the data:
+            const rankedKeywordsArray = Object.entries(rankedKeywordsData).map(([keyword, data]) => ({
+                keyword: keyword,
+                search_volume: data.search_volume,
+                rank: data.rank,
+                difficulty: data.difficulty
+            }));
+
+            rankedKeywordsArray.forEach((keywordObj, index) => {
+                const listItem = document.createElement('li');
+                listItem.classList.add('keyword-row');
+
+                // Keyword column
+                const keywordDiv = document.createElement('div');
+                keywordDiv.classList.add('keyword-column');
+                keywordDiv.style.width = `${headerCells[0].offsetWidth}px`;
+                keywordDiv.textContent = keywordObj.keyword;
+                listItem.appendChild(keywordDiv);
+
+                // Search Volume column
+                const searchVolumeDiv = document.createElement('div');
+                searchVolumeDiv.classList.add('keyword-column');
+                searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`;
+                searchVolumeDiv.textContent = keywordObj.search_volume != null ? keywordObj.search_volume.toLocaleString() : '-'; // Handle null search volume
+                listItem.appendChild(searchVolumeDiv);
+
+                // Rank
+                const rankDiv = document.createElement('div');
+                rankDiv.classList.add('keyword-column');
+                rankDiv.style.width = `${headerCells[2].offsetWidth}px`;
+                rankDiv.textContent = keywordObj.rank || '-';
+                listItem.appendChild(rankDiv);
+
+                // Difficulty column
+                const difficultyDiv = document.createElement('div');
+                difficultyDiv.classList.add('keyword-column');
+                difficultyDiv.style.width = `${headerCells[3].offsetWidth}px`;
+                difficultyDiv.textContent = keywordObj.difficulty || '-';
+                listItem.appendChild(difficultyDiv);
+
+                // Checkbox column
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.classList.add('checkbox-column');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.name = `chk${index + 1}`;
+                checkbox.id = `chk${index + 1}`;
+                checkbox.value = keywordObj.keyword;
+                checkbox.checked = false;
+                checkboxDiv.appendChild(checkbox);
+                listItem.appendChild(checkboxDiv);
+
+                checkbox.addEventListener('change', updateKeywordsField);
+
+                rankedKeywordList.appendChild(listItem);
+            });
+            updateRankedKeywordsCount();
             rankedKeywordList.innerHTML += '<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Get More Keywords</button>';
         }
 
@@ -2106,6 +2172,7 @@
                         }
                         return res.json();
                     }).then(rankData => {
+                        rankedKeywordList.innerHTML = rankedKeywordList.innerHTML.replace('<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Getting Keywords</button>', '');
                         rankCell.innerHTML = rankData || 999; // Handle cases where rank is unavailable
 
                         const rank = parseInt(rankData); // Parse rankData to integer
@@ -2124,7 +2191,6 @@
                             const rankedKeywordList = document.getElementById('rankedKeywordList');
                             const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column'));
                             const currentKeywordCount = rankedKeywordList.querySelectorAll('li.keyword-row').length; //Correct length
-                            rankedKeywordList.innerHTML = rankedKeywordList.innerHTML.replace('<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Get More Keywords</button>', '');
 
                             // Append to rankedKeywordList (using a separate function for clarity)
                             appendRankedKeyword({ // Pass data as an object
@@ -2826,23 +2892,22 @@
                 currentRankedKeywordSortColumn = column;
             }
 
-            // Debugging: Check what values are being sorted
-            console.log("Sorting column:", column, "Ascending?", rankedKeywordSortAscending);
-
             listItems.sort((a, b) => {
-                const aValue = a.children[column].textContent.trim();
-                const bValue = b.children[column].textContent.trim();
-                console.log("Comparing:", aValue, "vs", bValue);
+                try {
+                    const aValue = a.children[column].textContent.trim();
+                    const bValue = b.children[column].textContent.trim();
 
-                const aNum = parseFloat(aValue.replace(/,/g, ''));
-                const bNum = parseFloat(bValue.replace(/,/g, ''));
+                    const aNum = parseFloat(aValue.replace(/,/g, ''));
+                    const bNum = parseFloat(bValue.replace(/,/g, ''));
 
-                if (!isNaN(aNum) && !isNaN(bNum)) {
-                    return rankedKeywordSortAscending ? aNum - bNum : bNum - aNum;
-                } else {
-                    return rankedKeywordSortAscending
-                        ? aValue.localeCompare(bValue)
-                        : bValue.localeCompare(aValue);
+                    if (!isNaN(aNum) && !isNaN(bNum)) {
+                        return rankedKeywordSortAscending ? aNum - bNum : bNum - aNum;
+                    } else {
+                        return rankedKeywordSortAscending
+                            ? aValue.localeCompare(bValue)
+                            : bValue.localeCompare(aValue);
+                    }
+                } catch (error) {
                 }
             });
 
