@@ -673,9 +673,10 @@
                         </select>
                     </div><br>
                     <div>
-                        <label-fixed for="keywords">Keyword(s) of Interest (comma or newline
-                            separated):</label-fixed><br>
-                        <textarea id="keywords" name="keywords" required placeholder="keyword1, keyword2"></textarea>
+                        <label-fixed for="keywords">Keyword(s) of Interest (comma or newline separated):</label-fixed>
+                        <span id="keywordCount" style="margin-left: 10px;"></span><br> <textarea id="keywords"
+                            name="keywords" required placeholder="keyword1, keyword2"
+                            oninput="updateKeywordCount()"></textarea>
                         <span class="error" id="keywordsError"></span>
                     </div>
 
@@ -2305,7 +2306,13 @@
             const count = rankedKeywordList.querySelectorAll('li.keyword-row').length; // Count only the keyword rows (li elements)
             const heading = document.getElementById('rankedKeywordsCount');
             heading.textContent = `Ranked Keywords (${count}):`; // Update the heading text
+        }
 
+        function updateKeywordCount() {
+            const keywordsTextArea = document.getElementById('keywords');
+            const keywords = keywordsTextArea.value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean); // Split by comma or newline, trim whitespace, remove empty strings
+            const keywordCountSpan = document.getElementById('keywordCount');
+            keywordCountSpan.textContent = `${keywords.length} keywords selected`;
         }
 
         function updateKeywordsField() {
@@ -2328,6 +2335,7 @@
             }
 
             keywordsTextArea.value = Array.from(checkedKeywords).join(', '); // Convert Set back to array before joining
+            updateKeywordCount();
         }
 
         function validateAndSubmit() {
