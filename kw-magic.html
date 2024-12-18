@@ -1994,7 +1994,7 @@
                     return response.json();
                 })
                 .then(data => {
-                    console.log("Ranking Keywords:", data.body);
+                    //console.log("Ranking Keywords:", data.body);
                     displayRankedKeywords(data.body);
                     document.getElementById('ranking').innerText = "Get Ranking Keywords";
                     document.getElementById("ranking_keywords").style.backgroundColor = "green";
@@ -2004,29 +2004,6 @@
                     document.getElementById('ranking').innerText = "Get Ranking Keywords";
                     document.getElementById("ranking_keywords").style.backgroundColor = "#004c9d";
                 });
-        }
-
-        function displayRankedKeywords2(rankedKeywordsData) {
-            const rankedKeywordList = document.getElementById('rankedKeywordList');
-            rankedKeywordList.innerHTML = ''; // Clear previous keywords
-
-            const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column'));
-
-            // Convert the object to an array of objects, suitable for sorting
-            const rankedKeywordsArray = Object.entries(rankedKeywordsData).map(([keyword, data]) => ({
-                keyword: keyword,
-                search_volume: data.search_volume,
-                rank: data.rank,
-                difficulty: data.difficulty
-            }));
-
-            rankedKeywordsArray.forEach((item, index) => {
-                appendRankedKeyword(item, index, headerCells, rankedKeywordList); // Use the function for appending
-            });
-
-            updateRankedKeywordsCount();
-
-            rankedKeywordList.innerHTML += '<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Get More Keywords</button>';
         }
 
         function displayRankedKeywords(rankedKeywordsData) {
@@ -2084,16 +2061,21 @@
                 checkbox.id = `chk${index + 1}`;
                 checkbox.value = keywordObj.keyword;
                 checkbox.checked = false;
+                checkbox.addEventListener('change', updateKeywordsField);
                 checkboxDiv.appendChild(checkbox);
                 listItem.appendChild(checkboxDiv);
-
-                checkbox.addEventListener('change', updateKeywordsField);
 
                 rankedKeywordList.appendChild(listItem);
             });
             updateRankedKeywordsCount();
             rankedKeywordList.innerHTML += '<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Get More Keywords</button>';
         }
+
+        document.getElementById('rankedKeywordList').addEventListener('change', function (event) {
+            if (event.target.type === 'checkbox') { // Only handle checkbox changes
+                updateKeywordsField();
+            }
+        });
 
 
         const keywordTable = document.getElementById('keywordTable');
@@ -2253,6 +2235,7 @@
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.value = item.keyword;
+            checkbox.addEventListener('change', updateKeywordsField);
             checkboxDiv.appendChild(checkbox);
             listItem.appendChild(checkboxDiv);
 
@@ -2309,10 +2292,9 @@
                 checkbox.id = `chk${index + 1}`;
                 checkbox.value = keywordObj.keyword;
                 checkbox.checked = false;
+                checkbox.addEventListener('change', updateKeywordsField);
                 checkboxDiv.appendChild(checkbox);
                 listItem.appendChild(checkboxDiv);
-
-                checkbox.addEventListener('change', updateKeywordsField);
 
                 keywordList.appendChild(listItem);
             });
@@ -2328,17 +2310,24 @@
 
         function updateKeywordsField() {
             const keywordsTextArea = document.getElementById('keywords');
-            const checkedKeywords = [];
+            const checkedKeywords = new Set(); // Use a Set to store unique values
 
             // Get checked keywords from both tables
-            const similarKeywordsCheckboxes = document.querySelectorAll('#keywordList input[type="checkbox"]:checked');
-            const rankedKeywordsCheckboxes = document.querySelectorAll('#rankedKeywordList input[type="checkbox"]:checked');
+            try {
+                const rankedKeywordsCheckboxes = document.querySelectorAll('#rankedKeywordList input[type="checkbox"]:checked');
+                rankedKeywordsCheckboxes.forEach(checkbox => checkedKeywords.add(checkbox.value));
+            } catch (error) {
+                console.log(error);
+            }
 
-            similarKeywordsCheckboxes.forEach(checkbox => checkedKeywords.push(checkbox.value));
-            rankedKeywordsCheckboxes.forEach(checkbox => checkedKeywords.push(checkbox.value));
+            try {
+                const similarKeywordsCheckboxes = document.querySelectorAll('#keywordList input[type="checkbox"]:checked');
+                similarKeywordsCheckboxes.forEach(checkbox => checkedKeywords.add(checkbox.value));
+            } catch (error) {
+                console.log(error);
+            }
 
-            keywordsTextArea.value = checkedKeywords.join(', '); // Update the textarea
-
+            keywordsTextArea.value = Array.from(checkedKeywords).join(', '); // Convert Set back to array before joining
         }
 
         function validateAndSubmit() {
