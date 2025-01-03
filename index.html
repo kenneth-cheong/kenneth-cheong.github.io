@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
         integrity="..." crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script src="https://cdn.jsdelivr.net/npm/handlebars@latest/dist/handlebars.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         #schema-output {
             white-space: pre-wrap;
@@ -421,8 +422,8 @@
         #auditSummary table {
             width: 50%;
             float: right;
-            padding: 20px;
-            height: 600px;
+            padding: 10px;
+            height: 560px;
         }
 
         /* Table styling */
@@ -603,6 +604,12 @@
             margin-left: 10px;
             color: #004c9d;
         }
+
+        #downloadResultsBtn {
+            display: none;
+            /* Initially hidden */
+            margin-top: 20px;
+        }
     </style>
 </head>
 
@@ -651,7 +658,7 @@
                     <div>
                         <label-fixed for="location">Targeted Location or Country (required):</label-fixed>
                         <select id="location" name="location" required>
-                            <option value="">Select a location</option>
+                            <option value="Singapore">Singapore</option>
                             <option value="Australia">Australia</option>
                             <option value="Brazil">Brazil</option>
                             <option value="Canada">Canada</option>
@@ -666,7 +673,6 @@
                             <option value="Mexico">Mexico</option>
                             <option value="Netherlands">Netherlands</option>
                             <option value="Russia">Russia</option>
-                            <option value="Singapore">Singapore</option>
                             <option value="South Korea">South Korea</option>
                             <option value="Spain">Spain</option>
                             <option value="Thailand">Thailand</option>
@@ -679,12 +685,11 @@
                     <div>
                         <label-fixed for="language">Language (required):</label-fixed>
                         <select id="language" name="language" required>
-                            <option value="">Select a language</option>
+                            <option value="English">English</option>
                             <option value="Arabic">Arabic</option>
                             <option value="Chinese (Simplified)">Chinese (Simplified)</option>
                             <option value="Chinese (Traditional)">Chinese (Traditional)</option>
                             <option value="Dutch">Dutch</option>
-                            <option value="English">English</option>
                             <option value="French">French</option>
                             <option value="German">German</option>
                             <option value="Hindi">Hindi</option>
@@ -894,7 +899,7 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>PageSpeed (Desktop)</td>
+                                    <td>PageSpeed (Mobile)</td>
                                     <td id="pagespeed_audit"></td>
                                 </tr>
                                 <tr>
@@ -939,6 +944,7 @@
                         </table>
                     </div>
                 </div>
+                <button id="downloadResultsBtn" onclick="downloadResultsAsXlsx()">Download results as xlsx</button>
             </div>
             <hr>
             <button class="collapsible">Content Comparison</button>
@@ -1378,6 +1384,7 @@
                     document.getElementById("gtButton").style.backgroundColor = "green";
 
                 })
+
                 .catch(error => console.error('Error fetching GTMetrix data:', error));
 
 
@@ -1461,6 +1468,10 @@
                     submitBtn.innerHTML = 'Analyse Website';
                 })
 
+                .finally(() => {
+                    document.getElementById('downloadResultsBtn').style.display = 'block';
+                });
+
         });
 
         analyzeBtn.addEventListener('click', async () => {
@@ -1474,6 +1485,7 @@
             const language = document.getElementById('comparison-language').value;
             const location = document.getElementById('comparison-location').value;
             urls = urlsInput.split(/[\s,]+/).filter(url => url.trim() !== "");
+            const loadingMessageInterval = setInterval(updateLoadingMessage, 4000);
 
             try {
                 // Function to cycle through loading messages
@@ -1483,7 +1495,7 @@
                 }
 
                 // Start cycling loading messages
-                const loadingMessageInterval = setInterval(updateLoadingMessage, 4000);
+                //const loadingMessageInterval = setInterval(updateLoadingMessage, 4000);
 
                 let serpUrls = [];
                 try {
@@ -1585,7 +1597,10 @@
                 resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
                 try {
                     clearInterval(loadingMessageInterval);
+                    loadingMessagesDiv.classList.remove('active');
                 } catch (error) {
+                    clearInterval(loadingMessageInterval);
+                    loadingMessagesDiv.classList.remove('active');
                 }
                 loadingMessagesDiv.classList.remove('active');
                 analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
@@ -3193,6 +3208,66 @@
         function removeSemGeneratedRow(category, index) {
             generatedData[category].splice(index, 1);
             displaySemGeneratedData(); // Redraw the table
+        }
+
+        function downloadResultsAsXlsx() {
+            const wb = XLSX.utils.book_new();
+
+            // Add auditSummary tab
+            const auditSummaryTables = document.getElementById('auditSummary').querySelectorAll('table');
+            let auditSummaryData = [];
+
+            auditSummaryTables.forEach((table, tableIndex) => {
+                const tableData = extractTableData(table);
+
+                // Add a blank row between tables (if it's not the first table)
+                if (tableIndex > 0) {
+                    auditSummaryData.push([]);
+                }
+                auditSummaryData = auditSummaryData.concat(tableData);
+            });
+
+            const auditSummaryWS = XLSX.utils.aoa_to_sheet(auditSummaryData);
+            XLSX.utils.book_append_sheet(wb, auditSummaryWS, 'auditSummary');
+
+            // Add gtMetrix tab
+            const gtMetrixData = extractTableData(document.getElementById('gtmetrixReport').querySelector('table'));
+            const gtMetrixWS = XLSX.utils.aoa_to_sheet(gtMetrixData);
+            XLSX.utils.book_append_sheet(wb, gtMetrixWS, 'gtMetrix');
+
+            // Add pageAnalysis tab
+            const pageAnalysisData = extractTableData(document.getElementById('pageAuditReport').querySelector('table'));
+            const pageAnalysisWS = XLSX.utils.aoa_to_sheet(pageAnalysisData);
+            XLSX.utils.book_append_sheet(wb, pageAnalysisWS, 'pageAnalysis');
+
+
+            // Add crawlerSection tab
+            const crawlerData = extractTableData(document.getElementById('crawlerReport').querySelector('table'));
+            const crawlerWS = XLSX.utils.aoa_to_sheet(crawlerData);
+            XLSX.utils.book_append_sheet(wb, crawlerWS, 'crawlerSection');
+
+            XLSX.writeFile(wb, 'technical_seo_results.xlsx');
+        }
+
+        function extractTableData(table) {
+            const data = [];
+            const rows = table.querySelectorAll('tr');
+
+            rows.forEach(row => {
+                const rowData = [];
+                const cells = row.querySelectorAll('th, td');
+                cells.forEach(cell => {
+                    // Get text content, handling potential HTML inside cells
+                    let cellText = cell.textContent.trim();
+                    if (!cellText && cell.innerHTML) {
+                        cellText = cell.innerHTML.replace(/<[^>]*>/g, "").trim();
+                    }
+
+                    rowData.push(cellText);
+                });
+                data.push(rowData);
+            });
+            return data;
         }
     </script>
 
