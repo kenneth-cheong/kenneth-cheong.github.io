@@ -14,6 +14,48 @@
     <script src="https://cdn.jsdelivr.net/npm/handlebars@latest/dist/handlebars.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
+        #keywordModal {
+            display: block;
+            /* Make sure it's not hidden */
+            position: fixed;
+            /* Stay in place */
+            z-index: 1;
+            /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%;
+            /* Full width */
+            height: 100%;
+            /* Full height */
+            overflow: auto;
+            /* Enable scroll if needed */
+            background-color: rgba(0, 0, 0, 0.4);
+            /* Black w/ opacity */
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 3% auto;
+            padding: 3%;
+            border: 1px solid #888;
+            width: 90%;
+            border-radius: 10px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
         #schema-output {
             white-space: pre-wrap;
             /* Allow line breaks */
@@ -2051,6 +2093,186 @@
                 });
         }
 
+        const modalCache = {};
+
+        function openModal(keyword) {
+            let modal = document.getElementById("keywordModal");
+            if (!modal) {
+                modal = document.createElement("div");
+                modal.id = "keywordModal";
+                modal.style.display = "none"; // Initially hidden
+                modal.innerHTML = `<div class="modal-content"><span class="close" onclick="closeModal()">×</span><h2 id="modalKeyword"></h2><div id="modalContent"></div></div>`;
+                document.body.appendChild(modal);
+                modal.addEventListener('click', (event) => {
+                    if (event.target === modal) { // Check if click is on modal background
+                        closeModal();
+                    }
+                });
+            }
+            // Set modal content (replace with your actual data fetching)
+            document.getElementById("modalKeyword").textContent = keyword;
+
+            if (modalCache[keyword]) {
+                document.getElementById("modalContent").innerHTML = modalCache[keyword];
+                modal.style.display = "block";
+                return; // Exit early if data is in cache
+            }
+
+            document.getElementById("modalContent").innerHTML = "<p>Loading SERPs for " + keyword + "...</p>"; // Placeholder
+            modal.style.display = "block";
+
+            serpModal(keyword).then(data => {
+                if (data.error) {
+                    document.getElementById("modalContent").innerHTML = "<p class='error'>Error: " + data.error + "</p>";
+                    return;
+                }
+
+                displayInitialTable(data);
+
+                const urls = Object.values(data.body).map(result => result.url);
+                const metricsPromises = urls.map(url => fetchMetrics(url));
+
+                Promise.all(metricsPromises)
+                    .then(metricsResults => {
+                        addMetricsToTable(data, metricsResults);
+
+                        // Cache the final table HTML
+                        modalCache[keyword] = document.getElementById("modalContent").innerHTML;
+                    })
+                    .catch(error => {
+                        console.error("Error fetching metrics:", error);
+                        document.getElementById("modalContent").innerHTML += "<p class='error'>Error fetching some metrics.</p>";
+                    });
+
+            });
+
+        }
+
+
+        async function serpModal(keyword) {
+            const language = document.getElementById('language').value;
+            const location = document.getElementById('location').value;
+            try {
+                const response = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keyword, language, location }),
+                });
+                const serpData = await response.json();
+
+                // Check for errors in SERP data
+                if (serpData.error || serpData.statusCode !== 200) {
+                    throw new Error("SERP API Error: " + (serpData.error || "Status code " + serpData.statusCode));
+                }
+
+                const urls = Object.values(serpData.body).map(result => result.url);
+                const metricsPromises = urls.map(url =>
+                    fetch('https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url })
+                    }).then(res => res.json())
+                );
+                const metricsResults = await Promise.all(metricsPromises);
+
+
+                // Combine SERP data and metrics
+                for (let i = 0; i < urls.length; i++) {
+                    serpData.body[i + 1].metrics = metricsResults[i].body; // Add metrics to serpData
+                }
+
+                return serpData;
+
+
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                return { error: error.message }; // Return error message
+            }
+        }
+
+        // Function to close the modal
+        function closeModal() {
+            const modal = document.getElementById("keywordModal");
+            if (modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        async function fetchMetrics(url) { // Helper function to fetch metrics for one URL
+            try {
+                const response = await fetch('https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Metrics API Error: ${response.status} ${response.statusText}`);
+                }
+                const data = await response.json();
+                return data.body; // Return the body directly
+            } catch (error) {
+                console.error("Error fetching metrics:", error);
+                return { error: error.message }; // Return error object, better for handling
+            }
+        }
+
+        function displayInitialTable(data) {
+            let tableHtml = "<table><tr><th>Rank</th><th>URL</th><th>Title</th><th>Description</th></tr>";
+            for (const rank in data.body) {
+                const result = data.body[rank];
+                tableHtml += `<tr><td>${rank}</td><td><a href="${result.url}" target="_blank">${result.url}</a></td><td>${result.title}</td><td>${result.description}</td></tr>`;
+            }
+            tableHtml += "</table>";
+            document.getElementById("modalContent").innerHTML = tableHtml;
+        }
+
+
+        function addMetricsToTable(data, metricsResults) {
+            const table = document.getElementById("modalContent").querySelector("table");
+
+            // Add header cells for metrics
+            const headerRow = table.rows[0];
+            const firstResultMetrics = metricsResults[0] || {}; //Handle missing metrics
+            if (!firstResultMetrics.error) {
+                for (const metricKey in firstResultMetrics) {
+                    if (metricKey !== 'visible_text' && metricKey !== 'word_count' && metricKey !== 'title' && metricKey !== 'description' && metricKey !== 'click_depth') {
+                        const th = document.createElement("th");
+                        th.textContent = metricKey.replace(/_/g, ' ').toUpperCase();
+                        headerRow.appendChild(th);
+                    }
+                }
+            }
+
+            // Add metric data to rows
+            for (let i = 0; i < metricsResults.length; i++) {
+                const row = table.rows[i + 1]; // Skip header row
+                const metrics = metricsResults[i] || {};
+                if (!metrics.error) {
+                    for (const metricKey in firstResultMetrics) {   //Use firstResultMetrics for keys order
+                        if (metricKey !== 'visible_text' && metricKey !== 'word_count' && metricKey !== 'title' && metricKey !== 'description' && metricKey !== 'click_depth') {
+
+                            if (metrics.hasOwnProperty(metricKey)) {
+                                const cell = row.insertCell();
+                                cell.textContent = metrics[metricKey];
+                            } else {
+                                row.insertCell(); // Add an empty cell if the metric is missing
+                            }
+
+                        }
+                    }
+                } else {
+                    // Add empty cells for all metrics if there is an error
+                    for (const metricKey in firstResultMetrics) {
+                        if (metricKey !== 'visible_text' && metricKey !== 'word_count' && metricKey !== 'title' && metricKey !== 'description' && metricKey !== 'click_depth') {
+                            row.insertCell();
+                        }
+                    }
+                }
+            }
+        }
+
+
         function displayRankedKeywords(rankedKeywordsData) {
             const rankedKeywordList = document.getElementById('rankedKeywordList');
             rankedKeywordList.innerHTML = ''; // Clear previous keywords
@@ -2313,6 +2535,7 @@
                 keywordDiv.classList.add('keyword-column');
                 keywordDiv.style.width = `${headerCells[0].offsetWidth}px`;
                 keywordDiv.textContent = keywordObj.keyword;
+                keywordDiv.addEventListener('click', () => openModal(keywordObj.keyword));
                 listItem.appendChild(keywordDiv);
 
                 // Search Volume column
