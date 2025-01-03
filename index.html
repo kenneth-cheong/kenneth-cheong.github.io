@@ -2137,8 +2137,6 @@
                     return;
                 }
 
-                displayInitialTable(data);
-
                 const urls = Object.values(data.body).map(result => result.url);
                 const metricsPromises = urls.map(url => fetchMetrics(url));
 
@@ -2158,12 +2156,11 @@
 
         }
 
-
         async function serpModal(keyword) {
             const language = document.getElementById('language').value;
             const location = document.getElementById('location').value;
             try {
-                const response = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
+                const response = await fetch('https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ keyword, language, location }),
@@ -2174,6 +2171,8 @@
                 if (serpData.error || serpData.statusCode !== 200) {
                     throw new Error("SERP API Error: " + (serpData.error || "Status code " + serpData.statusCode));
                 }
+
+                displayInitialTable(serpData);
 
                 const urls = Object.values(serpData.body).map(result => result.url);
                 const metricsPromises = urls.map(url =>
