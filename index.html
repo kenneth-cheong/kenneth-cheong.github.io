@@ -3572,6 +3572,31 @@
         }
 
 
+
+        // Example of using the key in other API calls:
+        async function makeAuthenticatedRequest() {
+            const key = getCookie('authKey');
+            if (key) {
+                try {
+                    const response = await fetch('/your-protected-api-endpoint', {
+                        headers: {
+                            'Authorization': `Bearer ${key}` // Or however your API expects the key
+                        }
+                    });
+
+                    // ... handle response
+                } catch (error) {
+                    // ... handle error
+                }
+            } else {
+                // Redirect to login or show login form
+                console.log("Not logged in");
+                window.location.href = "/login"; // Or show login form
+
+            }
+        }
+
+
         async function login() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
@@ -3594,8 +3619,6 @@
                     expiryDate.setTime(expiryDate.getTime() + (24 * 60 * 60 * 1000)); // 24 hours in milliseconds
                     const expires = "expires=" + expiryDate.toUTCString();
                     document.cookie = `authKey=${key}; ${expires}; path=/; SameSite=Strict`;
-
-                    console.log(document.cookie);
 
 
                     // Display main content and hide the login form
@@ -3642,10 +3665,10 @@
         });
 
         function handleEnter(event) {
-           if (event.key === "Enter") {
-               login();
-           }
-       }
+            if (event.key === "Enter") {
+                login();
+            }
+        }
 
 
     </script>
