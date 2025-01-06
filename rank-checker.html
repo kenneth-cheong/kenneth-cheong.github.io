@@ -1,103 +1,183 @@
 <!DOCTYPE html>
 <html>
-<head>
-<title>MO Rank Checker</title>
-<style>
-table {
-  border-collapse: collapse;
-}
 
-th, td {
-  border: 1px solid black;
-  padding: 8px;
-  text-align: left;
-}
-</style>
+<head>
+    <title>MO Rank Checker</title>
+    <link rel="icon"
+    href="https://mediaonemarketing.com.sg/wp-content/uploads/2023/11/cropped-MediaOne-M-favicon-logo-32x32.png"
+    sizes="32x32">
+    <style>
+        table {
+            max-width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            background-color: #fffef7;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 6px;
+            table-layout: auto;
+            display: block;
+            /* Needed for scroll */
+            table-layout: fixed;
+            overflow-y: scroll;
+        }
+
+        th,
+        td {
+            padding: 12px 8px;
+            border: 1px solid #ddd;
+            font-size: 14px;
+            background-color: white;
+            overflow: hidden;
+        }
+
+        th {
+            background-color: #004c9d;
+            position: sticky;
+            color: white;
+            top: 0;
+            resize: horizontal;
+            /* Allow horizontal resizing */
+        }
+
+        input,
+        select,
+        button,
+        textarea {
+            padding: 10px;
+            margin: 10px;
+            border-radius: 10px;
+            border: 1px solid #c8c8c8;
+            font-family: inherit;
+            font-size: 16px;
+        }
+
+        input {
+            width: 80%;
+        }
+
+        button {
+            transition: background-color 0.3s, transform 0.1s;
+            background-color: #c8c9ca;
+        }
+
+        button:hover {
+            background-color: #004c9d;
+            transform: translateY(-2px);
+            cursor: pointer;
+            color: white;
+        }
+
+        textarea {
+            min-width: 90%;
+            min-height: 50px;
+            max-width: 90%;
+        }
+
+        p,
+        h1,
+        h2,
+        h3 {
+            text-wrap: wrap;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 10px;
+            background-color: #fbf7f5;
+            color: #333;
+            text-wrap: wrap;
+        }
+    </style>
 </head>
+
 <body>
 
-<h1>MediaOne Rank Checker</h1>
+    <h1>MediaOne Rank Checker</h1><h2>(Up to 1,200 keywords per query)</h2>
 
-<textarea id="keywords" rows="10" cols="50" placeholder="Enter keywords, one per line"></textarea>
-<br><br>
-<button onclick="checkRanks()">Check Ranks</button>
-<hr>
-<br>
-<table id="resultsTable">
-  <thead>
-    <tr>
-      <th>Rank</th>
-      <th>Keyword</th>
-    </tr>
-  </thead>
-  <tbody id="resultsTableBody">
-  </tbody>
-</table>
+    <textarea id="keywords" rows="10" cols="50" placeholder="Enter keywords, one per line, up to 1,200 keywords"></textarea>
+    <br>
+    <label-fixed for="domain">Targeted Domain / URL:</label-fixed>
+    <input type="url" id="domain" name="domain" required value="https://mediaonemarketing.com.sg">
+    <br><br>
+    <button onclick="checkRanks()">Check Ranks</button>
+    <hr>
+    <br>
+    <table id="resultsTable">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Keyword</th>
+            </tr>
+        </thead>
+        <tbody id="resultsTableBody">
+        </tbody>
+    </table>
 
-<script>
-async function checkRanks() {
-  const keywords = document.getElementById('keywords').value.split('\n');
-  const tableBody = document.getElementById('resultsTableBody');
-  tableBody.innerHTML = ""; // Clear previous results
+    <script>
+        async function checkRanks() {
+            const keywords = document.getElementById('keywords').value.split('\n');
+            const domain = document.getElementById('domain');
+            const tableBody = document.getElementById('resultsTableBody');
+            tableBody.innerHTML = ""; // Clear previous results
+            const results = [];
+            for (const keyword of keywords) {
+                const row = tableBody.insertRow();
+                const rankCell = row.insertCell();
+                const keywordCell = row.insertCell();
 
+                rankCell.textContent = 'getting rank...';
+                keywordCell.textContent = keyword;
 
-  const results = [];
-  for (const keyword of keywords) {
-    const row = tableBody.insertRow();
-    const rankCell = row.insertCell();
-    const keywordCell = row.insertCell();
+                if (keyword.trim() !== "") { // Only make API call if keyword is not empty
+                    results.push(fetchRank(keyword.trim(), row));
+                } else {
+                    rankCell.textContent = ''; // Clear "getting rank" for empty lines
+                }
+            }
 
-    rankCell.textContent = 'getting rank...';
-    keywordCell.textContent = keyword;
+            await Promise.all(results); // Wait for all API calls to complete
+        }
 
-    if (keyword.trim() !== "") { // Only make API call if keyword is not empty
-      results.push(fetchRank(keyword.trim(), row)); 
-    } else {
-      rankCell.textContent = ''; // Clear "getting rank" for empty lines
-    }
-  }
+        async function fetchRank(keyword, row) {
+            const rankCell = row.cells[0];
 
-  await Promise.all(results); // Wait for all API calls to complete
-}
+            try {
+                const response = await fetch('https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        "keyword": keyword,
+                        "language": "English",
+                        "location": "Singapore",
+                        "target": domain
+                    })
+                });
 
-async function fetchRank(keyword, row) {
-  const rankCell = row.cells[0];
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
 
-  try {
-    const response = await fetch('https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        "keyword": keyword,
-        "language": "English",
-        "location": "Singapore",
-        "target": "https://mediaonemarketing.com.sg"
-      })
-    });
+                data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(`HTTP error ${response.status}`);
-    }
-
-    data = await response.json();
-
-    if (data == null){
-        data = 999;
-    } 
-    rankCell.textContent = data;
-
-
-  } catch (error) {
-    console.error("Error fetching rank:", error);
-    rankCell.textContent = 'not available';
-  }
-}
+                if (data == null) {
+                    data = 999;
+                }
+                rankCell.textContent = data;
 
 
+            } catch (error) {
+                console.error("Error fetching rank:", error);
+                rankCell.textContent = 'not available';
+            }
+        }
 
-</script>
+
+
+    </script>
 
 </body>
+
 </html>
