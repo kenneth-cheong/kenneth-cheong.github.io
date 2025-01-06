@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Rank Checker</title>
+<style>
+table {
+  border-collapse: collapse;
+}
+
+th, td {
+  border: 1px solid black;
+  padding: 8px;
+  text-align: left;
+}
+</style>
+</head>
+<body>
+
+<h1>Rank Checker</h1>
+
+<textarea id="keywords" rows="10" cols="50" placeholder="Enter keywords, one per line"></textarea>
+<br><br>
+<button onclick="checkRanks()">Check Ranks</button>
+<hr>
+<br>
+<table id="resultsTable">
+  <thead>
+    <tr>
+      <th>Rank</th>
+      <th>Keyword</th>
+    </tr>
+  </thead>
+  <tbody id="resultsTableBody">
+  </tbody>
+</table>
+
+<script>
+async function checkRanks() {
+  const keywords = document.getElementById('keywords').value.split('\n');
+  const tableBody = document.getElementById('resultsTableBody');
+  tableBody.innerHTML = ""; // Clear previous results
+
+
+  const results = [];
+  for (const keyword of keywords) {
+    const row = tableBody.insertRow();
+    const rankCell = row.insertCell();
+    const keywordCell = row.insertCell();
+
+    rankCell.textContent = 'getting rank...';
+    keywordCell.textContent = keyword;
+
+    if (keyword.trim() !== "") { // Only make API call if keyword is not empty
+      results.push(fetchRank(keyword.trim(), row)); 
+    } else {
+      rankCell.textContent = ''; // Clear "getting rank" for empty lines
+    }
+  }
+
+  await Promise.all(results); // Wait for all API calls to complete
+}
+
+async function fetchRank(keyword, row) {
+  const rankCell = row.cells[0];
+
+  try {
+    const response = await fetch('https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        "keyword": keyword,
+        "language": "English",
+        "location": "Singapore",
+        "target": "https://mediaonemarketing.com.sg"
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
+
+    const data = await response.json();
+    rankCell.textContent = data;
+
+
+  } catch (error) {
+    console.error("Error fetching rank:", error);
+    rankCell.textContent = 'not available';
+  }
+}
+
+
+
+</script>
+
+</body>
+</html>
