@@ -3547,21 +3547,23 @@
         }
 
         function checkLoginCookie() {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.startsWith("authKey=")) {
-                    // Found the authKey cookie, user is already logged in
-                    document.getElementById('loginForm').style.display = 'none';
-                    document.getElementById('main-content').style.display = 'block';
-                    document.getElementById('navbar').style.display = 'block';
-                    return; // Exit the loop, no need to check further
-                }
+            console.log("Checking login cookie...");
+            const key = getCookie("authKey");
+            console.log("Retrieved key:", key);  // Log the retrieved key
+            if (key) {
+                // Logged in
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('main-content').style.display = 'block';
+                document.getElementById('navbar').style.display = 'block';
+            } else {
+                // Not logged in
+                document.getElementById('loginForm').style.display = 'flex'; // Or 'block'
+                document.getElementById('main-content').style.display = 'none';
+                document.getElementById('navbar').style.display = 'none';
             }
         }
 
-
-        // Call this function on page load
+        // Call checkLoginCookie on page load
         window.addEventListener('load', checkLoginCookie);
 
 
@@ -3569,31 +3571,6 @@
             const value = `; ${document.cookie}`;
             const parts = value.split(`; ${name}=`);
             if (parts.length === 2) return parts.pop().split(';').shift();
-        }
-
-
-
-        // Example of using the key in other API calls:
-        async function makeAuthenticatedRequest() {
-            const key = getCookie('authKey');
-            if (key) {
-                try {
-                    const response = await fetch('/your-protected-api-endpoint', {
-                        headers: {
-                            'Authorization': `Bearer ${key}` // Or however your API expects the key
-                        }
-                    });
-
-                    // ... handle response
-                } catch (error) {
-                    // ... handle error
-                }
-            } else {
-                // Redirect to login or show login form
-                console.log("Not logged in");
-                window.location.href = "/login"; // Or show login form
-
-            }
         }
 
 
@@ -3613,12 +3590,14 @@
                     const data = await response.json();
                     const key = data.key;
 
+                    console.log(key);
 
                     // Set cookie with 24-hour expiry
                     const expiryDate = new Date();
                     expiryDate.setTime(expiryDate.getTime() + (24 * 60 * 60 * 1000)); // 24 hours in milliseconds
                     const expires = "expires=" + expiryDate.toUTCString();
-                    document.cookie = `authKey=${key}; ${expires}; path=/; SameSite=Strict`;
+                    document.cookie = `authKey=${key}; ${expires}; path=/; Secure; HttpOnly; SameSite=Strict`;
+                    console.log("Cookie set:", document.cookie);  // Log all cookies
 
 
                     // Display main content and hide the login form
@@ -3628,8 +3607,7 @@
 
 
                     // Check for existing cookie on page load (to persist login)
-                    checkLoginCookie();
-
+                    //checkLoginCookie();
 
                 } else {
                     const errorData = await response.json(); // Get error details if available
@@ -3641,28 +3619,6 @@
                 loginError.textContent = "An error occurred during login.";
             }
         }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const isLoggedIn = getCookie("isLoggedIn");
-
-            if (isLoggedIn) {
-                document.getElementById('loginForm').style.display = 'none';
-                document.getElementById('main-content').style.display = 'block';
-                document.getElementById('navbar').style.display = 'block';
-                const token = localStorage.getItem('token');
-                if (token) {
-                    // Use the token for API requests
-                } else {
-                    // Handle the case where the token is missing (might need to re-login)
-                    // ...
-                }
-            } else {
-                document.getElementById('loginForm').style.display = 'flex';  // or 'block'
-                document.getElementById('main-content').style.display = 'none';
-                document.getElementById('navbar').style.display = 'none'; // Hide if login fails
-
-            }
-        });
 
         function handleEnter(event) {
             if (event.key === "Enter") {
