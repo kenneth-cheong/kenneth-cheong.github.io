@@ -705,7 +705,7 @@
     <div id="loginForm">
         <input type="text" id="username" placeholder="Username" onkeydown="handleEnter(event)">
         <input type="password" id="password" placeholder="Password" onkeydown="handleEnter(event)">
-        <button onclick="login()">Login</button>
+        <button id="loginButton" onclick="login()">Login</button>
         <p id="loginError" style="color: red;"></p>
     </div>
     <nav id="navbar">
@@ -2155,13 +2155,13 @@
                 modal.style.display = "none"; // Initially hidden
                 modal.innerHTML = `<div class="modal-content"><span class="close" onclick="closeModal()">×</span><h2 id="modalKeyword"></h2><div id="modalContent"></div></div>`;
                 document.body.appendChild(modal);
-            /*
-                modal.addEventListener('click', (event) => {
-                    if (event.target === modal) { // Check if click is on modal background
-                        closeModal();
-                    }
-                });
-            */
+                /*
+                    modal.addEventListener('click', (event) => {
+                        if (event.target === modal) { // Check if click is on modal background
+                            closeModal();
+                        }
+                    });
+                */
             }
             // Set modal content (replace with your actual data fetching)
             document.getElementById("modalKeyword").textContent = keyword;
@@ -2273,7 +2273,7 @@
                 }
                 const data = await response.json();
 
-                return {"DA": data.body.results[0].domain_authority};
+                return { "DA": data.body.results[0].domain_authority };
 
                 return data.body; // Return the body directly
             } catch (error) {
@@ -3558,35 +3558,37 @@
             return data;
         }
 
+        function getCookie(name) {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.startsWith(name + '=')) {
+                    return decodeURIComponent(cookie.substring(name.length + 1));
+                }
+            }
+            return null;
+        }
+
+        function updateUI(isLoggedIn) {
+            document.getElementById('loginForm').style.display = isLoggedIn ? 'none' : 'flex';
+            document.getElementById('main-content').style.display = isLoggedIn ? 'block' : 'none';
+            document.getElementById('navbar').style.display = isLoggedIn ? 'block' : 'none';
+        }
+
+        window.addEventListener('load', checkLoginCookie);
+
         function checkLoginCookie() {
             console.log("Checking login cookie...");
             const key = getCookie("authKey");
-            console.log("Retrieved key:", key);  // Log the retrieved key
-            if (key) {
-                // Logged in
-                document.getElementById('loginForm').style.display = 'none';
-                document.getElementById('main-content').style.display = 'block';
-                document.getElementById('navbar').style.display = 'block';
-            } else {
-                // Not logged in
-                document.getElementById('loginForm').style.display = 'flex'; // Or 'block'
-                document.getElementById('main-content').style.display = 'none';
-                document.getElementById('navbar').style.display = 'none';
-            }
+            console.log("Retrieved key:", key);
+            updateUI(key !== null);
         }
 
-        // Call checkLoginCookie on page load
-        window.addEventListener('load', checkLoginCookie);
-
-
-        function getCookie(name) {
-            const value = `; ${document.cookie}`;
-            const parts = value.split(`; ${name}=`);
-            if (parts.length === 2) return parts.pop().split(';').shift();
-        }
 
 
         async function login() {
+            const loginButton = document.getElementById('loginButton'); // Make sure you have a button with this ID
+            loginButton.disabled = true;
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             const loginError = document.getElementById('loginError');
@@ -3598,6 +3600,7 @@
                     body: JSON.stringify({ username, password })
                 });
 
+
                 if (response.ok) {
                     const data = await response.json();
                     const key = data.key;
@@ -3606,29 +3609,25 @@
 
                     // Set cookie with 24-hour expiry
                     const expiryDate = new Date();
-                    expiryDate.setTime(expiryDate.getTime() + (24 * 60 * 60 * 1000)); // 24 hours in milliseconds
+                    expiryDate.setTime(expiryDate.getTime() + (24 * 60 * 60 * 1000));
                     const expires = "expires=" + expiryDate.toUTCString();
-                    document.cookie = `authKey=${key}; ${expires}; path=/; Secure; HttpOnly; SameSite=Strict`;
-                    console.log("Cookie set:", document.cookie);  // Log all cookies
+                    document.cookie = `authKey=${key}; ${expires}; path=/; HttpOnly; SameSite=Strict;` // Or omit Secure for testing on HTTP
+                    console.log("Setting cookie with key:", key);
+                    console.log("Expires:", expires);
+                    console.log("All cookies AFTER setting:", document.cookie); // Crucial!
+                    console.log("getCookie('authKey') result:", getCookie("authKey"));  // Check immediately!
 
-
-                    // Display main content and hide the login form
-                    document.getElementById('loginForm').style.display = 'none';
-                    document.getElementById('main-content').style.display = 'block';
-                    document.getElementById('navbar').style.display = 'block';
-
-
-                    // Check for existing cookie on page load (to persist login)
-                    //checkLoginCookie();
+                    updateUI(true);
 
                 } else {
-                    const errorData = await response.json(); // Get error details if available
+                    const errorData = await response.json();
                     loginError.textContent = errorData.message || "Login failed.";
                 }
-
             } catch (error) {
                 console.error("Login error:", error);
                 loginError.textContent = "An error occurred during login.";
+            } finally {
+                loginButton.disabled = false;
             }
         }
 
