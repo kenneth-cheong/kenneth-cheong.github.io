@@ -58,23 +58,20 @@
             z-index: 1;
             left: 0;
             top: 0;
-            width: 95%;
+            width: 50%;
             height: 95%;
             overflow: auto;
             background-color: rgba(0, 0, 0, 0.4);
-            align-items: center;
             padding: 2%;
-            /* Vertically center the content */
-            justify-content: center;
-            /* Horizontally center the content */
+            border-radius: 20px;
         }
 
         .modal-content {
             background-color: #fefefe;
             border: 1px solid #888;
-            width: 55%;
+            width: 95%;
             border-radius: 10px;
-            max-height: calc(100% - 40px);
+            max-height: 95%;
             /* Account for padding/margin or border if present*/
             overflow-y: auto;
             /* Add vertical scrollbar if content overflows */
@@ -2158,11 +2155,13 @@
                 modal.style.display = "none"; // Initially hidden
                 modal.innerHTML = `<div class="modal-content"><span class="close" onclick="closeModal()">×</span><h2 id="modalKeyword"></h2><div id="modalContent"></div></div>`;
                 document.body.appendChild(modal);
+            /*
                 modal.addEventListener('click', (event) => {
                     if (event.target === modal) { // Check if click is on modal background
                         closeModal();
                     }
                 });
+            */
             }
             // Set modal content (replace with your actual data fetching)
             document.getElementById("modalKeyword").textContent = keyword;
@@ -2181,6 +2180,8 @@
                     document.getElementById("modalContent").innerHTML = "<p class='error'>Error: " + data.error + "</p>";
                     return;
                 }
+
+                modalCache[keyword] = document.getElementById("modalContent").innerHTML;
 
                 const urls = Object.values(data.body).map(result => result.url);
                 const metricsPromises = urls.map(url => fetchMetrics(url));
@@ -2220,20 +2221,6 @@
                 displayInitialTable(serpData);
 
                 const urls = Object.values(serpData.body).map(result => result.url);
-                const metricsPromises = urls.map(url =>
-                    fetch('https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url })
-                    }).then(res => res.json())
-                );
-                const metricsResults = await Promise.all(metricsPromises);
-
-
-                // Combine SERP data and metrics
-                for (let i = 0; i < urls.length; i++) {
-                    serpData.body[i + 1].metrics = metricsResults[i].body; // Add metrics to serpData
-                }
 
                 return serpData;
 
@@ -2252,18 +2239,44 @@
             }
         }
 
-        async function fetchMetrics(url) { // Helper function to fetch metrics for one URL
+        /*
+
+        async function fetchMetrics(domain) { // Helper function to fetch metrics for one URL
             try {
                 const response = await fetch('https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url })
+                    body: JSON.stringify({ domain })
                 });
 
                 if (!response.ok) {
                     throw new Error(`Metrics API Error: ${response.status} ${response.statusText}`);
                 }
                 const data = await response.json();
+                return data.body; // Return the body directly
+            } catch (error) {
+                console.error("Error fetching metrics:", error);
+                return { error: error.message }; // Return error object, better for handling
+            }
+        }
+
+        */
+
+        async function fetchMetrics(domain) { // Helper function to fetch metrics for one URL
+            try {
+                const response = await fetch('https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ domain })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Metrics API Error: ${response.status} ${response.statusText}`);
+                }
+                const data = await response.json();
+
+                return {"DA": data.body.results[0].domain_authority};
+
                 return data.body; // Return the body directly
             } catch (error) {
                 console.error("Error fetching metrics:", error);
