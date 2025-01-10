@@ -13,6 +13,57 @@
         integrity="..." crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script src="https://cdn.jsdelivr.net/npm/handlebars@latest/dist/handlebars.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-analytics.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        // TODO: Add SDKs for Firebase products that you want to use
+        // https://firebase.google.com/docs/web/setup#available-libraries
+
+        // Your web app's Firebase configuration
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        const firebaseConfig = {
+            apiKey: "AIzaSyCobUEYrHPYyV_ZkVYvIcEOH30bhjfS94Q",
+            authDomain: "digimetrics-ec2fe.firebaseapp.com",
+            projectId: "digimetrics-ec2fe",
+            storageBucket: "digimetrics-ec2fe.firebasestorage.app",
+            messagingSenderId: "337595725399",
+            appId: "1:337595725399:web:62d8d1dfce444acafb1512",
+            measurementId: "G-T5G40XBFJB"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const auth = getAuth(app);
+
+        // Initialize FirebaseUI after Firebase is initialized
+        initFirebaseUI();
+
+
+        async function initFirebaseUI() {
+            // Firebase UI imports (in regular script tag to avoid issues with async module imports):
+            await import('https://www.gstatic.com/firebasejs/ui/6.0.1/firebase-ui-auth.js'); // Wait for import
+            if (firebaseui && auth) { // Check if firebaseui and auth are defined
+                const uiConfig = {
+                    signInSuccessUrl: '<url-to-redirect-to-after-sign-in>', // Required 
+                    signInOptions: [
+                        firebase.auth.GoogleAuthProvider.PROVIDER_ID,
+                        // ... other providers if needed (Google, Facebook, etc.)
+                    ],
+                    // ...other FirebaseUI config options...
+                };
+                var ui = new firebaseui.auth.AuthUI(auth);
+                ui.start('#firebaseui-auth-container', uiConfig);
+            } else {
+                console.error("Error initializing FirebaseUI: firebaseui or auth not defined");
+            }
+        }
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/ui/6.0.1/firebase-ui-auth.js"></script>
+    <link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebasejs/ui/6.0.1/firebase-ui-auth.css" />
+
     <style>
         #loginForm {
             display: flex;
@@ -706,6 +757,7 @@
         <input type="text" id="username" placeholder="Username" onkeydown="handleEnter(event)">
         <input type="password" id="password" placeholder="Password" onkeydown="handleEnter(event)">
         <button id="loginButton" onclick="login()">Login</button>
+        <div id="firebaseui-auth-container"></div>
         <p id="loginError" style="color: red;"></p>
     </div>
     <nav id="navbar">
@@ -3644,8 +3696,9 @@
             }
         }
 
-
     </script>
+
+
 
 </body>
 
