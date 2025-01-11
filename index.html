@@ -13,57 +13,98 @@
         integrity="..." crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script src="https://cdn.jsdelivr.net/npm/handlebars@latest/dist/handlebars.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script type="module">
-        // Import the functions you need from the SDKs you need
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-analytics.js";
-        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-        // TODO: Add SDKs for Firebase products that you want to use
-        // https://firebase.google.com/docs/web/setup#available-libraries
+    <script src="https://accounts.google.com/gsi/client" async defer></script> 
 
-        // Your web app's Firebase configuration
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-        const firebaseConfig = {
-            apiKey: "AIzaSyCobUEYrHPYyV_ZkVYvIcEOH30bhjfS94Q",
-            authDomain: "digimetrics-ec2fe.firebaseapp.com",
-            projectId: "digimetrics-ec2fe",
-            storageBucket: "digimetrics-ec2fe.firebasestorage.app",
-            messagingSenderId: "337595725399",
-            appId: "1:337595725399:web:62d8d1dfce444acafb1512",
-            measurementId: "G-T5G40XBFJB"
-        };
+    <script>
+        // Google Sign-In variables (global scope)
+        let googleUser = null; // Store the Google user object
+        let codeReceiverURI = 'https://ts9k398yn8.execute-api.ap-southeast-1.amazonaws.com/googleLogin'; // Update with your actual URI
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
-        const auth = getAuth(app);
+        // Function called after successful Google Sign-In
+        function handleCredentialResponse(response) {
+            //console.log("Encoded JWT ID token: " + response.credential);
 
-        // Initialize FirebaseUI after Firebase is initialized
-        initFirebaseUI();
+            // Send the credential to your backend for verification/storage
+            fetch(codeReceiverURI, {  
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({credential: response.credential}) // Send credential as JSON
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.body.success) { // If the backend verification succeeds
+                    // Store the user data (e.g., in local storage)
+                    googleUser = data.user; // Store the user info
+                    localStorage.setItem('googleUser', JSON.stringify(googleUser)); //Example
+
+                    // Update UI: Show main content, hide login form
+                    updateUI(true);
+
+                } else {
+                    console.error("Backend verification failed:", data.message);
+                    // Show error message to user
+                    document.getElementById('loginError').textContent = data.message || "Google login failed.";
+                }
+            })
+            .catch(error => {
+                console.error('Error during backend verification:', error);
+                document.getElementById('loginError').textContent = "An error occurred during Google login.";
+            });
+        }
 
 
-        async function initFirebaseUI() {
-            // Firebase UI imports (in regular script tag to avoid issues with async module imports):
-            await import('https://www.gstatic.com/firebasejs/ui/6.0.1/firebase-ui-auth.js'); // Wait for import
-            if (firebaseui && auth) { // Check if firebaseui and auth are defined
-                const uiConfig = {
-                    signInSuccessUrl: '<url-to-redirect-to-after-sign-in>', // Required 
-                    signInOptions: [
-                        firebase.auth.GoogleAuthProvider.PROVIDER_ID,
-                        // ... other providers if needed (Google, Facebook, etc.)
-                    ],
-                    // ...other FirebaseUI config options...
-                };
-                var ui = new firebaseui.auth.AuthUI(auth);
-                ui.start('#firebaseui-auth-container', uiConfig);
-            } else {
-                console.error("Error initializing FirebaseUI: firebaseui or auth not defined");
+        function checkGoogleLogin() {
+             //Try to get user from local storage on load
+            const storedUser = localStorage.getItem('googleUser');
+            if (storedUser) {
+                googleUser = JSON.parse(storedUser);
+                updateUI(true); // Update UI if user is already logged in.
+                return;
+            }
+
+            // Render the Google Sign-In button if not already logged in:
+            google.accounts.id.initialize({
+                client_id: '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com', // Replace with your actual Client ID
+                callback: handleCredentialResponse
+            });
+            google.accounts.id.renderButton(
+                document.getElementById('googleSignInButton'),  // Ensure there's a <div> with this ID in your HTML
+                { theme: "outline", size: "large" }  // customization attributes
+            );
+        }
+
+        // Function to handle regular login (no changes needed)
+        // ... (your login() function) ...
+
+        // Function to update UI based on login status (modified)
+        function updateUI(isLoggedIn) {
+            document.getElementById('loginForm').style.display = isLoggedIn ? 'none' : 'flex';
+            document.getElementById('main-content').style.display = isLoggedIn ? 'block' : 'none';
+            document.getElementById('navbar').style.display = isLoggedIn ? 'block' : 'none';
+
+            //Optionally: Display user info after Google login
+            if(isLoggedIn && googleUser) {
+                // Example: Show username after successful login
+                const welcomeMessage = document.createElement('p');
+                welcomeMessage.textContent = `Welcome, ${googleUser.name}!`;
+                document.getElementById('main-content').prepend(welcomeMessage);  // or wherever you want to display it.
             }
         }
-    </script>
-    <script src="https://www.gstatic.com/firebasejs/ui/6.0.1/firebase-ui-auth.js"></script>
-    <link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebasejs/ui/6.0.1/firebase-ui-auth.css" />
 
+
+        window.onload = () => {
+            checkLoginCookie(); // Check for existing regular login cookies
+            checkGoogleLogin(); // Check for Google Login and render the button
+        }
+
+
+        // ... (rest of your JavaScript code) ...
+    </script>
+
+
+    
     <style>
         #loginForm {
             display: flex;
@@ -757,7 +798,7 @@
         <input type="text" id="username" placeholder="Username" onkeydown="handleEnter(event)">
         <input type="password" id="password" placeholder="Password" onkeydown="handleEnter(event)">
         <button id="loginButton" onclick="login()">Login</button>
-        <div id="firebaseui-auth-container"></div>
+        <div id="googleSignInButton"></div>
         <p id="loginError" style="color: red;"></p>
     </div>
     <nav id="navbar">
@@ -3696,9 +3737,25 @@
             }
         }
 
-    </script>
+        const client = google.accounts.oauth2.initCodeClient({
+            client_id: '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com',
+            scope:  'https://www.googleapis.com/auth/userinfo.profile',
+            ux_mode: 'popup',
+            callback: (response) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', code_receiver_uri, true);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                // Set custom header for CRSF
+                xhr.setRequestHeader('X-Requested-With', 'XmlHttpRequest');
+                xhr.onload = function () {
+                    console.log('Auth code response: ' + xhr.responseText);
+                };
+                xhr.send('code=' + response.code);
+            },
+        });
 
 
+    </script
 
 </body>
 
