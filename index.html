@@ -22,61 +22,47 @@
 
         // Function called after successful Google Sign-In
         function handleCredentialResponse(response) {
-            //console.log("Encoded JWT ID token: " + response.credential);
-
-            // Send the credential to your backend for verification/storage
-            fetch(codeReceiverURI, {  
+            fetch(codeReceiverURI, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({credential: response.credential}) // Send credential as JSON
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ credential: response.credential })
             })
             .then(response => response.json())
             .then(data => {
-                if (data.body.success) { // If the backend verification succeeds
-                    // Store the user data (e.g., in local storage)
-                    googleUser = data.body.user; // Store the user info
-                    localStorage.setItem('googleUser', JSON.stringify(googleUser)); //Example
-
-                    // Update UI: Show main content, hide login form
-                    updateUI(true);
-
+                if (data.body.success) {
+                    googleUser = data.body.user;
+                    localStorage.setItem('googleUser', JSON.stringify(googleUser));
+                    updateUI(true); // User logged in
                 } else {
                     console.error("Backend verification failed:", data.message);
-                    // Show error message to user
                     document.getElementById('loginError').textContent = data.message || "Google login failed.";
                 }
             })
             .catch(error => {
-                console.error('Error during backend verification:', error);
-                document.getElementById('loginError').textContent = "An error occurred during Google login.";
+                console.error('Error:', error);
+                document.getElementById('loginError').textContent = "An error occurred.";
             });
         }
 
 
         function checkGoogleLogin() {
-             //Try to get user from local storage on load
             const storedUser = localStorage.getItem('googleUser');
             if (storedUser) {
                 googleUser = JSON.parse(storedUser);
-                updateUI(true); // Update UI if user is already logged in.
-                return;
+                updateUI(true); // Already logged in via Google
+                return true; // Indicate Google login success
             }
 
-            // Render the Google Sign-In button if not already logged in:
             google.accounts.id.initialize({
-                client_id: '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com', // Replace with your actual Client ID
+                client_id: '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com', 
                 callback: handleCredentialResponse
             });
             google.accounts.id.renderButton(
-                document.getElementById('googleSignInButton'),  // Ensure there's a <div> with this ID in your HTML
-                { theme: "outline", size: "large" }  // customization attributes
+                document.getElementById('googleSignInButton'),
+                { theme: "outline", size: "large" }
             );
+            return false; // Google login not yet completed
         }
-
-        // Function to handle regular login (no changes needed)
-        // ... (your login() function) ...
 
         // Function to update UI based on login status (modified)
         function updateUI(isLoggedIn) {
@@ -93,14 +79,15 @@
             }
         }
 
-
         window.onload = () => {
-            checkLoginCookie(); // Check for existing regular login cookies
-            checkGoogleLogin(); // Check for Google Login and render the button
+            // Check either Google login OR cookie - if either is true, don't show login form
+            const isLoggedIn = checkGoogleLogin() || checkLoginCookie(); 
+            if (!isLoggedIn) {
+              // Show the regular login form only if neither Google nor cookie login are active.
+              document.getElementById('loginForm').style.display = 'flex'; 
+            }
         }
 
-
-        // ... (rest of your JavaScript code) ...
     </script>
 
 
@@ -3679,12 +3666,15 @@
             document.getElementById('navbar').style.display = isLoggedIn ? 'block' : 'none';
         }
 
-        window.addEventListener('load', checkLoginCookie);
-
         function checkLoginCookie() {
             const key = getCookie("key");
-            updateUI(key !== null);
+            if (key !== null) {
+                updateUI(true); // Already logged in via cookie
+                return true;  // Indicate cookie login success
+            }
+            return false; // Not logged in via cookie
         }
+
 
 
 
