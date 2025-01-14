@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Link Finder</title>
+<style>
+table, th, td {
+  border: 1px solid black;
+  border-collapse: collapse;
+}
+</style>
+</head>
+<body>
+
+<h1>Link Finder</h1>
+
+<label for="startUrl">Start URL:</label>
+<input type="text" id="startUrl" value="https://bcbs.asia.canon/"><br><br>
+
+<label for="maxPages">Max Pages:</label>
+<input type="number" id="maxPages" value="30"><br><br>
+
+<button id="findLinksBtn" onclick="findLinks()">Find Links</button>
+
+<br><br>
+
+<table id="linkTable">
+  <tr>
+    <th>#</th>
+    <th>URL</th>
+  </tr>
+</table>
+
+<script>
+async function findLinks() {
+  const startUrl = document.getElementById("startUrl").value;
+  const maxPages = parseInt(document.getElementById("maxPages").value);
+  document.getElementById("findLinksBtn").innerHTML = 'Finding links';
+  const apiEndpoint = "https://ni4offyug3.execute-api.ap-southeast-1.amazonaws.com/linksFinder";
+  const urls = new Set(); // Keep track of unique URLs
+  let count = 0;
+
+  async function fetchAndDisplay(targetUrl, limit) {
+    const response = await fetch(apiEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ target: targetUrl, limit: maxPages })
+    });
+
+    if (!response.ok) {
+      console.error("Error fetching links:", response.status);
+      return;
+    }
+
+    const data = await response.json();
+    const table = document.getElementById("linkTable");
+
+    data.body.forEach(url => {
+      if (count < maxPages && !urls.has(url)) {
+        urls.add(url);
+        count++;
+        const row = table.insertRow();
+        const countCell = row.insertCell();
+        const urlCell = row.insertCell();
+        countCell.textContent = count;
+        urlCell.textContent = url; 
+
+        // Queue next batch if needed and not exceeding maxPages
+        if (count < maxPages && data.body.length == limit) {
+            const nextUrls = Array.from(urls).slice(-5); // Get last 5 unique URLs
+            nextUrls.forEach(nextUrl => {
+                fetchAndDisplay(nextUrl, 5);
+            });
+        }
+      }
+
+    });
+  }
+  fetchAndDisplay(startUrl, Math.min(5,maxPages)); //initial fetch, limit to 5 or maxPages, whichever is smaller
+  document.getElementById("findLinksBtn").innerHTML = 'Find Links';
+
+}
+
+
+
+</script>
+
+</body>
+</html>

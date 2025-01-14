@@ -13,7 +13,7 @@
         integrity="..." crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script src="https://cdn.jsdelivr.net/npm/handlebars@latest/dist/handlebars.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://accounts.google.com/gsi/client" async defer></script> 
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 
     <script>
         // Google Sign-In variables (global scope)
@@ -27,21 +27,21 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ credential: response.credential })
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.body.success) {
-                    googleUser = data.body.user;
-                    localStorage.setItem('googleUser', JSON.stringify(googleUser));
-                    updateUI(true); // User logged in
-                } else {
-                    console.error("Backend verification failed:", data.message);
-                    document.getElementById('loginError').textContent = data.message || "Google login failed.";
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                document.getElementById('loginError').textContent = "An error occurred.";
-            });
+                .then(response => response.json())
+                .then(data => {
+                    if (data.body.success) {
+                        googleUser = data.body.user;
+                        localStorage.setItem('googleUser', JSON.stringify(googleUser));
+                        updateUI(true); // User logged in
+                    } else {
+                        console.error("Backend verification failed:", data.message);
+                        document.getElementById('loginError').textContent = data.message || "Google login failed.";
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('loginError').textContent = "An error occurred.";
+                });
         }
 
 
@@ -54,7 +54,7 @@
             }
 
             google.accounts.id.initialize({
-                client_id: '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com', 
+                client_id: '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com',
                 callback: handleCredentialResponse
             });
             google.accounts.id.renderButton(
@@ -71,7 +71,7 @@
             document.getElementById('navbar').style.display = isLoggedIn ? 'block' : 'none';
 
             //Optionally: Display user info after Google login
-            if(isLoggedIn && googleUser) {
+            if (isLoggedIn && googleUser) {
                 // Example: Show username after successful login
                 const welcomeMessage = document.createElement('p');
                 welcomeMessage.textContent = `Welcome, ${googleUser.name}!`;
@@ -81,17 +81,17 @@
 
         window.onload = () => {
             // Check either Google login OR cookie - if either is true, don't show login form
-            const isLoggedIn = checkGoogleLogin() || checkLoginCookie(); 
+            const isLoggedIn = checkGoogleLogin() || checkLoginCookie();
             if (!isLoggedIn) {
-              // Show the regular login form only if neither Google nor cookie login are active.
-              document.getElementById('loginForm').style.display = 'flex'; 
+                // Show the regular login form only if neither Google nor cookie login are active.
+                document.getElementById('loginForm').style.display = 'flex';
             }
         }
 
     </script>
 
 
-    
+
     <style>
         #loginForm {
             display: flex;
@@ -125,6 +125,25 @@
             border-radius: 5px;
             cursor: pointer;
         }
+
+        #analysistable th:first-child,
+        td:first-child {
+            position: sticky;
+            left: 0;
+            background-color: #004c9d;
+            color: white;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            /* Stick the header to the top */
+            background-color: #ddd;
+            /* Optional: Different background for header */
+            z-index: 1;
+            /* Ensure header stays above other sticky elements */
+        }
+
 
         #main-content {
             /* Initially hidden */
