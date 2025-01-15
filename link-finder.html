@@ -4,193 +4,14 @@
 <head>
     <title>Link Finder</title>
     <style>
-         #loginForm {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            /* Semi-transparent background */
-            z-index: 9999;
-            /* Ensure it's on top */
-        }
-
-        #loginForm input {
-            margin: 10px 0;
-            padding: 8px;
-            min-width: 40%;
-        }
-
-        #loginForm button {
-            background-color: #004c9d;
-            /* Example color */
-            color: white;
-            /* Text color */
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        #analysistable th:first-child,
-        td:first-child {
-            position: sticky;
-            left: 0;
-            background-color: #004c9d;
-            color: white;
-        }
-
         thead th {
             position: sticky;
             top: 0;
             /* Stick the header to the top */
-            background-color: #ddd;
+            background-color: #004c9d;
             /* Optional: Different background for header */
             z-index: 1;
             /* Ensure header stays above other sticky elements */
-        }
-
-
-        #main-content {
-            /* Initially hidden */
-            display: none;
-        }
-
-        #keywordModal {
-            display: flex;
-            position: fixed;
-            z-index: 1;
-            left: 0;
-            top: 0;
-            width: 50%;
-            height: 95%;
-            overflow: auto;
-            background-color: rgba(0, 0, 0, 0.4);
-            padding: 2%;
-            border-radius: 20px;
-        }
-
-        .modal-content {
-            background-color: #fefefe;
-            border: 1px solid #888;
-            width: 95%;
-            border-radius: 10px;
-            max-height: 95%;
-            /* Account for padding/margin or border if present*/
-            overflow-y: auto;
-            /* Add vertical scrollbar if content overflows */
-            padding: 15px;
-        }
-
-        .modal-content h2 {
-            /* Example - add padding around the h2 */
-            padding: 10px;
-        }
-
-        .modal-content table {
-            /* Example - Add padding to the table */
-            padding: 10px;
-        }
-
-        .close {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-        }
-
-        .close:hover,
-        .close:focus {
-            color: black;
-            text-decoration: none;
-            cursor: pointer;
-        }
-
-        #schema-output {
-            white-space: pre-wrap;
-            /* Allow line breaks */
-            border: 1px solid #ccc;
-            padding: 10px;
-            font-family: monospace;
-        }
-
-        #navbar a i {
-            margin-right: 2%;
-            /* Adjust spacing as needed */
-        }
-
-        #navbar {
-            width: 15%;
-            background-color: #004c9d;
-            color: white;
-            padding: 10px;
-            position: fixed;
-            height: 100%;
-            overflow-y: auto;
-            border-radius: 10px;
-            transition: width 0.3s;
-        }
-
-        /* Styles for smaller screens (e.g., mobile) */
-        @media screen and (max-width: 768px) {
-            #navbar {
-                width: 60px;
-                /* Reduced width for smaller screens */
-            }
-
-            #navbar img {
-                width: 100%;
-                /* Smaller logo */
-            }
-
-            #navbar span {
-                display: none;
-                /* Hide text labels */
-            }
-
-            #main-content {
-                margin-left: 80px;
-                /* Adjusted margin for smaller navbar */
-            }
-
-            .column {
-                width: 100%;
-            }
-        }
-
-        #navbar img {
-            display: block;
-            width: 80%;
-            margin-left: auto;
-            margin-right: auto;
-            margin-bottom: 10%;
-            margin-top: 10%;
-        }
-
-        #navbar a {
-            display: block;
-            padding: 10px 15px;
-            color: white;
-            text-decoration: none;
-            transition: background-color 0.3s;
-        }
-
-        #navbar a:hover {
-            background-color: #0056b3;
-        }
-
-        /* Adjust main content area to accommodate the navbar */
-        #main-content {
-            flex: 1;
-            /* Allow main content to take up remaining space */
-            margin-left: 17%;
-            /* Adjust margin to create space for navbar */
-            padding: 20px;
         }
 
         body {
@@ -250,34 +71,40 @@
             background-color: #fffef7;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             border-radius: 6px;
-            table-layout: auto;
-            display: block;
-            table-layout: fixed;
-            overflow-y: scroll;
+            /* Remove display: block and table-layout: fixed */
+            overflow: auto;
+            /* Keep overflow for scrollbars */
         }
 
-        #crawlerReport table {
-            height: 600px;
-        }
-
-        .hidden-table {
-            display: none;
+        thead {
+            /* Or thead tr  if you want just the row sticky */
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            /* Ensure thead stays on top of table content */
         }
 
         th {
-            resize: horizontal;
+            background-color: #004c9d;
+            position: sticky;
+            /* Make th sticky as well */
+            top: 0;
+            /* Position at the top */
+            color: white;
+            z-index: 3;
+            /* Ensure th are above thead if needed */
+
+            /* Add padding, border, etc. for th */
+            padding: 12px 8px;
+            border: 1px solid #ddd;
+            /* Or whatever your border style is */
+
         }
 
-        #crawlerReport th,
-        #crawlerReport td {
-            width: 10%;
-            /* Adjust as needed for column distribution */
+        #tableContainer {
+            /* Keep tableContainer for horizontal scrolling */
+            width: 100%;
             overflow-x: auto;
-            /* white-space: nowrap; Prevent text from wrapping */
-            max-width: 200px;
-            /* Adjust as needed */
-            overflow-x: auto;
-            vertical-align: top;
         }
 
         th,
@@ -289,101 +116,7 @@
             overflow: hidden;
         }
 
-        th {
-            background-color: #004c9d;
-            position: sticky;
-            color: white;
-            top: 0;
-        }
 
-        .error {
-            color: red;
-            margin-left: 10px;
-        }
-
-        .collapsible {
-            background-color: #004c9d;
-            font-weight: bold;
-            color: white;
-            cursor: pointer;
-            padding: 20px;
-            width: 100%;
-            border: none;
-            text-align: left;
-            outline: none;
-            font-size: 18px;
-            transition: background-color 0.3s ease;
-        }
-
-        .collapsible:hover {
-            background-color: #0056b3;
-        }
-
-        .collapsible-loading {
-            background-color: #ffad33;
-        }
-
-        .content {
-            display: none;
-            padding: 20px;
-            background-color: #f0f0f0;
-            border: 1px solid #ccc;
-            border-top: none;
-            border-radius: 10px;
-        }
-
-        button.sort-button {
-            padding: 3px 6px;
-            font-size: 12px;
-            margin-left: 5px;
-            background-color: #286b37;
-            color: white;
-            border: none;
-            cursor: pointer;
-            border-radius: 5px;
-        }
-
-        button.sort-button:hover {
-            background-color: #218838;
-        }
-
-        hr {
-            border-top: 4px solid rgb(95, 103, 154);
-            border-radius: 7px;
-            width: 100%;
-        }
-
-        .header-container {
-            display: flex;
-            align-items: center;
-            /* Vertically center the items in the container */
-            margin: 20px 0;
-            /* Add some margin for spacing around the header */
-            background-color: black;
-            height: 70px;
-            border-radius: 10px;
-        }
-
-        .header-container img {
-            margin-right: 15px;
-            /* Space between the image and the text */
-            width: 75px;
-            /* Adjust the width as needed */
-            height: auto;
-            /* Maintain aspect ratio */
-        }
-
-        .loading-spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 4px solid #f3f3f3;
-            /* Light grey */
-            border-top: 4px solid #3498db;
-            /* Blue */
-            border-radius: 50%;
-            animation: spin 2s linear infinite;
-        }
 
         p,
         h1,
@@ -404,75 +137,6 @@
             /* Optional: Adjust font size as needed */
         }
 
-        #keywordListContainer {
-            display: flex;
-            /* Enable Flexbox layout for columns */
-            flex-direction: column;
-            /* Stack columns vertically */
-            max-width: 100%;
-            padding: 2px;
-        }
-
-        #keywordListContainer h3 {
-            font-size: 1em;
-            margin-top: 0;
-            /* Reduce default margin */
-        }
-
-        .keyword-row {
-            /* Style each row */
-            display: flex;
-            /* Use Flexbox for each row */
-            align-items: center;
-            /* Vertically center content in each row */
-            margin-bottom: 5px;
-            max-width: 65%;
-        }
-
-        .keyword-column {
-            /* Style for each column */
-            flex: 1;
-            /* Each column takes equal width */
-            margin-right: 5px;
-            /* Space between columns */
-            min-width: 50px;
-        }
-
-        .keyword-column:hover {
-            font-size: 1.1em;
-            cursor: pointer;
-        }
-
-        .keyword-column:nth-child(1) {
-            /* Keyword column */
-            flex: 0 0 60%;
-        }
-
-        .keyword-column:nth-child(2) {
-            /* Search Volume column */
-            flex: 0 0 30%;
-        }
-
-        .keyword-column:nth-child(3) {
-            /* Difficulty column */
-            flex: 0 0 22%;
-        }
-
-        input[type="checkbox"] {
-            width: 3em;
-        }
-
-
-        .checkbox-column {
-            flex: 0 0 5%;
-            margin-right: 0;
-        }
-
-        .column {
-            float: left;
-            width: 50%;
-        }
-
         ul {
             max-height: 350px;
             overflow: auto;
@@ -488,224 +152,6 @@
             margin: 5px;
             padding: 0px;
             align-items: left;
-        }
-
-        label,
-        label-fixed {
-            color: WindowText;
-            margin: 0;
-            padding: 0;
-            width: 100%;
-        }
-
-        .label-short {
-            width: 100%;
-        }
-
-        .close {
-            color: #aaa;
-            float: left;
-            font-size: 28px;
-            font-weight: bold;
-        }
-
-        .close:hover,
-        .close:focus {
-            color: black;
-            text-decoration: none;
-            cursor: pointer;
-        }
-
-        #auditSummary table {
-            width: 50%;
-            float: right;
-            padding: 10px;
-            height: 560px;
-        }
-
-        /* Table styling */
-        #analysisTable {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            /* Remove display: block and table-layout: fixed  */
-            max-height: 700px;
-            /* Or whatever max height you want */
-            overflow: auto;
-            /* Scrollbars appear only when needed */
-        }
-
-        #analysisTable a {
-            color: white;
-        }
-
-        #analysisTable th,
-        #analysisTable td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-            word-wrap: break-word;
-            vertical-align: top;
-            /* Align content to the top of each cell */
-        }
-
-        /* Make the table scrollable if it's too wide */
-        #tableContainer {
-            width: 100%;
-            overflow-x: auto;
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-
-        #SEM .column {
-            width: 48%;
-            /* Adjust as needed */
-            float: left;
-            /* Float columns side by side */
-            margin-right: 2%;
-            /* Add spacing between columns */
-            box-sizing: border-box;
-            /* Include padding and border in width calculation */
-        }
-
-        #SEM .column:last-child {
-            margin-right: 0;
-            /* No margin on the last column */
-        }
-
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 3em;
-            height: 1.5em;
-        }
-
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            -webkit-transition: .4s;
-            transition: .4s;
-            border-radius: 34px;
-        }
-
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 1em;
-            width: 1em;
-            left: 3px;
-            bottom: 4px;
-            background-color: white;
-            -webkit-transition: .4s;
-            transition: .4s;
-            border-radius: 50%;
-        }
-
-        input:checked+.slider {
-            background-color: #004c9d;
-        }
-
-        input:focus+.slider {
-            box-shadow: 0 0 1px #004c9d;
-        }
-
-        input:checked+.slider:before {
-            -webkit-transform: translateX(26px);
-            -ms-transform: translateX(26px);
-            transform: translateX(26px);
-        }
-
-
-        .toggle-container {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        .toggle-label {
-            margin-right: 10px;
-        }
-
-        .toggle-label-right {
-            margin-left: 10px;
-        }
-
-        .header-container img {
-            margin-left: 20px;
-            width: 400px;
-            height: auto;
-        }
-
-        .faq-item {
-            display: flex;
-            align-items: flex-start;
-            /* Align to top */
-            margin-bottom: 10px;
-        }
-
-        .faq-item input,
-        .faq-item textarea {
-            flex-grow: 1;
-            margin-right: 10px;
-            min-width: 0;
-            /* Prevent inputs from taking minimum width */
-        }
-
-        .faq-item textarea {
-            min-height: 80px;
-        }
-
-        #navbar ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            background-color: #004c9d;
-            max-height: None;
-        }
-
-        #navbar li {
-            padding-left: 10px;
-            /* Base indentation */
-        }
-
-        #navbar li ul li {
-            padding-left: 20px;
-            /* Increased indentation for sub-items */
-        }
-
-        /* You can add more levels as needed */
-        #navbar li ul li ul li {
-            padding-left: 30px;
-        }
-
-        .keyword-count {
-            margin-left: 10px;
-            color: #004c9d;
-        }
-
-        #downloadResultsBtn {
-            display: none;
-            /* Initially hidden */
-            margin-top: 20px;
         }
     </style>
 </head>
@@ -725,64 +171,138 @@
     <br><br>
 
     <table id="linkTable">
-        <tr>
-            <th>#</th>
-            <th>URL</th>
-        </tr>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>URL</th>
+                <th>Code</th>
+                <th>Title</th>
+                <th>Description</th>
+                <th>H1</th>
+                <th>H2</th>
+                <th>Canonical</th>
+                <th>Internal Links</th>
+                <th>External Links</th>
+                <th>Images</th>
+                <th>Word Count</th>
+                <th>TTI</th>
+                <th>LCP</th>
+                <th>FID</th>
+                <th>Server</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
     </table>
-
     <script>
         async function findLinks() {
             const startUrl = document.getElementById("startUrl").value;
             const maxPages = parseInt(document.getElementById("maxPages").value);
-            document.getElementById("findLinksBtn").innerHTML = 'Finding links';
-            const apiEndpoint = "https://ni4offyug3.execute-api.ap-southeast-1.amazonaws.com/linksFinder";
-            const urls = new Set(); // Keep track of unique URLs
+            const apiEndpoint = "https://1xw4itfhbc.execute-api.ap-southeast-1.amazonaws.com/singlePageCrawl"; // Correct endpoint
+            const linkFinderEndpoint = "https://ni4offyug3.execute-api.ap-southeast-1.amazonaws.com/linksFinder";
+            const urls = new Set();
             let count = 0;
+            const table = document.getElementById("linkTable").querySelector('tbody'); // Get tbody
+            const findLinksBtn = document.getElementById("findLinksBtn");
 
-            async function fetchAndDisplay(targetUrl, limit) {
-                const response = await fetch(apiEndpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ target: targetUrl, limit: maxPages })
-                });
+            let pendingRequests = 0; // Counter for pending requests
 
-                if (!response.ok) {
-                    console.error("Error fetching links:", response.status);
-                    return;
-                }
+            findLinksBtn.innerText = 'Finding links...';
 
-                const data = await response.json();
-                const table = document.getElementById("linkTable");
 
-                data.body.forEach(url => {
-                    if (count < maxPages && !urls.has(url)) {
-                        urls.add(url);
-                        count++;
-                        const row = table.insertRow();
-                        const countCell = row.insertCell();
-                        const urlCell = row.insertCell();
-                        countCell.textContent = count;
-                        urlCell.textContent = url;
 
-                        // Queue next batch if needed and not exceeding maxPages
-                        if (count < maxPages && data.body.length == limit) {
-                            const nextUrls = Array.from(urls).slice(-5); // Get last 5 unique URLs
-                            nextUrls.forEach(nextUrl => {
-                                fetchAndDisplay(nextUrl, 5);
-                            });
-                        }
+            async function fetchAndDisplay(targetUrl) {
+                pendingRequests++;
+                try {
+
+                    const [linksResponse, crawlResponse] = await Promise.all([
+                        fetch(linkFinderEndpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ target: targetUrl, limit: maxPages })
+                        }),
+                        fetch(apiEndpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: targetUrl })
+                        })
+                    ]);
+
+
+                    if (!linksResponse.ok) {
+                        console.error("Error fetching links:", linksResponse.status);
+                        throw new Error("Links API Error");
                     }
 
-                });
+                    if (!crawlResponse.ok) {
+                        console.error("Error crawling page:", crawlResponse.status);
+                        throw new Error("Crawl API Error");
+                    }
+
+
+                    const linksData = await linksResponse.json();
+                    const crawlData = await crawlResponse.json();
+
+                    try {
+                        code = crawlData.body.code;
+                        // Process crawlData first to populate the current row
+                        const row = table.insertRow();
+                        const countCell = row.insertCell();
+                        countCell.textContent = count + 1; // Correct count display
+
+                        const urlCell = row.insertCell();
+                        const a = document.createElement('a');
+                        a.href = crawlData.body.url;
+                        a.textContent = crawlData.body.url;
+                        a.title = crawlData.body.url;  // Add title attribute for tooltip
+                        a.target = "_blank";
+                        urlCell.appendChild(a);
+
+
+                        row.insertCell().textContent = code;
+                        row.insertCell().textContent = crawlData.body.title;
+                        row.insertCell().textContent = crawlData.body.description;
+                        row.insertCell().innerHTML = "• " + crawlData.body.h1.join("<br>• "); // Join h1 with <br>
+                        row.insertCell().innerHTML = "• " + crawlData.body.h2.join("<br>• "); // Join h2 with <br>
+                        row.insertCell().textContent = crawlData.body.canonical;
+                        row.insertCell().textContent = crawlData.body.internal_links;
+                        row.insertCell().textContent = crawlData.body.external_links;
+                        row.insertCell().textContent = crawlData.body.images;
+                        row.insertCell().textContent = crawlData.body.word_count;
+                        row.insertCell().textContent = crawlData.body.time_to_interactive;
+                        row.insertCell().textContent = crawlData.body.largest_contentful_paint;
+                        row.insertCell().textContent = crawlData.body.first_input_delay;
+                        row.insertCell().textContent = crawlData.body.server;
+
+                        count++;
+                    } catch (error) {
+                    }
+
+                    if (count < maxPages) { // check count BEFORE iterating and recursing
+                        const nextUrls = linksData.body.filter(url => !urls.has(url));
+                        nextUrls.forEach(url => {
+                            if (count < maxPages) {
+                                urls.add(url);
+                                fetchAndDisplay(url);
+                                //count++; // Increment count HERE when a new URL is added to the queue
+                            }
+                        });
+                    }
+
+                } catch (error) {
+                    console.log(targetUrl + ' - Error: ' + error.message);
+
+                } finally {
+                    pendingRequests--; // Decrement pending requests after request completes (success or error)
+                    if (pendingRequests === 0) {  // Check if all requests are done
+                        findLinksBtn.innerHTML = 'Find Links'; // Change button text back
+                    }
+                }
+
             }
-            fetchAndDisplay(startUrl, Math.min(5, maxPages)); //initial fetch, limit to 5 or maxPages, whichever is smaller
-            document.getElementById("findLinksBtn").innerHTML = 'Find Links';
+
+            fetchAndDisplay(startUrl);
 
         }
-
 
 
     </script>
