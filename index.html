@@ -134,6 +134,16 @@
             color: white;
         }
 
+        thead th {
+            position: sticky;
+            top: 0;
+            /* Stick the header to the top */
+            background-color: #ddd;
+            /* Optional: Different background for header */
+            z-index: 1;
+            /* Ensure header stays above other sticky elements */
+        }
+
 
         #main-content {
             /* Initially hidden */
@@ -329,35 +339,10 @@
             background-color: #fffef7;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             border-radius: 6px;
-            /* Remove display: block and table-layout: fixed */
-            overflow: auto;
-            /* Keep overflow for scrollbars */
-        }
-
-        thead {
-            /* Or thead tr  if you want just the row sticky */
-            position: sticky;
-            top: 0;
-            z-index: 2;
-            /* Ensure thead stays on top of table content */
-        }
-
-
-        th {
-            background-color: #004c9d;
-            position: sticky;
-            /* Make th sticky as well */
-            top: 0;
-            /* Position at the top */
-            color: white;
-            z-index: 3;
-            /* Ensure th are above thead if needed */
-
-            /* Add padding, border, etc. for th */
-            padding: 12px 8px;
-            border: 1px solid #ddd;
-            /* Or whatever your border style is */
-
+            table-layout: auto;
+            display: block;
+            table-layout: fixed;
+            overflow-y: scroll;
         }
 
         #crawlerReport table {
@@ -368,6 +353,9 @@
             display: none;
         }
 
+        th {
+            resize: horizontal;
+        }
 
         #crawlerReport th,
         #crawlerReport td {
@@ -390,6 +378,12 @@
             overflow: hidden;
         }
 
+        th {
+            background-color: #004c9d;
+            position: sticky;
+            color: white;
+            top: 0;
+        }
 
         .error {
             color: red;
@@ -817,22 +811,23 @@
         <img src="https://static.mycareersfuture.gov.sg/images/company/logos/a42a0e5029fd642119584ecdc6218b3a/MEDIAONE%20BUSINESS%20GROUP%20PTE.%20LTD..png"
             alt="MediaOne SEO Agency Logo">
         <ul>
-            <li><a href="#seoSection"><i class="fas fa-search"></i> <span>SEO</span></a>
+            <li><a href="#seoSection" onclick="openKeywordAnalysis(event)"><i class="fas fa-search"></i>
+                    <span>SEO</span></a>
                 <ul>
-                    <li><a href="#keywordAnalysis"><i class="fas fa-chart-bar"></i> <span>Keyword Analysis</span></a>
+                    <li><a href="#keywordAnalysis" onclick="openKeywordAnalysis(event)"><i class="fas fa-chart-bar"></i> <span>Keyword Analysis</span></a>
                     </li>
-                    <li><a href="#technicalSeo"><i class="fas fa-tools"></i> <span>Technical SEO</span></a></li>
-                    <li><a href="#contentComparison"><i class="fa fa-balance-scale"></i> <span>Content
+                    <li><a href="#technicalSeo" onclick="openTechnicalSeo(event)"><i class="fas fa-tools"></i> <span>Technical SEO</span></a></li>
+                    <li><a href="#contentComparison" onclick="openContentComparison(event)"><i class="fa fa-balance-scale"></i> <span>Content
                                 Comparison</span></a></li>
-                    <li><a href="#schema"><i class="fas fa-code"></i> <span>Schema Generator</span></a></li>
+                    <li><a href="#schema" onclick="openSchemaGenerator(event)"><i class="fas fa-code"></i> <span>Schema Generator</span></a></li>
                 </ul>
             </li>
-            <li><a href="#socialMedia"><i class="fas fa-share-alt"></i> <span>SMM</span></a>
+            <li><a href="#socialMedia" onclick="openContentGenerator(event)"><i class="fas fa-share-alt"></i> <span>SMM</span></a>
                 <ul>
-                    <li><a href="#contentGenerator"><i class="fas fa-pen"></i> <span>Content Generator</span></a></li>
+                    <li><a href="#contentGenerator" onclick="openContentGenerator(event)"><i class="fas fa-pen"></i> <span>Content Generator</span></a></li>
                 </ul>
             </li>
-            <li><a href="#SEM"><i class="fas fa-ad"></i> <span>SEM</span></a></li>
+            <li><a href="#SEM" onclick="openSem(event)"><i class="fas fa-ad"></i> <span>SEM</span></a></li>
         </ul>
     </nav>
     </nav>
@@ -1149,7 +1144,7 @@
                 <button id="downloadResultsBtn" onclick="downloadResultsAsXlsx()">Download results as xlsx</button>
             </div>
             <hr>
-            <button class="collapsible">Content Comparison</button>
+            <button class="collapsible" id="contentComparisonButton">Content Comparison</button>
             <div class="content" id="contentComparison">
                 <label for="comparison-keyword">Keyword:</label>
                 <input type="text" id="comparison-keyword" placeholder="e.g., digital marketing">
@@ -1178,7 +1173,7 @@
 
             <hr>
 
-            <button class="collapsible">Schema Generator</button>
+            <button class="collapsible" id="schemaGeneratorButton">Schema Generator</button>
             <div class="content" id="schema">
                 <label for="schema-type">Schema Type:</label>
                 <select id="schema-type">
@@ -1204,9 +1199,9 @@
             </div>
         </div>
         <hr>
-        <button class="collapsible">Social Media (SMM)</button>
+        <button class="collapsible" id="smm">Social Media (SMM)</button>
         <div class="content" id="socialMedia">
-            <button class="collapsible">Content Generator</button>
+            <button class="collapsible" id="contentGeneratorButton">Content Generator</button>
             <div class="content" id="contentGenerator">
                 <form id="content-form">
                     <div class="column">
@@ -1335,7 +1330,7 @@
         </div>
 
         <hr>
-        <button class="collapsible">Search Engine Marketing (SEM)</button>
+        <button class="collapsible" id="semButton">Search Engine Marketing (SEM)</button>
         <div class="content" id="SEM">
             <label for="ad_format">Ad Formats:</label><br>
             <select id="ad_format" name="ad_format">
@@ -3751,6 +3746,215 @@
                 login();
             }
         }
+
+        function openKeywordAnalysis(event) {  
+            event.preventDefault();
+
+            const seoButton = document.querySelector('button#seo');
+            if (seoButton) {
+                seoButton.classList.toggle('active');
+                const content = seoButton.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const keywordAnalysisLink = event.currentTarget;
+                keywordAnalysisLink.classList.toggle('active-menu');
+
+                const seoSubmenuItems = keywordAnalysisLink.closest('ul').querySelectorAll('li a');
+                seoSubmenuItems.forEach(item => {
+                    if (item !== keywordAnalysisLink) {
+                        item.classList.remove('active-menu');
+                    }
+                });
+
+                if (content.style.display === "block") {
+                    const keywordAnalysisSection = document.getElementById('seo');
+                    if (keywordAnalysisSection) {
+                        keywordAnalysisSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+        }
+
+        function openTechnicalSeo(event) {  
+            openKeywordAnalysis(event);
+
+            Button = document.querySelector('button#technicalButton');
+            if (Button) {
+                Button.classList.toggle('active');
+                const content = Button.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const keywordAnalysisLink = event.currentTarget;
+                keywordAnalysisLink.classList.toggle('active-menu');
+
+                const seoSubmenuItems = keywordAnalysisLink.closest('ul').querySelectorAll('li a');
+                seoSubmenuItems.forEach(item => {
+                    if (item !== keywordAnalysisLink) {
+                        item.classList.remove('active-menu');
+                    }
+                });
+
+                if (content.style.display === "block") {
+                    const keywordAnalysisSection = document.getElementById('technicalButton');
+                    if (keywordAnalysisSection) {
+                        keywordAnalysisSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+        }
+
+        function openContentComparison(event) {  
+            openKeywordAnalysis(event);
+
+            Button = document.querySelector('button#contentComparisonButton');
+            if (Button) {
+                Button.classList.toggle('active');
+                const content = Button.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const keywordAnalysisLink = event.currentTarget;
+                keywordAnalysisLink.classList.toggle('active-menu');
+
+                const seoSubmenuItems = keywordAnalysisLink.closest('ul').querySelectorAll('li a');
+                seoSubmenuItems.forEach(item => {
+                    if (item !== keywordAnalysisLink) {
+                        item.classList.remove('active-menu');
+                    }
+                });
+
+                if (content.style.display === "block") {
+                    const keywordAnalysisSection = document.getElementById('contentComparison');
+                    if (keywordAnalysisSection) {
+                        keywordAnalysisSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+        }
+
+        function openSchemaGenerator(event) {  
+            openKeywordAnalysis(event);
+
+            Button = document.querySelector('button#schemaGeneratorButton');
+            if (Button) {
+                Button.classList.toggle('active');
+                const content = Button.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const keywordAnalysisLink = event.currentTarget;
+                keywordAnalysisLink.classList.toggle('active-menu');
+
+                const seoSubmenuItems = keywordAnalysisLink.closest('ul').querySelectorAll('li a');
+                seoSubmenuItems.forEach(item => {
+                    if (item !== keywordAnalysisLink) {
+                        item.classList.remove('active-menu');
+                    }
+                });
+
+                if (content.style.display === "block") {
+                    const keywordAnalysisSection = document.getElementById('schema');
+                    if (keywordAnalysisSection) {
+                        keywordAnalysisSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+        }
+
+        function openContentGenerator(event) {  
+            event.preventDefault();
+
+            const seoButton = document.querySelector('button#smm');
+            if (seoButton) {
+                seoButton.classList.toggle('active');
+                const content = seoButton.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const keywordAnalysisLink = event.currentTarget;
+                keywordAnalysisLink.classList.toggle('active-menu');
+
+                const seoSubmenuItems = keywordAnalysisLink.closest('ul').querySelectorAll('li a');
+                seoSubmenuItems.forEach(item => {
+                    if (item !== keywordAnalysisLink) {
+                        item.classList.remove('active-menu');
+                    }
+                });
+
+                if (content.style.display === "block") {
+                    const keywordAnalysisSection = document.getElementById('smm');
+                    if (keywordAnalysisSection) {
+                        keywordAnalysisSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+            Button = document.querySelector('button#contentGeneratorButton');
+            if (Button) {
+                Button.classList.toggle('active');
+                const content = Button.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const keywordAnalysisLink = event.currentTarget;
+                keywordAnalysisLink.classList.toggle('active-menu');
+
+                const seoSubmenuItems = keywordAnalysisLink.closest('ul').querySelectorAll('li a');
+                seoSubmenuItems.forEach(item => {
+                    if (item !== keywordAnalysisLink) {
+                        item.classList.remove('active-menu');
+                    }
+                });
+
+                if (content.style.display === "block") {
+                    const keywordAnalysisSection = document.getElementById('smm');
+                    if (keywordAnalysisSection) {
+                        keywordAnalysisSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+            
+        }
+
+        function openSem(event) {  
+            event.preventDefault();
+
+            const seoButton = document.querySelector('button#semButton');
+            if (seoButton) {
+                seoButton.classList.toggle('active');
+                const content = seoButton.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const keywordAnalysisLink = event.currentTarget;
+                keywordAnalysisLink.classList.toggle('active-menu');
+
+                const seoSubmenuItems = keywordAnalysisLink.closest('ul').querySelectorAll('li a');
+                seoSubmenuItems.forEach(item => {
+                    if (item !== keywordAnalysisLink) {
+                        item.classList.remove('active-menu');
+                    }
+                });
+
+                if (content.style.display === "block") {
+                    const keywordAnalysisSection = document.getElementById('semButton');
+                    if (keywordAnalysisSection) {
+                        keywordAnalysisSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+        }
+        
+
+
     </script
 
 </body>
