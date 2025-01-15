@@ -796,7 +796,6 @@
             /* Initially hidden */
             margin-top: 20px;
         }
-        
     </style>
 </head>
 
@@ -815,17 +814,23 @@
             <li><a href="#seoSection" onclick="openKeywordAnalysis(event)"><i class="fas fa-search"></i>
                     <span>SEO</span></a>
                 <ul>
-                    <li><a href="#keywordAnalysis" onclick="openKeywordAnalysis(event)"><i class="fas fa-chart-bar"></i> <span>Keyword Analysis</span></a>
+                    <li><a href="#keywordAnalysis" onclick="openKeywordAnalysis(event)"><i class="fas fa-chart-bar"></i>
+                            <span>Keyword Analysis</span></a>
                     </li>
-                    <li><a href="#technicalSeo" onclick="openTechnicalSeo(event)"><i class="fas fa-tools"></i> <span>Technical SEO</span></a></li>
-                    <li><a href="#contentComparison" onclick="openContentComparison(event)"><i class="fa fa-balance-scale"></i> <span>Content
+                    <li><a href="#technicalSeo" onclick="openTechnicalSeo(event)"><i class="fas fa-tools"></i>
+                            <span>Technical SEO</span></a></li>
+                    <li><a href="#contentComparison" onclick="openContentComparison(event)"><i
+                                class="fa fa-balance-scale"></i> <span>Content
                                 Comparison</span></a></li>
-                    <li><a href="#schema" onclick="openSchemaGenerator(event)"><i class="fas fa-code"></i> <span>Schema Generator</span></a></li>
+                    <li><a href="#schema" onclick="openSchemaGenerator(event)"><i class="fas fa-code"></i> <span>Schema
+                                Generator</span></a></li>
                 </ul>
             </li>
-            <li><a href="#socialMedia" onclick="openContentGenerator(event)"><i class="fas fa-share-alt"></i> <span>SMM</span></a>
+            <li><a href="#socialMedia" onclick="openContentGenerator(event)"><i class="fas fa-share-alt"></i>
+                    <span>SMM</span></a>
                 <ul>
-                    <li><a href="#contentGenerator" onclick="openContentGenerator(event)"><i class="fas fa-pen"></i> <span>Content Generator</span></a></li>
+                    <li><a href="#contentGenerator" onclick="openContentGenerator(event)"><i class="fas fa-pen"></i>
+                            <span>Content Generator</span></a></li>
                 </ul>
             </li>
             <li><a href="#SEM" onclick="openSem(event)"><i class="fas fa-ad"></i> <span>SEM</span></a></li>
@@ -3748,9 +3753,32 @@
             }
         }
 
-        function openKeywordAnalysis(event) {  
+        function openSeo(event){
             event.preventDefault();
+            deactivateAllButtons();
+            const seoButton = document.querySelector('button#seo');
+            if (seoButton) {
+                seoButton.classList.toggle('active');
+                const content = seoButton.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
 
+                const keywordAnalysisLink = event.currentTarget;
+                keywordAnalysisLink.classList.toggle('active-menu');
+
+                const seoSubmenuItems = keywordAnalysisLink.closest('ul').querySelectorAll('li a');
+                seoSubmenuItems.forEach(item => {
+                    if (item !== keywordAnalysisLink) {
+                        item.classList.remove('active-menu');
+                    }
+                });
+            }
+        }
+
+        function openKeywordAnalysis(event) {
+            event.preventDefault();
+            deactivateAllButtons();
             const seoButton = document.querySelector('button#seo');
             if (seoButton) {
                 seoButton.classList.toggle('active');
@@ -3778,9 +3806,10 @@
             }
         }
 
-        function openTechnicalSeo(event) {  
-            openKeywordAnalysis(event);
-
+        function openTechnicalSeo(event) {
+            event.preventDefault();
+            deactivateAllButtons();
+            openSeo(event);
             Button = document.querySelector('button#technicalButton');
             if (Button) {
                 Button.classList.toggle('active');
@@ -3808,9 +3837,10 @@
             }
         }
 
-        function openContentComparison(event) {  
-            openKeywordAnalysis(event);
-
+        function openContentComparison(event) {
+            event.preventDefault();
+            deactivateAllButtons();
+            openSeo(event);
             Button = document.querySelector('button#contentComparisonButton');
             if (Button) {
                 Button.classList.toggle('active');
@@ -3838,9 +3868,10 @@
             }
         }
 
-        function openSchemaGenerator(event) {  
-            openKeywordAnalysis(event);
-
+        function openSchemaGenerator(event) {
+            event.preventDefault();
+            deactivateAllButtons();
+            openSeo(event);
             Button = document.querySelector('button#schemaGeneratorButton');
             if (Button) {
                 Button.classList.toggle('active');
@@ -3868,9 +3899,9 @@
             }
         }
 
-        function openContentGenerator(event) {  
+        function openContentGenerator(event) {
             event.preventDefault();
-
+            deactivateAllButtons();
             const seoButton = document.querySelector('button#smm');
             if (seoButton) {
                 seoButton.classList.toggle('active');
@@ -3921,11 +3952,13 @@
                     }
                 }
             }
-            
+
         }
 
-        function openSem(event) {  
+        function openSem(event) {
             event.preventDefault();
+
+            deactivateAllButtons()
 
             const seoButton = document.querySelector('button#semButton');
             if (seoButton) {
@@ -3953,7 +3986,25 @@
                 }
             }
         }
-        
+
+        function deactivateAllButtons() {
+            const buttons = document.querySelectorAll('button.collapsible'); // Select all collapsible buttons
+            buttons.forEach(button => {
+                button.classList.remove('active'); // Remove the 'active' class
+                const content = button.nextElementSibling; // Get the content div
+                if (content) {
+                    content.style.display = 'none'; // Hide the content
+                }
+
+                button.style.backgroundColor = "#004c9d"; // Reset color
+
+                // Remove active class from menu items
+                const navbarLinks = document.querySelectorAll('#navbar a');
+                navbarLinks.forEach(link => link.classList.remove('active-menu'));
+
+
+            });
+        }
 
 
     </script
