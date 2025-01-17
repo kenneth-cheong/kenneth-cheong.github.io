@@ -134,7 +134,7 @@
 
 
         #analysistable th:first-child,
-        td:first-child {
+        #analysistable td:first-child {
             position: sticky;
             left: 0;
             background-color: #004c9d;
@@ -270,7 +270,7 @@
 
         #navbar a {
             display: block;
-            padding: 10px 15px;
+            padding: 10px 2px;
             color: white;
             text-decoration: none;
             transition: background-color 0.3s;
@@ -807,8 +807,6 @@
 
         #navbar li a#logoutLink {
             display: block;
-            /* Important for proper layout in navbar */
-            padding: 10px 15px;
             color: white;
             text-decoration: none;
             transition: background-color 0.3s;
@@ -863,7 +861,8 @@
             </li>
             <li><a href="#SEM" onclick="openSem(event)"><i class="fas fa-ad"></i> <span>SEM</span></a></li>
             <br><br>
-            <li><a href="#" id="logoutLink" onclick="logout(event)"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a></li>
+            <li><a href="#" id="logoutLink" onclick="logout(event)"><i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span></a></li>
         </ul>
     </nav>
     </nav>
@@ -3530,6 +3529,20 @@
                 document.getElementById('selected').style.display = 'block';
                 document.getElementById("selectedText").value = ""; // Clear textarea
                 document.getElementById("output").innerHTML = createSemTables(body);
+
+                firstTable = document.getElementById("output").querySelector("table");
+                const rows = Array.from(firstTable.querySelectorAll("tr"));
+                const rowData = [];
+
+                rows.forEach(row => {
+                    const cells = Array.from(row.querySelectorAll("td"));
+                    cells.shift(); // Remove the first cell
+                    cells.forEach(cell => {
+                        rowData.push(cell.textContent.trim()); // Push each cell's text
+                    });
+                });
+
+                console.log(rowData); // Now this will work correctly!
                 semButton.innerText = "Step 2: Generate KWs, USPs & Audience";
             } catch (error) {
                 console.error("Error:", error);
@@ -3537,6 +3550,7 @@
                 semButton.innerText = "Step 2: Generate KWs, USPs & Audience";
             }
         }
+
         function createSemTables(data) {
             let tablesHTML = "";
             const categories = ["short_keywords", "long_keywords", "usp", "target_audience_name"];
