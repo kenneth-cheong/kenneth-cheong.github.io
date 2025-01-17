@@ -804,6 +804,26 @@
             /* Initially hidden */
             margin-top: 20px;
         }
+
+        #navbar li a#logoutLink {
+            display: block;
+            /* Important for proper layout in navbar */
+            padding: 10px 15px;
+            color: white;
+            text-decoration: none;
+            transition: background-color 0.3s;
+        }
+
+        #navbar li a#logoutLink:hover {
+            background-color: #0056b3;
+            /* Match hover effect of other links */
+            border-radius: 10px;
+        }
+
+        #navbar li a#logoutLink i {
+            /* Icon styling if needed */
+            margin-right: 2%;
+        }
     </style>
 </head>
 
@@ -842,6 +862,7 @@
                 </ul>
             </li>
             <li><a href="#SEM" onclick="openSem(event)"><i class="fas fa-ad"></i> <span>SEM</span></a></li>
+            <li><a href="#" id="logoutLink" onclick="logout(event)"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a></li>
         </ul>
     </nav>
     </nav>
@@ -4016,6 +4037,29 @@
 
 
             });
+        }
+
+        function logout() {
+            // Clear Google login
+            if (googleUser) {
+                google.accounts.id.revoke(googleUser.id_token, () => {
+                    console.log('Google account revoked');
+                });
+                googleUser = null;
+                localStorage.removeItem('googleUser');
+            }
+
+            // Clear login cookie
+            document.cookie = "key=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+
+            // Update UI
+            updateUI(false);
+
+            // Optional: Redirect to login page or show a message
+            // window.location.href = 'login.html'; // If you have a separate login page
+            document.getElementById('loginError').textContent = "You have been logged out.";
+            document.getElementById('loginForm').style.display = 'flex';
+
         }
 
 
