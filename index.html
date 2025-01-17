@@ -3292,32 +3292,41 @@
 
         function downloadKeywordAnalysisTableAsCSV() {
             const table = document.getElementById("keywordAnalysisResults").querySelector('table');
-            const rows = Array.from(table.querySelectorAll("tr")); // Select all rows
+            if (!table) {
+                console.error("Table not found!");  // Handle the case where the table doesn't exist
+                return;
+            }
 
-            // Construct the CSV content
-            let csvContent = "data:text/csv;charset=utf-8,";
+            const rows = Array.from(table.querySelectorAll("tr"));
+
+            let csvContent = "";  // Start with an empty string (no BOM)
             rows.forEach(row => {
-                // Select *all* cells in the row (including th and td)
                 const cells = Array.from(row.querySelectorAll("th, td"));
                 csvContent += cells.map(cell => {
                     let cellText = cell.textContent.trim();
-
-                    // Handle innerHTML (for loading spinners) gracefully
-                    if (!cellText && cell.innerHTML) {  // Check if textContent is empty but innerHTML exists
-                        cellText = cell.innerHTML.replace(/<[^>]*>/g, "").trim(); // Remove HTML tags
+                    if (!cellText && cell.innerHTML) {
+                        cellText = cell.innerHTML.replace(/<[^>]*>/g, "").trim();
                     }
-                    return `"${cellText.replace(/"/g, '""')}"` // Escape double quotes
+                    return `"${cellText.replace(/"/g, '""')}"`
                 }).join(",") + "\n";
             });
 
-            // Create a hidden link element and trigger a click to download
-            const encodedUri = encodeURI(csvContent);
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "keyword_analysis.csv");
-            document.body.appendChild(link); // Required for Firefox
-            link.click(); // This will download the data file
-            document.body.removeChild(link); // Cleanup 
+            if (link.download !== undefined) { // feature detection
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", "keyword_analysis.csv");
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);  // Clean up
+            } else {
+                // IE10+ Fallback - opens the data URI in a new window
+                window.open('data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent));
+            }
         }
 
         // Attach the download function to the button
