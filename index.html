@@ -80,8 +80,7 @@
         }
 
         window.onload = () => {
-            // Check either Google login OR cookie - if either is true, don't show login form
-            const isLoggedIn = checkGoogleLogin() || checkLoginCookie();
+            const isLoggedIn = checkGoogleLogin();
             if (!isLoggedIn) {
                 // Show the regular login form only if neither Google nor cookie login are active.
                 document.getElementById('loginForm').style.display = 'flex';
@@ -827,9 +826,6 @@
 
 <body>
     <div id="loginForm">
-        <input type="text" id="username" placeholder="Username" onkeydown="handleEnter(event)">
-        <input type="password" id="password" placeholder="Password" onkeydown="handleEnter(event)">
-        <button id="loginButton" onclick="login()">Login</button>
         <div id="googleSignInButton"></div>
         <p id="loginError" style="color: red;"></p>
     </div>
@@ -3728,80 +3724,12 @@
             return data;
         }
 
-        function getCookie(name) {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.startsWith(name + '=')) {
-                    return decodeURIComponent(cookie.substring(name.length + 1));
-                }
-            }
-            return null;
-        }
-
         function updateUI(isLoggedIn) {
             document.getElementById('loginForm').style.display = isLoggedIn ? 'none' : 'flex';
             document.getElementById('main-content').style.display = isLoggedIn ? 'block' : 'none';
             document.getElementById('navbar').style.display = isLoggedIn ? 'block' : 'none';
         }
 
-        function checkLoginCookie() {
-            const key = getCookie("key");
-            if (key !== null) {
-                updateUI(true); // Already logged in via cookie
-                return true;  // Indicate cookie login success
-            }
-            return false; // Not logged in via cookie
-        }
-
-        async function login() {
-            const loginButton = document.getElementById('loginButton'); // Make sure you have a button with this ID
-            loginButton.disabled = true;
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            const loginError = document.getElementById('loginError');
-
-            try {
-                const response = await fetch('https://05vthfgonb.execute-api.ap-southeast-1.amazonaws.com/simpleLogin/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-
-
-                if (response.ok) {
-                    const data = await response.json();
-                    const key = data.key;
-
-                    console.log(key);
-
-                    // Set cookie with 24-hour expiry
-                    const expiryDate = new Date();
-                    expiryDate.setTime(expiryDate.getTime() + (24 * 60 * 60 * 1000));
-                    const expires = "expires=" + expiryDate.toUTCString();
-                    document.cookie = `key=${key}; ${expires}; path=/;` // Or omit Secure for testing on HTTP
-                    console.log("All cookies AFTER setting:", document.cookie); // Crucial!
-                    console.log("getCookie('key') result:", getCookie("key"));  // Check immediately!
-
-                    updateUI(true);
-
-                } else {
-                    const errorData = await response.json();
-                    loginError.textContent = errorData.message || "Login failed.";
-                }
-            } catch (error) {
-                console.error("Login error:", error);
-                loginError.textContent = "An error occurred during login.";
-            } finally {
-                loginButton.disabled = false;
-            }
-        }
-
-        function handleEnter(event) {
-            if (event.key === "Enter") {
-                login();
-            }
-        }
 
         function openSeo(event) {
             event.preventDefault();
@@ -4074,10 +4002,7 @@
             // window.location.href = 'login.html'; // If you have a separate login page
             document.getElementById('loginError').textContent = "You have been logged out.";
             document.getElementById('loginForm').style.display = 'flex';
-
         }
-
-
     </script
 
 </body>
