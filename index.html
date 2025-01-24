@@ -1715,6 +1715,7 @@
             const urlsInput = document.getElementById('comparison-urls').value;
             const language = document.getElementById('comparison-language').value;
             const location = document.getElementById('comparison-location').value;
+            user = JSON.parse(localStorage.getItem('googleUser')).email
             urls = urlsInput.split(/[\s,]+/).filter(url => url.trim() !== "");
             const loadingMessageInterval = setInterval(updateLoadingMessage, 4000);
 
@@ -1735,7 +1736,7 @@
                         const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ keyword, language, location }),
+                            body: JSON.stringify({ keyword, language, location, user}),
                         });
                         const serpData = await serpResponse.json();
                         if (serpData.statusCode !== 200) {
@@ -3151,12 +3152,14 @@
         }
 
         async function fetchSerpResults(keyword, location, domain) {
+            user = JSON.parse(localStorage.getItem('googleUser')).email
             const apiEndpoint = "https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new";
             const requestBody = {
                 location: location,
                 keyword: keyword,
                 targeted_url: domain,
-                language: document.getElementById("location").value
+                language: document.getElementById("location").value,
+                user: user
             };
 
             try {
