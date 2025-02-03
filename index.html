@@ -2967,8 +2967,10 @@
                         body: JSON.stringify({ url: result.url, keyword, user })
                     }).then(res => res.json());
                     pageMetrics[result.url] = metricsResponse.body; // Store by URL
-                    console.log(metricsResponse);
+                    //console.log(metricsResponse);
                 }));
+
+                await new Promise(resolve => setTimeout(resolve, 60000)); // 60000ms = 60 seconds
 
                 await createSERPTable(index, serpData[index], pageMetrics, keyword); // create and initially hide the tables
                 await waitForSpinnersToRemove(index);
@@ -2981,12 +2983,15 @@
         }
 
         async function getTimeTakenToRank(index, keyword) {
+            const domain = document.getElementById("domain").value;
+            const location = document.getElementById("location").value;
+            const language = document.getElementById("language").value;
             const serpTable = document.getElementById(`serp-table-${index}`);
             try {
                 const res = await fetch('https://6qyc0fatt2.execute-api.ap-southeast-1.amazonaws.com/timeTakenToRank', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ data: serpTable.innerHTML, url: domain, keyword, location, language })
+                    body: JSON.stringify({ data: serpTable.innerHTML, url: domain, keyword: keyword, location: location, language: language })
                 });
 
                 const timeTakenToRankData = await res.json();
@@ -3079,11 +3084,11 @@
 
             serpTableHtml += "</table>";
             document.getElementById("keywordAnalysisResults").innerHTML += serpTableHtml;
-            document.getElementById("keyword-research-analysis-button").innerHTML = "Analyse";
+            document.getElementById("keyword-research-analysis-button").innerHTML = "Analyse<span>Click to get the estimated time to rank for the selected keywords and the webpage's metrics.</span>";
 
             return new Promise(resolve => {
                 const intervalId = setInterval(() => {
-                    console.log(`Checking for spinners in table ${index}, rows populated: ${rowsPopulated}/${Object.keys(serpResults).length}, spinners: ${document.querySelectorAll(`#serp-table-${index} .loading-spinner`).length}`);
+                    //console.log(`Checking for spinners in table ${index}, rows populated: ${rowsPopulated}/${Object.keys(serpResults).length}, spinners: ${document.querySelectorAll(`#serp-table-${index} .loading-spinner`).length}`);
                     if (rowsPopulated === Object.keys(serpResults).length && document.querySelectorAll(`#serp-table-${index} .loading-spinner`).length === 0) {
                         console.log(`Resolving promise for table ${index}`);
                         clearInterval(intervalId);
