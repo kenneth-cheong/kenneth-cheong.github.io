@@ -2225,6 +2225,7 @@
         function similarKeywords() {
             const keywordsInput = document.getElementById('keywords').value.split(/[\n,]+/).map(k => k.trim());
             const location = document.getElementById('location').value;
+            const language = document.getElementById('language').value;
 
             if (keywordsInput[0] == "") {
                 document.getElementById('rankingError').textContent = 'Please enter keyword(s).';
@@ -2239,11 +2240,13 @@
             document.getElementById('similar').innerText = "Generating...";
 
             var url = "https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords";
-            var queryString = [{
+            var queryString = {
                 "keywords": keywordsInput,
                 "location": location,
+                "language": language,
                 "user": JSON.parse(localStorage.getItem('googleUser')).email
-            }];
+            };
+            
             var headers = {
                 "Accept": "application/json",
                 "Content-Type": "application/json",
