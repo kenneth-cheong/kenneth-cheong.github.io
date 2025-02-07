@@ -2,7 +2,7 @@
 <html>
 
 <head>
-  <title>SERP Analysis Tool</title>
+  <title>Keyword Analysis Tool</title>
   <style>
     body {
       font-family: sans-serif;
@@ -24,6 +24,7 @@
 
     th {
       background-color: #f2f2f2;
+      cursor: pointer; /* Add cursor style to indicate sortable headers */
     }
 
     a {
@@ -42,25 +43,73 @@
 
     input[type="text"] {
       min-width: 40%;
-      /* Adjust this value as needed */
       padding: 5px;
-      /* Add some padding for better appearance */
       margin-bottom: 10px;
-      /* Spacing between input fields */
       border: 1px solid #ccc;
-      /* Add a border */
       box-sizing: border-box;
-      /* Include padding and border in the element's total width */
     }
+
+    .collapsible {
+      background-color: #777;
+      color: white;
+      cursor: pointer;
+      padding: 18px;
+      width: 100%;
+      border: none;
+      text-align: left;
+      outline: none;
+      font-size: 15px;
+    }
+
+    .active,
+    .collapsible:hover {
+      background-color: #555;
+    }
+
+    .content {
+      padding: 0 18px;
+      display: none;
+      overflow: hidden;
+      background-color: #f1f1f1;
+    }
+
+    .keywords-collapsible {
+      background-color: #eee;
+      color: #444;
+      cursor: pointer;
+      padding: 10px;
+      width: 100%;
+      border: none;
+      text-align: left;
+      outline: none;
+      font-size: 14px;
+      margin-bottom: 5px;
+    }
+
+    .keywords-active,
+    .keywords-collapsible:hover {
+      background-color: #ddd;
+    }
+
+    .keywords-content {
+      padding: 0 10px;
+      display: none;
+      overflow: hidden;
+      background-color: #f9f9f9;
+      border: 1px solid #ddd;
+      margin-bottom: 10px;
+    }
+
+    .keywords-container {
+      margin-bottom: 20px;
+    }
+
   </style>
 </head>
 
 <body>
 
-  <h1>SERP Analysis Tool</h1>
-
-  <label for="keyword">Keyword:</label>
-  <input type="text" id="keyword" value="digital marketing"><br><br>
+  <h1>Keyword Analysis Tool</h1>
 
   <label for="language">Language:</label>
   <input type="text" id="language" value="English"><br><br>
@@ -71,28 +120,31 @@
   <label for="target">Target URL:</label>
   <input type="text" id="target" value="https://mediaonemarketing.com.sg"><br><br>
 
-  <label for="keywords">Keywords:</label>
+  <label for="keywords">Selected Keywords:</label>
   <input type="text" id="keywords" value=""><br><br>
 
+  <button id="getKeywordsBtn" onclick="getKeywords()">Get Keywords</button>
   <button id="analysisBtn" onclick="startAnalysis()">Start Analysis</button>
 
-  <button id="getKeywordsBtn" onclick="getKeywords()">Get Keywords</button>
-
-  <div id="keywords-container">
+  <div id="keywords-container" class="keywords-container">
+    <!-- Keyword recommendations table will be rendered here -->
   </div>
 
-  <div id="results-container">
-  </div>
-
-  <div id="recommendations-container">
-    <!-- Keyword recommendations will be displayed here -->
+  <div id="analysis-results">
+    <!-- Collapsible sections for each keyword analysis will be added here -->
   </div>
 
   <script>
+    let allKeywords = []; // Store all keywords from the API
+    let currentSortColumn = null; // Track the currently sorted column
+    let sortAscending = true; // Track the sorting direction
+
     async function getKeywords() {
       const location = document.getElementById('location').value;
       const language = document.getElementById('language').value;
       const target = document.getElementById('target').value;
+
+      document.getElementById('getKeywordsBtn').innerText = "Getting Keywords...";
 
       const endpoint = "https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite";
 
@@ -114,60 +166,57 @@
         }
 
         const data = await response.json();
-        displayKeywordsTable(data);
+        allKeywords = Object.entries(data).map(([keyword, values]) => ({
+          keyword,
+          search_volume: values.search_volume,
+          competition: values.competition
+        })); // Store keywords
+
+        displayKeywordsTable(allKeywords);
+        document.getElementById('getKeywordsBtn').innerText = "Get Keywords";
 
       } catch (error) {
         console.error("Error fetching keywords:", error);
-        document.getElementById('recommendations-container').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+        document.getElementById('keywords-container').innerHTML = `<p class="error">Error: ${error.message}</p>`;
       }
     }
 
     function displayKeywordsTable(keywords) {
       const container = document.getElementById('keywords-container');
-      container.innerHTML = "<h2>Keyword Recommendations</h2>";
-
-      let tableHTML = `
+      container.innerHTML = `
+            <h2>Keyword Recommendations</h2>
             <table>
                 <thead>
                     <tr>
                         <th></th>
-                        <th>Keyword</th>
-                        <th>Search Volume</th>
-                        <th>Competition</th>
+                        <th onclick="sortTable('keyword')">Keyword</th>
+                        <th onclick="sortTable('search_volume')">Search Volume</th>
+                        <th onclick="sortTable('competition')">Competition</th>
                     </tr>
                 </thead>
                 <tbody>
-        `;
-
-      for (const keyword in keywords) {
-        if (keywords.hasOwnProperty(keyword)) {
-          const {
-            search_volume,
-            competition
-          } = keywords[keyword];
-          tableHTML += `
-                    <tr>
-                        <td><input type="checkbox" value="${keyword}" onchange="updateKeywords(this)"></td>
-                        <td>${keyword}</td>
-                        <td>${search_volume}</td>
-                        <td>${competition}</td>
-                    </tr>
-                `;
-        }
-      }
-
-      tableHTML += `
                 </tbody>
             </table>
         `;
 
-      container.innerHTML += tableHTML;
+      const tbody = container.querySelector('tbody'); // Get table body
+
+      keywords.forEach(item => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+                        <td><input type="checkbox" value="${item.keyword}" onchange="updateKeywords(this)"></td>
+                        <td>${item.keyword}</td>
+                        <td>${item.search_volume}</td>
+                        <td>${item.competition}</td>
+                    `;
+        tbody.appendChild(row); // Append row to the table body
+      });
     }
 
     function updateKeywords(checkbox) {
       const keyword = checkbox.value;
       const keywordsInput = document.getElementById('keywords');
-      let currentKeywords = keywordsInput.value.trim(); // trim removes whitespace from both ends of a string
+      let currentKeywords = keywordsInput.value.trim();
 
       if (checkbox.checked) {
         if (currentKeywords === "") {
@@ -175,24 +224,67 @@
         } else {
           keywordsInput.value = currentKeywords + ", " + keyword;
         }
-
       } else {
-        // Remove keyword
-        let keywordsArray = currentKeywords.split(',').map(item => item.trim()); // Split and trim
-        keywordsArray = keywordsArray.filter(item => item !== keyword); // Filter out the unchecked keyword
-        keywordsInput.value = keywordsArray.join(', '); // Join back into string
+        let keywordsArray = currentKeywords.split(',').map(item => item.trim());
+        keywordsArray = keywordsArray.filter(item => item !== keyword);
+        keywordsInput.value = keywordsArray.join(', ');
       }
     }
 
+    function sortTable(column) {
+      if (currentSortColumn === column) {
+        sortAscending = !sortAscending;
+      } else {
+        currentSortColumn = column;
+        sortAscending = true;
+      }
 
+      allKeywords.sort((a, b) => {
+        let comparison = 0;
 
-    // Your JavaScript function from the previous response goes here
+        if (column === 'keyword') {
+          comparison = a.keyword.localeCompare(b.keyword);
+        } else if (column === 'search_volume') {
+          comparison = a.search_volume - b.search_volume;
+        } else if (column === 'competition') {
+          comparison = a.competition - b.competition;
+        }
+
+        return sortAscending ? comparison : comparison * -1;
+      });
+
+      displayKeywordsTable(allKeywords); // Re-render the table
+    }
+
     async function performSearchAndAnalysis(keyword, language, location, target) {
-      document.getElementById('results-container').innerHTML = "";
-      document.getElementById('recommendations-container').innerHTML = "";
-      // === Step 1: Initial SERP API Call ===
-      const serpEndpoint = 'https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite';
+      const analysisResultsContainer = document.getElementById('analysis-results');
+      const keywordContainerId = `keyword-container-${keyword.replace(/\s+/g, '-')}`; // Unique ID for each keyword section
 
+      // Create a collapsible section for the current keyword
+      const collapsibleSection = document.createElement('div');
+      collapsibleSection.id = keywordContainerId;
+      collapsibleSection.innerHTML = `
+            <button type="button" class="keywords-collapsible">${keyword}</button>
+            <div class="keywords-content" id="keyword-content-${keyword.replace(/\s+/g, '-')}">
+                <div id="results-container-${keyword.replace(/\s+/g, '-')}"></div>
+                <div id="recommendations-container-${keyword.replace(/\s+/g, '-')}"></div>
+            </div>
+        `;
+      analysisResultsContainer.appendChild(collapsibleSection);
+
+      // Add event listener for collapsible functionality
+      const coll = collapsibleSection.querySelector(".keywords-collapsible");
+      coll.addEventListener("click", function() {
+        this.classList.toggle("keywords-active");
+        const content = this.nextElementSibling;
+        if (content.style.display === "block") {
+          content.style.display = "none";
+        } else {
+          content.style.display = "block";
+        }
+      });
+
+      const serpEndpoint = 'https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite';
       try {
         const serpResponse = await fetch(serpEndpoint, {
           method: 'POST',
@@ -211,20 +303,18 @@
         }
 
         const serpData = await serpResponse.json();
-        console.log("SERP API Response:", serpData);
+        console.log(`SERP API Response for ${keyword}:`, serpData);
 
-        // Validate serpData before proceeding
         if (!serpData || !serpData.body) {
-          throw new Error("Invalid SERP API response format.  Expected 'body' property.");
+          throw new Error(`Invalid SERP API response format for ${keyword}. Expected 'body' property.`);
         }
 
         const serp_dict = serpData.body;
 
-        // Display SERP results in an HTML table
-        displaySerpResults(serp_dict);
+        // Display SERP results in the designated container
+        displaySerpResults(serp_dict, `results-container-${keyword.replace(/\s+/g, '-')}`);
 
-        // === Step 2: Content Parsing for SERP Results (Parallel) ===
-        const urls = Object.values(serp_dict).map(item => item.url); // Extract URLs
+        const urls = Object.values(serp_dict).map(item => item.url);
 
         const contentParsingPromises = urls.map(async (url) => {
           const contentParsingEndpoint = 'https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing';
@@ -240,17 +330,16 @@
             });
 
             if (!contentResponse.ok) {
-              console.warn(`Content Parsing API Error for URL ${url}: ${contentResponse.status} ${contentResponse.statusText}`);
-              return null; // or an empty object, or a specific error indicator
+              console.warn(`Content Parsing API Error for URL ${url} (Keyword: ${keyword}): ${contentResponse.status} ${contentResponse.statusText}`);
+              return null;
             }
             return await contentResponse.json();
           } catch (error) {
-            console.error(`Error fetching content for URL ${url}:`, error);
-            return null; // or an empty object, or a specific error indicator
+            console.error(`Error fetching content for URL ${url} (Keyword: ${keyword}):`, error);
+            return null;
           }
         });
 
-        // === Step 3: Keyword Mapping API Call (Simultaneous with Content Parsing) ===
         const keywordMappingEndpoint = 'https://c0bkxhc1s3.execute-api.ap-southeast-1.amazonaws.com/keywordMapping';
         let target_content = null;
 
@@ -269,11 +358,11 @@
           });
 
           if (!keywordMappingResponse.ok) {
-            throw new Error(`Keyword Mapping API Error: ${keywordMappingResponse.status} ${keywordMappingResponse.statusText}`);
+            throw new Error(`Keyword Mapping API Error for ${keyword}: ${keywordMappingResponse.status} ${keywordMappingResponse.statusText}`);
           }
 
           const keywordMappingData = await keywordMappingResponse.json();
-          console.log("Keyword Mapping API Response:", keywordMappingData);
+          console.log(`Keyword Mapping API Response for ${keyword}:`, keywordMappingData);
 
           if (keywordMappingData && keywordMappingData.body && Array.isArray(keywordMappingData.body)) {
             const targetUrls = keywordMappingData.body;
@@ -292,42 +381,35 @@
                 });
 
                 if (!contentResponse.ok) {
-                  console.warn(`Content Parsing API Error for URL ${url}: ${contentResponse.status} ${contentResponse.statusText}`);
-                  return null; // Handle errors appropriately
+                  console.warn(`Content Parsing API Error for URL ${url} (Keyword: ${keyword}): ${contentResponse.status} ${contentResponse.statusText}`);
+                  return null;
                 }
                 return await contentResponse.json();
               } catch (error) {
-                console.error(`Error fetching content for URL ${url}:`, error);
-                return null; // Handle errors appropriately
+                console.error(`Error fetching content for URL ${url} (Keyword: ${keyword}):`, error);
+                return null;
               }
             });
 
             const targetContentResults = await Promise.all(targetContentPromises);
-            //Filter out nulls
             const validTargetContent = targetContentResults.filter(result => result !== null);
-            target_content = validTargetContent; //This must be the array.
+            target_content = validTargetContent;
 
-            console.log("Target Content:", target_content);
+            console.log(`Target Content for ${keyword}:`, target_content);
           } else {
-            console.warn("Invalid Keyword Mapping API response format.  Expected 'body' as array.");
+            console.warn(`Invalid Keyword Mapping API response format for ${keyword}. Expected 'body' as array.`);
           }
 
         } catch (error) {
-          console.error("Error during Keyword Mapping or Target Content Processing:", error);
+          console.error(`Error during Keyword Mapping or Target Content Processing for ${keyword}:`, error);
         }
 
-
-        // Await for content parsing to finish *before* moving to the final step
         const contentParsingResults = await Promise.all(contentParsingPromises);
-
-        //Filter out nulls
         const validContentParsingResults = contentParsingResults.filter(result => result !== null);
 
-        console.log("Content Parsing Results:", validContentParsingResults);
+        console.log(`Content Parsing Results for ${keyword}:`, validContentParsingResults);
 
-
-        // === Step 4: Keyword Recommendations API Call (After all previous calls complete) ===
-        if (target_content && serp_dict) { //Make sure target_content is not null
+        if (target_content && serp_dict) {
           const kwRecommendationsEndpoint = 'https://yk9fcv2xf3.execute-api.ap-southeast-1.amazonaws.com/kwRecommendations';
 
           try {
@@ -343,89 +425,143 @@
             });
 
             if (!kwRecommendationsResponse.ok) {
-              throw new Error(`Keyword Recommendations API Error: ${kwRecommendationsResponse.status} ${kwRecommendationsResponse.statusText}`);
+              throw new Error(`Keyword Recommendations API Error for ${keyword}: ${kwRecommendationsResponse.status} ${kwRecommendationsResponse.statusText}`);
             }
 
             const kwRecommendationsData = await kwRecommendationsResponse.json();
-            console.log("Keyword Recommendations API Response:", kwRecommendationsData);
+            console.log(`Keyword Recommendations API Response for ${keyword}:`, kwRecommendationsData);
 
-            // Process and display keyword recommendations as needed
-            displayKeywordRecommendations(kwRecommendationsData.body); //Example
+            // Display keyword recommendations in the designated container
+            displayKeywordRecommendations(kwRecommendationsData.body, `recommendations-container-${keyword.replace(/\s+/g, '-')}`);
           } catch (error) {
-            console.error("Error during Keyword Recommendations:", error);
+            console.error(`Error during Keyword Recommendations for ${keyword}:`, error);
           }
         } else {
-          console.warn("Skipping Keyword Recommendations due to missing target_content or serp_dict.");
+          console.warn(`Skipping Keyword Recommendations for ${keyword} due to missing target_content or serp_dict.`);
         }
       } catch (error) {
-        console.error("An error occurred:", error);
-        // Display an error message on the page
-        document.getElementById('results-container').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+        console.error(`An error occurred for ${keyword}:`, error);
+        const container = document.getElementById(`results-container-${keyword.replace(/\s+/g, '-')}`);
+        container.innerHTML = `<p class="error">Error: ${error.message}</p>`;
       }
     }
 
-
-    function displaySerpResults(serpResults) {
-      const resultsContainer = document.getElementById('results-container');
+    function displaySerpResults(serpResults, containerId) {
+      const resultsContainer = document.getElementById(containerId);
       if (!resultsContainer) {
-        console.error("Element with ID 'results-container' not found.");
+        console.error(`Element with ID '${containerId}' not found.`);
         return;
       }
 
       let tableHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>Rank</th>
-          <th>URL</th>
-          <th>Title</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
+            <h2>SERP Results</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>URL</th>
+                        <th>Title</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
 
       for (const rank in serpResults) {
         if (serpResults.hasOwnProperty(rank)) {
           const result = serpResults[rank];
           tableHTML += `
-        <tr>
-          <td>${rank}</td>
-          <td><a href="${result.url}" target="_blank">${result.url}</a></td>
-          <td>${result.title}</td>
-          <td>${result.description}</td>
-        </tr>
-      `;
+                    <tr>
+                        <td>${rank}</td>
+                        <td><a href="${result.url}" target="_blank">${result.url}</a></td>
+                        <td>${result.title}</td>
+                        <td>${result.description}</td>
+                    </tr>
+                `;
         }
       }
 
       tableHTML += `
-      </tbody>
-    </table>
-  `;
+                </tbody>
+            </table>
+        `;
 
-      resultsContainer.innerHTML = "<h2>SERP Results</h2>" + tableHTML;
+      resultsContainer.innerHTML = tableHTML;
     }
 
-
-    function displayKeywordRecommendations(recommendations) {
-      const recommendationsContainer = document.getElementById('recommendations-container'); //Assuming you have a div with this ID
+    function displayKeywordRecommendations(recommendations, containerId) {
+      const recommendationsContainer = document.getElementById(containerId);
       if (!recommendationsContainer) {
-        console.error("Element with ID 'recommendations-container' not found.");
+        console.error(`Element with ID '${containerId}' not found.`);
         return;
       }
 
-      recommendationsContainer.innerHTML = recommendations;
-      document.getElementById('analysisBtn').innerText = "Start Analysis";
+      recommendationsContainer.innerHTML = `<h2>Keyword Recommendations</h2>${recommendations}`;
     }
 
-    function startAnalysis() {
-      const keyword = document.getElementById('keyword').value;
+
+    async function startAnalysis() {
       const language = document.getElementById('language').value;
       const location = document.getElementById('location').value;
       const target = document.getElementById('target').value;
+      const keywordsInput = document.getElementById('keywords').value;
+      const keywords = keywordsInput.split(',').map(keyword => keyword.trim()).filter(keyword => keyword !== ""); // Split keywords and remove empty strings
+
       document.getElementById('analysisBtn').innerText = "Analysing...";
-      performSearchAndAnalysis(keyword, language, location, target);
+
+      // Clear previous results
+      document.getElementById('analysis-results').innerHTML = '';
+
+      // Create an array of promises, one for each keyword analysis
+      const analysisPromises = keywords.map(keyword =>
+        performSearchAndAnalysis(keyword, language, location, target)
+      );
+
+      try {
+        // Wait for all analyses to complete
+        await Promise.all(analysisPromises);
+        document.getElementById('analysisBtn').innerText = "Start Analysis"; // Re-enable the button
+        // Create a Keywords collapsible section
+        createKeywordsCollapsible();
+      } catch (error) {
+        console.error("Error during analysis:", error);
+        document.getElementById('analysis-results').innerHTML = `<p class="error">Error during analysis: ${error.message}</p>`;
+        document.getElementById('analysisBtn').innerText = "Start Analysis"; // Re-enable the button, even on error
+      }
+    }
+
+    function createKeywordsCollapsible() {
+      // Remove any existing keywords collapsible
+      const existingCollapsible = document.querySelector("#keywords-container");
+
+      // Create a new keywords collapsible section
+      const collapsible = document.createElement("button");
+      collapsible.type = "button";
+      collapsible.classList.add("collapsible");
+      collapsible.textContent = "Keywords";
+
+      const content = document.createElement("div");
+      content.classList.add("content");
+      content.id = "keywords-container"; // Set the ID
+      content.innerHTML = displayKeywordsTable;
+
+      existingCollapsible.insertAdjacentHTML("afterend", `<div id="keywords-container" class="keywords-container">
+    <!-- Keyword recommendations table will be rendered here -->
+  </div>`); // Append the collapsible section
+
+      collapsible.addEventListener("click", function() {
+        this.classList.toggle("active");
+        if (content.style.display === "block") {
+          content.style.display = "none";
+        } else {
+          content.style.display = "block";
+        }
+      });
+
+      // You might want to append the collapsible section to a specific container
+      const analysisResults = document.getElementById("analysis-results");
+      analysisResults.appendChild(collapsible);
+      analysisResults.appendChild(content);
     }
   </script>
 
