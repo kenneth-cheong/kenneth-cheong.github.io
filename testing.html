@@ -24,7 +24,7 @@
 
     th {
       background-color: #f2f2f2;
-      cursor: pointer; /* Add cursor style to indicate sortable headers */
+      cursor: pointer;
     }
 
     a {
@@ -93,8 +93,7 @@
 
     .keywords-content {
       padding: 0 10px;
-      display: none;
-      overflow: hidden;
+      overflow: hidden; /* IMPORTANT:  Remove display:none initial style */
       background-color: #f9f9f9;
       border: 1px solid #ddd;
       margin-bottom: 10px;
@@ -125,9 +124,13 @@
 
   <button id="getKeywordsBtn" onclick="getKeywords()">Get Keywords</button>
   <button id="analysisBtn" onclick="startAnalysis()">Start Analysis</button>
+  <br><br><hr><br>
 
-  <div id="keywords-container" class="keywords-container">
-    <!-- Keyword recommendations table will be rendered here -->
+  <div id="keywords-collapsible-container">
+    <button type="button" class="keywords-collapsible keywords-active" id="keywordsCollapsible">Keyword Recommendations</button>
+    <div class="keywords-content" id="keywords-container" style="display: block;">
+      <!-- Keyword recommendations table will be rendered here -->
+    </div>
   </div>
 
   <div id="analysis-results">
@@ -135,9 +138,24 @@
   </div>
 
   <script>
-    let allKeywords = []; // Store all keywords from the API
-    let currentSortColumn = null; // Track the currently sorted column
-    let sortAscending = true; // Track the sorting direction
+    let allKeywords = [];
+    let currentSortColumn = null;
+    let sortAscending = true;
+
+    // Initialize collapsible functionality
+    document.addEventListener('DOMContentLoaded', function() {
+      const collapsibleButton = document.getElementById('keywordsCollapsible');
+      const collapsibleContent = document.getElementById('keywords-container');
+
+      // Set initial state to expanded
+      collapsibleButton.classList.add('keywords-active');
+      collapsibleContent.style.display = 'block';
+
+      collapsibleButton.addEventListener('click', function() {
+        this.classList.toggle('keywords-active');
+        collapsibleContent.style.display = (collapsibleContent.style.display === 'block') ? 'none' : 'block';
+      });
+    });
 
     async function getKeywords() {
       const location = document.getElementById('location').value;
@@ -170,7 +188,7 @@
           keyword,
           search_volume: values.search_volume,
           competition: values.competition
-        })); // Store keywords
+        }));
 
         displayKeywordsTable(allKeywords);
         document.getElementById('getKeywordsBtn').innerText = "Get Keywords";
@@ -183,8 +201,11 @@
 
     function displayKeywordsTable(keywords) {
       const container = document.getElementById('keywords-container');
+      if (!container) {
+        console.error("Keywords container not found");
+        return;
+      }
       container.innerHTML = `
-            <h2>Keyword Recommendations</h2>
             <table>
                 <thead>
                     <tr>
@@ -199,7 +220,7 @@
             </table>
         `;
 
-      const tbody = container.querySelector('tbody'); // Get table body
+      const tbody = container.querySelector('tbody');
 
       keywords.forEach(item => {
         const row = document.createElement('tr');
@@ -209,7 +230,7 @@
                         <td>${item.search_volume}</td>
                         <td>${item.competition}</td>
                     `;
-        tbody.appendChild(row); // Append row to the table body
+        tbody.appendChild(row);
       });
     }
 
@@ -253,14 +274,13 @@
         return sortAscending ? comparison : comparison * -1;
       });
 
-      displayKeywordsTable(allKeywords); // Re-render the table
+      displayKeywordsTable(allKeywords);
     }
 
     async function performSearchAndAnalysis(keyword, language, location, target) {
       const analysisResultsContainer = document.getElementById('analysis-results');
-      const keywordContainerId = `keyword-container-${keyword.replace(/\s+/g, '-')}`; // Unique ID for each keyword section
+      const keywordContainerId = `keyword-container-${keyword.replace(/\s+/g, '-')}`;
 
-      // Create a collapsible section for the current keyword
       const collapsibleSection = document.createElement('div');
       collapsibleSection.id = keywordContainerId;
       collapsibleSection.innerHTML = `
@@ -272,7 +292,6 @@
         `;
       analysisResultsContainer.appendChild(collapsibleSection);
 
-      // Add event listener for collapsible functionality
       const coll = collapsibleSection.querySelector(".keywords-collapsible");
       coll.addEventListener("click", function() {
         this.classList.toggle("keywords-active");
@@ -311,7 +330,6 @@
 
         const serp_dict = serpData.body;
 
-        // Display SERP results in the designated container
         displaySerpResults(serp_dict, `results-container-${keyword.replace(/\s+/g, '-')}`);
 
         const urls = Object.values(serp_dict).map(item => item.url);
@@ -431,7 +449,6 @@
             const kwRecommendationsData = await kwRecommendationsResponse.json();
             console.log(`Keyword Recommendations API Response for ${keyword}:`, kwRecommendationsData);
 
-            // Display keyword recommendations in the designated container
             displayKeywordRecommendations(kwRecommendationsData.body, `recommendations-container-${keyword.replace(/\s+/g, '-')}`);
           } catch (error) {
             console.error(`Error during Keyword Recommendations for ${keyword}:`, error);
@@ -496,7 +513,7 @@
         return;
       }
 
-      recommendationsContainer.innerHTML = `<h2>Keyword Recommendations</h2>${recommendations}`;
+      recommendationsContainer.innerHTML = `${recommendations}`;
     }
 
 
@@ -505,63 +522,25 @@
       const location = document.getElementById('location').value;
       const target = document.getElementById('target').value;
       const keywordsInput = document.getElementById('keywords').value;
-      const keywords = keywordsInput.split(',').map(keyword => keyword.trim()).filter(keyword => keyword !== ""); // Split keywords and remove empty strings
+      const keywords = keywordsInput.split(',').map(keyword => keyword.trim()).filter(keyword => keyword !== "");
 
       document.getElementById('analysisBtn').innerText = "Analysing...";
 
-      // Clear previous results
       document.getElementById('analysis-results').innerHTML = '';
 
-      // Create an array of promises, one for each keyword analysis
       const analysisPromises = keywords.map(keyword =>
         performSearchAndAnalysis(keyword, language, location, target)
       );
 
       try {
-        // Wait for all analyses to complete
         await Promise.all(analysisPromises);
-        document.getElementById('analysisBtn').innerText = "Start Analysis"; // Re-enable the button
-        // Create a Keywords collapsible section
-        createKeywordsCollapsible();
+        document.getElementById('analysisBtn').innerText = "Start Analysis";
+
       } catch (error) {
         console.error("Error during analysis:", error);
         document.getElementById('analysis-results').innerHTML = `<p class="error">Error during analysis: ${error.message}</p>`;
-        document.getElementById('analysisBtn').innerText = "Start Analysis"; // Re-enable the button, even on error
+        document.getElementById('analysisBtn').innerText = "Start Analysis";
       }
-    }
-
-    function createKeywordsCollapsible() {
-      // Remove any existing keywords collapsible
-      const existingCollapsible = document.querySelector("#keywords-container");
-
-      // Create a new keywords collapsible section
-      const collapsible = document.createElement("button");
-      collapsible.type = "button";
-      collapsible.classList.add("collapsible");
-      collapsible.textContent = "Keywords";
-
-      const content = document.createElement("div");
-      content.classList.add("content");
-      content.id = "keywords-container"; // Set the ID
-      content.innerHTML = displayKeywordsTable;
-
-      existingCollapsible.insertAdjacentHTML("afterend", `<div id="keywords-container" class="keywords-container">
-    <!-- Keyword recommendations table will be rendered here -->
-  </div>`); // Append the collapsible section
-
-      collapsible.addEventListener("click", function() {
-        this.classList.toggle("active");
-        if (content.style.display === "block") {
-          content.style.display = "none";
-        } else {
-          content.style.display = "block";
-        }
-      });
-
-      // You might want to append the collapsible section to a specific container
-      const analysisResults = document.getElementById("analysis-results");
-      analysisResults.appendChild(collapsible);
-      analysisResults.appendChild(content);
     }
   </script>
 
