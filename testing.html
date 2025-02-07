@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>SERP Analysis Tool</title>
   <style>
@@ -14,7 +15,8 @@
       margin-bottom: 20px;
     }
 
-    th, td {
+    th,
+    td {
       border: 1px solid #ddd;
       padding: 8px;
       text-align: left;
@@ -35,10 +37,20 @@
 
     .error {
       color: red;
-      font-weight: bold;
+      font-weight: bol
+      
+    }
+
+    input[type="text"] {
+      min-width: 40%; /* Adjust this value as needed */
+      padding: 5px; /* Add some padding for better appearance */
+      margin-bottom: 10px; /* Spacing between input fields */
+      border: 1px solid #ccc; /* Add a border */
+      box-sizing: border-box; /* Include padding and border in the element's total width */
     }
   </style>
 </head>
+
 <body>
 
   <h1>SERP Analysis Tool</h1>
@@ -55,7 +67,7 @@
   <label for="target">Target URL:</label>
   <input type="text" id="target" value="https://mediaonemarketing.com.sg"><br><br>
 
-  <button id = "analysisBtn" onclick="startAnalysis()">Start Analysis</button>
+  <button id="analysisBtn" onclick="startAnalysis()">Start Analysis</button>
 
   <div id="results-container">
   </div>
@@ -67,84 +79,41 @@
   <script>
     // Your JavaScript function from the previous response goes here
     async function performSearchAndAnalysis(keyword, language, location, target) {
-  // === Step 1: Initial SERP API Call ===
-  const serpEndpoint = 'https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite';
+      document.getElementById('results-container').innerHTML = "";
+      document.getElementById('recommendations-container').innerHTML = "";
+      // === Step 1: Initial SERP API Call ===
+      const serpEndpoint = 'https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite';
 
-  try {
-    const serpResponse = await fetch(serpEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ keyword: keyword, language: language, location: location })
-    });
-
-    if (!serpResponse.ok) {
-      throw new Error(`SERP API Error: ${serpResponse.status} ${serpResponse.statusText}`);
-    }
-
-    const serpData = await serpResponse.json();
-    console.log("SERP API Response:", serpData);
-
-    // Validate serpData before proceeding
-    if (!serpData || !serpData.body) {
-        throw new Error("Invalid SERP API response format.  Expected 'body' property.");
-    }
-
-    const serp_dict = serpData.body;
-
-    // Display SERP results in an HTML table
-    displaySerpResults(serp_dict);
-
-    // === Step 2: Content Parsing for SERP Results (Parallel) ===
-    const urls = Object.values(serp_dict).map(item => item.url); // Extract URLs
-
-    const contentParsingPromises = urls.map(async (url) => {
-      const contentParsingEndpoint = 'https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing';
       try {
-        const contentResponse = await fetch(contentParsingEndpoint, {
+        const serpResponse = await fetch(serpEndpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ url: url })
+          body: JSON.stringify({ keyword: keyword, language: language, location: location })
         });
 
-        if (!contentResponse.ok) {
-          console.warn(`Content Parsing API Error for URL ${url}: ${contentResponse.status} ${contentResponse.statusText}`);
-          return null; // or an empty object, or a specific error indicator
+        if (!serpResponse.ok) {
+          throw new Error(`SERP API Error: ${serpResponse.status} ${serpResponse.statusText}`);
         }
-        return await contentResponse.json();
-      } catch (error) {
-        console.error(`Error fetching content for URL ${url}:`, error);
-        return null; // or an empty object, or a specific error indicator
-      }
-    });
 
-    // === Step 3: Keyword Mapping API Call (Simultaneous with Content Parsing) ===
-    const keywordMappingEndpoint = 'https://c0bkxhc1s3.execute-api.ap-southeast-1.amazonaws.com/keywordMapping';
-    let target_content = null;
+        const serpData = await serpResponse.json();
+        console.log("SERP API Response:", serpData);
 
-    try {
-      const keywordMappingResponse = await fetch(keywordMappingEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ location: location, keyword: keyword, language: language, target: target })
-      });
+        // Validate serpData before proceeding
+        if (!serpData || !serpData.body) {
+          throw new Error("Invalid SERP API response format.  Expected 'body' property.");
+        }
 
-      if (!keywordMappingResponse.ok) {
-        throw new Error(`Keyword Mapping API Error: ${keywordMappingResponse.status} ${keywordMappingResponse.statusText}`);
-      }
+        const serp_dict = serpData.body;
 
-      const keywordMappingData = await keywordMappingResponse.json();
-      console.log("Keyword Mapping API Response:", keywordMappingData);
+        // Display SERP results in an HTML table
+        displaySerpResults(serp_dict);
 
-      if (keywordMappingData && keywordMappingData.body && Array.isArray(keywordMappingData.body)) {
-        const targetUrls = keywordMappingData.body;
+        // === Step 2: Content Parsing for SERP Results (Parallel) ===
+        const urls = Object.values(serp_dict).map(item => item.url); // Extract URLs
 
-        const targetContentPromises = targetUrls.map(async (url) => {
+        const contentParsingPromises = urls.map(async (url) => {
           const contentParsingEndpoint = 'https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing';
           try {
             const contentResponse = await fetch(contentParsingEndpoint, {
@@ -157,83 +126,128 @@
 
             if (!contentResponse.ok) {
               console.warn(`Content Parsing API Error for URL ${url}: ${contentResponse.status} ${contentResponse.statusText}`);
-              return null; // Handle errors appropriately
+              return null; // or an empty object, or a specific error indicator
             }
             return await contentResponse.json();
           } catch (error) {
             console.error(`Error fetching content for URL ${url}:`, error);
-            return null; // Handle errors appropriately
+            return null; // or an empty object, or a specific error indicator
           }
         });
 
-        const targetContentResults = await Promise.all(targetContentPromises);
-        //Filter out nulls
-        const validTargetContent = targetContentResults.filter(result => result !== null);
-        target_content = validTargetContent;  //This must be the array.
+        // === Step 3: Keyword Mapping API Call (Simultaneous with Content Parsing) ===
+        const keywordMappingEndpoint = 'https://c0bkxhc1s3.execute-api.ap-southeast-1.amazonaws.com/keywordMapping';
+        let target_content = null;
 
-        console.log("Target Content:", target_content);
-      } else {
-        console.warn("Invalid Keyword Mapping API response format.  Expected 'body' as array.");
-      }
+        try {
+          const keywordMappingResponse = await fetch(keywordMappingEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ location: location, keyword: keyword, language: language, target: target })
+          });
 
-    } catch (error) {
-      console.error("Error during Keyword Mapping or Target Content Processing:", error);
-    }
+          if (!keywordMappingResponse.ok) {
+            throw new Error(`Keyword Mapping API Error: ${keywordMappingResponse.status} ${keywordMappingResponse.statusText}`);
+          }
 
+          const keywordMappingData = await keywordMappingResponse.json();
+          console.log("Keyword Mapping API Response:", keywordMappingData);
 
-    // Await for content parsing to finish *before* moving to the final step
-    const contentParsingResults = await Promise.all(contentParsingPromises);
+          if (keywordMappingData && keywordMappingData.body && Array.isArray(keywordMappingData.body)) {
+            const targetUrls = keywordMappingData.body;
 
-    //Filter out nulls
-    const validContentParsingResults = contentParsingResults.filter(result => result !== null);
+            const targetContentPromises = targetUrls.map(async (url) => {
+              const contentParsingEndpoint = 'https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing';
+              try {
+                const contentResponse = await fetch(contentParsingEndpoint, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ url: url })
+                });
 
-    console.log("Content Parsing Results:", validContentParsingResults);
+                if (!contentResponse.ok) {
+                  console.warn(`Content Parsing API Error for URL ${url}: ${contentResponse.status} ${contentResponse.statusText}`);
+                  return null; // Handle errors appropriately
+                }
+                return await contentResponse.json();
+              } catch (error) {
+                console.error(`Error fetching content for URL ${url}:`, error);
+                return null; // Handle errors appropriately
+              }
+            });
 
+            const targetContentResults = await Promise.all(targetContentPromises);
+            //Filter out nulls
+            const validTargetContent = targetContentResults.filter(result => result !== null);
+            target_content = validTargetContent;  //This must be the array.
 
-    // === Step 4: Keyword Recommendations API Call (After all previous calls complete) ===
-    if (target_content && serp_dict) {  //Make sure target_content is not null
-      const kwRecommendationsEndpoint = 'https://yk9fcv2xf3.execute-api.ap-southeast-1.amazonaws.com/kwRecommendations';
+            console.log("Target Content:", target_content);
+          } else {
+            console.warn("Invalid Keyword Mapping API response format.  Expected 'body' as array.");
+          }
 
-      try {
-        const kwRecommendationsResponse = await fetch(kwRecommendationsEndpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ target_content: target_content, serps_dict: serp_dict })
-        });
-
-        if (!kwRecommendationsResponse.ok) {
-          throw new Error(`Keyword Recommendations API Error: ${kwRecommendationsResponse.status} ${kwRecommendationsResponse.statusText}`);
+        } catch (error) {
+          console.error("Error during Keyword Mapping or Target Content Processing:", error);
         }
 
-        const kwRecommendationsData = await kwRecommendationsResponse.json();
-        console.log("Keyword Recommendations API Response:", kwRecommendationsData);
 
-        // Process and display keyword recommendations as needed
-        displayKeywordRecommendations(kwRecommendationsData.body);  //Example
+        // Await for content parsing to finish *before* moving to the final step
+        const contentParsingResults = await Promise.all(contentParsingPromises);
+
+        //Filter out nulls
+        const validContentParsingResults = contentParsingResults.filter(result => result !== null);
+
+        console.log("Content Parsing Results:", validContentParsingResults);
+
+
+        // === Step 4: Keyword Recommendations API Call (After all previous calls complete) ===
+        if (target_content && serp_dict) {  //Make sure target_content is not null
+          const kwRecommendationsEndpoint = 'https://yk9fcv2xf3.execute-api.ap-southeast-1.amazonaws.com/kwRecommendations';
+
+          try {
+            const kwRecommendationsResponse = await fetch(kwRecommendationsEndpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ target_content: target_content, serps_dict: serp_dict })
+            });
+
+            if (!kwRecommendationsResponse.ok) {
+              throw new Error(`Keyword Recommendations API Error: ${kwRecommendationsResponse.status} ${kwRecommendationsResponse.statusText}`);
+            }
+
+            const kwRecommendationsData = await kwRecommendationsResponse.json();
+            console.log("Keyword Recommendations API Response:", kwRecommendationsData);
+
+            // Process and display keyword recommendations as needed
+            displayKeywordRecommendations(kwRecommendationsData.body);  //Example
+          } catch (error) {
+            console.error("Error during Keyword Recommendations:", error);
+          }
+        } else {
+          console.warn("Skipping Keyword Recommendations due to missing target_content or serp_dict.");
+        }
       } catch (error) {
-        console.error("Error during Keyword Recommendations:", error);
+        console.error("An error occurred:", error);
+        // Display an error message on the page
+        document.getElementById('results-container').innerHTML = `<p class="error">Error: ${error.message}</p>`;
       }
-    } else {
-      console.warn("Skipping Keyword Recommendations due to missing target_content or serp_dict.");
     }
-  } catch (error) {
-    console.error("An error occurred:", error);
-    // Display an error message on the page
-    document.getElementById('results-container').innerHTML = `<p class="error">Error: ${error.message}</p>`;
-  }
-}
 
 
-function displaySerpResults(serpResults) {
-  const resultsContainer = document.getElementById('results-container');
-  if (!resultsContainer) {
-    console.error("Element with ID 'results-container' not found.");
-    return;
-  }
+    function displaySerpResults(serpResults) {
+      const resultsContainer = document.getElementById('results-container');
+      if (!resultsContainer) {
+        console.error("Element with ID 'results-container' not found.");
+        return;
+      }
 
-  let tableHTML = `
+      let tableHTML = `
     <table>
       <thead>
         <tr>
@@ -246,10 +260,10 @@ function displaySerpResults(serpResults) {
       <tbody>
   `;
 
-  for (const rank in serpResults) {
-    if (serpResults.hasOwnProperty(rank)) {
-      const result = serpResults[rank];
-      tableHTML += `
+      for (const rank in serpResults) {
+        if (serpResults.hasOwnProperty(rank)) {
+          const result = serpResults[rank];
+          tableHTML += `
         <tr>
           <td>${rank}</td>
           <td><a href="${result.url}" target="_blank">${result.url}</a></td>
@@ -257,28 +271,28 @@ function displaySerpResults(serpResults) {
           <td>${result.description}</td>
         </tr>
       `;
-    }
-  }
+        }
+      }
 
-  tableHTML += `
+      tableHTML += `
       </tbody>
     </table>
   `;
 
-  resultsContainer.innerHTML = "<h2>SERP Results</h2>" +  tableHTML;
-}
+      resultsContainer.innerHTML = "<h2>SERP Results</h2>" + tableHTML;
+    }
 
 
-function displayKeywordRecommendations(recommendations) {
-  const recommendationsContainer = document.getElementById('recommendations-container');  //Assuming you have a div with this ID
-  if (!recommendationsContainer) {
-      console.error("Element with ID 'recommendations-container' not found.");
-      return;
-  }
+    function displayKeywordRecommendations(recommendations) {
+      const recommendationsContainer = document.getElementById('recommendations-container');  //Assuming you have a div with this ID
+      if (!recommendationsContainer) {
+        console.error("Element with ID 'recommendations-container' not found.");
+        return;
+      }
 
-  recommendationsContainer.innerHTML = recommendations;
-  document.getElementById('analysisBtn').innerText = "Start Analysis";
-}
+      recommendationsContainer.innerHTML = recommendations;
+      document.getElementById('analysisBtn').innerText = "Start Analysis";
+    }
 
     function startAnalysis() {
       const keyword = document.getElementById('keyword').value;
@@ -291,4 +305,5 @@ function displayKeywordRecommendations(recommendations) {
   </script>
 
 </body>
+
 </html>
