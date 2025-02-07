@@ -55,14 +55,11 @@
   <label for="target">Target URL:</label>
   <input type="text" id="target" value="https://mediaonemarketing.com.sg"><br><br>
 
-  <button onclick="startAnalysis()">Start Analysis</button>
+  <button id = "analysisBtn" onclick="startAnalysis()">Start Analysis</button>
 
-  <h2>SERP Results</h2>
   <div id="results-container">
-    <!-- Table of SERP results will be displayed here -->
   </div>
 
-  <h2>Recommendations To Rank</h2>
   <div id="recommendations-container">
     <!-- Keyword recommendations will be displayed here -->
   </div>
@@ -98,8 +95,6 @@
 
     // Display SERP results in an HTML table
     displaySerpResults(serp_dict);
-
-
 
     // === Step 2: Content Parsing for SERP Results (Parallel) ===
     const urls = Object.values(serp_dict).map(item => item.url); // Extract URLs
@@ -223,10 +218,6 @@
     } else {
       console.warn("Skipping Keyword Recommendations due to missing target_content or serp_dict.");
     }
-
-
-
-
   } catch (error) {
     console.error("An error occurred:", error);
     // Display an error message on the page
@@ -274,7 +265,7 @@ function displaySerpResults(serpResults) {
     </table>
   `;
 
-  resultsContainer.innerHTML = tableHTML;
+  resultsContainer.innerHTML = "<h2>SERP Results</h2>" +  tableHTML;
 }
 
 
@@ -285,7 +276,8 @@ function displayKeywordRecommendations(recommendations) {
       return;
   }
 
-  recommendationsContainer.innerHTML = `${JSON.stringify(recommendations, null, 2)}`; // or display it in a nicer format
+  recommendationsContainer.innerHTML = recommendations;
+  document.getElementById('analysisBtn').innerText = "Start Analysis";
 }
 
     function startAnalysis() {
@@ -293,6 +285,7 @@ function displayKeywordRecommendations(recommendations) {
       const language = document.getElementById('language').value;
       const location = document.getElementById('location').value;
       const target = document.getElementById('target').value;
+      document.getElementById('analysisBtn').innerText = "Analysing...";
       performSearchAndAnalysis(keyword, language, location, target);
     }
   </script>

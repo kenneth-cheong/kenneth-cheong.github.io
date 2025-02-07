@@ -2948,7 +2948,7 @@
             const keywordAnalysisResults = document.getElementById("keywordAnalysisResults");
             keywordAnalysisResults.innerHTML = ""; // Clear previous results
 
-            if (domain.value=="") {
+            if (domain.value == "") {
                 keywordMetrics = await Promise.all(keywords.map(keyword =>
                     fetch('https://785lzorod8.execute-api.ap-southeast-1.amazonaws.com/kwMetrics', {
                         method: 'POST',
@@ -3611,21 +3611,8 @@
                 selectedItems = {}; // Clear selections
                 document.getElementById('selected').style.display = 'block';
                 document.getElementById("selectedText").value = ""; // Clear textarea
-                document.getElementById("output").innerHTML = createSemTables(body);
+                document.getElementById("output").innerHTML = await createSemTables(body);
 
-                firstTable = document.getElementById("output").querySelector("table");
-                const rows = Array.from(firstTable.querySelectorAll("tr"));
-                const rowData = [];
-
-                rows.forEach(row => {
-                    const cells = Array.from(row.querySelectorAll("td"));
-                    cells.shift(); // Remove the first cell
-                    cells.forEach(cell => {
-                        rowData.push(cell.textContent.trim()); // Push each cell's text
-                    });
-                });
-
-                console.log(rowData); // Now this will work correctly!
                 semButton.innerText = "Step 2: Generate KWs, USPs & Audience";
             } catch (error) {
                 console.error("Error:", error);
@@ -3634,23 +3621,82 @@
             }
         }
 
-        function createSemTables(data) {
+        async function createSemTables(data) {
             let tablesHTML = "";
             const categories = ["short_keywords", "long_keywords", "usp", "target_audience_name"];
             const titles = ["Short-tail Keywords", "Long-tail Keywords", "USPs", "Target Audience"];
+
             for (let i = 0; i < categories.length; i++) {
                 const category = categories[i];
                 const title = titles[i];
                 const items = data[category];
-                let tableHTML = `<h2>${title}</h2><table><tr><th>Select</th><th>Value</th></tr>`;
+
+
+                // Fetch keyword metrics for short and long tail keywords
+                let keywordMetrics = {};
+                if (category === "short_keywords" || category === "long_keywords") {
+                    const keywords = items.map(item => typeof item === 'object' ? Object.values(item)[0] : item);
+                    keywordMetrics = await fetchKeywordMetrics(keywords);
+                }
+
+                let tableHTML = `<h2>${title}</h2><table><tr><th>Select</th><th>Value</th>`;
+                if (category === "short_keywords" || category === "long_keywords") {
+                    tableHTML += `<th>CPC</th><th>Search Volume</th>`; // Add CPC and Search Volume headers
+                }
+                tableHTML += `</tr>`;
+
                 for (const item of items) {
                     const value = typeof item === 'object' ? Object.values(item)[0] : item;
-                    tableHTML += `<tr><td><input type="checkbox" onchange="updateSemSelected('${value}', '${title}')"></td><td>${value}</td></tr>`;
+                    tableHTML += `<tr><td><input type="checkbox" onchange="updateSemSelected('${value}', '${title}')"></td><td>${value}</td>`;
+
+                    if (category === "short_keywords" || category === "long_keywords") {
+                        const metrics = keywordMetrics[value] || { cpc: 'N/A', search_volume: 'N/A' };
+                        tableHTML += `<td>${metrics.cpc}</td><td>${metrics.search_volume}</td>`; // Add CPC and Search Volume data
+                    }
+
+                    tableHTML += `</tr>`;
                 }
                 tableHTML += '</table>';
                 tablesHTML += tableHTML;
             }
             return tablesHTML;
+        }
+
+        async function fetchKeywordMetrics(keywords) {
+            console.log(keywords);
+            const location = document.getElementById("sem_country").value;
+            const language = document.getElementById("sem_language").value;
+
+            try {
+                const response = await fetch("https://eo2ckwvxmf.execute-api.ap-southeast-1.amazonaws.com/keywordMetrics", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ keywords: keywords, location: location, language: language })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const metrics = data.body;
+
+                console.log(data);
+
+                // Convert the returned keyword metrics to a format that is easily accessible when populating the table
+                const formattedMetrics = {};
+                for (const keyword in metrics) {
+                    formattedMetrics[keyword] = {
+                        cpc: metrics[keyword].cpc,
+                        search_volume: metrics[keyword].search_volume
+                    };
+                }
+                return formattedMetrics;
+
+            } catch (error) {
+                console.error("Error fetching keyword metrics:", error);
+                return {}; // Return an empty object in case of an error
+            }
         }
         function updateSemSelected(value, category) {
             if (!selectedItems[category]) {
