@@ -37,16 +37,20 @@
 
     .error {
       color: red;
-      font-weight: bol
-      
+      font-weight: bold
     }
 
     input[type="text"] {
-      min-width: 40%; /* Adjust this value as needed */
-      padding: 5px; /* Add some padding for better appearance */
-      margin-bottom: 10px; /* Spacing between input fields */
-      border: 1px solid #ccc; /* Add a border */
-      box-sizing: border-box; /* Include padding and border in the element's total width */
+      min-width: 40%;
+      /* Adjust this value as needed */
+      padding: 5px;
+      /* Add some padding for better appearance */
+      margin-bottom: 10px;
+      /* Spacing between input fields */
+      border: 1px solid #ccc;
+      /* Add a border */
+      box-sizing: border-box;
+      /* Include padding and border in the element's total width */
     }
   </style>
 </head>
@@ -67,7 +71,15 @@
   <label for="target">Target URL:</label>
   <input type="text" id="target" value="https://mediaonemarketing.com.sg"><br><br>
 
+  <label for="keywords">Keywords:</label>
+  <input type="text" id="keywords" value=""><br><br>
+
   <button id="analysisBtn" onclick="startAnalysis()">Start Analysis</button>
+
+  <button id="getKeywordsBtn" onclick="getKeywords()">Get Keywords</button>
+
+  <div id="keywords-container">
+  </div>
 
   <div id="results-container">
   </div>
@@ -77,6 +89,103 @@
   </div>
 
   <script>
+    async function getKeywords() {
+      const location = document.getElementById('location').value;
+      const language = document.getElementById('language').value;
+      const target = document.getElementById('target').value;
+
+      const endpoint = "https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite";
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            location: location,
+            language: language,
+            target: target
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        displayKeywordsTable(data);
+
+      } catch (error) {
+        console.error("Error fetching keywords:", error);
+        document.getElementById('recommendations-container').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+      }
+    }
+
+    function displayKeywordsTable(keywords) {
+      const container = document.getElementById('keywords-container');
+      container.innerHTML = "<h2>Keyword Recommendations</h2>";
+
+      let tableHTML = `
+            <table>
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Keyword</th>
+                        <th>Search Volume</th>
+                        <th>Competition</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+      for (const keyword in keywords) {
+        if (keywords.hasOwnProperty(keyword)) {
+          const {
+            search_volume,
+            competition
+          } = keywords[keyword];
+          tableHTML += `
+                    <tr>
+                        <td><input type="checkbox" value="${keyword}" onchange="updateKeywords(this)"></td>
+                        <td>${keyword}</td>
+                        <td>${search_volume}</td>
+                        <td>${competition}</td>
+                    </tr>
+                `;
+        }
+      }
+
+      tableHTML += `
+                </tbody>
+            </table>
+        `;
+
+      container.innerHTML += tableHTML;
+    }
+
+    function updateKeywords(checkbox) {
+      const keyword = checkbox.value;
+      const keywordsInput = document.getElementById('keywords');
+      let currentKeywords = keywordsInput.value.trim(); // trim removes whitespace from both ends of a string
+
+      if (checkbox.checked) {
+        if (currentKeywords === "") {
+          keywordsInput.value = keyword;
+        } else {
+          keywordsInput.value = currentKeywords + ", " + keyword;
+        }
+
+      } else {
+        // Remove keyword
+        let keywordsArray = currentKeywords.split(',').map(item => item.trim()); // Split and trim
+        keywordsArray = keywordsArray.filter(item => item !== keyword); // Filter out the unchecked keyword
+        keywordsInput.value = keywordsArray.join(', '); // Join back into string
+      }
+    }
+
+
+
     // Your JavaScript function from the previous response goes here
     async function performSearchAndAnalysis(keyword, language, location, target) {
       document.getElementById('results-container').innerHTML = "";
@@ -90,7 +199,11 @@
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ keyword: keyword, language: language, location: location })
+          body: JSON.stringify({
+            keyword: keyword,
+            language: language,
+            location: location
+          })
         });
 
         if (!serpResponse.ok) {
@@ -121,7 +234,9 @@
               headers: {
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ url: url })
+              body: JSON.stringify({
+                url: url
+              })
             });
 
             if (!contentResponse.ok) {
@@ -145,7 +260,12 @@
             headers: {
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ location: location, keyword: keyword, language: language, target: target })
+            body: JSON.stringify({
+              location: location,
+              keyword: keyword,
+              language: language,
+              target: target
+            })
           });
 
           if (!keywordMappingResponse.ok) {
@@ -166,7 +286,9 @@
                   headers: {
                     'Content-Type': 'application/json'
                   },
-                  body: JSON.stringify({ url: url })
+                  body: JSON.stringify({
+                    url: url
+                  })
                 });
 
                 if (!contentResponse.ok) {
@@ -183,7 +305,7 @@
             const targetContentResults = await Promise.all(targetContentPromises);
             //Filter out nulls
             const validTargetContent = targetContentResults.filter(result => result !== null);
-            target_content = validTargetContent;  //This must be the array.
+            target_content = validTargetContent; //This must be the array.
 
             console.log("Target Content:", target_content);
           } else {
@@ -205,7 +327,7 @@
 
 
         // === Step 4: Keyword Recommendations API Call (After all previous calls complete) ===
-        if (target_content && serp_dict) {  //Make sure target_content is not null
+        if (target_content && serp_dict) { //Make sure target_content is not null
           const kwRecommendationsEndpoint = 'https://yk9fcv2xf3.execute-api.ap-southeast-1.amazonaws.com/kwRecommendations';
 
           try {
@@ -214,7 +336,10 @@
               headers: {
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ target_content: target_content, serps_dict: serp_dict })
+              body: JSON.stringify({
+                target_content: target_content,
+                serps_dict: serp_dict
+              })
             });
 
             if (!kwRecommendationsResponse.ok) {
@@ -225,7 +350,7 @@
             console.log("Keyword Recommendations API Response:", kwRecommendationsData);
 
             // Process and display keyword recommendations as needed
-            displayKeywordRecommendations(kwRecommendationsData.body);  //Example
+            displayKeywordRecommendations(kwRecommendationsData.body); //Example
           } catch (error) {
             console.error("Error during Keyword Recommendations:", error);
           }
@@ -284,7 +409,7 @@
 
 
     function displayKeywordRecommendations(recommendations) {
-      const recommendationsContainer = document.getElementById('recommendations-container');  //Assuming you have a div with this ID
+      const recommendationsContainer = document.getElementById('recommendations-container'); //Assuming you have a div with this ID
       if (!recommendationsContainer) {
         console.error("Element with ID 'recommendations-container' not found.");
         return;
