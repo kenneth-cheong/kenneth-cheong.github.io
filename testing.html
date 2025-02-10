@@ -93,7 +93,8 @@
 
     .keywords-content {
       padding: 0 10px;
-      overflow: hidden; /* IMPORTANT:  Remove display:none initial style */
+      overflow: hidden;
+      /* IMPORTANT:  Remove display:none initial style */
       background-color: #f9f9f9;
       border: 1px solid #ddd;
       margin-bottom: 10px;
@@ -102,7 +103,6 @@
     .keywords-container {
       margin-bottom: 20px;
     }
-
   </style>
 </head>
 
@@ -120,14 +120,16 @@
   <input type="text" id="target" value="https://mediaonemarketing.com.sg"><br><br>
 
   <label for="keywords">Selected Keywords:</label>
-  <input type="text" id="keywords" value=""><br><br>
+  <input type="text" id="keywords" value="digital marketing singapore"><br><br>
 
   <button id="getKeywordsBtn" onclick="getKeywords()">Get Keywords</button>
   <button id="analysisBtn" onclick="startAnalysis()">Start Analysis</button>
-  <br><br><hr><br>
+  <br><br>
+  <hr><br>
 
   <div id="keywords-collapsible-container">
-    <button type="button" class="keywords-collapsible keywords-active" id="keywordsCollapsible">Keyword Recommendations</button>
+    <button type="button" class="keywords-collapsible keywords-active" id="keywordsCollapsible">Keyword
+      Recommendations</button>
     <div class="keywords-content" id="keywords-container" style="display: block;">
       <!-- Keyword recommendations table will be rendered here -->
     </div>
@@ -143,7 +145,7 @@
     let sortAscending = true;
 
     // Initialize collapsible functionality
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       const collapsibleButton = document.getElementById('keywordsCollapsible');
       const collapsibleContent = document.getElementById('keywords-container');
 
@@ -151,7 +153,7 @@
       collapsibleButton.classList.add('keywords-active');
       collapsibleContent.style.display = 'block';
 
-      collapsibleButton.addEventListener('click', function() {
+      collapsibleButton.addEventListener('click', function () {
         this.classList.toggle('keywords-active');
         collapsibleContent.style.display = (collapsibleContent.style.display === 'block') ? 'none' : 'block';
       });
@@ -293,7 +295,7 @@
       analysisResultsContainer.appendChild(collapsibleSection);
 
       const coll = collapsibleSection.querySelector(".keywords-collapsible");
-      coll.addEventListener("click", function() {
+      coll.addEventListener("click", function () {
         this.classList.toggle("keywords-active");
         const content = this.nextElementSibling;
         if (content.style.display === "block") {
@@ -330,36 +332,240 @@
 
         const serp_dict = serpData.body;
 
-        displaySerpResults(serp_dict, `results-container-${keyword.replace(/\s+/g, '-')}`);
+        displaySerpResults(serp_dict, keyword, `results-container-${keyword.replace(/\s+/g, '-')}`);
 
-        const urls = Object.values(serp_dict).map(item => item.url);
+      } catch (error) {
+        console.error(`An error occurred for ${keyword}:`, error);
+        const container = document.getElementById(`results-container-${keyword.replace(/\s+/g, '-')}`);
+        container.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+      }
+    }
 
-        const contentParsingPromises = urls.map(async (url) => {
-          const contentParsingEndpoint = 'https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing';
-          try {
-            const contentResponse = await fetch(contentParsingEndpoint, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                url: url
-              })
-            });
 
-            if (!contentResponse.ok) {
-              console.warn(`Content Parsing API Error for URL ${url} (Keyword: ${keyword}): ${contentResponse.status} ${contentResponse.statusText}`);
-              return null;
-            }
-            return await contentResponse.json();
-          } catch (error) {
-            console.error(`Error fetching content for URL ${url} (Keyword: ${keyword}):`, error);
-            return null;
-          }
+
+    function displayKeywordRecommendations(recommendations, containerId) {
+      const recommendationsContainer = document.getElementById(containerId);
+      if (!recommendationsContainer) {
+        console.error(`Element with ID '${containerId}' not found.`);
+        return;
+      }
+
+      recommendationsContainer.innerHTML = `${recommendations}`;
+    }
+
+    async function getDomainMetrics(url, keyword) {
+      const domainMetricsEndpoint = 'https://5zdbpwaia5.execute-api.ap-southeast-1.amazonaws.com/pageDomainMetrics';
+
+      try {
+        const response = await fetch(domainMetricsEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            url: url,
+            keyword: keyword
+          })
         });
 
+        if (!response.ok) {
+          console.warn(`Domain Metrics API Error for URL ${url}: ${response.status} ${response.statusText}`);
+          return null;
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error(`Error fetching domain metrics for URL ${url}:`, error);
+        return null;
+      }
+    }
+
+    async function displaySerpResults(serpResults, keyword, containerId) {
+      const resultsContainer = document.getElementById(containerId);
+      if (!resultsContainer) {
+        console.error(`Element with ID '${containerId}' not found.`);
+        return;
+      }
+
+      let tableHTML = `
+        <h2>SERP Results</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>URL</th>
+                    <th>Title</th>
+                    <th>Description</th>
+                    <th>Domain Rank</th>
+                    <th>Backlinks</th>
+                    <th>Backlinks Spam Score</th>
+                    <th>Referring Domains</th>
+                    <th>Internal Links Count</th>
+                    <th>External Links Count</th>
+                    <th>Image Count</th>
+                    <th>CLS</th>
+                    <th>LCP</th>
+                    <th>FID</th>
+                    <th>Schema</th>
+                    <th>Readability</th>
+                    <th>Word Count</th>
+                    <th>Keyword in URL</th>
+                    <th>Keyword in Title</th>
+                    <th>Keyword in Description</th>
+                    <th>Keyword in H1</th>
+                    <th>Keyword in H2</th>
+                    <th>Keyword in Alt</th>
+                    <th>Keyword in Text</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+      const domainMetricsPromises = [];
+
+      for (const rank in serpResults) {
+        if (serpResults.hasOwnProperty(rank)) {
+          const result = serpResults[rank];
+          domainMetricsPromises.push(getDomainMetrics(result.url, keyword)); // Collect promises
+        }
+      }
+
+      const domainMetricsResults = await Promise.all(domainMetricsPromises); // Await all promises
+
+      //  ***  CONVERT THE TABLE TO A DICT ***
+      const serp_dict_for_api = {};
+      let i = 0;
+      for (const rank in serpResults) {
+        if (serpResults.hasOwnProperty(rank)) {
+          const result = serpResults[rank];
+          const domainMetrics = domainMetricsResults[i]; // Get corresponding metrics
+          let domainRank = 'N/A';
+          let backlinks = 'N/A';
+          let backlinks_spam_score = 'N/A';
+          let referringDomains = 'N/A';
+          let internal_links_count = 'N/A';
+          let external_links_count = 'N/A';
+          let image = 'N/A';
+          let cls = 'N/A';
+          let lcp = 'N/A';
+          let fid = 'N/A';
+          let schema = 'N/A';
+          let readability = 'N/A';
+          let word_count = 'N/A';
+          let kw_in_url = 'N/A';
+          let kw_in_title = 'N/A';
+          let kw_in_desc = 'N/A';
+          let kw_in_h1 = 'N/A';
+          let kw_in_h2 = 'N/A';
+          let kw_in_alt = 'N/A';
+          let kw_in_text = 'N/A';
+
+
+          if (domainMetrics && domainMetrics.body) {
+            domainRank = domainMetrics.body.domain_rank || 'N/A';
+            backlinks = domainMetrics.body.backlinks || 'N/A';
+            backlinks_spam_score = domainMetrics.body.backlinks_spam_score || 'N/A';
+            referringDomains = domainMetrics.body.referring_domains || 'N/A';
+            internal_links_count = domainMetrics.body.internal_links_count || 'N/A';
+            external_links_count = domainMetrics.body.external_links_count || 'N/A';
+            image = domainMetrics.body.image || 'N/A';
+            cls = domainMetrics.body.cls || 'N/A';
+            lcp = domainMetrics.body.lcp || 'N/A';
+            fid = domainMetrics.body.fid || 'N/A';
+            schema = domainMetrics.body.schema || 'N/A';
+            readability = domainMetrics.body.readability || 'N/A';
+            word_count = domainMetrics.body.word_count || 'N/A';
+
+            // Get keyword evaluation metrics
+            if (domainMetrics.body.eval) {
+              kw_in_url = domainMetrics.body.eval.kw_in_url || 'N/A';
+              kw_in_title = domainMetrics.body.eval.kw_in_title || 'N/A';
+              kw_in_desc = domainMetrics.body.eval.kw_in_desc || 'N/A';
+              kw_in_h1 = domainMetrics.body.eval.kw_in_h1 || 'N/A';
+              kw_in_h2 = domainMetrics.body.eval.kw_in_h2 || 'N/A';
+              kw_in_alt = domainMetrics.body.eval.kw_in_alt || 'N/A';
+              kw_in_text = domainMetrics.body.eval.kw_in_text || 'N/A';
+            }
+          }
+
+          serp_dict_for_api[rank] = {
+            url: result.url,
+            title: result.title,
+            description: result.description,
+            domain_rank: domainRank,
+            backlinks: backlinks,
+            backlinks_spam_score: backlinks_spam_score,
+            referring_domains: referringDomains,
+            internal_links_count: internal_links_count,
+            external_links_count: external_links_count,
+            image: image,
+            cls: cls,
+            lcp: lcp,
+            fid: fid,
+            schema: schema,
+            readability: readability,
+            word_count: word_count,
+            kw_in_url: kw_in_url,
+            kw_in_title: kw_in_title,
+            kw_in_desc: kw_in_desc,
+            kw_in_h1: kw_in_h1,
+            kw_in_h2: kw_in_h2,
+            kw_in_alt: kw_in_alt,
+            kw_in_text: kw_in_text
+          };
+
+
+          tableHTML += `
+                <tr>
+                    <td>${rank}</td>
+                    <td><a href="${result.url}" target="_blank">${result.url}</a></td>
+                    <td>${result.title}</td>
+                    <td>${result.description}</td>
+                    <td>${domainRank}</td>
+                    <td>${backlinks}</td>
+                    <td>${backlinks_spam_score}</td>
+                    <td>${referringDomains}</td>
+                    <td>${internal_links_count}</td>
+                    <td>${external_links_count}</td>
+                    <td>${image}</td>
+                    <td>${cls}</td>
+                    <td>${lcp}</td>
+                    <td>${fid}</td>
+                    <td>${schema}</td>
+                    <td>${readability}</td>
+                    <td>${word_count}</td>
+                    <td>${kw_in_url}</td>
+                    <td>${kw_in_title}</td>
+                    <td>${kw_in_desc}</td>
+                    <td>${kw_in_h1}</td>
+                    <td>${kw_in_h2}</td>
+                    <td>${kw_in_alt}</td>
+                    <td>${kw_in_text}</td>
+                </tr>
+            `;
+          i++;
+        }
+      }
+
+      tableHTML += `
+            </tbody>
+        </table>
+    `;
+
+      resultsContainer.innerHTML = tableHTML;
+
+      //  ***  CALL THE kwRecommendations API WITH THE NEWLY FORMATTED serp_dict_for_api ***
+      const kwRecommendationsEndpoint = 'https://yk9fcv2xf3.execute-api.ap-southeast-1.amazonaws.com/kwRecommendations';
+
+      //Move the kwRecommendations call to inside this function so that the updated serp_dict is called.
+      try {
         const keywordMappingEndpoint = 'https://c0bkxhc1s3.execute-api.ap-southeast-1.amazonaws.com/keywordMapping';
         let target_content = null;
+        const location = document.getElementById('location').value;
+        const language = document.getElementById('language').value;
+        const target_url = document.getElementById('target').value;
+        const keyword = document.getElementById('keywords').value; // Get the keyword
 
         try {
           const keywordMappingResponse = await fetch(keywordMappingEndpoint, {
@@ -371,7 +577,7 @@
               location: location,
               keyword: keyword,
               language: language,
-              target: target
+              target: target_url //use target_url instead of target.
             })
           });
 
@@ -385,35 +591,47 @@
           if (keywordMappingData && keywordMappingData.body && Array.isArray(keywordMappingData.body)) {
             const targetUrls = keywordMappingData.body;
 
-            const targetContentPromises = targetUrls.map(async (url) => {
-              const contentParsingEndpoint = 'https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing';
-              try {
-                const contentResponse = await fetch(contentParsingEndpoint, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                    url: url
-                  })
-                });
+            // *** NEW: Get Domain Metrics for Target URLs ***
+            const targetDomainMetricsPromises = targetUrls.map(url => getDomainMetrics(url, keyword));
+            const targetDomainMetricsResults = await Promise.all(targetDomainMetricsPromises);
 
-                if (!contentResponse.ok) {
-                  console.warn(`Content Parsing API Error for URL ${url} (Keyword: ${keyword}): ${contentResponse.status} ${contentResponse.statusText}`);
-                  return null;
-                }
-                return await contentResponse.json();
-              } catch (error) {
-                console.error(`Error fetching content for URL ${url} (Keyword: ${keyword}):`, error);
-                return null;
-              }
+            // *** Prepare target_content with domain metrics ***
+            target_content = targetDomainMetricsResults.map((domainMetrics, index) => {
+              const url = targetUrls[index];
+              return {
+                url: url,
+                domain_metrics: domainMetrics ? domainMetrics.body : null
+              };
             });
 
-            const targetContentResults = await Promise.all(targetContentPromises);
-            const validTargetContent = targetContentResults.filter(result => result !== null);
-            target_content = validTargetContent;
 
-            console.log(`Target Content for ${keyword}:`, target_content);
+            console.log(`Target Content with Domain Metrics for ${keyword}:`, target_content);
+
+
+            if (serp_dict_for_api) {
+              const kwRecommendationsResponse = await fetch(kwRecommendationsEndpoint, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  keyword: keyword,
+                  target_content: target_content,
+                  serps_dict: serp_dict_for_api
+                })
+              });
+
+              if (!kwRecommendationsResponse.ok) {
+                throw new Error(`Keyword Recommendations API Error for ${keyword}: ${kwRecommendationsResponse.status} ${kwRecommendationsResponse.statusText}`);
+              }
+
+              const kwRecommendationsData = await kwRecommendationsResponse.json();
+              console.log(`Keyword Recommendations API Response for ${keyword}:`, kwRecommendationsData);
+
+              displayKeywordRecommendations(kwRecommendationsData.body, `recommendations-container-${keyword.replace(/\s+/g, '-')}`);
+            } else {
+              console.warn(`Skipping Keyword Recommendations for ${keyword} due to missing serp_dict.`);
+            }
           } else {
             console.warn(`Invalid Keyword Mapping API response format for ${keyword}. Expected 'body' as array.`);
           }
@@ -421,91 +639,11 @@
         } catch (error) {
           console.error(`Error during Keyword Mapping or Target Content Processing for ${keyword}:`, error);
         }
-
-        const contentParsingResults = await Promise.all(contentParsingPromises);
-        const validContentParsingResults = contentParsingResults.filter(result => result !== null);
-
-        console.log(`Content Parsing Results for ${keyword}:`, validContentParsingResults);
-
-        if (target_content && serp_dict) {
-          const kwRecommendationsEndpoint = 'https://yk9fcv2xf3.execute-api.ap-southeast-1.amazonaws.com/kwRecommendations';
-
-          try {
-            const kwRecommendationsResponse = await fetch(kwRecommendationsEndpoint, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                keyword: keyword,
-                target_content: target_content,
-                serps_dict: serp_dict
-              })
-            });
-
-            if (!kwRecommendationsResponse.ok) {
-              throw new Error(`Keyword Recommendations API Error for ${keyword}: ${kwRecommendationsResponse.status} ${kwRecommendationsResponse.statusText}`);
-            }
-
-            const kwRecommendationsData = await kwRecommendationsResponse.json();
-            console.log(`Keyword Recommendations API Response for ${keyword}:`, kwRecommendationsData);
-
-            displayKeywordRecommendations(kwRecommendationsData.body, `recommendations-container-${keyword.replace(/\s+/g, '-')}`);
-          } catch (error) {
-            console.error(`Error during Keyword Recommendations for ${keyword}:`, error);
-          }
-        } else {
-          console.warn(`Skipping Keyword Recommendations for ${keyword} due to missing target_content or serp_dict.`);
-        }
       } catch (error) {
-        console.error(`An error occurred for ${keyword}:`, error);
-        const container = document.getElementById(`results-container-${keyword.replace(/\s+/g, '-')}`);
-        container.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+        console.error(`Error during Keyword Recommendations for ${keyword}:`, error);
       }
     }
 
-    function displaySerpResults(serpResults, containerId) {
-      const resultsContainer = document.getElementById(containerId);
-      if (!resultsContainer) {
-        console.error(`Element with ID '${containerId}' not found.`);
-        return;
-      }
-
-      let tableHTML = `
-            <h2>SERP Results</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Rank</th>
-                        <th>URL</th>
-                        <th>Title</th>
-                        <th>Description</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-
-      for (const rank in serpResults) {
-        if (serpResults.hasOwnProperty(rank)) {
-          const result = serpResults[rank];
-          tableHTML += `
-                    <tr>
-                        <td>${rank}</td>
-                        <td><a href="${result.url}" target="_blank">${result.url}</a></td>
-                        <td>${result.title}</td>
-                        <td>${result.description}</td>
-                    </tr>
-                `;
-        }
-      }
-
-      tableHTML += `
-                </tbody>
-            </table>
-        `;
-
-      resultsContainer.innerHTML = tableHTML;
-    }
 
     function displayKeywordRecommendations(recommendations, containerId) {
       const recommendationsContainer = document.getElementById(containerId);
@@ -529,19 +667,20 @@
 
       document.getElementById('analysis-results').innerHTML = '';
 
-      const analysisPromises = keywords.map(keyword =>
-        performSearchAndAnalysis(keyword, language, location, target)
-      );
-
-      try {
-        await Promise.all(analysisPromises);
-        document.getElementById('analysisBtn').innerText = "Start Analysis";
-
-      } catch (error) {
-        console.error("Error during analysis:", error);
-        document.getElementById('analysis-results').innerHTML = `<p class="error">Error during analysis: ${error.message}</p>`;
-        document.getElementById('analysisBtn').innerText = "Start Analysis";
+      for (const keyword of keywords) {  //Use a for...of loop instead of map.
+        try {
+          await performSearchAndAnalysis(keyword, language, location, target);
+        } catch (error) {
+          console.error(`Error during analysis for keyword ${keyword}:`, error);
+          // Optionally display an error message for this specific keyword
+          const container = document.getElementById(`keyword-content-${keyword.replace(/\s+/g, '-')}`);
+          if (container) {
+            container.innerHTML = `<p class="error">Error during analysis: ${error.message}</p>`;
+          }
+        }
       }
+
+      document.getElementById('analysisBtn').innerText = "Start Analysis";
     }
   </script>
 
