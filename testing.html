@@ -333,11 +333,90 @@
         const serp_dict = serpData.body;
 
         displaySerpResults(serp_dict, keyword, `results-container-${keyword.replace(/\s+/g, '-')}`);
+        await getKeywordRecommendations(keyword, language, location, target, serp_dict); // Call function to get keyword recommendations
 
       } catch (error) {
         console.error(`An error occurred for ${keyword}:`, error);
         const container = document.getElementById(`results-container-${keyword.replace(/\s+/g, '-')}`);
         container.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+      }
+    }
+
+    async function getKeywordRecommendations(keyword, language, location, target_url, serp_dict) {
+      const keywordMappingEndpoint = 'https://c0bkxhc1s3.execute-api.ap-southeast-1.amazonaws.com/keywordMapping';
+      const kwRecommendationsEndpoint = 'https://yk9fcv2xf3.execute-api.ap-southeast-1.amazonaws.com/kwRecommendations';
+
+      try {
+        // 1. Keyword Mapping API
+        const keywordMappingResponse = await fetch(keywordMappingEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            location: location,
+            keyword: keyword,
+            language: language,
+            target: target_url //use target_url instead of target.
+          })
+        });
+
+        if (!keywordMappingResponse.ok) {
+          throw new Error(`Keyword Mapping API Error for ${keyword}: ${keywordMappingResponse.status} ${keywordMappingResponse.statusText}`);
+        }
+
+        const keywordMappingData = await keywordMappingResponse.json();
+        console.log(`Keyword Mapping API Response for ${keyword}:`, keywordMappingData);
+
+        if (keywordMappingData && keywordMappingData.body && Array.isArray(keywordMappingData.body)) {
+          const targetUrls = keywordMappingData.body;
+
+          // 2. Get Domain Metrics for Target URLs
+          const targetDomainMetricsPromises = targetUrls.map(url => getDomainMetrics(url, keyword));
+          const targetDomainMetricsResults = await Promise.all(targetDomainMetricsPromises);
+
+          // 3. Prepare target_content with domain metrics
+          const target_content = targetDomainMetricsResults.map((domainMetrics, index) => {
+            const url = targetUrls[index];
+            return {
+              url: url,
+              domain_metrics: domainMetrics ? domainMetrics.body : null
+            };
+          });
+
+          console.log(`Target Content with Domain Metrics for ${keyword}:`, target_content);
+
+          // 4. Call Keyword Recommendations API
+          if (serp_dict) {
+            const kwRecommendationsResponse = await fetch(kwRecommendationsEndpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                keyword: keyword,
+                target_content: target_content,
+                serps_dict: serp_dict
+              })
+            });
+
+            if (!kwRecommendationsResponse.ok) {
+              throw new Error(`Keyword Recommendations API Error for ${keyword}: ${kwRecommendationsResponse.status} ${kwRecommendationsResponse.statusText}`);
+            }
+
+            const kwRecommendationsData = await kwRecommendationsResponse.json();
+            console.log(`Keyword Recommendations API Response for ${keyword}:`, kwRecommendationsData);
+
+            displayKeywordRecommendations(kwRecommendationsData.body, `recommendations-container-${keyword.replace(/\s+/g, '-')}`);
+          } else {
+            console.warn(`Skipping Keyword Recommendations for ${keyword} due to missing serp_dict.`);
+          }
+        } else {
+          console.warn(`Invalid Keyword Mapping API response format for ${keyword}. Expected 'body' as array.`);
+        }
+
+      } catch (error) {
+        console.error(`Error during Keyword Mapping, Target Content Processing, or Keyword Recommendations for ${keyword}:`, error);
       }
     }
 
@@ -554,94 +633,6 @@
     `;
 
       resultsContainer.innerHTML = tableHTML;
-
-      //  ***  CALL THE kwRecommendations API WITH THE NEWLY FORMATTED serp_dict_for_api ***
-      const kwRecommendationsEndpoint = 'https://yk9fcv2xf3.execute-api.ap-southeast-1.amazonaws.com/kwRecommendations';
-
-      //Move the kwRecommendations call to inside this function so that the updated serp_dict is called.
-      try {
-        const keywordMappingEndpoint = 'https://c0bkxhc1s3.execute-api.ap-southeast-1.amazonaws.com/keywordMapping';
-        let target_content = null;
-        const location = document.getElementById('location').value;
-        const language = document.getElementById('language').value;
-        const target_url = document.getElementById('target').value;
-        const keyword = document.getElementById('keywords').value; // Get the keyword
-
-        try {
-          const keywordMappingResponse = await fetch(keywordMappingEndpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              location: location,
-              keyword: keyword,
-              language: language,
-              target: target_url //use target_url instead of target.
-            })
-          });
-
-          if (!keywordMappingResponse.ok) {
-            throw new Error(`Keyword Mapping API Error for ${keyword}: ${keywordMappingResponse.status} ${keywordMappingResponse.statusText}`);
-          }
-
-          const keywordMappingData = await keywordMappingResponse.json();
-          console.log(`Keyword Mapping API Response for ${keyword}:`, keywordMappingData);
-
-          if (keywordMappingData && keywordMappingData.body && Array.isArray(keywordMappingData.body)) {
-            const targetUrls = keywordMappingData.body;
-
-            // *** NEW: Get Domain Metrics for Target URLs ***
-            const targetDomainMetricsPromises = targetUrls.map(url => getDomainMetrics(url, keyword));
-            const targetDomainMetricsResults = await Promise.all(targetDomainMetricsPromises);
-
-            // *** Prepare target_content with domain metrics ***
-            target_content = targetDomainMetricsResults.map((domainMetrics, index) => {
-              const url = targetUrls[index];
-              return {
-                url: url,
-                domain_metrics: domainMetrics ? domainMetrics.body : null
-              };
-            });
-
-
-            console.log(`Target Content with Domain Metrics for ${keyword}:`, target_content);
-
-
-            if (serp_dict_for_api) {
-              const kwRecommendationsResponse = await fetch(kwRecommendationsEndpoint, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  keyword: keyword,
-                  target_content: target_content,
-                  serps_dict: serp_dict_for_api
-                })
-              });
-
-              if (!kwRecommendationsResponse.ok) {
-                throw new Error(`Keyword Recommendations API Error for ${keyword}: ${kwRecommendationsResponse.status} ${kwRecommendationsResponse.statusText}`);
-              }
-
-              const kwRecommendationsData = await kwRecommendationsResponse.json();
-              console.log(`Keyword Recommendations API Response for ${keyword}:`, kwRecommendationsData);
-
-              displayKeywordRecommendations(kwRecommendationsData.body, `recommendations-container-${keyword.replace(/\s+/g, '-')}`);
-            } else {
-              console.warn(`Skipping Keyword Recommendations for ${keyword} due to missing serp_dict.`);
-            }
-          } else {
-            console.warn(`Invalid Keyword Mapping API response format for ${keyword}. Expected 'body' as array.`);
-          }
-
-        } catch (error) {
-          console.error(`Error during Keyword Mapping or Target Content Processing for ${keyword}:`, error);
-        }
-      } catch (error) {
-        console.error(`Error during Keyword Recommendations for ${keyword}:`, error);
-      }
     }
 
 
