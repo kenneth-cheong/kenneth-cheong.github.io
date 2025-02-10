@@ -103,6 +103,11 @@
     .keywords-container {
       margin-bottom: 20px;
     }
+
+    /* Added for horizontal scrolling */
+    .table-container {
+      overflow-x: auto;
+    }
   </style>
 </head>
 
@@ -155,7 +160,12 @@
 
       collapsibleButton.addEventListener('click', function () {
         this.classList.toggle('keywords-active');
-        collapsibleContent.style.display = (collapsibleContent.style.display === 'block') ? 'none' : 'block';
+        const content = this.nextElementSibling;
+        if (content.style.display === "block") {
+          content.style.display = "none";
+        } else {
+          content.style.display = "block";
+        }
       });
     });
 
@@ -189,7 +199,9 @@
         allKeywords = Object.entries(data).map(([keyword, values]) => ({
           keyword,
           search_volume: values.search_volume,
-          competition: values.competition
+          competition: values.competition,
+          search_intent: values.search_intent,
+          reason_for_choosing: values.reason_for_choosing
         }));
 
         displayKeywordsTable(allKeywords);
@@ -208,18 +220,22 @@
         return;
       }
       container.innerHTML = `
-            <table>
+            <div class="table-container">
+              <table>
                 <thead>
                     <tr>
                         <th></th>
                         <th onclick="sortTable('keyword')">Keyword</th>
                         <th onclick="sortTable('search_volume')">Search Volume</th>
                         <th onclick="sortTable('competition')">Competition</th>
+                        <th onclick="sortTable('search_intent')">Search Intent</th>
+                        <th onclick="sortTable('reason_for_choosing')">Reason</th>
                     </tr>
                 </thead>
                 <tbody>
                 </tbody>
-            </table>
+              </table>
+            </div>
         `;
 
       const tbody = container.querySelector('tbody');
@@ -231,6 +247,8 @@
                         <td>${item.keyword}</td>
                         <td>${item.search_volume}</td>
                         <td>${item.competition}</td>
+                        <td>${item.search_intent}</td>
+                        <td>${item.reason_for_choosing}</td>
                     `;
         tbody.appendChild(row);
       });
@@ -271,6 +289,10 @@
           comparison = a.search_volume - b.search_volume;
         } else if (column === 'competition') {
           comparison = a.competition - b.competition;
+        } else if (column === 'search_intent') {
+          comparison = a.search_intent.localeCompare(b.search_intent);
+        } else if (column === 'reason_for_choosing') {
+          comparison = a.reason_for_choosing.localeCompare(b.reason_for_choosing);
         }
 
         return sortAscending ? comparison : comparison * -1;
@@ -332,7 +354,7 @@
 
         const serp_dict = serpData.body;
 
-        displaySerpResults(serp_dict, keyword, `results-container-${keyword.replace(/\s+/g, '-')}`);
+        displaySerpResults(serp_dict, keyword, language, location, target, `results-container-${keyword.replace(/\s+/g, '-')}`);
         await getKeywordRecommendations(keyword, language, location, target, serp_dict); // Call function to get keyword recommendations
 
       } catch (error) {
@@ -460,7 +482,7 @@
       }
     }
 
-    async function displaySerpResults(serpResults, keyword, containerId) {
+    async function displaySerpResults(serpResults, keyword, language, location, target, containerId) {
       const resultsContainer = document.getElementById(containerId);
       if (!resultsContainer) {
         console.error(`Element with ID '${containerId}' not found.`);
@@ -469,6 +491,7 @@
 
       let tableHTML = `
         <h2>SERP Results</h2>
+        <div class="table-container">
         <table>
             <thead>
                 <tr>
@@ -501,7 +524,33 @@
             <tbody>
     `;
 
+      // *** CALL RANK CHECKER API ***
+      const rankCheckerResponse = await fetch('https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          keyword: keyword,
+          language: language,
+          location: location,
+          target: target
+        })
+      });
+
+      let rankNumber = 'N/A'; // Default value
+      if (rankCheckerResponse.ok) {
+        const rankCheckerData = await rankCheckerResponse.json();
+        rankNumber = rankCheckerData; // Assuming the response is just a number
+      } else {
+        console.error("Rank Checker API error:", rankCheckerResponse.status);
+      }
+
+      // *** GET DOMAIN METRICS FOR ALL SERP RESULTS AND TARGET URL***
       const domainMetricsPromises = [];
+
+      // Add a promise for the target URL's domain metrics
+      domainMetricsPromises.push(getDomainMetrics(target, keyword));
 
       for (const rank in serpResults) {
         if (serpResults.hasOwnProperty(rank)) {
@@ -512,26 +561,98 @@
 
       const domainMetricsResults = await Promise.all(domainMetricsPromises); // Await all promises
 
-      //  ***  CONVERT THE TABLE TO A DICT ***
-      const serp_dict_for_api = {};
+      //  ***  DISPLAY TARGET DOMAIN METRICS AS FIRST ROW ***
+
+      // Create the first row for the target domain metrics
+      
+      if (domainMetricsResults[0] && domainMetricsResults[0].body) {
+        const targetDomainMetrics = domainMetricsResults[0].body;
+
+        let domainRank = targetDomainMetrics.domain_rank || 'N/A';
+        let backlinks = targetDomainMetrics.backlinks || 'N/A';
+        let backlinks_spam_score = targetDomainMetrics.backlinks_spam_score || 'N/A';
+        let referringDomains = targetDomainMetrics.referring_domains || 'N/A';
+        let internal_links_count = targetDomainMetrics.internal_links_count || 'N/A';
+        let external_links_count = targetDomainMetrics.external_links_count || 'N/A';
+        let image = targetDomainMetrics.image || 'N/A';
+        let cls = targetDomainMetrics.cls || 'N/A';
+        let lcp = targetDomainMetrics.lcp || 'N/A';
+        let fid = targetDomainMetrics.fid || 'N/A';
+        let schema = targetDomainMetrics.schema || 'N/A';
+        let readability = targetDomainMetrics.readability || 'N/A';
+        let word_count = targetDomainMetrics.word_count || 'N/A';
+        let kw_in_url = 'N/A';
+        let kw_in_title = 'N/A';
+        let kw_in_desc = 'N/A';
+        let kw_in_h1 = 'N/A';
+        let kw_in_h2 = 'N/A';
+        let kw_in_alt = 'N/A';
+        let kw_in_text = 'N/A';
+
+        if (targetDomainMetrics.eval) {
+          kw_in_url = targetDomainMetrics.eval.kw_in_url || 'N/A';
+          kw_in_title = targetDomainMetrics.eval.kw_in_title || 'N/A';
+          kw_in_desc = targetDomainMetrics.eval.kw_in_desc || 'N/A';
+          kw_in_h1 = targetDomainMetrics.eval.kw_in_h1 || 'N/A';
+          kw_in_h2 = targetDomainMetrics.eval.kw_in_h2 || 'N/A';
+          kw_in_alt = targetDomainMetrics.eval.kw_in_alt || 'N/A';
+          kw_in_text = targetDomainMetrics.eval.kw_in_text || 'N/A';
+        }
+        tableHTML += `
+                  <tr>
+                      <td>${rankNumber}</td>
+                      <td><a href="${target}" target="_blank">${target}</a></td>
+                      <td></td>
+                      <td></td>
+                      <td>${domainRank}</td>
+                      <td>${backlinks}</td>
+                      <td>${backlinks_spam_score}</td>
+                      <td>${referringDomains}</td>
+                      <td>${internal_links_count}</td>
+                      <td>${external_links_count}</td>
+                      <td>${image}</td>
+                      <td>${cls}</td>
+                      <td>${lcp}</td>
+                      <td>${fid}</td>
+                      <td>${schema}</td>
+                      <td>${readability}</td>
+                      <td>${word_count}</td>
+                      <td>${kw_in_url}</td>
+                      <td>${kw_in_title}</td>
+                      <td>${kw_in_desc}</td>
+                      <td>${kw_in_h1}</td>
+                      <td>${kw_in_h2}</td>
+                      <td>${kw_in_alt}</td>
+                      <td>${kw_in_text}</td>
+                  </tr>
+              `;
+
+      }
+        
+
+      // *** DISPLAY SERP RESULTS ***
       let i = 0;
+
       for (const rank in serpResults) {
         if (serpResults.hasOwnProperty(rank)) {
+          i++;
+
           const result = serpResults[rank];
-          const domainMetrics = domainMetricsResults[i]; // Get corresponding metrics
-          let domainRank = 'N/A';
-          let backlinks = 'N/A';
-          let backlinks_spam_score = 'N/A';
-          let referringDomains = 'N/A';
-          let internal_links_count = 'N/A';
-          let external_links_count = 'N/A';
-          let image = 'N/A';
-          let cls = 'N/A';
-          let lcp = 'N/A';
-          let fid = 'N/A';
-          let schema = 'N/A';
-          let readability = 'N/A';
-          let word_count = 'N/A';
+           const domainMetrics = domainMetricsResults[i];
+            if (domainMetrics && domainMetrics.body) {
+          let domainRank = domainMetrics.body.domain_rank || 'N/A';
+          let backlinks = domainMetrics.body.backlinks || 'N/A';
+          let backlinks_spam_score = domainMetrics.body.backlinks_spam_score || 'N/A';
+          let referringDomains = domainMetrics.body.referring_domains || 'N/A';
+          let internal_links_count = domainMetrics.body.internal_links_count || 'N/A';
+          let external_links_count = domainMetrics.body.external_links_count || 'N/A';
+          let image = domainMetrics.body.image || 'N/A';
+          let cls = domainMetrics.body.cls || 'N/A';
+          let lcp = domainMetrics.body.lcp || 'N/A';
+          let fid = domainMetrics.body.fid || 'N/A';
+          let schema = domainMetrics.body.schema || 'N/A';
+          let readability = domainMetrics.body.readability || 'N/A';
+          let word_count = domainMetrics.body.word_count || 'N/A';
           let kw_in_url = 'N/A';
           let kw_in_title = 'N/A';
           let kw_in_desc = 'N/A';
@@ -540,96 +661,53 @@
           let kw_in_alt = 'N/A';
           let kw_in_text = 'N/A';
 
-
-          if (domainMetrics && domainMetrics.body) {
-            domainRank = domainMetrics.body.domain_rank || 'N/A';
-            backlinks = domainMetrics.body.backlinks || 'N/A';
-            backlinks_spam_score = domainMetrics.body.backlinks_spam_score || 'N/A';
-            referringDomains = domainMetrics.body.referring_domains || 'N/A';
-            internal_links_count = domainMetrics.body.internal_links_count || 'N/A';
-            external_links_count = domainMetrics.body.external_links_count || 'N/A';
-            image = domainMetrics.body.image || 'N/A';
-            cls = domainMetrics.body.cls || 'N/A';
-            lcp = domainMetrics.body.lcp || 'N/A';
-            fid = domainMetrics.body.fid || 'N/A';
-            schema = domainMetrics.body.schema || 'N/A';
-            readability = domainMetrics.body.readability || 'N/A';
-            word_count = domainMetrics.body.word_count || 'N/A';
-
-            // Get keyword evaluation metrics
-            if (domainMetrics.body.eval) {
-              kw_in_url = domainMetrics.body.eval.kw_in_url || 'N/A';
-              kw_in_title = domainMetrics.body.eval.kw_in_title || 'N/A';
-              kw_in_desc = domainMetrics.body.eval.kw_in_desc || 'N/A';
-              kw_in_h1 = domainMetrics.body.eval.kw_in_h1 || 'N/A';
-              kw_in_h2 = domainMetrics.body.eval.kw_in_h2 || 'N/A';
-              kw_in_alt = domainMetrics.body.eval.kw_in_alt || 'N/A';
-              kw_in_text = domainMetrics.body.eval.kw_in_text || 'N/A';
-            }
+          if (domainMetrics.body.eval) {
+            kw_in_url = domainMetrics.body.eval.kw_in_url || 'N/A';
+            kw_in_title = domainMetrics.body.eval.kw_in_title || 'N/A';
+            kw_in_desc = domainMetrics.body.eval.kw_in_desc || 'N/A';
+            kw_in_h1 = domainMetrics.body.eval.kw_in_h1 || 'N/A';
+            kw_in_h2 = domainMetrics.body.eval.kw_in_h2 || 'N/A';
+            kw_in_alt = domainMetrics.body.eval.kw_in_alt || 'N/A';
+            kw_in_text = domainMetrics.body.eval.kw_in_text || 'N/A';
           }
 
-          serp_dict_for_api[rank] = {
-            url: result.url,
-            title: result.title,
-            description: result.description,
-            domain_rank: domainRank,
-            backlinks: backlinks,
-            backlinks_spam_score: backlinks_spam_score,
-            referring_domains: referringDomains,
-            internal_links_count: internal_links_count,
-            external_links_count: external_links_count,
-            image: image,
-            cls: cls,
-            lcp: lcp,
-            fid: fid,
-            schema: schema,
-            readability: readability,
-            word_count: word_count,
-            kw_in_url: kw_in_url,
-            kw_in_title: kw_in_title,
-            kw_in_desc: kw_in_desc,
-            kw_in_h1: kw_in_h1,
-            kw_in_h2: kw_in_h2,
-            kw_in_alt: kw_in_alt,
-            kw_in_text: kw_in_text
-          };
-
-
           tableHTML += `
-                <tr>
-                    <td>${rank}</td>
-                    <td><a href="${result.url}" target="_blank">${result.url}</a></td>
-                    <td>${result.title}</td>
-                    <td>${result.description}</td>
-                    <td>${domainRank}</td>
-                    <td>${backlinks}</td>
-                    <td>${backlinks_spam_score}</td>
-                    <td>${referringDomains}</td>
-                    <td>${internal_links_count}</td>
-                    <td>${external_links_count}</td>
-                    <td>${image}</td>
-                    <td>${cls}</td>
-                    <td>${lcp}</td>
-                    <td>${fid}</td>
-                    <td>${schema}</td>
-                    <td>${readability}</td>
-                    <td>${word_count}</td>
-                    <td>${kw_in_url}</td>
-                    <td>${kw_in_title}</td>
-                    <td>${kw_in_desc}</td>
-                    <td>${kw_in_h1}</td>
-                    <td>${kw_in_h2}</td>
-                    <td>${kw_in_alt}</td>
-                    <td>${kw_in_text}</td>
-                </tr>
-            `;
-          i++;
+                  <tr>
+                      <td>${rank}</td>
+                      <td><a href="${result.url}" target="_blank">${result.url}</a></td>
+                      <td>${result.title}</td>
+                      <td>${result.description}</td>
+                      <td>${domainRank}</td>
+                      <td>${backlinks}</td>
+                      <td>${backlinks_spam_score}</td>
+                      <td>${referringDomains}</td>
+                      <td>${internal_links_count}</td>
+                      <td>${external_links_count}</td>
+                      <td>${image}</td>
+                      <td>${cls}</td>
+                      <td>${lcp}</td>
+                      <td>${fid}</td>
+                      <td>${schema}</td>
+                      <td>${readability}</td>
+                      <td>${word_count}</td>
+                      <td>${kw_in_url}</td>
+                      <td>${kw_in_title}</td>
+                      <td>${kw_in_desc}</td>
+                      <td>${kw_in_h1}</td>
+                      <td>${kw_in_h2}</td>
+                      <td>${kw_in_alt}</td>
+                      <td>${kw_in_text}</td>
+                  </tr>
+              `;
+
+        }
         }
       }
 
       tableHTML += `
             </tbody>
         </table>
+        </div>
     `;
 
       resultsContainer.innerHTML = tableHTML;
@@ -658,7 +736,7 @@
 
       document.getElementById('analysis-results').innerHTML = '';
 
-      for (const keyword of keywords) {  //Use a for...of loop instead of map.
+      for (const keyword of keywords) { //Use a for...of loop instead of map.
         try {
           await performSearchAndAnalysis(keyword, language, location, target);
         } catch (error) {
