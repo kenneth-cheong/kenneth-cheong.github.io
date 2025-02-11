@@ -273,7 +273,7 @@
     }
 
     function sortTable(column) {
-      if (currentSortColumn === column) {
+      if (currentSortColumn === column === column) {
         sortAscending = !sortAscending;
       } else {
         currentSortColumn = column;
@@ -305,18 +305,20 @@
       const analysisResultsContainer = document.getElementById('analysis-results');
       const keywordContainerId = `keyword-container-${keyword.replace(/\s+/g, '-')}`;
 
+      // Create a collapsible section for the keyword
       const collapsibleSection = document.createElement('div');
       collapsibleSection.id = keywordContainerId;
       collapsibleSection.innerHTML = `
-            <button type="button" class="keywords-collapsible">${keyword}</button>
-            <div class="keywords-content" id="keyword-content-${keyword.replace(/\s+/g, '-')}">
-                <div id="target-content-table-container-${keyword.replace(/\s+/g, '-')}"></div>
-                <div id="results-container-${keyword.replace(/\s+/g, '-')}"></div>
-                <div id="recommendations-container-${keyword.replace(/\s+/g, '-')}"></div>
-            </div>
-        `;
+        <button type="button" class="keywords-collapsible">${keyword}</button>
+        <div class="keywords-content" id="keyword-content-${keyword.replace(/\s+/g, '-')}">
+            <div id="target-content-table-container-${keyword.replace(/\s+/g, '-')}"></div>
+            <div id="results-container-${keyword.replace(/\s+/g, '-')}"></div>
+            <div id="recommendations-container-${keyword.replace(/\s+/g, '-')}"></div>
+        </div>
+      `;
       analysisResultsContainer.appendChild(collapsibleSection);
 
+      // Add event listener for the collapsible button
       const coll = collapsibleSection.querySelector(".keywords-collapsible");
       coll.addEventListener("click", function () {
         this.classList.toggle("keywords-active");
@@ -328,8 +330,8 @@
         }
       });
 
-      const serpEndpoint = 'https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite';
       try {
+        const serpEndpoint = 'https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite';
         const serpResponse = await fetch(serpEndpoint, {
           method: 'POST',
           headers: {
@@ -368,7 +370,9 @@
         );
 
         displaySerpResults(serpResultsWithMetrics, `results-container-${keyword.replace(/\s+/g, '-')}`);
-        await getKeywordRecommendations(keyword, language, location, target, serp_dict); // Call function to get keyword recommendations
+
+        // Await the keyword recommendations
+        await getKeywordRecommendations(keyword, language, location, target, serp_dict);
 
       } catch (error) {
         console.error(`An error occurred for ${keyword}:`, error);
@@ -379,7 +383,6 @@
 
     async function getKeywordRecommendations(keyword, language, location, target_url, serp_dict) {
       const keywordMappingEndpoint = 'https://c0bkxhc1s3.execute-api.ap-southeast-1.amazonaws.com/keywordMapping';
-      //const kwRecommendationsEndpoint = 'https://yk9fcv2xf3.execute-api.ap-southeast-1.amazonaws.com/kwRecommendations';
       const kwRecommendationsEndpoint = 'https://pkbguam62a.execute-api.ap-southeast-1.amazonaws.com/kwRecommendationsStructured';
       const targetContentTableContainerId = `target-content-table-container-${keyword.replace(/\s+/g, '-')}`;
 
@@ -429,13 +432,13 @@
           //Get the rank from the targetData table
           const targetDataWithRank = await Promise.all(
             targetData.map(async (item) => {
-                const rankData = await getRankForUrl(item.url, keyword, language, location);
-                return {
-                    ...item,
-                    rank: rankData
-                };
+              const rankData = await getRankForUrl(item.url, keyword, language, location);
+              return {
+                ...item,
+                rank: rankData
+              };
             })
-        );
+          );
 
           displayTargetContentTable(targetDataWithRank, targetContentTableContainerId);
 
@@ -509,74 +512,74 @@
       }
 
       let tableHTML = `
-          <h2>Possible URLs for KW Mapping</h2>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>URL</th>
-                  <th>Title</th>
-                  <th>Description</th>
-                  <th>Domain Rank</th>
-                  <th>Backlinks</th>
-                  <th>Referring Domains</th>
-                  <th>Internal Links Count</th>
-                  <th>External Links Count</th>
-                  <th>Image Count</th>
-                  <th>CLS</th>
-                  <th>LCP</th>
-                  <th>FID</th>
-                  <th>Schema</th>
-                  <th>Readability</th>
-                  <th>Word Count</th>
-                  <th>Keyword in URL</th>
-                  <th>Keyword in Title</th>
-                  <th>Keyword in Description</th>
-                  <th>Keyword in H1</th>
-                  <th>Keyword in H2</th>
-                  <th>Keyword in Alt</th>
-                  <th>Keyword in Text</th>
-                </tr>
-              </thead>
-              <tbody>
-        `;
+        <h2>Possible URLs for KW Mapping</h2>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>URL</th>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Domain Rank</th>
+                <th>Backlinks</th>
+                <th>Referring Domains</th>
+                <th>Internal Links Count</th>
+                <th>External Links Count</th>
+                <th>Image Count</th>
+                <th>CLS</th>
+                <th>LCP</th>
+                <th>FID</th>
+                <th>Schema</th>
+                <th>Readability</th>
+                <th>Word Count</th>
+                <th>Keyword in URL</th>
+                <th>Keyword in Title</th>
+                <th>Keyword in Description</th>
+                <th>Keyword in H1</th>
+                <th>Keyword in H2</th>
+                <th>Keyword in Alt</th>
+                <th>Keyword in Text</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
 
       targetContent.forEach(item => {
         tableHTML += `
-              <tr>
-                <td>${item.rank || 'N/A'}</td>
-                <td><a href="${item.url}" target="_blank">${item.url}</a></td>
-                <td>${item.title || 'N/A'}</td>
-                <td>${item.description || 'N/A'}</td>
-                <td>${item.domain_rank || 'N/A'}</td>
-                <td>${item.backlinks || 'N/A'}</td>
-                <td>${item.referring_domains || 'N/A'}</td>
-                <td>${item.internal_links_count || 'N/A'}</td>
-                <td>${item.external_links_count || 'N/A'}</td>
-                <td>${item.image || 'N/A'}</td>
-                <td>${item.cls || 'N/A'}</td>
-                <td>${item.lcp || 'N/A'}</td>
-                <td>${item.fid || 'N/A'}</td>
-                <td>${item.schema || 'N/A'}</td>
-                <td>${item.readability || 'N/A'}</td>
-                <td>${item.word_count || 'N/A'}</td>
-                <td>${item.eval?.kw_in_url || 'N/A'}</td>
-                <td>${item.eval?.kw_in_title || 'N/A'}</td>
-                <td>${item.eval?.kw_in_desc || 'N/A'}</td>
-                <td>${item.eval?.kw_in_h1 || 'N/A'}</td>
-                <td>${item.eval?.kw_in_h2 || 'N/A'}</td>
-                <td>${item.eval?.kw_in_alt || 'N/A'}</td>
-                <td>${item.eval?.kw_in_text || 'N/A'}</td>
-              </tr>
-            `;
+            <tr>
+              <td>${item.rank || 'N/A'}</td>
+              <td><a href="${item.url}" target="_blank">${item.url}</a></td>
+              <td>${item.title || 'N/A'}</td>
+              <td>${item.description || 'N/A'}</td>
+              <td>${item.domain_rank || 'N/A'}</td>
+              <td>${item.backlinks || 'N/A'}</td>
+              <td>${item.referring_domains || 'N/A'}</td>
+              <td>${item.internal_links_count || 'N/A'}</td>
+              <td>${item.external_links_count || 'N/A'}</td>
+              <td>${item.image || 'N/A'}</td>
+              <td>${item.cls || 'N/A'}</td>
+              <td>${item.lcp || 'N/A'}</td>
+              <td>${item.fid || 'N/A'}</td>
+              <td>${item.schema || 'N/A'}</td>
+              <td>${item.readability || 'N/A'}</td>
+              <td>${item.word_count || 'N/A'}</td>
+              <td>${item.eval?.kw_in_url || 'N/A'}</td>
+              <td>${item.eval?.kw_in_title || 'N/A'}</td>
+              <td>${item.eval?.kw_in_desc || 'N/A'}</td>
+              <td>${item.eval?.kw_in_h1 || 'N/A'}</td>
+              <td>${item.eval?.kw_in_h2 || 'N/A'}</td>
+              <td>${item.eval?.kw_in_alt || 'N/A'}</td>
+              <td>${item.eval?.kw_in_text || 'N/A'}</td>
+            </tr>
+          `;
       });
 
       tableHTML += `
-              </tbody>
-            </table>
-          </div>
-        `;
+            </tbody>
+          </table>
+        </div>
+      `;
 
       container.innerHTML = tableHTML;
     }
@@ -630,74 +633,74 @@
       let tableHTML = `
         <h2>SERP Results</h2>
         <div class="table-container">
-        <table>
+          <table>
             <thead>
-                <tr>
-                    <th>Rank</th>
-                    <th>URL</th>
-                    <th>Title</th>
-                    <th>Description</th>
-                    <th>Domain Rank</th>
-                    <th>Backlinks</th>
-                    <th>Backlinks Spam Score</th>
-                    <th>Referring Domains</th>
-                    <th>Internal Links Count</th>
-                    <th>External Links Count</th>
-                    <th>Image Count</th>
-                    <th>CLS</th>
-                    <th>LCP</th>
-                    <th>FID</th>
-                    <th>Schema</th>
-                    <th>Readability</th>
-                    <th>Word Count</th>
-                    <th>Keyword in URL</th>
-                    <th>Keyword in Title</th>
-                    <th>Keyword in Description</th>
-                    <th>Keyword in H1</th>
-                    <th>Keyword in H2</th>
-                    <th>Keyword in Alt</th>
-                    <th>Keyword in Text</th>
-                </tr>
+              <tr>
+                <th>Rank</th>
+                <th>URL</th>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Domain Rank</th>
+                <th>Backlinks</th>
+                <th>Backlinks Spam Score</th>
+                <th>Referring Domains</th>
+                <th>Internal Links Count</th>
+                <th>External Links Count</th>
+                <th>Image Count</th>
+                <th>CLS</th>
+                <th>LCP</th>
+                <th>FID</th>
+                <th>Schema</th>
+                <th>Readability</th>
+                <th>Word Count</th>
+                <th>Keyword in URL</th>
+                <th>Keyword in Title</th>
+                <th>Keyword in Description</th>
+                <th>Keyword in H1</th>
+                <th>Keyword in H2</th>
+                <th>Keyword in Alt</th>
+                <th>Keyword in Text</th>
+              </tr>
             </thead>
             <tbody>
-    `;
+      `;
 
-        serpResults.forEach(result => {
-            tableHTML += `
-                <tr>
-                    <td>${result.rank}</td>
-                    <td><a href="${result.url}" target="_blank">${result.url}</a></td>
-                    <td>${result.title}</td>
-                    <td>${result.description}</td>
-                    <td>${result.domain_rank || 'N/A'}</td>
-                    <td>${result.backlinks || 'N/A'}</td>
-                    <td>${result.backlinks_spam_score || 'N/A'}</td>
-                    <td>${result.referring_domains || 'N/A'}</td>
-                    <td>${result.internal_links_count || 'N/A'}</td>
-                    <td>${result.external_links_count || 'N/A'}</td>
-                    <td>${result.image || 'N/A'}</td>
-                    <td>${result.cls || 'N/A'}</td>
-                    <td>${result.lcp || 'N/A'}</td>
-                    <td>${result.fid || 'N/A'}</td>
-                    <td>${result.schema || 'N/A'}</td>
-                    <td>${result.readability || 'N/A'}</td>
-                    <td>${result.word_count || 'N/A'}</td>
-                    <td>${result.eval?.kw_in_url || 'N/A'}</td>
-                    <td>${result.eval?.kw_in_title || 'N/A'}</td>
-                    <td>${result.eval?.kw_in_desc || 'N/A'}</td>
-                    <td>${result.eval?.kw_in_h1 || 'N/A'}</td>
-                    <td>${result.eval?.kw_in_h2 || 'N/A'}</td>
-                    <td>${result.eval?.kw_in_alt || 'N/A'}</td>
-                    <td>${result.eval?.kw_in_text || 'N/A'}</td>
-                </tr>
-            `;
-        });
+      serpResults.forEach(result => {
+        tableHTML += `
+            <tr>
+              <td>${result.rank}</td>
+              <td><a href="${result.url}" target="_blank">${result.url}</a></td>
+              <td>${result.title}</td>
+              <td>${result.description}</td>
+              <td>${result.domain_rank || 'N/A'}</td>
+              <td>${result.backlinks || 'N/A'}</td>
+              <td>${result.backlinks_spam_score || 'N/A'}</td>
+              <td>${result.referring_domains || 'N/A'}</td>
+              <td>${result.internal_links_count || 'N/A'}</td>
+              <td>${result.external_links_count || 'N/A'}</td>
+              <td>${result.image || 'N/A'}</td>
+              <td>${result.cls || 'N/A'}</td>
+              <td>${result.lcp || 'N/A'}</td>
+              <td>${result.fid || 'N/A'}</td>
+              <td>${result.schema || 'N/A'}</td>
+              <td>${result.readability || 'N/A'}</td>
+              <td>${result.word_count || 'N/A'}</td>
+              <td>${result.eval?.kw_in_url || 'N/A'}</td>
+              <td>${result.eval?.kw_in_title || 'N/A'}</td>
+              <td>${result.eval?.kw_in_desc || 'N/A'}</td>
+              <td>${result.eval?.kw_in_h1 || 'N/A'}</td>
+              <td>${result.eval?.kw_in_h2 || 'N/A'}</td>
+              <td>${result.eval?.kw_in_alt || 'N/A'}</td>
+              <td>${result.eval?.kw_in_text || 'N/A'}</td>
+            </tr>
+          `;
+      });
 
       tableHTML += `
             </tbody>
-        </table>
+          </table>
         </div>
-    `;
+      `;
 
       resultsContainer.innerHTML = tableHTML;
     }
@@ -722,20 +725,24 @@
       const keywords = keywordsInput.split(',').map(keyword => keyword.trim()).filter(keyword => keyword !== "");
 
       document.getElementById('analysisBtn').innerText = "Analysing...";
+      document.getElementById('analysis-results').innerHTML = '';  // Clear previous results
 
-      document.getElementById('analysis-results').innerHTML = '';
-
-      for (const keyword of keywords) { //Use a for...of loop instead of map.
-        try {
-          await performSearchAndAnalysis(keyword, language, location, target);
-        } catch (error) {
-          console.error(`Error during analysis for keyword ${keyword}:`, error);
-          // Optionally display an error message for this specific keyword
-          const container = document.getElementById(`keyword-content-${keyword.replace(/\s+/g, '-')}`);
-          if (container) {
-            container.innerHTML = `<p class="error">Error during analysis: ${error.message}</p>`;
+      try {
+        await Promise.all(keywords.map(async keyword => {
+          try {
+            await performSearchAndAnalysis(keyword, language, location, target);
+          } catch (error) {
+            console.error(`Error during analysis for keyword ${keyword}:`, error);
+            // Display error in the keyword's collapsible section
+            const keywordContainer = document.getElementById(`keyword-container-${keyword.replace(/\s+/g, '-')}`);
+            if (keywordContainer) {
+              keywordContainer.innerHTML += `<p class="error">Error during analysis: ${error.message}</p>`;
+            }
           }
-        }
+        }));
+      } catch (error) {
+        console.error("Error during analysis:", error);
+        document.getElementById('analysis-results').innerHTML = `<p class="error">An error occurred during the analysis. Check the console for details.</p>`; // Global Error
       }
 
       document.getElementById('analysisBtn').innerText = "Start Analysis";
