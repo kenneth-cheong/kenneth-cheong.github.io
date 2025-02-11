@@ -379,7 +379,8 @@
 
     async function getKeywordRecommendations(keyword, language, location, target_url, serp_dict) {
       const keywordMappingEndpoint = 'https://c0bkxhc1s3.execute-api.ap-southeast-1.amazonaws.com/keywordMapping';
-      const kwRecommendationsEndpoint = 'https://yk9fcv2xf3.execute-api.ap-southeast-1.amazonaws.com/kwRecommendations';
+      //const kwRecommendationsEndpoint = 'https://yk9fcv2xf3.execute-api.ap-southeast-1.amazonaws.com/kwRecommendations';
+      const kwRecommendationsEndpoint = 'https://pkbguam62a.execute-api.ap-southeast-1.amazonaws.com/kwRecommendationsStructured';
       const targetContentTableContainerId = `target-content-table-container-${keyword.replace(/\s+/g, '-')}`;
 
       try {
@@ -410,14 +411,14 @@
           // 2. Get Domain Metrics for Target URLs & Rank Checking
           const targetDataPromises = targetUrls.map(async (url) => {
             const domainMetrics = await getDomainMetrics(url, keyword);
-            const rankData = await getRankForUrl(url, keyword, language, location);
+            //const rankData = await getRankForUrl(url, keyword, language, location);  Remove this.
 
             return {
               url: url,
               ...domainMetrics?.body,
               title: keywordMappingData.dict[url]?.title || 'N/A',
               description: keywordMappingData.dict[url]?.description || 'N/A',
-              rank: rankData
+              //rank: rankData  Remove this
             };
           });
 
@@ -425,7 +426,18 @@
 
           console.log(`Target Content with Metrics and Rank for ${keyword}:`, targetData);
 
-          displayTargetContentTable(targetData, targetContentTableContainerId);
+          //Get the rank from the targetData table
+          const targetDataWithRank = await Promise.all(
+            targetData.map(async (item) => {
+                const rankData = await getRankForUrl(item.url, keyword, language, location);
+                return {
+                    ...item,
+                    rank: rankData
+                };
+            })
+        );
+
+          displayTargetContentTable(targetDataWithRank, targetContentTableContainerId);
 
           // 3. Call Keyword Recommendations API
           if (serp_dict) {
@@ -436,7 +448,7 @@
               },
               body: JSON.stringify({
                 keyword: keyword,
-                target_content: targetData.map(item => ({ url: item.url, domain_metrics: item })), // Pass all data as domain_metrics
+                target_content: targetDataWithRank.map(item => ({ url: item.url, domain_metrics: item, rank: item.rank })), // Pass all data as domain_metrics
                 serps_dict: serp_dict
               })
             });
