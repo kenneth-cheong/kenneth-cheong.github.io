@@ -859,10 +859,10 @@
                 <thead>
                     <tr>
                         <th>No.</th>
-                        <th>Keyword</th>
-                        <th>Search Volume</th>
-                        <th>CPC</th>
-                        <th>Time to Rank</th>
+                        <th onclick="sortSummaryTable('keyword')">Keyword</th>
+                        <th onclick="sortSummaryTable('search_volume')">Search Volume</th>
+                        <th onclick="sortSummaryTable('cpc')">CPC</th>
+                        <th onclick="sortSummaryTable('timeToRank')">Time to Rank</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -894,6 +894,56 @@
 
       summaryContainer.innerHTML = tableHTML;
     }
+    let currentSummarySortColumn = null;
+    let summarySortAscending = true;
+
+    function sortSummaryTable(column) {
+      if (currentSummarySortColumn === column) {
+        summarySortAscending = !summarySortAscending;
+      } else {
+        currentSummarySortColumn = column;
+        summarySortAscending = true;
+      }
+
+      summaryData.sort((a, b) => {
+        let comparison = 0;
+
+        if (column === 'keyword') {
+          comparison = a.keyword.localeCompare(b.keyword);
+        } else if (column === 'search_volume') {
+          // Treat 'N/A' as the lowest value
+          const aVol = (a.search_volume === 'N/A') ? -1 : a.search_volume;
+          const bVol = (b.search_volume === 'N/A') ? -1 : b.search_volume;
+
+          comparison = (typeof aVol === 'number' && typeof bVol === 'number') ? aVol - bVol : String(aVol).localeCompare(String(bVol));
+        } else if (column === 'cpc') {
+          // Treat 'N/A' as the lowest value
+          const aCPC = (a.cpc === 'N/A') ? -1 : a.cpc;
+          const bCPC = (b.cpc === 'N/A') ? -1 : b.cpc;
+
+          comparison = (typeof aCPC === 'number' && typeof bCPC === 'number') ? aCPC - bCPC : String(aCPC).localeCompare(String(bCPC));
+
+        } else if (column === 'timeToRank') {
+          // Custom sorting for Time to Rank categories
+          const order = {
+            '0-3 months': 1,
+            '3-6 months': 2,
+            '6-9 months': 3,
+            '9-12 months': 4,
+            'more than 12 months': 5,
+            'N/A': 6 // Treat N/A as last
+          };
+          const aOrder = order[a.timeToRank] || order['N/A'];
+          const bOrder = order[b.timeToRank] || order['N/A'];
+          comparison = aOrder - bOrder;
+        }
+
+        return summarySortAscending ? comparison : comparison * -1;
+      });
+
+      displayOverallSummaryTable();
+    }
+    
   </script>
 
 </body>
