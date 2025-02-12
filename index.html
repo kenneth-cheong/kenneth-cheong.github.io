@@ -893,6 +893,8 @@
                 </ul>
             </li>
             <li><a href="#SEM" onclick="openSem(event)"><i class="fas fa-ad"></i> <span>SEM</span></a></li>
+            <li><a href="#persona" onclick="openSem(event)"><i class="far fa-id-card"></i> <span>Persona
+                        Generator</span></a></li>
             <br><br>
             <li><a href="#" id="logoutLink" onclick="logout(event)"><i class="fas fa-sign-out-alt"></i>
                     <span>Logout</span></a></li>
@@ -1484,6 +1486,15 @@
             </div>
             <div style="clear: both;"></div>
             <div> </div> <!-- Clearfix -->
+        </div>
+        <hr>
+        <button class="collapsible" id="persona">Persona Generator</button>
+        <div class="content" id="persona_content">
+            <label for="persona_webpages">Company / Product Information Webpages (seperated by commas or new
+                lines):</label><br>
+            <textarea id="persona_webpages"
+                placeholder="e.g., https://example.com, https://another-example.com"></textarea>
+            <button id="generatePersonaBtn" onclick="generatePersona()">Generate Personas</button>
         </div>
     </div>
 
@@ -3723,6 +3734,72 @@
             }
             document.getElementById("selectedText").value = selectedText;  // Update textarea value
         }
+
+        async function generatePersona() {
+            document.getElementById("generatePersonaBtn").innerText = "Generating...";
+            const webpagesInput = document.getElementById("persona_webpages").value;
+            const webpages = webpagesInput.split(/[\s,]+/).filter(url => url.trim() !== "");
+            const personaContentDiv = document.getElementById("persona_content");
+            let combinedResponses = "";
+
+            try {
+                // Fetch data from all URLs concurrently using Promise.all
+                const responses = await Promise.all(
+                    webpages.map(async url => {
+                        try {
+                            const response = await fetch("https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json"
+                                },
+                                body: JSON.stringify({ url: url })
+                            });
+
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status} for URL: ${url}`);
+                            }
+
+                            return await response.json(); // Return the parsed JSON data
+                        } catch (error) {
+                            console.error(`Error fetching data from ${url}:`, error);
+                            return null; // Return null in case of an error
+                        }
+                    })
+                );
+
+                // Combine the responses
+                combinedResponses = responses.filter(response => response !== null).map(response => JSON.stringify(response)).join("\n");
+
+                // Send combined responses to the second API
+                try {
+                    const personaResponse = await fetch("https://tyqj3fni7h.execute-api.ap-southeast-1.amazonaws.com/personaGenerator", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ data: combinedResponses })
+                    });
+
+                    if (!personaResponse.ok) {
+                        throw new Error(`HTTP error! status: ${personaResponse.status} for persona API`);
+                    }
+
+                    const personaData = await personaResponse.json();
+                    personaContentDiv.innerHTML += personaData.body;
+
+                } catch (error) {
+                    personaContentDiv.innerHTML = `<p style="color: red;">Error sending data to persona API: ${error.message}</p>`;
+                    console.error("Error sending data to persona API:", error);
+                }
+
+            } catch (error) {
+                personaContentDiv.innerHTML = `<p style="color: red;">An error occurred: ${error.message}</p>`;
+                console.error("An error occurred:", error);
+            } finally {
+                document.getElementById("generatePersonaBtn").innerText = "Generate Personas";
+            }
+        }
+
         async function generateGoogle() {
             document.getElementById("generateSem").innerText = "Generating...";
             try {
