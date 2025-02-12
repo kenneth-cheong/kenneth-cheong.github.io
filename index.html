@@ -1493,7 +1493,10 @@
             <label for="persona_webpages">Company / Product Information Webpages (seperated by commas or new
                 lines):</label><br>
             <textarea id="persona_webpages"
-                placeholder="e.g., https://example.com, https://another-example.com"></textarea>
+                placeholder="e.g., https://example.com, https://another-example.com"></textarea><br>
+            <label for="persona_manual">Any other information (optional):</label><br>
+            <textarea id="persona_manual"
+                placeholder="Focus on this product."></textarea>
             <button id="generatePersonaBtn" onclick="generatePersona()">Generate Personas</button>
         </div>
     </div>
@@ -3738,6 +3741,7 @@
         async function generatePersona() {
             document.getElementById("generatePersonaBtn").innerText = "Generating...";
             const webpagesInput = document.getElementById("persona_webpages").value;
+            const manualInput = document.getElementById("persona_manual").value;
             const webpages = webpagesInput.split(/[\s,]+/).filter(url => url.trim() !== "");
             const personaContentDiv = document.getElementById("persona_content");
             let combinedResponses = "";
@@ -3777,7 +3781,7 @@
                         headers: {
                             "Content-Type": "application/json"
                         },
-                        body: JSON.stringify({ data: combinedResponses })
+                        body: JSON.stringify({ data: combinedResponses, manual: manualInput})
                     });
 
                     if (!personaResponse.ok) {
