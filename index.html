@@ -825,6 +825,12 @@
             margin-right: 2%;
         }
 
+        #navbar .submenu {
+            display: none;
+            /* Hide submenus by default */
+        }
+
+
         .tooltip {
             position: relative;
             /* Make the button position its children */
@@ -870,9 +876,9 @@
         <img src="https://static.mycareersfuture.gov.sg/images/company/logos/a42a0e5029fd642119584ecdc6218b3a/MEDIAONE%20BUSINESS%20GROUP%20PTE.%20LTD..png"
             alt="MediaOne SEO Agency Logo">
         <ul>
-            <li><a href="#seoSection" onclick="openKeywordAnalysis(event)"><i class="fas fa-search"></i>
+            <li><a href="#" id="seo-link"><i class="fas fa-search"></i>
                     <span>SEO</span></a>
-                <ul>
+                <ul id="seo-submenu" class="submenu">
                     <li><a href="#keywordAnalysis" onclick="openKeywordAnalysis(event)"><i class="fas fa-chart-bar"></i>
                             <span>Keyword Analysis</span></a>
                     </li>
@@ -885,21 +891,23 @@
                                 Generator</span></a></li>
                 </ul>
             </li>
-            <li><a href="#socialMedia" onclick="openContentGenerator(event)"><i class="fas fa-share-alt"></i>
+            <li><a href="#" id="smm-link"><i class="fas fa-share-alt"></i>
                     <span>SMM</span></a>
-                <ul>
+                <ul id="smm-submenu" class="submenu">
                     <li><a href="#contentGenerator" onclick="openContentGenerator(event)"><i class="fas fa-pen"></i>
                             <span>Content Generator</span></a></li>
                 </ul>
             </li>
             <li><a href="#SEM" onclick="openSem(event)"><i class="fas fa-ad"></i> <span>SEM</span></a></li>
-            <li><a href="#persona" onclick="openSem(event)"><i class="far fa-id-card"></i> <span>Persona
+            <br>
+            <li><a href="#persona" onclick="openPersona(event)"><i class="fas fa-users"></i> <span>Persona
                         Generator</span></a></li>
+            <li><a href="#mediaplan" onclick="openMediaPlan(event)"><i class="fas fa-bullseye"></i> <span>Media
+                        Plan</span></a></li>
             <br><br>
             <li><a href="#" id="logoutLink" onclick="logout(event)"><i class="fas fa-sign-out-alt"></i>
                     <span>Logout</span></a></li>
         </ul>
-    </nav>
     </nav>
     <div id="main-content">
         <div class="header-container">
@@ -1495,9 +1503,27 @@
             <textarea id="persona_webpages"
                 placeholder="e.g., https://example.com, https://another-example.com"></textarea><br>
             <label for="persona_manual">Any other information (optional):</label><br>
-            <textarea id="persona_manual"
-                placeholder="Focus on this product."></textarea>
+            <textarea id="persona_manual" placeholder="Focus on this product."></textarea>
             <button id="generatePersonaBtn" onclick="generatePersona()">Generate Personas</button>
+        </div>
+        <hr>
+        <button class="collapsible" id="mediaPlanBtn">Media Plan</button>
+        <div class="content" id="mediaplan">
+            <label for="mediaplan_webpages">Company / Product Information Webpages (seperated by commas or new
+                lines):</label><br>
+            <textarea id="mediaplan_webpages"
+                placeholder="e.g., https://example.com, https://another-example.com"></textarea><br>
+            <div class="column">
+                <label for="budget">Budget:</label><br>
+                <input type="text" id="budget" name="budget"><br>
+            </div>
+            <div class="column">
+
+            </div>
+            <br><br><br><br><br>
+            <label for="mediaplan_manual">Any other information (optional):</label><br>
+            <textarea id="mediaplan_manual" placeholder="Focus on this product."></textarea>
+            <button id="generateMediaPlanBtn" onclick="generateMediaPlan()">Generate Media Plan</button>
         </div>
     </div>
 
@@ -3781,7 +3807,7 @@
                         headers: {
                             "Content-Type": "application/json"
                         },
-                        body: JSON.stringify({ data: combinedResponses, manual: manualInput})
+                        body: JSON.stringify({ data: combinedResponses, manual: manualInput })
                     });
 
                     if (!personaResponse.ok) {
@@ -3801,6 +3827,73 @@
                 console.error("An error occurred:", error);
             } finally {
                 document.getElementById("generatePersonaBtn").innerText = "Generate Personas";
+            }
+        }
+
+        async function generateMediaPlan() {
+            document.getElementById("generateMediaPlanBtn").innerText = "Generating...";
+            const webpagesInput = document.getElementById("mediaplan_webpages").value;
+            const budget = document.getElementById("budget").value;
+            const manualInput = document.getElementById("mediaplan_manual").value;
+            const webpages = webpagesInput.split(/[\s,]+/).filter(url => url.trim() !== "");
+            const mediaplanContentDiv = document.getElementById("mediaplan");
+            let combinedResponses = "";
+
+            try {
+                // Fetch data from all URLs concurrently using Promise.all
+                const responses = await Promise.all(
+                    webpages.map(async url => {
+                        try {
+                            const response = await fetch("https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json"
+                                },
+                                body: JSON.stringify({ url: url })
+                            });
+
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status} for URL: ${url}`);
+                            }
+
+                            return await response.json(); // Return the parsed JSON data
+                        } catch (error) {
+                            console.error(`Error fetching data from ${url}:`, error);
+                            return null; // Return null in case of an error
+                        }
+                    })
+                );
+
+                // Combine the responses
+                combinedResponses = responses.filter(response => response !== null).map(response => JSON.stringify(response)).join("\n");
+
+                // Send combined responses to the second API
+                try {
+                    const mediaPlanResponse = await fetch("https://h8ih2vc2xi.execute-api.ap-southeast-1.amazonaws.com/mediaPlanGenerator", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ data: combinedResponses, budget: budget, manual: manualInput })
+                    });
+
+                    if (!mediaPlanResponse.ok) {
+                        throw new Error(`HTTP error! status: ${mediaPlanResponse.status} for persona API`);
+                    }
+
+                    const mediaPlanData = await mediaPlanResponse.json();
+                    mediaplanContentDiv.innerHTML += mediaPlanData.body;
+
+                } catch (error) {
+                    mediaplanContentDiv.innerHTML = `<p style="color: red;">Error sending data to media plan API: ${error.message}</p>`;
+                    console.error("Error sending data to media plan API:", error);
+                }
+
+            } catch (error) {
+                mediaplanContentDiv.innerHTML = `<p style="color: red;">An error occurred: ${error.message}</p>`;
+                console.error("An error occurred:", error);
+            } finally {
+                document.getElementById("generateMediaPlanBtn").innerText = "Generate Media Plan";
             }
         }
 
@@ -4177,6 +4270,68 @@
             }
         }
 
+        function openPersona(event) {
+            event.preventDefault();
+            deactivateAllButtons();
+
+            const personaButton = document.querySelector('button#persona');
+            if (personaButton) {
+                personaButton.classList.toggle('active');
+                const content = personaButton.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const personaLink = event.currentTarget;
+                personaLink.classList.toggle('active-menu');
+
+                const seoSubmenuItems = semLink.closest('ul').querySelectorAll('li a');
+                seoSubmenuItems.forEach(item => {
+                    if (item !== personaLink) {
+                        item.classList.remove('active-menu');
+                    }
+                });
+
+                if (content.style.display === "block") {
+                    const personaSection = document.getElementById('persona');
+                    if (personaSection) {
+                        personaSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+        }
+
+        function openMediaPlan(event) {
+            event.preventDefault();
+            deactivateAllButtons();
+
+            const mediaPlanButton = document.querySelector('button#mediaPlanBtn');
+            if (mediaPlanButton) {
+                mediaPlanButton.classList.toggle('active');
+                const content = mediaPlanButton.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const mediaPlanLink = event.currentTarget;
+                mediaPlanLink.classList.toggle('active-menu');
+
+                const mediaPlanMenuItems = mediaPlanLink.closest('ul').querySelectorAll('li a');
+                mediaPlanMenuItems.forEach(item => {
+                    if (item !== mediaPlanLink) {
+                        item.classList.remove('active-menu');
+                    }
+                });
+
+                if (content.style.display === "block") {
+                    const mediaPlanSection = document.getElementById('mediaPlanBtn');
+                    if (mediaPlanSection) {
+                        mediaPlanSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+        }
+
         function deactivateAllButtons() {
             const buttons = document.querySelectorAll('button.collapsible'); // Select all collapsible buttons
             buttons.forEach(button => {
@@ -4213,7 +4368,23 @@
             document.getElementById('loginError').textContent = "You have been logged out.";
             document.getElementById('loginForm').style.display = 'flex';
         }
-    </script
+        document.addEventListener('DOMContentLoaded', function () {
+            const seoLink = document.getElementById('seo-link');
+            const seoSubmenu = document.getElementById('seo-submenu');
+            const smmLink = document.getElementById('smm-link');
+            const smmSubmenu = document.getElementById('smm-submenu');
+
+            seoLink.addEventListener('click', function (event) {
+                event.preventDefault(); // Prevent the default link behavior
+                seoSubmenu.style.display = seoSubmenu.style.display === 'block' ? 'none' : 'block';
+            });
+
+            smmLink.addEventListener('click', function (event) {
+                event.preventDefault(); // Prevent the default link behavior
+                smmSubmenu.style.display = smmSubmenu.style.display === 'block' ? 'none' : 'block';
+            });
+        });
+    </script>
 
 </body>
 
