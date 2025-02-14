@@ -134,7 +134,6 @@
       background-color: #32CD32;
       color: white;
     }
-
   </style>
 </head>
 
@@ -791,7 +790,7 @@
         }));
 
         // After all analysis is complete, display the summary table
-        displayOverallSummaryTable(keywords);
+        await displayOverallSummaryTable(keywords, location, language, target);
 
       } catch (error) {
         console.error("Error during analysis:", error);
@@ -846,7 +845,7 @@
       }
     }
 
-    function displayOverallSummaryTable(keywords) {
+    async function displayOverallSummaryTable(keywords, location, language, target) {
       const summaryContainer = document.getElementById('overall-summary');
       if (!summaryContainer) {
         console.error("Summary container not found");
@@ -889,8 +888,14 @@
                 <tbody>
       `;
 
-      summaryData.forEach((item, index) => {
+      for (let index = 0; index < summaryData.length; index++) {
+        const item = summaryData[index];
         const timeToRankClass = getTimeToRankClass(item.timeToRank);
+
+        // Fetch initial reason from API
+        const reason = await fetchReasonFromAPI(item.keyword, location, language, target);
+        summaryData[index].reason = reason; // Update summaryData with initial reason
+
         tableHTML += `
             <tr>
               <td>${item.No}</td>
@@ -898,10 +903,10 @@
               <td>${item.search_volume}</td>
               <td>${item.cpc}</td>
               <td class="${timeToRankClass}">${item.timeToRank}</td>
-              <td><input type="text" style="min-width:100%;" id="reason-${index}" value="${item.reason}" onchange="updateReason(${index}, this.value)"></td>
+              <td><input type="text" style="min-width:100%;" id="reason-${index}" value="${reason}" onchange="updateReason(${index}, this.value)"></td>
             </tr>
           `;
-      });
+      }
 
       tableHTML += `
                 </tbody>
@@ -915,6 +920,36 @@
       document.getElementById('overall-summary').style.display = 'block';
       document.getElementById('downloadCsvBtn').style.display = 'block';
 
+    }
+
+    async function fetchReasonFromAPI(keyword, location, language, target) {
+      const reasonApiEndpoint = "https://cdahvw5qi7.execute-api.ap-southeast-1.amazonaws.com/reasonForKwSelection";
+
+      try {
+        const response = await fetch(reasonApiEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            location: location,
+            language: language,
+            target: target,
+            keyword: keyword
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          return data.body;
+        } else {
+          console.error("Error fetching reason from API:", response.status);
+          return ''; // Return empty string in case of error
+        }
+      } catch (error) {
+        console.error("Error fetching reason from API:", error);
+        return ''; // Return empty string in case of error
+      }
     }
 
     // Function to update the 'Reason' in the summaryData array
@@ -968,7 +1003,7 @@
         return summarySortAscending ? comparison : comparison * -1;
       });
 
-      displayOverallSummaryTable(keywords);
+      displayOverallSummaryTable(keywords, location, language, target);
     }
 
 
