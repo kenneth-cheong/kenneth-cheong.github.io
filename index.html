@@ -4078,9 +4078,6 @@
             }
         }
 
-        // Attach the download function to the button
-        document.getElementById("downloadKeywordAnalysisCSVButton").addEventListener("click", downloadKeywordAnalysisTableAsCSV);
-
         function sortKeywordSuggestions(column) {
             const keywordList = document.getElementById('keywordList');
             const listItems = Array.from(keywordList.children);
@@ -5014,55 +5011,55 @@
         });
 
         function downloadOverallSummaryTableAsCSV() {
-      // CSV content
-      const csvRows = [];
+            // CSV content
+            const csvRows = [];
 
-      // Add BOM (Byte Order Mark) for UTF-8 encoding, crucial for international characters
-      const bom = "\uFEFF";
+            // Add BOM (Byte Order Mark) for UTF-8 encoding, crucial for international characters
+            const bom = "\uFEFF";
 
-      // Headers - IMPORTANT:  Explicitly define the order.  This matches the table columns.
-      const headers = ['No.', 'Keyword', 'Search Volume', 'CPC', 'Time to Rank', 'Reason'];
-      csvRows.push(headers.join(','));
+            // Headers - IMPORTANT:  Explicitly define the order.  This matches the table columns.
+            const headers = ['No.', 'Keyword', 'Search Volume', 'CPC', 'Time to Rank', 'Reason'];
+            csvRows.push(headers.join(','));
 
-      // Data rows
-      summaryData.forEach(item => {
-        const values = [
-          item.No,
-          item.keyword,
-          item.search_volume,
-          item.cpc,
-          item.timeToRank,
-          item.reason
-        ];
-        // Use .map() and double quotes to handle commas and special characters
-        const row = values.map(value => `"${String(value).replace(/"/g, '""')}"`).join(','); //IMPORTANT: Escape double quotes within the string
-        csvRows.push(row);
-      });
-
-
-      // Create the CSV string
-      const csvString = bom + csvRows.join('\n');
+            // Data rows
+            summaryData.forEach(item => {
+                const values = [
+                    item.No,
+                    item.keyword,
+                    item.search_volume,
+                    item.cpc,
+                    item.timeToRank,
+                    item.reason
+                ];
+                // Use .map() and double quotes to handle commas and special characters
+                const row = values.map(value => `"${String(value).replace(/"/g, '""')}"`).join(','); //IMPORTANT: Escape double quotes within the string
+                csvRows.push(row);
+            });
 
 
-      // Create a download link
-      const blob = new Blob([csvString], {
-        type: 'text/csv;charset=utf-8'
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.setAttribute('href', url);
-      a.setAttribute('download', 'keyword_summary.csv');
-      a.style.display = 'none'; // Hide the link
+            // Create the CSV string
+            const csvString = bom + csvRows.join('\n');
 
-      // Programmatically trigger the download
-      document.body.appendChild(a);
-      a.click();
 
-      // Clean up
-      URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+            // Create a download link
+            const blob = new Blob([csvString], {
+                type: 'text/csv;charset=utf-8'
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'keyword_summary.csv');
+            a.style.display = 'none'; // Hide the link
 
-    }
+            // Programmatically trigger the download
+            document.body.appendChild(a);
+            a.click();
+
+            // Clean up
+            URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+        }
     </script>
 
 </body>
