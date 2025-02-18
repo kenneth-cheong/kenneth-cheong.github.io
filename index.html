@@ -1089,6 +1089,10 @@
                         Keywords
                         <span>Click to get the keywords which the domain or URL is ranking for.</span>
                     </button>
+                    <button type="button" id="get-webpage-keywords-button" class="tooltip"
+                        onclick="getWebpageKeywords(event)">Get Webpage Keywords
+                        <span>Click to get keyword suggestions based on the given webpage content.</span>
+                    </button>
                 </form>
                 <div id="rankingError"></div>
                 <table id="keywordTable" style="display: none;">
@@ -1165,25 +1169,6 @@
                 </div>
                 <button class="collapsible" id="keywords_for_site">Keywords Based on Webpage Content</button>
                 <div class="content" id="siteKeywords">
-                    <div id="siteKeywordListContainer">
-                        <h3 id="siteKeywordsCount">Ranked Keywords:</h3>
-                        <div class="keyword-row" id="siteKeywordHeaderRow">
-                            <div class="keyword-column" onclick="sortSiteKeywords(0)">
-                                <strong>Keyword</strong>
-                            </div>
-                            <div class="keyword-column" onclick="sortSiteKeywords(1)">
-                                <strong>Search Vol</strong>
-                            </div>
-                            <div class="keyword-column" onclick="sortSiteKeywords(2)">
-                                <strong>Rank</strong>
-                            </div>
-                            <div class="keyword-column" onclick="sortSiteKeywords(3)">
-                                <strong>Difficulty</strong>
-                            </div>
-                            <div class="checkbox-column"></div><strong>Choose</strong>
-                        </div>
-                        <ul id="siteKeywordList"></ul>
-                    </div>
                 </div>
             </div>
 
@@ -5080,7 +5065,140 @@
             // Clean up
             URL.revokeObjectURL(url);
             document.body.removeChild(a);
+        }
 
+        async function getWebpageKeywords() {
+            const location = document.getElementById('location').value;
+            const language = document.getElementById('language').value;
+            const target = document.getElementById('domain').value;
+
+            document.getElementById("keywords_for_site").style.backgroundColor = "#004c9d";
+            document.getElementById('get-webpage-keywords-button').innerText = "Getting Keywords...";
+
+            const endpoint = "https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite";
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        location: location,
+                        language: language,
+                        target: target
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                allKeywords = Object.entries(data).map(([keyword, values]) => ({
+                    keyword,
+                    search_volume: values.search_volume,
+                    competition: values.competition,
+                    search_intent: values.search_intent,
+                    reason_for_choosing: values.reason_for_choosing
+                }));
+
+                displayKeywordsTable(allKeywords);
+                document.getElementById('get-webpage-keywords-button').innerText = "Get Webpage Keywords";
+                document.getElementById("keywords_for_site").style.backgroundColor = "green";
+
+            } catch (error) {
+                console.error("Error fetching keywords:", error);
+                document.getElementById('rankingError').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+
+        function displayKeywordsTable(keywords) {
+            const container = document.getElementById('siteKeywords');
+            if (!container) {
+                console.error("Keywords container not found");
+                return;
+            }
+            container.innerHTML = `
+            <div class="table-container">
+              <table>
+                <thead>
+                    <tr>
+                        <th onclick="sortSiteTable('keyword')">Keyword</th>
+                        <th onclick="sortSiteTable('search_volume')">Search Volume</th>
+                        <th onclick="sortSiteTable('competition')">Competition</th>
+                        <th onclick="sortSiteTable('search_intent')">Search Intent</th>
+                        <th onclick="sortSiteTable('reason_for_choosing')">Reason</th>
+                        <th>Choose</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+              </table>
+            </div>
+        `;
+
+            const tbody = container.querySelector('tbody');
+
+            keywords.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                        <td>${item.keyword}</td>
+                        <td>${item.search_volume}</td>
+                        <td>${item.competition}</td>
+                        <td>${item.search_intent}</td>
+                        <td>${item.reason_for_choosing}</td>
+                        <td><input type="checkbox" value="${item.keyword}" onchange="updateSiteKeywords(this)"></td>
+                    `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateSiteKeywords(checkbox) {
+            const keyword = checkbox.value;
+            const keywordsInput = document.getElementById('keywords');
+            let currentKeywords = keywordsInput.value.trim();
+
+            if (checkbox.checked) {
+                if (currentKeywords === "") {
+                    keywordsInput.value = keyword;
+                } else {
+                    keywordsInput.value = currentKeywords + ", " + keyword;
+                }
+            } else {
+                let keywordsArray = currentKeywords.split(',').map(item => item.trim());
+                keywordsArray = keywordsArray.filter(item => item !== keyword);
+                keywordsInput.value = keywordsArray.join(', ');
+            }
+        }
+
+        function sortSiteTable(column) {
+            if (currentSortColumn === column) {
+                sortAscending = !sortAscending;
+            } else {
+                currentSortColumn = column;
+                sortAscending = true;
+            }
+
+            allKeywords.sort((a, b) => {
+                let comparison = 0;
+
+                if (column === 'keyword') {
+                    comparison = a.keyword.localeCompare(b.keyword);
+                } else if (column === 'search_volume') {
+                    comparison = a.search_volume - b.search_volume;
+                } else if (column === 'competition') {
+                    comparison = a.competition - b.competition;
+                } else if (column === 'search_intent') {
+                    comparison = a.search_intent.localeCompare(b.search_intent);
+                } else if (column === 'reason_for_choosing') {
+                    comparison = a.reason_for_choosing.localeCompare(b.reason_for_choosing);
+                }
+
+                return sortAscending ? comparison : comparison * -1;
+            });
+
+            displayKeywordsTable(allKeywords);
         }
     </script>
 
