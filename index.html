@@ -289,7 +289,7 @@
             /* Allow main content to take up remaining space */
             margin-left: 17%;
             /* Adjust margin to create space for navbar */
-            padding: 20px;
+            padding: 10px;
         }
 
         body {
@@ -3015,6 +3015,13 @@
                 console.log(error);
             }
 
+            try {
+                const webpageKeywordsCheckboxes = document.querySelectorAll('#siteKeywords input[type="checkbox"]:checked');
+                webpageKeywordsCheckboxes.forEach(checkbox => checkedKeywords.add(checkbox.value));
+            } catch (error) {
+                console.log(error);
+            }
+
             keywordsTextArea.value = Array.from(checkedKeywords).join(', '); // Convert Set back to array before joining
             updateKeywordCount();
         }
@@ -5104,6 +5111,7 @@
                 }));
 
                 displayKeywordsTable(allKeywords);
+                updateKeywordCount() //added to update the keyword count paragraph
                 document.getElementById('get-webpage-keywords-button').innerText = "Get Webpage Keywords";
                 document.getElementById("keywords_for_site").style.backgroundColor = "green";
 
@@ -5115,11 +5123,14 @@
 
         function displayKeywordsTable(keywords) {
             const container = document.getElementById('siteKeywords');
+
             if (!container) {
                 console.error("Keywords container not found");
                 return;
             }
+           //ADD A PARAGRAPH TO TRACK SELECTED KEYWORDS
             container.innerHTML = `
+            <p><b>Webpage Keywords Selected: <span id="webpageKeywordCount" style="color: #004c9d;">0</span></b></p>
             <div class="table-container">
               <table>
                 <thead>
@@ -5152,6 +5163,7 @@
                     `;
                 tbody.appendChild(row);
             });
+            updateKeywordCount()
         }
 
         function updateSiteKeywords(checkbox) {
@@ -5170,7 +5182,12 @@
                 keywordsArray = keywordsArray.filter(item => item !== keyword);
                 keywordsInput.value = keywordsArray.join(', ');
             }
+
+            updateKeywordsField(); //update the main keywords field.
+            updateKeywordCount(); //count the checkboxes selected in webpagekeywords
         }
+
+         
 
         function sortSiteTable(column) {
             if (currentSortColumn === column) {
