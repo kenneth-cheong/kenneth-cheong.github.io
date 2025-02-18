@@ -472,18 +472,6 @@
             /* Maintain aspect ratio */
         }
 
-        .loading-spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 4px solid #f3f3f3;
-            /* Light grey */
-            border-top: 4px solid #3498db;
-            /* Blue */
-            border-radius: 50%;
-            animation: spin 2s linear infinite;
-        }
-
         p,
         h1,
         h2,
@@ -1085,6 +1073,7 @@
                         <span>Click to generate similar keywords based on the up to 20 of the keyword(s) you provided.
                         </span>
                     </button>
+                    <br>
                     <button type="button" id="ranking" class="tooltip" onclick="rankingKeywords(event)">Get Ranking
                         Keywords
                         <span>Click to get the keywords which the domain or URL is ranking for.</span>
@@ -3662,147 +3651,6 @@
         let currentSummarySortColumn = null;
         let summarySortAscending = true;
 
-        async function getTimeTakenToRank(index, keyword) {
-            const domain = document.getElementById("domain").value;
-            const location = document.getElementById("location").value;
-            const language = document.getElementById("language").value;
-            const serpTable = document.getElementById(`serp-table-${index}`);
-            try {
-                const res = await fetch('https://6qyc0fatt2.execute-api.ap-southeast-1.amazonaws.com/timeTakenToRank', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ data: serpTable.innerHTML, url: domain, keyword: keyword, location: location, language: language })
-                });
-
-                const timeTakenToRankData = await res.json();
-
-                // Update the correct row in the first table (keywordMetrics table)
-                document.getElementById(`kw-${index}-time-to-rank`).classList.remove('loading-spinner');
-                document.getElementById(`kw-${index}-time-to-rank`).innerHTML = timeTakenToRankData.body.choice.replaceAll('"', '').replace('choice: ', '').replace('{', '');
-
-                document.getElementById(`kw-${index}-time-to-rank-reason`).classList.remove('loading-spinner');
-                document.getElementById(`kw-${index}-time-to-rank-reason`).innerHTML = timeTakenToRankData.body.reason.replaceAll('"', '').replace('reason: ', '').replace('}', '');
-
-            } catch (error) {
-                console.error(`Error getting Time To Rank for ${keyword}:`, error);
-                // Handle the error appropriately (e.g., display an error message in the table)
-                document.getElementById(`kw-${index}-time-to-rank`).classList.remove('loading-spinner');
-                document.getElementById(`kw-${index}-time-to-rank`).innerHTML = "Error"; // Or some error message
-
-                document.getElementById(`kw-${index}-time-to-rank-reason`).classList.remove('loading-spinner');
-                document.getElementById(`kw-${index}-time-to-rank-reason`).innerHTML = "Error"; // Or some error message
-
-            }
-        }
-
-        function createSERPTable(index, serpResults, pageMetrics, keyword) {
-            let serpTableHtml = `<br><table class="hidden-table" id="serp-table-${index}">`;
-            serpTableHtml += `<tr><th>Rank</th><th>URL</th><th>Title</th><th>Description</th><th>Domain Rank</th><th>Backlinks</th><th>Spam Score</th><th>Referring Domains</th><th>KW in URL</th><th>KW in Title</th><th>KW in Desc</th><th>KW in H1</th><th>KW in H2</th><th>KW in Alt</th><th>KW in Text</th><th>Word Count</th></tr>`;
-
-            rowsPopulated = 0;
-
-            if (typeof serpResults === 'object' && serpResults !== null && serpResults !== undefined) {
-                const ranks = Object.keys(serpResults); // Get the keys (ranks) as an array
-
-                ranks.forEach(rank => {
-                    const result = serpResults[rank];
-                    const metrics = pageMetrics[result.url] || {};
-                    const evalMetrics = metrics.eval || {};
-
-                    serpTableHtml += `<tr><td>${parseInt(rank)}</td><td>${result.url}</td><td>${result.title}</td><td>${result.description}</td>
-                         <td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td>
-                          <td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td>
-                          <td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td>
-                          <td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td><td><div class="loading-spinner"></div></td></tr>`;
-
-                    setTimeout(() => { // Use setTimeout to ensure elements are created
-                        const domainRankCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(5)`);
-                        domainRankCell.innerHTML = metrics.domain_rank || '-';
-
-                        const backlinksCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(6)`);
-                        backlinksCell.innerHTML = metrics.backlinks || '-';
-
-                        const spamCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(7)`);
-                        spamCell.innerHTML = metrics.backlinks_spam_score || '-';
-
-                        const referringhDomainsCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(8)`);
-                        referringhDomainsCell.innerHTML = metrics.referring_domains || '-';
-
-                        // ... similarly update other cells (spam score, referring domains, etc.) ...
-                        const kwInUrlCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(9)`);
-                        kwInUrlCell.innerHTML = evalMetrics.kw_in_url || '-';
-
-                        const kwInTitleCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(10)`);
-                        kwInTitleCell.innerHTML = evalMetrics.kw_in_title || '-';
-
-                        const kwInDescCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(11)`);
-                        kwInDescCell.innerHTML = evalMetrics.kw_in_desc || '-';
-
-                        const kwInH1Cell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(12)`);
-                        kwInH1Cell.innerHTML = evalMetrics.kw_in_h1 || '-';
-
-                        const kwInH2Cell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(13)`);
-                        kwInH2Cell.innerHTML = evalMetrics.kw_in_h2 || '-';
-
-                        const kwInAltCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(14)`);
-                        kwInAltCell.innerHTML = evalMetrics.kw_in_alt || '-';
-
-                        const kwInTextCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(15)`);
-                        kwInTextCell.innerHTML = evalMetrics.kw_in_text || '-';
-
-                        const wordCountCell = document.querySelector(`#serp-table-${index} tr:nth-child(${parseInt(rank) + 1}) td:nth-child(16)`);
-                        wordCountCell.innerHTML = metrics.word_count || '-';
-
-                        rowsPopulated++; // increment after all cells in the row are updated.
-                    }, 60000); // Adjust timeout if needed
-                });
-            } else {
-                console.error("serpResults is not a valid object or is null:", serpResults);
-                // Display an error message or take other appropriate action.
-                serpTableHtml += `<tr><td colspan="16">Error: Could not retrieve SERP data.</td></tr>`; // Display a message in the table
-            }
-
-            serpTableHtml += "</table>";
-            document.getElementById("keywordAnalysisResults").innerHTML += serpTableHtml;
-            document.getElementById("keyword-research-analysis-button").innerHTML = "Analyse<span>Click to get the estimated time to rank for the selected keywords and the webpage's metrics.</span>";
-
-            return new Promise(resolve => {
-                const intervalId = setInterval(() => {
-                    //console.log(`Checking for spinners in table ${index}, rows populated: ${rowsPopulated}/${Object.keys(serpResults).length}, spinners: ${document.querySelectorAll(`#serp-table-${index} .loading-spinner`).length}`);
-                    if (rowsPopulated === Object.keys(serpResults).length && document.querySelectorAll(`#serp-table-${index} .loading-spinner`).length === 0) {
-                        console.log(`Resolving promise for table ${index}`);
-                        clearInterval(intervalId);
-                        resolve();
-                    }
-                }, 100);
-            });
-        }
-
-        // New function to wait for spinners to be removed
-        async function waitForSpinnersToRemove(index) {
-            return new Promise(resolve => {
-                const intervalId = setInterval(() => {
-                    if (document.querySelectorAll(`#serp-table-${index} .loading-spinner`).length === 0) {
-                        clearInterval(intervalId);
-                        resolve();
-                    }
-                }, 2000); // Check every 2s
-            });
-        }
-
-        function showSERPs(index) {
-            const serpTable = document.getElementById(`serp-table-${index}`);
-            serpTable.style.display = (serpTable.style.display === "none" || serpTable.style.display === "") ? "table" : "none";
-
-            // Hide other SERP tables:
-            const allSERPTables = document.querySelectorAll('.hidden-table');
-            allSERPTables.forEach(table => {
-                if (table.id !== `serp-table-${index}`) {
-                    table.style.display = "none";
-                }
-            });
-        }
-
         function fetchDomainMetrics(domain) {
             document.getElementById('keyword-research-analysis-button').innerText = "Analysing...";
 
@@ -3907,62 +3755,6 @@
                 console.error('Error fetching SERP data:', error);
                 return null;
             }
-        }
-
-        async function fetchContentAnalysisData(url) {
-            const apiEndpoint = "https://v21e9kd3h1.execute-api.ap-southeast-1.amazonaws.com/timetoRank3";
-            const requestBody = { url: url };
-
-            try {
-                const response = await fetch(apiEndpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(requestBody)
-                });
-
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error('Error fetching content analysis data:', error);
-                return null;
-            }
-        }
-
-        async function fetchOnPageAnalysisData(url) {
-            const apiEndpoint = "https://tpl2mrhmc0.execute-api.ap-southeast-1.amazonaws.com/new";
-            const requestBody = { url: url };
-
-            try {
-                const response = await fetch(apiEndpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(requestBody)
-                });
-
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error('Error fetching on-page analysis data:', error);
-                return null;
-            }
-        }
-
-        // --- Helper functions to show and hide the loading indicator ---
-        function showLoadingIndicator(parent) {
-            const loadingIndicator = document.getElementById("loadingIndicator");
-            parent.parentNode.insertBefore(loadingIndicator, parent); // Insert before the table
-            parent.classList.add("loading");
-            loadingIndicator.style.display = "block";
-        }
-
-        function hideLoadingIndicator(parent) {
-            const loadingIndicator = document.getElementById("loadingIndicator");
-            loadingIndicator.style.display = "none";
-            parent.classList.remove("loading");
         }
 
         function removeRow(button) {
@@ -4122,7 +3914,6 @@
 
             listItems.forEach(item => keywordList.appendChild(item));
         }
-
 
         function sortRankedKeywords(column) {
             const keywordList = document.getElementById('rankedKeywordList');
@@ -5130,7 +4921,6 @@
             }
            //ADD A PARAGRAPH TO TRACK SELECTED KEYWORDS
             container.innerHTML = `
-            <p><b>Webpage Keywords Selected: <span id="webpageKeywordCount" style="color: #004c9d;">0</span></b></p>
             <div class="table-container">
               <table>
                 <thead>
@@ -5186,8 +4976,6 @@
             updateKeywordsField(); //update the main keywords field.
             updateKeywordCount(); //count the checkboxes selected in webpagekeywords
         }
-
-         
 
         function sortSiteTable(column) {
             if (currentSortColumn === column) {
