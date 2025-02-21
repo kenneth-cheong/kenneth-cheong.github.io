@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Large File to S3</title>
+</head>
+
+<body>
+    <h1>Upload File to S3</h1>
+    <input type="file" id="fileInput" />
+    <button onclick="uploadFile()">Upload</button>
+
+    <script>
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            if (!fileInput.files.length) {
+                alert('Please select a file.');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            // Replace with your API Gateway endpoint URL; it should forward the "filename" query parameter to your Lambda.
+            const apiUrl = 'https://rsaerwegf6.execute-api.ap-southeast-1.amazonaws.com/fileUpload?filename=' + encodeURIComponent(file.name);
+
+            console.log(apiUrl);
+
+            try {
+                // Request a presigned POST from your Lambda function via API Gateway
+                const response = await fetch(apiUrl);
+                if (!response.ok) {
+                    throw new Error('Failed to get presigned URL');
+                }
+                const presignedPostData = await response.json();
+
+                console.log(JSON.parse(presignedPostData.body).fields);
+                console.log(JSON.parse(presignedPostData.body).url);
+
+                // Prepare form data with the presigned fields and the file
+                const formData = new FormData();
+                for (key in JSON.parse(presignedPostData.body).fields) {
+                    formData.append(key, JSON.parse(presignedPostData.body).fields[key]);
+                }
+                formData.append('file', file);
+
+                // Display the values
+                for (const value of formData.values()) {
+                    console.log(value);
+                }
+
+                // Upload the file directly to S3 using the presigned URL
+                const uploadResponse = await fetch(JSON.parse(presignedPostData.body).url, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (uploadResponse.ok) {
+                    alert('File uploaded successfully!');
+                } else {
+                    alert('File upload failed.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred during upload.');
+            }
+        }
+    </script>
+</body>
+
+</html>
