@@ -1063,6 +1063,7 @@
                         Plan</span></a></li>
             <li><a href="#contentcheck" onclick="openContentCheck(event)"><i class="fas fa-book-open"></i> <span>Content
                         Check</span></a></li>
+            <li><a href="#landingPageAudit" onclick="openLandingPageAudit(event)"><i class="fas fa-clipboard-check"></i> <span>Landing Page Audit</span></a></li>
             <br>
             <li><a href="#" id="logoutLink" onclick="logout(event)"><i class="fas fa-sign-out-alt"></i>
                     <span>Logout</span></a></li>
@@ -4582,11 +4583,6 @@
 
                 const landingPageAuditData = await landingPageAuditResponse.json();
 
-                // **Sanitize the HTML content!**
-                // This is critical to prevent XSS vulnerabilities.
-                // Use a library like DOMPurify to sanitize the HTML
-                // before inserting it into the DOM.
-
                 if (landingPageAuditData && landingPageAuditData.body) {
                     landingPageAuditResultDiv.innerHTML = landingPageAuditData.body; // Removed +=
                 } else {
@@ -5065,6 +5061,37 @@
                     const contentCheckSection = document.getElementById('contentcheck');
                     if (contentCheckSection) {
                         contentCheckSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+        }
+
+        function openLandingPageAudit(event) {
+            event.preventDefault();
+            deactivateAllButtons();
+
+            const landingPageAuditButton = document.querySelector('button#landingPageAuditBtn');
+            if (landingPageAuditButton) {
+                landingPageAuditButton.classList.toggle('active');
+                const content = landingPageAuditButton.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const landingPageAuditLink = event.currentTarget;
+                landingPageAuditLink.classList.toggle('active-menu');
+
+                const landingPageAuditkMenuItems = landingPageAuditLink.closest('ul').querySelectorAll('li a');
+                landingPageAuditkMenuItems.forEach(item => {
+                    if (item !== landingPageAuditLink) {
+                        item.classList.remove('active-menu');
+                    }
+                });
+
+                if (content.style.display === "block") {
+                    const landingPageAuditSection = document.getElementById('landingPageAudit');
+                    if (landingPageAuditSectionn) {
+                        landingPageAuditSection.scrollIntoView({ behavior: 'smooth' });
                     }
                 }
             }
