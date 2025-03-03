@@ -160,56 +160,6 @@
             display: none;
         }
 
-        #keywordModal {
-            display: flex;
-            position: fixed;
-            z-index: 1;
-            left: 0;
-            top: 0;
-            width: 50%;
-            height: 95%;
-            overflow: auto;
-            background-color: rgba(0, 0, 0, 0.4);
-            padding: 2%;
-            border-radius: 20px;
-        }
-
-        .modal-content {
-            background-color: #fefefe;
-            border: 1px solid #888;
-            width: 95%;
-            border-radius: 10px;
-            max-height: 95%;
-            /* Account for padding/margin or border if present*/
-            overflow-y: auto;
-            /* Add vertical scrollbar if content overflows */
-            padding: 15px;
-        }
-
-        .modal-content h2 {
-            /* Example - add padding around the h2 */
-            padding: 10px;
-        }
-
-        .modal-content table {
-            /* Example - Add padding to the table */
-            padding: 10px;
-        }
-
-        .close {
-            color: #aaa;
-            float: right;
-            font-size: 1.5em;
-            font-weight: bold;
-        }
-
-        .close:hover,
-        .close:focus {
-            color: black;
-            text-decoration: none;
-            cursor: pointer;
-        }
-
         #schema-output {
             white-space: pre-wrap;
             /* Allow line breaks */
@@ -946,6 +896,54 @@
             min-width: 0%;
         }
 
+        /* The Modal (background) */
+        .feedback-modal {
+            display: none;
+            /* Hidden by default */
+            position: fixed;
+            /* Stay in place */
+            z-index: 1;
+            /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%;
+            /* Full width */
+            height: 100%;
+            /* Full height */
+            overflow: auto;
+            /* Enable scroll if needed */
+            background-color: rgb(0, 0, 0);
+            /* Fallback color */
+            background-color: rgba(0, 0, 0, 0.4);
+            /* Black w/ opacity */
+        }
+
+        /* Modal Content/Box */
+        .feedback-modal-content {
+            background-color: #fefefe;
+            margin: 2% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 90%;
+            /* Could be more or less, depending on screen size */
+            border-radius: 10px;
+        }
+
+        /* The Close Button */
+        .feedback-close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .feedback-close:hover,
+        .feedback-close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
         /* Styles for smaller screens (e.g., mobile) */
 
         @media screen and (max-width: 1081px) {
@@ -1063,7 +1061,8 @@
                         Plan</span></a></li>
             <li><a href="#contentcheck" onclick="openContentCheck(event)"><i class="fas fa-book-open"></i> <span>Content
                         Check</span></a></li>
-            <li><a href="#landingPageAudit" onclick="openLandingPageAudit(event)"><i class="fas fa-clipboard-check"></i> <span>Landing Page Audit</span></a></li>
+            <li><a href="#landingPageAudit" onclick="openLandingPageAudit(event)"><i class="fas fa-clipboard-check"></i>
+                    <span>Landing Page Audit</span></a></li>
             <br>
             <li><a href="#" id="logoutLink" onclick="logout(event)"><i class="fas fa-sign-out-alt"></i>
                     <span>Logout</span></a></li>
@@ -1783,6 +1782,7 @@
             <textarea id="content_to_check" style="min-height: 200px;" placeholder="Your content here"></textarea><br>
             <button id="contentCheckBtn" onclick="checkContent()">Check Content</button>
             <div id="checkContentResults"></div>
+            <button id="openFeedbackModalBtn" style="display:none">Feedback</button>
         </div>
         <hr>
         <button class="collapsible" id="landingPageAuditBtn">Landing Page Audit</button>
@@ -1791,6 +1791,33 @@
             <input type="url" id="landingPageUrl" placeholder="e.g., https://example.com"><br>
             <button id="auditLandingPageBtn" onclick="auditLandingPage()">Audit Landing Page</button>
             <div id="landingPageAuditResults"></div>
+        </div>
+    </div>
+
+    <div id="feedbackModal" class="feedback-modal">
+        <div class="feedback-modal-content">
+            <span class="feedback-close">×</span>
+            <h2>Feedback</h2>
+
+            <label for="userFeedback">Your Feedback:</label>
+            <textarea id="userFeedback" style="width: 100%; height: 100px;"></textarea><br>
+
+            <label for="checkResults">Check Results:</label>
+            <textarea id="checkResults" readonly style="width: 100%; height: 100px;"></textarea><br>
+
+            <label for="guidelinesURLs">URLs of Guidelines PDFs:</label>
+            <textarea id="guidelinesURLs" readonly style="width: 100%; height: 20px;"></textarea><br>
+
+            <label for="websiteURLs">Any other website/guidelines URLs:</label>
+            <textarea id="websiteURLs" readonly style="width: 100%; height: 20px;"></textarea><br>
+
+            <label for="otherInstructions">Any other instructions:</label>
+            <textarea id="otherInstructions" readonly style="width: 100%; height: 20px;"></textarea><br>
+
+            <label for="contentToCheck">Content to Check:</label>
+            <textarea id="contentToCheck" readonly style="width: 100%; height: 30px;"></textarea><br>
+
+            <button id="submitFeedbackBtn">Submit Feedback</button>
         </div>
     </div>
 
@@ -5102,6 +5129,7 @@
             const otherUrlsText = document.getElementById('content_check_other_urls').value || "";
             const instructions = document.getElementById('content_check_instructions').value || "";
             const content = document.getElementById('content_to_check').value;
+            document.getElementById("openFeedbackModalBtn").style.display = "none";
 
             document.getElementById("contentCheckBtn").innerText = "Checking...";
             document.getElementById("checkContentResults").innerHTML = "";
@@ -5251,6 +5279,7 @@
                 alert("An error occurred while checking the content. See console for details."); // Provide user feedback
             }
             document.getElementById("contentCheckBtn").innerText = "Check Content"
+            document.getElementById("openFeedbackModalBtn").style.display = "block";
         }
 
         function displayCheckContentResults(data) {
@@ -5513,6 +5542,86 @@
 
             displayKeywordsTable(allKeywords);
         }
+
+        // Get the modal
+        var modal = document.getElementById("feedbackModal");
+
+        // Get the button that opens the modal
+        var btn = document.getElementById("openFeedbackModalBtn");
+
+        // Get the <span> element that closes the modal
+        var span = document.getElementsByClassName("feedback-close")[0];
+
+        // When the user clicks the button, open the modal 
+        btn.onclick = function () {
+            populateFeedbackModal();
+            modal.style.display = "block";
+        }
+
+        // When the user clicks on <span> (x), close the modal
+        span.onclick = function () {
+            modal.style.display = "none";
+        }
+
+        // When the user clicks anywhere outside of the modal, close it
+        window.onclick = function (event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        document.getElementById("contentCheckBtn").addEventListener("click", function () {
+            openFeedbackModalBtn.style.display = "block";
+        });
+
+
+        function populateFeedbackModal() {
+            document.getElementById("guidelinesURLs").value = document.getElementById("brand_guide_urls").value;
+            document.getElementById("websiteURLs").value = document.getElementById("content_check_other_urls").value;
+            document.getElementById("otherInstructions").value = document.getElementById("content_check_instructions").value;
+            document.getElementById("contentToCheck").value = document.getElementById("content_to_check").value;
+            document.getElementById("checkResults").value = document.getElementById("checkContentResults").textContent;
+
+            // Show the submit feedback button
+            document.getElementById("openFeedbackModalBtn").style.display = "block";
+        }
+
+
+        document.getElementById("submitFeedbackBtn").addEventListener("click", function () {
+            const feedbackData = {
+                guidelinesURLs: document.getElementById("guidelinesURLs").value,
+                websiteURLs: document.getElementById("websiteURLs").value,
+                otherInstructions: document.getElementById("otherInstructions").value,
+                contentToCheck: document.getElementById("contentToCheck").value,
+                checkResults: document.getElementById("checkResults").value,
+                userFeedback: document.getElementById("userFeedback").value,
+                user: JSON.parse(localStorage.getItem('googleUser')).email
+            };
+
+            // API Endpoint URL
+            const apiUrl = 'https://bj7bexizm7.execute-api.ap-southeast-1.amazonaws.com/contentCheckerFeedback'; // Replace with your actual API endpoint
+
+            fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(feedbackData)
+            })
+                .then(response => {
+                    if (response.ok) {
+                        alert("Feedback submitted successfully!");
+                        document.getElementById("userFeedback").value = ""; // Clear feedback
+                        modal.style.display = "none"; // Close the modal
+                    } else {
+                        alert("Failed to submit feedback.");
+                    }
+                })
+                .catch(error => {
+                    console.error("Error submitting feedback:", error);
+                    alert("An error occurred while submitting feedback.");
+                });
+        });
     </script>
 
 </body>
