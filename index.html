@@ -1780,9 +1780,16 @@
                 placeholder="e.g Do not use the word 'cheap' in the content'"></textarea><br>
             <label for="content_to_check">Content to Check: </label><br>
             <textarea id="content_to_check" style="min-height: 200px;" placeholder="Your content here"></textarea><br>
-            <button id="contentCheckBtn" onclick="checkContent()">Check Content</button>
+            <button id="contentCheckBtn" onclick="checkContent()">Check Content</button><br>
             <div id="checkContentResults"></div>
-            <button id="openFeedbackModalBtn" style="display:none">Feedback</button>
+            <div style="display: flex; align-items: center;">
+                <button type="button" id="copy-check-results-button" class="tooltip" style="display:none"
+                    onclick="copyCheckContentResults(event)">
+                    <i class="fa fa-copy"></i>
+                    <span>Click to copy the check results to your clipboard.</span>
+                </button>
+                <button id="openFeedbackModalBtn" style="display:none; margin-left: 10px;">Feedback</button>
+            </div>
         </div>
         <hr>
         <button class="collapsible" id="landingPageAuditBtn">Landing Page Audit</button>
@@ -1800,7 +1807,7 @@
             <h2>Feedback</h2>
 
             <label for="userFeedback">Your Feedback:</label>
-            <textarea id="userFeedback" style="width: 100%; height: 100px;"></textarea><br>
+            <textarea id="userFeedback" style="width: 100%; height: 100px; background-color:#eef5fe;"></textarea><br>
 
             <label for="checkResults">Check Results:</label>
             <textarea id="checkResults" readonly style="width: 100%; height: 100px;"></textarea><br>
@@ -5130,6 +5137,7 @@
             const instructions = document.getElementById('content_check_instructions').value || "";
             const content = document.getElementById('content_to_check').value;
             document.getElementById("openFeedbackModalBtn").style.display = "none";
+            document.getElementById("copy-check-results-button").style.display = "none";
 
             document.getElementById("contentCheckBtn").innerText = "Checking...";
             document.getElementById("checkContentResults").innerHTML = "";
@@ -5285,7 +5293,7 @@
             // This function assumes you have an element with id "checkContentResults" to display the data.
             const resultsDiv = document.getElementById("checkContentResults");
             if (!resultsDiv) {
-                console.warn("No element with id 'checkContentResults' found to display the results.");
+                console.warn("No element with id 'checkContentRsdfsdfsfesults' found to display the results.");
                 return;
             }
 
@@ -5295,6 +5303,7 @@
             // Set the content of the results div
             resultsDiv.innerHTML = formattedData.replaceAll('"', '');
             document.getElementById("openFeedbackModalBtn").style.display = "block";
+            document.getElementById("copy-check-results-button").style.display = "block";
         }
 
 
@@ -5543,6 +5552,48 @@
             displayKeywordsTable(allKeywords);
         }
 
+        function copyCheckContentResults() {
+            const resultsDiv = document.getElementById("checkContentResults");
+
+            if (!resultsDiv) {
+                console.warn("No element with id 'checkContentResults' found.");
+                alert("Content Check results not found.");
+                return;
+            }
+
+            // Create a temporary element for copying.  This ensures we get ALL the content, including hidden parts.
+            const tempElement = document.createElement("div");
+            tempElement.innerHTML = resultsDiv.innerHTML; //copy innerHTML (preserves formatting)
+            tempElement.style.whiteSpace = "pre-wrap";  // Preserve line breaks and spaces.  Crucial!
+            tempElement.style.userSelect = "auto"; // Allow text selection
+
+            document.body.appendChild(tempElement); // Add to the DOM
+
+            // Select the text in the temporary element
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            const range = document.createRange();
+            range.selectNodeContents(tempElement);
+            selection.addRange(range);
+
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    alert("Content check results copied to clipboard!.");
+                } else {
+                    console.error("Failed to copy text.");
+                    alert("Failed to copy.  Please try again or manually select and copy the text.");
+                }
+            } catch (err) {
+                console.error('Unable to copy: ' + err);
+                alert("An error occurred while copying.  Please try again or manually select and copy the text.");
+            } finally {
+                document.body.removeChild(tempElement);  // Remove the temporary element
+                selection.removeAllRanges(); // Deselect everything
+            }
+        }
+
         // Get the modal
         var modal = document.getElementById("feedbackModal");
 
@@ -5569,10 +5620,6 @@
                 modal.style.display = "none";
             }
         }
-
-        document.getElementById("contentCheckBtn").addEventListener("click", function () {
-            openFeedbackModalBtn.style.display = "block";
-        });
 
 
         function populateFeedbackModal() {
