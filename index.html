@@ -1989,6 +1989,8 @@
         <div class="content" id="landingPageAudit">
             <label for="landingPageUrl">Landing Page URL:</label><br>
             <input type="url" id="landingPageUrl" placeholder="e.g., https://example.com"><br>
+            <label for="landingPageAuditKeyword">Target Keyword (optional):</label><br>
+            <input type="text" id="landingPageAuditKeyword" name="landingPageAuditKeyword"><br>
             <button id="auditLandingPageBtn" onclick="auditLandingPage()">Audit Landing Page</button>
             <div class="gauge" id="gauge" style="display:none;">
                 <br>
@@ -4797,6 +4799,7 @@
             landingPageAuditResultDiv = document.getElementById("landingPageAuditResults");
 
             const urlInput = document.getElementById("landingPageUrl").value;
+            const auditKeyword = document.getElementById("landingPageAuditKeyword")?.value || null;
 
             // Check if the URL input is empty
             if (!urlInput || urlInput.trim() === "") {
@@ -4812,7 +4815,10 @@
                     headers: {
                         "Content-Type": "application/json"
                     },
-                    body: JSON.stringify({ url: urlInput })
+                    body: JSON.stringify({ 
+                        url: urlInput,
+                        keyword: auditKeyword
+                     })
                 });
 
                 if (!landingPageAuditResponse.ok) {
@@ -4826,7 +4832,7 @@
                     landingPageAuditResultDiv.innerHTML = landingPageAuditData.body; // Removed +=
                     const gaugeElement = document.querySelector(".gauge");
                     quality_score = landingPageAuditData.quality_score;
-                    setGaugeValue(gaugeElement, quality_score/10);
+                    setGaugeValue(gaugeElement, quality_score / 10);
                     document.getElementById("gauge").style.display = "block";
                 } else {
                     landingPageAuditResultDiv.innerHTML = "<p>No results found.</p>";
@@ -4836,7 +4842,7 @@
                 landingPageAuditResultDiv.innerHTML = `<p style="color: red;">Error landing page audit API: ${error.message}</p>`;
                 console.error("Error sending data to landing page audit API:", error);
             } finally {
-                
+
                 document.getElementById("auditLandingPageBtn").innerText = "Audit Landing Page";
                 document.getElementById("landingPageAuditBtn").style.backgroundColor = "green";
             }
