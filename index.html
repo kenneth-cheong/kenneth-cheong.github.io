@@ -1154,6 +1154,8 @@
             </li>
             <li><a href="#SEM" onclick="openSem(event)"><i class="fas fa-ad"></i> <span>SEM</span></a></li>
             <br>
+            <li><a href="#competitors" onclick="openCompetitors(event)"><i class="fas fa-search"></i> <span>Competitors
+                        Identifier</span></a></li>
             <li><a href="#persona" onclick="openPersona(event)"><i class="fas fa-users"></i> <span>Persona
                         Generator</span></a></li>
             <li><a href="#mediaplan" onclick="openMediaPlan(event)"><i class="fas fa-bullseye"></i> <span>Media
@@ -1764,6 +1766,24 @@
             <div> </div> <!-- Clearfix -->
         </div>
         <hr>
+
+        <button class="collapsible" id="competitionBtn">Competitors Identifier</button>
+        <div class="content" id="competitors_content">
+            <label for="competitor_keywords">Keywords (seperated by commas or new
+                lines):</label><br>
+            <textarea id="competitor_keywords"></textarea><br>
+            <label for="competitors-language">Language:</label>
+            <input type="text" id="competitors-language" value="English" placeholder="e.g., English"><br>
+            <label for="competitors-location">Location:</label><br>
+            <input type="text" id="competitors-location" value="Singapore" placeholder="e.g., Singapore">
+            <button id="getCompetitorsBtn" onclick="getCompetitors()">Get Competitors</button>
+            <div id="competitorsOutput" style="display:none">
+                <br>
+            </div>
+        </div>
+        <hr>
+
+
         <button class="collapsible" id="persona">Persona Generator</button>
         <div class="content" id="persona_content">
             <label for="persona_webpages">Company / Product Information Webpages (seperated by commas or new
@@ -2830,7 +2850,7 @@
                 document.getElementById('rankingError').textContent = 'Please enter keyword(s).';
                 return;
             }
-            if (!location) {
+            if (!location) {    
                 document.getElementById('rankingError').textContent = 'Please select a location.';
                 return;
             }
@@ -4659,6 +4679,92 @@
             document.getElementById("selectedText").value = selectedText;  // Update textarea value
         }
 
+        function getCompetitors() {
+            document.getElementById("getCompetitorsBtn").innerText = "Getting Competitors...";
+            document.getElementById("competitionBtn").style.backgroundColor = "#004c9d";
+            const keywords = document.getElementById('competitor_keywords').value.split(/[\n,]+/).map(k => k.trim());
+            const competitorsLanguage = document.getElementById("competitors-language").value;
+            const competitorsLocation = document.getElementById("competitors-location").value;
+
+            fetch("https://itzj193chl.execute-api.ap-southeast-1.amazonaws.com/serpCompetitors", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    keywords: keywords,
+                    location: competitorsLocation,
+                    language: competitorsLanguage
+                })
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    displayCompetitorResults(data.body);
+                    document.getElementById("competitorsOutput").style.display = "block";
+                    document.getElementById("competitionBtn").style.backgroundColor = "green";
+                })
+                .catch(error => {
+                    console.error("Error fetching competitors:", error);
+                    document.getElementById("competitorsOutput").innerHTML = "Error fetching competitors.  See console for details.";
+                    document.getElementById("competitionBtn").style.backgroundColor = "#004c9d";
+                })
+                .finally(() => {
+                    document.getElementById("getCompetitorsBtn").innerText = "Get Competitors"; // Reset button text
+                });
+        }
+
+        function displayCompetitorResults(results) {
+            const outputDiv = document.getElementById("competitorsOutput");
+            if (!outputDiv) {
+                console.error("Competitors output div not found!");
+                return;
+            }
+
+            let tableHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Domain</th>
+                            <th>Keyword and Rank</th>
+                            <th>Select</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (const domain in results) {
+                if (results.hasOwnProperty(domain)) {
+                    const keywordRanks = results[domain];
+                    let keywordRankText = "";
+                    for (const keyword in keywordRanks) {
+                        if (keywordRanks.hasOwnProperty(keyword)) {
+                            keywordRankText += `${keyword}: ${keywordRanks[keyword]}<br>`;
+                        }
+                    }
+
+                    tableHTML += `
+                        <tr>
+                            <td>${domain}</td>
+                            <td>${keywordRankText}</td>
+                            <td><input type="checkbox" value="${domain}"></td>
+                        </tr>
+                    `;
+                }
+            }
+
+            tableHTML += `
+                    </tbody>
+                </table>
+            `;
+
+            outputDiv.innerHTML = tableHTML;
+        }
+
         async function generatePersona() {
             document.getElementById("generatePersonaBtn").innerText = "Generating...";
             document.getElementById("persona").style.backgroundColor = "#004c9d";
@@ -4815,10 +4921,10 @@
                     headers: {
                         "Content-Type": "application/json"
                     },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         url: urlInput,
                         keyword: auditKeyword
-                     })
+                    })
                 });
 
                 if (!landingPageAuditResponse.ok) {
@@ -5233,6 +5339,30 @@
             }
         }
 
+        function openCompetitors(event) {
+            event.preventDefault();
+            deactivateAllButtons();
+
+            const competitorsButton = document.querySelector('button#competitionBtn');
+            if (competitorsButton) {
+                competitorsButton.classList.toggle('active');
+                const content = competitorsButton.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const competitorsLink = event.currentTarget;
+                competitorsLink.classList.toggle('active-menu');
+
+                if (content.style.display === "block") {
+                    const competitorsSection = document.getElementById('competitionBtn');
+                    if (competitorsSection) {
+                        competitorsSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+        }
+
         function openPersona(event) {
             event.preventDefault();
             deactivateAllButtons();
@@ -5247,13 +5377,6 @@
 
                 const personaLink = event.currentTarget;
                 personaLink.classList.toggle('active-menu');
-
-                const seoSubmenuItems = semLink.closest('ul').querySelectorAll('li a');
-                seoSubmenuItems.forEach(item => {
-                    if (item !== personaLink) {
-                        item.classList.remove('active-menu');
-                    }
-                });
 
                 if (content.style.display === "block") {
                     const personaSection = document.getElementById('persona');
