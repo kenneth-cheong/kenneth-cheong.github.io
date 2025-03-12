@@ -1184,7 +1184,7 @@
                     <div>
                         <label-fixed for="domain">Targeted Domain / URL:</label-fixed>
                         <input type="url" id="domain" name="domain" required
-                            placeholder="Site audit: https://www.abc.com | Page audit: www.abc.com">
+                            placeholder="Site Audit: https://www.abc.com | Page Audit: www.abc.com">
                         <span class="error" id="domainError"></span>
                     </div>
                     <div>
@@ -1343,7 +1343,7 @@
                     </div>
                 </div>
                 <button class="collapsible" id="keywords_for_site">Keywords Based on Webpage Content</button>
-                <div class="content" id="siteKeywords">
+                <div class="content" id="siteKeywords" style="padding:10px">
                 </div>
             </div>
 
@@ -1769,6 +1769,8 @@
 
         <button class="collapsible" id="competitionBtn">Competitors Identifier</button>
         <div class="content" id="competitors_content">
+            <label for="competitors-target1">Target Domain:</label>
+            <input type="text" id="competitors-target1" placeholder="e.g. www.abc.com"><br>
             <label for="competitor_keywords">Keywords (seperated by commas or new
                 lines):</label><br>
             <textarea id="competitor_keywords"></textarea><br>
@@ -1777,9 +1779,13 @@
             <label for="competitors-location">Location:</label><br>
             <input type="text" id="competitors-location" value="Singapore" placeholder="e.g., Singapore">
             <button id="getCompetitorsBtn" onclick="getCompetitors()">Get Competitors</button>
-            <div id="competitorsOutput" style="display:none">
+            <div id="competitorsOutput" style="display:none;height:400px;overflow:auto;">
                 <br>
             </div>
+            <!-- Add this button below the competitors table -->
+            <button id="getIntersectionResults" style="display:none" onclick="getIntersectionResults()">Get Intersection
+                Results</button>
+            <div id="competitorsRanking" style="display:none;height:400px;overflow:auto;"></div>
         </div>
         <hr>
 
@@ -4754,7 +4760,7 @@
                 <tr>
                     <td>${linkedDomain}</td>
                     <td>${keywordRankText}</td>
-                    <td><input type="checkbox" value="${domain}"></td>
+                    <td><input type="checkbox" class="domain-checkbox" value="${domain}"></td>
                 </tr>
             `;
                 }
@@ -4766,6 +4772,126 @@
     `;
 
             outputDiv.innerHTML = tableHTML;
+            // Show the button
+            document.getElementById('getIntersectionResults').style.display = 'block';
+        }
+
+        async function getIntersectionResults() {
+            document.getElementById('getIntersectionResults').innerText = 'Getting Results..';
+            const checkedDomains = Array.from(document.querySelectorAll('.domain-checkbox:checked'))
+                .map(checkbox => checkbox.value);
+
+            if (checkedDomains.length === 0) {
+                alert('Please select at least one domain.');
+                return;
+            }
+
+            const target1Value = document.getElementById('competitors-target1').value;
+
+            const apiCalls = checkedDomains.map(domain => {
+                const requestBody = {
+                    "language": "English",
+                    "location": "Singapore",
+                    "target1": target1Value,
+                    "target2": domain
+                };
+
+                return fetch('https://8llvcx7m6e.execute-api.ap-southeast-1.amazonaws.com/domainIntersection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        return { domain: domain, data: data }; // Return domain along with the data
+                    })
+                    .catch(error => {
+                        console.error(`Error fetching intersection results for ${domain}:`, error);
+                        return { domain: domain, error: error }; // Return domain and the error
+                    });
+            });
+
+            // Execute all API calls in parallel
+            const results = await Promise.all(apiCalls);
+            displayIntersectionResults(results);
+
+        }
+
+        function displayIntersectionResults(results) {
+            const outputDiv = document.getElementById("competitorsRanking");
+            if (!outputDiv) {
+                console.error("Competitors output div not found!");
+                return;
+            }
+
+            let tableHTML = `
+    <table id="intersectionResultsTable">
+      <thead>
+        <tr>
+          <th onclick="sortTable('keyword')">Keyword</th>
+          <th onclick="sortTable('${document.getElementById("competitors-target1").value}')">${document.getElementById("competitors-target1").value}</th>
+          ${results.map(result => `<th onclick="sortTable('${result.domain}')">${result.domain}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+            // Collect all unique keywords from the results
+            const allKeywords = new Set();
+            results.forEach(result => {
+                if (result.data) {
+                    Object.keys(result.data).forEach(keyword => allKeywords.add(keyword));
+                }
+            });
+
+            // Iterate over each unique keyword and create a row
+            allKeywords.forEach(keyword => {
+                tableHTML += `
+      <tr>
+        <td>${keyword}</td>
+    `;
+
+                // Get target1 data
+                tableHTML += `
+      <td>${(results[0].data && results[0].data[keyword]) ? `<a href="${results[0].data[keyword][Object.keys(results[0].data[keyword])[3]][1]}">${results[0].data[keyword][Object.keys(results[0].data[keyword])[3]][0]}</a>` : '-'}</td>
+    `;
+
+                //Add rankings for the rest of the selected domains
+                results.forEach(result => {
+                    if (result.data && result.data[keyword]) {
+
+                        // Find first domain and retrieve rankings and URLs
+                        const firstDomain = Object.keys(result.data[keyword])[4]
+                        const domainData = result.data[keyword][firstDomain]
+
+                        //Set ranks and URLs into the rows
+                        tableHTML += `<td><a href="${domainData[1]}">${domainData[0]}</a></td>`;
+
+                    } else if (result.error) {
+                        tableHTML += `<td>Error</td>`;
+                    } else {
+                        tableHTML += `<td>-</td>`;
+                    }
+                });
+
+                tableHTML += `</tr>`;
+            });
+
+            tableHTML += `
+      </tbody>
+    </table>
+  `;
+
+            outputDiv.innerHTML = tableHTML;
+            document.getElementById('getIntersectionResults').innerText = 'Get Intersection Results';
+            document.getElementById('competitorsRanking').display  = 'block';
         }
 
         async function generatePersona() {
@@ -5819,7 +5945,7 @@
             }
             //ADD A PARAGRAPH TO TRACK SELECTED KEYWORDS
             container.innerHTML = `
-            <div class="table-container">
+            <div class="table-container" style="max-height:350px;overflow:auto">
               <table>
                 <thead>
                     <tr>
@@ -6043,6 +6169,45 @@
                 });
             }
         });
+
+        function sortTable(columnName) {
+            const table = document.getElementById('intersectionResultsTable');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            // Determine sort direction
+            const isAscending = table.dataset.sortColumn === columnName && table.dataset.sortDirection !== 'desc';
+            table.dataset.sortColumn = columnName;
+            table.dataset.sortDirection = isAscending ? 'asc' : 'desc';
+
+            // Sort rows
+            const sortedRows = rows.sort((rowA, rowB) => {
+                const cellA = rowA.querySelector(`td:nth-child(${getColumnIndex(table, columnName) + 1})`);
+                const cellB = rowB.querySelector(`td:nth-child(${getColumnIndex(table, columnName) + 1})`);
+
+                const valueA = cellA ? cellA.textContent.trim() : '';
+                const valueB = cellB ? cellB.textContent.trim() : '';
+
+                if (isFinite(valueA) && isFinite(valueB)) {
+                    return isAscending ? Number(valueA) - Number(valueB) : Number(valueB) - Number(valueA);
+                } else {
+                    return isAscending ? valueA.localeCompare(valueB) : valueB.localeCompare(valueA);
+                }
+            });
+
+            // Append sorted rows to the tbody
+            sortedRows.forEach(row => tbody.appendChild(row));
+        }
+
+        function getColumnIndex(table, columnName) {
+            const headers = Array.from(table.querySelectorAll('th'));
+            for (let i = 0; i < headers.length; i++) {
+                if (headers[i].textContent.trim() === columnName) {
+                    return i;
+                }
+            }
+            return -1; // Column not found
+        }
 
     </script>
 
