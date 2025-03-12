@@ -1313,8 +1313,16 @@
                             </div>
                             <div class="checkbox-column"></div><strong>Choose</strong>
                         </div>
-                        <ul id="keywordList">
-                        </ul>
+                        <ul id="keywordList"></ul>
+                        <div id="keywordSuggestionsExport" style="display:none">
+                            <button type="button"
+                                onclick="exportSelectedKeywordSuggestionsToCSV(keywordHeaderRow, keywordList)">Export
+                                selected as
+                                .csv</button>
+                            <button type="button"
+                                onclick="exportKeywordSuggestionsToCSV(keywordHeaderRow, keywordList)">Export as
+                                .csv</button>
+                        </div>
                     </div>
                 </div>
 
@@ -1340,6 +1348,15 @@
                             <div class="checkbox-column"></div><strong>Choose</strong>
                         </div>
                         <ul id="rankedKeywordList"></ul>
+                        <div id="rankingKeywordsExport" style="display:none">
+                            <button type="button"
+                                onclick="exportSelectedRankedKeywordsToCSV(rankedKeywordHeaderRow, rankedKeywordList)">Export
+                                selected as
+                                .csv</button>
+                            <button type="button"
+                                onclick="exportRankedKeywordsToCSV(rankedKeywordHeaderRow, rankedKeywordList)">Export as
+                                .csv</button>
+                        </div>
                     </div>
                 </div>
                 <button class="collapsible" id="keywords_for_site">Keywords Based on Webpage Content</button>
@@ -3218,6 +3235,7 @@
                 rankedKeywordList.appendChild(listItem);
             });
             updateRankedKeywordsCount();
+            document.getElementById('rankingKeywordsExport').style.display = 'block';
             rankedKeywordList.innerHTML += '<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Get More Keywords</button>';
         }
 
@@ -3458,6 +3476,7 @@
 
                 keywordList.appendChild(listItem);
             });
+            document.getElementById('keywordSuggestionsExport').style.display = 'block';
         }
 
         function updateRankedKeywordsCount() {
@@ -4891,6 +4910,8 @@
   `;
 
             outputDiv.innerHTML = tableHTML;
+            outputDiv.innerHTML += '<br><button type="button" onclick="copyInteractionResultsTable()"><i class="fa fa-copy"></i></button>';
+            outputDiv.innerHTML += '<button type="button" onclick="exportInteractionResultsTableToCSV()">Export as .csv</button>';
             document.getElementById('getIntersectionResults').innerText = 'Get Intersection Results';
             document.getElementById('competitorsRanking').style.display = 'block';
         }
@@ -5979,6 +6000,7 @@
                 tbody.appendChild(row);
             });
             updateKeywordCount()
+            document.getElementById('siteKeywords').innerHTML += '<br><button type="button" onclick="exportSiteKeywordsTableToCSV()">Export as .csv</i></button>';
         }
 
         function updateSiteKeywords(checkbox) {
@@ -6217,6 +6239,304 @@
                 }
             }
             return -1; // Column not found
+        }
+
+        function copyInteractionResultsTable() {
+            const table = document.getElementById('intersectionResultsTable'); // Get the table element
+            if (!table) {
+                console.error("Interaction Results Table not found");
+                return;
+            }
+
+            // Extract table data
+            const rows = Array.from(table.querySelectorAll('tr'));
+            const tableData = rows.map(row => {
+                const cells = Array.from(row.querySelectorAll('th, td'));
+                return cells.map(cell => cell.textContent.trim()).join('\t'); // Tab-separated values
+            }).join('\n'); // Newline for each row
+
+            // Copy to clipboard
+            navigator.clipboard.writeText(tableData)
+                .then(() => {
+                    alert('Interaction Results Table copied to clipboard! You can now paste it into a spreadsheet.');
+                })
+                .catch(err => {
+                    console.error('Failed to copy: ', err);
+                    alert('Failed to copy the table. Please try again.');
+                });
+        }
+
+        // Function to export the interactionResultsTable as a CSV file
+        function exportInteractionResultsTableToCSV() {
+            const table = document.getElementById('intersectionResultsTable'); // Get the table element
+            if (!table) {
+                console.error("Interaction Results Table not found");
+                return;
+            }
+
+            // Extract table data
+            const rows = Array.from(table.querySelectorAll('tr'));
+            const csvData = rows.map(row => {
+                const cells = Array.from(row.querySelectorAll('th, td'));
+                return cells.map(cell => `"${cell.textContent.trim().replace(/"/g, '""')}"`).join(','); // Comma-separated values, escape double quotes
+            }).join('\n'); // Newline for each row
+
+            // Add BOM (Byte Order Mark) for UTF-8 encoding, crucial for international characters
+            const bom = "\uFEFF";
+            const csvString = bom + csvData;
+
+            // Create a download link
+            const blob = new Blob([csvString], {
+                type: 'text/csv;charset=utf-8'
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'interaction_results.csv');
+            a.style.display = 'none';
+
+            // Programmatically trigger the download
+            document.body.appendChild(a);
+            a.click();
+
+            // Clean up
+            URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }
+
+        function exportSiteKeywordsTableToCSV() {
+            const table = document.getElementById('siteKeywords'); // Get the table element
+            if (!table) {
+                console.error("Site Keywords Table not found");
+                return;
+            }
+
+            // Extract table data
+            const rows = Array.from(table.querySelectorAll('tr'));
+            const csvData = rows.map(row => {
+                const cells = Array.from(row.querySelectorAll('th, td'));
+                return cells.map(cell => `"${cell.textContent.trim().replace(/"/g, '""')}"`).join(','); // Comma-separated values, escape double quotes
+            }).join('\n'); // Newline for each row
+
+            // Add BOM (Byte Order Mark) for UTF-8 encoding, crucial for international characters
+            const bom = "\uFEFF";
+            const csvString = bom + csvData;
+
+            // Create a download link
+            const blob = new Blob([csvString], {
+                type: 'text/csv;charset=utf-8'
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'site_keywords.csv');
+            a.style.display = 'none';
+
+            // Programmatically trigger the download
+            document.body.appendChild(a);
+            a.click();
+
+            // Clean up
+            URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }
+
+        function exportRankedKeywordsToCSV(rankedKeywordHeaderRow, rankedKeywordList) {
+            // Helper function to escape CSV values
+            function escapeCsvValue(value) {
+                if (typeof value !== 'string') {
+                    value = String(value); // Convert to string if not already
+                }
+                return `"${value.replace(/"/g, '""')}"`; // Escape double quotes
+            }
+
+            // 1. Extract header texts from the header row
+            const headers = Array.from(rankedKeywordHeaderRow.querySelectorAll('.keyword-column strong'))
+                .map(th => th.textContent.trim());  //Get header row texts
+
+            // Create header row string
+            const csvHeaderRow = headers.map(header => escapeCsvValue(header)).join(',');
+
+            // Initialize CSV content with header row
+            let csvContent = csvHeaderRow + '\n';  //BOM for UTF-8 encoding.
+
+            // 2. Loop through the list items in rankedKeywordList to extract data
+            const listItems = Array.from(rankedKeywordList.querySelectorAll('li.keyword-row'));  //Get data rows
+            listItems.forEach(item => {
+                const columns = Array.from(item.querySelectorAll('.keyword-column'));  //Get data cells
+                const rowValues = columns.map(column => column.textContent.trim());  //Trim spaces in between
+                csvContent += rowValues.map(value => escapeCsvValue(value)).join(',') + '\n';  //Escape cell values then combine with a comma.
+            });
+
+            // Add BOM (Byte Order Mark) for UTF-8 encoding, crucial for special characters
+            const bom = "\uFEFF";
+            csvContent = bom + csvContent;
+
+            // Create a download link element
+            const link = document.createElement('a');
+            link.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent));  //Set download properties
+            link.setAttribute('download', 'ranked_keywords.csv');
+            link.style.display = 'none';
+
+            // Append the link to the document
+            document.body.appendChild(link);
+
+            // Trigger the download
+            link.click();
+
+            // Remove the link from the document
+            document.body.removeChild(link);
+        }
+
+        function exportSelectedRankedKeywordsToCSV(rankedKeywordHeaderRow, rankedKeywordList) {
+            // Helper function to escape CSV values
+            function escapeCsvValue(value) {
+                if (typeof value !== 'string') {
+                    value = String(value); // Convert to string if not already
+                }
+                return `"${value.replace(/"/g, '""')}"`; // Escape double quotes
+            }
+
+            // 1. Extract header texts from the header row
+            const headers = Array.from(rankedKeywordHeaderRow.querySelectorAll('.keyword-column strong'))
+                .map(th => th.textContent.trim());
+
+            // Create header row string
+            const csvHeaderRow = headers.map(header => escapeCsvValue(header)).join(',');
+
+            // Initialize CSV content with header row
+            let csvContent = csvHeaderRow + '\n';
+
+            // 2. Loop through the list items in rankedKeywordList and only export checked rows
+            const listItems = Array.from(rankedKeywordList.querySelectorAll('li.keyword-row'));
+
+            listItems.forEach(item => {
+                // Check if the checkbox in the row is checked
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                if (checkbox && checkbox.checked) {
+                    const columns = Array.from(item.querySelectorAll('.keyword-column'));
+                    const rowValues = columns.map(column => column.textContent.trim());
+                    csvContent += rowValues.map(value => escapeCsvValue(value)).join(',') + '\n';
+                }
+            });
+
+            // Add BOM (Byte Order Mark) for UTF-8 encoding
+            const bom = "\uFEFF";
+            csvContent = bom + csvContent;
+
+            // Create a download link element
+            const link = document.createElement('a');
+            link.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent));
+            link.setAttribute('download', 'ranked_keywords.csv');
+            link.style.display = 'none';
+
+            // Append the link to the document
+            document.body.appendChild(link);
+
+            // Trigger the download
+            link.click();
+
+            // Remove the link from the document
+            document.body.removeChild(link);
+        }
+
+        function exportSelectedKeywordSuggestionsToCSV(keywordHeaderRow, keywordList) {
+            // Helper function to escape CSV values
+            function escapeCsvValue(value) {
+                if (typeof value !== 'string') {
+                    value = String(value); // Convert to string if not already
+                }
+                return `"${value.replace(/"/g, '""')}"`; // Escape double quotes
+            }
+
+            // 1. Extract header texts from the header row
+            const headers = Array.from(keywordHeaderRow.querySelectorAll('.keyword-column strong'))
+                .map(th => th.textContent.trim());
+
+            // Create header row string
+            const csvHeaderRow = headers.map(header => escapeCsvValue(header)).join(',');
+
+            // Initialize CSV content with header row
+            let csvContent = csvHeaderRow + '\n';
+
+            // 2. Loop through the list items in rankedKeywordList and only export checked rows
+            const listItems = Array.from(keywordList.querySelectorAll('li.keyword-row'));
+
+            listItems.forEach(item => {
+                // Check if the checkbox in the row is checked
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                if (checkbox && checkbox.checked) {
+                    const columns = Array.from(item.querySelectorAll('.keyword-column'));
+                    const rowValues = columns.map(column => column.textContent.trim());
+                    csvContent += rowValues.map(value => escapeCsvValue(value)).join(',') + '\n';
+                }
+            });
+
+            // Add BOM (Byte Order Mark) for UTF-8 encoding
+            const bom = "\uFEFF";
+            csvContent = bom + csvContent;
+
+            // Create a download link element
+            const link = document.createElement('a');
+            link.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent));
+            link.setAttribute('download', 'keyword_ideas.csv');
+            link.style.display = 'none';
+
+            // Append the link to the document
+            document.body.appendChild(link);
+
+            // Trigger the download
+            link.click();
+
+            // Remove the link from the document
+            document.body.removeChild(link);
+        }
+
+        function exportKeywordSuggestionsToCSV(keywordHeaderRow, keywordList) {
+            // Helper function to escape CSV values
+            function escapeCsvValue(value) {
+                if (typeof value !== 'string') {
+                    value = String(value); // Convert to string if not already
+                }
+                return `"${value.replace(/"/g, '""')}"`; // Escape double quotes
+            }
+
+            // 1. Extract header texts from the header row
+            const headers = Array.from(keywordHeaderRow.querySelectorAll('.keyword-column strong'))
+                .map(th => th.textContent.trim());  //Get header row texts
+
+            // Create header row string
+            const csvHeaderRow = headers.map(header => escapeCsvValue(header)).join(',');
+
+            // Initialize CSV content with header row
+            let csvContent = csvHeaderRow + '\n';  //BOM for UTF-8 encoding.
+
+            // 2. Loop through the list items in rankedKeywordList to extract data
+            const listItems = Array.from(keywordList.querySelectorAll('li.keyword-row'));  //Get data rows
+            listItems.forEach(item => {
+                const columns = Array.from(item.querySelectorAll('.keyword-column'));  //Get data cells
+                const rowValues = columns.map(column => column.textContent.trim());  //Trim spaces in between
+                csvContent += rowValues.map(value => escapeCsvValue(value)).join(',') + '\n';  //Escape cell values then combine with a comma.
+            });
+
+            // Add BOM (Byte Order Mark) for UTF-8 encoding, crucial for special characters
+            const bom = "\uFEFF";
+            csvContent = bom + csvContent;
+
+            // Create a download link element
+            const link = document.createElement('a');
+            link.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent));  //Set download properties
+            link.setAttribute('download', 'keyword_ideas.csv');
+            link.style.display = 'none';
+
+            // Append the link to the document
+            document.body.appendChild(link);
+
+            // Trigger the download
+            link.click();
+
+            // Remove the link from the document
+            document.body.removeChild(link);
         }
 
     </script>
