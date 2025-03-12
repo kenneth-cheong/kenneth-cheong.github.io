@@ -4777,7 +4777,8 @@
         }
 
         async function getIntersectionResults() {
-            document.getElementById('getIntersectionResults').innerText = 'Getting Results..';
+            document.getElementById('competitorsRanking').style.display = 'none';
+            document.getElementById('getIntersectionResults').innerText = 'Getting Results...';
             const checkedDomains = Array.from(document.querySelectorAll('.domain-checkbox:checked'))
                 .map(checkbox => checkbox.value);
 
@@ -4835,9 +4836,9 @@
     <table id="intersectionResultsTable">
       <thead>
         <tr>
-          <th onclick="sortTable('keyword')">Keyword</th>
-          <th onclick="sortTable('${document.getElementById("competitors-target1").value}')">${document.getElementById("competitors-target1").value}</th>
-          ${results.map(result => `<th onclick="sortTable('${result.domain}')">${result.domain}</th>`).join('')}
+          <th onclick="sortIntersectionTable('keyword')">Keyword</th>
+          <th onclick="sortIntersectionTable('${document.getElementById("competitors-target1").value}')">${document.getElementById("competitors-target1").value}</th>
+          ${results.map(result => `<th onclick="sortIntersectionTable('${result.domain}')">${result.domain}</th>`).join('')}
         </tr>
       </thead>
       <tbody>
@@ -4860,7 +4861,7 @@
 
                 // Get target1 data
                 tableHTML += `
-      <td>${(results[0].data && results[0].data[keyword]) ? `<a href="${results[0].data[keyword][Object.keys(results[0].data[keyword])[3]][1]}">${results[0].data[keyword][Object.keys(results[0].data[keyword])[3]][0]}</a>` : '-'}</td>
+      <td>${(results[0].data && results[0].data[keyword]) ? `<a href="${results[0].data[keyword][Object.keys(results[0].data[keyword])[3]][1]}">${results[0].data[keyword][Object.keys(results[0].data[keyword])[3]][0]}</a>` : '999'}</td>
     `;
 
                 //Add rankings for the rest of the selected domains
@@ -4877,7 +4878,7 @@
                     } else if (result.error) {
                         tableHTML += `<td>Error</td>`;
                     } else {
-                        tableHTML += `<td>-</td>`;
+                        tableHTML += `<td>999</td>`;
                     }
                 });
 
@@ -4891,7 +4892,7 @@
 
             outputDiv.innerHTML = tableHTML;
             document.getElementById('getIntersectionResults').innerText = 'Get Intersection Results';
-            document.getElementById('competitorsRanking').display  = 'block';
+            document.getElementById('competitorsRanking').style.display = 'block';
         }
 
         async function generatePersona() {
@@ -6170,15 +6171,21 @@
             }
         });
 
-        function sortTable(columnName) {
+        function sortIntersectionTable(columnName) {
             const table = document.getElementById('intersectionResultsTable');
             const tbody = table.querySelector('tbody');
             const rows = Array.from(tbody.querySelectorAll('tr'));
 
             // Determine sort direction
-            const isAscending = table.dataset.sortColumn === columnName && table.dataset.sortDirection !== 'desc';
+            let isAscending = true; // Default to ascending
+
+            if (table.dataset.sortColumn === columnName) {
+                // Same column clicked again, toggle sort direction
+                isAscending = table.dataset.sortDirection === 'desc'; // Reverse
+            }
+
             table.dataset.sortColumn = columnName;
-            table.dataset.sortDirection = isAscending ? 'asc' : 'desc';
+            table.dataset.sortDirection = isAscending ? 'asc' : 'desc'; //Update direction
 
             // Sort rows
             const sortedRows = rows.sort((rowA, rowB) => {
@@ -6188,11 +6195,14 @@
                 const valueA = cellA ? cellA.textContent.trim() : '';
                 const valueB = cellB ? cellB.textContent.trim() : '';
 
+                let comparison;
                 if (isFinite(valueA) && isFinite(valueB)) {
-                    return isAscending ? Number(valueA) - Number(valueB) : Number(valueB) - Number(valueA);
+                    comparison = Number(valueA) - Number(valueB); // Numeric comparison
                 } else {
-                    return isAscending ? valueA.localeCompare(valueB) : valueB.localeCompare(valueA);
+                    comparison = valueA.localeCompare(valueB);  // Text comparison
                 }
+
+                return isAscending ? comparison : -comparison; // Apply sort direction
             });
 
             // Append sorted rows to the tbody
