@@ -945,7 +945,7 @@
         }
 
         .funnel-container {
-            width: 60%;
+            width: 90%;
             margin: 20px auto;
             font-family: sans-serif;
             display: flex;
@@ -1091,7 +1091,7 @@
         }
 
         .mediaPlanPersonaResults {
-            min-height: 500px;
+            max-height: 500px;
             overflow: auto;
             display: none;
         }
@@ -1963,9 +1963,10 @@
             </div>
 
             <button id="generateMediaPlanBtn" onclick="generateMediaPlan()">Generate Media Plan</button>
-            <div id="mediaPlanPersonaResults" class="mediaPlanPersonaResults"></div>
+            <div id="mediaPlanPersonaResults" class="mediaPlanPersonaResults"><hr></div>
             <div id="mediaPlanResults"></div>
-            <div class="funnel-container" style="display:none;">
+
+            <div class="funnel-container" id="funnel-container" style="display:none;">
                 <button class="funnel-collapsible-before" style="background-color: #7554ae; width:100%;"><b>AWARENESS
                         (TOFU)</b>
                     <p id="awareness-summary">Expand your reach! Focus on strategies to attract potential customers to
@@ -5156,12 +5157,56 @@
                 const mediaPlanData = await mediaPlanResponse.json();
                 mediaplanContentDiv.innerHTML += "<br>" + mediaPlanData.body;
 
+                // Funnel
+                funnelResponse = await fetch("https://dpjtg2sr30.execute-api.ap-southeast-1.amazonaws.com/generateFunnel", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(Object.assign({}, personaData, mediaPlanData)) // Send all the data gathered from the form
+                });
+
+                if (!funnelResponse.ok) {
+                    throw new Error(`HTTP error! status: ${funnelResponse.status} for media plan API`);
+                }
+                funnelData = await funnelResponse.json();
+
+                funnelData = JSON.parse(funnelData.body);
+
+                try{
+                    document.getElementById("awareness-details").innerHTML = funnelData.Awareness.join('\n');
+                } catch(error){
+                    document.getElementById("awareness-details").innerHTML = "N.A.";
+                }
+                try{
+                    document.getElementById("discovery-details").innerHTML = funnelData.Discovery.join('\n');
+                } catch(error){
+                    document.getElementById("discovery-details").innerHTML = "N.A.";
+                }
+                try{
+                    document.getElementById("consideration-details").innerHTML = funnelData.Consideration.join('\n');
+                } catch(error){
+                    document.getElementById("consideration-details").innerHTML = "N.A.";
+                }
+                try{
+                    document.getElementById("conversion-details").innerHTML = funnelData.Conversion.join('\n');
+                } catch(error){
+                    document.getElementById("conversion-details").innerHTML = "N.A.";
+                }
+                try{
+                    document.getElementById("retention-details").innerHTML = funnelData.Retention.join('\n');
+                } catch(error){
+                    document.getElementById("retention-details").innerHTML = "N.A.";
+                }
+
+                document.getElementById("funnel-container").style.display = "flex";
+                document.getElementById("mediaPlanBtn").style.backgroundColor = "green";
+
             } catch (error) {
                 mediaplanContentDiv.innerHTML = `<p style="color: red;">Error sending data to media plan API: ${error.message}</p>`;
                 console.error("Error sending data to media plan API:", error);
             } finally {
                 document.getElementById("generateMediaPlanBtn").innerText = "Generate Media Plan";
-                document.getElementById("mediaPlanBtn").style.backgroundColor = "green";
             }
         }
 
