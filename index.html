@@ -1823,6 +1823,10 @@
             <label for="persona_manual">Any other information (optional):</label><br>
             <textarea id="persona_manual" placeholder="Focus on this product."></textarea>
             <button id="generatePersonaBtn" onclick="generatePersona()">Generate Personas</button>
+            <div id="persona-results"></div>
+            <button type="button" id="copy-persona-results-button" class="tooltip" style="display:none"
+                onclick="copyPersonaResults(event)">Copy to clipboard<span>Click to copy the persona results to your clipboard.</span>
+            </button>
         </div>
         <hr>
         <button class="collapsible" id="mediaPlanBtn"><i class="fas fa-bullseye"></i>Media Plan</button>
@@ -1833,6 +1837,24 @@
                 placeholder="e.g., https://example.com, https://another-example.com"></textarea><br>
             <label for="MediaPlanBudget">Monthly Budget:</label><br>
             <input type="text" id="MediaPlanBudget" name="budget"><br>
+            <label for="MediaPlanAdFormats">Preferred Ad Formats:</label><br>
+
+                <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsGoogleDisplay"
+                    name="MediaPlanAdFormatsGoogleDisplay" value="MediaPlanAdFormatsGoogleDisplay">
+                <label for="MediaPlanAdFormatsGoogleDisplay">Google Display</label><br>
+                <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsGoogleSearch"
+                    name="MediaPlanAdFormatsGoogleSearch" value="MediaPlanAdFormatsGoogleSearch">
+                <label for="MediaPlanAdFormatsGoogleSearch">Google Search</label><br>
+                <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsFBIG"
+                    name="MediaPlanAdFormatsFBIG" value="MediaPlanAdFormatsFBIG">
+                <label for="MediaPlanAdFormatsFBIG">Facebook / Instagram</label><br>
+                <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsLinkedIn"
+                    name="MediaPlanAdFormatsLinkedIn" value="MediaPlanAdFormatsLinkedIn">
+                <label for="MediaPlanAdFormatsLinkedIn">LinkedIn</label><br>
+                <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsTikTok"
+                    name="MediaPlanAdFormatsTikTok" value="MediaPlanAdFormatsTikTok">
+                <label for="MediaPlanAdFormatsTikTok">TikTok</label><br><br>
+
             <label for="MediaPlanManual">Any other information (optional):</label><br>
             <textarea id="MediaPlanManual" placeholder="Focus on this product."></textarea><br>
 
@@ -1861,24 +1883,6 @@
                 <label for="MediaPlanContentStrategy">Content Strategy:</label><br>
                 <textarea id="MediaPlanContentStrategy"
                     placeholder="e.g., Blog posts, videos, infographics"></textarea><br>
-
-                <label for="MediaPlanAdFormats">Preferred Ad Formats:</label><br>
-
-                <input type="checkbox" class="media-plan-checkbox" id="MediaPlanAdFormatsGoogleDisplay"
-                    name="MediaPlanAdFormatsGoogleDisplay" value="MediaPlanAdFormatsGoogleDisplay">
-                <label for="MediaPlanAdFormatsGoogleDisplay">Google Display</label><br>
-                <input type="checkbox" class="media-plan-checkbox" id="MediaPlanAdFormatsGoogleSearch"
-                    name="MediaPlanAdFormatsGoogleSearch" value="MediaPlanAdFormatsGoogleSearch">
-                <label for="MediaPlanAdFormatsGoogleSearch">Google Search</label><br>
-                <input type="checkbox" class="media-plan-checkbox" id="MediaPlanAdFormatsFBIG"
-                    name="MediaPlanAdFormatsFBIG" value="MediaPlanAdFormatsFBIG">
-                <label for="vehicle3">Facebook / Instagram</label><br>
-                <input type="checkbox" class="media-plan-checkbox" id="MediaPlanAdFormatsLinkedIn"
-                    name="MediaPlanAdFormatsLinkedIn" value="MediaPlanAdFormatsLinkedIn">
-                <label for="vehicle3">LinkedIn</label><br>
-                <input type="checkbox" class="media-plan-checkbox" id="MediaPlanAdFormatsTikTok"
-                    name="MediaPlanAdFormatsTikTok" value="MediaPlanAdFormatsTikTok">
-                <label for="vehicle3">TikTok</label><br><br>
 
                 <label for="MediaPlanLandingPages">Landing Pages:</label><br>
                 <textarea id="MediaPlanLandingPages" placeholder="URLs of relevant landing pages."></textarea><br>
@@ -2035,7 +2039,8 @@
             </div>
         </div>
         <hr>
-        <button class="collapsible" id="landingPageAuditBtn"><i class="fas fa-clipboard-check"></i>Landing Page Audit</button>
+        <button class="collapsible" id="landingPageAuditBtn"><i class="fas fa-clipboard-check"></i>Landing Page
+            Audit</button>
         <div class="content" id="landingPageAudit">
             <label for="landingPageUrl">Landing Page URL:</label><br>
             <input type="url" id="landingPageUrl" placeholder="e.g., https://example.com"><br>
@@ -4715,6 +4720,7 @@
             document.getElementById("getCompetitorsBtn").innerText = "Getting Competitors...";
             document.getElementById("competitionBtn").style.backgroundColor = "#004c9d";
             const keywords = document.getElementById('competitor_keywords').value.split(/[\n,]+/).map(k => k.trim());
+            console.log(keywords);
             const competitorsLanguage = document.getElementById("competitors-language").value;
             const competitorsLocation = document.getElementById("competitors-location").value;
 
@@ -4752,7 +4758,7 @@
 
         function displayCompetitorResults(results) {
             const outputDiv = document.getElementById("competitorsOutput");
-            if (results === undefined){
+            if (results === undefined) {
                 alert("There are no results found for the keyword(s). Please try other keyword(s).")
             }
             if (!outputDiv) {
@@ -4932,7 +4938,7 @@
             const webpagesInput = document.getElementById("persona_webpages").value;
             const manualInput = document.getElementById("persona_manual").value;
             const webpages = webpagesInput.split(/[\s,]+/).filter(url => url.trim() !== "");
-            const personaContentDiv = document.getElementById("persona_content");
+            const personaContentDiv = document.getElementById("persona-results");
             let combinedResponses = "";
 
             try {
@@ -4993,6 +4999,7 @@
             } finally {
                 document.getElementById("generatePersonaBtn").innerText = "Generate Personas";
                 document.getElementById("persona").style.backgroundColor = "green";
+                document.getElementById("copy-persona-results-button").style.display = "block";
             }
         }
 
@@ -6104,6 +6111,49 @@
                 selection.removeAllRanges(); // Deselect everything
             }
         }
+
+        function copyPersonaResults() {
+            const resultsDiv = document.getElementById("persona-results");
+
+            if (!resultsDiv) {
+                console.warn("No element with id 'persona-results' found.");
+                alert("Perosna results not found.");
+                return;
+            }
+
+            // Create a temporary element for copying.  This ensures we get ALL the content, including hidden parts.
+            const tempElement = document.createElement("div");
+            tempElement.innerHTML = resultsDiv.innerHTML; //copy innerHTML (preserves formatting)
+            tempElement.style.whiteSpace = "pre-wrap";  // Preserve line breaks and spaces.  Crucial!
+            tempElement.style.userSelect = "auto"; // Allow text selection
+
+            document.body.appendChild(tempElement); // Add to the DOM
+
+            // Select the text in the temporary element
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            const range = document.createRange();
+            range.selectNodeContents(tempElement);
+            selection.addRange(range);
+
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    alert("Personas copied to clipboard!.");
+                } else {
+                    console.error("Failed to copy text.");
+                    alert("Failed to copy.  Please try again or manually select and copy the text.");
+                }
+            } catch (err) {
+                console.error('Unable to copy: ' + err);
+                alert("An error occurred while copying.  Please try again or manually select and copy the text.");
+            } finally {
+                document.body.removeChild(tempElement);  // Remove the temporary element
+                selection.removeAllRanges(); // Deselect everything
+            }
+        }
+
 
         // Get the modal
         var modal = document.getElementById("feedbackModal");
