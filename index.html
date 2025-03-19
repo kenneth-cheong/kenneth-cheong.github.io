@@ -1107,7 +1107,7 @@
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
             z-index: 1001;
-            width: 400px;
+            width: 60%;
             border: 5px solid #bababa;
         }
 
@@ -1121,19 +1121,26 @@
             padding: 8px 12px;
             border-radius: 20px;
             margin-bottom: 8px;
-            clear: both; /* Prevents floating issues */
-            max-width: 70%; /* Limits bubble width */
-            word-wrap: break-word; /* Long words don't break the layout */
+            clear: both;
+            /* Prevents floating issues */
+            max-width: 70%;
+            /* Limits bubble width */
+            word-wrap: break-word;
+            /* Long words don't break the layout */
         }
 
         .user {
-            background-color: #DCF8C6; /* Light green for user */
-            float: right; /* Align user messages to the right */
+            background-color: #DCF8C6;
+            /* Light green for user */
+            float: right;
+            /* Align user messages to the right */
         }
 
         .chatbot {
-            background-color: #ECE5DD; /* Light gray for chatbot */
-            float: left; /* Align chatbot messages to the left */
+            background-color: #ECE5DD;
+            /* Light gray for chatbot */
+            float: left;
+            /* Align chatbot messages to the left */
         }
 
         #question-input {
@@ -2164,7 +2171,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h2>Chat with Digimetrics AI</h2>
             <button id="close-chatbot"
-                style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
+                style="background: none; border: none; font-size: 25px; cursor: pointer;">×</button>
         </div>
         <div id="chat-messages"></div>
         <div style="display: flex;">
@@ -6923,12 +6930,16 @@
             const questionInput = document.getElementById('question-input');
             const sendButton = document.getElementById('send-button');
 
+            let isChatbotOpen = false; // Track chatbot state
+
             chatbotButton.addEventListener('click', () => {
-                chatbotModal.style.display = 'block';
+                isChatbotOpen = !isChatbotOpen;
+                chatbotModal.style.display = isChatbotOpen ? 'block' : 'none';
             });
 
             closeChatbotButton.addEventListener('click', () => {
                 chatbotModal.style.display = 'none';
+                isChatbotOpen = false;
             });
 
             sendButton.addEventListener('click', async () => {
@@ -6966,6 +6977,14 @@
                 chatMessages.appendChild(messageDiv);
                 chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
             }
+
+            // Close chatbot on Esc key press
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && isChatbotOpen) {
+                    chatbotModal.style.display = 'none';
+                    isChatbotOpen = false;
+                }
+            });
         });
 
     </script>
