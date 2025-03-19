@@ -1109,6 +1109,7 @@
             z-index: 1001;
             width: 60%;
             border: 5px solid #bababa;
+            height: 80%;
         }
 
         #chat-messages {
@@ -2163,7 +2164,7 @@
     </div>
 
     <button id="chatbot-button"
-        style="position: fixed; bottom: 10px; right: 10px; background-color: hsl(118, 40%, 43%); color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; z-index: 1000; font-size:1.5em">
+        style="position: fixed; bottom: 10px; right: 10px; background-color: hsl(118, 40%, 43%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.5em">
         <i class="fas fa-comment-dots"></i>
     </button>
 
@@ -6922,42 +6923,44 @@
         }
 
         //chatbot
-        document.addEventListener('DOMContentLoaded', () => {
-            const chatbotButton = document.getElementById('chatbot-button');
-            const chatbotModal = document.getElementById('chatbot-modal');
-            const closeChatbotButton = document.getElementById('close-chatbot');
-            const chatMessages = document.getElementById('chat-messages');
-            const questionInput = document.getElementById('question-input');
-            const sendButton = document.getElementById('send-button');
+         document.addEventListener('DOMContentLoaded', () => {
+             const chatbotButton = document.getElementById('chatbot-button');
+             const chatbotModal = document.getElementById('chatbot-modal');
+             const closeChatbotButton = document.getElementById('close-chatbot');
+             const chatMessages = document.getElementById('chat-messages');
+             const questionInput = document.getElementById('question-input');
+             const sendButton = document.getElementById('send-button');
 
-            let isChatbotOpen = false; // Track chatbot state
+             let isChatbotOpen = false; // Track chatbot state
 
-            chatbotButton.addEventListener('click', () => {
-                isChatbotOpen = !isChatbotOpen;
-                chatbotModal.style.display = isChatbotOpen ? 'block' : 'none';
-            });
+             chatbotButton.addEventListener('click', () => {
+                 isChatbotOpen = !isChatbotOpen;
+                 chatbotModal.style.display = isChatbotOpen ? 'block' : 'none';
+             });
 
-            closeChatbotButton.addEventListener('click', () => {
-                chatbotModal.style.display = 'none';
-                isChatbotOpen = false;
-            });
+             closeChatbotButton.addEventListener('click', () => {
+                 chatbotModal.style.display = 'none';
+                 isChatbotOpen = false;
+             });
 
-            sendButton.addEventListener('click', async () => {
-                const question = questionInput.value.trim();
-                if (question !== '') {
-                    addMessage('user', question);
-                    questionInput.value = '';
-                    try {
-                        const response = await fetch('https://6h5u6z2bgk.execute-api.ap-southeast-1.amazonaws.com/digimetricsAiChat', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ 'question': question })
-                        });
-                        const data = await response.json();
-                        addMessage('chatbot', data);
-                    } catch (error) {
+             sendButton.addEventListener('click', async () => {
+                 const question = questionInput.value.trim();
+                 if (question !== '') {
+                     addMessage('user', question);
++                    addMessage('chatbot', 'getting an answer...'); // Display "getting an answer..."
+                     questionInput.value = '';
+                     try {
+                         const response = await fetch('https://6h5u6z2bgk.execute-api.ap-southeast-1.amazonaws.com/digimetricsAiChat', {
+                             method: 'POST',
+                             headers: {
+                                 'Content-Type': 'application/json'
+                             },
+                             body: JSON.stringify({ 'question': question })
+                         });
++                        chatMessages.lastChild.remove(); // Remove "getting an answer..."
+                         const data = await response.json();
+                         addMessage('chatbot', data);
+                     } catch (error) {
                         console.error('Error:', error);
                         addMessage('chatbot', 'Sorry, I could not process your request.');
                     }
