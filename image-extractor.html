@@ -142,6 +142,20 @@
             border-top: 1px solid #dee2e6;
             width: 100%;
         }
+
+        .copy-button {
+            background-color: #28a745; /* Green */
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-left: 5px;
+        }
     </style>
 </head>
 
@@ -204,9 +218,9 @@
       <thead>
         <tr>
           <th>No.</th>
-          <th>Image URL</th>
+          <th>Image URL <button class="copy-button" onclick="copyColumn(1)">Copy</button></th>
           <th>Image Preview</th>
-          <th>Alt Text</th>
+          <th>Alt Text <button class="copy-button" onclick="copyColumn(3)">Copy</button></th>
         </tr>
       </thead>
       <tbody>
@@ -234,8 +248,43 @@
 
             document.getElementById('results').innerHTML = tableHTML;
         }
+
+        function copyColumn(columnIndex) {
+            const table = document.querySelector('table');
+            const rows = table.querySelectorAll('tr');
+            let columnText = '';
+
+            for (let i = 1; i < rows.length; i++) { // Skip the header row
+                const cells = rows[i].querySelectorAll('td');
+                if (cells.length > columnIndex) {
+                    columnText += cells[columnIndex].textContent.trim() + '\n';
+                }
+            }
+
+            // Create a temporary textarea element to hold the text
+            const textarea = document.createElement('textarea');
+            textarea.value = columnText;
+            document.body.appendChild(textarea);
+
+            // Select the text in the textarea
+            textarea.select();
+
+            try {
+                // Execute the copy command
+                const successful = document.execCommand('copy');
+                const msg = successful ? 'successful' : 'unsuccessful';
+                console.log('Copying text command was ' + msg);
+                alert('Column copied to clipboard!');
+            } catch (err) {
+                console.error('Oops, unable to copy', err);
+                alert('Failed to copy column to clipboard.');
+            }
+
+            // Remove the temporary textarea
+            document.body.removeChild(textarea);
+        }
     </script>
 
 </body>
 
-</html>
+</html> 
