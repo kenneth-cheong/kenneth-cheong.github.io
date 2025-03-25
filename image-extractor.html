@@ -1,131 +1,245 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Extractor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        /* General Styles */
         body {
-            font-family: sans-serif;
+            font-family: 'Roboto', sans-serif;
+            background-color: #f8f9fa;
+            color: #343a40;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
         }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
+
+        h1 {
+            color: #007bff;
+            text-align: center;
+            margin-top: 2rem;
+            margin-bottom: 2rem;
         }
-        #input-section {
+
+        /* Input and Button Styles */
+        .input-group {
+            display: flex;
             margin-bottom: 20px;
+            width: 80%;
+            max-width: 600px;
         }
+
+        label {
+            margin-right: 10px;
+            font-weight: 500;
+            color: #495057;
+            display: flex;
+            align-items: center;
+        }
+
+        input[type="url"] {
+            padding: 10px 15px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            flex-grow: 1;
+            font-size: 16px;
+        }
+
+        input[type="url"]:focus {
+            border-color: #80bdff;
+            outline: 0;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s ease;
+            margin-left: 10px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button:focus {
+            outline: none;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.5);
+        }
+
+        /* Table Styles */
         table {
-            width: 100%;
             border-collapse: collapse;
+            width: 80%;
+            max-width: 1000px;
+            margin-top: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+            overflow: hidden;
+            /* Ensure rounded corners are visible */
         }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
+
+        th,
+        td {
+            border: 1px solid #dee2e6;
+            padding: 12px 15px;
             text-align: left;
         }
+
         th {
-            background-color: #f2f2f2;
+            background-color: #e9ecef;
+            font-weight: 500;
+            color: #495057;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
+
+        tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
         img {
-            max-width: 100px;
-            max-height: 100px;
+            max-width: 80px;
+            max-height: 80px;
+            border-radius: 4px;
+            display: block;
+            margin: 0 auto;
+            /* Center the images */
+        }
+
+        /* Error Message */
+        #results {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 18px;
+            color: #dc3545;
+            /* Bootstrap's danger color */
+        }
+
+        #results p {
+            margin-bottom: 0;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+            width: 100%;
         }
     </style>
 </head>
+
 <body>
-    <div class="container">
-        <h1>Image Extractor</h1>
 
-        <div id="input-section">
-            <label for="url-input">Enter URL:</label>
-            <input type="url" id="url-input" size="60">
-            <button id="extract-button">Extract Images</button>
-        </div>
+    <h1>Image Extractor</h1>
 
-        <div id="results-section">
-            <table id="image-table">
-                <thead>
-                    <tr>
-                        <th>No.</th>
-                        <th>Image URL</th>
-                        <th>Image Preview</th>
-                        <th>Image Alt Text</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Image data will be added here by JavaScript -->
-                </tbody>
-            </table>
-        </div>
+    <div class="input-group">
+        <label for="url">Enter URL:</label>
+        <input type="url" id="url" name="url" placeholder="https://example.com" required>
+        <button onclick="getImages()" id="getImagesBtn">Extract Images</button>
     </div>
 
+    <div id="results"></div>
+
     <script>
-        document.getElementById('extract-button').addEventListener('click', function() {
-            const url = document.getElementById('url-input').value;
-            if (url) {
-                extractImages(url);
-            } else {
-                alert('Please enter a URL.');
+        async function getImages() {
+            document.getElementById('results').innerHTML = ""; // Clear previous results
+            const url = document.getElementById('url').value;
+            document.getElementById("getImagesBtn").innerText = "Extracting images..."; // Change button text
+
+            if (!url) {
+                alert("Please enter a URL.");
+                document.getElementById("getImagesBtn").innerText = "Extract Images"; //Revert button text
+                return;
             }
-        });
 
-        async function extractImages(url) {
+            const endpoint = 'https://udjdc333m9.execute-api.ap-southeast-1.amazonaws.com/getImages';
+
             try {
-                const response = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url)); //Use allorigins to bypass CORS if needed.  Consider using a server-side proxy for production.
-                const data = await response.json();
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: url
+                    })
+                });
 
-                console.log(data);
-
-                if (data.contents) {
-                    const html = data.contents;
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(html, 'text/html');
-                    const images = doc.querySelectorAll('img');
-
-                    const imageTableBody = document.querySelector('#image-table tbody');
-                    imageTableBody.innerHTML = ''; // Clear previous results
-
-                    if (images.length > 0) {
-                        images.forEach((img, index) => {
-                            const imageUrl = img.src;
-                            const altText = img.alt;
-
-                            const row = document.createElement('tr');
-
-                            const noCell = document.createElement('td');
-                            noCell.textContent = index + 1;
-                            row.appendChild(noCell);
-
-                            const urlCell = document.createElement('td');
-                            urlCell.textContent = imageUrl;
-                            row.appendChild(urlCell);
-
-                            const previewCell = document.createElement('td');
-                            const previewImage = document.createElement('img');
-                            previewImage.src = imageUrl;
-                            previewImage.alt = altText; // Use alt text in preview too
-                            previewCell.appendChild(previewImage);
-                            row.appendChild(previewCell);
-
-                            const altTextCell = document.createElement('td');
-                            altTextCell.textContent = altText;
-                            row.appendChild(altTextCell);
-
-                            imageTableBody.appendChild(row);
-                        });
-                    } else {
-                        imageTableBody.innerHTML = '<tr><td colspan="4">No images found on this page.</td></tr>';
-                    }
-                } else {
-                    alert('Failed to fetch content from the URL.  Check the URL and CORS settings.');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
+
+                const data = await response.json();
+                displayImages(data);
+                document.getElementById("getImagesBtn").innerText = "Extract Images"; // Revert button text
+
+
             } catch (error) {
-                console.error('Error:', error);
-                alert('An error occurred while extracting images. See console for details.');
+                document.getElementById('results').innerHTML = `<p>Error: ${error}</p>`;
+                document.getElementById("getImagesBtn").innerText = "Extract Images"; //Revert button text
             }
         }
+
+
+        function displayImages(imageData) {
+            let tableHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>No.</th>
+          <th>Image URL</th>
+          <th>Image Preview</th>
+          <th>Alt Text</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+            for (let i = 0; i < imageData.length; i++) {
+                const item = imageData[i];
+                const imageUrl = Object.keys(item)[0];
+                const altText = item[imageUrl] || ''; // Handle cases where alt text is empty
+
+                tableHTML += `
+      <tr>
+        <td>${i + 1}</td>
+        <td><a href="${imageUrl}" target="_blank">${imageUrl}</a></td>
+        <td><img src="${imageUrl}" alt="${altText}"></td>
+        <td>${altText}</td>
+      </tr>
+    `;
+            }
+
+            tableHTML += `
+      </tbody>
+    </table>
+  `;
+
+            document.getElementById('results').innerHTML = tableHTML;
+        }
     </script>
+
+    <footer>
+        <p>© 2024 Image Extractor. All rights reserved.</p>
+    </footer>
+
 </body>
+
 </html>
