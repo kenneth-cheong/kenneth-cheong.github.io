@@ -29,6 +29,10 @@
             margin-bottom: 2rem;
         }
 
+        input {
+            width: 90%;
+        }
+
         /* Input and Button Styles */
         .input-group {
             display: flex;
@@ -50,7 +54,7 @@
             border: 1px solid #ced4da;
             border-radius: 4px;
             flex-grow: 1;
-            font-size: 16px;
+            font-size: 14px;
         }
 
         input[type="url"]:focus {
@@ -66,7 +70,7 @@
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 14px;
             transition: background-color 0.2s ease;
             margin-left: 10px;
         }
@@ -84,8 +88,9 @@
         table {
             border-collapse: collapse;
             width: 80%;
-            max-width: 1000px;
             margin-top: 20px;
+            margin-left: auto;  /* Add this */
+            margin-right: auto; /* And this */
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
             border-radius: 8px;
             overflow: hidden;
@@ -97,6 +102,31 @@
             border: 1px solid #dee2e6;
             padding: 12px 15px;
             text-align: left;
+        }
+
+        #metaTable td:nth-child(1) {
+            width: 15%; /* Adjust this value as needed */
+            word-break: break-word; /* Prevent overflow by breaking long words */
+        }
+
+        #metaTable td:nth-child(2) {
+            width: 40%; /* Adjust this value as needed */
+            word-break: break-word; /* Prevent overflow by breaking long words */
+        }
+
+        #imageTable td:nth-child(2) {
+            width: 20%; /* Adjust this value as needed */
+            word-break: break-word; /* Prevent overflow by breaking long words */
+        }
+
+        #imageTable td:nth-child(4) {
+            width: 30%; /* Adjust this value as needed */
+            word-break: break-word; /* Prevent overflow by breaking long words */
+        }
+
+        #imageTable td:nth-child(5) {
+            width: 30%; /* Adjust this value as needed */
+            word-break: break-word; /* Prevent overflow by breaking long words */
         }
 
         th {
@@ -124,9 +154,7 @@
         #results {
             margin-top: 20px;
             text-align: center;
-            font-size: 18px;
-            color: #dc3545;
-            /* Bootstrap's danger color */
+            font-size: 14px;
         }
 
         #results p {
@@ -144,14 +172,15 @@
         }
 
         .copy-button {
-            background-color: #28a745; /* Green */
+            background-color: #28a745;
+            /* Green */
             color: white;
             border: none;
             padding: 5px 10px;
             text-align: center;
             text-decoration: none;
             display: inline-block;
-            font-size: 12px;
+            font-size: 14px;
             cursor: pointer;
             border-radius: 4px;
             margin-left: 5px;
@@ -201,7 +230,7 @@
                 }
 
                 const data = await response.json();
-                displayImages(data);
+                displayAllData(data);
                 document.getElementById("getImagesBtn").innerText = "Extract Images"; // Revert button text
 
 
@@ -211,6 +240,95 @@
             }
         }
 
+
+        function displayAllData(data) {
+            let metaTableHTML = `
+            <table id="metaTable">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Current Value</th>
+                        <th>Suggested Change</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Meta Title</td>
+                        <td>${data.meta_title}</td>
+                        <td><input type="text"></td>
+                    </tr>
+                    <tr>
+                        <td>Meta Description</td>
+                        <td>${data.meta_description}</td>
+                        <td><input type="text"></td>
+                    </tr>
+                    <tr>
+                        <td>Canonical URL</td>
+                        <td>${data.canonical_url}</td>
+                        <td><input type="text"></td>
+                    </tr>`;
+
+            // Function to add heading rows
+            function addHeadingRows(headingType, headings) {
+                headings.forEach(heading => {
+                    metaTableHTML += `
+                            <tr>
+                                <td>${headingType}</td>
+                                <td>${heading}</td>
+                                <td><input type="text"></td>
+                            </tr>
+                        `;
+                });
+            }
+
+            addHeadingRows("H1 Heading", data.headings.h1);
+            addHeadingRows("H2 Heading", data.headings.h2);
+            addHeadingRows("H3 Heading", data.headings.h3);
+            addHeadingRows("H4 Heading", data.headings.h4);
+
+            metaTableHTML += `
+
+                </tbody>
+            </table>
+        `;
+
+            let imageTableHTML = `
+                <table id="imageTable">
+                    <thead>
+                        <tr>
+                            <th>No.</th>
+                            <th>Image URL <button class="copy-button" onclick="copyColumn(1, 'imageTable')">Copy</button></th>
+                            <th>Image Preview</th>
+                            <th>Alt Text <button class="copy-button" onclick="copyColumn(3, 'imageTable')">Copy</button></th>
+                            <th>Suggested Alt Text</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (let i = 0; i < data.image_data.length; i++) {
+                const item = data.image_data[i];
+                const imageUrl = Object.keys(item)[0];
+                const altText = item[imageUrl] || ''; // Handle cases where alt text is empty
+
+                imageTableHTML += `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td><a href="${imageUrl}" target="_blank">${imageUrl}</a></td>
+                        <td><img src="${imageUrl}" alt="${altText}"></td>
+                        <td>${altText}</td>
+                        <td><input type="text"></td>
+                    </tr>
+                `;
+            }
+
+            imageTableHTML += `
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('results').innerHTML = metaTableHTML + imageTableHTML;
+        }
 
         function displayImages(imageData) {
             let tableHTML = `
@@ -249,8 +367,19 @@
             document.getElementById('results').innerHTML = tableHTML;
         }
 
-        function copyColumn(columnIndex) {
-            const table = document.querySelector('table');
+        function copyColumn(columnIndex, tableId = 'results') {
+            let table = document.querySelector('table'); // Default to the first table
+            if (tableId === 'imageTable') {
+                // Find the second table if tableId is 'imageTable'
+                const tables = document.querySelectorAll('table');
+                table = tables[1]; // Assuming the image table is the second one
+            }
+
+            if (!table) {
+                console.error('Table not found');
+                return;
+            }
+
             const rows = table.querySelectorAll('tr');
             let columnText = '';
 
@@ -287,4 +416,4 @@
 
 </body>
 
-</html> 
+</html>
