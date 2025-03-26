@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Extractor</title>
+    <title>HTML Extractor</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
@@ -89,8 +89,10 @@
             border-collapse: collapse;
             width: 80%;
             margin-top: 20px;
-            margin-left: auto;  /* Add this */
-            margin-right: auto; /* And this */
+            margin-left: auto;
+            /* Add this */
+            margin-right: auto;
+            /* And this */
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
             border-radius: 8px;
             overflow: hidden;
@@ -105,28 +107,38 @@
         }
 
         #metaTable td:nth-child(1) {
-            width: 15%; /* Adjust this value as needed */
-            word-break: break-word; /* Prevent overflow by breaking long words */
+            width: 15%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+            /* Prevent overflow by breaking long words */
         }
 
         #metaTable td:nth-child(2) {
-            width: 40%; /* Adjust this value as needed */
-            word-break: break-word; /* Prevent overflow by breaking long words */
+            width: 40%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+            /* Prevent overflow by breaking long words */
         }
 
         #imageTable td:nth-child(2) {
-            width: 20%; /* Adjust this value as needed */
-            word-break: break-word; /* Prevent overflow by breaking long words */
+            width: 20%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+            /* Prevent overflow by breaking long words */
         }
 
         #imageTable td:nth-child(4) {
-            width: 30%; /* Adjust this value as needed */
-            word-break: break-word; /* Prevent overflow by breaking long words */
+            width: 30%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+            /* Prevent overflow by breaking long words */
         }
 
         #imageTable td:nth-child(5) {
-            width: 30%; /* Adjust this value as needed */
-            word-break: break-word; /* Prevent overflow by breaking long words */
+            width: 30%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+            /* Prevent overflow by breaking long words */
         }
 
         th {
@@ -185,17 +197,37 @@
             border-radius: 4px;
             margin-left: 5px;
         }
+
+        .export-button {
+            background-color: #17a2b8;
+            /* Info Blue */
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 10px;
+            transition: background-color 0.2s ease;
+        }
+
+        .export-button:hover {
+            background-color: #138496;
+        }
     </style>
 </head>
 
 <body>
 
-    <h1>Image & Alt Text Extractor</h1>
+    <h1>HTML Extractor</h1>
 
     <div class="input-group">
         <label for="url">Enter URL:</label>
         <input type="url" id="url" name="url" placeholder="https://example.com" required>
-        <button onclick="getImages()" id="getImagesBtn">Extract Images</button>
+        <button onclick="getImages()" id="getImagesBtn">Extract Elements</button>
     </div>
 
     <div id="results"></div>
@@ -204,11 +236,11 @@
         async function getImages() {
             document.getElementById('results').innerHTML = ""; // Clear previous results
             const url = document.getElementById('url').value;
-            document.getElementById("getImagesBtn").innerText = "Extracting images..."; // Change button text
+            document.getElementById("getImagesBtn").innerText = "Extracting elements..."; // Change button text
 
             if (!url) {
                 alert("Please enter a URL.");
-                document.getElementById("getImagesBtn").innerText = "Extract Images"; //Revert button text
+                document.getElementById("getImagesBtn").innerText = "Extract Elements"; //Revert button text
                 return;
             }
 
@@ -231,53 +263,56 @@
 
                 const data = await response.json();
                 displayAllData(data);
-                document.getElementById("getImagesBtn").innerText = "Extract Images"; // Revert button text
+                document.getElementById("getImagesBtn").innerText = "Extract Elemets"; // Revert button text
 
 
             } catch (error) {
                 document.getElementById('results').innerHTML = `<p>Error: ${error}</p>`;
-                document.getElementById("getImagesBtn").innerText = "Extract Images"; //Revert button text
+                document.getElementById("getImagesBtn").innerText = "Extract Elements"; //Revert button text
             }
         }
 
 
         function displayAllData(data) {
+            // Add export button above meta table
+            let resultsHTML = '';
+
             let metaTableHTML = `
-            <table id="metaTable">
-                <thead>
-                    <tr>
-                        <th>Item</th>
-                        <th>Current Value</th>
-                        <th>Suggested Change</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Meta Title</td>
-                        <td>${data.meta_title}</td>
-                        <td><input type="text"></td>
-                    </tr>
-                    <tr>
-                        <td>Meta Description</td>
-                        <td>${data.meta_description}</td>
-                        <td><input type="text"></td>
-                    </tr>
-                    <tr>
-                        <td>Canonical URL</td>
-                        <td>${data.canonical_url}</td>
-                        <td><input type="text"></td>
-                    </tr>`;
+        <table id="metaTable">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Current Value</th>
+                    <th>Suggested Change</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Meta Title</td>
+                    <td>${data.meta_title}</td>
+                    <td><input type="text"></td>
+                </tr>
+                <tr>
+                    <td>Meta Description</td>
+                    <td>${data.meta_description}</td>
+                    <td><input type="text"></td>
+                </tr>
+                <tr>
+                    <td>Canonical URL</td>
+                    <td>${data.canonical_url}</td>
+                    <td><input type="text"></td>
+                </tr>`;
 
             // Function to add heading rows
             function addHeadingRows(headingType, headings) {
                 headings.forEach(heading => {
                     metaTableHTML += `
-                            <tr>
-                                <td>${headingType}</td>
-                                <td>${heading}</td>
-                                <td><input type="text"></td>
-                            </tr>
-                        `;
+                        <tr>
+                            <td>${headingType}</td>
+                            <td>${heading}</td>
+                            <td><input type="text"></td>
+                        </tr>
+                    `;
                 });
             }
 
@@ -288,23 +323,23 @@
 
             metaTableHTML += `
 
-                </tbody>
-            </table>
-        `;
+            </tbody>
+        </table>
+    `;
 
             let imageTableHTML = `
-                <table id="imageTable">
-                    <thead>
-                        <tr>
-                            <th>No.</th>
-                            <th>Image URL <button class="copy-button" onclick="copyColumn(1, 'imageTable')">Copy</button></th>
-                            <th>Image Preview</th>
-                            <th>Alt Text <button class="copy-button" onclick="copyColumn(3, 'imageTable')">Copy</button></th>
-                            <th>Suggested Alt Text</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
+            <table id="imageTable">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Image URL <button class="copy-button" onclick="copyColumn(1, 'imageTable')">Copy</button></th>
+                        <th>Image Preview</th>
+                        <th>Alt Text <button class="copy-button" onclick="copyColumn(3, 'imageTable')">Copy</button></th>
+                        <th>Suggested Alt Text</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
 
             for (let i = 0; i < data.image_data.length; i++) {
                 const item = data.image_data[i];
@@ -312,37 +347,42 @@
                 const altText = item[imageUrl] || ''; // Handle cases where alt text is empty
 
                 imageTableHTML += `
-                    <tr>
-                        <td>${i + 1}</td>
-                        <td><a href="${imageUrl}" target="_blank">${imageUrl}</a></td>
-                        <td><img src="${imageUrl}" alt="${altText}"></td>
-                        <td>${altText}</td>
-                        <td><input type="text"></td>
-                    </tr>
-                `;
+                <tr>
+                    <td>${i + 1}</td>
+                    <td><a href="${imageUrl}" target="_blank">${imageUrl}</a></td>
+                    <td><img src="${imageUrl}" alt="${altText}"></td>
+                    <td>${altText}</td>
+                    <td><input type="text"></td>
+                </tr>
+            `;
             }
 
             imageTableHTML += `
-                    </tbody>
-                </table>
-            `;
+                </tbody>
+            </table>
+        `;
 
-            document.getElementById('results').innerHTML = metaTableHTML + imageTableHTML;
+            resultsHTML += metaTableHTML + imageTableHTML;
+
+            // Add export button after image table
+            resultsHTML += '<button class="export-button" onclick="exportToCSV()">Export to CSV</button>';
+
+            document.getElementById('results').innerHTML = resultsHTML;
         }
 
         function displayImages(imageData) {
             let tableHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>No.</th>
-          <th>Image URL <button class="copy-button" onclick="copyColumn(1)">Copy</button></th>
-          <th>Image Preview</th>
-          <th>Alt Text <button class="copy-button" onclick="copyColumn(3)">Copy</button></th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
+<table>
+  <thead>
+    <tr>
+      <th>No.</th>
+      <th>Image URL <button class="copy-button" onclick="copyColumn(1)">Copy</button></th>
+      <th>Image Preview</th>
+      <th>Alt Text <button class="copy-button" onclick="copyColumn(3)">Copy</button></th>
+    </tr>
+  </thead>
+  <tbody>
+`;
 
             for (let i = 0; i < imageData.length; i++) {
                 const item = imageData[i];
@@ -350,19 +390,19 @@
                 const altText = item[imageUrl] || ''; // Handle cases where alt text is empty
 
                 tableHTML += `
-      <tr>
-        <td>${i + 1}</td>
-        <td><a href="${imageUrl}" target="_blank">${imageUrl}</a></td>
-        <td><img src="${imageUrl}" alt="${altText}"></td>
-        <td>${altText}</td>
-      </tr>
-    `;
+  <tr>
+    <td>${i + 1}</td>
+    <td><a href="${imageUrl}" target="_blank">${imageUrl}</a></td>
+    <td><img src="${imageUrl}" alt="${altText}"></td>
+    <td>${altText}</td>
+  </tr>
+`;
             }
 
             tableHTML += `
-      </tbody>
-    </table>
-  `;
+  </tbody>
+</table>
+`;
 
             document.getElementById('results').innerHTML = tableHTML;
         }
@@ -412,8 +452,55 @@
             // Remove the temporary textarea
             document.body.removeChild(textarea);
         }
-    </script>
 
+        function exportToCSV() {
+            // Collect data from both tables
+            const metaTable = document.getElementById('metaTable');
+            const imageTable = document.getElementById('imageTable');
+
+            if (!metaTable || !imageTable) {
+                alert('Tables not found. Please extract data first.');
+                return;
+            }
+
+            const metaData = tableToCSV(metaTable);
+            const imageData = tableToCSV(imageTable);
+
+            // Combine the data with a separator
+            const csvData = "Meta Table Data:\n" + metaData + "\n\nImage Table Data:\n" + imageData;
+
+            // Create a download link
+            const filename = 'extracted_data.csv';
+            const csvFile = new Blob([csvData], {
+                type: 'text/csv'
+            });
+            const downloadLink = document.createElement('a');
+            downloadLink.download = filename;
+            downloadLink.href = window.URL.createObjectURL(csvFile);
+            downloadLink.style.display = 'none';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
+
+        function tableToCSV(table) {
+            const rows = table.querySelectorAll('tr');
+            let csv = [];
+
+            for (let i = 0; i < rows.length; i++) {
+                const cells = rows[i].querySelectorAll('th, td');
+                let row = [];
+                for (let j = 0; j < cells.length; j++) {
+                    //remove the button tag
+                    let cellText = cells[j].textContent.replace(/<[^>]*>?/gm, '').trim();
+                    row.push('"' + cellText.replace(/"/g, '""') + '"'); // Escape double quotes
+                }
+                csv.push(row.join(','));
+            }
+
+            return csv.join('\n');
+        }
+    </script>
 </body>
 
 </html>
