@@ -2174,7 +2174,7 @@
             <input type="url" id="landingPageUrl" placeholder="e.g., https://example.com"><br>
             <label for="landingPageAuditKeyword">Target Keyword (optional):</label><br>
             <input type="text" id="landingPageAuditKeyword" name="landingPageAuditKeyword"><br>
-            <button id="auditLandingPageBtn" onclick="auditLandingPage2()">Audit Landing Page</button>
+            <button id="auditLandingPageBtn" onclick="auditLandingPageDirectWeb()">Audit Landing Page</button>
             <div class="gauge" id="gauge" style="display:none;">
                 <br>
                 <div class="gauge__body">
@@ -5317,6 +5317,44 @@
             } finally {
                 document.getElementById("generateMediaPlanBtn").innerText = "Generate Media Plan";
             }
+        }
+
+        async function auditLandingPageDirectWeb() {
+            document.getElementById("gauge").style.display = "none";
+            document.getElementById("auditLandingPageBtn").innerText = "Evaluating landing page...";
+            document.getElementById("landingPageAuditBtn").style.backgroundColor = "#004c9d";
+            landingPageAuditResultDiv = document.getElementById("landingPageAuditResults");
+
+            const urlInput = document.getElementById("landingPageUrl").value;
+            const auditKeyword = document.getElementById("landingPageAuditKeyword")?.value || null;
+
+            // Check if the URL input is empty
+            if (!urlInput || urlInput.trim() === "") {
+                alert("Please enter a landing page URL.");
+                document.getElementById("auditLandingPageBtn").innerText = "Audit Landing Page";
+                return;
+            }
+            const finalAuditResponse = await fetch("https://7eehmzk9e0.execute-api.ap-southeast-1.amazonaws.com/auditLandingPageDirectWeb", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        keyword: auditKeyword, // Pass the keyword for main audit
+                        url: urlInput
+                    })
+                });
+
+                const finalAuditData = await finalAuditResponse.json();
+
+                // Display the results
+                document.getElementById("landingPageAuditResults").innerHTML = finalAuditData.body;
+                const gaugeElement = document.querySelector(".gauge");
+                quality_score = finalAuditData.quality_score;
+                setGaugeValue(gaugeElement, quality_score / 10);
+                document.getElementById("gauge").style.display = "block";
+
+                document.getElementById("auditLandingPageBtn").innerText = "Audit Landing Page";
         }
 
         async function auditLandingPage2() {
