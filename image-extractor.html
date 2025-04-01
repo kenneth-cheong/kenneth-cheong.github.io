@@ -36,6 +36,7 @@
         /* Input and Button Styles */
         .input-group {
             display: flex;
+            flex-direction: column; /* Changed to column for better layout */
             margin-bottom: 20px;
             width: 80%;
             max-width: 600px;
@@ -55,9 +56,20 @@
             border-radius: 4px;
             flex-grow: 1;
             font-size: 14px;
+            margin-bottom: 10px; /* Added margin to separate URL and Keywords */
         }
 
-        input[type="url"]:focus {
+        textarea { /* Styles for the keyword input */
+            padding: 10px 15px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+            resize: vertical; /* Allow vertical resizing */
+            margin-bottom: 10px; /* Added margin */
+        }
+
+        input[type="url"]:focus,
+        textarea:focus {
             border-color: #80bdff;
             outline: 0;
             box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
@@ -72,7 +84,8 @@
             cursor: pointer;
             font-size: 14px;
             transition: background-color 0.2s ease;
-            margin-left: 10px;
+            margin-left: 0; /* Reset margin for better column layout */
+            align-self: flex-start; /* Align button to the start */
         }
 
         button:hover {
@@ -227,6 +240,10 @@
     <div class="input-group">
         <label for="url">Enter URL:</label>
         <input type="url" id="url" name="url" placeholder="https://example.com" required>
+
+        <label for="keywords">Enter Keywords (comma or newline separated):</label>
+        <textarea id="keywords" name="keywords" rows="4" placeholder="keyword1, keyword2, keyword3"></textarea>
+
         <button onclick="getImages()" id="getImagesBtn">Extract Elements</button>
     </div>
 
@@ -236,6 +253,7 @@
         async function getImages() {
             document.getElementById('results').innerHTML = ""; // Clear previous results
             const url = document.getElementById('url').value;
+            const keywords = document.getElementById('keywords').value; // Get keywords
             document.getElementById("getImagesBtn").innerText = "Extracting elements..."; // Change button text
 
             if (!url) {
@@ -243,6 +261,9 @@
                 document.getElementById("getImagesBtn").innerText = "Extract Elements"; //Revert button text
                 return;
             }
+
+            // Process keywords (split by commas or newlines)
+            const keywordArray = keywords.split(/[,\n]+/).map(keyword => keyword.trim()).filter(keyword => keyword !== "");
 
             const endpoint = 'https://udjdc333m9.execute-api.ap-southeast-1.amazonaws.com/getImages';
 
@@ -253,7 +274,8 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        url: url
+                        url: url,
+                        keywords: keywordArray // Send keywords to the backend
                     })
                 });
 
