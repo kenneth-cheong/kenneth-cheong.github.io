@@ -292,7 +292,7 @@
 
                 // Call the second API and then display the data
                 displayInitialData(data);
-                getRecommendations(data);
+                getRecommendations(data,keywordArray);
                 document.getElementById("getImagesBtn").innerText = "Generating Recommendations...";
 
             } catch (error) {
@@ -301,7 +301,7 @@
             }
         }
 
-        async function getRecommendations(firstApiResponse) {
+        async function getRecommendations(firstApiResponse,keywordArray) {
             const recommendationEndpoint = 'https://vwmqqj251d.execute-api.ap-southeast-1.amazonaws.com/onPageRecommendations';
 
             try {
@@ -310,7 +310,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ "data": firstApiResponse })
+                    body: JSON.stringify({ "data": firstApiResponse, "keywords":keywordArray })
                 });
 
                 if (!recommendationResponse.ok) {
