@@ -4,29 +4,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML Extractor</title>
+    <title>On-Page Recommendations</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="icon"
+        href="https://mediaonemarketing.com.sg/wp-content/uploads/2023/11/cropped-MediaOne-M-favicon-logo-32x32.png"
+        sizes="32x32">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+        integrity="..." crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
         /* General Styles */
         body {
             font-family: 'Roboto', sans-serif;
-            background-color: #f8f9fa;
-            color: #343a40;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
+            margin: 10px;
+            background-color: #fbf7f5;
+            color: #333;
+            text-wrap: wrap;
+            font-size: 0.9em;
+            padding: 10px;
         }
 
-        h1 {
-            color: #007bff;
-            text-align: center;
-            margin-top: 2rem;
-            margin-bottom: 2rem;
+        p,
+        h1,
+        h2,
+        h3 {
+            text-wrap: wrap;
+            font-family: 'Roboto', sans-serif;
         }
 
         input {
@@ -36,7 +40,8 @@
         /* Input and Button Styles */
         .input-group {
             display: flex;
-            flex-direction: column; /* Changed to column for better layout */
+            flex-direction: column;
+            /* Changed to column for better layout */
             margin-bottom: 20px;
             width: 80%;
             max-width: 600px;
@@ -55,17 +60,19 @@
             border: 1px solid #ced4da;
             border-radius: 4px;
             flex-grow: 1;
-            font-size: 14px;
-            margin-bottom: 10px; /* Added margin to separate URL and Keywords */
+            margin-bottom: 10px;
+            /* Added margin to separate URL and Keywords */
         }
 
-        textarea { /* Styles for the keyword input */
-            padding: 10px 15px;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
-            font-size: 14px;
-            resize: vertical; /* Allow vertical resizing */
-            margin-bottom: 10px; /* Added margin */
+        textarea {
+            min-width: 90%;
+            min-height: 50px;
+            max-width: 90%;
+            border: 1px solid #c8c8c8; /* Added border */
+            border-radius: 10px; /* Added border radius */
+            padding: 8px;       /* Added padding */
+            margin: 8px;        /* Added margin */
+            font-family: inherit; /* Inherit font */
         }
 
         input[type="url"]:focus,
@@ -75,48 +82,53 @@
             box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
         }
 
+        input,
+        select,
+        button,
+        textarea {
+            padding: 8px;
+            margin: 8px;
+            border-radius: 10px;
+            border: 1px solid #c8c8c8;
+            font-family: inherit;
+        }
+
         button {
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background-color 0.2s ease;
-            margin-left: 0; /* Reset margin for better column layout */
-            align-self: flex-start; /* Align button to the start */
+            transition: background-color 0.3s, transform 0.1s;
+            /* Add transform for a subtle lift effect */
+            background-color: #c8c9ca;
         }
 
         button:hover {
-            background-color: #0056b3;
-        }
-
-        button:focus {
-            outline: none;
-            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.5);
+            background-color: #004c9d;
+            /* Darker blue on hover */
+            transform: translateY(-2px);
+            /* Move up slightly on hover */
+            cursor: pointer;
+            /* Change cursor to a pointer on hover */
+            color: white;
         }
 
         /* Table Styles */
         table {
-            border-collapse: collapse;
-            width: 80%;
+            width: 100%;
             margin-top: 20px;
-            margin-left: auto;
-            /* Add this */
-            margin-right: auto;
-            /* And this */
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
-            border-radius: 8px;
-            overflow: hidden;
-            /* Ensure rounded corners are visible */
+            border-collapse: collapse;
+            background-color: #fffef7;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 6px;
+            table-layout: auto;
+            display: block;
+            table-layout: fixed;
+            overflow-y: scroll;
         }
 
         th,
         td {
-            border: 1px solid #dee2e6;
-            padding: 12px 15px;
-            text-align: left;
+            border: 1px solid #ddd;
+            font-size: 1em;
+            background-color: white;
+            overflow: hidden;
         }
 
         #metaTable td:nth-child(1) {
@@ -127,7 +139,14 @@
         }
 
         #metaTable td:nth-child(2) {
-            width: 40%;
+            width: 20%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+            /* Prevent overflow by breaking long words */
+        }
+
+        #metaTable td:nth-child(3) {
+            width: 30%;
             /* Adjust this value as needed */
             word-break: break-word;
             /* Prevent overflow by breaking long words */
@@ -179,25 +198,14 @@
         #results {
             margin-top: 20px;
             text-align: center;
-            font-size: 14px;
         }
 
         #results p {
             margin-bottom: 0;
         }
 
-        /* Footer */
-        footer {
-            text-align: center;
-            margin-top: 3rem;
-            padding: 1rem;
-            background-color: #f8f9fa;
-            border-top: 1px solid #dee2e6;
-            width: 100%;
-        }
-
         .copy-button {
-            background-color: #28a745;
+            background-color: #004c9d;
             /* Green */
             color: white;
             border: none;
@@ -205,14 +213,13 @@
             text-align: center;
             text-decoration: none;
             display: inline-block;
-            font-size: 14px;
             cursor: pointer;
             border-radius: 4px;
             margin-left: 5px;
         }
 
         .export-button {
-            background-color: #17a2b8;
+            background-color: #004c9d;
             /* Info Blue */
             color: white;
             border: none;
@@ -220,7 +227,6 @@
             text-align: center;
             text-decoration: none;
             display: inline-block;
-            font-size: 16px;
             cursor: pointer;
             border-radius: 4px;
             margin: 10px;
@@ -244,7 +250,7 @@
         <label for="keywords">Enter Keywords (comma or newline separated):</label>
         <textarea id="keywords" name="keywords" rows="4" placeholder="keyword1, keyword2, keyword3"></textarea>
 
-        <button onclick="getImages()" id="getImagesBtn">Extract Elements</button>
+        <button onclick="getImages()" id="getImagesBtn">Extract Elements & Generate Recommendations</button>
     </div>
 
     <div id="results"></div>
@@ -258,7 +264,7 @@
 
             if (!url) {
                 alert("Please enter a URL.");
-                document.getElementById("getImagesBtn").innerText = "Extract Elements"; //Revert button text
+                document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations"; //Revert button text
                 return;
             }
 
@@ -284,18 +290,143 @@
                 }
 
                 const data = await response.json();
-                displayAllData(data);
-                document.getElementById("getImagesBtn").innerText = "Extract Elemets"; // Revert button text
 
+                // Call the second API and then display the data
+                displayInitialData(data);
+                getRecommendations(data);
+                document.getElementById("getImagesBtn").innerText = "Generating Recommendations...";
 
             } catch (error) {
                 document.getElementById('results').innerHTML = `<p>Error: ${error}</p>`;
-                document.getElementById("getImagesBtn").innerText = "Extract Elements"; //Revert button text
+                document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations";
             }
+        }
+
+        async function getRecommendations(firstApiResponse) {
+            const recommendationEndpoint = 'https://vwmqqj251d.execute-api.ap-southeast-1.amazonaws.com/onPageRecommendations';
+
+            try {
+                const recommendationResponse = await fetch(recommendationEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ "data": firstApiResponse })
+                });
+
+                if (!recommendationResponse.ok) {
+                    throw new Error(`HTTP error! status: ${recommendationResponse.status}`);
+                }
+
+                const recommendationData = await recommendationResponse.json();
+                displayAllData(recommendationData);
+
+            } catch (error) {
+                console.error("Error fetching recommendations:", error);
+                document.getElementById('results').innerHTML = `<p>Error fetching recommendations: ${error}</p>`;
+            }
+        }
+
+        function displayInitialData(data) {
+            // Add export button above meta table
+            let resultsHTML = '';
+
+            let metaTableHTML = `
+    <table id="metaTable">
+        <thead>
+            <tr>
+                <th>Item</th>
+                <th>Current Value</th>
+                <th>Suggested Change</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Meta Title</td>
+                <td>${data.meta_title}</td>
+                <td><textarea></textarea></td>
+            </tr>
+            <tr>
+                <td>Meta Description</td>
+                <td>${data.meta_description}</td>
+                <td><textarea></textarea></td>
+            </tr>
+            <tr>
+                <td>Canonical URL</td>
+                <td>${data.canonical_url}</td>
+                <td><textarea></textarea></td>
+            </tr>`;
+
+            // Function to add heading rows
+            function addHeadingRows(headingType, headings) {
+                headings.forEach(heading => {
+                    metaTableHTML += `
+                    <tr>
+                        <td>${headingType}</td>
+                        <td>${heading}</td>
+                        <td><textarea></textarea></td>
+                    </tr>
+                `;
+                });
+            }
+
+            addHeadingRows("H1 Heading", data.headings.h1);
+            addHeadingRows("H2 Heading", data.headings.h2);
+            addHeadingRows("H3 Heading", data.headings.h3);
+            addHeadingRows("H4 Heading", data.headings.h4);
+
+            metaTableHTML += `
+
+        </tbody>
+    </table>
+`;
+
+            let imageTableHTML = `
+        <table id="imageTable">
+            <thead>
+                <tr>
+                    <th>No.</th>
+                    <th>Image URL <button class="copy-button" onclick="copyColumn(1, 'imageTable')">Copy</button></th>
+                    <th>Image Preview</th>
+                    <th>Alt Text <button class="copy-button" onclick="copyColumn(3, 'imageTable')">Copy</button></th>
+                    <th>Suggested Alt Text</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+            for (let i = 0; i < data.image_data.length; i++) {
+                const item = data.image_data[i];
+                const imageUrl = Object.keys(item)[0];
+                const altText = item[imageUrl] || ''; // Handle cases where alt text is empty
+
+                imageTableHTML += `
+            <tr>
+                <td>${i + 1}</td>
+                <td><a href="${imageUrl}" target="_blank">${imageUrl}</a></td>
+                <td><img src="${imageUrl}" alt="${altText}"></td>
+                <td>${altText}</td>
+                <td><textarea></textarea></td>
+            </tr>
+        `;
+            }
+
+            imageTableHTML += `
+            </tbody>
+        </table>
+    `;
+
+            resultsHTML += metaTableHTML + imageTableHTML;
+
+            // Add export button after image table
+            resultsHTML += '<button class="export-button" onclick="exportToCSV()">Export to CSV</button>';
+
+            document.getElementById('results').innerHTML = resultsHTML;
         }
 
 
         function displayAllData(data) {
+            console.log(data);
             // Add export button above meta table
             let resultsHTML = '';
 
@@ -306,35 +437,40 @@
                     <th>Item</th>
                     <th>Current Value</th>
                     <th>Suggested Change</th>
+                    <th>Rationale</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
                     <td>Meta Title</td>
-                    <td>${data.meta_title}</td>
-                    <td><input type="text"></td>
+                    <td>${data.meta_title.current_value}</td>
+                    <td><textarea>${data.meta_title.suggested_value}</textarea></td>
+                    <td>${data.meta_title.rationale}</td>
                 </tr>
                 <tr>
                     <td>Meta Description</td>
-                    <td>${data.meta_description}</td>
-                    <td><input type="text"></td>
+                    <td>${data.meta_description.current_value}</td>
+                    <td><textarea>${data.meta_description.suggested_value}</textarea></td>
+                    <td>${data.meta_description.rationale}</td>
                 </tr>
                 <tr>
                     <td>Canonical URL</td>
-                    <td>${data.canonical_url}</td>
-                    <td><input type="text"></td>
+                    <td>${data.canonical_url.current_value}</td>
+                    <td><textarea>${data.canonical_url.suggested_value}</textarea></td>
+                    <td>${data.canonical_url.rationale}</td>
                 </tr>`;
 
             // Function to add heading rows
             function addHeadingRows(headingType, headings) {
                 headings.forEach(heading => {
                     metaTableHTML += `
-                        <tr>
-                            <td>${headingType}</td>
-                            <td>${heading}</td>
-                            <td><input type="text"></td>
-                        </tr>
-                    `;
+                <tr>
+                    <td>${headingType}</td>
+                    <td>${heading.current_value}</td>
+                    <td><textarea>${heading.suggested_value}</textarea></td>
+                    <td>${heading.rationale}</td>
+                </tr>
+            `;
                 });
             }
 
@@ -358,26 +494,30 @@
                         <th>Image Preview</th>
                         <th>Alt Text <button class="copy-button" onclick="copyColumn(3, 'imageTable')">Copy</button></th>
                         <th>Suggested Alt Text</th>
+                        <th>Rationale</th>
                     </tr>
                 </thead>
                 <tbody>
         `;
 
-            for (let i = 0; i < data.image_data.length; i++) {
-                const item = data.image_data[i];
-                const imageUrl = Object.keys(item)[0];
-                const altText = item[imageUrl] || ''; // Handle cases where alt text is empty
+            let i = 0;
+            for (const imageData of data.image_data) {
+                const imageUrl = Object.keys(imageData)[0];
+                const imageDetails = imageData[imageUrl];
 
                 imageTableHTML += `
                 <tr>
                     <td>${i + 1}</td>
                     <td><a href="${imageUrl}" target="_blank">${imageUrl}</a></td>
-                    <td><img src="${imageUrl}" alt="${altText}"></td>
-                    <td>${altText}</td>
-                    <td><input type="text"></td>
+                    <td><img src="${imageUrl}" alt="${imageDetails.current_value}"></td>
+                    <td>${imageDetails.current_value}</td>
+                    <td><textarea>${imageDetails.suggested_value}</textarea></td>
+                    <td>${imageDetails.rationale}</td>
                 </tr>
             `;
+                i++;
             }
+
 
             imageTableHTML += `
                 </tbody>
@@ -390,43 +530,7 @@
             resultsHTML += '<button class="export-button" onclick="exportToCSV()">Export to CSV</button>';
 
             document.getElementById('results').innerHTML = resultsHTML;
-        }
-
-        function displayImages(imageData) {
-            let tableHTML = `
-<table>
-  <thead>
-    <tr>
-      <th>No.</th>
-      <th>Image URL <button class="copy-button" onclick="copyColumn(1)">Copy</button></th>
-      <th>Image Preview</th>
-      <th>Alt Text <button class="copy-button" onclick="copyColumn(3)">Copy</button></th>
-    </tr>
-  </thead>
-  <tbody>
-`;
-
-            for (let i = 0; i < imageData.length; i++) {
-                const item = imageData[i];
-                const imageUrl = Object.keys(item)[0];
-                const altText = item[imageUrl] || ''; // Handle cases where alt text is empty
-
-                tableHTML += `
-  <tr>
-    <td>${i + 1}</td>
-    <td><a href="${imageUrl}" target="_blank">${imageUrl}</a></td>
-    <td><img src="${imageUrl}" alt="${altText}"></td>
-    <td>${altText}</td>
-  </tr>
-`;
-            }
-
-            tableHTML += `
-  </tbody>
-</table>
-`;
-
-            document.getElementById('results').innerHTML = tableHTML;
+            document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations";
         }
 
         function copyColumn(columnIndex, tableId = 'results') {
