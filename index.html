@@ -1240,6 +1240,7 @@
         }
 
         @media screen and (max-width: 1081px) {
+
             .column,
             .column40,
             .column60 {
@@ -1790,9 +1791,11 @@
                 <div id="schema-output"></div>
             </div>
             <hr>
-            <button class="collapsible" id="onPageButton" onclick="window.open('/on-page.html', '_blank');">On-Page</button>
+            <button class="collapsible" id="onPageButton"
+                onclick="window.open('/on-page.html', '_blank');">On-Page</button>
             <hr>
-            <button class="collapsible" id="rankCheckerButton" onclick="window.open('/rank-checker.html', '_blank');">Rank Checker</button>
+            <button class="collapsible" id="rankCheckerButton"
+                onclick="window.open('/rank-checker.html', '_blank');">Rank Checker</button>
         </div>
         <hr>
         <button class="collapsible" id="smm"><i class="fas fa-share-alt"></i>Social Media (SMM)</button>
@@ -7117,6 +7120,10 @@
             chatbotButton.addEventListener('click', () => {
                 isChatbotOpen = !isChatbotOpen;
                 chatbotModal.style.display = isChatbotOpen ? 'block' : 'none';
+
+                if (chatMessages.textContent=="") {
+                    addMessage('chatbot', 'How can I help you today?');
+                }
             });
 
             closeChatbotButton.addEventListener('click', () => {
@@ -7275,8 +7282,12 @@
 
                         openFeedbackModal(questionText, message);
                     });
+
+                    console.log(document.getElementById('chat-messages').textContent);
                     messageDiv.innerHTML = messageDiv.innerHTML + "<br>";
-                    messageDiv.appendChild(feedbackButton);
+                    if (message != "How can I help you today?") {
+                        messageDiv.appendChild(feedbackButton);
+                    }
                 }
 
                 chatMessages.appendChild(messageDiv);
