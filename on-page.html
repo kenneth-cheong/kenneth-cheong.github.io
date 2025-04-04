@@ -67,11 +67,16 @@
         textarea {
             width: 90%;
             min-height: 50px;
-            border: 1px solid #c8c8c8; /* Added border */
-            border-radius: 10px; /* Added border radius */
-            padding: 8px;       /* Added padding */
-            margin: 8px;        /* Added margin */
-            font-family: inherit; /* Inherit font */
+            border: 1px solid #c8c8c8;
+            /* Added border */
+            border-radius: 10px;
+            /* Added border radius */
+            padding: 8px;
+            /* Added padding */
+            margin: 8px;
+            /* Added margin */
+            font-family: inherit;
+            /* Inherit font */
         }
 
         input[type="url"]:focus,
@@ -172,6 +177,34 @@
             /* Prevent overflow by breaking long words */
         }
 
+        #contentTable td:nth-child(1) {
+            text-align: center;
+            padding: 10px;
+        }
+
+        #contentTable td:nth-child(2) {
+            width: 30%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+            /* Prevent overflow by breaking long words */
+            padding: 10px;
+        }
+
+        #contentTable td:nth-child(3) {
+            width: 36%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+            /* Prevent overflow by breaking long words */
+        }
+
+        #contentTable td:nth-child(4) {
+            width: 32%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+            /* Prevent overflow by breaking long words */
+            padding: 10px;
+        }
+
         th {
             background-color: #e9ecef;
             font-weight: 500;
@@ -253,7 +286,7 @@
     </div>
 
     <div id="results"></div>
-
+    <div id="contentRecommendations"></div>
     <script>
         async function getImages() {
             document.getElementById('results').innerHTML = ""; // Clear previous results
@@ -292,7 +325,8 @@
 
                 // Call the second API and then display the data
                 displayInitialData(data);
-                getRecommendations(data,keywordArray);
+                getRecommendations(data, keywordArray);
+                getContentRecommendations(url, keywordArray);
                 document.getElementById("getImagesBtn").innerText = "Generating Recommendations...";
 
             } catch (error) {
@@ -301,7 +335,66 @@
             }
         }
 
-        async function getRecommendations(firstApiResponse,keywordArray) {
+        async function getContentRecommendations(url, keywordArray) {
+            const recommendationEndpoint = 'https://pkkz2e02ch.execute-api.ap-southeast-1.amazonaws.com/onPageContentRecommendations';
+
+            try {
+                const recommendationResponse = await fetch(recommendationEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url, "keywords": keywordArray })
+                });
+
+                if (!recommendationResponse.ok) {
+                    throw new Error(`HTTP error! status: ${recommendationResponse.status}`);
+                }
+
+                const recommendationData = await recommendationResponse.json();
+                console.log(recommendationData);
+
+                let contentTableHTML = `
+            <table id="contentTable">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Current Content</th>
+                        <th>Recommendation</th>
+                        <th>Rationale</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+                let i = 0;
+                for (const recommendation of recommendationData.output) {
+                    contentTableHTML += `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${recommendation.current_value}</td>
+                    <td><textarea>${recommendation.suggested_value}</textarea></td>
+                    <td>${recommendation.rationale}</td>
+                </tr>
+            `;
+                    i++;
+                }
+
+
+                contentTableHTML += `
+                </tbody>
+            </table>
+        `;
+
+                document.getElementById('contentRecommendations').innerHTML = contentTableHTML;
+
+            } catch (error) {
+                console.error("Error fetching recommendations:", error);
+                document.getElementById('results').innerHTML = `<p>Error fetching recommendations: ${error}</p>`;
+            }
+        }
+
+        async function getRecommendations(firstApiResponse, keywordArray) {
             const recommendationEndpoint = 'https://vwmqqj251d.execute-api.ap-southeast-1.amazonaws.com/onPageRecommendations';
 
             try {
@@ -310,7 +403,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ "data": firstApiResponse, "keywords":keywordArray })
+                    body: JSON.stringify({ "data": firstApiResponse, "keywords": keywordArray })
                 });
 
                 if (!recommendationResponse.ok) {
@@ -575,6 +668,8 @@
             // Collect data from both tables
             const metaTable = document.getElementById('metaTable');
             const imageTable = document.getElementById('imageTable');
+            const contentTable = document.getElementById('contentTable');
+
 
             if (!metaTable || !imageTable) {
                 alert('Tables not found. Please extract data first.');
@@ -583,12 +678,13 @@
 
             const metaData = tableToCSV(metaTable);
             const imageData = tableToCSV(imageTable);
+            const contentData = tableToCSV(contentTable);
 
             // Combine the data with a separator
-            const csvData = "Meta Table Data:\n" + metaData + "\n\nImage Table Data:\n" + imageData;
+            const csvData = "Meta Table Data:\n" + metaData + "\n\nImage Table Data:\n" + imageData + "\n\nContent Recommendations:\n" + contentData;
 
             // Create a download link
-            const filename = 'extracted_data.csv';
+            const filename = 'on_page_recommendations.csv';
             const csvFile = new Blob([csvData], {
                 type: 'text/csv'
             });
