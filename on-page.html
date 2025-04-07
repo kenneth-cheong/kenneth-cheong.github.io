@@ -228,7 +228,6 @@
 
         /* Error Message */
         #results {
-            margin-top: 20px;
             text-align: center;
         }
 
@@ -268,6 +267,28 @@
         .export-button:hover {
             background-color: #138496;
         }
+
+        .collapsible {
+            background-color: #004c9d;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            padding: 20px;
+            width: 99%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 1.2em;
+            transition: background-color 0.3s ease;
+        }
+
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+
+        .collapsible-loading {
+            background-color: #ffad33;
+        }
     </style>
 </head>
 
@@ -284,12 +305,18 @@
 
         <button onclick="getImages()" id="getImagesBtn">Extract Elements & Generate Recommendations</button>
     </div>
-
+    <button class="collapsible" id="resultsCollapsible" style="display: none;">Meta Data and Headings</button>
     <div id="results"></div>
+    <button class="collapsible" id="imageCollapsible" style="display: none;">Image Alt Text</button>
+    <div id="imageRecommendations"></div>
+    <button class="collapsible" id="contentCollapsible" style="display: none;">Content</button>
     <div id="contentRecommendations"></div>
     <script>
         async function getImages() {
             document.getElementById('results').innerHTML = ""; // Clear previous results
+            document.getElementById('resultsCollapsible').style.display = "none";
+            document.getElementById('imageCollapsible').style.display = "none";
+            document.getElementById('contentCollapsible').style.display = "none";
             const url = document.getElementById('url').value;
             const keywords = document.getElementById('keywords').value; // Get keywords
             document.getElementById("getImagesBtn").innerText = "Extracting elements..."; // Change button text
@@ -325,9 +352,17 @@
 
                 // Call the second API and then display the data
                 displayInitialData(data);
-                getRecommendations(data, keywordArray);
-                getContentRecommendations(url, keywordArray);
-                document.getElementById("getImagesBtn").innerText = "Generating Recommendations...";
+
+
+                if (!keywords) {
+                    alert("No content recommendations will be given as no keywords were entered.")
+                    document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations"
+                    return;
+                } else {
+                    getRecommendations(data, keywordArray);
+                    getContentRecommendations(url, keywordArray);
+                    document.getElementById("getImagesBtn").innerText = "Generating Recommendations...";
+                }
 
             } catch (error) {
                 document.getElementById('results').innerHTML = `<p>Error: ${error}</p>`;
@@ -386,7 +421,8 @@
             </table>
         `;
 
-        document.getElementById('contentRecommendations').innerHTML = contentTableHTML  + '<div style="text-align: center;"><button class="export-button" onclick="exportToCSV()">Export to CSV</button></div>';
+                document.getElementById('contentRecommendations').innerHTML = contentTableHTML + '<div style="text-align: center;"><button class="export-button" onclick="exportToCSV()">Export to CSV</button></div>';
+                document.getElementById('contentCollapsible').style.display = "block";
 
             } catch (error) {
                 console.error("Error fetching recommendations:", error);
@@ -501,12 +537,17 @@
         </table>
     `;
 
-            resultsHTML += metaTableHTML + imageTableHTML;
+            resultsHTML += metaTableHTML
+
+            document.getElementById('imageRecommendations').innerHTML = imageTableHTML;
 
             // Add export button after image table
             resultsHTML += '<button class="export-button" onclick="exportToCSV()">Export to CSV</button>';
 
             document.getElementById('results').innerHTML = resultsHTML;
+
+            document.getElementById('resultsCollapsible').style.display = "block";
+            document.getElementById('imageCollapsible').style.display = "block";
         }
 
 
@@ -714,6 +755,17 @@
 
             return csv.join('\n');
         }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const coll = document.getElementsByClassName("collapsible");
+            for (let i = 0; i < coll.length; i++) {
+                coll[i].addEventListener("click", function () {
+                    this.classList.toggle("active");
+                    const content = this.nextElementSibling;
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                });
+            }
+        });
     </script>
 </body>
 
