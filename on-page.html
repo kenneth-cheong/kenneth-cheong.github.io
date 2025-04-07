@@ -289,6 +289,15 @@
         .collapsible-loading {
             background-color: #ffad33;
         }
+
+        .load-cache-button {
+            padding: 10px 20px;
+            margin: 10px;
+        }
+
+        .load-cache-button:hover {
+            background-color: #3e8e41;
+        }
     </style>
 </head>
 
@@ -304,6 +313,7 @@
         <textarea id="keywords" name="keywords" rows="4" placeholder="keyword1, keyword2, keyword3"></textarea>
 
         <button onclick="getImages()" id="getImagesBtn">Extract Elements & Generate Recommendations</button>
+        <button onclick="loadCachedData()" class="load-cache-button">Load Cached Data</button>
     </div>
     <button class="collapsible" id="resultsCollapsible" style="display: none;">Meta Data and Headings</button>
     <div id="results"></div>
@@ -423,6 +433,7 @@
 
                 document.getElementById('contentRecommendations').innerHTML = contentTableHTML + '<div style="text-align: center;"><button class="export-button" onclick="exportToCSV()">Export to CSV</button></div>';
                 document.getElementById('contentCollapsible').style.display = "block";
+                localStorage.setItem('onPageContent', document.getElementById('contentRecommendations').innerHTML);
 
             } catch (error) {
                 console.error("Error fetching recommendations:", error);
@@ -448,6 +459,8 @@
 
                 const recommendationData = await recommendationResponse.json();
                 displayAllData(recommendationData);
+                localStorage.setItem('onPageResults', document.getElementById('results').innerHTML);
+                localStorage.setItem('onPageImages', document.getElementById('imageRecommendations').innerHTML);
 
             } catch (error) {
                 console.error("Error fetching recommendations:", error);
@@ -548,6 +561,10 @@
 
             document.getElementById('resultsCollapsible').style.display = "block";
             document.getElementById('imageCollapsible').style.display = "block";
+
+            localStorage.setItem('onPageUrl', document.getElementById('url').value);
+            localStorage.setItem('onPageKeywords', document.getElementById('keywords').value);
+            localStorage.setItem('onPageResults', document.getElementById('results').innerHTML);
         }
 
 
@@ -650,13 +667,16 @@
             </table>
         `;
 
-            resultsHTML += metaTableHTML + imageTableHTML;
+            resultsHTML += metaTableHTML;
 
             // Add export button after image table
             resultsHTML += '<button class="export-button" onclick="exportToCSV()">Export to CSV</button>';
 
             document.getElementById('results').innerHTML = resultsHTML;
+            document.getElementById('imageRecommendations').innerHTML = imageTableHTML;
             document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations";
+            localStorage.setItem('onPageResults', document.getElementById('results').innerHTML);
+            localStorage.setItem('onPageImages', document.getElementById('imageRecommendations').innerHTML);
         }
 
         function copyColumn(columnIndex, tableId = 'results') {
@@ -766,6 +786,38 @@
                 });
             }
         });
+
+        function loadCachedData() {
+            const url = localStorage.getItem('onPageUrl');
+            const keywords = localStorage.getItem('onPageKeywords');
+            const resultsHTML = localStorage.getItem('onPageResults');
+            const imageHTML = localStorage.getItem('onPageImages');
+            const contentHTML = localStorage.getItem('onPageContent');
+
+            if (url) {
+                document.getElementById('url').value = url;
+            }
+            if (keywords) {
+                document.getElementById('keywords').value = keywords;
+            }
+            if (resultsHTML) {
+                document.getElementById('results').innerHTML = resultsHTML;
+                document.getElementById('resultsCollapsible').style.display = "block";
+            }
+            if (imageHTML) {
+                document.getElementById('imageRecommendations').innerHTML = imageHTML;
+                document.getElementById('imageCollapsible').style.display = "block";
+            }
+            if (contentHTML) {
+                document.getElementById('contentRecommendations').innerHTML = contentHTML;
+                document.getElementById('contentCollapsible').style.display = "block";
+            }
+
+            if (url || keywords || resultsHTML || imageHTML || contentHTML) {
+            } else {
+                alert('No data found in cache.');
+            }
+        }
     </script>
 </body>
 
