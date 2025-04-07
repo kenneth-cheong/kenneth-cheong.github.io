@@ -95,31 +95,35 @@
 
     <h1>MediaOne Rank Checker</h1><h2>(Up to 1,200 keywords per query)</h2>
 
-    <textarea id="keywords" rows="10" cols="50" placeholder="Enter keywords, one per line, up to 1,200 keywords"></textarea>
+    <textarea id="rankCheckerKeywords" rows="10" cols="50" placeholder="Enter keywords, one per line, up to 1,200 keywords"></textarea>
     <br>
-    <label-fixed for="domain">Targeted Domain / URL:</label-fixed>
-    <input type="url" id="domain" name="domain" value="https://mediaonemarketing.com.sg">
+    <label-fixed for="rankCheckerDomain">Targeted Domain / URL:</label-fixed><br>
+    <input type="url" id="rankCheckerDomain" name="domain" value="https://mediaonemarketing.com.sg"><br>
+    <label-fixed for="rankCheckerLanguage">Language:</label-fixed><br>
+    <input type="text" id="rankCheckerLanguage" name="language" value="English"><br>
+    <label-fixed for="rankCheckerLocation">Location:</label-fixed><br>
+    <input type="text" id="rankCheckerLocation" name="location" value="Singapore">
     <br><br>
     <button id = "checkRanksButton" onclick="checkRanks()">Check Ranks</button>
     <hr>
     <br>
-    <table id="resultsTable">
+    <table id="rankCheckerResultsTable">
         <thead>
             <tr>
                 <th>Rank</th>
                 <th>Keyword</th>
             </tr>
         </thead>
-        <tbody id="resultsTableBody">
+        <tbody id="rankCheckerResultsTableBody">
         </tbody>
     </table>
 
     <script>
         async function checkRanks() {
             document.getElementById('checkRanksButton').innerHTML = "Checking rankings...";
-            const keywords = document.getElementById('keywords').value.split('\n');
-            domain = document.getElementById('domain').value;
-            const tableBody = document.getElementById('resultsTableBody');
+            const keywords = document.getElementById('rankCheckerKeywords').value.split('\n');
+            domain = document.getElementById('rankCheckerDomain').value;
+            const tableBody = document.getElementById('rankCheckerResultsTableBody');
             tableBody.innerHTML = ""; // Clear previous results
             const results = [];
             for (keyword of keywords) {
@@ -153,8 +157,8 @@
                     },
                     body: JSON.stringify({
                         "keyword": keyword,
-                        "language": "English",
-                        "location": "Singapore",
+                        "language": document.getElementById('rankCheckerLanguage').value,
+                        "location": document.getElementById('rankCheckerLocation').value,
                         "target": domain
                     })
                 });
