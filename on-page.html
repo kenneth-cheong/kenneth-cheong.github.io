@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
         integrity="..." crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
+        /* Existing Styles - Keep as is */
         /* General Styles */
         body {
             font-family: 'Roboto', sans-serif;
@@ -133,6 +134,7 @@
             font-size: 1em;
             background-color: white;
             overflow: hidden;
+            padding: 10px;
         }
 
         #metaTable td:nth-child(1) {
@@ -160,21 +162,18 @@
             width: 20%;
             /* Adjust this value as needed */
             word-break: break-word;
-            /* Prevent overflow by breaking long words */
         }
 
         #imageTable td:nth-child(4) {
             width: 30%;
             /* Adjust this value as needed */
             word-break: break-word;
-            /* Prevent overflow by breaking long words */
         }
 
         #imageTable td:nth-child(5) {
             width: 30%;
             /* Adjust this value as needed */
             word-break: break-word;
-            /* Prevent overflow by breaking long words */
         }
 
         #contentTable td:nth-child(1) {
@@ -186,7 +185,6 @@
             width: 30%;
             /* Adjust this value as needed */
             word-break: break-word;
-            /* Prevent overflow by breaking long words */
             padding: 10px;
         }
 
@@ -194,14 +192,12 @@
             width: 36%;
             /* Adjust this value as needed */
             word-break: break-word;
-            /* Prevent overflow by breaking long words */
         }
 
         #contentTable td:nth-child(4) {
             width: 32%;
             /* Adjust this value as needed */
             word-break: break-word;
-            /* Prevent overflow by breaking long words */
             padding: 10px;
         }
 
@@ -290,13 +286,79 @@
             background-color: #ffad33;
         }
 
-        .load-cache-button {
-            padding: 10px 20px;
-            margin: 10px;
-        }
-
         .load-cache-button:hover {
             background-color: #3e8e41;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            /* Hidden by default */
+            position: fixed;
+            /* Stay in place */
+            z-index: 1;
+            /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%;
+            /* Full width */
+            height: 100%;
+            /* Full height */
+            overflow: auto;
+            /* Enable scroll if needed */
+            background-color: rgba(0, 0, 0, 0.4);
+            /* Black w/ opacity */
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            /* 15% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: fit-content;
+            border-radius: 20px;
+            /* Could be more or less, depending on screen size */
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        /* Modal Table Styling */
+        #queriesTable {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        #queriesTable th,
+        #queriesTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        #queriesTable th {
+            background-color: #f2f2f2;
+        }
+
+        #queriesTable tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        #queriesTable tr:hover {
+            background-color: #ddd;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -313,15 +375,121 @@
         <textarea id="keywords" name="keywords" rows="4" placeholder="keyword1, keyword2, keyword3"></textarea>
 
         <button onclick="getImages()" id="getImagesBtn">Extract Elements & Generate Recommendations</button>
-        <button onclick="loadCachedData()" class="load-cache-button">Load Cached Data</button>
+        <button onclick="loadCachedData()" class="load-cache-button">Load Cached Data From Browser</button>
+        <button onclick="openQueriesModal()" id="loadQueriesBtn">Load Previous Queries</button>
     </div>
+
     <button class="collapsible" id="resultsCollapsible" style="display: none;">Meta Data and Headings</button>
     <div id="results"></div>
     <button class="collapsible" id="imageCollapsible" style="display: none;">Image Alt Text</button>
     <div id="imageRecommendations"></div>
     <button class="collapsible" id="contentCollapsible" style="display: none;">Content</button>
-    <div id="contentRecommendations"></div>
+    <div id="contentRecommendations"></div> 
+
+    <!-- Modal for Previous Queries -->
+    <div id="queriesModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeQueriesModal()">×</span>
+            <h2>Previous Queries</h2>
+            <table id="queriesTable">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Date</th>
+                        <th>URL</th>
+                        <th>Keywords</th>
+                        <th>User</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Queries will be populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <script>
+        const API_ENDPOINT = "https://vau2b5m95m.execute-api.ap-southeast-1.amazonaws.com/queryDatabase"; // Replace with your actual API endpoint
+        const USER_EMAIL = JSON.parse(localStorage.getItem('googleUser')).email
+
+        // --- Utility Functions ---
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        }
+
+        // --- Modal Functions ---
+        function openQueriesModal() {
+            document.getElementById('queriesModal').style.display = "block";
+            loadPreviousQueries(); // Load data when modal opens
+        }
+
+        function closeQueriesModal() {
+            document.getElementById('queriesModal').style.display = "none";
+        }
+
+        // Close the modal if the user clicks outside of it.
+        window.onclick = function (event) {
+            const modal = document.getElementById('queriesModal');
+            if (event.target == modal) {
+                closeQueriesModal();
+            }
+        }
+
+        // --- API Interaction Functions ---
+        async function loadPreviousQueries() {
+            try {
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user: USER_EMAIL,
+                        collection: "on_page"
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                populateQueriesTable(data);
+
+            } catch (error) {
+                console.error("Error loading previous queries:", error);
+                alert("Failed to load previous queries. See console for details.");
+            }
+        }
+
+        // --- Data Population Functions ---
+        function populateQueriesTable(queries) {
+            const tableBody = document.getElementById('queriesTable').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = ""; // Clear existing rows
+
+            queries.forEach((query, index) => {
+                const row = tableBody.insertRow();
+                row.insertCell(0).textContent = index + 1;
+                row.insertCell(1).textContent = formatDate(query.date);
+                row.insertCell(2).textContent = query.url;
+                row.insertCell(3).textContent = query.user;
+                row.insertCell(3).textContent = query.keywords;
+
+                row.addEventListener('click', () => loadQueryData(query)); // Add click listener
+            });
+        }
+
+        function loadQueryData(query) {
+            document.getElementById('url').value = query.url;
+            document.getElementById('keywords').value = query.keywords.join(', ');
+            document.getElementById('results').innerHTML = query.meta_table;
+            document.getElementById('imageRecommendations').innerHTML = query.image_table;
+            document.getElementById('contentRecommendations').innerHTML = query.content_table;
+            closeQueriesModal(); // Close modal after loading
+        }
+
+        // --- Existing Functions - Keep as is, but note potential modifications below ---
         async function getImages() {
             document.getElementById('contentCollapsible').style.backgroundColor = "#004c9d";
             document.getElementById('imageCollapsible').style.backgroundColor = "#004c9d";
@@ -330,7 +498,7 @@
             document.getElementById('results').innerHTML = ""; // Clear previous results
             document.getElementById('imageRecommendations').innerHTML = ""; // Clear previous results
             document.getElementById('contentRecommendations').innerHTML = ""; // Clear previous results
-            
+
             document.getElementById('resultsCollapsible').style.display = "none";
             document.getElementById('imageCollapsible').style.display = "none";
             document.getElementById('contentCollapsible').style.display = "none";
@@ -396,7 +564,10 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url, "keywords": keywordArray })
+                    body: JSON.stringify({
+                        url,
+                        "keywords": keywordArray
+                    })
                 });
 
                 if (!recommendationResponse.ok) {
@@ -420,7 +591,7 @@
         `;
 
                 let i = 0;
-                for (const recommendation of recommendationData.output) {
+                for (const recommendation of recommendationData) {
                     contentTableHTML += `
                 <tr>
                     <td>${i + 1}</td>
@@ -444,7 +615,7 @@
 
             } catch (error) {
                 console.error("Error fetching recommendations:", error);
-                document.getElementById('results').innerHTML = `<p>Error fetching recommendations: ${error}</p>`;
+                document.getElementById('contentRecommendations').innerHTML = `<p>Error fetching recommendations: ${error}</p>`;
             }
         }
 
@@ -457,7 +628,10 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ "data": firstApiResponse, "keywords": keywordArray })
+                    body: JSON.stringify({
+                        "data": firstApiResponse,
+                        "keywords": keywordArray
+                    })
                 });
 
                 if (!recommendationResponse.ok) {
@@ -684,6 +858,30 @@
             document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations";
             localStorage.setItem('onPageResults', document.getElementById('results').innerHTML);
             localStorage.setItem('onPageImages', document.getElementById('imageRecommendations').innerHTML);
+            onPageToDatabase();
+        }
+
+        async function onPageToDatabase() {
+            keywords = document.getElementById('keywords').value; // Get keywords
+            keywordArray = keywords.split(/[,\n]+/).map(keyword => keyword.trim()).filter(keyword => keyword !== "");
+            endpoint = "https://7nq1nq4ll5.execute-api.ap-southeast-1.amazonaws.com/onPageToDatabase";
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    url: document.getElementById('url').value,
+                    keywords: keywordArray,
+                    meta_table: document.getElementById('results').innerHTML,
+                    image_table: document.getElementById('imageRecommendations').innerHTML,
+                    content_table: document.getElementById('contentRecommendations').innerHTML,
+                    user: JSON.parse(localStorage.getItem('googleUser')).email
+                })
+            })
+
+            data = await response.json();
         }
 
         function copyColumn(columnIndex, tableId = 'results') {
