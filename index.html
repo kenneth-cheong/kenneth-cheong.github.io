@@ -1312,6 +1312,36 @@
             padding: 10px;
         }
 
+        .queries-modal {
+            display: none;
+            /* Hidden by default */
+            position: fixed;
+            /* Stay in place */
+            z-index: 1;
+            /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%;
+            /* Full width */
+            height: 100%;
+            /* Full height */
+            overflow: auto;
+            /* Enable scroll if needed */
+            background-color: rgba(0, 0, 0, 0.4);
+            /* Black w/ opacity */
+        }
+
+        .queries-modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            /* 15% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: fit-content;
+            border-radius: 20px;
+            /* Could be more or less, depending on screen size */
+        }
+
         @media screen and (max-width: 1081px) {
 
             .column,
@@ -1396,36 +1426,6 @@
                 font-size: 0.75em;
             }
         }
-
-        .queries-modal {
-            display: none;
-            /* Hidden by default */
-            position: fixed;
-            /* Stay in place */
-            z-index: 1;
-            /* Sit on top */
-            left: 0;
-            top: 0;
-            width: 100%;
-            /* Full width */
-            height: 100%;
-            /* Full height */
-            overflow: auto;
-            /* Enable scroll if needed */
-            background-color: rgba(0, 0, 0, 0.4);
-            /* Black w/ opacity */
-        }
-
-        .queries-modal-content {
-            background-color: #fefefe;
-            margin: 15% auto;
-            /* 15% from the top and centered */
-            padding: 20px;
-            border: 1px solid #888;
-            width: fit-content;
-            border-radius: 20px;
-            /* Could be more or less, depending on screen size */
-        }
     </style>
 </head>
 
@@ -1455,7 +1455,7 @@
                                 Generator</span></a></li>
                     <li><a href="#onPageSection" onclick="openOnPage(event)"><i class="fas fa-wand-magic-sparkles"></i>
                             <span>On-Page</span></a></li>
-                    <li><a href="/rank-checker.html" target="_blank"><i class="fas fa-trophy"></i>
+                    <li><a href="#rankCheckerSection"  onclick="openRankChecker(event)"><i class="fas fa-trophy"></i>
                             <span>Rank Checker</span></a></li>
                 </ul>
             </li>
@@ -1700,7 +1700,6 @@
                     <p><b>Backlinks Spam Score: </b><span id="targetSpamScore">-</span></p>
                     <p><b>Backlinks: </b><span id="targetBacklinks">-</span></p>
                     <p><b>Referring Domains: </b><span id="targetRefDomains">-</span></p>
-                    <p><b>Domain Rank: </b><span id="targetDomainRank">-</span></p>
                     <p><b>Page Word Count: </b><span id="targetWordCount">-</span></p>
                 </div>
                 <div class="column">
@@ -1927,10 +1926,12 @@
                         <span class="close" onclick="closeQueriesModal()">×</span>
                         <h2>Previous On-Page Queries</h2>
 
-                        <div id="loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
-                            <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..." style="width: 100px; height: 100px;">
+                        <div id="loading"
+                            style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
+                            <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..."
+                                style="width: 100px; height: 100px;">
                             <p style="text-align: center;">Loading queries...</p>
-                          </div>
+                        </div>
 
                         <table id="queriesTable">
                             <thead>
@@ -1950,8 +1951,33 @@
                 </div>
             </div>
             <hr>
-            <button class="collapsible" id="rankCheckerButton"
-                onclick="window.open('/rank-checker.html', '_blank');">Rank Checker</button>
+            <button class="collapsible" id="rankCheckerButton">Rank Checker</button>
+            <div class="content" id="rankChecker">
+                <label-fixed for="rankCheckerKeywords">Keywords:</label-fixed><br>
+                <textarea id="rankCheckerKeywords" rows="10" cols="50"
+                    placeholder="Enter keywords, one per line, up to 1,200 keywords"></textarea>
+                <br>
+                <label-fixed for="rankCheckerDomain">Targeted Domain / URL:</label-fixed><br>
+                <input type="url" id="rankCheckerDomain" value="https://mediaonemarketing.com.sg"><br>
+                <label-fixed for="rankCheckerLanguage">Language:</label-fixed><br>
+                <input type="text" id="rankCheckerLanguage" value="English"><br>
+                <label-fixed for="rankCheckerLocation">Location:</label-fixed><br>
+                <input type="text" id="rankCheckerLocation" value="Singapore">
+                <br><br>
+                <button id="checkRanksButton" onclick="checkRanks()">Check Ranks</button>
+                <hr>
+                <br>
+                <table id="rankCheckerResultsTable" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Keyword</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rankCheckerResultsTableBody">
+                    </tbody>
+                </table>
+            </div>
         </div>
         <hr>
         <button class="collapsible" id="smm"><i class="fas fa-share-alt"></i>Social Media (SMM)</button>
@@ -3914,7 +3940,7 @@
 
             document.getElementById('targetTitle').innerText = "";
             document.getElementById('targetDescription').innerText = "";
-            document.getElementById('targetDomainRank').innerText = "";
+            //document.getElementById('targetDomainRank').innerText = "";
             document.getElementById('targetBacklinks').innerText = "";
             document.getElementById('targetSpamScore').innerText = "";
             document.getElementById('targetPagespeed').innerText = '-/100';
@@ -6077,6 +6103,37 @@
             }
         }
 
+        function openRankChecker(event) {
+            event.preventDefault();
+            deactivateAllButtons();
+            openSeo(event);
+            Button = document.querySelector('button#rankCheckerButton');
+            if (Button) {
+                Button.classList.toggle('active');
+                const content = Button.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const schemaGeneratorLink = event.currentTarget;
+                schemaGeneratorLink.classList.toggle('active-menu');
+
+                const seoSubmenuItems = schemaGeneratorLink.closest('ul').querySelectorAll('li a');
+                seoSubmenuItems.forEach(item => {
+                    if (item !== schemaGeneratorLink) {
+                        item.classList.remove('active-menu');
+                    }
+                });
+
+                if (content.style.display === "block") {
+                    const schemaGeneratorSection = document.getElementById('rankCheckerButton');
+                    if (schemaGeneratorSection) {
+                        schemaGeneratorSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+        }
+
         function openContentGenerator(event) {
             event.preventDefault();
             deactivateAllButtons();
@@ -7496,173 +7553,6 @@
             });
         });
 
-        function savePageState() {
-            const state = {
-                // Capture input values
-                domain: document.getElementById('domain').value,
-                location: document.getElementById('location').value,
-                language: document.getElementById('language').value,
-                keywords: document.getElementById('keywords').value,
-
-                //Capture values of content generator 
-                gender: document.getElementById('gender').value,
-                ageRange: document.getElementById('age-range').value,
-                occupation: document.getElementById('occupation').value,
-                income: document.getElementById('income').value,
-                subgroups: document.getElementById('subgroups').value,
-                painpoints: document.getElementById('painpoints').value,
-                audienceGoal: document.getElementById('audience_goal').value,
-                productService: document.getElementById('product_service').value,
-                desiredAction: document.getElementById('desired_action').value,
-                postObjectives: document.getElementById('post_objectives').value,
-                contentType: document.getElementById('content-type').value,
-                wordCount: document.getElementById('word_count').value,
-                tone: document.getElementById('tone').value,
-                usp: document.getElementById('usp').value,
-                pov: document.getElementById('pov').value,
-                emojis: document.getElementById('emojis').value,
-                hashtags: document.getElementById('hashtags').value,
-
-                brandGuideUrls: document.getElementById('generator_brand_guide_urls').value,
-                sampleText: document.getElementById('sample-text').value,
-                postInfo: document.getElementById('post-info').value,
-                referenceUrl: document.getElementById('reference-url').value,
-
-                landingPageUrl: document.getElementById("landingPageUrl").value,
-                landingPageAuditKeyword: document.getElementById("landingPageAuditKeyword").value,
-
-                // Capture visibility of elements
-                overallSummaryDisplay: document.getElementById('overall-summary').style.display,
-                technicalButtonDisplay: document.getElementById('technicalButton').style.display,
-                contentComparisonButtonDisplay: document.getElementById('contentComparisonButton').style.display,
-                domainMetricsDisplay: document.getElementById('domainMetrics').style.display,
-                metaDataDisplay: document.getElementById('metaData').style.display,
-
-                // Capture innerHTML of dynamic content sections
-                overallSummaryHTML: document.getElementById('overall-summary').innerHTML,
-                keywordAnalysisResultsHTML: document.getElementById('keyword-analysis-results').innerHTML,
-                technicalSeoHTML: document.getElementById('technicalSeo').innerHTML,
-                contentComparisonHTML: document.getElementById('contentComparison').innerHTML,
-
-                // Crawler table values
-                crawlerTableBody: document.getElementById('crawlerTableBody').innerHTML,
-
-                competitorsTarget1: document.getElementById("competitors-target1").value,
-                competitorKeywords: document.getElementById("competitor_keywords").value,
-                competitorsLanguage: document.getElementById("competitors-language").value,
-                competitorsLocation: document.getElementById("competitors-location").value,
-                competitorsOutput: document.getElementById("competitorsOutput").innerHTML,
-
-                personaWebpages: document.getElementById("persona_webpages").value,
-                personaManual: document.getElementById("persona_manual").value,
-                personaResults: document.getElementById("persona-results").innerHTML,
-
-                mediaPlanWebpages: document.getElementById("MediaPlanWebpages").value,
-                mediaPlanBudget: document.getElementById("MediaPlanBudget").value,
-                mediaPlanManual: document.getElementById("MediaPlanManual").value,
-                mediaPlanResults: document.getElementById("mediaPlanResults").innerHTML,
-
-                contentToCheckUrls: document.getElementById("content_check_other_urls").value,
-                brandGuideUrls: document.getElementById("brand_guide_urls").value,
-                checkInstructions: document.getElementById("content_check_instructions").value,
-                contentToCheck: document.getElementById("content_to_check").value,
-                checkContentResults: document.getElementById("checkContentResults").innerHTML,
-            };
-
-            localStorage.setItem('pageState', JSON.stringify(state));
-            console.log('Page state saved to localStorage');
-        }
-
-        // Function to restore the page state from localStorage
-        function restorePageState() {
-            const storedState = localStorage.getItem('pageState');
-            if (storedState) {
-                const state = JSON.parse(storedState);
-
-                // Restore input values
-                document.getElementById('domain').value = state.domain || '';
-                document.getElementById('location').value = state.location || 'Singapore'; // Set a default
-                document.getElementById('language').value = state.language || 'English'; // Set a default
-                document.getElementById('keywords').value = state.keywords || '';
-
-                //Restore values of content generator
-                document.getElementById('gender').value = state.gender || '';
-                document.getElementById('age-range').value = state.ageRange || '';
-                document.getElementById('occupation').value = state.occupation || '';
-                document.getElementById('income').value = state.income || '';
-                document.getElementById('subgroups').value = state.subgroups || '';
-                document.getElementById('painpoints').value = state.painpoints || '';
-                document.getElementById('audience_goal').value = state.audienceGoal || '';
-                document.getElementById('product_service').value = state.productService || '';
-                document.getElementById('desired_action').value = state.desiredAction || '';
-                document.getElementById('post_objectives').value = state.postObjectives || '';
-                document.getElementById('content-type').value = state.contentType || '';
-                document.getElementById('word_count').value = state.wordCount || '';
-                document.getElementById('tone').value = state.tone || '';
-                document.getElementById('usp').value = state.usp || '';
-                document.getElementById('pov').value = state.pov || '';
-                document.getElementById('emojis').value = state.emojis || '';
-                document.getElementById('hashtags').value = state.hashtags || '';
-
-                document.getElementById('generator_brand_guide_urls').value = state.brandGuideUrls || '';
-                document.getElementById('sample-text').value = state.sampleText || '';
-                document.getElementById('post-info').value = state.postInfo || '';
-                document.getElementById('reference-url').value = state.referenceUrl || '';
-
-                document.getElementById('landingPageUrl').value = state.landingPageUrl || '';
-                document.getElementById('landingPageAuditKeyword').value = state.landingPageAuditKeyword || '';
-
-                // Restore visibility
-                document.getElementById('overall-summary').style.display = state.overallSummaryDisplay || 'none';
-                document.getElementById('technicalButton').style.display = state.technicalButtonDisplay || 'none';
-                document.getElementById('contentComparisonButton').style.display = state.contentComparisonButtonDisplay || 'none';
-                document.getElementById('domainMetrics').style.display = state.domainMetricsDisplay || 'none';
-                document.getElementById('metaData').style.display = state.metaDataDisplay || 'none';
-
-                // Restore innerHTML
-                document.getElementById('overall-summary').innerHTML = state.overallSummaryHTML || '';
-                document.getElementById('keyword-analysis-results').innerHTML = state.keywordAnalysisResultsHTML || '';
-                document.getElementById('technicalSeo').innerHTML = state.technicalSeoHTML || '';
-                document.getElementById('contentComparison').innerHTML = state.contentComparisonHTML || '';
-
-                document.getElementById('crawlerTableBody').innerHTML = state.crawlerTableBody || '';
-
-                document.getElementById("competitors-target1").value = state.competitorsTarget1 || '';
-                document.getElementById("competitor_keywords").value = state.competitorKeywords || '';
-                document.getElementById("competitors-language").value = state.competitorsLanguage || '';
-                document.getElementById("competitors-location").value = state.competitorsLocation || '';
-                document.getElementById("competitorsOutput").innerHTML = state.competitorsOutput || '';
-
-                document.getElementById("persona_webpages").value = state.personaWebpages || '';
-                document.getElementById("persona_manual").value = state.personaManual || '';
-                document.getElementById("persona-results").innerHTML = state.personaResults || '';
-
-                document.getElementById("MediaPlanWebpages").value = state.mediaPlanWebpages || '';
-                document.getElementById("MediaPlanBudget").value = state.mediaPlanBudget || '';
-                document.getElementById("MediaPlanManual").value = state.mediaPlanManual || '';
-                document.getElementById("mediaPlanResults").innerHTML = state.mediaPlanResults || '';
-
-                document.getElementById("content_check_other_urls").value = state.contentToCheckUrls || '';
-                document.getElementById("brand_guide_urls").value = state.brandGuideUrls || '';
-                document.getElementById("content_check_instructions").value = state.checkInstructions || '';
-                document.getElementById("content_to_check").value = state.contentToCheck || '';
-                document.getElementById("checkContentResults").innerHTML = state.checkContentResults || '';
-
-                console.log('Page state restored from localStorage');
-            } else {
-                console.log('No page state found in localStorage');
-            }
-        }
-
-        // Attach event listeners to input elements for real-time saving (optional)
-        const inputElements = document.querySelectorAll('input, select, textarea');
-        inputElements.forEach(input => {
-            input.addEventListener('change', savePageState);
-        });
-
-        // Restore page state on page load
-        window.addEventListener('load', restorePageState);
-
         function clearPageState() {
             // Clear input values
             document.getElementById('domain').value = '';
@@ -7700,7 +7590,7 @@
             //Clear output section values
             document.getElementById('targetTitle').innerText = "";
             document.getElementById('targetDescription').innerText = "";
-            document.getElementById('targetDomainRank').innerText = "";
+            //document.getElementById('targetDomainRank').innerText = "";
             document.getElementById('targetBacklinks').innerText = "";
             document.getElementById('targetSpamScore').innerText = "";
             document.getElementById('targetPagespeed').innerText = '-/100';
@@ -8395,6 +8285,68 @@
             document.getElementById('contentCollapsible').style.display = "none";
             document.getElementById('contentCollapsible').style.backgroundColor = "#004c9d";
 
+        }
+
+        async function checkRanks() {
+            document.getElementById('rankCheckerResultsTable').style.display = "none";
+            document.getElementById('checkRanksButton').innerHTML = "Checking rankings...";
+            const keywords = document.getElementById('rankCheckerKeywords').value.split('\n');
+            domain = document.getElementById('rankCheckerDomain').value;
+            const tableBody = document.getElementById('rankCheckerResultsTableBody');
+            tableBody.innerHTML = ""; // Clear previous results
+            const results = [];
+            for (keyword of keywords) {
+                const row = tableBody.insertRow();
+                const rankCell = row.insertCell();
+                const keywordCell = row.insertCell();
+
+                rankCell.textContent = 'getting rank...';
+                keywordCell.textContent = keyword;
+
+                if (keyword.trim() !== "") { // Only make API call if keyword is not empty
+                    results.push(fetchRank(keyword.trim(), row));
+                } else {
+                    rankCell.textContent = ''; // Clear "getting rank" for empty lines
+                }
+            }
+
+            await Promise.all(results); // Wait for all API calls to complete
+            document.getElementById('rankCheckerResultsTable').style.display = "block";
+            document.getElementById('checkRanksButton').innerHTML = "Check Ranks";
+        }
+
+        async function fetchRank(keyword, row) {
+            domain = document.getElementById('rankCheckerDomain').value;
+            console.log(domain);
+            const rankCell = row.cells[0];
+            try {
+                const response = await fetch('https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        "keyword": keyword,
+                        "language": document.getElementById('rankCheckerLanguage').value,
+                        "location": document.getElementById('rankCheckerLocation').value,
+                        "target": domain
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+
+                data = await response.json();
+
+                if (data == null) {
+                    data = 999;
+                }
+                rankCell.textContent = data;
+            } catch (error) {
+                console.error("Error fetching rank:", error);
+                rankCell.textContent = 'not available';
+            }
         }
 
     </script>

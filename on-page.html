@@ -525,7 +525,7 @@
 
         function loadQueryData(query) {
             document.getElementById('on-page-url').value = query.url;
-            document.getElementById('keywords').value = query.keywords.join(', ');
+            document.getElementById('on-page-keywords').value = query.keywords.join(', ');
             document.getElementById('onPageResults').innerHTML = query.meta_table;
             document.getElementById('imageRecommendations').innerHTML = query.image_table;
             document.getElementById('contentRecommendations').innerHTML = query.content_table;
@@ -632,7 +632,7 @@
                     </tr>
                 </thead>
                 <tbody>
-        `;
+            `;
 
                 let i = 0;
                 for (const recommendation of recommendationData) {
@@ -651,7 +651,7 @@
                 contentTableHTML += `
                 </tbody>
             </table>
-        `;
+            `;
 
                 document.getElementById('contentRecommendations').innerHTML = contentTableHTML + '<div style="text-align: center;"><button class="export-button" onclick="exportOnPageToCSV()">Export to CSV</button></div>';
                 document.getElementById('contentCollapsible').style.display = "block";
@@ -698,38 +698,38 @@
             let resultsHTML = '';
 
             let metaTableHTML = `
-    <table id="metaTable">
-        <thead>
-            <tr>
-                <th>Item</th>
-                <th>Current Value</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Meta Title</td>
-                <td>${data.meta_title}</td>
-            </tr>
-            <tr>
-                <td>Meta Description</td>
-                <td>${data.meta_description}</td>
-            </tr>
-            <tr>
-                <td>Canonical URL</td>
-                <td>${data.canonical_url}</td>
-            </tr>`;
-
-            // Function to add heading rows
-            function addHeadingRows(headingType, headings) {
-                headings.forEach(heading => {
-                    metaTableHTML += `
+            <table id="metaTable">
+                <thead>
                     <tr>
-                        <td>${headingType}</td>
-                        <td>${heading}</td>
+                        <th>Item</th>
+                        <th>Current Value</th>
                     </tr>
-                `;
-                });
-            }
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Meta Title</td>
+                        <td>${data.meta_title}</td>
+                    </tr>
+                    <tr>
+                        <td>Meta Description</td>
+                        <td>${data.meta_description}</td>
+                    </tr>
+                    <tr>
+                        <td>Canonical URL</td>
+                        <td>${data.canonical_url}</td>
+                    </tr>`;
+
+                    // Function to add heading rows
+                    function addHeadingRows(headingType, headings) {
+                        headings.forEach(heading => {
+                            metaTableHTML += `
+                            <tr>
+                                <td>${headingType}</td>
+                                <td>${heading}</td>
+                            </tr>
+                        `;
+                        });
+                    }
 
             addHeadingRows("H1 Heading", data.headings.h1);
             addHeadingRows("H2 Heading", data.headings.h2);
@@ -738,22 +738,22 @@
 
             metaTableHTML += `
 
-        </tbody>
-    </table>
-`;
+                    </tbody>
+                </table>
+            `;
 
-            let imageTableHTML = `
-        <table id="imageTable">
-            <thead>
-                <tr>
-                    <th>No.</th>
-                    <th>Image URL <button class="copy-button" onclick="copyColumn(1, 'imageTable')">Copy</button></th>
-                    <th>Image Preview</th>
-                    <th>Alt Text <button class="copy-button" onclick="copyColumn(3, 'imageTable')">Copy</button></th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
+                        let imageTableHTML = `
+                    <table id="imageTable">
+                        <thead>
+                            <tr>
+                                <th>No.</th>
+                                <th>Image URL <button class="copy-button" onclick="copyColumn(1, 'imageTable')">Copy</button></th>
+                                <th>Image Preview</th>
+                                <th>Alt Text <button class="copy-button" onclick="copyColumn(3, 'imageTable')">Copy</button></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
 
             for (let i = 0; i < data.image_data.length; i++) {
                 const item = data.image_data[i];
@@ -767,13 +767,13 @@
                 <td><img src="${imageUrl}" alt="${altText}"></td>
                 <td>${altText}</td>
             </tr>
-        `;
+            `;
             }
 
             imageTableHTML += `
             </tbody>
-        </table>
-    `;
+        
+         `;
 
             resultsHTML += metaTableHTML
 
@@ -788,7 +788,7 @@
             document.getElementById('imageCollapsible').style.display = "block";
 
             localStorage.setItem('onPageUrl', document.getElementById('on-page-url').value);
-            localStorage.setItem('onPageKeywords', document.getElementById('keywords').value);
+            localStorage.setItem('onPageKeywords', document.getElementById('on-page-keywords').value);
             localStorage.setItem('onPageResults', document.getElementById('onPageResults').innerHTML);
         }
 
@@ -906,7 +906,7 @@
         }
 
         async function onPageToDatabase() {
-            keywords = document.getElementById('keywords').value; // Get keywords
+            keywords = document.getElementById('on-page-keywords').value; // Get keywords
             keywordArray = keywords.split(/[,\n]+/).map(keyword => keyword.trim()).filter(keyword => keyword !== "");
             endpoint = "https://7nq1nq4ll5.execute-api.ap-southeast-1.amazonaws.com/onPageToDatabase";
 
@@ -1049,7 +1049,7 @@
                 document.getElementById('on-page-url').value = url;
             }
             if (keywords) {
-                document.getElementById('keywords').value = keywords;
+                document.getElementById('on-page-keywords').value = keywords;
             }
             if (resultsHTML) {
                 document.getElementById('onPageResults').innerHTML = resultsHTML;
