@@ -105,6 +105,7 @@
 
                 document.getElementById('threadId').innerText = data;
                 console.log(data);
+                loadFromLocalStorage();
 
             } catch (error) {
                 console.error('Error fetching or parsing thread ID:', error);
@@ -1451,11 +1452,12 @@
                                 class="fa fa-balance-scale"></i>
                             <span>Content
                                 Comparison</span></a></li>
-                    <li><a href="#schemaGeneratorButton" onclick="openSchemaGenerator(event)"><i class="fas fa-code"></i> <span>Schema
+                    <li><a href="#schemaGeneratorButton" onclick="openSchemaGenerator(event)"><i
+                                class="fas fa-code"></i> <span>Schema
                                 Generator</span></a></li>
                     <li><a href="#onPageSection" onclick="openOnPage(event)"><i class="fas fa-wand-magic-sparkles"></i>
                             <span>On-Page</span></a></li>
-                    <li><a href="#rankCheckerSection"  onclick="openRankChecker(event)"><i class="fas fa-trophy"></i>
+                    <li><a href="#rankCheckerSection" onclick="openRankChecker(event)"><i class="fas fa-trophy"></i>
                             <span>Rank Checker</span></a></li>
                 </ul>
             </li>
@@ -2447,11 +2449,11 @@
         </div>
     </div>
     <button id="cleanup-button" onclick="clearPageState()"
-        style="position: fixed; bottom: 10px; right: 80px; background-color: hsl(0, 71%, 49%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.5em">
-        <i class="fas fa-trash-alt"></i>
-    </button>
+        style="position: fixed; bottom: 10px; right: 80px; background-color: hsl(0, 71%, 49%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.2em">
+        Clear Data <i class="fas fa-trash-alt" style="margin-left: 10px;"></i>
+</button>
     <button id="chatbot-button"
-        style="position: fixed; bottom: 10px; right: 10px; background-color: hsl(118, 40%, 43%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.5em">
+        style="position: fixed; bottom: 10px; right: 10px; background-color: hsl(118, 40%, 43%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.2em">
         <i class="fas fa-comment-dots"></i>
     </button>
 
@@ -8348,6 +8350,115 @@
                 rankCell.textContent = 'not available';
             }
         }
+
+        function loadFromLocalStorage() {
+            const inputs = document.querySelectorAll('input, textarea, select');
+
+            inputs.forEach(input => {
+                const key = input.id;
+                if (key) {
+                    try {
+                        const storedValue = localStorage.getItem(key);
+                        if (storedValue !== null) {
+                            const parsedValue = JSON.parse(storedValue);
+
+                            if (input.type === 'checkbox') {
+                                input.checked = parsedValue;
+                            } else if (input.tagName === 'SELECT') {
+                                input.value = parsedValue;
+                            } else {
+                                input.value = parsedValue;
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`Error loading or parsing value for ${key}:`, error);
+                    }
+                }
+            });
+
+            // Load generated content
+            const contentIds = [
+                'overall-summary',
+                'keyword-analysis-results',
+                'technicalSeo',
+                'contentComparison',
+                'schema',
+                'onPageSection',
+                'rankChecker',
+                'socialMedia',
+                'SEM',
+                'competitors_content',
+                'persona_content',
+                'mediaplan',
+                'content_check_content',
+                'landingPageAudit',
+                'onPageResults',
+                'imageRecommendations',
+                'contentRecommendations'
+            ];
+
+            contentIds.forEach(id => {
+                const element = document.getElementById(id);
+                const storedContent = localStorage.getItem(id);
+                if (element && storedContent) {
+                    element.innerHTML = storedContent;
+                }
+            });
+
+            console.log('Page state loaded from localStorage');
+        }
+
+        function saveToLocalStorage() {
+            // Get all input elements (including textareas, selects)
+            const inputs = document.querySelectorAll('input, textarea, select');
+
+            inputs.forEach(input => {
+                const key = input.id; // Use the input's ID as the storage key
+
+                if (key) { // Only save if the input has an ID
+                    let value;
+
+                    if (input.type === 'checkbox') {
+                        value = input.checked; // Boolean for checkboxes
+                    } else if (input.tagName === 'SELECT') {
+                        value = input.value; // Selected option's value
+                    } else {
+                        value = input.value; // Text input, textarea value
+                    }
+
+                    localStorage.setItem(key, JSON.stringify(value)); // Convert value to string for storage
+                }
+            });
+
+            // Get all generated content elements by ID
+            const contentIds = [
+                'overall-summary',
+                'keyword-analysis-results',
+                'technicalSeo',
+                'contentComparison',
+                'schema',
+                'onPageSection',
+                'rankChecker',
+                'socialMedia',
+                'SEM',
+                'competitors_content',
+                'persona_content',
+                'mediaplan',
+                'content_check_content',
+                'landingPageAudit'
+            ];
+
+            contentIds.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    localStorage.setItem(id, element.innerHTML);
+                }
+            });
+
+            console.log('Page state saved to localStorage');
+        }
+
+        setInterval(saveToLocalStorage, 5000); // Save every 5 seconds
 
     </script>
 
