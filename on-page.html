@@ -234,11 +234,11 @@
         }
 
         /* Error Message */
-        #results {
+        #onPageResults {
             text-align: center;
         }
 
-        #results p {
+        #onPageResults p {
             margin-bottom: 0;
         }
 
@@ -391,10 +391,10 @@
 
     <div class="input-group">
         <div style="display: flex; align-items: center; margin-bottom: 5px;">
-            <label for="url" style="margin-right: 5px;">Enter URL:</label>
-            <input type="url" id="url" name="url" placeholder="https://example.com" required
+            <label for="on-page-url" style="margin-right: 5px;">Enter URL:</label>
+            <input type="url" id="on-page-url" placeholder="https://example.com" required
                 style="flex-grow: 1; margin-right: 5px;">
-            <button onclick="clearData()" style="white-space: nowrap;">Clear Data</button>
+            <button onclick="clearOnPageData()" style="white-space: nowrap;">Clear Data</button>
         </div>
 
         <label for="keywords">Enter Keywords (comma or newline separated):</label>
@@ -407,8 +407,8 @@
         <button onclick="openQueriesModal()" id="loadQueriesBtn">Load Previous Queries</button>
     </div>
 
-    <button class="collapsible" id="resultsCollapsible" style="display: none;">Meta Data and Headings</button>
-    <div id="results"></div>
+    <button class="collapsible" id="onPageResultsCollapsible" style="display: none;">Meta Data and Headings</button>
+    <div id="onPageResults"></div>
     <button class="collapsible" id="imageCollapsible" style="display: none;">Image Alt Text</button>
     <div id="imageRecommendations"></div>
     <button class="collapsible" id="contentCollapsible" style="display: none;">Content</button>
@@ -444,14 +444,7 @@
     </div>
 
     <script>
-        const API_ENDPOINT = "https://vau2b5m95m.execute-api.ap-southeast-1.amazonaws.com/queryDatabase"; // Replace with your actual API endpoint
-        const USER_EMAIL = JSON.parse(localStorage.getItem('googleUser')).email
-
-        // --- Utility Functions ---
-        function formatDate(dateString) {
-            const date = new Date(dateString);
-            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-        }
+      
 
         // --- Modal Functions ---
         function openQueriesModal() {
@@ -473,6 +466,8 @@
 
         // --- API Interaction Functions ---
         async function loadPreviousQueries() {
+            const API_ENDPOINT = "https://vau2b5m95m.execute-api.ap-southeast-1.amazonaws.com/queryDatabase"; // Replace with your actual API endpoint
+            const USER_EMAIL = JSON.parse(localStorage.getItem('googleUser')).email;
             try {
                 const response = await fetch(API_ENDPOINT, {
                     method: 'POST',
@@ -529,28 +524,27 @@
         }
 
         function loadQueryData(query) {
-            document.getElementById('url').value = query.url;
+            document.getElementById('on-page-url').value = query.url;
             document.getElementById('keywords').value = query.keywords.join(', ');
-            document.getElementById('results').innerHTML = query.meta_table;
+            document.getElementById('onPageResults').innerHTML = query.meta_table;
             document.getElementById('imageRecommendations').innerHTML = query.image_table;
             document.getElementById('contentRecommendations').innerHTML = query.content_table;
             closeQueriesModal(); // Close modal after loading
         }
 
-        // --- Existing Functions - Keep as is, but note potential modifications below ---
         async function getImages() {
             document.getElementById('contentCollapsible').style.backgroundColor = "#004c9d";
             document.getElementById('imageCollapsible').style.backgroundColor = "#004c9d";
-            document.getElementById('resultsCollapsible').style.backgroundColor = "#004c9d";
+            document.getElementById('onPageResultsCollapsible').style.backgroundColor = "#004c9d";
 
-            document.getElementById('results').innerHTML = ""; // Clear previous results
+            document.getElementById('onPageResults').innerHTML = ""; // Clear previous results
             document.getElementById('imageRecommendations').innerHTML = ""; // Clear previous results
             document.getElementById('contentRecommendations').innerHTML = ""; // Clear previous results
 
-            document.getElementById('resultsCollapsible').style.display = "none";
+            document.getElementById('onPageResultsCollapsible').style.display = "none";
             document.getElementById('imageCollapsible').style.display = "none";
             document.getElementById('contentCollapsible').style.display = "none";
-            const url = document.getElementById('url').value;
+            const url = document.getElementById('on-page-url').value;
             const keywords = document.getElementById('keywords').value; // Get keywords
             document.getElementById("getImagesBtn").innerText = "Extracting elements..."; // Change button text
             document.getElementById("getImagesBtn").innerHTML += '<img src="https://usagif.com/wp-content/uploads/loading-73.gif" width="50">';
@@ -593,14 +587,14 @@
                     document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations"
                     return;
                 } else {
-                    getRecommendations(data, keywordArray);
+                    getOnPageRecommendations(data, keywordArray);
                     getContentRecommendations(url, keywordArray);
                     document.getElementById("getImagesBtn").innerText = "Generating Recommendations...";
                     document.getElementById("getImagesBtn").innerHTML += '<img src="https://usagif.com/wp-content/uploads/loading-73.gif" width="50">';
                 }
 
             } catch (error) {
-                document.getElementById('results').innerHTML = `<p>Error: ${error}</p>`;
+                document.getElementById('onPageResults').innerHTML = `<p>Error: ${error}</p>`;
                 document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations";
             }
         }
@@ -659,7 +653,7 @@
             </table>
         `;
 
-                document.getElementById('contentRecommendations').innerHTML = contentTableHTML + '<div style="text-align: center;"><button class="export-button" onclick="exportToCSV()">Export to CSV</button></div>';
+                document.getElementById('contentRecommendations').innerHTML = contentTableHTML + '<div style="text-align: center;"><button class="export-button" onclick="exportOnPageToCSV()">Export to CSV</button></div>';
                 document.getElementById('contentCollapsible').style.display = "block";
                 localStorage.setItem('onPageContent', document.getElementById('contentRecommendations').innerHTML);
 
@@ -669,7 +663,7 @@
             }
         }
 
-        async function getRecommendations(firstApiResponse, keywordArray) {
+        async function getOnPageRecommendations(firstApiResponse, keywordArray) {
             const recommendationEndpoint = 'https://vwmqqj251d.execute-api.ap-southeast-1.amazonaws.com/onPageRecommendations';
 
             try {
@@ -690,12 +684,12 @@
 
                 const recommendationData = await recommendationResponse.json();
                 displayAllData(recommendationData);
-                localStorage.setItem('onPageResults', document.getElementById('results').innerHTML);
+                localStorage.setItem('onPageResults', document.getElementById('onPageResults').innerHTML);
                 localStorage.setItem('onPageImages', document.getElementById('imageRecommendations').innerHTML);
 
             } catch (error) {
                 console.error("Error fetching recommendations:", error);
-                document.getElementById('results').innerHTML = `<p>Error fetching recommendations: ${error}</p>`;
+                document.getElementById('onPageResults').innerHTML = `<p>Error fetching recommendations: ${error}</p>`;
             }
         }
 
@@ -786,16 +780,16 @@
             document.getElementById('imageRecommendations').innerHTML = imageTableHTML;
 
             // Add export button after image table
-            resultsHTML += '<button class="export-button" onclick="exportToCSV()">Export to CSV</button>';
+            resultsHTML += '<button class="export-button" onclick="exportOnPageToCSV()">Export to CSV</button>';
 
-            document.getElementById('results').innerHTML = resultsHTML;
+            document.getElementById('onPageResults').innerHTML = resultsHTML;
 
-            document.getElementById('resultsCollapsible').style.display = "block";
+            document.getElementById('onPageResultsCollapsible').style.display = "block";
             document.getElementById('imageCollapsible').style.display = "block";
 
-            localStorage.setItem('onPageUrl', document.getElementById('url').value);
+            localStorage.setItem('onPageUrl', document.getElementById('on-page-url').value);
             localStorage.setItem('onPageKeywords', document.getElementById('keywords').value);
-            localStorage.setItem('onPageResults', document.getElementById('results').innerHTML);
+            localStorage.setItem('onPageResults', document.getElementById('onPageResults').innerHTML);
         }
 
 
@@ -901,12 +895,12 @@
             resultsHTML += metaTableHTML;
 
             // Add export button after image table
-            resultsHTML += '<button class="export-button" onclick="exportToCSV()">Export to CSV</button>';
+            resultsHTML += '<button class="export-button" onclick="exportOnPageToCSV()">Export to CSV</button>';
 
-            document.getElementById('results').innerHTML = resultsHTML;
+            document.getElementById('onPageResults').innerHTML = resultsHTML;
             document.getElementById('imageRecommendations').innerHTML = imageTableHTML;
             document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations";
-            localStorage.setItem('onPageResults', document.getElementById('results').innerHTML);
+            localStorage.setItem('onPageResults', document.getElementById('onPageResults').innerHTML);
             localStorage.setItem('onPageImages', document.getElementById('imageRecommendations').innerHTML);
             onPageToDatabase();
         }
@@ -922,9 +916,9 @@
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    url: document.getElementById('url').value,
+                    url: document.getElementById('on-page-url').value,
                     keywords: keywordArray,
-                    meta_table: document.getElementById('results').innerHTML,
+                    meta_table: document.getElementById('onPageResults').innerHTML,
                     image_table: document.getElementById('imageRecommendations').innerHTML,
                     content_table: document.getElementById('contentRecommendations').innerHTML,
                     user: JSON.parse(localStorage.getItem('googleUser')).email
@@ -934,7 +928,7 @@
             data = await response.json();
         }
 
-        function copyColumn(columnIndex, tableId = 'results') {
+        function copyColumn(columnIndex, tableId = 'onPageResults') {
             let table = document.querySelector('table'); // Default to the first table
             if (tableId === 'imageTable') {
                 // Find the second table if tableId is 'imageTable'
@@ -980,7 +974,7 @@
             document.body.removeChild(textarea);
         }
 
-        function exportToCSV() {
+        function exportOnPageToCSV() {
             // Collect data from both tables
             const metaTable = document.getElementById('metaTable');
             const imageTable = document.getElementById('imageTable');
@@ -1042,6 +1036,8 @@
             }
         });
 
+        
+
         function loadCachedData() {
             const url = localStorage.getItem('onPageUrl');
             const keywords = localStorage.getItem('onPageKeywords');
@@ -1050,15 +1046,15 @@
             const contentHTML = localStorage.getItem('onPageContent');
 
             if (url) {
-                document.getElementById('url').value = url;
+                document.getElementById('on-page-url').value = url;
             }
             if (keywords) {
                 document.getElementById('keywords').value = keywords;
             }
             if (resultsHTML) {
-                document.getElementById('results').innerHTML = resultsHTML;
-                document.getElementById('resultsCollapsible').style.display = "block";
-                document.getElementById('resultsCollapsible').style.backgroundColor = "green";
+                document.getElementById('onPageResults').innerHTML = resultsHTML;
+                document.getElementById('onPageResultsCollapsible').style.display = "block";
+                document.getElementById('onPageResultsCollapsible').style.backgroundColor = "green";
             }
             if (imageHTML) {
                 document.getElementById('imageRecommendations').innerHTML = imageHTML;
@@ -1077,15 +1073,15 @@
             }
         }
 
-        function clearData() {
-            document.getElementById("url").value = "";
+        function clearOnPageData() {
+            document.getElementById("on-page-url").value = "";
             document.getElementById("keywords").value = "";
-            document.getElementById("results").innerText = "";
+            document.getElementById("onPageResults").innerText = "";
             document.getElementById("imageRecommendations").innerText = "";
             document.getElementById("contentRecommendations").innerText = "";
             
-            document.getElementById('resultsCollapsible').style.display = "none";
-            document.getElementById('resultsCollapsible').style.backgroundColor = "#004c9d";
+            document.getElementById('onPageResultsCollapsible').style.display = "none";
+            document.getElementById('onPageResultsCollapsible').style.backgroundColor = "#004c9d";
 
             document.getElementById('imageCollapsible').style.display = "none";
             document.getElementById('imageCollapsible').style.backgroundColor = "#004c9d";

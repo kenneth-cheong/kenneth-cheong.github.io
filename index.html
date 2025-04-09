@@ -1238,6 +1238,80 @@
             display: none;
         }
 
+        #metaTable td:nth-child(1) {
+            width: 15%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+            /* Prevent overflow by breaking long words */
+        }
+
+        #metaTable td:nth-child(2) {
+            width: 20%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+            /* Prevent overflow by breaking long words */
+        }
+
+        #metaTable td:nth-child(3) {
+            width: 30%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+            /* Prevent overflow by breaking long words */
+        }
+
+        #imageTable img {
+            max-width: 80px;
+            max-height: 80px;
+            border-radius: 4px;
+            display: block;
+            margin: 0 auto;
+            /* Center the images */
+        }
+
+
+        #imageTable td:nth-child(2) {
+            width: 20%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+        }
+
+        #imageTable td:nth-child(4) {
+            width: 30%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+        }
+
+        #imageTable td:nth-child(5) {
+            width: 30%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+        }
+
+        #contentTable td:nth-child(1) {
+            text-align: center;
+            padding: 10px;
+        }
+
+        #contentTable td:nth-child(2) {
+            width: 30%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+            padding: 10px;
+        }
+
+        #contentTable td:nth-child(3) {
+            width: 36%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+        }
+
+        #contentTable td:nth-child(4) {
+            width: 32%;
+            /* Adjust this value as needed */
+            word-break: break-word;
+            padding: 10px;
+        }
+
         @media screen and (max-width: 1081px) {
 
             .column,
@@ -1322,6 +1396,36 @@
                 font-size: 0.75em;
             }
         }
+
+        .queries-modal {
+            display: none;
+            /* Hidden by default */
+            position: fixed;
+            /* Stay in place */
+            z-index: 1;
+            /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%;
+            /* Full width */
+            height: 100%;
+            /* Full height */
+            overflow: auto;
+            /* Enable scroll if needed */
+            background-color: rgba(0, 0, 0, 0.4);
+            /* Black w/ opacity */
+        }
+
+        .queries-modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            /* 15% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: fit-content;
+            border-radius: 20px;
+            /* Could be more or less, depending on screen size */
+        }
     </style>
 </head>
 
@@ -1349,7 +1453,7 @@
                                 Comparison</span></a></li>
                     <li><a href="#schema" onclick="openSchemaGenerator(event)"><i class="fas fa-code"></i> <span>Schema
                                 Generator</span></a></li>
-                    <li><a href="/on-page.html" target="_blank"><i class="fas fa-wand-magic-sparkles"></i>
+                    <li><a href="#onPageSection" onclick="openOnPage(event)"><i class="fas fa-wand-magic-sparkles"></i>
                             <span>On-Page</span></a></li>
                     <li><a href="/rank-checker.html" target="_blank"><i class="fas fa-trophy"></i>
                             <span>Rank Checker</span></a></li>
@@ -1790,8 +1894,61 @@
                 <div id="schema-output"></div>
             </div>
             <hr>
-            <button class="collapsible" id="onPageButton"
-                onclick="window.open('/on-page.html', '_blank');">On-Page</button>
+            <button class="collapsible" id="onPageButton">On-Page</button>
+            <div id="onPageSection" class="content">
+                <div class="input-group">
+                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                        <label for="on-page-url" style="margin-right: 5px;">Enter URL:</label>
+                        <input type="url" id="on-page-url" placeholder="https://example.com" required>
+
+                    </div>
+
+                    <label for="on-page-keywords">Enter Keywords (comma or newline separated):</label>
+                    <textarea id="on-page-keywords" rows="4" placeholder="keyword1, keyword2, keyword3"></textarea>
+
+                    <button onclick="getImages()" id="getImagesBtn">Extract Elements & Generate Recommendations</button>
+                    <!-- 
+                <button onclick="loadCachedData()" class="load-cache-button">Load Cached Data From Browser</button>
+                -->
+                    <button onclick="openQueriesModal()" id="loadQueriesBtn">Load Previous Queries</button>
+                    <button onclick="clearOnPageData()" style="white-space: nowrap;">Clear Data</button>
+                </div>
+                <button class="collapsible" id="onPageResultsCollapsible" style="display: none;">Meta Data and
+                    Headings</button>
+                <div id="onPageResults"></div>
+                <button class="collapsible" id="imageCollapsible" style="display: none;">Image Alt Text</button>
+                <div id="imageRecommendations"></div>
+                <button class="collapsible" id="contentCollapsible" style="display: none;">Content</button>
+                <div id="contentRecommendations"></div>
+
+                <!-- Modal for Previous Queries -->
+                <div id="queriesModal" class="queries-modal" style="display:none">
+                    <div class="queries-modal-content">
+                        <span class="close" onclick="closeQueriesModal()">×</span>
+                        <h2>Previous On-Page Queries</h2>
+
+                        <div id="loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
+                            <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..." style="width: 100px; height: 100px;">
+                            <p style="text-align: center;">Loading queries...</p>
+                          </div>
+
+                        <table id="queriesTable">
+                            <thead>
+                                <tr>
+                                    <th>No.</th>
+                                    <th>Date</th>
+                                    <th>URL</th>
+                                    <th>Keywords</th>
+                                    <th>User</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Queries will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
             <hr>
             <button class="collapsible" id="rankCheckerButton"
                 onclick="window.open('/rank-checker.html', '_blank');">Rank Checker</button>
@@ -2263,7 +2420,10 @@
             <button id="submitFeedbackBtn">Submit Feedback</button>
         </div>
     </div>
-
+    <button id="cleanup-button" onclick="clearPageState()"
+        style="position: fixed; bottom: 10px; right: 80px; background-color: hsl(0, 71%, 49%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.5em">
+        <i class="fas fa-trash-alt"></i>
+    </button>
     <button id="chatbot-button"
         style="position: fixed; bottom: 10px; right: 10px; background-color: hsl(118, 40%, 43%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.5em">
         <i class="fas fa-comment-dots"></i>
@@ -5885,6 +6045,38 @@
             }
         }
 
+
+        function openOnPage(event) {
+            event.preventDefault();
+            deactivateAllButtons();
+            openSeo(event);
+            Button = document.querySelector('button#onPageButton');
+            if (Button) {
+                Button.classList.toggle('active');
+                const content = Button.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const schemaGeneratorLink = event.currentTarget;
+                schemaGeneratorLink.classList.toggle('active-menu');
+
+                const seoSubmenuItems = schemaGeneratorLink.closest('ul').querySelectorAll('li a');
+                seoSubmenuItems.forEach(item => {
+                    if (item !== schemaGeneratorLink) {
+                        item.classList.remove('active-menu');
+                    }
+                });
+
+                if (content.style.display === "block") {
+                    const schemaGeneratorSection = document.getElementById('onPageButton');
+                    if (schemaGeneratorSection) {
+                        schemaGeneratorSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+        }
+
         function openContentGenerator(event) {
             event.preventDefault();
             deactivateAllButtons();
@@ -6643,6 +6835,8 @@
         window.onclick = function (event) {
             if (event.target == modal) {
                 modal.style.display = "none";
+            } else if (event.target == document.getElementById('queriesModal')) {
+                closeQueriesModal();
             }
         }
 
@@ -7120,8 +7314,8 @@
                 isChatbotOpen = !isChatbotOpen;
                 chatbotModal.style.display = isChatbotOpen ? 'block' : 'none';
 
-                if (chatMessages.textContent=="") {
-                    addMessage('chatbot', 'Hello '+JSON.parse(localStorage.getItem('googleUser')).name.split(' ')[0]+', how can I help you today?');
+                if (chatMessages.textContent == "") {
+                    addMessage('chatbot', 'Hello ' + JSON.parse(localStorage.getItem('googleUser')).name.split(' ')[0] + ', how can I help you today?');
                 }
             });
 
@@ -7170,20 +7364,20 @@
                 modal.id = 'feedbackModal';
                 modal.classList.add('feedback-modal');
                 modal.innerHTML = `
-    <div class="feedback-modal-content">
-      <span class="feedback-close">×</span>
-      <h2>Give Feedback</h2>
-      <p><b>Question:</b></p>
-      <p>${question}</p>
-      <p><b>Generated Answer:</b></p>
-      <p>${answer}</p>
-      <label for="userFeedback"><b>Your Feedback:</b></label>
-      <textarea id="userFeedback" style="width: 100%; height: 100px;"></textarea><br>
-      <label for="suggestedAnswer"><b>Suggested Answer:</b></label><br>
-      <textarea id="suggestedAnswer" style="width: 100%; height: 100px;"></textarea>
-      <button id="submitFeedbackBtn">Submit Feedback</button>
-    </div>
-  `;
+                    <div class="feedback-modal-content">
+                    <span class="feedback-close">×</span>
+                    <h2>Give Feedback</h2>
+                    <p><b>Question:</b></p>
+                    <p>${question}</p>
+                    <p><b>Generated Answer:</b></p>
+                    <p>${answer}</p>
+                    <label for="userFeedback"><b>Your Feedback:</b></label>
+                    <textarea id="userFeedback" style="width: 100%; height: 100px;"></textarea><br>
+                    <label for="suggestedAnswer"><b>Suggested Answer:</b></label><br>
+                    <textarea id="suggestedAnswer" style="width: 100%; height: 100px;"></textarea>
+                    <button id="submitFeedbackBtn">Submit Feedback</button>
+                    </div>
+                `;
 
                 // 2. Add Event Listeners
                 document.body.appendChild(modal); // Append to the document
@@ -7284,7 +7478,7 @@
 
                     console.log(document.getElementById('chat-messages').textContent);
                     messageDiv.innerHTML = messageDiv.innerHTML + "<br>";
-                    if (message != 'Hello '+JSON.parse(localStorage.getItem('googleUser')).name.split(' ')[0]+', how can I help you today?') {
+                    if (message != 'Hello ' + JSON.parse(localStorage.getItem('googleUser')).name.split(' ')[0] + ', how can I help you today?') {
                         messageDiv.appendChild(feedbackButton);
                     }
                 }
@@ -7301,6 +7495,907 @@
                 }
             });
         });
+
+        function savePageState() {
+            const state = {
+                // Capture input values
+                domain: document.getElementById('domain').value,
+                location: document.getElementById('location').value,
+                language: document.getElementById('language').value,
+                keywords: document.getElementById('keywords').value,
+
+                //Capture values of content generator 
+                gender: document.getElementById('gender').value,
+                ageRange: document.getElementById('age-range').value,
+                occupation: document.getElementById('occupation').value,
+                income: document.getElementById('income').value,
+                subgroups: document.getElementById('subgroups').value,
+                painpoints: document.getElementById('painpoints').value,
+                audienceGoal: document.getElementById('audience_goal').value,
+                productService: document.getElementById('product_service').value,
+                desiredAction: document.getElementById('desired_action').value,
+                postObjectives: document.getElementById('post_objectives').value,
+                contentType: document.getElementById('content-type').value,
+                wordCount: document.getElementById('word_count').value,
+                tone: document.getElementById('tone').value,
+                usp: document.getElementById('usp').value,
+                pov: document.getElementById('pov').value,
+                emojis: document.getElementById('emojis').value,
+                hashtags: document.getElementById('hashtags').value,
+
+                brandGuideUrls: document.getElementById('generator_brand_guide_urls').value,
+                sampleText: document.getElementById('sample-text').value,
+                postInfo: document.getElementById('post-info').value,
+                referenceUrl: document.getElementById('reference-url').value,
+
+                landingPageUrl: document.getElementById("landingPageUrl").value,
+                landingPageAuditKeyword: document.getElementById("landingPageAuditKeyword").value,
+
+                // Capture visibility of elements
+                overallSummaryDisplay: document.getElementById('overall-summary').style.display,
+                technicalButtonDisplay: document.getElementById('technicalButton').style.display,
+                contentComparisonButtonDisplay: document.getElementById('contentComparisonButton').style.display,
+                domainMetricsDisplay: document.getElementById('domainMetrics').style.display,
+                metaDataDisplay: document.getElementById('metaData').style.display,
+
+                // Capture innerHTML of dynamic content sections
+                overallSummaryHTML: document.getElementById('overall-summary').innerHTML,
+                keywordAnalysisResultsHTML: document.getElementById('keyword-analysis-results').innerHTML,
+                technicalSeoHTML: document.getElementById('technicalSeo').innerHTML,
+                contentComparisonHTML: document.getElementById('contentComparison').innerHTML,
+
+                // Crawler table values
+                crawlerTableBody: document.getElementById('crawlerTableBody').innerHTML,
+
+                competitorsTarget1: document.getElementById("competitors-target1").value,
+                competitorKeywords: document.getElementById("competitor_keywords").value,
+                competitorsLanguage: document.getElementById("competitors-language").value,
+                competitorsLocation: document.getElementById("competitors-location").value,
+                competitorsOutput: document.getElementById("competitorsOutput").innerHTML,
+
+                personaWebpages: document.getElementById("persona_webpages").value,
+                personaManual: document.getElementById("persona_manual").value,
+                personaResults: document.getElementById("persona-results").innerHTML,
+
+                mediaPlanWebpages: document.getElementById("MediaPlanWebpages").value,
+                mediaPlanBudget: document.getElementById("MediaPlanBudget").value,
+                mediaPlanManual: document.getElementById("MediaPlanManual").value,
+                mediaPlanResults: document.getElementById("mediaPlanResults").innerHTML,
+
+                contentToCheckUrls: document.getElementById("content_check_other_urls").value,
+                brandGuideUrls: document.getElementById("brand_guide_urls").value,
+                checkInstructions: document.getElementById("content_check_instructions").value,
+                contentToCheck: document.getElementById("content_to_check").value,
+                checkContentResults: document.getElementById("checkContentResults").innerHTML,
+            };
+
+            localStorage.setItem('pageState', JSON.stringify(state));
+            console.log('Page state saved to localStorage');
+        }
+
+        // Function to restore the page state from localStorage
+        function restorePageState() {
+            const storedState = localStorage.getItem('pageState');
+            if (storedState) {
+                const state = JSON.parse(storedState);
+
+                // Restore input values
+                document.getElementById('domain').value = state.domain || '';
+                document.getElementById('location').value = state.location || 'Singapore'; // Set a default
+                document.getElementById('language').value = state.language || 'English'; // Set a default
+                document.getElementById('keywords').value = state.keywords || '';
+
+                //Restore values of content generator
+                document.getElementById('gender').value = state.gender || '';
+                document.getElementById('age-range').value = state.ageRange || '';
+                document.getElementById('occupation').value = state.occupation || '';
+                document.getElementById('income').value = state.income || '';
+                document.getElementById('subgroups').value = state.subgroups || '';
+                document.getElementById('painpoints').value = state.painpoints || '';
+                document.getElementById('audience_goal').value = state.audienceGoal || '';
+                document.getElementById('product_service').value = state.productService || '';
+                document.getElementById('desired_action').value = state.desiredAction || '';
+                document.getElementById('post_objectives').value = state.postObjectives || '';
+                document.getElementById('content-type').value = state.contentType || '';
+                document.getElementById('word_count').value = state.wordCount || '';
+                document.getElementById('tone').value = state.tone || '';
+                document.getElementById('usp').value = state.usp || '';
+                document.getElementById('pov').value = state.pov || '';
+                document.getElementById('emojis').value = state.emojis || '';
+                document.getElementById('hashtags').value = state.hashtags || '';
+
+                document.getElementById('generator_brand_guide_urls').value = state.brandGuideUrls || '';
+                document.getElementById('sample-text').value = state.sampleText || '';
+                document.getElementById('post-info').value = state.postInfo || '';
+                document.getElementById('reference-url').value = state.referenceUrl || '';
+
+                document.getElementById('landingPageUrl').value = state.landingPageUrl || '';
+                document.getElementById('landingPageAuditKeyword').value = state.landingPageAuditKeyword || '';
+
+                // Restore visibility
+                document.getElementById('overall-summary').style.display = state.overallSummaryDisplay || 'none';
+                document.getElementById('technicalButton').style.display = state.technicalButtonDisplay || 'none';
+                document.getElementById('contentComparisonButton').style.display = state.contentComparisonButtonDisplay || 'none';
+                document.getElementById('domainMetrics').style.display = state.domainMetricsDisplay || 'none';
+                document.getElementById('metaData').style.display = state.metaDataDisplay || 'none';
+
+                // Restore innerHTML
+                document.getElementById('overall-summary').innerHTML = state.overallSummaryHTML || '';
+                document.getElementById('keyword-analysis-results').innerHTML = state.keywordAnalysisResultsHTML || '';
+                document.getElementById('technicalSeo').innerHTML = state.technicalSeoHTML || '';
+                document.getElementById('contentComparison').innerHTML = state.contentComparisonHTML || '';
+
+                document.getElementById('crawlerTableBody').innerHTML = state.crawlerTableBody || '';
+
+                document.getElementById("competitors-target1").value = state.competitorsTarget1 || '';
+                document.getElementById("competitor_keywords").value = state.competitorKeywords || '';
+                document.getElementById("competitors-language").value = state.competitorsLanguage || '';
+                document.getElementById("competitors-location").value = state.competitorsLocation || '';
+                document.getElementById("competitorsOutput").innerHTML = state.competitorsOutput || '';
+
+                document.getElementById("persona_webpages").value = state.personaWebpages || '';
+                document.getElementById("persona_manual").value = state.personaManual || '';
+                document.getElementById("persona-results").innerHTML = state.personaResults || '';
+
+                document.getElementById("MediaPlanWebpages").value = state.mediaPlanWebpages || '';
+                document.getElementById("MediaPlanBudget").value = state.mediaPlanBudget || '';
+                document.getElementById("MediaPlanManual").value = state.mediaPlanManual || '';
+                document.getElementById("mediaPlanResults").innerHTML = state.mediaPlanResults || '';
+
+                document.getElementById("content_check_other_urls").value = state.contentToCheckUrls || '';
+                document.getElementById("brand_guide_urls").value = state.brandGuideUrls || '';
+                document.getElementById("content_check_instructions").value = state.checkInstructions || '';
+                document.getElementById("content_to_check").value = state.contentToCheck || '';
+                document.getElementById("checkContentResults").innerHTML = state.checkContentResults || '';
+
+                console.log('Page state restored from localStorage');
+            } else {
+                console.log('No page state found in localStorage');
+            }
+        }
+
+        // Attach event listeners to input elements for real-time saving (optional)
+        const inputElements = document.querySelectorAll('input, select, textarea');
+        inputElements.forEach(input => {
+            input.addEventListener('change', savePageState);
+        });
+
+        // Restore page state on page load
+        window.addEventListener('load', restorePageState);
+
+        function clearPageState() {
+            // Clear input values
+            document.getElementById('domain').value = '';
+            document.getElementById('location').value = 'Singapore'; // Reset to default
+            document.getElementById('language').value = 'English'; // Reset to default
+            document.getElementById('keywords').value = '';
+
+            //Clear values of content generator
+            document.getElementById('gender').value = '';
+            document.getElementById('age-range').value = '';
+            document.getElementById('occupation').value = '';
+            document.getElementById('income').value = '';
+            document.getElementById('subgroups').value = '';
+            document.getElementById('painpoints').value = '';
+            document.getElementById('audience_goal').value = '';
+            document.getElementById('product_service').value = '';
+            document.getElementById('desired_action').value = '';
+            document.getElementById('post_objectives').value = '';
+            document.getElementById('content-type').value = '';
+            document.getElementById('word_count').value = '';
+            document.getElementById('tone').value = '';
+            document.getElementById('usp').value = '';
+            document.getElementById('pov').value = '';
+            document.getElementById('emojis').value = '';
+            document.getElementById('hashtags').value = '';
+
+            document.getElementById('generator_brand_guide_urls').value = '';
+            document.getElementById('sample-text').value = '';
+            document.getElementById('post-info').value = '';
+            document.getElementById('reference-url').value = '';
+
+            document.getElementById('landingPageUrl').value = '';
+            document.getElementById('landingPageAuditKeyword').value = '';
+
+            //Clear output section values
+            document.getElementById('targetTitle').innerText = "";
+            document.getElementById('targetDescription').innerText = "";
+            document.getElementById('targetDomainRank').innerText = "";
+            document.getElementById('targetBacklinks').innerText = "";
+            document.getElementById('targetSpamScore').innerText = "";
+            document.getElementById('targetPagespeed').innerText = '-/100';
+            document.getElementById('targetRefDomains').innerText = "";
+            document.getElementById('targetInternalLinks').innerText = "";
+            document.getElementById('targetExternalLinks').innerText = "";
+            document.getElementById('targetH1').innerText = "";
+            document.getElementById('targetImages').innerText = "";
+            document.getElementById('targetCls').innerText = "";
+            document.getElementById('targetLcp').innerText = "";
+            document.getElementById('targetFid').innerText = "";
+            document.getElementById('targetSchema').innerText = "";
+            document.getElementById('targetReadability').innerText = "";
+            document.getElementById('targetWordCount').innerText = "";
+            document.getElementById('da').innerText = "";
+            document.getElementById('pa').innerText = "";
+
+            // Clear dynamic content sections
+            document.getElementById('overall-summary').innerHTML = '';
+            document.getElementById('keyword-analysis-results').innerHTML = '';
+            document.getElementById('technicalSeo').innerHTML = '';
+            document.getElementById('contentComparison').innerHTML = '';
+
+            //document.getElementById('crawlerReport').innerHTML = '';
+
+            document.getElementById("competitors-target1").value = '';
+            document.getElementById("competitor_keywords").value = '';
+            document.getElementById("competitors-language").value = '';
+            document.getElementById("competitors-location").value = '';
+            document.getElementById("competitorsOutput").innerHTML = '';
+
+            document.getElementById("persona_webpages").value = '';
+            document.getElementById("persona_manual").value = '';
+            document.getElementById("persona-results").innerHTML = '';
+
+            document.getElementById("MediaPlanWebpages").value = '';
+            document.getElementById("MediaPlanBudget").value = '';
+            document.getElementById("MediaPlanManual").value = '';
+            document.getElementById("mediaPlanResults").innerHTML = '';
+
+            document.getElementById("content_check_other_urls").value = '';
+            document.getElementById("brand_guide_urls").value = '';
+            document.getElementById("content_check_instructions").value = '';
+            document.getElementById("content_to_check").value = '';
+            document.getElementById("checkContentResults").innerHTML = '';
+
+            //Clear technical seo output section and buttons
+            //document.getElementById("auditSummary").innerHTML = "";
+            //document.getElementById('downloadResultsBtn').style.display = 'none';
+
+            // Clear local storage
+            localStorage.removeItem('pageState');
+            console.log('Page state cleared.');
+
+            // Reset Visibility Style
+            document.getElementById('overall-summary').style.display = 'none';
+
+            //Call function to re-render components
+            allKeywords = [];
+        }
+
+        function openQueriesModal() {
+            document.getElementById('queriesModal').style.display = "block";
+            loadPreviousQueries(); // Load data when modal opens
+        }
+
+        function closeQueriesModal() {
+            document.getElementById('queriesModal').style.display = "none";
+        }
+
+
+
+        // --- API Interaction Functions ---
+        async function loadPreviousQueries() {
+            const API_ENDPOINT = "https://vau2b5m95m.execute-api.ap-southeast-1.amazonaws.com/queryDatabase"; // Replace with your actual API endpoint
+            const USER_EMAIL = JSON.parse(localStorage.getItem('googleUser')).email;
+            try {
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user: USER_EMAIL,
+                        collection: "on_page"
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                populateQueriesTable(data);
+
+            } catch (error) {
+                console.error("Error loading previous queries:", error);
+                alert("Failed to load previous queries. See console for details.");
+            }
+        }
+
+        function populateQueriesTable(queries) {
+            const tableBody = document.getElementById('queriesTable').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = ""; // Clear existing rows
+
+            queries.forEach((query, index) => {
+                const row = tableBody.insertRow();
+                row.insertCell(0).textContent = index + 1;
+                row.insertCell(1).textContent = formatDate(query.date);
+                row.insertCell(2).textContent = query.url;
+                row.insertCell(3).textContent = query.user;
+                row.insertCell(4).textContent = query.keywords; // Corrected the index here
+
+                row.addEventListener('click', () => loadQueryData(query)); // Add click listener
+            });
+            document.getElementById('loading').style.display = "none";
+        }
+
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        }
+
+        function loadQueryData(query) {
+            console.log(query.meta_table);
+            document.getElementById('on-page-url').value = query.url;
+            document.getElementById('on-page-keywords').value = query.keywords.join(', ');
+            document.getElementById('onPageResults').innerHTML = query.meta_table;
+            document.getElementById('imageRecommendations').innerHTML = query.image_table;
+            document.getElementById('contentRecommendations').innerHTML = query.content_table;
+
+            document.getElementById('onPageResultsCollapsible').style.display = "block";
+            document.getElementById('onPageResults').style.display = "block";
+            document.getElementById('imageCollapsible').style.display = "block";
+            document.getElementById('imageRecommendations').style.display = "block";
+            document.getElementById('contentCollapsible').style.display = "block";
+            document.getElementById('contentRecommendations').style.display = "block";
+
+            closeQueriesModal(); // Close modal after loading
+        }
+
+        async function getImages() {
+            document.getElementById('contentCollapsible').style.backgroundColor = "#004c9d";
+            document.getElementById('imageCollapsible').style.backgroundColor = "#004c9d";
+            document.getElementById('onPageResultsCollapsible').style.backgroundColor = "#004c9d";
+
+            document.getElementById('onPageResults').innerHTML = ""; // Clear previous results
+            document.getElementById('imageRecommendations').innerHTML = ""; // Clear previous results
+            document.getElementById('contentRecommendations').innerHTML = ""; // Clear previous results
+
+            document.getElementById('onPageResultsCollapsible').style.display = "none";
+            document.getElementById('imageCollapsible').style.display = "none";
+            document.getElementById('contentCollapsible').style.display = "none";
+            const url = document.getElementById('on-page-url').value;
+            const keywords = document.getElementById('on-page-keywords').value; // Get keywords
+            document.getElementById("getImagesBtn").innerText = "Extracting elements..."; // Change button text
+            document.getElementById("getImagesBtn").innerHTML += '<img src="https://usagif.com/wp-content/uploads/loading-73.gif" width="50">';
+
+            if (!url) {
+                alert("Please enter a URL.");
+                document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations"; //Revert button text
+                return;
+            }
+
+            // Process keywords (split by commas or newlines)
+            const keywordArray = keywords.split(/[,\n]+/).map(keyword => keyword.trim()).filter(keyword => keyword !== "");
+
+            const endpoint = 'https://udjdc333m9.execute-api.ap-southeast-1.amazonaws.com/getImages';
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: url,
+                        keywords: keywordArray // Send keywords to the backend
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Call the second API and then display the data
+                displayInitialData(data);
+
+
+                if (!keywords) {
+                    alert("No content recommendations will be given as no keywords were entered.")
+                    document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations"
+                    return;
+                } else {
+                    getOnPageRecommendations(data, keywordArray);
+                    getContentRecommendations(url, keywordArray);
+                    document.getElementById("getImagesBtn").innerText = "Generating Recommendations...";
+                    document.getElementById("getImagesBtn").innerHTML += '<img src="https://usagif.com/wp-content/uploads/loading-73.gif" width="50">';
+                }
+
+            } catch (error) {
+                document.getElementById('onPageResults').innerHTML = `<p>Error: ${error}</p>`;
+                document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations";
+            }
+        }
+
+        async function getContentRecommendations(url, keywordArray) {
+            const recommendationEndpoint = 'https://pkkz2e02ch.execute-api.ap-southeast-1.amazonaws.com/onPageContentRecommendations';
+
+            try {
+                const recommendationResponse = await fetch(recommendationEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url,
+                        "keywords": keywordArray
+                    })
+                });
+
+                if (!recommendationResponse.ok) {
+                    throw new Error(`HTTP error! status: ${recommendationResponse.status}`);
+                }
+
+                const recommendationData = await recommendationResponse.json();
+                console.log(recommendationData);
+
+                let contentTableHTML = `
+            <table id="contentTable">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Current Content</th>
+                        <th>Recommendation</th>
+                        <th>Rationale</th>
+                    </tr>
+                </thead>
+                <tbody>
+            `;
+
+                let i = 0;
+                for (const recommendation of recommendationData) {
+                    contentTableHTML += `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${recommendation.current_value}</td>
+                    <td><textarea>${recommendation.suggested_value}</textarea></td>
+                    <td>${recommendation.rationale}</td>
+                </tr>
+            `;
+                    i++;
+                }
+
+
+                contentTableHTML += `
+                </tbody>
+            </table>
+            `;
+
+                document.getElementById('contentRecommendations').innerHTML = contentTableHTML + '<div style="text-align: center;"><button class="export-button" onclick="exportOnPageToCSV()">Export to CSV</button></div>';
+                document.getElementById('contentCollapsible').style.display = "block";
+                localStorage.setItem('onPageContent', document.getElementById('contentRecommendations').innerHTML);
+
+            } catch (error) {
+                console.error("Error fetching recommendations:", error);
+                document.getElementById('contentRecommendations').innerHTML = `<p>Error fetching recommendations: ${error}</p>`;
+            }
+        }
+
+        async function getOnPageRecommendations(firstApiResponse, keywordArray) {
+            const recommendationEndpoint = 'https://vwmqqj251d.execute-api.ap-southeast-1.amazonaws.com/onPageRecommendations';
+
+            try {
+                const recommendationResponse = await fetch(recommendationEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        "data": firstApiResponse,
+                        "keywords": keywordArray
+                    })
+                });
+
+                if (!recommendationResponse.ok) {
+                    throw new Error(`HTTP error! status: ${recommendationResponse.status}`);
+                }
+
+                const recommendationData = await recommendationResponse.json();
+                displayAllData(recommendationData);
+                localStorage.setItem('onPageResults', document.getElementById('onPageResults').innerHTML);
+                localStorage.setItem('onPageImages', document.getElementById('imageRecommendations').innerHTML);
+
+            } catch (error) {
+                console.error("Error fetching recommendations:", error);
+                document.getElementById('onPageResults').innerHTML = `<p>Error fetching recommendations: ${error}</p>`;
+            }
+        }
+
+        function displayInitialData(data) {
+            // Add export button above meta table
+            let resultsHTML = '';
+
+            let metaTableHTML = `
+            <table id="metaTable">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Current Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Meta Title</td>
+                        <td>${data.meta_title}</td>
+                    </tr>
+                    <tr>
+                        <td>Meta Description</td>
+                        <td>${data.meta_description}</td>
+                    </tr>
+                    <tr>
+                        <td>Canonical URL</td>
+                        <td>${data.canonical_url}</td>
+                    </tr>`;
+
+            // Function to add heading rows
+            function addHeadingRows(headingType, headings) {
+                headings.forEach(heading => {
+                    metaTableHTML += `
+                            <tr>
+                                <td>${headingType}</td>
+                                <td>${heading}</td>
+                            </tr>
+                        `;
+                });
+            }
+
+            addHeadingRows("H1 Heading", data.headings.h1);
+            addHeadingRows("H2 Heading", data.headings.h2);
+            addHeadingRows("H3 Heading", data.headings.h3);
+            addHeadingRows("H4 Heading", data.headings.h4);
+
+            metaTableHTML += `
+
+                    </tbody>
+                </table>
+            `;
+
+            let imageTableHTML = `
+                    <table id="imageTable">
+                        <thead>
+                            <tr>
+                                <th>No.</th>
+                                <th>Image URL <button class="copy-button" onclick="copyColumn(1, 'imageTable')">Copy</button></th>
+                                <th>Image Preview</th>
+                                <th>Alt Text <button class="copy-button" onclick="copyColumn(3, 'imageTable')">Copy</button></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+            for (let i = 0; i < data.image_data.length; i++) {
+                const item = data.image_data[i];
+                const imageUrl = Object.keys(item)[0];
+                const altText = item[imageUrl] || ''; // Handle cases where alt text is empty
+
+                imageTableHTML += `
+            <tr>
+                <td>${i + 1}</td>
+                <td><a href="${imageUrl}" target="_blank">${imageUrl}</a></td>
+                <td><img src="${imageUrl}" alt="${altText}"></td>
+                <td>${altText}</td>
+            </tr>
+            `;
+            }
+
+            imageTableHTML += `
+            </tbody>
+        
+         `;
+
+            resultsHTML += metaTableHTML
+
+            document.getElementById('imageRecommendations').innerHTML = imageTableHTML;
+
+            // Add export button after image table
+            resultsHTML += '<button class="export-button" onclick="exportOnPageToCSV()">Export to CSV</button>';
+
+            document.getElementById('onPageResults').innerHTML = resultsHTML;
+
+            document.getElementById('onPageResultsCollapsible').style.display = "block";
+            document.getElementById('imageCollapsible').style.display = "block";
+
+            localStorage.setItem('onPageUrl', document.getElementById('on-page-url').value);
+            localStorage.setItem('onPageKeywords', document.getElementById('on-page-keywords').value);
+            localStorage.setItem('onPageResults', document.getElementById('onPageResults').innerHTML);
+        }
+
+
+        function displayAllData(data) {
+            console.log(data);
+            // Add export button above meta table
+            let resultsHTML = '';
+
+            let metaTableHTML = `
+        <table id="metaTable">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Current Value</th>
+                    <th>Suggested Change</th>
+                    <th>Rationale</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Meta Title</td>
+                    <td>${data.meta_title.current_value}</td>
+                    <td><textarea>${data.meta_title.suggested_value}</textarea></td>
+                    <td>${data.meta_title.rationale}</td>
+                </tr>
+                <tr>
+                    <td>Meta Description</td>
+                    <td>${data.meta_description.current_value}</td>
+                    <td><textarea>${data.meta_description.suggested_value}</textarea></td>
+                    <td>${data.meta_description.rationale}</td>
+                </tr>
+                <tr>
+                    <td>Canonical URL</td>
+                    <td>${data.canonical_url.current_value}</td>
+                    <td><textarea>${data.canonical_url.suggested_value}</textarea></td>
+                    <td>${data.canonical_url.rationale}</td>
+                </tr>`;
+
+            // Function to add heading rows
+            function addHeadingRows(headingType, headings) {
+                headings.forEach(heading => {
+                    metaTableHTML += `
+                <tr>
+                    <td>${headingType}</td>
+                    <td>${heading.current_value}</td>
+                    <td><textarea>${heading.suggested_value}</textarea></td>
+                    <td>${heading.rationale}</td>
+                </tr>
+            `;
+                });
+            }
+
+            addHeadingRows("H1 Heading", data.headings.h1);
+            addHeadingRows("H2 Heading", data.headings.h2);
+            addHeadingRows("H3 Heading", data.headings.h3);
+            addHeadingRows("H4 Heading", data.headings.h4);
+
+            metaTableHTML += `
+
+            </tbody>
+        </table>
+    `;
+
+            let imageTableHTML = `
+            <table id="imageTable">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Image URL <button class="copy-button" onclick="copyColumn(1, 'imageTable')">Copy</button></th>
+                        <th>Image Preview</th>
+                        <th>Alt Text <button class="copy-button" onclick="copyColumn(3, 'imageTable')">Copy</button></th>
+                        <th>Suggested Alt Text</th>
+                        <th>Rationale</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+            let i = 0;
+            for (const imageData of data.image_data) {
+                const imageUrl = Object.keys(imageData)[0];
+                const imageDetails = imageData[imageUrl];
+
+                imageTableHTML += `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td><a href="${imageUrl}" target="_blank">${imageUrl}</a></td>
+                    <td><img src="${imageUrl}" alt="${imageDetails.current_value}"></td>
+                    <td>${imageDetails.current_value}</td>
+                    <td><textarea>${imageDetails.suggested_value}</textarea></td>
+                    <td>${imageDetails.rationale}</td>
+                </tr>
+            `;
+                i++;
+            }
+
+
+            imageTableHTML += `
+                </tbody>
+            </table>
+        `;
+
+            resultsHTML += metaTableHTML;
+
+            // Add export button after image table
+            resultsHTML += '<button class="export-button" onclick="exportOnPageToCSV()">Export to CSV</button>';
+
+            document.getElementById('onPageResults').innerHTML = resultsHTML;
+            document.getElementById('imageRecommendations').innerHTML = imageTableHTML;
+            document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations";
+            localStorage.setItem('onPageResults', document.getElementById('onPageResults').innerHTML);
+            localStorage.setItem('onPageImages', document.getElementById('imageRecommendations').innerHTML);
+            onPageToDatabase();
+        }
+
+        async function onPageToDatabase() {
+            keywords = document.getElementById('on-page-keywords').value; // Get keywords
+            keywordArray = keywords.split(/[,\n]+/).map(keyword => keyword.trim()).filter(keyword => keyword !== "");
+            endpoint = "https://7nq1nq4ll5.execute-api.ap-southeast-1.amazonaws.com/onPageToDatabase";
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    url: document.getElementById('on-page-url').value,
+                    keywords: keywordArray,
+                    meta_table: document.getElementById('onPageResults').innerHTML,
+                    image_table: document.getElementById('imageRecommendations').innerHTML,
+                    content_table: document.getElementById('contentRecommendations').innerHTML,
+                    user: JSON.parse(localStorage.getItem('googleUser')).email
+                })
+            })
+
+            data = await response.json();
+        }
+
+        function copyColumn(columnIndex, tableId = 'onPageResults') {
+            let table = document.querySelector('table'); // Default to the first table
+            if (tableId === 'imageTable') {
+                // Find the second table if tableId is 'imageTable'
+                const tables = document.querySelectorAll('table');
+                table = tables[1]; // Assuming the image table is the second one
+            }
+
+            if (!table) {
+                console.error('Table not found');
+                return;
+            }
+
+            const rows = table.querySelectorAll('tr');
+            let columnText = '';
+
+            for (let i = 1; i < rows.length; i++) { // Skip the header row
+                const cells = rows[i].querySelectorAll('td');
+                if (cells.length > columnIndex) {
+                    columnText += cells[columnIndex].textContent.trim() + '\n';
+                }
+            }
+
+            // Create a temporary textarea element to hold the text
+            const textarea = document.createElement('textarea');
+            textarea.value = columnText;
+            document.body.appendChild(textarea);
+
+            // Select the text in the textarea
+            textarea.select();
+
+            try {
+                // Execute the copy command
+                const successful = document.execCommand('copy');
+                const msg = successful ? 'successful' : 'unsuccessful';
+                console.log('Copying text command was ' + msg);
+                alert('Column copied to clipboard!');
+            } catch (err) {
+                console.error('Oops, unable to copy', err);
+                alert('Failed to copy column to clipboard.');
+            }
+
+            // Remove the temporary textarea
+            document.body.removeChild(textarea);
+        }
+
+        function exportOnPageToCSV() {
+            // Collect data from both tables
+            const metaTable = document.getElementById('metaTable');
+            const imageTable = document.getElementById('imageTable');
+            const contentTable = document.getElementById('contentTable');
+
+
+            if (!metaTable || !imageTable) {
+                alert('Tables not found. Please extract data first.');
+                return;
+            }
+
+            const metaData = tableToCSV(metaTable);
+            const imageData = tableToCSV(imageTable);
+            const contentData = tableToCSV(contentTable);
+
+            // Combine the data with a separator
+            const csvData = "Meta Table Data:\n" + metaData + "\n\nImage Table Data:\n" + imageData + "\n\nContent Recommendations:\n" + contentData;
+
+            // Create a download link
+            const filename = 'on_page_recommendations.csv';
+            const csvFile = new Blob([csvData], {
+                type: 'text/csv'
+            });
+            const downloadLink = document.createElement('a');
+            downloadLink.download = filename;
+            downloadLink.href = window.URL.createObjectURL(csvFile);
+            downloadLink.style.display = 'none';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
+
+        function tableToCSV(table) {
+            const rows = table.querySelectorAll('tr');
+            let csv = [];
+
+            for (let i = 0; i < rows.length; i++) {
+                const cells = rows[i].querySelectorAll('th, td');
+                let row = [];
+                for (let j = 0; j < cells.length; j++) {
+                    //remove the button tag
+                    let cellText = cells[j].textContent.replace(/<[^>]*>?/gm, '').trim();
+                    row.push('"' + cellText.replace(/"/g, '""') + '"'); // Escape double quotes
+                }
+                csv.push(row.join(','));
+            }
+
+            return csv.join('\n');
+        }
+
+
+        function loadCachedData() {
+            const url = localStorage.getItem('onPageUrl');
+            const keywords = localStorage.getItem('onPageKeywords');
+            const resultsHTML = localStorage.getItem('onPageResults');
+            const imageHTML = localStorage.getItem('onPageImages');
+            const contentHTML = localStorage.getItem('onPageContent');
+
+            if (url) {
+                document.getElementById('on-page-url').value = url;
+            }
+            if (keywords) {
+                document.getElementById('on-page-keywords').value = keywords;
+            }
+            if (resultsHTML) {
+                document.getElementById('onPageResults').innerHTML = resultsHTML;
+                document.getElementById('onPageResultsCollapsible').style.display = "block";
+                document.getElementById('onPageResultsCollapsible').style.backgroundColor = "green";
+            }
+            if (imageHTML) {
+                document.getElementById('imageRecommendations').innerHTML = imageHTML;
+                document.getElementById('imageCollapsible').style.display = "block";
+                document.getElementById('imageCollapsible').style.backgroundColor = "green";
+            }
+            if (contentHTML) {
+                document.getElementById('contentRecommendations').innerHTML = contentHTML;
+                document.getElementById('contentCollapsible').style.display = "block";
+                document.getElementById('contentCollapsible').style.backgroundColor = "green";
+            }
+
+            if (url || keywords || resultsHTML || imageHTML || contentHTML) {
+            } else {
+                alert('No data found in cache.');
+            }
+        }
+
+        function clearOnPageData() {
+            document.getElementById("on-page-url").value = "";
+            document.getElementById("keywords").value = "";
+            document.getElementById("onPageResults").innerText = "";
+            document.getElementById("imageRecommendations").innerText = "";
+            document.getElementById("contentRecommendations").innerText = "";
+
+            document.getElementById('onPageResultsCollapsible').style.display = "none";
+            document.getElementById('onPageResultsCollapsible').style.backgroundColor = "#004c9d";
+
+            document.getElementById('imageCollapsible').style.display = "none";
+            document.getElementById('imageCollapsible').style.backgroundColor = "#004c9d";
+
+            document.getElementById('contentCollapsible').style.display = "none";
+            document.getElementById('contentCollapsible').style.backgroundColor = "#004c9d";
+
+        }
 
     </script>
 
