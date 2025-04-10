@@ -1495,6 +1495,35 @@
         <button class="collapsible" id="seo"><i class="fab fa-google"></i>Search Engine Optimisation (SEO)</button>
         <div class="content" id="seoSection">
 
+            <!-- Modal for Previous Time To Rank Queries -->
+            <div id="timeToRankModal" class="queries-modal" style="display:none">
+                <div class="queries-modal-content">
+                    <span class="close" onclick="closeTimeToRankQueriesModal()">×</span>
+                    <h2>Previous Time To Rank Queries</h2>
+                    <div id="loading"
+                        style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
+                        <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..."
+                            style="width: 100px; height: 100px;">
+                        <p style="text-align: center;">Loading queries...</p>
+                    </div>
+
+                    <table id="timeToRankQueriesTable">
+                        <thead>
+                            <tr>
+                                <th>No.</th>
+                                <th>Date</th>
+                                <th>URL</th>
+                                <th>Keywords</th>
+                                <th>User</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Queries will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Input Form for User Data -->
             <div class="column40">
                 <form id="seoForm">
@@ -1587,6 +1616,8 @@
                         <span>Click to get keyword suggestions based on the given webpage content.</span>
                     </button>
                 </form>
+                <button onclick="openTimeToRankQueriesModal()" id="loadTimeToRankQueriesBtn">Load Previous
+                    Queries</button>
                 <div id="rankingError"></div>
                 <table id="keywordTable" style="display: none;">
                     <tr>
@@ -1893,7 +1924,7 @@
 
                 <div id="input-fields"></div>
                 <div id="schema-output"></div>
-            </div>
+            </div>  
             <hr>
             <button class="collapsible" id="onPageButton">On-Page</button>
             <div id="onPageSection" class="content">
@@ -1921,6 +1952,8 @@
                 <div class="content" id="imageRecommendations"></div>
                 <button class="collapsible" id="contentCollapsible" style="display: none;">Content</button>
                 <div class="content" id="contentRecommendations"></div>
+
+                 
 
                 <!-- Modal for Previous On-Page Queries -->
                 <div id="queriesModal" class="queries-modal" style="display:none">
@@ -1952,34 +1985,7 @@
                     </div>
                 </div>
 
-                 <!-- Modal for Previous Time To Rank Queries -->
-                 <div id="timeToRankModal" class="queries-modal" style="display:none">
-                    <div class="queries-modal-content">
-                        <span class="close" onclick="closeTimeToRankQueriesModal()">×</span>
-                        <h2>Previous Time To Rank Queries</h2>
-                        <div id="loading"
-                            style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
-                            <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..."
-                                style="width: 100px; height: 100px;">
-                            <p style="text-align: center;">Loading queries...</p>
-                        </div>
-
-                        <table id="timeToRankQueriesTable">
-                            <thead>
-                                <tr>
-                                    <th>No.</th>
-                                    <th>Date</th>
-                                    <th>URL</th>
-                                    <th>Keywords</th>
-                                    <th>User</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Queries will be populated here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+               
 
             </div>
             <hr>
@@ -2481,7 +2487,7 @@
     <button id="cleanup-button" onclick="clearPageState()"
         style="position: fixed; bottom: 10px; right: 80px; background-color: hsl(0, 71%, 49%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.2em">
         Clear Data <i class="fas fa-trash-alt" style="margin-left: 10px;"></i>
-</button>
+    </button>
     <button id="chatbot-button"
         style="position: fixed; bottom: 10px; right: 10px; background-color: hsl(118, 40%, 43%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.2em">
         <i class="fas fa-comment-dots"></i>
@@ -4445,7 +4451,7 @@
                 document.getElementById('keyword-research-analysis-button').innerText = "Analyse";
 
                 await timeToRankToDatabase();
-                
+
             } catch (error) {
                 console.error(`An error occurred for ${keyword}:`, error);
                 const container = document.getElementById(`results-container-${keyword.replace(/\s+/g, '-')}`);
@@ -4454,7 +4460,7 @@
             }
         }
 
-        async function timeToRankToDatabase(){
+        async function timeToRankToDatabase() {
             endpoint = "https://0tmfunltch.execute-api.ap-southeast-1.amazonaws.com/timeToRankToDatabase";
 
             const response = await fetch(endpoint, {
@@ -4475,7 +4481,7 @@
                     domain_metrics: document.getElementById('domainMetrics').innerHTML,
 
                     time_to_rank_table: document.getElementById('overall-summary').innerHTML,
-                    
+
                     user: JSON.parse(localStorage.getItem('googleUser')).email
                 })
             })
@@ -7723,12 +7729,12 @@
 
         function openQueriesModal() {
             document.getElementById('queriesModal').style.display = "block";
-            loadPreviousQueries(); // Load data when modal opens
+            loadPreviousQueries('on_page'); // Load data when modal opens
         }
 
         function openTimeToRankQueriesModal() {
-            document.getElementById('timeToRankModal').style.display = "block";
-            loadPreviousQueries(); // Load data when modal opens
+            document.getElementById("timeToRankModal").style.display = "block";
+            loadPreviousQueries('time_to_rank'); // Load data when modal opens
         }
 
 
@@ -7741,7 +7747,7 @@
         }
 
         // --- API Interaction Functions ---
-        async function loadPreviousQueries() {
+        async function loadPreviousQueries(query_type) {
             const API_ENDPOINT = "https://vau2b5m95m.execute-api.ap-southeast-1.amazonaws.com/queryDatabase"; // Replace with your actual API endpoint
             const USER_EMAIL = JSON.parse(localStorage.getItem('googleUser')).email;
             try {
@@ -7752,7 +7758,7 @@
                     },
                     body: JSON.stringify({
                         user: USER_EMAIL,
-                        collection: "on_page"
+                        collection: query_type
                     })
                 });
 
@@ -7761,7 +7767,11 @@
                 }
 
                 const data = await response.json();
+                if (query_type=="on_page"){
                 populateQueriesTable(data);
+                } else if (query_type=="time_to_rank"){
+                    populateTimeToRankQueriesTable(data);
+                }
 
             } catch (error) {
                 console.error("Error loading previous queries:", error);
@@ -7782,6 +7792,23 @@
                 row.insertCell(4).textContent = query.keywords; // Corrected the index here
 
                 row.addEventListener('click', () => loadQueryData(query)); // Add click listener
+            });
+            document.getElementById('loading').style.display = "none";
+        }
+
+        function populateTimeToRankQueriesTable(queries) {
+            const tableBody = document.getElementById('timeToRankQueriesTable').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = ""; // Clear existing rows
+
+            queries.forEach((query, index) => {
+                const row = tableBody.insertRow();
+                row.insertCell(0).textContent = index + 1;
+                row.insertCell(1).textContent = formatDate(query.date);
+                row.insertCell(2).textContent = query.url;
+                row.insertCell(3).textContent = query.user;
+                row.insertCell(4).textContent = query.keywords; // Corrected the index here
+
+                row.addEventListener('click', () => loadTimeToRankQueryData(query)); // Add click listener
             });
             document.getElementById('loading').style.display = "none";
         }
@@ -7814,6 +7841,25 @@
             document.getElementById('contentRecommendations').style.display = "block";
 
             closeQueriesModal(); // Close modal after loading
+        }
+
+        function loadTimeToRankQueryData(query) {
+            document.getElementById('domain').value = query.url;
+            document.getElementById('keywords').value = query.keywords;
+            document.getElementById('location').value = query.location;
+            document.getElementById('language').value = query.language;
+
+            document.getElementById('siteKeywords').innerHTML = query.webpage_keywords;
+            document.getElementById('rankingKeywords').innerHTML = query.ranking_keywords;
+            document.getElementById('keywordSuggestions').innerHTML = query.suggestion_keywords;
+
+            document.getElementById('metaData').innerHTML = query.meta_data;
+            document.getElementById('domainMetrics').innerHTML = query.domain_metrics;
+            document.getElementById('overall-summary').innerHTML = query.time_to_rank_table;
+
+            document.getElementById('overall-summary').style.display = "block";
+
+            closeTimeToRankQueriesModal(); // Close modal after loading
         }
 
         async function getImages() {
