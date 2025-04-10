@@ -1922,7 +1922,7 @@
                 <button class="collapsible" id="contentCollapsible" style="display: none;">Content</button>
                 <div class="content" id="contentRecommendations"></div>
 
-                <!-- Modal for Previous Queries -->
+                <!-- Modal for Previous On-Page Queries -->
                 <div id="queriesModal" class="queries-modal" style="display:none">
                     <div class="queries-modal-content">
                         <span class="close" onclick="closeQueriesModal()">×</span>
@@ -1951,6 +1951,36 @@
                         </table>
                     </div>
                 </div>
+
+                 <!-- Modal for Previous Time To Rank Queries -->
+                 <div id="timeToRankModal" class="queries-modal" style="display:none">
+                    <div class="queries-modal-content">
+                        <span class="close" onclick="closeTimeToRankQueriesModal()">×</span>
+                        <h2>Previous Time To Rank Queries</h2>
+                        <div id="loading"
+                            style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
+                            <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..."
+                                style="width: 100px; height: 100px;">
+                            <p style="text-align: center;">Loading queries...</p>
+                        </div>
+
+                        <table id="timeToRankQueriesTable">
+                            <thead>
+                                <tr>
+                                    <th>No.</th>
+                                    <th>Date</th>
+                                    <th>URL</th>
+                                    <th>Keywords</th>
+                                    <th>User</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Queries will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
             </div>
             <hr>
             <button class="collapsible" id="rankCheckerButton">Rank Checker</button>
@@ -4337,13 +4367,13 @@
             const collapsibleSection = document.createElement('div');
             collapsibleSection.id = keywordContainerId;
             collapsibleSection.innerHTML = `
-        <button type="button" class="keywords-collapsible">${keyword}</button>
-        <div class="keywords-content" id="keyword-content-${keyword.replace(/\s+/g, '-')}">
-            <div id="target-content-table-container-${keyword.replace(/\s+/g, '-')}"></div>
-            <div id="results-container-${keyword.replace(/\s+/g, '-')}"></div>
-            <div id="recommendations-container-${keyword.replace(/\s+/g, '-')}"></div>
-        </div>
-      `;
+            <button type="button" class="keywords-collapsible">${keyword}</button>
+            <div class="keywords-content" id="keyword-content-${keyword.replace(/\s+/g, '-')}">
+                <div id="target-content-table-container-${keyword.replace(/\s+/g, '-')}"></div>
+                <div id="results-container-${keyword.replace(/\s+/g, '-')}"></div>
+                <div id="recommendations-container-${keyword.replace(/\s+/g, '-')}"></div>
+            </div>
+            `;
             analysisResultsContainer.appendChild(collapsibleSection);
 
             // Add event listener for the collapsible button
@@ -4414,13 +4444,43 @@
                 await displayOverallSummaryTable(keywords, location, language, target);
                 document.getElementById('keyword-research-analysis-button').innerText = "Analyse";
 
-
+                await timeToRankToDatabase();
+                
             } catch (error) {
                 console.error(`An error occurred for ${keyword}:`, error);
                 const container = document.getElementById(`results-container-${keyword.replace(/\s+/g, '-')}`);
                 container.innerHTML = `<p class="error">Error: ${error.message}</p>`;
                 document.getElementById('keyword-research-analysis-button').innerText = "Analyse";
             }
+        }
+
+        async function timeToRankToDatabase(){
+            endpoint = "https://0tmfunltch.execute-api.ap-southeast-1.amazonaws.com/timeToRankToDatabase";
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    url: document.getElementById('domain').value,
+                    keywords: document.getElementById('keywords').value,
+                    language: document.getElementById('language').value,
+                    location: document.getElementById('location').value,
+                    ranking_keywords: document.getElementById('rankingKeywords').innerHTML,
+                    webpage_keywords: document.getElementById('siteKeywords').innerHTML,
+                    suggestion_keywords: document.getElementById('keywordSuggestions').innerHTML,
+
+                    meta_data: document.getElementById('metaData').innerHTML,
+                    domain_metrics: document.getElementById('domainMetrics').innerHTML,
+
+                    time_to_rank_table: document.getElementById('overall-summary').innerHTML,
+                    
+                    user: JSON.parse(localStorage.getItem('googleUser')).email
+                })
+            })
+
+            data = await response.json();
         }
 
         async function displayOverallSummaryTable(keywords, location, language, target) {
@@ -7666,11 +7726,19 @@
             loadPreviousQueries(); // Load data when modal opens
         }
 
+        function openTimeToRankQueriesModal() {
+            document.getElementById('timeToRankModal').style.display = "block";
+            loadPreviousQueries(); // Load data when modal opens
+        }
+
+
         function closeQueriesModal() {
             document.getElementById('queriesModal').style.display = "none";
         }
 
-
+        function closeTimeToRankQueriesModal() {
+            document.getElementById('timeToRankModal').style.display = "none";
+        }
 
         // --- API Interaction Functions ---
         async function loadPreviousQueries() {
