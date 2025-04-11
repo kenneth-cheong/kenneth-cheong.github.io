@@ -1495,6 +1495,35 @@
         <button class="collapsible" id="seo"><i class="fab fa-google"></i>Search Engine Optimisation (SEO)</button>
         <div class="content" id="seoSection">
 
+             <!-- Modal for Content Comparison Queries -->
+             <div id="contentComparisonkModal" class="queries-modal" style="display:none">
+                <div class="queries-modal-content">
+                    <span class="close" onclick="closeContentComparisonQueriesModal()">×</span>
+                    <h2>Previous Content Comparison Queries</h2>
+                    <div id="content_comparison_loading"
+                        style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
+                        <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..."
+                            style="width: 100px; height: 100px;">
+                        <p style="text-align: center;">Loading queries...</p>
+                    </div>
+
+                    <table id="contentComparisonQueriesTable">
+                        <thead>
+                            <tr>
+                                <th>No.</th>
+                                <th>Date</th>
+                                <th>URL</th>
+                                <th>Keywords</th>
+                                <th>User</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Queries will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Modal for Previous Time To Rank Queries -->
             <div id="timeToRankModal" class="queries-modal" style="display:none">
                 <div class="queries-modal-content">
@@ -1963,6 +1992,8 @@
                 </div>
                 <br>
                 <button id="contentComparisonAnalyzeBtn" onclick="contentComparisonAnalysis()">Analyse (up to 3 mins)</button>
+                <button onclick="openContentComparisonQueriesModal()" id="loadTimeToRankQueriesBtn">Load Previous
+                    Queries</button>
 
                 <div id="loading-messages">
                     <p class="message"></p>
@@ -2895,6 +2926,7 @@
                 loadingMessagesDiv.classList.remove('active');
 
                 analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
+                await contentComparisonToDatabase();
 
             } catch (error) {
                 resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
@@ -7735,9 +7767,18 @@
             loadPreviousQueries('time_to_rank'); // Load data when modal opens
         }
 
+        function openContentComparisonQueriesModal() {
+            document.getElementById("contentComparisonkModal").style.display = "block";
+            loadPreviousQueries('content_comparison'); // Load data when modal opens
+        }
+
 
         function closeQueriesModal() {
             document.getElementById('queriesModal').style.display = "none";
+        }
+
+        function closeContentComparisonQueriesModal() {
+            document.getElementById('contentComparisonkModal').style.display = "none";
         }
 
         function closeTimeToRankQueriesModal() {
@@ -7769,12 +7810,37 @@
                     populateQueriesTable(data);
                 } else if (query_type=="time_to_rank"){
                     populateTimeToRankQueriesTable(data);
+                } else if (query_type=="content_comparison"){
+                    populateContentComparisonQueriesTable(data);
                 }
 
             } catch (error) {
                 console.error("Error loading previous queries:", error);
                 alert("Failed to load previous queries. See console for details.");
             }
+        }
+
+        async function contentComparisonToDatabase() {
+            endpoint = "https://7gdde3ohdl.execute-api.ap-southeast-1.amazonaws.com/contentComparisonToDatabase";
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    comparison_urls: document.getElementById('comparison-urls').value,
+                    comparison_keyword: document.getElementById('comparison-keyword').value,
+                    language: document.getElementById('comparison-language').value,
+                    location: document.getElementById('comparison-location').value,
+
+                    initial_table: document.getElementById('initial-table').innerHTML,
+                    comparison_results: document.getElementById('comparison-results').innerHTML,
+                    user: JSON.parse(localStorage.getItem('googleUser')).email
+                })
+            })
+
+            data = await response.json();
         }
 
         function populateQueriesTable(queries) {
@@ -7809,6 +7875,23 @@
                 row.addEventListener('click', () => loadTimeToRankQueryData(query)); // Add click listener
             });
             document.getElementById('time_to_rank_loading').style.display = "none";
+        }
+
+        function populateContentComparisonQueriesTable(queries) {
+            const tableBody = document.getElementById('contentComparisonQueriesTable').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = ""; // Clear existing rows
+
+            queries.forEach((query, index) => {
+                const row = tableBody.insertRow();
+                row.insertCell(0).textContent = index + 1;
+                row.insertCell(1).textContent = formatDate(query.date);
+                row.insertCell(2).textContent = query.comparison_urls;
+                row.insertCell(3).textContent = query.comparison_keyword;
+                row.insertCell(4).textContent = query.user; // Corrected the index here
+
+                row.addEventListener('click', () => loadContentComparisonQueryData(query)); // Add click listener
+            });
+            document.getElementById('content_comparison_loading').style.display = "none";
         }
 
 
@@ -7859,6 +7942,18 @@
             document.getElementById('keywordAnalysis').style.display = "block";
 
             closeTimeToRankQueriesModal(); // Close modal after loading
+        }
+
+        function loadContentComparisonQueryData(query) {
+            document.getElementById('comparison-urls').value = query.comparison_urls;
+            document.getElementById('comparison-keyword').value = query.comparison_keyword;
+            document.getElementById('comparison-location').value = query.location;
+            document.getElementById('comparison-language').value = query.language;
+
+            document.getElementById('initial-table').innerHTML = query.initial_table;
+            document.getElementById('comparison-results').innerHTML = query.comparison_results;
+
+            closeContentComparisonQueriesModal(); // Close modal after loading
         }
 
         // On Page
