@@ -105,7 +105,7 @@
 
                 document.getElementById('threadId').innerText = data;
                 console.log(data);
-                loadFromLocalStorage();
+                //loadFromLocalStorage();
 
             } catch (error) {
                 console.error('Error fetching or parsing thread ID:', error);
@@ -1500,7 +1500,7 @@
                 <div class="queries-modal-content">
                     <span class="close" onclick="closeTimeToRankQueriesModal()">×</span>
                     <h2>Previous Time To Rank Queries</h2>
-                    <div id="loading"
+                    <div id="time_to_rank_loading"
                         style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
                         <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..."
                             style="width: 100px; height: 100px;">
@@ -1521,6 +1521,78 @@
                             <!-- Queries will be populated here -->
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+             <!-- Modal for Previous On-Page Queries -->
+             <div id="queriesModal" class="queries-modal" style="display:none">
+                <div class="queries-modal-content">
+                    <span class="close" onclick="closeQueriesModal()">×</span>
+                    <h2>Previous On-Page Queries</h2>
+
+                    <div id="on_page_loading"
+                        style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
+                        <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..."
+                            style="width: 100px; height: 100px;">
+                        <p style="text-align: center;">Loading queries...</p>
+                    </div>
+
+                    <table id="queriesTable">
+                        <thead>
+                            <tr>
+                                <th>No.</th>
+                                <th>Date</th>
+                                <th>URL</th>
+                                <th>Keywords</th>
+                                <th>User</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Queries will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="feedbackModal" class="feedback-modal">
+                <div class="feedback-modal-content">
+                    <span class="feedback-close">×</span>
+                    <h2>Feedback</h2>
+        
+                    <label for="userFeedback">Your Feedback:</label>
+                    <textarea id="userFeedback" style="width: 100%; height: 100px; background-color:#eef5fe;"></textarea><br>
+        
+                    <label for="checkResults">Check Results:</label>
+                    <textarea id="checkResults" readonly style="width: 100%; height: 100px;"></textarea><br>
+        
+                    <label for="guidelinesURLs">URLs of Guidelines PDFs:</label>
+                    <textarea id="guidelinesURLs" readonly style="width: 100%; height: 20px;"></textarea><br>
+        
+                    <label for="websiteURLs">Any other website/guidelines URLs:</label>
+                    <textarea id="websiteURLs" readonly style="width: 100%; height: 20px;"></textarea><br>
+        
+                    <label for="otherInstructions">Any other instructions:</label>
+                    <textarea id="otherInstructions" readonly style="width: 100%; height: 20px;"></textarea><br>
+        
+                    <label for="contentToCheck">Content to Check:</label>
+                    <textarea id="contentToCheck" readonly style="width: 100%; height: 30px;"></textarea><br>
+        
+                    <button id="submitFeedbackBtn">Submit Feedback</button>
+                </div>
+            </div>
+
+            <div id="chatbot-modal">
+                <div style="display: none;" id="threadId"></div>
+                <div style="display: none;" id="previous-response-id"></div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2>Chat with Digimetrics AI</h2>
+                    <button id="close-chatbot"
+                        style="background: none; border: none; font-size: 25px; cursor: pointer;">×</button>
+                </div>
+                <div id="chat-messages"></div>
+                <div style="display: flex;">
+                    <input type="text" id="question-input" placeholder="Type your question...">
+                    <button id="send-button-2">Send</button>
                 </div>
             </div>
 
@@ -1890,7 +1962,7 @@
                     <input type="text" id="comparison-location" value="Singapore" placeholder="e.g., Singapore">
                 </div>
                 <br>
-                <button id="analyzeBtn">Analyse (up to 3 mins)</button>
+                <button id="contentComparisonAnalyzeBtn" onclick="contentComparisonAnalysis()">Analyse (up to 3 mins)</button>
 
                 <div id="loading-messages">
                     <p class="message"></p>
@@ -1952,41 +2024,6 @@
                 <div class="content" id="imageRecommendations"></div>
                 <button class="collapsible" id="contentCollapsible" style="display: none;">Content</button>
                 <div class="content" id="contentRecommendations"></div>
-
-                 
-
-                <!-- Modal for Previous On-Page Queries -->
-                <div id="queriesModal" class="queries-modal" style="display:none">
-                    <div class="queries-modal-content">
-                        <span class="close" onclick="closeQueriesModal()">×</span>
-                        <h2>Previous On-Page Queries</h2>
-
-                        <div id="loading"
-                            style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
-                            <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..."
-                                style="width: 100px; height: 100px;">
-                            <p style="text-align: center;">Loading queries...</p>
-                        </div>
-
-                        <table id="queriesTable">
-                            <thead>
-                                <tr>
-                                    <th>No.</th>
-                                    <th>Date</th>
-                                    <th>URL</th>
-                                    <th>Keywords</th>
-                                    <th>User</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Queries will be populated here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-               
-
             </div>
             <hr>
             <button class="collapsible" id="rankCheckerButton">Rank Checker</button>
@@ -2458,32 +2495,6 @@
         </div>
     </div>
 
-    <div id="feedbackModal" class="feedback-modal">
-        <div class="feedback-modal-content">
-            <span class="feedback-close">×</span>
-            <h2>Feedback</h2>
-
-            <label for="userFeedback">Your Feedback:</label>
-            <textarea id="userFeedback" style="width: 100%; height: 100px; background-color:#eef5fe;"></textarea><br>
-
-            <label for="checkResults">Check Results:</label>
-            <textarea id="checkResults" readonly style="width: 100%; height: 100px;"></textarea><br>
-
-            <label for="guidelinesURLs">URLs of Guidelines PDFs:</label>
-            <textarea id="guidelinesURLs" readonly style="width: 100%; height: 20px;"></textarea><br>
-
-            <label for="websiteURLs">Any other website/guidelines URLs:</label>
-            <textarea id="websiteURLs" readonly style="width: 100%; height: 20px;"></textarea><br>
-
-            <label for="otherInstructions">Any other instructions:</label>
-            <textarea id="otherInstructions" readonly style="width: 100%; height: 20px;"></textarea><br>
-
-            <label for="contentToCheck">Content to Check:</label>
-            <textarea id="contentToCheck" readonly style="width: 100%; height: 30px;"></textarea><br>
-
-            <button id="submitFeedbackBtn">Submit Feedback</button>
-        </div>
-    </div>
     <button id="cleanup-button" onclick="clearPageState()"
         style="position: fixed; bottom: 10px; right: 80px; background-color: hsl(0, 71%, 49%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.2em">
         Clear Data <i class="fas fa-trash-alt" style="margin-left: 10px;"></i>
@@ -2492,21 +2503,6 @@
         style="position: fixed; bottom: 10px; right: 10px; background-color: hsl(118, 40%, 43%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.2em">
         <i class="fas fa-comment-dots"></i>
     </button>
-
-    <div id="chatbot-modal">
-        <div style="display: none;" id="threadId"></div>
-        <div style="display: none;" id="previous-response-id"></div>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2>Chat with Digimetrics AI</h2>
-            <button id="close-chatbot"
-                style="background: none; border: none; font-size: 25px; cursor: pointer;">×</button>
-        </div>
-        <div id="chat-messages"></div>
-        <div style="display: flex;">
-            <input type="text" id="question-input" placeholder="Type your question...">
-            <button id="send-button-2">Send</button>
-        </div>
-    </div>
 
     <script id="local-business-template" type="text/x-handlebars-template">
         <label for="name">Name:</label><input type="text" id="name" oninput="updateSchema()"><br>
@@ -2618,7 +2614,7 @@
         const crawlerTableBody = document.getElementById('crawlerTableBody');
         const pageAuditReportDiv = document.getElementById('pageAuditReport');
 
-        const analyzeBtn = document.getElementById('analyzeBtn');
+        analyzeBtn = document.getElementById('analyzeBtn');
         const resultsDiv = document.getElementById('comparison-results');
         const loadingMessagesDiv = document.getElementById('loading-messages');
         const messageElement = document.querySelector('.message');
@@ -2779,7 +2775,8 @@
 
         });
 
-        analyzeBtn.addEventListener('click', async () => {
+        async function contentComparisonAnalysis() {
+            analyzeBtn = document.getElementById('contentComparisonAnalyzeBtn');
             // Show loading messages, hide previous results
             resultsDiv.innerHTML = '';
             analyzeBtn.innerHTML = 'Analysing...';
@@ -2911,7 +2908,7 @@
                 loadingMessagesDiv.classList.remove('active');
                 analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
             }
-        });
+        }
 
         // Function to create the HTML table from the analysis data
         function createAnalysisTable(data, keyword, targetUrls) {
@@ -7680,8 +7677,8 @@
             // Clear dynamic content sections
             document.getElementById('overall-summary').innerHTML = '';
             document.getElementById('keyword-analysis-results').innerHTML = '';
-            document.getElementById('technicalSeo').innerHTML = '';
-            document.getElementById('contentComparison').innerHTML = '';
+            document.getElementById('auditSummary').innerHTML = '';
+            document.getElementById('comparison-results').innerHTML = '';
 
             //document.getElementById('crawlerReport').innerHTML = '';
 
@@ -7769,7 +7766,7 @@
 
                 const data = await response.json();
                 if (query_type=="on_page"){
-                populateQueriesTable(data);
+                    populateQueriesTable(data);
                 } else if (query_type=="time_to_rank"){
                     populateTimeToRankQueriesTable(data);
                 }
@@ -7794,7 +7791,7 @@
 
                 row.addEventListener('click', () => loadQueryData(query)); // Add click listener
             });
-            document.getElementById('loading').style.display = "none";
+            document.getElementById('on_page_loading').style.display = "none";
         }
 
         function populateTimeToRankQueriesTable(queries) {
@@ -7811,7 +7808,7 @@
 
                 row.addEventListener('click', () => loadTimeToRankQueryData(query)); // Add click listener
             });
-            document.getElementById('loading').style.display = "none";
+            document.getElementById('time_to_rank_loading').style.display = "none";
         }
 
 
@@ -7864,6 +7861,7 @@
             closeTimeToRankQueriesModal(); // Close modal after loading
         }
 
+        // On Page
         async function getImages() {
             document.getElementById('contentCollapsible').style.backgroundColor = "#004c9d";
             document.getElementById('imageCollapsible').style.backgroundColor = "#004c9d";
@@ -7931,6 +7929,7 @@
             }
         }
 
+        // On Page
         async function getContentRecommendations(url, keywordArray) {
             const recommendationEndpoint = 'https://pkkz2e02ch.execute-api.ap-southeast-1.amazonaws.com/onPageContentRecommendations';
 
@@ -8025,6 +8024,7 @@
             }
         }
 
+        // On page
         function displayInitialData(data) {
             // Add export button above meta table
             let resultsHTML = '';
@@ -8124,7 +8124,7 @@
             localStorage.setItem('onPageResults', document.getElementById('onPageResults').innerHTML);
         }
 
-
+        // On-page
         function displayAllData(data) {
             console.log(data);
             // Add export button above meta table
