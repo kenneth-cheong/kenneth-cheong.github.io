@@ -656,7 +656,7 @@
             content: "";
             height: 1em;
             width: 1em;
-            left: 3px;
+            left: 4%;
             bottom: 4px;
             background-color: white;
             -webkit-transition: .4s;
@@ -1486,8 +1486,8 @@
         <button class="collapsible" id="seo"><i class="fab fa-google"></i>Search Engine Optimisation (SEO)</button>
         <div class="content" id="seoSection">
 
-             <!-- Modal for Content Comparison Queries -->
-             <div id="contentComparisonkModal" class="queries-modal" style="display:none">
+            <!-- Modal for Content Comparison Queries -->
+            <div id="contentComparisonkModal" class="queries-modal" style="display:none">
                 <div class="queries-modal-content">
                     <span class="close" onclick="closeContentComparisonQueriesModal()">×</span>
                     <h2>Previous Content Comparison Queries</h2>
@@ -1544,8 +1544,8 @@
                 </div>
             </div>
 
-             <!-- Modal for Previous On-Page Queries -->
-             <div id="queriesModal" class="queries-modal" style="display:none">
+            <!-- Modal for Previous On-Page Queries -->
+            <div id="queriesModal" class="queries-modal" style="display:none">
                 <div class="queries-modal-content">
                     <span class="close" onclick="closeQueriesModal()">×</span>
                     <h2>Previous On-Page Queries</h2>
@@ -1578,25 +1578,26 @@
                 <div class="feedback-modal-content">
                     <span class="feedback-close">×</span>
                     <h2>Feedback</h2>
-        
+
                     <label for="userFeedback">Your Feedback:</label>
-                    <textarea id="userFeedback" style="width: 100%; height: 100px; background-color:#eef5fe;"></textarea><br>
-        
+                    <textarea id="userFeedback"
+                        style="width: 100%; height: 100px; background-color:#eef5fe;"></textarea><br>
+
                     <label for="checkResults">Check Results:</label>
                     <textarea id="checkResults" readonly style="width: 100%; height: 100px;"></textarea><br>
-        
+
                     <label for="guidelinesURLs">URLs of Guidelines PDFs:</label>
                     <textarea id="guidelinesURLs" readonly style="width: 100%; height: 20px;"></textarea><br>
-        
+
                     <label for="websiteURLs">Any other website/guidelines URLs:</label>
                     <textarea id="websiteURLs" readonly style="width: 100%; height: 20px;"></textarea><br>
-        
+
                     <label for="otherInstructions">Any other instructions:</label>
                     <textarea id="otherInstructions" readonly style="width: 100%; height: 20px;"></textarea><br>
-        
+
                     <label for="contentToCheck">Content to Check:</label>
                     <textarea id="contentToCheck" readonly style="width: 100%; height: 30px;"></textarea><br>
-        
+
                     <button id="submitFeedbackBtn">Submit Feedback</button>
                 </div>
             </div>
@@ -1982,7 +1983,8 @@
                     <input type="text" id="comparison-location" value="Singapore" placeholder="e.g., Singapore">
                 </div>
                 <br>
-                <button id="contentComparisonAnalyzeBtn" onclick="contentComparisonAnalysis()">Analyse (up to 3 mins)</button>
+                <button id="contentComparisonAnalyzeBtn" onclick="contentComparisonAnalysis()">Analyse (up to 3
+                    mins)</button>
                 <button onclick="openContentComparisonQueriesModal()" id="loadTimeToRankQueriesBtn">Load Previous
                     Queries</button>
 
@@ -2018,7 +2020,7 @@
 
                 <div id="input-fields"></div>
                 <div id="schema-output"></div>
-            </div>  
+            </div>
             <hr>
             <button class="collapsible" id="onPageButton">On-Page</button>
             <div id="onPageSection" class="content">
@@ -4756,9 +4758,19 @@
         }
 
         document.addEventListener('DOMContentLoaded', function () {
-            const coll = document.getElementsByClassName("collapsible");
-            for (let i = 0; i < coll.length; i++) {
-                coll[i].addEventListener("click", function () {
+            // Attach the listener to a parent element that always exists (e.g., document)
+            document.addEventListener('click', function (event) {
+                if (event.target.classList.contains('keywords-collapsible')) {
+                    const collapsible = event.target;
+                    collapsible.classList.toggle("active");
+                    const content = collapsible.nextElementSibling;
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+            });
+
+            const coll2 = document.getElementsByClassName("collapsible");
+            for (let i = 0; i < coll2.length; i++) {
+                coll2[i].addEventListener("click", function () {
                     this.classList.toggle("active");
                     const content = this.nextElementSibling;
                     content.style.display = content.style.display === "block" ? "none" : "block";
@@ -7796,11 +7808,11 @@
                 }
 
                 const data = await response.json();
-                if (query_type=="on_page"){
+                if (query_type == "on_page") {
                     populateQueriesTable(data);
-                } else if (query_type=="time_to_rank"){
+                } else if (query_type == "time_to_rank") {
                     populateTimeToRankQueriesTable(data);
-                } else if (query_type=="content_comparison"){
+                } else if (query_type == "content_comparison") {
                     populateContentComparisonQueriesTable(data);
                 }
 
