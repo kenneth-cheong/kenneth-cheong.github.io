@@ -1822,7 +1822,6 @@
                 <div class="column">
                     <p><b>Domain Authority (DA): </b><span id="da">-</span></p>
                     <p><b>Page Authority (PA): </b><span id="pa">-</span></p>
-                    <p><b>Google PageSpeed: </b><span id="targetPagespeed">-</span></p>
                     <p><b>Backlinks Spam Score: </b><span id="targetSpamScore">-</span></p>
                     <p><b>Backlinks: </b><span id="targetBacklinks">-</span></p>
                     <p><b>Referring Domains: </b><span id="targetRefDomains">-</span></p>
@@ -4003,7 +4002,6 @@
             //document.getElementById('targetDomainRank').innerText = "";
             document.getElementById('targetBacklinks').innerText = "";
             document.getElementById('targetSpamScore').innerText = "";
-            document.getElementById('targetPagespeed').innerText = '-/100';
             document.getElementById('targetRefDomains').innerText = "";
             document.getElementById('targetInternalLinks').innerText = "";
             document.getElementById('targetExternalLinks').innerText = "";
@@ -4701,7 +4699,6 @@
                     document.getElementById('targetDescription').innerText = data.body.description;
                     document.getElementById('targetBacklinks').innerText = data.body.backlinks;
                     document.getElementById('targetSpamScore').innerText = data.body.backlinks_spam_score;
-                    document.getElementById('targetPagespeed').innerText = '-/100';
                     document.getElementById('targetRefDomains').innerText = data.body.referring_domains;
                     document.getElementById('targetInternalLinks').innerText = data.body.internal_links_count;
                     document.getElementById('targetExternalLinks').innerText = data.body.external_links_count;
@@ -7693,7 +7690,6 @@
             //document.getElementById('targetDomainRank').innerText = "";
             document.getElementById('targetBacklinks').innerText = "";
             document.getElementById('targetSpamScore').innerText = "";
-            document.getElementById('targetPagespeed').innerText = '-/100';
             document.getElementById('targetRefDomains').innerText = "";
             document.getElementById('targetInternalLinks').innerText = "";
             document.getElementById('targetExternalLinks').innerText = "";
@@ -7874,7 +7870,7 @@
                 row.insertCell(3).textContent = query.keywords;
                 row.insertCell(4).textContent = query.user; // Corrected the index here
 
-                row.addEventListener('click', () => loadTimeToRankQueryData(query)); // Add click listener
+                row.addEventListener('click', () => loadTimeToRankQueryData(query.id,"time_to_rank")); // Add click listener
             });
             document.getElementById('time_to_rank_loading').style.display = "none";
         }
@@ -7926,7 +7922,23 @@
             closeQueriesModal(); // Close modal after loading
         }
 
-        function loadTimeToRankQueryData(query) {
+        async function loadTimeToRankQueryData(id,collection) {
+
+            endpoint = "https://3fbj0gjlak.execute-api.ap-southeast-1.amazonaws.com/loadSingleQuery";
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    "id": id,
+                    "collection": collection,
+                })
+            })
+
+            query = await response.json();
+
             document.getElementById('domain').value = query.url;
             document.getElementById('keywords').value = query.keywords;
             document.getElementById('location').value = query.location;
