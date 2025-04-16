@@ -7853,7 +7853,7 @@
                 row.insertCell(3).textContent = query.keywords;
                 row.insertCell(4).textContent = query.user; // Corrected the index here
 
-                row.addEventListener('click', () => loadQueryData(query)); // Add click listener
+                row.addEventListener('click', () => loadQueryData(query.id,"on_page")); // Add click listener
             });
             document.getElementById('on_page_loading').style.display = "none";
         }
@@ -7887,7 +7887,7 @@
                 row.insertCell(3).textContent = query.comparison_keyword;
                 row.insertCell(4).textContent = query.user; // Corrected the index here
 
-                row.addEventListener('click', () => loadContentComparisonQueryData(query)); // Add click listener
+                row.addEventListener('click', () => loadContentComparisonQueryData(query.id,"content_comparison")); // Add click listener
             });
             document.getElementById('content_comparison_loading').style.display = "none";
         }
@@ -7905,7 +7905,20 @@
             return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         }
 
-        function loadQueryData(query) {
+        async function loadQueryData(id,collection) {
+            endpoint = "https://3fbj0gjlak.execute-api.ap-southeast-1.amazonaws.com/loadSingleQuery";
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    "id": id,
+                    "collection": collection,
+                })
+            })
+
+            query = await response.json();
             document.getElementById('on-page-url').value = query.url;
             document.getElementById('on-page-keywords').value = query.keywords.join(', ');
             document.getElementById('onPageResults').innerHTML = query.meta_table;
@@ -7923,9 +7936,7 @@
         }
 
         async function loadTimeToRankQueryData(id,collection) {
-
             endpoint = "https://3fbj0gjlak.execute-api.ap-southeast-1.amazonaws.com/loadSingleQuery";
-
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
@@ -7958,7 +7969,20 @@
             closeTimeToRankQueriesModal(); // Close modal after loading
         }
 
-        function loadContentComparisonQueryData(query) {
+        async function loadContentComparisonQueryData(id,collection) {
+            endpoint = "https://3fbj0gjlak.execute-api.ap-southeast-1.amazonaws.com/loadSingleQuery";
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    "id": id,
+                    "collection": collection,
+                })
+            })
+
+            query = await response.json();
             document.getElementById('comparison-urls').value = query.comparison_urls;
             document.getElementById('comparison-keyword').value = query.comparison_keyword;
             document.getElementById('comparison-location').value = query.location;
