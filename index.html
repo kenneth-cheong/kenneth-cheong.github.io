@@ -2625,6 +2625,17 @@
 
     <script>
 
+        document.addEventListener('DOMContentLoaded', function () {
+            const collapsibles = document.querySelectorAll('.collapsible, .keywords-collapsible'); // Select all collapsibles
+            collapsibles.forEach(collapsible => {
+                collapsible.addEventListener('click', function () {
+                    this.classList.toggle('active');
+                    const content = this.nextElementSibling;
+                    content.style.display = content.style.display === 'block' ? 'none' : 'block';
+                });
+            });
+        });
+
         let currentKeywordSortColumn = null;
         let keywordSortAscending = true;
 
@@ -4753,27 +4764,6 @@
             let row = button.parentNode.parentNode;
             row.parentNode.removeChild(row);
         }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            // Attach the listener to a parent element that always exists (e.g., document)
-            document.addEventListener('click', function (event) {
-                if (event.target.classList.contains('keywords-collapsible')) {
-                    const collapsible = event.target;
-                    collapsible.classList.toggle("active");
-                    const content = collapsible.nextElementSibling;
-                    content.style.display = content.style.display === "block" ? "none" : "block";
-                }
-            });
-
-            const coll2 = document.getElementsByClassName("collapsible");
-            for (let i = 0; i < coll2.length; i++) {
-                coll2[i].addEventListener("click", function () {
-                    this.classList.toggle("active");
-                    const content = this.nextElementSibling;
-                    content.style.display = content.style.display === "block" ? "none" : "block";
-                });
-            }
-        });
 
         function sortTable(column) {
             const table = document.getElementById("keywordResults");
@@ -7853,7 +7843,7 @@
                 row.insertCell(3).textContent = query.keywords;
                 row.insertCell(4).textContent = query.user; // Corrected the index here
 
-                row.addEventListener('click', () => loadQueryData(query.id,"on_page")); // Add click listener
+                row.addEventListener('click', () => loadQueryData(query.id, "on_page")); // Add click listener
             });
             document.getElementById('on_page_loading').style.display = "none";
         }
@@ -7870,7 +7860,7 @@
                 row.insertCell(3).textContent = query.keywords;
                 row.insertCell(4).textContent = query.user; // Corrected the index here
 
-                row.addEventListener('click', () => loadTimeToRankQueryData(query.id,"time_to_rank")); // Add click listener
+                row.addEventListener('click', () => loadTimeToRankQueryData(query.id, "time_to_rank")); // Add click listener
             });
             document.getElementById('time_to_rank_loading').style.display = "none";
         }
@@ -7887,7 +7877,7 @@
                 row.insertCell(3).textContent = query.comparison_keyword;
                 row.insertCell(4).textContent = query.user; // Corrected the index here
 
-                row.addEventListener('click', () => loadContentComparisonQueryData(query.id,"content_comparison")); // Add click listener
+                row.addEventListener('click', () => loadContentComparisonQueryData(query.id, "content_comparison")); // Add click listener
             });
             document.getElementById('content_comparison_loading').style.display = "none";
         }
@@ -7905,7 +7895,7 @@
             return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         }
 
-        async function loadQueryData(id,collection) {
+        async function loadQueryData(id, collection) {
             endpoint = "https://3fbj0gjlak.execute-api.ap-southeast-1.amazonaws.com/loadSingleQuery";
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -7935,7 +7925,7 @@
             closeQueriesModal(); // Close modal after loading
         }
 
-        async function loadTimeToRankQueryData(id,collection) {
+        async function loadTimeToRankQueryData(id, collection) {
             endpoint = "https://3fbj0gjlak.execute-api.ap-southeast-1.amazonaws.com/loadSingleQuery";
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -7969,7 +7959,7 @@
             closeTimeToRankQueriesModal(); // Close modal after loading
         }
 
-        async function loadContentComparisonQueryData(id,collection) {
+        async function loadContentComparisonQueryData(id, collection) {
             endpoint = "https://3fbj0gjlak.execute-api.ap-southeast-1.amazonaws.com/loadSingleQuery";
             const response = await fetch(endpoint, {
                 method: 'POST',
