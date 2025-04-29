@@ -1425,6 +1425,10 @@
             margin-left: auto;
         }
 
+        #mangoolsQuota {
+            margin-left: 40px;
+        }
+
         @media screen and (max-width: 1081px) {
 
             .column,
@@ -1672,6 +1676,7 @@
                 <a href="#contentGenerator" onclick="openContentGenerator(event)">Content Generator</a>
             </div>
         </div>
+        
 
         <div class="nav-item">
             <a href="#" onclick="openSem(event)">SEM</a>
@@ -1688,6 +1693,9 @@
             </div>
         </div>
 
+        <div class="nav-item" id="mangoolsQuota">
+            <a href="#" onclick="checkMangoolsQuota(event)">Mangools Quota</a>
+        </div>
 
         <div class="nav-item" id="logoutNavItem">
             <a href="#" onclick="logout(event)">Logout Kenneth</a>
@@ -8527,6 +8535,20 @@
             localStorage.setItem('onPageResults', document.getElementById('onPageResults').innerHTML);
             localStorage.setItem('onPageImages', document.getElementById('imageRecommendations').innerHTML);
             onPageToDatabase();
+        }
+
+        async function checkMangoolsQuota(){
+            endpoint = "https://hjw4zjgve4.execute-api.ap-southeast-1.amazonaws.com/mangoolsQuota";
+
+            const response = await fetch(endpoint, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }})
+            
+            data = await response.json();
+            
+            alert("Remaining quota for the day: "+data+"/200");
         }
 
         async function onPageToDatabase() {
