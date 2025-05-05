@@ -1678,7 +1678,7 @@
                 <a href="#contentGenerator" onclick="openContentGenerator(event)">Content Generator</a>
             </div>
         </div>
-        
+
 
         <div class="nav-item">
             <a href="#" onclick="openSem(event)">SEM</a>
@@ -2295,7 +2295,8 @@
         <button class="collapsible" id="smm"><i class="fas fa-plus-square"></i><i class="fas fa-share-alt"></i>Social
             Media (SMM)</button>
         <div class="content" id="socialMedia">
-            <button class="collapsible" id="contentGeneratorButton"><i class="fas fa-plus-square"></i>Content Generator</button>
+            <button class="collapsible" id="contentGeneratorButton"><i class="fas fa-plus-square"></i>Content
+                Generator</button>
             <div class="content" id="contentGenerator">
                 <form id="content-form">
                     <div class="column">
@@ -3703,7 +3704,7 @@
                 })
                 .then(data => {
                     displayRankedKeywords(data.body);
-                    document.getElementById('ranking_keywords').innerText = "Ranking Keywords"; 
+                    document.getElementById('ranking_keywords').innerText = "Ranking Keywords";
                     document.getElementById("ranking_keywords").style.backgroundColor = "green";
                     document.getElementById("expandRankingKeywords").style.backgroundColor = "green";
                     const rankingKeywordsDiv = document.getElementById("rankingKeywords");
@@ -4650,33 +4651,77 @@
             user = JSON.parse(localStorage.getItem('googleUser')).email;
             const analysisResultsContainer = document.getElementById('keyword-analysis-results');
             const keywordContainerId = `keyword-container-${keyword.replace(/\s+/g, '-')}`;
+            const keywordContentId = `keyword-content-${keyword.replace(/\s+/g, '-')}`;
+            const resultsContainerId = `results-container-${keyword.replace(/\s+/g, '-')}`;
+            const targetContentTableContainerId = `target-content-table-container-${keyword.replace(/\s+/g, '-')}`;
+            const recommendationsContainerId = `recommendations-container-${keyword.replace(/\s+/g, '-')}`;
+
 
             document.getElementById("keywordAnalysisBtn").style.backgroundColor = "#004c9d";
 
-            // Create a collapsible section for the keyword
-            const collapsibleSection = document.createElement('div');
-            collapsibleSection.id = keywordContainerId;
-            collapsibleSection.innerHTML = `
-            <button type="button" class="keywords-collapsible">${keyword}</button>
-            <div class="keywords-content" id="keyword-content-${keyword.replace(/\s+/g, '-')}">
-                <div id="target-content-table-container-${keyword.replace(/\s+/g, '-')}"></div>
-                <div id="results-container-${keyword.replace(/\s+/g, '-')}"></div>
-                <div id="recommendations-container-${keyword.replace(/\s+/g, '-')}"></div>
-            </div>
-            `;
-            analysisResultsContainer.appendChild(collapsibleSection);
+            let collapsibleSection = document.getElementById(keywordContainerId);
 
-            // Add event listener for the collapsible button
-            const coll = collapsibleSection.querySelector(".keywords-collapsible");
-            coll.addEventListener("click", function () {
-                this.classList.toggle("keywords-active");
-                const content = this.nextElementSibling;
-                if (content.style.display === "block") {
-                    content.style.display = "none";
+            if (collapsibleSection) {
+                // Keyword section exists, overwrite the content
+                console.log(`Overwriting existing collapsible section for keyword: ${keyword}`);
+                const keywordContent = document.getElementById(keywordContentId);
+                if (keywordContent) {
+                    keywordContent.innerHTML = `
+            <div id="${targetContentTableContainerId}"></div>
+            <div id="${resultsContainerId}"></div>
+            <div id="${recommendationsContainerId}"></div>
+          `;
                 } else {
-                    content.style.display = "block";
+                    console.warn(`Keyword content element not found: ${keywordContentId}`);
+                    // Recreate the content container if it's missing.  This shouldn't normally happen.
+                    collapsibleSection.innerHTML = `
+            <button type="button" class="keywords-collapsible">${keyword}</button>
+            <div class="keywords-content" id="${keywordContentId}">
+                <div id="${targetContentTableContainerId}"></div>
+                <div id="${resultsContainerId}"></div>
+                <div id="${recommendationsContainerId}"></div>
+            </div>
+          `;
+
+                    const coll = collapsibleSection.querySelector(".keywords-collapsible");
+                    coll.addEventListener("click", function () {
+                        this.classList.toggle("keywords-active");
+                        const content = this.nextElementSibling;
+                        if (content.style.display === "block") {
+                            content.style.display = "none";
+                        } else {
+                            content.style.display = "block";
+                        }
+                    });
                 }
-            });
+
+            } else {
+                // Keyword section doesn't exist, create a new one
+                console.log(`Creating new collapsible section for keyword: ${keyword}`);
+                collapsibleSection = document.createElement('div');
+                collapsibleSection.id = keywordContainerId;
+                collapsibleSection.innerHTML = `
+            <button type="button" class="keywords-collapsible">${keyword}</button>
+            <div class="keywords-content" id="${keywordContentId}">
+                <div id="${targetContentTableContainerId}"></div>
+                <div id="${resultsContainerId}"></div>
+                <div id="${recommendationsContainerId}"></div>
+            </div>
+        `;
+                analysisResultsContainer.appendChild(collapsibleSection);
+
+                // Add event listener for the collapsible button
+                const coll = collapsibleSection.querySelector(".keywords-collapsible");
+                coll.addEventListener("click", function () {
+                    this.classList.toggle("keywords-active");
+                    const content = this.nextElementSibling;
+                    if (content.style.display === "block") {
+                        content.style.display = "none";
+                    } else {
+                        content.style.display = "block";
+                    }
+                });
+            }
 
             try {
                 const serpEndpoint = 'https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite';
@@ -4718,7 +4763,7 @@
                     })
                 );
 
-                displaySerpResults(serpResultsWithMetrics, `results-container-${keyword.replace(/\s+/g, '-')}`);
+                displaySerpResults(serpResultsWithMetrics, resultsContainerId);
 
                 // Await the keyword recommendations
                 const timeToRank = await getKeywordRecommendations(keyword, language, location, target, serp_dict);
@@ -4736,8 +4781,12 @@
 
             } catch (error) {
                 console.error(`An error occurred for ${keyword}:`, error);
-                const container = document.getElementById(`results-container-${keyword.replace(/\s+/g, '-')}`);
-                container.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                const container = document.getElementById(resultsContainerId);
+                if (container) {
+                    container.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                } else {
+                    console.warn(`Results container not found: ${resultsContainerId}`);
+                }
                 document.getElementById('keyword-research-analysis-button').innerText = "Analyse";
             }
         }
@@ -4774,7 +4823,7 @@
 
         async function displayOverallSummaryTable(keywords, location, language, target) {
             keywordsInput = document.getElementById('keywords').value;
-            keywords = keywordsInput.split(',').map(keyword => keyword.trim()).filter(keyword => keyword !== "");
+            keywords = keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
             const summaryContainer = document.getElementById('overall-summary');
             if (!summaryContainer) {
                 console.error("Summary container not found");
@@ -8541,18 +8590,19 @@
             onPageToDatabase();
         }
 
-        async function checkMangoolsQuota(){
+        async function checkMangoolsQuota() {
             endpoint = "https://hjw4zjgve4.execute-api.ap-southeast-1.amazonaws.com/mangoolsQuota";
 
             const response = await fetch(endpoint, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
-                }})
-            
+                }
+            })
+
             data = await response.json();
-            
-            alert("Remaining quota for the day: "+data+"/200");
+
+            alert("Remaining quota for the day: " + data + "/200");
         }
 
         async function onPageToDatabase() {
