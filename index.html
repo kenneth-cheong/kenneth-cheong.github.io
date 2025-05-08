@@ -104,6 +104,7 @@
 
                 document.getElementById('threadId').innerText = data;
                 console.log(data);
+                processURL();
                 //loadFromLocalStorage();
 
             } catch (error) {
@@ -1864,7 +1865,7 @@
                         <option value="United Kingdom">United Kingdom</option>
                         <option value="United States">United States</option>
                         <option value="Vietnam">Vietnam</option>
-                    </select>
+                    </select><br>
 
                     <label-fixed for="language">Language (required):</label-fixed>
                     <select id="language" name="language" required>
@@ -3056,6 +3057,33 @@
                 });
 
         });
+
+        function processURL(){
+            queryUrl = window.location.href;
+            if (queryUrl.includes('?keywordAnalysis')){
+                query_split = queryUrl.split("&");
+                console.log(query_split);
+
+                query_split.forEach(parameter => {
+                    if (parameter.includes('location=')){
+                        document.getElementById('location').value = parameter.replace('location=','');
+                    } else if (parameter.includes('language=')) {
+                        document.getElementById('language').value = parameter.replace('language=','');
+                    } else if (parameter.includes('target=')){
+                        document.getElementById('domain').value = parameter.replace('target=','');
+                    } else if (parameter.includes('keywords=')){
+                        document.getElementById('keywords').value = parameter.replace('keywords=','').replaceAll('%20',' ').replaceAll('+',', ').replace('#','');
+                    }
+                });
+                
+                validateAndSubmit();
+                
+                
+                //changes url without going to the page
+               // window.history.replaceState({path:"?keywordAnalysis2"},'pageTitle',"?keywordAnalysis2");
+            }
+            
+        }
 
         async function contentComparisonAnalysis() {
             analyzeBtn = document.getElementById('contentComparisonAnalyzeBtn');
@@ -4557,7 +4585,7 @@
                         displayKeywordRecommendations(kwRecommendationsData.body, `recommendations-container-${keyword.replace(/\s+/g, '-')}`);
 
                         // Extract Time to Rank using regex
-                        const timeToRankMatch = kwRecommendationsData.body.match(/(0-3 months|3-6 months|6-9 months|9-12 months|more than 12 months)/);
+                        const timeToRankMatch = kwRecommendationsData.body.match(/(0-3 months|3-6 months|6-9 months|9-12 months|more than 12 months|More than 12 months)/);
                         const timeToRank = timeToRankMatch ? timeToRankMatch[0] : 'N/A';
                         return timeToRank;
                     } else {
