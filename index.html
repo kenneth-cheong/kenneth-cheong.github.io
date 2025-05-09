@@ -298,6 +298,61 @@
             word-break: break-word;
         }
 
+        .loading-modal {
+            display: none;
+            /* Hidden by default */
+            position: fixed;
+            /* Stay in place */
+            z-index: 1000;
+            /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%;
+            /* Full width */
+            height: 100%;
+            /* Full height */
+            overflow: auto;
+            /* Enable scroll if needed */
+            background-color: rgba(0, 0, 0, 0.4);
+            /* Black w/ opacity */
+        }
+
+        /* Modal Content/Box */
+        .loading-modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            /* 15% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: 30%;
+            /* Could be more or less, depending on screen size */
+            text-align: center;
+        }
+
+        /* Loader animation */
+        .loader {
+            border: 16px solid #f3f3f3;
+            /* Light grey */
+            border-top: 16px solid #3498db;
+            /* Blue */
+            border-radius: 50%;
+            width: 120px;
+            height: 120px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+            /* Center the loader */
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
         #crawlerReport table {
             height: 600px;
         }
@@ -1695,6 +1750,14 @@
 
 
     </div>
+
+    <div id="loadingModal" class="loading-modal">
+        <div class="loading-modal-content">
+            <div class="loader"></div>
+            <p>Loading, please wait...</p>
+        </div>
+    </div>
+
     <div id="main-content">
 
         <div id="chatbot-modal">
@@ -3058,31 +3121,31 @@
 
         });
 
-        function processURL(){
+        function processURL() {
             queryUrl = window.location.href;
-            if (queryUrl.includes('?keywordAnalysis')){
+            if (queryUrl.includes('?keywordAnalysis')) {
                 query_split = queryUrl.split("&");
                 console.log(query_split);
 
                 query_split.forEach(parameter => {
-                    if (parameter.includes('location=')){
-                        document.getElementById('location').value = parameter.replace('location=','');
+                    if (parameter.includes('location=')) {
+                        document.getElementById('location').value = parameter.replace('location=', '');
                     } else if (parameter.includes('language=')) {
-                        document.getElementById('language').value = parameter.replace('language=','');
-                    } else if (parameter.includes('target=')){
-                        document.getElementById('domain').value = parameter.replace('target=','');
-                    } else if (parameter.includes('keywords=')){
-                        document.getElementById('keywords').value = parameter.replace('keywords=','').replaceAll('%20',' ').replaceAll('+',', ').replace('#','');
+                        document.getElementById('language').value = parameter.replace('language=', '');
+                    } else if (parameter.includes('target=')) {
+                        document.getElementById('domain').value = parameter.replace('target=', '');
+                    } else if (parameter.includes('keywords=')) {
+                        document.getElementById('keywords').value = parameter.replace('keywords=', '').replaceAll('%20', ' ').replaceAll('+', ', ').replace('#', '');
                     }
                 });
-                
+
                 validateAndSubmit();
-                
-                
+
+
                 //changes url without going to the page
-               // window.history.replaceState({path:"?keywordAnalysis2"},'pageTitle',"?keywordAnalysis2");
+                // window.history.replaceState({path:"?keywordAnalysis2"},'pageTitle',"?keywordAnalysis2");
             }
-            
+
         }
 
         async function contentComparisonAnalysis() {
@@ -8144,6 +8207,7 @@
         }
 
         async function loadQueryData(id, collection) {
+            showLoadingModal();
             endpoint = "https://3fbj0gjlak.execute-api.ap-southeast-1.amazonaws.com/loadSingleQuery";
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -8169,11 +8233,12 @@
             document.getElementById('imageRecommendations').style.display = "block";
             document.getElementById('contentCollapsible').style.display = "block";
             document.getElementById('contentRecommendations').style.display = "block";
-
+            hideLoadingModal();
             closeQueriesModal(); // Close modal after loading
         }
 
         async function loadTimeToRankQueryData(id, collection) {
+            showLoadingModal();
             endpoint = "https://3fbj0gjlak.execute-api.ap-southeast-1.amazonaws.com/loadSingleQuery";
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -8203,11 +8268,12 @@
 
             document.getElementById('keywordAnalysis').innerHTML = query.keyword_analysis;
             document.getElementById('keywordAnalysis').style.display = "block";
-
+            hideLoadingModal();
             closeTimeToRankQueriesModal(); // Close modal after loading
         }
 
         async function loadContentComparisonQueryData(id, collection) {
+            showLoadingModal();
             endpoint = "https://3fbj0gjlak.execute-api.ap-southeast-1.amazonaws.com/loadSingleQuery";
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -8228,7 +8294,7 @@
 
             document.getElementById('initial-table').innerHTML = query.initial_table;
             document.getElementById('comparison-results').innerHTML = query.comparison_results;
-
+            hideLoadingModal();
             closeContentComparisonQueriesModal(); // Close modal after loading
         }
 
@@ -8609,6 +8675,7 @@
         }
 
         async function checkMangoolsQuota() {
+            showLoadingModal();
             endpoint = "https://hjw4zjgve4.execute-api.ap-southeast-1.amazonaws.com/mangoolsQuota";
 
             const response = await fetch(endpoint, {
@@ -8619,8 +8686,9 @@
             })
 
             data = await response.json();
-
+            hideLoadingModal();
             alert("Remaining quota for the day: " + data + "/200");
+            
         }
 
         async function onPageToDatabase() {
@@ -8990,6 +9058,15 @@
                 event.preventDefault();
                 toggleDropdown(othersNavItem);
             });
+        }
+
+        function showLoadingModal() {
+            document.getElementById('loadingModal').style.display = "block";
+        }
+
+        // Function to hide the loading modal
+        function hideLoadingModal() {
+            document.getElementById('loadingModal').style.display = "none";
         }
     </script>
 
