@@ -112,6 +112,7 @@
                 // Handle the error appropriately, e.g., display an error message to the user.
                 document.getElementById('threadId').innerText = "Error retrieving thread ID"; // or some other error message
             }
+
         };
 
     </script>
@@ -3133,13 +3134,15 @@
                     } else if (parameter.includes('language=')) {
                         document.getElementById('language').value = parameter.replace('language=', '');
                     } else if (parameter.includes('target=')) {
-                        document.getElementById('domain').value = parameter.replace('target=', '');
+                        document.getElementById('domain').value = parameter.replace('target=', '').replaceAll("%2F","/").replace("%3A",":");
                     } else if (parameter.includes('keywords=')) {
-                        document.getElementById('keywords').value = parameter.replace('keywords=', '').replaceAll('%20', ' ').replaceAll('+', ', ').replace('#', '');
+                        document.getElementById('keywords').value = parameter.replace('keywords=', '').replaceAll('%20', ' ').replaceAll('+', ', ').replaceAll("%27","'").replace('#', '');
                     }
                 });
 
                 validateAndSubmit();
+
+                alert("Keyword analysis started based on the input URL.")
 
 
                 //changes url without going to the page
@@ -4327,6 +4330,10 @@
             const keywordsInput = document.getElementById('keywords').value;
             const location = document.getElementById('location').value;
             const language = document.getElementById('language').value;
+
+            new_url = "?keywordAnalysis&location="+location+"&language="+language+"&target="+domain.replace(":","%3A").replaceAll("/","%2F")+"&keywords="+keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).join("+").replaceAll(" ","%20").replaceAll("'","%27")
+
+            window.history.replaceState({path:new_url},'',new_url);
 
             document.getElementById('domainError').textContent = '';
             document.getElementById('keywordsError').textContent = '';
