@@ -3134,9 +3134,9 @@
                     } else if (parameter.includes('language=')) {
                         document.getElementById('language').value = parameter.replace('language=', '');
                     } else if (parameter.includes('target=')) {
-                        document.getElementById('domain').value = parameter.replace('target=', '').replaceAll("%2F","/").replace("%3A",":");
+                        document.getElementById('domain').value = parameter.replace('target=', '').replaceAll("%2F", "/").replace("%3A", ":");
                     } else if (parameter.includes('keywords=')) {
-                        document.getElementById('keywords').value = parameter.replace('keywords=', '').replaceAll('%20', ' ').replaceAll('+', ', ').replaceAll("%27","'").replace('#', '');
+                        document.getElementById('keywords').value = parameter.replace('keywords=', '').replaceAll('%20', ' ').replaceAll('+', ', ').replaceAll("%27", "'").replace('#', '');
                     }
                 });
 
@@ -4331,9 +4331,9 @@
             const location = document.getElementById('location').value;
             const language = document.getElementById('language').value;
 
-            new_url = "?keywordAnalysis&location="+location+"&language="+language+"&target="+domain.replace(":","%3A").replaceAll("/","%2F")+"&keywords="+keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).join("+").replaceAll(" ","%20").replaceAll("'","%27")
+            new_url = "?keywordAnalysis&location=" + location + "&language=" + language + "&target=" + domain.replace(":", "%3A").replaceAll("/", "%2F") + "&keywords=" + keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).join("+").replaceAll(" ", "%20").replaceAll("'", "%27")
 
-            window.history.replaceState({path:new_url},'',new_url);
+            window.history.replaceState({ path: new_url }, '', new_url);
 
             document.getElementById('domainError').textContent = '';
             document.getElementById('keywordsError').textContent = '';
@@ -8240,9 +8240,25 @@
             document.getElementById('imageRecommendations').style.display = "block";
             document.getElementById('contentCollapsible').style.display = "block";
             document.getElementById('contentRecommendations').style.display = "block";
+
+
             hideLoadingModal();
             closeQueriesModal(); // Close modal after loading
         }
+
+        // Delegate the event listener to the document
+        document.addEventListener('click', function (event) {
+            if (event.target.classList.contains('keywords-collapsible')) {
+                const coll = event.target;
+                coll.classList.toggle("keywords-active");
+                const content = coll.nextElementSibling;
+                if (content.style.display === "block") {
+                    content.style.display = "none";
+                } else {
+                    content.style.display = "block";
+                }
+            }
+        });
 
         async function loadTimeToRankQueryData(id, collection) {
             showLoadingModal();
@@ -8695,7 +8711,7 @@
             data = await response.json();
             hideLoadingModal();
             alert("Remaining quota for the day: " + data + "/200");
-            
+
         }
 
         async function onPageToDatabase() {
