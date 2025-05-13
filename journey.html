@@ -1,16 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale: 1.0">
     <title>UI Design Process</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+        integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
         body {
             font-family: sans-serif;
             background-color: #f9f9f9;
             padding: 20px;
         }
+
         .container {
             max-width: 900px;
             margin: 0 auto;
@@ -19,10 +23,12 @@
             border-radius: 10px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
         }
+
         h1 {
             font-size: 28px;
             margin-bottom: 30px;
         }
+
         .process {
             display: flex;
             align-items: center;
@@ -32,6 +38,7 @@
             margin-left: 5%;
             margin-right: 5%;
         }
+
         .step {
             display: flex;
             flex-direction: column;
@@ -39,6 +46,7 @@
             text-align: center;
             width: auto;
         }
+
         .step-number {
             width: 30px;
             height: 30px;
@@ -50,29 +58,56 @@
             font-size: 14px;
             color: #888;
             margin-bottom: 10px;
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, transform 0.2s ease-in-out;
+            /* Smooth transition */
+            cursor: pointer;
         }
+
+        .step-number:hover {
+            transform: scale(1.1);
+            /* Slightly scale up on hover */
+            background-color: #bbb;
+            /* Light gray on hover */
+            color: #fff;
+            border-color: #bbb;
+            cursor: pointer;
+        }
+
         .step-number.completed {
-            background-color:#004c9d;
+            background-color: #004c9d;
             color: #fff;
             border-color: #004c9d;
         }
+
+        .step-number.completed:hover {
+            background-color: #003366;
+            /*Darker blue if completed*/
+            border-color: #003366;
+        }
+
         .step-number.completed i {
             display: inline-block;
         }
+
         .step-number i {
             display: none;
         }
+
         .line {
             flex-grow: 1;
             height: 1px;
             background-color: #ddd;
             margin: 0 20px;
         }
+
         .step-card-container {
-            width: calc(100% / 7); /* Each container takes up 1/7 of the total width */
+            width: calc(100% / 7);
+            /* Each container takes up 1/7 of the total width */
             display: flex;
-            justify-content: center; /* Center the content horizontally */
+            justify-content: center;
+            /* Center the content horizontally */
         }
+
         .step-card {
             background-color: #fff;
             padding: 20px;
@@ -80,27 +115,50 @@
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
             margin-bottom: 20px;
             text-align: center;
-            width: 100%; /* Step card takes the full width of its container */
-            box-sizing: border-box; /* Ensures padding doesn't affect width */
+            width: 100%;
+            /* Step card takes the full width of its container */
+            box-sizing: border-box;
+            /* Ensures padding doesn't affect width */
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            /*Smooth transitions for hover*/
         }
+
+        .step-card:hover {
+            transform: translateY(-5px);
+            /* Move card up slightly on hover */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            /* Increase shadow on hover */
+        }
+
         .step-card i {
             font-size: 24px;
             margin-bottom: 10px;
             color: #004c9d;
+            transition: color 0.3s ease;
+            /*Smooth transition for color*/
         }
+
+        .step-card:hover i {
+            color: #003366;
+            /* Darker color on hover */
+        }
+
         .step-title {
             font-size: 16px;
             font-weight: bold;
             margin-bottom: 5px;
         }
+
         .step-description {
             font-size: 14px;
             color: #555;
         }
+
         .step-card-row {
-          display: flex;
-          justify-content: space-between;
+            display: flex;
+            justify-content: space-between;
         }
+
         /* Collapsible styles */
         .collapsible {
             background-color: #eee;
@@ -114,10 +172,23 @@
             font-size: 15px;
             border-radius: 10px;
             margin-bottom: 10px;
+            transition: background-color 0.3s ease;
+            /*Smooth transition for background color */
+            position: relative; /* Required for absolute positioning of the progress bar */
         }
 
-        .active, .collapsible:hover {
+        .collapsible:hover {
             background-color: #ddd;
+        }
+
+        .active,
+        .collapsible:hover {
+            background-color: #ddd;
+        }
+
+        .active {
+            border-radius: 10px 10px 0px 0px;
+            margin-bottom: 0px;
         }
 
         .content {
@@ -125,15 +196,45 @@
             display: none;
             overflow: hidden;
             background-color: #f1f1f1;
+            margin-bottom: 10px;
+        }
+
+        /* Progress Bar Styles */
+        .progress-bar-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 10px;
+            overflow: hidden; /* Hide the overflowing progress */
+        }
+
+        .progress-bar {
+            height: 100%;
+            background-color: #4CAF50; /* Green color for the progress */
+            width: 0; /* Initial width is 0 */
+            transition: width 0.3s ease; /* Smooth transition for the width */
+        }
+
+        .collapsible-text {
+            position: relative;
+            z-index: 1; /* Ensure text stays on top of the progress bar */
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>UI Design Process</h1>
 
         <!-- Collapsible Section 1: Steps 1-7 -->
-        <button type="button" class="collapsible">Steps 1-7</button>
+        <button type="button" class="collapsible" data-total-steps="7" data-completed-steps="1">
+            <div class="progress-bar-container">
+                <div class="progress-bar"></div>
+            </div>
+            <span class="collapsible-text">Steps 1-7</span>
+        </button>
         <div class="content">
             <div class="process">
                 <div class="step">
@@ -159,7 +260,7 @@
                 <div class="step">
                     <div class="step-number">06</div>
                 </div>
-                 <div class="line"></div>
+                <div class="line"></div>
                 <div class="step">
                     <div class="step-number">07</div>
                 </div>
@@ -212,7 +313,12 @@
         </div>
 
         <!-- Collapsible Section 2: Steps 8-14 -->
-        <button type="button" class="collapsible">Steps 8-14</button>
+        <button type="button" class="collapsible" data-total-steps="7" data-completed-steps="0">
+            <div class="progress-bar-container">
+                <div class="progress-bar"></div>
+            </div>
+            <span class="collapsible-text">Steps 8-14</span>
+        </button>
         <div class="content">
             <div class="process">
                 <div class="step">
@@ -238,7 +344,7 @@
                 <div class="step">
                     <div class="step-number">13</div>
                 </div>
-                 <div class="line"></div>
+                <div class="line"></div>
                 <div class="step">
                     <div class="step-number">14</div>
                 </div>
@@ -296,7 +402,15 @@
         var i;
 
         for (i = 0; i < coll.length; i++) {
-            coll[i].addEventListener("click", function() {
+            // Calculate and set initial progress
+            const totalSteps = parseInt(coll[i].dataset.totalSteps);
+            const completedSteps = parseInt(coll[i].dataset.completedSteps);
+            const percentage = (completedSteps / totalSteps) * 100;
+
+            const progressBar = coll[i].querySelector('.progress-bar');
+            progressBar.style.width = `${percentage}%`;
+
+            coll[i].addEventListener("click", function () {
                 this.classList.toggle("active");
                 var content = this.nextElementSibling;
                 if (content.style.display === "block") {
@@ -308,4 +422,5 @@
         }
     </script>
 </body>
+
 </html>
