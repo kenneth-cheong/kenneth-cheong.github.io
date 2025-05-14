@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>HTML Analyzer</title>
+    <style>
+        body {
+            font-family: sans-serif;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        #loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        #error {
+            color: red;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .header-text {
+            white-space: nowrap;
+            /* Prevent wrapping */
+            overflow: hidden;
+            /* Hide overflowing text */
+            text-overflow: ellipsis;
+            /* Add ellipsis (...) for overflow */
+            max-width: 300px;
+            /* Adjust as needed */
+        }
+
+        .thumbnail {
+            max-width: 100px;
+            max-height: 100px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>HTML Analyzer</h1>
+
+    <label for="url">Enter URL:</label>
+    <input type="url" id="url" name="url" size="50">
+    <button onclick="analyzeURL()">Analyze</button>
+
+    <div id="loading">Loading...</div>
+    <div id="error"></div>
+
+
+    <h2>Results</h2>
+
+    <h3>Meta Information</h3>
+    <table id="meta-table">
+        <thead>
+            <tr>
+                <th>Property</th>
+                <th>Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Meta Title</td>
+                <td id="meta-title"></td>
+            </tr>
+            <tr>
+                <td>Meta Description</td>
+                <td id="meta-description"></td>
+            </tr>
+            <tr>
+                <td>Canonical Tag</td>
+                <td id="canonical-tag"></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>Headers</h3>
+    <table id="headers-table">
+        <thead>
+            <tr>
+                <th>Header</th>
+            </tr>
+        </thead>
+        <tbody id="headers-body">
+        </tbody>
+    </table>
+
+    <h3>Links</h3>
+    <table id="links-table">
+        <thead>
+            <tr>
+                <th>Link Type</th>
+                <th>URL</th>
+                <th>Status Code</th>
+            </tr>
+        </thead>
+        <tbody id="links-body">
+        </tbody>
+    </table>
+
+    <h3>Image Alt Text</h3>
+    <table id="image-alt-table">
+        <thead>
+            <tr>
+                <th>Thumbnail</th>
+                <th>Image URL</th>
+                <th>Alt Text</th>
+            </tr>
+        </thead>
+        <tbody id="image-alt-body">
+        </tbody>
+    </table>
+
+    <h3>robots.txt</h3>
+    <div id="visible-text"></div>
+
+    <script>
+        async function analyzeURL() {
+            const url = document.getElementById('url').value;
+            if (!url) {
+                alert("Please enter a URL.");
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+
+            let robotsPromise = null;  // Promise for fetchRobots, initialized to null
+
+            try {
+                // Extract domain
+                let domain;
+                try {
+                    const urlObj = new URL(url);
+                    domain = urlObj.origin; // origin gives protocol + hostname + port (if any)
+                } catch (e) {
+                    console.error("Invalid URL:", url, e);
+                    document.getElementById('error').innerText = "Invalid URL.  Please enter a valid URL.";
+                    document.getElementById('error').style.display = 'block';
+                    document.getElementById('loading').style.display = 'none';
+                    return; // Stop processing if the URL is invalid
+                }
+
+                // Start fetchRobots asynchronously
+                robotsPromise = fetchRobots(domain); // Pass the domain to fetchRobots
+
+                // Fetch HTML content
+                const htmlResponse = await fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                if (!htmlResponse.ok) {
+                    throw new Error(`HTTP error fetching HTML! status: ${htmlResponse.status}`);
+                }
+
+                const htmlData = await htmlResponse.json();
+                await displayResults(htmlData.body);  // Await the results display
+
+                // Await robotsPromise and update visible text
+                try {
+                    const visibleText = await robotsPromise;
+                    document.getElementById('visible-text').innerText = visibleText;
+                } catch (e) {
+                    console.error("Error in fetchRobots:", e);
+                    document.getElementById('error').innerText = "Error fetching robots.txt: " + e;
+                    document.getElementById('error').style.display = 'block';
+                }
+
+
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').innerText = "An error occurred: " + error;
+                document.getElementById('error').style.display = 'block';
+                clearTables();
+            } finally {
+                document.getElementById('loading').style.display = 'none'; // Ensure loading is always hidden
+            }
+        }
+
+        async function fetchRobots(domain) { // Accept the domain as an argument
+            // Call url_lib_lite endpoint
+            const robotsUrl = domain + "/robots.txt";  // Construct the robots.txt URL
+            console.log(robotsUrl);
+            try {
+                const urlLibResponse = await fetch('https://1pfsx12au9.execute-api.ap-southeast-1.amazonaws.com/url_lib_lite', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: robotsUrl })
+                });
+
+                if (!urlLibResponse.ok) {
+                    throw new Error(`HTTP error fetching URL + robots.txt! status: ${urlLibResponse.status}`);
+                }
+
+                const urlLibData = await urlLibResponse.json();
+
+                // Return the visible text
+                return urlLibData.body.visible_text;
+            } catch (e) {
+                console.error("Error in fetchRobots:", e);
+                throw e; // Re-throw the error so it can be caught in analyzeURL
+            }
+
+        }
+
+
+        async function fetchStatusCode(url) {
+            try {
+                const response = await fetch('https://n0ge4xdang.execute-api.ap-southeast-1.amazonaws.com/getStatusCode', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                if (!response.ok) {
+                    return `Error: ${response.status}`; // Return error message for bad responses
+                }
+
+                const data = await response.json();
+                return data.body; // Return the status code from the response body
+            } catch (error) {
+                console.error("Error fetching status code:", error);
+                return "Error"; // Return a generic error message
+            }
+        }
+
+        async function displayResults(html) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            // Clear existing results
+            clearTables();
+
+            // Meta Information
+            document.getElementById('meta-title').innerText = doc.querySelector('meta[name="title"]') ? doc.querySelector('meta[name="title"]').content : doc.title;
+            document.getElementById('meta-description').innerText = doc.querySelector('meta[name="description"]') ? doc.querySelector('meta[name="description"]').content : "";
+            document.getElementById('canonical-tag').innerText = doc.querySelector('link[rel="canonical"]') ? doc.querySelector('link[rel="canonical"]').href : "";
+
+
+            // Headers (H1-H6)
+            const headers = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
+            const headersBody = document.getElementById('headers-body');
+            headers.forEach(header => {
+                let row = headersBody.insertRow();
+                let cell = row.insertCell();
+                // Remove whitespace and newlines
+                const headerText = header.innerText.trim().replace(/\s+/g, ' ');
+                cell.innerHTML = `<span class="header-text">${header.tagName}: ${headerText}</span>`;
+            });
+
+
+            // Links (Internal and External)
+            const links = doc.querySelectorAll('a[href]');
+            const linksBody = document.getElementById('links-body');
+            const existingLinks = new Set();  // Use a Set to track existing links
+
+            const linkPromises = []; // Array to store promises for status code fetches
+
+            links.forEach(async link => {
+                const href = link.href;
+
+                // Check if the link already exists
+                if (existingLinks.has(href)) {
+                    return; // Skip if it already exists
+                }
+
+                existingLinks.add(href); // Add the link to the Set
+
+                let linkType = 'External';
+                try {
+                    const url = new URL(href);
+                    const currentUrl = new URL(document.getElementById('url').value);  // Base URL for comparison
+                    if (url.hostname === currentUrl.hostname) {
+                        linkType = 'Internal';
+                    }
+                } catch (e) {
+                    // Handle relative URLs as internal
+                    linkType = 'Internal';
+                }
+
+                let row = linksBody.insertRow();
+                let typeCell = row.insertCell();
+                let urlCell = row.insertCell();
+                let statusCell = row.insertCell(); // Add a cell for the status code
+
+                typeCell.innerText = linkType;
+                urlCell.innerText = href;
+
+                if (href.startsWith('mailto:') || href.startsWith('wa.me/') || href.startsWith('tel:')) {
+                    statusCell.innerText = "N/A";
+                } else {
+                    statusCell.innerText = "Loading..."; // Initial loading message
+
+                    // Fetch the status code and update the cell.  Push each Promise to an array.
+                    linkPromises.push(
+                        fetchStatusCode(href)
+                            .then(statusCode => {
+                                statusCell.innerText = statusCode;
+                            })
+                            .catch(error => {
+                                statusCell.innerText = "Error";
+                                console.error(`Failed to fetch status for ${href}:`, error);
+                            })
+                    );
+                }
+            });
+
+            // Image Alt Text
+            const images = doc.querySelectorAll('img');
+            const imageAltBody = document.getElementById('image-alt-body');
+            images.forEach(image => {
+                let row = imageAltBody.insertRow();
+                let thumbCell = row.insertCell();
+                let urlCell = row.insertCell();
+                let altCell = row.insertCell();
+
+                thumbCell.innerHTML = `<img src="${image.src}" alt="Thumbnail" class="thumbnail">`;
+                urlCell.innerText = image.src;
+                altCell.innerText = image.alt;
+            });
+
+            // Wait for all status code fetches to complete.
+            await Promise.all(linkPromises);
+
+        }
+
+        function clearTables() {
+            // Clear all tables
+            document.getElementById('headers-body').innerHTML = '';
+            document.getElementById('links-body').innerHTML = '';
+            document.getElementById('image-alt-body').innerHTML = '';
+            document.getElementById('meta-title').innerText = '';
+            document.getElementById('meta-description').innerText = '';
+            document.getElementById('canonical-tag').innerText = '';
+            document.getElementById('visible-text').innerText = '';  // Clear the visible text div as well
+
+        }
+
+
+    </script>
+
+</body>
+
+</html>
