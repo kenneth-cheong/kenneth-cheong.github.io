@@ -15,6 +15,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <script>
         // Google Sign-In variables (global scope)
@@ -1654,7 +1656,6 @@
             background-color: #ddd;
         }
 
-        .active,
         .journey-collapsible:hover {
             background-color: #ddd;
         }
@@ -1914,6 +1915,10 @@
             </div>
         </div>
 
+        <div class="nav-item" id="exporPdf">
+            <a href="#" onclick="exportToPdf(event)">PDF</a>
+        </div>
+
         <div class="nav-item" id="mangoolsQuota">
             <a href="#" onclick="checkMangoolsQuota(event)">Credits</a>
         </div>
@@ -1953,7 +1958,7 @@
             <div class="feedback-modal-content">
                 <span class="journey-close" onclick="closeJourneyModal()">×</span>
                 <h2>Digimetrics Journey</h2>
-                <button type="button" class="journey-collapsible" data-total-steps="7" data-completed-steps="2">
+                <button type="button" class="journey-collapsible" data-total-steps="7" data-completed-steps="0">
                     <div class="progress-bar-container">
                         <div class="progress-bar"></div>
                     </div>
@@ -1962,11 +1967,11 @@
                 <div class="content">
                     <div class="process">
                         <div class="step">
-                            <div class="step-number completed"><i class="fas fa-check"></i></div>
+                            <div class="step-number">01</div>
                         </div>
                         <div class="line"></div>
                         <div class="step">
-                            <div class="step-number completed"><i class="fas fa-check"></i></div>
+                            <div class="step-number">02</div>
                         </div>
                         <div class="line"></div>
                         <div class="step">
@@ -9569,10 +9574,118 @@
 
         function openJourneyModal() {
             document.getElementById('journey-modal').style.display = "block";
+            updateJourney();
         }
 
         function closeJourneyModal() {
             document.getElementById('journey-modal').style.display = "none";
+        }
+
+        function updateJourney() {
+            done = 0;
+            // similar keywords
+            if (document.getElementById("keywordList").children.length > 0) {
+                document.getElementsByClassName('step')[0].innerHTML = '<div class="step-number completed"><i class="fas fa-check"></i></div>';
+                done += 1;
+            }
+
+            // ranking keywords or keywords based on webpage content
+            if (document.getElementById("rankedKeywordList").children.length > 0 || document.getElementById("siteKeywords").children.length > 0) {
+                document.getElementsByClassName('step')[1].innerHTML = '<div class="step-number completed"><i class="fas fa-check"></i></div>';
+                done += 1
+            }
+
+            // time to rank
+            if (document.getElementById("overall-summary").children.length > 0) {
+                document.getElementsByClassName('step')[2].innerHTML = '<div class="step-number completed"><i class="fas fa-check"></i></div>';
+                done += 1
+            }
+
+            // seo tech audit
+            if (document.getElementById("auditSummary").children.length > 0) {
+                document.getElementsByClassName('step')[3].innerHTML = '<div class="step-number completed"><i class="fas fa-check"></i></div>';
+                done += 1
+            }
+
+            document.getElementsByClassName('journey-collapsible')[0].dataset.completedSteps = String(done);
+            var coll = document.getElementsByClassName("journey-collapsible");
+            for (i = 0; i < coll.length; i++) {
+                // Calculate and set initial progress
+                const totalSteps = parseInt(coll[i].dataset.totalSteps);
+                const completedSteps = parseInt(coll[i].dataset.completedSteps);
+                const percentage = (completedSteps / totalSteps) * 100;
+
+                const progressBar = coll[i].querySelector('.progress-bar');
+                progressBar.style.width = `${percentage}%`;
+            }
+
+        }
+
+        async function exportToPdf() {
+            window.jsPDF = window.jspdf.jsPDF;
+            // First, expand all collapsibles
+            const collapsibles = document.querySelectorAll('.collapsible');
+            collapsibles.forEach(collapsible => {
+                collapsible.classList.add('active');
+                collapsible.nextElementSibling.style.display = 'block';
+
+                const icon = collapsible.querySelector('i');
+                if (icon && icon.classList.contains('fa-plus-square')) {
+                    icon.classList.remove('fa-plus-square');
+                    icon.classList.add('fa-minus-square');
+                }
+            });
+
+            // Get all journey collapsibles too
+            const journeyCollapsibles = document.querySelectorAll('.journey-collapsible');
+            journeyCollapsibles.forEach(collapsible => {
+                collapsible.classList.add('active');
+                collapsible.nextElementSibling.style.display = 'block';
+                const totalSteps = parseInt(collapsible.dataset.totalSteps);
+                const completedSteps = parseInt(collapsible.dataset.completedSteps);
+                const percentage = (completedSteps / totalSteps) * 100;
+
+                const progressBar = collapsible.querySelector('.progress-bar');
+                progressBar.style.width = `${percentage}%`;
+            });
+
+            // Import jsPDF library
+            const { jsPDF } = window.jspdf;
+
+            // Create a new jsPDF instance
+            const pdf = new jsPDF();
+
+
+            // Source HTMLElement or a string containing HTML.
+            const elementHTML = document.body;
+
+            // Special function to handle images
+            const specialElementHandlers = {
+                '#elementH': function (element, renderer) {
+                    return true;
+                }
+            };
+
+            // Margins
+            const margins = {
+                top: 10,
+                bottom: 10,
+                left: 10,
+                width: 190
+            };
+
+            // Convert HTML to PDF and await its completion
+            await pdf.html(elementHTML, {
+                x: margins.left,
+                y: margins.top,
+                width: margins.width, // max width of content on PDF
+                windowWidth: 920, // set the PDF width to be smaller than the HTML width
+                callback: function (pdf) {  // Provide a callback *inside* the options
+                    // Dispose of the object or save it for other uses
+                    pdf.save('digimetrics_report.pdf');
+                    console.log('download function completed');
+                }
+            });
         }
 
 
