@@ -105,6 +105,7 @@
                 document.getElementById('threadId').innerText = data;
                 console.log(data);
                 processURL();
+                initializeJourneyCollapsibles();
                 //loadFromLocalStorage();
 
             } catch (error) {
@@ -1048,7 +1049,8 @@
         }
 
         /* The Close Button */
-        .feedback-close {
+        .feedback-close,
+        .journey-close {
             color: #aaa;
             float: right;
             font-size: 28px;
@@ -1056,7 +1058,9 @@
         }
 
         .feedback-close:hover,
-        .feedback-close:focus {
+        .feedback-close:focus,
+        .journey-close:hover,
+        .journey-close:focus {
             color: black;
             text-decoration: none;
             cursor: pointer;
@@ -1486,6 +1490,175 @@
             margin-left: 40px;
         }
 
+        .process {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 1%;
+            margin-bottom: 0%;
+            margin-left: 5%;
+            margin-right: 5%;
+        }
+
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: auto;
+        }
+
+        .step-number {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 10px;
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, transform 0.2s ease-in-out;
+
+        }
+
+        .step-number.completed {
+            background-color: green;
+            color: #fff;
+            border-color: green;
+        }
+
+        .step-number.completed i {
+            display: inline-block;
+        }
+
+        .step-number i {
+            display: none;
+        }
+
+        .line {
+            flex-grow: 1;
+            height: 1px;
+            background-color: #ddd;
+            margin: 0 20px;
+        }
+
+        .step-card-container {
+            width: calc(100% / 7);
+            /* Each container takes up 1/7 of the total width */
+            display: flex;
+            justify-content: center;
+            /* Center the content horizontally */
+        }
+
+        .step-card {
+            background-color: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            margin: 10px;
+            text-align: center;
+            width: 100%;
+            /* Step card takes the full width of its container */
+            box-sizing: border-box;
+            /* Ensures padding doesn't affect width */
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            /*Smooth transitions for hover*/
+        }
+
+        .step-card:hover {
+            transform: translateY(-5px);
+            /* Move card up slightly on hover */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            /* Increase shadow on hover */
+            cursor: pointer;
+        }
+
+        .step-card i {
+            font-size: 24px;
+            margin-bottom: 8px;
+            color: #004c9d;
+            transition: color 0.3s ease;
+            /*Smooth transition for color*/
+        }
+
+        .step-card:hover i {
+            color: #003366;
+            /* Darker color on hover */
+        }
+
+        .step-title {
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .step-description {
+            font-size: 14px;
+            color: #555;
+        }
+
+        .step-card-row {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .progress-bar-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+            /* Hide the overflowing progress */
+        }
+
+        .progress-bar {
+            height: 100%;
+            background-color: #4CAF50;
+            /* Green color for the progress */
+            width: 0;
+            /* Initial width is 0 */
+            transition: width 0.3s ease;
+            /* Smooth transition for the width */
+        }
+
+        /* Collapsible styles */
+        .journey-collapsible {
+            background-color: #eee;
+            color: #444;
+            cursor: pointer;
+            padding: 8px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            transition: background-color 0.3s ease;
+            /*Smooth transition for background color */
+            position: relative;
+            /* Required for absolute positioning of the progress bar */
+        }
+
+        .journey-collapsible-text {
+            position: relative;
+            z-index: 2;
+            /* Ensure text stays on top of the progress bar */
+        }
+
+        .journey-collapsible:hover {
+            background-color: #ddd;
+        }
+
+        .active,
+        .journey-collapsible:hover {
+            background-color: #ddd;
+        }
+
         @media screen and (max-width: 1081px) {
 
             .column,
@@ -1703,7 +1876,7 @@
 
     <div class="navbar">
         <div class="logo-container">
-            <img src="Digimetrics Logo-02.png" alt="MediaOne Logo" href="/">
+            <img src="Digimetrics Logo-02.png" alt="MediaOne Logo" href="/" onclick="goToTop()">
         </div>
 
         <div class="nav-item" id="seoNavItem">
@@ -1773,6 +1946,236 @@
             <div style="display: flex;">
                 <input type="text" id="question-input" placeholder="Type your question...">
                 <button id="send-button-2">Send</button>
+            </div>
+        </div>
+
+        <div id="journey-modal" class="feedback-modal">
+            <div class="feedback-modal-content">
+                <span class="journey-close" onclick="closeJourneyModal()">×</span>
+                <h2>Digimetrics Journey</h2>
+                <button type="button" class="journey-collapsible" data-total-steps="7" data-completed-steps="2">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar"></div>
+                    </div>
+                    <span class="journey-collapsible-text">Steps 1 - 7</span>
+                </button>
+                <div class="content">
+                    <div class="process">
+                        <div class="step">
+                            <div class="step-number completed"><i class="fas fa-check"></i></div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number completed"><i class="fas fa-check"></i></div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number">03</div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number">04</div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number">05</div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number">06</div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number">07</div>
+                        </div>
+                    </div>
+
+                    <div class="step-card-row">
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-search"></i>
+                                <div class="step-title" onclick="openKeywordAnalysis(event)">Generate Keywords From Seed
+                                    Keywords</div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-globe"></i>
+                                <div class="step-title" onclick="openKeywordAnalysis(event)">Get Ranking Keywords /
+                                    Keywords Based on Webpage Content</div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-clock"></i>
+                                <div class="step-title" onclick="openKeywordAnalysis(event)">Get Keywords' Time To Rank
+                                </div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-tools"></i>
+                                <div class="step-title" onclick="openTechnicalSeo(event)">Technical SEO Audit</div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-balance-scale"></i>
+                                <div class="step-title" onclick="openContentComparison(event)">Content Comparison</div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-file-code"></i>
+                                <div class="step-title" onclick="openOnPage(event)">On-Page SEO</div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-signal"></i>
+                                <div class="step-title" onclick="openRankChecker(event)">Rank Checker</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- journey-collapsible Section 2: Steps 8-14 -->
+                <button type="button" class="journey-collapsible" data-total-steps="7" data-completed-steps="0">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar"></div>
+                    </div>
+                    <span class="journey-collapsible-text">Steps 8 - 14</span>
+                </button>
+                <div class="content">
+                    <div class="process">
+                        <div class="step">
+                            <div class="step-number">08</div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number">09</div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number">10</div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number">11</div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number">12</div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number">13</div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number">14</div>
+                        </div>
+                    </div>
+
+                    <div class="step-card-row">
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-sitemap"></i>
+                                <div class="step-title" onclick="openSchemaGenerator(event)">Schema Generator</div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-user-friends"></i>
+                                <div class="step-title" onclick="openCompetitors(event)">Competitors Identifier</div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-id-card"></i>
+                                <div class="step-title" onclick="openPersona(event)">Persona Generator</div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-bullhorn"></i>
+                                <div class="step-title" onclick="openMediaPlan(event)">Media Plan</div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-edit"></i>
+                                <div class="step-title" onclick="openContentGenerator(event)">Content Generator</div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-clipboard-check"></i>
+                                <div class="step-title" onclick="openContentCheck(event)">Content Checker</div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-home"></i>
+                                <div class="step-title" onclick="openLandingPageAudit(event)">Landing Page Audit</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- journey-collapsible Section 2: Steps 15- -->
+                <button type="button" class="journey-collapsible" data-total-steps="7" data-completed-steps="0">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar"></div>
+                    </div>
+                    <span class="journey-collapsible-text">Steps 15 -</span>
+                </button>
+                <div class="content">
+                    <div class="process">
+                        <div class="step">
+                            <div class="step-number">15</div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number">16</div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number">17</div>
+                        </div>
+                        <div class="line"></div>
+                        <div class="step">
+                            <div class="step-number">18</div>
+                        </div>
+                    </div>
+
+                    <div class="step-card-row">
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-ad"></i>
+                                <div class="step-title" onclick="openSem(event)">SEM Ad Generator</div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-cog"></i>
+                                <div class="step-title">Step 16</div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-flask"></i>
+                                <div class="step-title">Step 17</div>
+                            </div>
+                        </div>
+                        <div class="step-card-container">
+                            <div class="step-card">
+                                <i class="fas fa-map-signs"></i>
+                                <div class="step-title">Step 18</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1956,7 +2359,8 @@
                     </select>
                     <br>
                     <div>
-                        <label-fixed for="keywords">Keyword(s) of Interest (comma or newline separated):</label-fixed>
+                        <label-fixed for="keywords">Keyword(s) of Interest (comma or newline
+                            separated):</label-fixed>
                         <span id="keywordCount" style="margin-left: 10px; color: #004c9d;"></span><br> <textarea
                             id="keywords" name="keywords" required placeholder="keyword1, keyword2"
                             oninput="updateKeywordCount()"></textarea>
@@ -2060,7 +2464,8 @@
                     </div>
                 </div><br>
                 <button class="collapsible-plus" id="expandWebpageKeywords"><i class="fas fa-plus-square"></i></button>
-                <button class="collapsible90" id="keywords_for_site" onclick="getWebpageKeywords(event)">Keywords Based
+                <button class="collapsible90" id="keywords_for_site" onclick="getWebpageKeywords(event)">Keywords
+                    Based
                     on Webpage Content</button>
                 <div class="content" id="siteKeywords" style="padding:10px">
                 </div>
@@ -2080,7 +2485,8 @@
 
             </div>
 
-            <button class="collapsible" id="domain_metrics"><i class="fas fa-plus-square"></i>Domain Metrics (DA, PA,
+            <button class="collapsible" id="domain_metrics"><i class="fas fa-plus-square"></i>Domain Metrics (DA,
+                PA,
                 PageSpeed)</button>
             <div class="content" id="domainMetrics">
                 <div class="column">
@@ -2114,7 +2520,8 @@
                 </div>
             </div>
             <hr>
-            <button class="collapsible" id="technicalButton"><i class="fas fa-plus-square"></i>Technical SEO</button>
+            <button class="collapsible" id="technicalButton"><i class="fas fa-plus-square"></i>Technical
+                SEO</button>
             <div class="content" id="technicalSeo">
                 <label for="urlInput">Enter URL:</label>
                 <input type="text" id="urlInput">
@@ -2128,7 +2535,8 @@
 
                 <div id="auditSummary"></div>
 
-                <button class="collapsible" id="gtButton"><i class="fas fa-plus-square"></i>GTmetrix Results</button>
+                <button class="collapsible" id="gtButton"><i class="fas fa-plus-square"></i>GTmetrix
+                    Results</button>
                 <div class="content" id="gtMetrix">
                     <div id="gtmetrixReport" style="display:none;">
                         <table>
@@ -2203,7 +2611,8 @@
                     </div>
                 </div>
 
-                <button class="collapsible" id="crawlerButton"><i class="fas fa-plus-square"></i>Crawler Report</button>
+                <button class="collapsible" id="crawlerButton"><i class="fas fa-plus-square"></i>Crawler
+                    Report</button>
                 <div class="content" id="crawlerSection">
                     <div id="crawlerReport" style="display:none;">
                         <table>
@@ -2301,7 +2710,8 @@
                     <label for="on-page-keywords">Enter Keywords (comma or newline separated):</label>
                     <textarea id="on-page-keywords" rows="4" placeholder="keyword1, keyword2, keyword3"></textarea>
 
-                    <button onclick="getImages()" id="getImagesBtn">Extract Elements & Generate Recommendations</button>
+                    <button onclick="getImages()" id="getImagesBtn">Extract Elements & Generate
+                        Recommendations</button>
                     <!-- 
                 <button onclick="loadCachedData()" class="load-cache-button">Load Cached Data From Browser</button>
                 -->
@@ -2317,7 +2727,8 @@
                 <div class="content" id="contentRecommendations"></div>
             </div>
             <hr>
-            <button class="collapsible" id="rankCheckerButton"><i class="fas fa-plus-square"></i>Rank Checker</button>
+            <button class="collapsible" id="rankCheckerButton"><i class="fas fa-plus-square"></i>Rank
+                Checker</button>
             <div class="content" id="rankChecker">
                 <label-fixed for="rankCheckerKeywords">Keywords:</label-fixed><br>
                 <textarea id="rankCheckerKeywords" rows="10" cols="50"
@@ -2572,7 +2983,8 @@
                 <br>
             </div>
             <!-- Add this button below the competitors table -->
-            <button id="getIntersectionResults" style="display:none" onclick="getIntersectionResults()">Step 2: Choose
+            <button id="getIntersectionResults" style="display:none" onclick="getIntersectionResults()">Step 2:
+                Choose
                 Competiors & Get Intersection
                 Results</button>
             <div id="competitorsRanking" style="display:none;height:400px;overflow:auto;"></div>
@@ -2694,7 +3106,8 @@
                 <button class="funnel-collapsible-before" style="background-color: #7554ae; width:100%;"><b>AWARENESS
                         (TOFU)</b>
                     <p id="awareness-summary">Attract a wider audience. Make your brand known using tactics like
-                        SEO, social media, content marketing, and paid ads. The goal is to increase visibility and spark
+                        SEO, social media, content marketing, and paid ads. The goal is to increase visibility and
+                        spark
                         initial interest in your brand.</p>
                 </button>
                 <div class="funnel-content" style="background-color: #bba9d9;">
@@ -2704,7 +3117,8 @@
                 <button class="funnel-collapsible-before" style="background-color: #3a857d; width:90%;"><b>DISCOVERY
                         (MOFU)</b>
                     <p id="discovery-summary">Educate and engage your audience. Provide valuable information and
-                        resources that help potential customers understand their problem and your potential solution.
+                        resources that help potential customers understand their problem and your potential
+                        solution.
                         Content like ebooks, webinars, and helpful blog posts are key.</p>
                 </button>
                 <div class="funnel-content" style="background-color: #b8d1cf; width:90%;">
@@ -2714,7 +3128,8 @@
                 <button class="funnel-collapsible-before" style="background-color: #e67c3a; width:80%;"><b>CONSIDERATION
                         (MOFU)</b>
                     <p id="consideration-summary">Showcase your value proposition. Demonstrate how your product or
-                        service specifically solves the customer's needs and stands out from the competition. Use case
+                        service specifically solves the customer's needs and stands out from the competition. Use
+                        case
                         studies, testimonials, product demos, and comparisons.</p>
                 </button>
                 <div class="funnel-content" style="background-color: #f0cbb4; width:80%;">
@@ -2794,9 +3209,9 @@
         </div>
     </div>
 
-    <button id="goToTop-button" onclick="goToTop()"
+    <button id="goToTop-button" onclick="openJourneyModal()"
         style="position: fixed; bottom: 10px; right: 245px; background-color: #d89030; color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.2em;box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.7);">
-        <i class="fas fa-arrow-up"></i>
+        <i class="fas fa-route"></i>
     </button>
 
     <button id="cleanup-button" onclick="clearPageState()"
@@ -3130,9 +3545,9 @@
 
                 query_split.forEach(parameter => {
                     if (parameter.includes('location=')) {
-                        document.getElementById('location').value = parameter.replace('location=', '').replaceAll("%20"," ");
+                        document.getElementById('location').value = parameter.replace('location=', '').replaceAll("%20", " ");
                     } else if (parameter.includes('language=')) {
-                        document.getElementById('language').value = parameter.replace('language=', '').replaceAll("%20"," ");
+                        document.getElementById('language').value = parameter.replace('language=', '').replaceAll("%20", " ");
                     } else if (parameter.includes('target=')) {
                         document.getElementById('domain').value = parameter.replace('target=', '').replaceAll("%2F", "/").replace("%3A", ":");
                     } else if (parameter.includes('keywords=')) {
@@ -6418,6 +6833,7 @@
                 keywordAnalysisLink.classList.toggle('active-menu');
 
             };
+            closeJourneyModal();
         }
 
         function openKeywordAnalysis(event) {
@@ -6441,6 +6857,7 @@
                     }
                 }
             }
+            closeJourneyModal();
         }
 
         function openTechnicalSeo(event) {
@@ -6465,6 +6882,7 @@
                     }
                 }
             }
+            closeJourneyModal();
         }
 
         function openContentComparison(event) {
@@ -6489,6 +6907,7 @@
                     }
                 }
             }
+            closeJourneyModal();
         }
 
         function openSchemaGenerator(event) {
@@ -6538,6 +6957,7 @@
                     }
                 }
             }
+            closeJourneyModal();
         }
 
         function openRankChecker(event) {
@@ -6562,6 +6982,7 @@
                     }
                 }
             }
+            closeJourneyModal();
         }
 
         function openContentGenerator(event) {
@@ -6603,6 +7024,7 @@
                     }
                 }
             }
+            closeJourneyModal();
         }
 
         function openSem(event) {
@@ -6627,6 +7049,7 @@
                     }
                 }
             }
+            closeJourneyModal();
         }
 
         function openCompetitors(event) {
@@ -6651,6 +7074,7 @@
                     }
                 }
             }
+            closeJourneyModal();
         }
 
         function openPersona(event) {
@@ -6675,6 +7099,7 @@
                     }
                 }
             }
+            closeJourneyModal();
         }
 
         function openMediaPlan(event) {
@@ -6699,6 +7124,7 @@
                     }
                 }
             }
+            closeJourneyModal();
         }
 
         function openContentCheck(event) {
@@ -6719,10 +7145,21 @@
                 if (content.style.display === "block") {
                     const contentCheckSection = document.getElementById('contentcheck');
                     if (contentCheckSection) {
-                        contentCheckSection.scrollIntoView({ behavior: 'smooth' });
+                        // Get the element *before* contentCheckSection
+                        let previousElement = contentCheckSection.previousElementSibling;
+
+                        // Scroll to the previous element if it exists
+                        if (previousElement) {
+                            previousElement.scrollIntoView({ behavior: 'smooth', block: 'start' }); // block: 'start' is important for precise positioning
+                        } else {
+                            // If there's no previous element (e.g., contentCheckSection is the first child),
+                            // scroll to the top of the contentCheckSection instead (or handle as desired)
+                            contentCheckSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
                     }
                 }
             }
+            closeJourneyModal();
         }
 
         function openLandingPageAudit(event) {
@@ -6747,6 +7184,7 @@
                     }
                 }
             }
+            closeJourneyModal();
         }
 
         async function checkContent() {
@@ -9091,6 +9529,53 @@
         function hideLoadingModal() {
             document.getElementById('loadingModal').style.display = "none";
         }
+
+
+        function initializeJourneyCollapsibles() {
+            var coll = document.getElementsByClassName("journey-collapsible");
+            for (i = 0; i < coll.length; i++) {
+                // Calculate and set initial progress
+                const totalSteps = parseInt(coll[i].dataset.totalSteps);
+                const completedSteps = parseInt(coll[i].dataset.completedSteps);
+                const percentage = (completedSteps / totalSteps) * 100;
+
+                const progressBar = coll[i].querySelector('.progress-bar');
+                progressBar.style.width = `${percentage}%`;
+
+                // Open the first collapsible by default
+                if (i === 0) {
+                    coll[i].classList.add("active");
+                    var content = coll[i].nextElementSibling;
+                    content.style.display = "block";
+                }
+
+                coll[i].addEventListener("click", function () {
+                    this.classList.toggle("active");
+                    var content = this.nextElementSibling;
+                    if (content.style.display === "block") {
+                        content.style.display = "none";
+                    } else {
+                        content.style.display = "block";
+                    }
+                });
+            }
+            // Close Modal Button
+            const closeBtn = modal.querySelector('.journey-close');
+            closeBtn.addEventListener('click', () => {
+                modal.style.display = 'none';
+                modal.remove()
+            });
+        }
+
+        function openJourneyModal() {
+            document.getElementById('journey-modal').style.display = "block";
+        }
+
+        function closeJourneyModal() {
+            document.getElementById('journey-modal').style.display = "none";
+        }
+
+
     </script>
 
 </body>
