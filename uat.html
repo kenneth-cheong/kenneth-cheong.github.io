@@ -616,6 +616,16 @@
                 const htmlData = await htmlResponse.json();
                 await displayResults(htmlData.body);
 
+                // Await sslPromise and update SSL info
+                try {
+                    const sslResult = await sslPromise;
+                    document.getElementById('ssl-info').innerText = sslResult;
+                } catch (e) {
+                    console.error("Error in checkSsl:", e);
+                    document.getElementById('error').innerText = "Error checking SSL: " + e;
+                    document.getElementById('error').style.display = 'block';
+                }
+
                 // Await robotsPromise and update visible text
                 try {
                     const visibleText = await robotsPromise;
@@ -626,15 +636,7 @@
                     document.getElementById('error').style.display = 'block';
                 }
 
-                // Await sslPromise and update SSL info
-                try {
-                    const sslResult = await sslPromise;
-                    document.getElementById('ssl-info').innerText = sslResult;
-                } catch (e) {
-                    console.error("Error in checkSsl:", e);
-                    document.getElementById('error').innerText = "Error checking SSL: " + e;
-                    document.getElementById('error').style.display = 'block';
-                }
+
 
                 // Website Crawler
                 try {
@@ -674,7 +676,7 @@
                 }
 
                 const data = await response.json();
-                document.getElementById('webpage-formatting').innerHTML = data.body; 
+                document.getElementById('webpage-formatting').innerHTML = data.body;
 
             } catch (error) {
                 console.error("Error checking Webpage Formatting:", error);
