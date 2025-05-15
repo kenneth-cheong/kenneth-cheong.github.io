@@ -51,17 +51,40 @@
         .thumbnail {
             max-width: 100px;
             max-height: 100px;
+            cursor: pointer;
+        }
+
+        .expanded-image {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .expanded-image img {
+            max-width: 90%;
+            max-height: 90%;
+        }
+
+        .hidden {
+            display: none;
         }
     </style>
 </head>
 
 <body>
 
-    <h1>HTML Analyzer</h1>
+    <h1>User Acceptance Test</h1>
 
     <label for="url">Enter URL:</label>
     <input type="url" id="url" name="url" size="50">
-    <button onclick="analyzeURL()">Analyze</button>
+    <button onclick="analyzeURL()">Analyse</button>
 
     <div id="loading">Loading...</div>
     <div id="error"></div>
@@ -93,6 +116,12 @@
         </tbody>
     </table>
 
+    <h3>robots.txt</h3>
+    <div id="visible-text"></div>
+
+    <h3>SSL</h3>
+    <div id="ssl-info"></div>
+
     <h3>Headers</h3>
     <table id="headers-table">
         <thead>
@@ -110,6 +139,7 @@
             <tr>
                 <th>Link Type</th>
                 <th>URL</th>
+                <th>Link Text</th>
                 <th>Status Code</th>
             </tr>
         </thead>
@@ -130,10 +160,48 @@
         </tbody>
     </table>
 
-    <h3>robots.txt</h3>
-    <div id="visible-text"></div>
+    <h3>Page Speed Performance</h3>
+    <table id="page-speed-table">
+        <thead>
+            <tr>
+                <th>Strategy</th>
+                <th>Performance Score</th>
+                <th>Final Screenshot</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Desktop</td>
+                <td id="desktop-score"></td>
+                <td id="desktop-screenshot"></td>
+            </tr>
+            <tr>
+                <td>Mobile</td>
+                <td id="mobile-score"></td>
+                <td id="mobile-screenshot"></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div id="expanded-image-container" class="expanded-image hidden">
+        <img id="expanded-image" src="" alt="Expanded Screenshot">
+    </div>
+
 
     <script>
+        function showExpandedImage(base64Data) {
+            const expandedImageContainer = document.getElementById('expanded-image-container');
+            const expandedImage = document.getElementById('expanded-image');
+
+            expandedImage.src = base64Data;
+            expandedImageContainer.classList.remove('hidden');
+
+            expandedImageContainer.onclick = function() {
+                expandedImageContainer.classList.add('hidden');
+                expandedImage.src = "";
+            };
+        }
+
         async function analyzeURL() {
             const url = document.getElementById('url').value;
             if (!url) {
@@ -144,24 +212,28 @@
             document.getElementById('loading').style.display = 'block';
             document.getElementById('error').style.display = 'none';
 
-            let robotsPromise = null;  // Promise for fetchRobots, initialized to null
+            let robotsPromise = null;
 
             try {
                 // Extract domain
                 let domain;
                 try {
                     const urlObj = new URL(url);
-                    domain = urlObj.origin; // origin gives protocol + hostname + port (if any)
+                    domain = urlObj.origin;
                 } catch (e) {
                     console.error("Invalid URL:", url, e);
                     document.getElementById('error').innerText = "Invalid URL.  Please enter a valid URL.";
                     document.getElementById('error').style.display = 'block';
                     document.getElementById('loading').style.display = 'none';
-                    return; // Stop processing if the URL is invalid
+                    return;
                 }
 
                 // Start fetchRobots asynchronously
-                robotsPromise = fetchRobots(domain); // Pass the domain to fetchRobots
+                robotsPromise = fetchRobots(domain);
+
+                // Start checkSsl asynchronously
+                const sslPromise = checkSsl(domain);
+
 
                 // Fetch HTML content
                 const htmlResponse = await fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
@@ -177,7 +249,7 @@
                 }
 
                 const htmlData = await htmlResponse.json();
-                await displayResults(htmlData.body);  // Await the results display
+                await displayResults(htmlData.body);
 
                 // Await robotsPromise and update visible text
                 try {
@@ -189,6 +261,20 @@
                     document.getElementById('error').style.display = 'block';
                 }
 
+                // Await sslPromise and update SSL info
+                try {
+                    const sslResult = await sslPromise;
+                    document.getElementById('ssl-info').innerText = sslResult;
+                } catch (e) {
+                    console.error("Error in checkSsl:", e);
+                    document.getElementById('error').innerText = "Error checking SSL: " + e;
+                    document.getElementById('error').style.display = 'block';
+                }
+
+                // Check Page Speed
+                await checkPageSpeed(url);
+
+
 
             } catch (error) {
                 console.error('Error:', error);
@@ -197,13 +283,88 @@
                 document.getElementById('error').style.display = 'block';
                 clearTables();
             } finally {
-                document.getElementById('loading').style.display = 'none'; // Ensure loading is always hidden
+                document.getElementById('loading').style.display = 'none';
             }
         }
 
-        async function fetchRobots(domain) { // Accept the domain as an argument
-            // Call url_lib_lite endpoint
-            const robotsUrl = domain + "/robots.txt";  // Construct the robots.txt URL
+
+        async function checkPageSpeed(url) {
+            try {
+                const desktopResponse = await fetch('https://olcgoflh75.execute-api.ap-southeast-1.amazonaws.com/pageSpeed', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url, strategy: 'desktop' })
+                });
+
+                const mobileResponse = await fetch('https://olcgoflh75.execute-api.ap-southeast-1.amazonaws.com/pageSpeed', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url, strategy: 'mobile' })
+                });
+
+                if (!desktopResponse.ok || !mobileResponse.ok) {
+                    throw new Error(`HTTP error fetching PageSpeed Insights! Desktop Status: ${desktopResponse.status}, Mobile Status: ${mobileResponse.status}`);
+                }
+
+                const desktopData = await desktopResponse.json();
+                const mobileData = await mobileResponse.json();
+
+                const desktopScore = desktopData.lighthouseResult.categories.performance.score;
+                const mobileScore = mobileData.lighthouseResult.categories.performance.score;
+                const desktopScreenshotData = desktopData.lighthouseResult.audits['final-screenshot'].details.data;
+                const mobileScreenshotData = mobileData.lighthouseResult.audits['final-screenshot'].details.data;
+
+                document.getElementById('desktop-score').innerText = desktopScore;
+                document.getElementById('mobile-score').innerText = mobileScore;
+
+                // Display Thumbnails, making them clickable
+                document.getElementById('desktop-screenshot').innerHTML = `<img src="${desktopScreenshotData}" alt="Desktop Screenshot" class="thumbnail" onclick="showExpandedImage('${desktopScreenshotData}')">`;
+                document.getElementById('mobile-screenshot').innerHTML = `<img src="${mobileScreenshotData}" alt="Mobile Screenshot" class="thumbnail" onclick="showExpandedImage('${mobileScreenshotData}')">`;
+
+
+            } catch (error) {
+                console.error("Error checking Page Speed:", error);
+                document.getElementById('error').innerText = "Error checking Page Speed: " + error;
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('desktop-score').innerText = "Error";
+                document.getElementById('mobile-score').innerText = "Error";
+                document.getElementById('desktop-screenshot').innerText = "Error";
+                document.getElementById('mobile-screenshot').innerText = "Error";
+
+            }
+        }
+
+
+        async function checkSsl(url) {
+            try {
+                const response = await fetch('https://2kxt49bwp1.execute-api.ap-southeast-1.amazonaws.com/checkSsl', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url }
+                    )
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error checking SSL! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return data.message;
+            } catch (error) {
+                console.error("Error checking SSL:", error);
+                throw error;
+            }
+        }
+
+
+        async function fetchRobots(domain) {
+            const robotsUrl = domain + "/robots.txt";
             console.log(robotsUrl);
             try {
                 const urlLibResponse = await fetch('https://1pfsx12au9.execute-api.ap-southeast-1.amazonaws.com/url_lib_lite', {
@@ -220,11 +381,10 @@
 
                 const urlLibData = await urlLibResponse.json();
 
-                // Return the visible text
                 return urlLibData.body.visible_text;
             } catch (e) {
                 console.error("Error in fetchRobots:", e);
-                throw e; // Re-throw the error so it can be caught in analyzeURL
+                throw e;
             }
 
         }
@@ -241,14 +401,14 @@
                 });
 
                 if (!response.ok) {
-                    return `Error: ${response.status}`; // Return error message for bad responses
+                    return `Error: ${response.status}`;
                 }
 
                 const data = await response.json();
-                return data.body; // Return the status code from the response body
+                return data.body;
             } catch (error) {
                 console.error("Error fetching status code:", error);
-                return "Error"; // Return a generic error message
+                return "Error";
             }
         }
 
@@ -280,46 +440,47 @@
             // Links (Internal and External)
             const links = doc.querySelectorAll('a[href]');
             const linksBody = document.getElementById('links-body');
-            const existingLinks = new Set();  // Use a Set to track existing links
+            const existingLinks = new Set();
 
-            const linkPromises = []; // Array to store promises for status code fetches
+            const linkPromises = [];
 
             links.forEach(async link => {
                 const href = link.href;
+                const linkText = link.innerText.trim(); // Extract link text and trim whitespace
 
-                // Check if the link already exists
                 if (existingLinks.has(href)) {
-                    return; // Skip if it already exists
+                    return;
                 }
 
-                existingLinks.add(href); // Add the link to the Set
+                existingLinks.add(href);
 
                 let linkType = 'External';
                 try {
                     const url = new URL(href);
-                    const currentUrl = new URL(document.getElementById('url').value);  // Base URL for comparison
+                    const currentUrl = new URL(document.getElementById('url').value);
                     if (url.hostname === currentUrl.hostname) {
                         linkType = 'Internal';
                     }
                 } catch (e) {
-                    // Handle relative URLs as internal
                     linkType = 'Internal';
                 }
 
                 let row = linksBody.insertRow();
                 let typeCell = row.insertCell();
                 let urlCell = row.insertCell();
-                let statusCell = row.insertCell(); // Add a cell for the status code
+                let linkTextCell = row.insertCell(); // Add cell for link text
+                let statusCell = row.insertCell();
 
                 typeCell.innerText = linkType;
                 urlCell.innerText = href;
+                linkTextCell.innerText = linkText; // Set the link text
+                statusCell.innerText = "Loading...";
+
 
                 if (href.startsWith('mailto:') || href.startsWith('wa.me/') || href.startsWith('tel:')) {
                     statusCell.innerText = "N/A";
                 } else {
-                    statusCell.innerText = "Loading..."; // Initial loading message
 
-                    // Fetch the status code and update the cell.  Push each Promise to an array.
                     linkPromises.push(
                         fetchStatusCode(href)
                             .then(statusCode => {
@@ -360,8 +521,12 @@
             document.getElementById('meta-title').innerText = '';
             document.getElementById('meta-description').innerText = '';
             document.getElementById('canonical-tag').innerText = '';
-            document.getElementById('visible-text').innerText = '';  // Clear the visible text div as well
-
+            document.getElementById('visible-text').innerText = '';
+            document.getElementById('ssl-info').innerText = '';
+            document.getElementById('desktop-score').innerText = '';
+            document.getElementById('mobile-score').innerText = '';
+            document.getElementById('desktop-screenshot').innerHTML = '';
+            document.getElementById('mobile-screenshot').innerHTML = '';
         }
 
 
