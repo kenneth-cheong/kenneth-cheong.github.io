@@ -2,6 +2,107 @@
 <html>
 
 <head>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+        // Google Sign-In variables (global scope)
+        let googleUser = null; // Store the Google user object
+        let codeReceiverURI = 'https://ts9k398yn8.execute-api.ap-southeast-1.amazonaws.com/googleLogin'; // Update with your actual URI
+
+        // Function called after successful Google Sign-In
+        function handleCredentialResponse(response) {
+            fetch(codeReceiverURI, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ credential: response.credential })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.body.success) {
+                        googleUser = data.body.user;
+                        localStorage.setItem('googleUser', JSON.stringify(googleUser));
+                        updateUI(true); // User logged in
+                        console.log(data.body);
+                        document.getElementById('logoutLink').querySelector('span') = "Logout " + data.body.user.name;
+                    } else {
+                        console.error("Backend verification failed:", data.message);
+                        document.getElementById('loginError').textContent = data.message || "Google login failed.";
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('loginError').textContent = "An error occurred.";
+                });
+        }
+
+        function checkGoogleLogin() {
+            const storedUser = localStorage.getItem('googleUser');
+            if (storedUser) {
+                googleUser = JSON.parse(storedUser);
+                updateUI(true); // Already logged in via Google
+                return true; // Indicate Google login success
+            }
+
+            google.accounts.id.initialize({
+                client_id: '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com',
+                callback: handleCredentialResponse
+            });
+            google.accounts.id.renderButton(
+                document.getElementById('googleSignInButton'),
+                { theme: "outline", size: "large" }
+            );
+            return false; // Google login not yet completed
+        }
+
+        // Function to update UI based on login status (modified)
+        function updateUI(isLoggedIn) {
+            document.getElementById('loginForm').style.display = isLoggedIn ? 'none' : 'flex';
+            document.getElementById('main-content').style.display = isLoggedIn ? 'block' : 'none';
+
+            //Optionally: Display user info after Google login
+            if (isLoggedIn && googleUser) {
+                // Example: Show username after successful login
+                const welcomeMessage = document.createElement('p');
+                welcomeMessage.textContent = `Welcome, ${googleUser.name}!`;
+                //document.getElementById('main-content').prepend(welcomeMessage);  // or wherever you want to display it.
+            }
+        }
+
+        window.onload = async () => {
+            const isLoggedIn = checkGoogleLogin();
+            if (!isLoggedIn) {
+                // Show the regular login form only if neither Google nor cookie login are active.
+                document.getElementById('loginForm').style.display = 'flex';
+            }
+
+            try {
+                const response = await fetch('https://nud0xqa1h4.execute-api.ap-southeast-1.amazonaws.com/createThreadId', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                document.getElementById('threadId').innerText = data;
+                console.log(data);
+                processURL();
+                initializeJourneyCollapsibles();
+                //loadFromLocalStorage();
+
+            } catch (error) {
+                console.error('Error fetching or parsing thread ID:', error);
+                // Handle the error appropriately, e.g., display an error message to the user.
+                document.getElementById('threadId').innerText = "Error retrieving thread ID"; // or some other error message
+            }
+
+        };
+
+    </script>
     <title>HTML Analyzer</title>
     <style>
         body {
@@ -19,7 +120,6 @@
             border: 1px solid #ddd;
             padding: 8px;
             text-align: left;
-            word-break: break-word;
         }
 
         th {
@@ -39,12 +139,8 @@
         }
 
         .header-text {
-            white-space: nowrap;
-            /* Prevent wrapping */
             overflow: hidden;
-            /* Hide overflowing text */
             text-overflow: ellipsis;
-            /* Add ellipsis (...) for overflow */
             max-width: 300px;
         }
 
@@ -89,6 +185,235 @@
         .page-break {
             page-break-before: always;
         }
+
+        #loginForm {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            /* Semi-transparent background */
+            z-index: 9999;
+            /* Ensure it's on top */
+        }
+
+        #loginForm input {
+            margin: 10px 0;
+            padding: 8px;
+            min-width: 40%;
+        }
+
+        #loginForm button {
+            background-color: #004c9d;
+            /* Example color */
+            color: white;
+            /* Text color */
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+            color: #333; /* Darker, readable text */
+        }
+
+        h1 {
+            color: #004c9d;
+            /* Primary color */
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h2,
+        h3 {
+            color: #004c9d;
+            /* Primary color */
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input[type="url"] {
+            width: 95%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        button {
+            background-color: #004c9d;
+            /* Primary color */
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #003366;
+            /* Darker shade on hover */
+        }
+
+        #loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+            font-style: italic;
+            color: #777;
+        }
+
+        #error {
+            color: #d32f2f;
+            /* Error color */
+            margin-top: 10px;
+            display: none;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            /* Subtle shadow */
+            border-radius: 8px;
+            overflow: hidden;
+            /* Ensures rounded corners are respected */
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+            word-break: break-word;
+        }
+
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            color: #555;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+            /* Slight background for even rows */
+        }
+
+        .header-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 300px;
+            display: inline-block;
+            /* Needed for text-overflow */
+            vertical-align: middle;
+            /* Align with header tag */
+        }
+
+        .thumbnail {
+            max-width: 80px;
+            max-height: 80px;
+            cursor: pointer;
+            border-radius: 5px;
+            /* Optional: rounded corners for thumbnails */
+            transition: transform 0.2s ease;
+        }
+
+        .thumbnail:hover {
+            transform: scale(1.1);
+            /* Slight scale on hover */
+        }
+
+        .expanded-image {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .expanded-image img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+            /* Ensures image fits without distortion */
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #google-tags ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #google-tags li {
+            margin-bottom: 8px;
+        }
+
+        .page-break {
+            page-break-before: always;
+        }
+
+        /* Specific to GTmetrix */
+        #gtmetrix-results {
+            margin-bottom: 20px;
+        }
+
+        #gtmetrix-grade {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2e7d32;
+            /* Success color */
+        }
+
+        #gtmetrix-report a {
+            color: #1565c0;
+            /* Link color */
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        #gtmetrix-report a:hover {
+            color: #0d47a1;
+            /* Darker link color on hover */
+        }
+
+        /* New Styles */
+
+        /* Container for results to add spacing and potential background */
+        #main-content {
+            padding: 20px;
+            border-radius: 10px;
+            /* Optional: Adds rounded corners to the content area */
+            background-color: #fff;
+            /* White or very light background */
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
     </style>
     <!-- jsPDF and html2pdf libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -100,126 +425,154 @@
 
 <body>
 
-    <h1>User Acceptance Test</h1>
+    <div id="loginForm">
+        <div id="googleSignInButton"></div>
+        <p id="loginError" style="color: red;"></p>
+    </div>
+    <div id="main-content">
 
-    <label for="url">Enter URL:</label>
-    <input type="url" id="url" name="url" size="50">
-    <button onclick="analyzeURL()">Analyse</button>
-    <button onclick="exportToPdf()">Export to PDF</button>
+        <h1>User Acceptance Test</h1>
 
-    <div id="loading">Loading...</div>
-    <div id="error"></div>
+        <label for="url">Enter URL:</label>
+        <input type="url" id="url" name="url" size="50">
+        <button onclick="analyzeURL()">Analyse</button>
+
+        <div id="loading">Loading...</div>
+        <div id="error"></div>
 
 
-    <h2>Results</h2>
+        <h2>Results</h2>
 
-    <h3>GTmetrix</h3>
-    <div id="gtmetrix-results">
-        <div id="gtmetrix-grade"></div>
-        <div id="gtmetrix-report"></div>
+        <h3>GTmetrix</h3>
+        <div id="gtmetrix-results">
+            <div id="gtmetrix-grade"></div>
+            <div id="gtmetrix-report"></div>
+        </div>
+
+        <h3>Google Tags</h3>
+        <div id="google-tags"></div>
+
+
+        <h3>Page Speed Performance</h3>
+        <table id="page-speed-table">
+            <thead>
+                <tr>
+                    <th>Strategy</th>
+                    <th>Performance Score</th>
+                    <th>Final Screenshot</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Desktop</td>
+                    <td id="desktop-score"></td>
+                    <td id="desktop-screenshot"></td>
+                </tr>
+                <tr>
+                    <td>Mobile</td>
+                    <td id="mobile-score"></td>
+                    <td id="mobile-screenshot"></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div id="expanded-image-container" class="expanded-image hidden">
+            <img id="expanded-image" src="" alt="Expanded Screenshot">
+        </div>
+
+        <h3>Meta Information</h3>
+        <table id="meta-table">
+            <thead>
+                <tr>
+                    <th>Property</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Meta Title</td>
+                    <td id="meta-title"></td>
+                </tr>
+                <tr>
+                    <td>Meta Description</td>
+                    <td id="meta-description"></td>
+                </tr>
+                <tr>
+                    <td>Canonical Tag</td>
+                    <td id="canonical-tag"></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>robots.txt</h3>
+        <div id="visible-text"></div>
+
+        <h3>SSL</h3>
+        <div id="ssl-info"></div>
+
+
+        <h3>Website Crawler Results</h3>
+        <table id="website-crawler-table">
+            <thead>
+                <tr>
+                    <th>URL</th>
+                    <th>Status Code</th>
+                    <th>Misspelled</th>
+                    <th>HTTPS</th>
+                    <th>Server</th>
+                    <th>Flesch Kincaid Index</th>
+                </tr>
+            </thead>
+            <tbody id="website-crawler-body">
+            </tbody>
+        </table>
+
+        <div class="page-break"></div>
+        <!-- Page break before Headers -->
+        <h3>Headers</h3>
+        <table id="headers-table">
+            <thead>
+                <tr>
+                    <th>Header</th>
+                </tr>
+            </thead>
+            <tbody id="headers-body">
+            </tbody>
+        </table>
+
+        <div class="page-break"></div>
+        <!-- Page break before Links -->
+        <h3>Links</h3>
+        <table id="links-table">
+            <thead>
+                <tr>
+                    <th>Link Type</th>
+                    <th>URL</th>
+                    <th>Link Text</th>
+                    <th>Status Code</th>
+                </tr>
+            </thead>
+            <tbody id="links-body">
+            </tbody>
+        </table>
+
+
+        <h3>Image Alt Text</h3>
+        <table id="image-alt-table">
+            <thead>
+                <tr>
+                    <th>Thumbnail</th>
+                    <th>Image URL</th>
+                    <th>Alt Text</th>
+                </tr>
+            </thead>
+            <tbody id="image-alt-body">
+            </tbody>
+        </table>
     </div>
 
-    <h3>Google Tags</h3>
-    <div id="google-tags"></div>
 
 
-    <h3>Page Speed Performance</h3>
-    <table id="page-speed-table">
-        <thead>
-            <tr>
-                <th>Strategy</th>
-                <th>Performance Score</th>
-                <th>Final Screenshot</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Desktop</td>
-                <td id="desktop-score"></td>
-                <td id="desktop-screenshot"></td>
-            </tr>
-            <tr>
-                <td>Mobile</td>
-                <td id="mobile-score"></td>
-                <td id="mobile-screenshot"></td>
-            </tr>
-        </tbody>
-    </table>
-
-    <div id="expanded-image-container" class="expanded-image hidden">
-        <img id="expanded-image" src="" alt="Expanded Screenshot">
-    </div>
-
-    <h3>Meta Information</h3>
-    <table id="meta-table">
-        <thead>
-            <tr>
-                <th>Property</th>
-                <th>Value</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Meta Title</td>
-                <td id="meta-title"></td>
-            </tr>
-            <tr>
-                <td>Meta Description</td>
-                <td id="meta-description"></td>
-            </tr>
-            <tr>
-                <td>Canonical Tag</td>
-                <td id="canonical-tag"></td>
-            </tr>
-        </tbody>
-    </table>
-
-    <h3>robots.txt</h3>
-    <div id="visible-text"></div>
-
-    <h3>SSL</h3>
-    <div id="ssl-info"></div>
-
-    <div class="page-break"></div> <!-- Page break before Headers -->
-    <h3>Headers</h3>
-    <table id="headers-table">
-        <thead>
-            <tr>
-                <th>Header</th>
-            </tr>
-        </thead>
-        <tbody id="headers-body">
-        </tbody>
-    </table>
-
-    <div class="page-break"></div> <!-- Page break before Links -->
-    <h3>Links</h3>
-    <table id="links-table">
-        <thead>
-            <tr>
-                <th>Link Type</th>
-                <th>URL</th>
-                <th>Link Text</th>
-                <th>Status Code</th>
-            </tr>
-        </thead>
-        <tbody id="links-body">
-        </tbody>
-    </table>
-
-
-    <h3>Image Alt Text</h3>
-    <table id="image-alt-table">
-        <thead>
-            <tr>
-                <th>Thumbnail</th>
-                <th>Image URL</th>
-                <th>Alt Text</th>
-            </tr>
-        </thead>
-        <tbody id="image-alt-body">
-        </tbody>
-    </table>
 
     <script>
         function showExpandedImage(base64Data) {
@@ -229,7 +582,7 @@
             expandedImage.src = base64Data;
             expandedImageContainer.classList.remove('hidden');
 
-            expandedImageContainer.onclick = function() {
+            expandedImageContainer.onclick = function () {
                 expandedImageContainer.classList.add('hidden');
                 expandedImage.src = "";
             };
@@ -267,14 +620,15 @@
                 // Start checkSsl asynchronously
                 const sslPromise = checkSsl(domain);
 
-
                 // Fetch HTML content
                 const htmlResponse = await fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url: url })
+                    body: JSON.stringify({
+                        url: url
+                    })
                 });
 
                 if (!htmlResponse.ok) {
@@ -304,13 +658,22 @@
                     document.getElementById('error').style.display = 'block';
                 }
 
+                // Website Crawler
+                try {
+                    const websiteCrawlerResult = await websiteCrawler(domain, url);
+                    displayWebsiteCrawlerResults(websiteCrawlerResult);
+                } catch (e) {
+                    console.error("Error in websiteCrawler:", e);
+                    document.getElementById('error').innerText = "Error fetching websiteCrawlerResult: " +
+                        e;
+                    document.getElementById('error').style.display = 'block';
+                }
+
                 // Check Page Speed
                 await checkPageSpeed(url);
 
                 // Check GTmetrix
                 await checkGTmetrix(url);
-
-
 
             } catch (error) {
                 console.error('Error:', error);
@@ -323,6 +686,70 @@
             }
         }
 
+        async function websiteCrawler(domain, url) {
+            try {
+                const response = await fetch('https://781r68gcz9.execute-api.ap-southeast-1.amazonaws.com/websiteCrawler', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        domain: domain,
+                        start_url: url
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error in websiteCrawler! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return data.body;
+            } catch (error) {
+                console.error("Error fetching from websiteCrawler:", error);
+                throw error; // Re-throw the error to be caught in analyzeURL
+            }
+        }
+
+
+        function displayWebsiteCrawlerResults(data) {
+            const tableBody = document.getElementById('website-crawler-body');
+            tableBody.innerHTML = ''; // Clear existing results
+
+            if (Array.isArray(data)) {
+                data.forEach(item => {
+                    const row = tableBody.insertRow();
+
+                    const urlCell = row.insertCell();
+                    urlCell.innerText = item.url;
+
+                    const statusCodeCell = row.insertCell();
+                    statusCodeCell.innerText = item.status_code;
+
+                    const misspelledCell = row.insertCell();
+                    misspelledCell.innerText = item.meta.spell && item.meta.spell.misspelled && Array.isArray(item.meta.spell.misspelled) && item.meta.spell.misspelled.length > 0 ?
+                        item.meta.spell.misspelled.map(wordObj => wordObj.word).join(', ') :
+                        'None';
+
+                    const isHttpsCell = row.insertCell();
+                    isHttpsCell.innerText = item.checks.is_https ? 'Yes' : 'No';
+
+                    const serverCell = row.insertCell();
+                    serverCell.innerText = item.server;
+
+                    const fleschKincaidIndexCell = row.insertCell();
+                    fleschKincaidIndexCell.innerText = item.meta.content.flesch_kincaid_readability_index;
+                });
+            } else {
+                // Handle the case where data is not an array (e.g., an error message)
+                const row = tableBody.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 6; // Span across all columns
+                cell.innerText = "Error: Could not retrieve crawler data.";
+            }
+        }
+
+
 
         async function checkGTmetrix(url) {
             try {
@@ -331,7 +758,9 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url: url })
+                    body: JSON.stringify({
+                        url: url
+                    })
                 });
 
                 if (!response.ok) {
@@ -361,7 +790,10 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url: url, strategy: 'desktop' })
+                    body: JSON.stringify({
+                        url: url,
+                        strategy: 'desktop'
+                    })
                 });
 
                 const mobileResponse = await fetch('https://olcgoflh75.execute-api.ap-southeast-1.amazonaws.com/pageSpeed', {
@@ -369,11 +801,16 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url: url, strategy: 'mobile' })
+                    body: JSON.stringify({
+                        url: url,
+                        strategy: 'mobile'
+                    })
                 });
 
                 if (!desktopResponse.ok || !mobileResponse.ok) {
-                    throw new Error(`HTTP error fetching PageSpeed Insights! Desktop Status: ${desktopResponse.status}, Mobile Status: ${mobileResponse.status}`);
+                    throw new Error(
+                        `HTTP error fetching PageSpeed Insights! Desktop Status: ${desktopResponse.status}, Mobile Status: ${mobileResponse.status}`
+                    );
                 }
 
                 const desktopData = await desktopResponse.json();
@@ -388,8 +825,10 @@
                 document.getElementById('mobile-score').innerText = mobileScore;
 
                 // Display Thumbnails, making them clickable
-                document.getElementById('desktop-screenshot').innerHTML = `<img src="${desktopScreenshotData}" alt="Desktop Screenshot" class="thumbnail" onclick="showExpandedImage('${desktopScreenshotData}')">`;
-                document.getElementById('mobile-screenshot').innerHTML = `<img src="${mobileScreenshotData}" alt="Mobile Screenshot" class="thumbnail" onclick="showExpandedImage('${mobileScreenshotData}')">`;
+                document.getElementById('desktop-screenshot').innerHTML =
+                    `<img src="${desktopScreenshotData}" alt="Desktop Screenshot" class="thumbnail" onclick="showExpandedImage('${desktopScreenshotData}')">`;
+                document.getElementById('mobile-screenshot').innerHTML =
+                    `<img src="${mobileScreenshotData}" alt="Mobile Screenshot" class="thumbnail" onclick="showExpandedImage('${mobileScreenshotData}')">`;
 
 
             } catch (error) {
@@ -412,8 +851,9 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url: url }
-                    )
+                    body: JSON.stringify({
+                        url: url
+                    })
                 });
 
                 if (!response.ok) {
@@ -431,14 +871,15 @@
 
         async function fetchRobots(domain) {
             const robotsUrl = domain + "/robots.txt";
-            console.log(robotsUrl);
             try {
                 const urlLibResponse = await fetch('https://1pfsx12au9.execute-api.ap-southeast-1.amazonaws.com/url_lib_lite', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url: robotsUrl })
+                    body: JSON.stringify({
+                        url: robotsUrl
+                    })
                 });
 
                 if (!urlLibResponse.ok) {
@@ -463,7 +904,9 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url: url })
+                    body: JSON.stringify({
+                        url: url
+                    })
                 });
 
                 if (!response.ok) {
@@ -478,6 +921,7 @@
             }
         }
 
+
         async function displayResults(html) {
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
@@ -486,9 +930,12 @@
             clearTables();
 
             // Meta Information
-            document.getElementById('meta-title').innerText = doc.querySelector('meta[name="title"]') ? doc.querySelector('meta[name="title"]').content : doc.title;
-            document.getElementById('meta-description').innerText = doc.querySelector('meta[name="description"]') ? doc.querySelector('meta[name="description"]').content : "";
-            document.getElementById('canonical-tag').innerText = doc.querySelector('link[rel="canonical"]') ? doc.querySelector('link[rel="canonical"]').href : "";
+            document.getElementById('meta-title').innerText = doc.querySelector('meta[name="title"]') ? doc
+                .querySelector('meta[name="title"]').content : doc.title;
+            document.getElementById('meta-description').innerText = doc.querySelector('meta[name="description"]') ?
+                doc.querySelector('meta[name="description"]').content : "";
+            document.getElementById('canonical-tag').innerText = doc.querySelector('link[rel="canonical"]') ? doc
+                .querySelector('link[rel="canonical"]').href : "";
 
 
             // Headers (H1-H6)
@@ -582,11 +1029,11 @@
             const gtagScriptTags = doc.querySelectorAll('script[src*="googletagmanager.com/gtag/js?id="]');
             gtagScriptTags.forEach(scriptTag => {
                 const src = scriptTag.src;
-                const match = src.match(/id=([^&]*)/);  // Extract the ID from the URL
+                const match = src.match(/id=([^&]*)/); // Extract the ID from the URL
 
                 if (match) {
                     const tagId = match[1];
-                    if (tagId.length >= 8) {  // Check the length
+                    if (tagId.length >= 8) { // Check the length
                         googleTags.push(tagId);
                     }
                 }
@@ -595,7 +1042,8 @@
             //Enhanced GTM Tag Detection
             const gtmScriptTags = doc.querySelectorAll('script');
             gtmScriptTags.forEach(scriptTag => {
-                const srcMatch = scriptTag.src && scriptTag.src.match(/googletagmanager\.com\/gtm\.js\?id=([A-Z0-9-]+)/);
+                const srcMatch = scriptTag.src && scriptTag.src.match(
+                    /googletagmanager\.com\/gtm\.js\?id=([A-Z0-9-]+)/);
                 const inlineMatch = scriptTag.textContent && scriptTag.textContent.match(/GTM-[A-Z0-9]+/);
 
                 let tagId = null;
@@ -615,10 +1063,11 @@
             const configTags = Array.from(doc.querySelectorAll('script'))
                 .map(script => script.textContent)
                 .join('\n'); //Combine all scripts content into 1 string
-            const configMatches = [...configTags.matchAll(/gtag\(\'config\',\s*\'([A-Z0-9-]+)\'\)/g)];
+            const configMatches = [...configTags.matchAll(
+                /gtag\(\'config\',\s*\'([A-Z0-9-]+)\'\)/g)];
             configMatches.forEach(match => {
                 const tagId = match[1];
-                if (tagId.length >= 8 && !googleTags.includes(tagId)) {  // Check the length and prevent duplicates
+                if (tagId.length >= 8 && !googleTags.includes(tagId)) { // Check the length and prevent duplicates
                     googleTags.push(tagId);
                 }
             });
@@ -630,7 +1079,7 @@
             const googleAdwordsConversionMatches = [...googleAdwordsConversionTags.matchAll(/AW-[0-9]+/g)];
             googleAdwordsConversionMatches.forEach(match => {
                 const tagId = match[0];
-                if (tagId.length >= 8 && !googleTags.includes(tagId)) {  // Check the length and prevent duplicates
+                if (tagId.length >= 8 && !googleTags.includes(tagId)) { // Check the length and prevent duplicates
                     googleTags.push(tagId);
                 }
             });
@@ -671,66 +1120,57 @@
             document.getElementById('gtmetrix-grade').innerText = '';
             document.getElementById('gtmetrix-report').innerHTML = '';
             document.getElementById('google-tags').innerHTML = ''; //Clear google tags
+            document.getElementById('website-crawler-body').innerHTML = ''; // Clear the website crawler table
         }
 
         async function exportToPdf() {
             window.jsPDF = window.jspdf.jsPDF;
-            // Import jsPDF library
-            const { jsPDF } = window.jspdf;
-
-            // Create a new jsPDF instance
+            const {
+                jsPDF
+            } = window.jspdf;
             const pdf = new jsPDF();
-
-            // Array of element IDs to include in the PDF
-            const elementIds = [
-                'page-speed-table', 'meta-table', 'visible-text', 'ssl-info',
-                'headers-table', 'links-table', 'image-alt-table', 'gtmetrix-results', 'google-tags'
+            const elementIds = ['gtmetrix-results', 'google-tags', 'page-speed-table', 'meta-table', 'visible-text',
+                'ssl-info',
+                'headers-table', 'links-table', 'image-alt-table', 'website-crawler-table'
             ];
 
-            let yOffset = 10; // Initial Y offset
-            const xOffset = 10; // X offset for all elements
-            const pageWidth = pdf.internal.pageSize.getWidth() - 20; // Page width minus margins
+            let yOffset = 10;
+            const xOffset = 10;
+            const pageWidth = pdf.internal.pageSize.getWidth() - 20;
 
             for (const elementId of elementIds) {
                 const element = document.getElementById(elementId);
                 if (element) {
-                    // Check if new page needed
-                    if (elementId === 'headers-table' || elementId === 'links-table') {
-                        pdf.addPage();  // Add a new page for headers and links
-                        yOffset = 10; // Reset yOffset for the new page
+                    if (elementId === 'headers-table' || elementId === 'links-table' || elementId ===
+                        'website-crawler-table') {
+                        pdf.addPage();
+                        yOffset = 10;
                     }
 
                     try {
-                        // Use html2canvas to render the element
                         const canvas = await html2canvas(element, {
-                            scale: 2, // Increase scale for better resolution
+                            scale: 2,
                             useCORS: true
                         });
-
-                        // Calculate image height to fit within the page
                         const imgWidth = pageWidth;
                         const imgHeight = canvas.height * imgWidth / canvas.width;
-
-                        // Add the image to the PDF
                         if (yOffset + imgHeight > pdf.internal.pageSize.getHeight() - 10) {
-                            pdf.addPage(); // Add new page if it overflows
-                            yOffset = 10;  // Reset yOffset for the new page
+                            pdf.addPage();
+                            yOffset = 10;
                         }
 
                         const imgData = canvas.toDataURL('image/png');
                         pdf.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight);
-                        yOffset += imgHeight + 10; // Increase Y offset for the next element
+                        yOffset += imgHeight + 10;
                     } catch (error) {
                         console.error(`Error rendering element ${elementId}:`, error);
                     }
                 }
             }
 
-            // Save the PDF
             pdf.save('uat.pdf');
             console.log('download function completed');
         }
-
     </script>
 
 </body>
