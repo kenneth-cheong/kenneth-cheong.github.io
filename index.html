@@ -388,6 +388,7 @@
             font-size: 1em;
             background-color: white;
             overflow: hidden;
+            word-break: auto-phrase;
         }
 
         th {
@@ -918,14 +919,14 @@
         #overall-summary .table-container th:nth-child(2),
         /* Column KW */
         #overall-summary .table-container td:nth-child(2) {
-            width: 25%;
+            width: 15%;
             /* Column KW width */
         }
 
         #overall-summary .table-container th:nth-child(3),
         /* Column SV */
         #overall-summary .table-container td:nth-child(3) {
-            width: 10%;
+            width: 7%;
             /* Column SV width */
         }
 
@@ -939,7 +940,7 @@
         #overall-summary .table-container th:nth-child(5),
         /* Column Time */
         #overall-summary .table-container td:nth-child(5) {
-            width: 15%;
+            width: 10%;
             /* Column Time width */
         }
 
@@ -948,6 +949,12 @@
         #overall-summary .table-container td:nth-child(6) {
             width: 40%;
             /* Column Reason width */
+        }
+
+        #overall-summary .table-container th:nth-child(7),
+        #overall-summary .table-container td:nth-child(7) {
+            width: 18%;
+            /* targteted URL */
         }
 
         #overall-summary .table-container textarea {
@@ -1889,6 +1896,22 @@
             .page-break {
                 page-break-before: always;
             }
+
+            .navbar {
+                position: static;
+                width: 100%;
+            }
+
+            .column,
+            .column40,
+            .column50,
+            .column60 {
+                width: 100%;
+            }
+
+            #SEM .column {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -1901,7 +1924,7 @@
     </div>
 
     <div class="navbar">
-        <div class="logo-container">
+        <div class="logo-container" id="logo">
             <img src="Digimetrics Logo-02.png" alt="MediaOne Logo" href="/" onclick="goToTop()">
         </div>
 
@@ -5058,14 +5081,12 @@
                     // 2. Get Domain Metrics for Target URLs & Rank Checking
                     const targetDataPromises = targetUrls.map(async (url) => {
                         const domainMetrics = await getDomainMetrics(url, keyword);
-                        //const rankData = await getRankForUrl(url, keyword, language, location);  Remove this.
 
                         return {
                             url: url,
                             ...domainMetrics?.body,
                             title: keywordMappingData.dict[url]?.title || 'N/A',
-                            description: keywordMappingData.dict[url]?.description || 'N/A',
-                            //rank: rankData  Remove this
+                            description: keywordMappingData.dict[url]?.description || 'N/A'
                         };
                     });
 
@@ -5226,15 +5247,20 @@
             </div>
           `;
 
-                    const coll = collapsibleSection.querySelector(".keywords-collapsible");
-                    coll.addEventListener("click", function () {
-                        this.classList.toggle("keywords-active");
-                        const content = this.nextElementSibling;
-                        if (content.style.display === "block") {
-                            content.style.display = "none";
-                        } else {
-                            content.style.display = "block";
-                        }
+                    const collapsibles = document.querySelectorAll('.keywords-collapsible');
+
+                    collapsibles.forEach(collapsible => {
+                        collapsible.addEventListener('click', function () {
+                            this.classList.toggle('keywords-active');
+                            const content = this.nextElementSibling;
+
+                            // Toggle the display style of the content
+                            if (content.style.display === 'block') {
+                                content.style.display = 'none';
+                            } else {
+                                content.style.display = 'block';
+                            }
+                        });
                     });
                 }
 
@@ -5253,16 +5279,20 @@
         `;
                 analysisResultsContainer.appendChild(collapsibleSection);
 
-                // Add event listener for the collapsible button
-                const coll = collapsibleSection.querySelector(".keywords-collapsible");
-                coll.addEventListener("click", function () {
-                    this.classList.toggle("keywords-active");
-                    const content = this.nextElementSibling;
-                    if (content.style.display === "block") {
-                        content.style.display = "none";
-                    } else {
-                        content.style.display = "block";
-                    }
+                const collapsibles = document.querySelectorAll('.keywords-collapsible');
+
+                collapsibles.forEach(collapsible => {
+                    collapsible.addEventListener('click', function () {
+                        this.classList.toggle('keywords-active');
+                        const content = this.nextElementSibling;
+
+                        // Toggle the display style of the content
+                        if (content.style.display === 'block') {
+                            content.style.display = 'none';
+                        } else {
+                            content.style.display = 'block';
+                        }
+                    });
                 });
             }
 
@@ -5378,7 +5408,8 @@
                 const metrics = keywordMetrics[keyword] || {
                     cpc: 'N/A',
                     search_volume: 'N/A',
-                    timeToRank: 'N/A'
+                    timeToRank: 'N/A',
+                    mapping: '-'
                 }; // Provide default values
 
                 return {
@@ -5387,27 +5418,29 @@
                     search_volume: metrics.search_volume || 'N/A',
                     cpc: metrics.cpc || 'N/A',
                     timeToRank: metrics.timeToRank || 'N/A',
-                    reason: '' // Initialize the 'Reason' field
+                    reason: '', // Initialize the 'Reason' field
+                    mapping: metrics.mapping || '',
                 };
             });
 
 
             let tableHTML = `
-        <h2>Overall Keyword Summary</h2>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>No.</th>
-                        <th onclick="sortSummaryTable('keyword')">Keyword</th>
-                        <th onclick="sortSummaryTable('search_volume')">Search Volume</th>
-                        <th onclick="sortSummaryTable('cpc')">CPC</th>
-                        <th onclick="sortSummaryTable('timeToRank')">Time to Rank</th>
-                        <th>Reason</th>
-                    </tr>
-                </thead>
-                <tbody>
-      `;
+<h2>Overall Keyword Summary</h2>
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+                <th>No.</th>
+                <th onclick="sortSummaryTable('keyword')">Keyword</th>
+                <th onclick="sortSummaryTable('search_volume')">Search Volume</th>
+                <th onclick="sortSummaryTable('cpc')">CPC</th>
+                <th onclick="sortSummaryTable('timeToRank')">Time to Rank</th>
+                <th>Reason</th>
+                <th>Mapping<th>
+            </tr>
+        </thead>
+        <tbody>
+`;
 
             for (let index = 0; index < summaryData.length; index++) {
                 const item = summaryData[index];
@@ -5418,22 +5451,23 @@
                 summaryData[index].reason = reason; // Update summaryData with initial reason
 
                 tableHTML += `
-            <tr>
-              <td>${item.No}</td>
-              <td>${item.keyword}</td>
-              <td>${item.search_volume}</td>
-              <td>${item.cpc}</td>
-              <td class="${timeToRankClass}">${item.timeToRank}</td>
-              <td><textarea class="multiline-input" id="reason-${index}" onchange="updateReason(${index}, this.value)">${reason}</textarea></td>
-              </tr>
-          `;
+    <tr>
+      <td>${item.No}</td>
+      <td>${item.keyword}</td>
+      <td>${item.search_volume}</td>
+      <td>${item.cpc}</td>
+      <td class="${timeToRankClass}">${item.timeToRank}</td>
+      <td><textarea class="multiline-input" id="reason-${index}" onchange="updateReason(${index}, this.value)">${reason}</textarea></td>
+      <td>${item.targetUrl}</td>
+      </tr>
+  `;
             }
 
             tableHTML += `
-                </tbody>
-            </table>
-        </div>
-      `;
+        </tbody>
+    </table>
+</div>
+`;
 
             summaryContainer.innerHTML = tableHTML + '<button id="downloadCsvBtn" onclick="downloadOverallSummaryTableAsCSV()">Download Keyword Summary as CSV</button><br><br>';
 
@@ -8727,17 +8761,22 @@
         }
 
         // Delegate the event listener to the document
-        document.addEventListener('click', function (event) {
-            if (event.target.classList.contains('keywords-collapsible')) {
-                const coll = event.target;
-                coll.classList.toggle("keywords-active");
-                const content = coll.nextElementSibling;
-                if (content.style.display === "block") {
-                    content.style.display = "none";
-                } else {
-                    content.style.display = "block";
-                }
-            }
+        document.addEventListener('DOMContentLoaded', function () {
+            const collapsibles = document.querySelectorAll('.keywords-collapsible');
+
+            collapsibles.forEach(collapsible => {
+                collapsible.addEventListener('click', function () {
+                    this.classList.toggle('keywords-active');
+                    const content = this.nextElementSibling;
+
+                    // Toggle the display style of the content
+                    if (content.style.display === 'block') {
+                        content.style.display = 'none';
+                    } else {
+                        content.style.display = 'block';
+                    }
+                });
+            });
         });
 
         async function loadTimeToRankQueryData(id, collection) {
