@@ -1865,6 +1865,31 @@
                 background-color: #ddd;
             }
         }
+
+        @media print {
+            body {
+                font-size: 12pt;
+                /* Adjust font size for printing */
+                line-height: 1.5;
+            }
+
+            /* Hide elements not needed for printing */
+            .no-print {
+                display: none;
+            }
+
+
+            /* Add margins for each page (important for printing) */
+            @page {
+                margin: 1cm;
+                /* Adjust margins as needed */
+            }
+
+            /* Force page breaks where needed */
+            .page-break {
+                page-break-before: always;
+            }
+        }
     </style>
 </head>
 
@@ -2516,6 +2541,7 @@
                 <div> </div> <!-- Clearfix -->
             </div>
             <hr>
+            <div class="page-break"></div>
             <button class="collapsible" id="keywordAnalysisBtn"><i class="fas fa-plus-square"></i>Keyword
                 Analysis</button>
             <div class="content" id="keywordAnalysis">
@@ -2525,6 +2551,7 @@
                 </div>
             </div>
             <hr>
+            <div class="page-break"></div>
             <button class="collapsible" id="technicalButton"><i class="fas fa-plus-square"></i>Technical
                 SEO</button>
             <div class="content" id="technicalSeo">
@@ -2644,6 +2671,7 @@
                 <button id="downloadResultsBtn" onclick="downloadResultsAsXlsx()">Download results as xlsx</button>
             </div>
             <hr>
+            <div class="page-break"></div>
             <button class="collapsible" id="contentComparisonButton"><i class="fas fa-plus-square"></i>Content
                 Comparison</button>
             <div class="content" id="contentComparison">
@@ -2676,7 +2704,7 @@
             </div>
 
             <hr>
-
+            <div class="page-break"></div>
             <button class="collapsible" id="schemaGeneratorButton"><i class="fas fa-plus-square"></i>Schema
                 Generator</button>
             <div class="content" id="schema">
@@ -2703,6 +2731,7 @@
                 <div id="schema-output"></div>
             </div>
             <hr>
+            <div class="page-break"></div>
             <button class="collapsible" id="onPageButton"><i class="fas fa-plus-square"></i>On-Page</button>
             <div id="onPageSection" class="content">
                 <div class="input-group">
@@ -2732,6 +2761,7 @@
                 <div class="content" id="contentRecommendations"></div>
             </div>
             <hr>
+            <div class="page-break"></div>
             <button class="collapsible" id="rankCheckerButton"><i class="fas fa-plus-square"></i>Rank
                 Checker</button>
             <div class="content" id="rankChecker">
@@ -2762,6 +2792,7 @@
             </div>
         </div>
         <hr>
+        <div class="page-break"></div>
         <button class="collapsible" id="smm"><i class="fas fa-plus-square"></i><i class="fas fa-share-alt"></i>Social
             Media (SMM)</button>
         <div class="content" id="socialMedia">
@@ -2893,6 +2924,7 @@
             </div>
         </div>
         <hr>
+        <div class="page-break"></div>
         <button class="collapsible" id="semButton"><i class="fas fa-plus-square"></i><i class="fas fa-ad"></i>Search
             Engine Marketing (SEM)</button>
         <div class="content" id="SEM">
@@ -2970,7 +3002,7 @@
             <div> </div> <!-- Clearfix -->
         </div>
         <hr>
-
+        <div class="page-break"></div>
         <button class="collapsible" id="competitionBtn"><i class="fas fa-plus-square"></i><i
                 class="fas fa-search"></i>Competitors Identifier</button>
         <div class="content" id="competitors_content">
@@ -2996,7 +3028,7 @@
         </div>
         <hr>
 
-
+        <div class="page-break"></div>
         <button class="collapsible" id="persona"><i class="fas fa-plus-square"></i><i class="fas fa-users"></i>Persona
             Generator</button>
         <div class="content" id="persona_content">
@@ -3014,6 +3046,7 @@
             </button>
         </div>
         <hr>
+        <div class="page-break"></div>
         <button class="collapsible" id="mediaPlanBtn"><i class="fas fa-plus-square"></i><i
                 class="fas fa-bullseye"></i>Media Plan</button>
         <div class="content" id="mediaplan">
@@ -3166,6 +3199,7 @@
         </div>
 
         <hr>
+        <div class="page-break"></div>
         <button class="collapsible" id="contentcheck"><i class="fas fa-plus-square"></i><i
                 class="fas fa-book-open"></i>Content Checker</button>
         <div class="content" id="content_check_content">
@@ -3192,6 +3226,7 @@
             </div>
         </div>
         <hr>
+        <div class="page-break"></div>
         <button class="collapsible" id="landingPageAuditBtn"><i class="fas fa-plus-square"></i><i
                 class="fas fa-clipboard-check"></i>Landing Page
             Audit</button>
@@ -9667,43 +9702,7 @@
                 progressBar.style.width = `${percentage}%`;
             });
 
-            // Import jsPDF library
-            const { jsPDF } = window.jspdf;
-
-            // Create a new jsPDF instance
-            const pdf = new jsPDF();
-
-
-            // Source HTMLElement or a string containing HTML.
-            const elementHTML = document.body;
-
-            // Special function to handle images
-            const specialElementHandlers = {
-                '#elementH': function (element, renderer) {
-                    return true;
-                }
-            };
-
-            // Margins
-            const margins = {
-                top: 10,
-                bottom: 10,
-                left: 10,
-                width: 190
-            };
-
-            // Convert HTML to PDF and await its completion
-            await pdf.html(elementHTML, {
-                x: margins.left,
-                y: margins.top,
-                width: margins.width, // max width of content on PDF
-                windowWidth: 920, // set the PDF width to be smaller than the HTML width
-                callback: function (pdf) {  // Provide a callback *inside* the options
-                    // Dispose of the object or save it for other uses
-                    pdf.save('digimetrics_report.pdf');
-                    console.log('download function completed');
-                }
-            });
+            window.print();
         }
 
 
