@@ -1663,10 +1663,6 @@
             background-color: #ddd;
         }
 
-        .journey-collapsible:hover {
-            background-color: #ddd;
-        }
-
         @media screen and (max-width: 1081px) {
 
             .column,
@@ -3036,8 +3032,8 @@
             <textarea id="competitor_keywords"></textarea><br>
             <label for="competitors-language">Language:</label>
             <input type="text" id="competitors-language" value="English" placeholder="e.g., English"><br>
-            <label for="competitors-location">Location:</label><br>
-            <input type="text" id="competitors-location" value="Singapore" placeholder="e.g., Singapore">
+            <label for="competitors-location">Location:</label>
+            <input type="text" id="competitors-location" value="Singapore" placeholder="e.g., Singapore"><br>
             <button id="getCompetitorsBtn" onclick="getCompetitors()">Step 1: Get Competitors</button>
             <div id="competitorsOutput" style="display:none;height:400px;overflow:auto;">
                 <br>
@@ -4973,6 +4969,7 @@
                 <th>URL</th>
                 <th>Title</th>
                 <th>Description</th>
+                <th>DA</th>
                 <th>Domain Rank</th>
                 <th>Backlinks</th>
                 <th>Backlinks Spam Score</th>
@@ -4999,12 +4996,14 @@
       `;
 
             serpResults.forEach(result => {
+                console.log(result);
                 tableHTML += `
             <tr>
               <td>${result.rank}</td>
               <td><a href="${result.url}" target="_blank">${result.url}</a></td>
               <td>${result.title}</td>
               <td>${result.description}</td>
+              <td>${result.da}</td>
               <td>${result.domain_rank || 'N/A'}</td>
               <td>${result.backlinks || 'N/A'}</td>
               <td>${result.backlinks_spam_score || 'N/A'}</td>
@@ -5130,10 +5129,13 @@
 
                         displayKeywordRecommendations(kwRecommendationsData.body, `recommendations-container-${keyword.replace(/\s+/g, '-')}`);
 
+                        // Extract URL
+                        mapped_url = kwRecommendationsData.body.match(/(https?:\/\/|www\.)([a-zA-Z0-9.-]+(\.[a-zA-Z]{2,})+[a-zA-Z0-9_/\-\?=\&%\#\.]*)/gi)[0];
+
                         // Extract Time to Rank using regex
                         const timeToRankMatch = kwRecommendationsData.body.match(/(0-3 months|3-6 months|6-9 months|9-12 months|more than 12 months|More than 12 months)/);
                         const timeToRank = timeToRankMatch ? timeToRankMatch[0] : 'N/A';
-                        return timeToRank;
+                        return [timeToRank, mapped_url];
                     } else {
                         console.warn(`Skipping Keyword Recommendations for ${keyword} due to missing serp_dict.`);
                         return 'N/A';
@@ -5338,13 +5340,16 @@
 
                 displaySerpResults(serpResultsWithMetrics, resultsContainerId);
 
+                keywordRecommendations = await getKeywordRecommendations(keyword, language, location, target, serp_dict)
+
                 // Await the keyword recommendations
-                const timeToRank = await getKeywordRecommendations(keyword, language, location, target, serp_dict);
+                const timeToRank = keywordRecommendations[0];
 
                 // Update the keywordMetrics object with time to rank
                 keywordMetrics[keyword] = {
                     ...keywordMetrics[keyword],
-                    timeToRank: timeToRank
+                    timeToRank: timeToRank,
+                    mapping: keywordRecommendations[1]
                 };
 
                 console.log("Keyword Metrics after keywordAnalysis:", keywordMetrics);
@@ -5436,7 +5441,7 @@
                 <th onclick="sortSummaryTable('cpc')">CPC</th>
                 <th onclick="sortSummaryTable('timeToRank')">Time to Rank</th>
                 <th>Reason</th>
-                <th>Mapping<th>
+                <th>Mapping</th>
             </tr>
         </thead>
         <tbody>
@@ -5458,7 +5463,7 @@
       <td>${item.cpc}</td>
       <td class="${timeToRankClass}">${item.timeToRank}</td>
       <td><textarea class="multiline-input" id="reason-${index}" onchange="updateReason(${index}, this.value)">${reason}</textarea></td>
-      <td>${item.targetUrl}</td>
+      <td>${item.mapping}</td>
       </tr>
   `;
             }
@@ -7489,7 +7494,7 @@
             const bom = "\uFEFF";
 
             // Headers - IMPORTANT:  Explicitly define the order.  This matches the table columns.
-            const headers = ['No.', 'Keyword', 'Search Volume', 'CPC', 'Time to Rank', 'Reason'];
+            const headers = ['No.', 'Keyword', 'Search Volume', 'CPC', 'Time to Rank', 'Reason', 'Mapping'];
             csvRows.push(headers.join(','));
 
             // Data rows
@@ -7500,7 +7505,8 @@
                     item.search_volume,
                     item.cpc,
                     item.timeToRank,
-                    item.reason
+                    item.reason,
+                    item.mapping
                 ];
                 // Use .map() and double quotes to handle commas and special characters
                 const row = values.map(value => `"${String(value).replace(/"/g, '""')}"`).join(','); //IMPORTANT: Escape double quotes within the string
@@ -8473,6 +8479,13 @@
         }
 
         function clearPageState() {
+            const collapsibles = document.querySelectorAll('.collapsible');
+
+            // Iterate over each element
+            collapsibles.forEach(collapsible => {
+                // Set the background color to the specified color
+                collapsible.style.backgroundColor = "#004c9d";
+            });
             // Clear input values
             document.getElementById('domain').value = '';
             document.getElementById('location').value = 'Singapore'; // Reset to default
