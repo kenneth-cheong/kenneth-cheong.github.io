@@ -1881,6 +1881,10 @@
                 display: none;
             }
 
+            #competitors-ranking,
+            #competitorsOutput {
+                height: auto;
+            }
 
             /* Add margins for each page (important for printing) */
             @page {
@@ -3025,23 +3029,32 @@
         <button class="collapsible" id="competitionBtn"><i class="fas fa-plus-square"></i><i
                 class="fas fa-search"></i>Competitors Identifier</button>
         <div class="content" id="competitors_content">
-            <label for="competitors-target1">Target Domain:</label>
-            <input type="text" id="competitors-target1" placeholder="e.g. www.abc.com"><br>
-            <label for="competitor_keywords">Keywords (seperated by commas or new
-                lines):</label><br>
-            <textarea id="competitor_keywords"></textarea><br>
-            <label for="competitors-language">Language:</label>
-            <input type="text" id="competitors-language" value="English" placeholder="e.g., English"><br>
-            <label for="competitors-location">Location:</label>
-            <input type="text" id="competitors-location" value="Singapore" placeholder="e.g., Singapore"><br>
-            <button id="getCompetitorsBtn" onclick="getCompetitors()">Step 1: Get Competitors</button>
-            <div id="competitorsOutput" style="display:none;height:400px;overflow:auto;">
-                <br>
+            <div class="column50">
+                <label for="competitors-target1">Target Domain:</label>
+                <input type="text" id="competitors-target1" placeholder="e.g. www.abc.com"><br>
+                <label for="competitor_keywords">Keywords (seperated by commas or new
+                    lines):</label><br>
+                <textarea id="competitor_keywords"></textarea><br>
+                <label for="competitors-language">Language:</label>
+                <input type="text" id="competitors-language" value="English" placeholder="e.g., English"><br>
+                <label for="competitors-location">Location:</label>
+                <input type="text" id="competitors-location" value="Singapore" placeholder="e.g., Singapore"><br>
+                <button id="getCompetitorsBtn" onclick="getCompetitors()">Step 1: Get Competitors</button><br>
+                <div id="competitorsOutput" style="display:none;height:400px;overflow:auto;">
+                    <br>
+                </div>
+            </div>
+            <div class="column50">
+                <label for="competitor_domains">Competitor Domains:</label><br>
+                <textarea id="competitor_domains"></textarea><br>
+                <button id="getIntersectionResults2" onclick="getIntersectionResults2()">
+                    Get Intersection
+                    Results</button><br>
             </div>
             <!-- Add this button below the competitors table -->
             <button id="getIntersectionResults" style="display:none" onclick="getIntersectionResults()">Step 2:
                 Choose
-                Competiors & Get Intersection
+                Competitors & Get Intersection
                 Results</button>
             <div id="competitorsRanking" style="display:none;height:400px;overflow:auto;"></div>
         </div>
@@ -6215,6 +6228,56 @@
 
         }
 
+        async function getIntersectionResults2() {
+            var domains = document.getElementById('competitor_domains').value;
+            domainsArray = domains.split(/[,\n]+/).map(domain => domain.trim()).filter(domain => domain !== "");
+
+            var location = document.getElementById('competitors-location').value;
+
+            var url = "https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords";
+
+            var headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            };
+
+            const target1Value = document.getElementById('competitors-target1').value;
+
+            const apiCalls = domainsArray.map(domain => {
+                const requestBody = {
+                    "language": document.getElementById('competitors-language').value,
+                    "location": document.getElementById('competitors-location').value,
+                    "target1": target1Value,
+                    "target2": domain
+                };
+
+                return fetch('https://8llvcx7m6e.execute-api.ap-southeast-1.amazonaws.com/domainIntersection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        return { domain: domain, data: data }; // Return domain along with the data
+                    })
+                    .catch(error => {
+                        console.error(`Error fetching intersection results for ${domain}:`, error);
+                        return { domain: domain, error: error }; // Return domain and the error
+                    });
+            });
+
+            // Execute all API calls in parallel
+            const results = await Promise.all(apiCalls);
+            displayIntersectionResults(results);
+            document.getElementById('getIntersectionResults').style.display = 'block';
+        }
         function displayIntersectionResults(results) {
             const outputDiv = document.getElementById("competitorsRanking");
             if (!outputDiv) {
@@ -6283,7 +6346,7 @@
             outputDiv.innerHTML = tableHTML;
             outputDiv.innerHTML += '<br><button type="button" onclick="copyInteractionResultsTable()"><i class="fa fa-copy"></i></button>';
             outputDiv.innerHTML += '<button type="button" onclick="exportInteractionResultsTableToCSV()">Export as .csv</button>';
-            document.getElementById('getIntersectionResults').innerText = 'Step 2: Choose Competiors & Get Intersection Results';
+            document.getElementById('getIntersectionResults').innerText = 'Step 2: Choose Competitors & Get Intersection Results';
             document.getElementById('competitorsRanking').style.display = 'block';
         }
 
