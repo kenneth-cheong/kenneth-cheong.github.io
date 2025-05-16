@@ -3039,7 +3039,7 @@
                 <input type="text" id="competitors-language" value="English" placeholder="e.g., English"><br>
                 <label for="competitors-location">Location:</label>
                 <input type="text" id="competitors-location" value="Singapore" placeholder="e.g., Singapore"><br>
-                <button id="getCompetitorsBtn" onclick="getCompetitors()">Step 1: Get Competitors</button><br>
+                <button id="getCompetitorsBtn" onclick="getCompetitors()">Get Competitors</button><br>
                 <div id="competitorsOutput" style="display:none;height:400px;overflow:auto;">
                     <br>
                 </div>
@@ -3050,13 +3050,11 @@
                 <button id="getIntersectionResults2" onclick="getIntersectionResults2()">
                     Get Intersection
                     Results</button><br>
+
+
+                <div id="getIntersectionResults"></div>
+                <div id="competitorsRanking" style="display:none;height:400px;overflow:auto;"></div>
             </div>
-            <!-- Add this button below the competitors table -->
-            <button id="getIntersectionResults" style="display:none" onclick="getIntersectionResults()">Step 2:
-                Choose
-                Competitors & Get Intersection
-                Results</button>
-            <div id="competitorsRanking" style="display:none;height:400px;overflow:auto;"></div>
         </div>
         <hr>
 
@@ -4812,6 +4810,21 @@
             updateKeywordCount();
         }
 
+        function updateCompetitorDomainsField() {
+            const domainsTextArea = document.getElementById('competitor_domains');
+            const checkedDomains = new Set(); // Use a Set to store unique values
+
+            // Get checked keywords from both tables
+            try {
+                const domainsCheckboxes = document.querySelectorAll('#competitorsOutput input[type="checkbox"]:checked');
+                domainsCheckboxes.forEach(checkbox => checkedDomains.add(checkbox.value));
+            } catch (error) {
+                console.log(error);
+            }
+
+            domainsTextArea.value = Array.from(checkedDomains).join(', '); // Convert Set back to array before joining
+        }
+
         async function validateAndSubmit() {
             const domain = document.getElementById('domain').value;
             const keywordsInput = document.getElementById('keywords').value;
@@ -6163,7 +6176,8 @@
                 <tr>
                     <td>${linkedDomain}</td>
                     <td>${keywordRankText}</td>
-                    <td><input type="checkbox" class="domain-checkbox" value="${domain}"></td>
+                    <td><input type="checkbox" class="domain-checkbox" value="${domain}" onchange="updateCompetitorDomainsField()"></td>
+
                 </tr>
             `;
                 }
@@ -6175,13 +6189,18 @@
     `;
 
             outputDiv.innerHTML = tableHTML;
+
+            // Add event listener after the table is rendered
+            const checkboxes = document.querySelectorAll('.domain-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', updateCompetitorDomainsField);
+            });
             // Show the button
             document.getElementById('getIntersectionResults').style.display = 'block';
         }
 
         async function getIntersectionResults() {
             document.getElementById('competitorsRanking').style.display = 'none';
-            document.getElementById('getIntersectionResults').innerText = 'Getting Results...';
             const checkedDomains = Array.from(document.querySelectorAll('.domain-checkbox:checked'))
                 .map(checkbox => checkbox.value);
 
@@ -6229,6 +6248,7 @@
         }
 
         async function getIntersectionResults2() {
+            document.getElementById('getIntersectionResults2').innerText = "Getting Results..";
             var domains = document.getElementById('competitor_domains').value;
             domainsArray = domains.split(/[,\n]+/).map(domain => domain.trim()).filter(domain => domain !== "");
 
@@ -6277,6 +6297,7 @@
             const results = await Promise.all(apiCalls);
             displayIntersectionResults(results);
             document.getElementById('getIntersectionResults').style.display = 'block';
+            document.getElementById('getIntersectionResults2').innerText = "Get Intersection Results";
         }
         function displayIntersectionResults(results) {
             const outputDiv = document.getElementById("competitorsRanking");
@@ -6346,7 +6367,6 @@
             outputDiv.innerHTML = tableHTML;
             outputDiv.innerHTML += '<br><button type="button" onclick="copyInteractionResultsTable()"><i class="fa fa-copy"></i></button>';
             outputDiv.innerHTML += '<button type="button" onclick="exportInteractionResultsTableToCSV()">Export as .csv</button>';
-            document.getElementById('getIntersectionResults').innerText = 'Step 2: Choose Competitors & Get Intersection Results';
             document.getElementById('competitorsRanking').style.display = 'block';
         }
 
