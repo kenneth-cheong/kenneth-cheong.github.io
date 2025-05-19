@@ -1,41 +1,82 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<title>Keyword Density Analyzer</title>
-<style>
-  table {
-    border-collapse: collapse;
-    width: 100%;
-  }
-  th, td {
-    border: 1px solid black;
-    padding: 8px;
-    text-align: left;
-  }
-  th {
-    background-color: #f2f2f2;
-    cursor: pointer;
-  }
+  <title>Keyword Density Analyzer</title>
+  <style>
+    input,
+    select,
+    button,
+    textarea {
+      padding: 5px 8px;
+      margin: 5px;
+      border-radius: 10px;
+      border: 1px solid #c8c8c8;
+      font-family: inherit;
+      font-size: 14px;
+      width: 50%;
+    }
 
-  /* Sticky header and first column */
-  th {
-    position: sticky;
-    top: 0;
-    background-color: #f2f2f2; /* Ensures the header is visible */
-    z-index: 1; /* Keeps the header above other cells when scrolling */
-  }
+    button {
+      width: auto;
+    }
 
-  /* Sticky first column */
-  td:first-child, th:first-child {
-    position: sticky;
-    left: 0;
-    background-color: white; /* Ensures the first column is visible */
-    z-index: 2; /* Keeps the first column above other cells and header */
-  }
-</style>
+    body {
+      font-family: sans-serif;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 20px;
+    }
+
+    th {
+      background-color: #f2f2f2;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid black;
+      padding: 8px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f2f2f2;
+      cursor: pointer;
+    }
+
+    /* Sticky header and first column */
+    th {
+      position: sticky;
+      top: 0;
+      background-color: #f2f2f2;
+      /* Ensures the header is visible */
+      z-index: 1;
+      /* Keeps the header above other cells when scrolling */
+    }
+
+    /* Sticky first column */
+    td:first-child,
+    th:first-child {
+      position: sticky;
+      left: 0;
+      background-color: white;
+      /* Ensures the first column is visible */
+      z-index: 2;
+      /* Keeps the first column above other cells and header */
+    }
+  </style>
 </head>
+
 <body>
-  <h1>Keyword Density Analyzer</h1>
+  <h1>Keyword Density Analyser</h1>
   <textarea id="urls" placeholder="Enter URLs, separated by commas or newlines"></textarea><br>
   <button id="analyze" onclick="analyzeUrls()">Analyze</button>
   <div id="results"></div>
@@ -46,10 +87,10 @@
       const urlsText = document.getElementById("urls").value;
       const urls = urlsText.split(/[\s,]+/); // Split by commas, spaces, and newlines
       const validUrls = urls.filter(url => url.trim() !== ""); // Remove empty strings
-      
+
       if (validUrls.length === 0) {
-          document.getElementById("results").innerHTML = "<p>Please enter at least one URL.</p>";
-          return;
+        document.getElementById("results").innerHTML = "<p>Please enter at least one URL.</p>";
+        return;
       }
 
       const promises = validUrls.map(url => {
@@ -60,18 +101,18 @@
           },
           body: JSON.stringify({ target: url.trim() })
         })
-        .then(response => response.json())
-        .catch(error => {
-          console.log(response.json());
-          console.error("Error fetching data for " + url.trim() + ":", error);
-          return {error: `Error fetching data for ${url.trim()}: ${error.message || error}`} // Handle errors gracefully
-        });
+          .then(response => response.json())
+          .catch(error => {
+            console.log(response.json());
+            console.error("Error fetching data for " + url.trim() + ":", error);
+            return { error: `Error fetching data for ${url.trim()}: ${error.message || error}` } // Handle errors gracefully
+          });
       });
 
       const responses = await Promise.all(promises);
 
       displayResults(validUrls, responses);
-      document.getElementById('analyze').innerText = "Analyze"
+      document.getElementById('analyze').innerText = "Analyse"
     }
 
     function displayResults(urls, responses) {
@@ -88,29 +129,29 @@
       // Extract all unique keywords
       let allKeywords = new Set();
       responses.forEach(response => {
-          if (Array.isArray(response)) {  // Check if the response is an array
-            response.forEach(item => allKeywords.add(item.keyword));
-          }
+        if (Array.isArray(response)) {  // Check if the response is an array
+          response.forEach(item => allKeywords.add(item.keyword));
+        }
       });
       allKeywords = Array.from(allKeywords);
 
       // Populate table rows with keyword data
       allKeywords.forEach(keyword => {
-          tableHTML += `<tr><td>${keyword}</td>`;
-          urls.forEach((url, urlIndex) => {
-              let frequency = 0;
-              if (Array.isArray(responses[urlIndex])) { //check if the response is an array.
-                const keywordData = responses[urlIndex].find(item => item.keyword === keyword);
-                frequency = keywordData ? keywordData.frequency : 0;
-              } else if (typeof responses[urlIndex] === 'object' && responses[urlIndex] !== null && responses[urlIndex].error) { //check for error.
-                frequency = responses[urlIndex].error; 
-              } else {
-                frequency = "N/A"; //Handle unexpected response
-              }
+        tableHTML += `<tr><td>${keyword}</td>`;
+        urls.forEach((url, urlIndex) => {
+          let frequency = 0;
+          if (Array.isArray(responses[urlIndex])) { //check if the response is an array.
+            const keywordData = responses[urlIndex].find(item => item.keyword === keyword);
+            frequency = keywordData ? keywordData.frequency : 0;
+          } else if (typeof responses[urlIndex] === 'object' && responses[urlIndex] !== null && responses[urlIndex].error) { //check for error.
+            frequency = responses[urlIndex].error;
+          } else {
+            frequency = "N/A"; //Handle unexpected response
+          }
 
-              tableHTML += `<td>${frequency}</td>`;
-          });
-          tableHTML += '</tr>';
+          tableHTML += `<td>${frequency}</td>`;
+        });
+        tableHTML += '</tr>';
       });
 
       tableHTML += '</table>';
@@ -142,16 +183,16 @@
       var rows = Array.from(table.rows).slice(1); // Convert to array for easier sorting
 
       // Sort the rows based on the frequency in the specified column
-      rows.sort(function(row1, row2) {
+      rows.sort(function (row1, row2) {
         var frequency1 = row1.cells[columnIndex].textContent;
         var frequency2 = row2.cells[columnIndex].textContent;
 
         //Handle error responses
-        if(frequency1 === "N/A"){
-            return -1;
+        if (frequency1 === "N/A") {
+          return -1;
         }
-        if(frequency2 === "N/A"){
-            return 1;
+        if (frequency2 === "N/A") {
+          return 1;
         }
 
         return frequency2 - frequency1;
@@ -162,28 +203,29 @@
     }
 
     function sortKeyword() {
-        var table = document.querySelector("#results table");
-        if (!table) {
-            return;
+      var table = document.querySelector("#results table");
+      if (!table) {
+        return;
+      }
+
+      var rows = Array.from(table.rows).slice(1);
+
+      rows.sort(function (row1, row2) {
+        var keyword1 = row1.cells[0].textContent.toLowerCase();
+        var keyword2 = row2.cells[0].textContent.toLowerCase();
+
+        if (keyword1 < keyword2) {
+          return -1;
         }
+        if (keyword1 > keyword2) {
+          return 1;
+        }
+        return 0;
+      });
 
-        var rows = Array.from(table.rows).slice(1);
-
-        rows.sort(function(row1, row2) {
-            var keyword1 = row1.cells[0].textContent.toLowerCase();
-            var keyword2 = row2.cells[0].textContent.toLowerCase();
-
-            if (keyword1 < keyword2) {
-                return -1;
-            }
-            if (keyword1 > keyword2) {
-                return 1;
-            }
-            return 0;
-        });
-
-        rows.forEach(row => table.appendChild(row));
+      rows.forEach(row => table.appendChild(row));
     }
   </script>
 </body>
+
 </html>
