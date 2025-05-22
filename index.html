@@ -2717,6 +2717,18 @@
                 <textarea id="comparison-urls"
                     placeholder="e.g., https://example.com, https://another-example.com"></textarea>
                 <br>
+
+                <label>Page Types to Target:</label><br>
+                <input type="checkbox" id="target-blogs" name="target-page-type" value="blogs">
+                <label for="target-blogs">Blog Article</label>
+                <input type="checkbox" id="target-product" name="target-page-type" value="product">
+                <label for="target-product">Product/Service Page</label>
+                <input type="checkbox" id="target-landing" name="target-page-type" value="landing">
+                <label for="target-landing">Landing Page</label>
+                <input type="checkbox" id="target-any" name="target-page-type" value="any" checked>
+                <label for="target-any">Any</label>
+                <br>
+
                 <div class="column">
                     <label for="comparison-language">Language:</label>
                     <input type="text" id="comparison-language" value="English" placeholder="e.g., English">
@@ -2730,10 +2742,6 @@
                     mins)</button>
                 <button onclick="openContentComparisonQueriesModal()" id="loadTimeToRankQueriesBtn">Load Previous
                     Queries</button>
-
-                <div id="loading-messages">
-                    <p class="message"></p>
-                </div>
                 <div id="initial-table"></div>
                 <div id="comparison-results"></div>
                 <div id="keyword-density"></div>
@@ -3831,7 +3839,6 @@
 
         analyzeBtn = document.getElementById('analyzeBtn');
         const resultsDiv = document.getElementById('comparison-results');
-        const loadingMessagesDiv = document.getElementById('loading-messages');
         const messageElement = document.querySelector('.message');
         const messages = [
             'Getting SERP results...',
@@ -4024,26 +4031,19 @@
             // Show loading messages, hide previous results
             resultsDiv.innerHTML = '';
             analyzeBtn.innerHTML = 'Analysing...';
-            loadingMessagesDiv.classList.add('active');
 
             keyword = document.getElementById('comparison-keyword').value;
             const urlsInput = document.getElementById('comparison-urls').value;
             const language = document.getElementById('comparison-language').value;
             const location = document.getElementById('comparison-location').value;
-            user = JSON.parse(localStorage.getItem('googleUser')).email
+            user = JSON.parse(localStorage.getItem('googleUser')).email;
             urls = urlsInput.split(/[\s,]+/).filter(url => url.trim() !== "");
-            const loadingMessageInterval = setInterval(updateLoadingMessage, 4000);
+
+            // Get selected page types
+            const pageTypes = Array.from(document.querySelectorAll('input[name="target-page-type"]:checked'))
+                .map(checkbox => checkbox.value);
 
             try {
-                // Function to cycle through loading messages
-                function updateLoadingMessage() {
-                    messageElement.textContent = messages[currentMessageIndex];
-                    currentMessageIndex = (currentMessageIndex + 1) % messages.length;
-                }
-
-                // Start cycling loading messages
-                //const loadingMessageInterval = setInterval(updateLoadingMessage, 4000);
-
                 let serpUrls = [];
                 try {
                     if (keyword != "") {
@@ -4051,7 +4051,7 @@
                         const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ keyword, language, location, user }),
+                            body: JSON.stringify({ keyword, language, location, user}), 
                         });
                         const serpData = await serpResponse.json();
                         if (serpData.statusCode !== 200) {
@@ -4111,9 +4111,11 @@
                 const comparisonResponse = await fetch('https://33v5mhjt47.execute-api.ap-southeast-1.amazonaws.com/comparisonRecommender', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ output: analysisData, keyword }), // Send analysisData directly
+                    body: JSON.stringify({ output: analysisData, keyword, location, pageTypes }), // Send analysisData directly
                 });
                 const comparisonData = await comparisonResponse.json();
+
+                console.log(comparisonData);
 
                 // Display recommendations and output table from comparison API
                 const recommendation = comparisonData.body.recommendation;
@@ -4134,11 +4136,6 @@
                     resultsDiv.innerHTML += `<pre>${recommendation}</pre>`;
                 }
 
-                // --- Data is ready, stop loading messages ---
-                clearInterval(loadingMessageInterval);
-                loadingMessagesDiv.classList.remove('active');
-
-
                 /*
                 const promises = serpUrls.map(url => {
                     return fetch('https://de0bccf9w7.execute-api.ap-southeast-1.amazonaws.com/keywordDensity', {
@@ -4155,11 +4152,11 @@
                             return { error: `Error fetching data for ${url.trim()}: ${error.message || error}` } // Handle errors gracefully
                         });
                 });
-
+        
                 const responses = await Promise.all(promises);
-
+        
                 displayDensityResults(serpUrls, responses);
-
+        
                 */
 
 
@@ -4169,13 +4166,8 @@
             } catch (error) {
                 resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
                 try {
-                    clearInterval(loadingMessageInterval);
-                    loadingMessagesDiv.classList.remove('active');
                 } catch (error) {
-                    clearInterval(loadingMessageInterval);
-                    loadingMessagesDiv.classList.remove('active');
                 }
-                loadingMessagesDiv.classList.remove('active');
                 analyzeBtn.innerHTML = 'Analyse (up to 3 mins)';
             }
         }
