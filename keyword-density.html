@@ -79,7 +79,7 @@
   <h1>Keyword Density Analyser</h1>
   <textarea id="urls" placeholder="Enter URLs, separated by commas or newlines"></textarea><br>
   <button id="analyze" onclick="analyzeUrls()">Analyze</button>
-  <div id="results"></div>
+  <div id="keyword-density"></div>
 
   <script>
     async function analyzeUrls() {
@@ -111,18 +111,18 @@
 
       const responses = await Promise.all(promises);
 
-      displayResults(validUrls, responses);
+      displayDensityResults(validUrls, responses);
       document.getElementById('analyze').innerText = "Analyse"
     }
 
-    function displayResults(urls, responses) {
-      const resultsDiv = document.getElementById("results");
+    function displayDensityResults(urls, responses) {
+      const resultsDiv = document.getElementById("keyword-density");
       let tableHTML = '<table>';
 
       // Create table headers (URLs)
-      tableHTML += '<tr><th onclick="sortKeyword()">Keyword</th>';
+      tableHTML += '<tr><th onclick="sortDensityKeyword()">Keyword</th>';
       urls.forEach(url => {
-        tableHTML += `<th onclick="sortTable('${url}')">${url}</th>`;
+        tableHTML += `<th onclick="sortDensityTable('${url}')">${url}</th>`;
       });
       tableHTML += '</tr>';
 
@@ -158,7 +158,7 @@
       resultsDiv.innerHTML = tableHTML;
     }
 
-    function sortTable(url) {
+    function sortDensityTable(url) {
       // Get the table element
       var table = document.querySelector("#results table");
       if (!table) {
@@ -202,7 +202,7 @@
       rows.forEach(row => table.appendChild(row));
     }
 
-    function sortKeyword() {
+    function sortDensityKeyword() {
       var table = document.querySelector("#results table");
       if (!table) {
         return;
