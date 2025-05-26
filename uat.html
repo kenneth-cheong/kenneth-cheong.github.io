@@ -104,12 +104,6 @@
             display: none;
         }
 
-        .header-text {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 300px;
-        }
-
         .thumbnail {
             max-width: 100px;
             max-height: 100px;
@@ -288,7 +282,6 @@
         .header-text {
             overflow: hidden;
             text-overflow: ellipsis;
-            max-width: 300px;
             display: inline-block;
             /* Needed for text-overflow */
             vertical-align: middle;
@@ -381,7 +374,6 @@
             /* White or very light background */
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
         }
-
     </style>
     <!-- jsPDF and html2pdf libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -940,12 +932,22 @@
             // Headers (H1-H6)
             const headers = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
             const headersBody = document.getElementById('headers-body');
+            const indentation = {
+                'H1': 0,
+                'H2': 1,
+                'H3': 2,
+                'H4': 3,
+                'H5': 4,
+                'H6': 5
+            };
             headers.forEach(header => {
                 let row = headersBody.insertRow();
                 let cell = row.insertCell();
                 // Remove whitespace and newlines
                 const headerText = header.innerText.trim().replace(/\s+/g, ' ');
-                cell.innerHTML = `<span class="header-text">${header.tagName}: ${headerText}</span>`;
+                const indentLevel = indentation[header.tagName];
+                const indent = ' '.repeat(indentLevel * 4); // Adjust the number for desired indentation
+                cell.innerHTML = `<span class="header-text">${indent}${header.tagName}: ${headerText}</span>`;
             });
 
 
