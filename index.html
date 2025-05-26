@@ -2719,7 +2719,7 @@
                 <br>
 
                 <label>Page Types to Target:</label><br>
-                <input type="checkbox" id="target-blogs" name="target-page-type" value="blogs">
+                <input type="checkbox" id="target-blogs" name="target-page-type" value="blog">
                 <label for="target-blogs">Blog Article</label>
                 <input type="checkbox" id="target-product" name="target-page-type" value="product">
                 <label for="target-product">Product/Service Page</label>
@@ -4043,21 +4043,21 @@
             const pageTypes = Array.from(document.querySelectorAll('input[name="target-page-type"]:checked'))
                 .map(checkbox => checkbox.value);
 
+                console.log(pageTypes);
+
             try {
                 let serpUrls = [];
                 try {
                     if (keyword != "") {
                         // 1. Fetch URLs from SERP API
-                        const serpResponse = await fetch('https://u22k9g2y8c.execute-api.ap-southeast-1.amazonaws.com/new', {
+                        const serpResponse = await fetch('https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ keyword, language, location, user}), 
+                            body: JSON.stringify({ keyword, language, location, user, page_types:pageTypes}), 
                         });
                         const serpData = await serpResponse.json();
-                        if (serpData.statusCode !== 200) {
-                            throw new Error(`SERP API Error: ${serpData.body || serpData.errorMessage}`);
-                        }
-                        serpUrls = Object.values(serpData.body).map(result => result.url);
+                        console.log(serpData);
+                        serpUrls = Object.values(serpData).map(result => result.url);
 
                         if (urls != "") {
                             serpUrls = [...new Set([...serpUrls, ...urls])]; // Combine and deduplicate
@@ -4069,6 +4069,8 @@
                 } catch (error) {
                     serpUrls = urls;
                 }
+
+                console.log(serpUrls);
 
                 // 2. Fetch content analysis for each URL *concurrently*
                 const analysisPromises = serpUrls.map(url =>
