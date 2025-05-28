@@ -708,47 +708,51 @@
         }
 
         async function websiteCrawler(domain, url) {
-    try {
-        response = await fetch('https://781r68gcz9.execute-api.ap-southeast-1.amazonaws.com/websiteCrawler', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                domain: domain,
-                start_url: url
-            })
-        });
+            try {
+                response = await fetch('https://781r68gcz9.execute-api.ap-southeast-1.amazonaws.com/websiteCrawler', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        domain: domain,
+                        start_url: url
+                    })
+                });
 
-        if (!response.ok) {
-            throw new Error(`HTTP error in websiteCrawler! status: ${response.status}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error in websiteCrawler! status: ${response.status}`);
+                }
+
+                const taskId = await response.json();
+
+                console.log(taskId);
+
+                // Wait for 20 seconds (20000 milliseconds)
+                await new Promise(resolve => setTimeout(resolve, 20000));
+
+                response = await fetch('https://68x3gtrb48.execute-api.ap-southeast-1.amazonaws.com/getWebsiteCrawlerResults', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        task_id: taskId
+                    })
+                });
+
+
+                const crawlerResults = await response.json();
+
+                console.log(crawlerResults);
+                return (crawlerResults.body);
+
+            } catch (error) {
+                console.error("Error fetching from websiteCrawler:", error);
+                throw error;
+            }
+
         }
-
-        const taskId = await response.json();
-
-        // Wait for 20 seconds (20000 milliseconds)
-        await new Promise(resolve => setTimeout(resolve, 20000));
-
-        response = await fetch('https://68x3gtrb48.execute-api.ap-southeast-1.amazonaws.com/getWebsiteCrawlerResults', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                task_id: taskId
-            })
-        });
-
-
-        const crawlerResults = await response.json();
-        return (crawlerResults.body);
-
-    } catch (error) {
-        console.error("Error fetching from websiteCrawler:", error);
-        throw error;
-    }
-
-}
 
 
         function displayWebsiteCrawlerResults(data) {

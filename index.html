@@ -373,6 +373,12 @@
             display: none;
         }
 
+        .thumbnail {
+            max-width: 100px;
+            max-height: 100px;
+            cursor: pointer;
+        }
+
         th {
             resize: horizontal;
         }
@@ -404,6 +410,12 @@
             position: sticky;
             color: white;
             top: 0;
+        }
+
+        #image-alt-table,
+        #links-table,
+        #headers-table {
+            word-break: inherit;
         }
 
         .error {
@@ -1356,6 +1368,7 @@
             display: none;
         }
 
+
         #metaTable td:nth-child(1) {
             width: 15%;
             /* Adjust this value as needed */
@@ -1940,6 +1953,7 @@
             <a href="#">SEO</a>
             <div class="dropdown-content">
                 <a href="#keywordAnalysis" onclick="openKeywordAnalysis(event)">Keyword Analysis</a>
+                <a href="#crawlerSimulator" onclick="openCrawlerSimulator(event)">Google Crawler Simulator</a>
                 <a href="#technicalSeo" onclick="openTechnicalSeo(event)">Technical SEO</a>
                 <a href="#contentComparison" onclick="openContentComparison(event)">Content Comparison</a>
                 <a href="#schemaGeneratorButton" onclick="openSchemaGenerator(event)">Schema Generator</a>
@@ -2583,6 +2597,82 @@
                 <div id="overall-summary" style="display:none;"></div>
                 <div id="keyword-analysis-results">
                     <!-- Collapsible sections for each keyword analysis will be added here -->
+                </div>
+            </div>
+            <hr>
+            <div class="page-break"></div>
+            <button class="collapsible" id="simulatorButton"><i class="fas fa-plus-square"></i>Google Crawler
+                Simulator</button>
+            <div class="content" id="crawlerSimulator">
+                <label for="google-simulator-url">Enter URL:</label>
+                <input type="url" id="google-simulator-url" size="50"><br>
+                <button id="simulatorBtn" onclick="googleCrawlerSimulator()">Analyse</button>
+                <div id="crawler-simulator-results" style="display: none;">
+                    <h3>Meta Information</h3>
+                    <table id="meta-table">
+                        <thead>
+                            <tr>
+                                <th>Property</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Meta Title</td>
+                                <td id="simulator-meta-title"></td>
+                            </tr>
+                            <tr>
+                                <td>Meta Description</td>
+                                <td id="simulator-meta-description"></td>
+                            </tr>
+                            <tr>
+                                <td>Canonical Tag</td>
+                                <td id="simulator-canonical-tag"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div id="keyword-density"></div>
+                    <div class="page-break"></div>
+                    <!-- Page break before Headers -->
+                    <h3>Headers</h3>
+                    <table id="headers-table">
+                        <thead>
+                            <tr>
+                                <th>Header</th>
+                            </tr>
+                        </thead>
+                        <tbody id="simulator-headers-body">
+                        </tbody>
+                    </table>
+
+                    <div class="page-break"></div>
+                    <!-- Page break before Links -->
+                    <h3>Links</h3>
+                    <table id="links-table">
+                        <thead>
+                            <tr>
+                                <th>Link Type</th>
+                                <th>URL</th>
+                                <th>Link Text</th>
+                            </tr>
+                        </thead>
+                        <tbody id="simulator-links-body">
+                        </tbody>
+                    </table>
+
+
+                    <h3>Image Alt Text</h3>
+                    <table id="image-alt-table">
+                        <thead>
+                            <tr>
+                                <th>Thumbnail</th>
+                                <th>Image URL</th>
+                                <th>Alt Text</th>
+                            </tr>
+                        </thead>
+                        <tbody id="simulator-image-alt-body">
+                        </tbody>
+                    </table>
                 </div>
             </div>
             <hr>
@@ -3523,6 +3613,31 @@
             closeJourneyModal();
         }
 
+        function openCrawlerSimulator(event) {
+            event.preventDefault();
+            deactivateAllButtons();
+            openSeo(event);
+            Button = document.querySelector('button#simulatorButton');
+            if (Button) {
+                Button.classList.toggle('active');
+                const content = Button.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const simulatorLink = event.currentTarget;
+                simulatorLink.classList.toggle('active-menu');
+
+                if (content.style.display === "block") {
+                    const simulatorSection = document.getElementById('simulatorButton');
+                    if (simulatorSection) {
+                        simulatorSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+            closeJourneyModal();
+        }
+
         function openContentComparison(event) {
             event.preventDefault();
             deactivateAllButtons();
@@ -4043,7 +4158,7 @@
             const pageTypes = Array.from(document.querySelectorAll('input[name="target-page-type"]:checked'))
                 .map(checkbox => checkbox.value);
 
-                console.log(pageTypes);
+            console.log(pageTypes);
 
             try {
                 let serpUrls = [];
@@ -4053,7 +4168,7 @@
                         const serpResponse = await fetch('https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ keyword, language, location, user, page_types:pageTypes}), 
+                            body: JSON.stringify({ keyword, language, location, user, page_types: pageTypes }),
                         });
                         const serpData = await serpResponse.json();
                         console.log(serpData);
@@ -9952,6 +10067,349 @@
             }
 
         }
+
+        async function keywordDensity() {
+            const url = document.getElementById('google-simulator-url').value;
+
+            // Validation of URL (Basic example)
+            try {
+                new URL(url); // Try to parse the URL.  Throws an error if invalid
+            } catch (error) {
+                console.error("Invalid URL:", url);
+                return { error: "Invalid URL provided." };
+            }
+
+            try {
+                const response = await fetch('https://de0bccf9w7.execute-api.ap-southeast-1.amazonaws.com/keywordDensity', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ target: url.trim() })
+                });
+
+                if (!response.ok) {
+                    // Handle HTTP errors (e.g., 404, 500)
+                    const errorMessage = await response.text(); // Or response.json() if the API returns a JSON error
+                    throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorMessage}`);
+                }
+
+                const data = await response.json();
+
+                keywordDensityDiv = document.getElementById("keyword-density");
+                let tableHTML = '<table>';
+
+                // Create table headers (URLs)
+                tableHTML += '<tr><th onclick="sortDensityKeyword()">Keyword</th>';
+                // Assuming 'urls' and 'responses' are defined elsewhere, and are related to multiple URLs.  Since we are only processing ONE URL at a time here, these need to be adjusted or removed.  For this example, I'm assuming it should use the current URL.  If not, you need to define/get the correct 'urls' array.
+                const urls = [url]; // Use the current URL in an array for consistency with the original logic
+                urls.forEach(url => {
+                    tableHTML += `<th onclick="sortDensityTable('${url}')">${url}</th>`;
+                });
+                tableHTML += '</tr>';
+
+                // Extract all unique keywords
+                let allKeywords = new Set();
+                // `data` is now a direct response for a single URL. No need to iterate through `data`.
+                if (Array.isArray(data)) {
+                    data.forEach(item => allKeywords.add(item.keyword));
+                }
+                allKeywords = Array.from(allKeywords);
+
+                // Populate table rows with keyword data
+                allKeywords.forEach(keyword => {
+                    tableHTML += `<tr><td>${keyword}</td>`;
+                    urls.forEach((url, urlIndex) => {
+                        let frequency = 0;
+                        // Check if the data for the URL is an array.  Again, since we are processing one URL at a time, it should always be an array, *or* contain an error object.
+                        if (Array.isArray(data)) {
+                            const keywordData = data.find(item => item.keyword === keyword);
+                            frequency = keywordData ? keywordData.frequency : 0;
+                        } else if (typeof data === 'object' && data !== null && data.error) {
+                            frequency = data.error;
+                        } else {
+                            frequency = "N/A"; // Handle unexpected response
+                        }
+
+                        tableHTML += `<td>${frequency}</td>`;
+                    });
+                    tableHTML += '</tr>';
+                });
+
+                tableHTML += '</table>';
+                keywordDensityDiv.innerHTML = tableHTML;
+
+
+            } catch (error) {
+                console.error(`Error fetching data for ${url.trim()}:`, error);
+
+            }
+        }
+
+
+        function sortDensityTable(url) {
+            // Get the table element
+            var table = document.querySelector("#keyword-density table"); // Corrected selector
+            if (!table) {
+                return; // Table doesn't exist
+            }
+
+            // Get the index of the URL column to be sorted by
+            var headerRow = table.rows[0];
+            var columnIndex = -1;
+            for (var i = 1; i < headerRow.cells.length; i++) {
+                if (headerRow.cells[i].textContent === url) {
+                    columnIndex = i;
+                    break;
+                }
+            }
+
+            if (columnIndex === -1) {
+                return; // URL not found
+            }
+
+            // Get the table rows (excluding the header row)
+            var rows = Array.from(table.rows).slice(1); // Convert to array for easier sorting
+
+            // Sort the rows based on the frequency in the specified column
+            rows.sort(function (row1, row2) {
+                var frequency1 = row1.cells[columnIndex].textContent;
+                var frequency2 = row2.cells[columnIndex].textContent;
+
+                // Handle error responses
+                if (frequency1 === "N/A") {
+                    return -1;
+                }
+                if (frequency2 === "N/A") {
+                    return 1;
+                }
+
+                return frequency2 - frequency1;
+            });
+
+            // Re-append the sorted rows to the table
+            rows.forEach(row => table.appendChild(row));
+        }
+
+        function sortDensityKeyword() {
+            var table = document.querySelector("#keyword-density table"); // Corrected selector
+            if (!table) {
+                return;
+            }
+
+            var rows = Array.from(table.rows).slice(1);
+
+            rows.sort(function (row1, row2) {
+                var keyword1 = row1.cells[0].textContent.toLowerCase();
+                var keyword2 = row2.cells[0].textContent.toLowerCase();
+
+                if (keyword1 < keyword2) {
+                    return -1;
+                }
+                if (keyword1 > keyword2) {
+                    return 1;
+                }
+                return 0;
+            });
+
+            rows.forEach(row => table.appendChild(row));
+        }
+
+        async function googleCrawlerSimulator() {
+            const url = document.getElementById('google-simulator-url').value;
+            if (!url) {
+                alert("Please enter a URL.");
+                return;
+            }
+
+            document.getElementById('simulatorBtn').innerText = "Loading..";
+            document.getElementById("crawler-simulator-results").style.display = "none"; // Corrected this line
+
+            try {
+                // Extract domain
+                let domain;
+                try {
+                    const urlObj = new URL(url);
+                    domain = urlObj.origin;
+                } catch (e) {
+                    console.error("Invalid URL:", url, e);
+                    return;
+                }
+
+                // Function to handle successful results and display them
+                const handleResult = (result, displayFunction, elementId) => {
+                    try {
+                        if (displayFunction) {
+                            displayFunction(result);
+                        } else if (elementId) {
+                            document.getElementById(elementId).innerText = result;
+                        }
+                    } catch (e) {
+                        console.error("Error displaying result:", e);
+                        document.getElementById('error').innerText = "Error displaying result: " + e;
+                        document.getElementById('error').style.display = 'block';
+                    }
+                };
+
+                // Function to handle errors from each promise
+                const handleError = (error, functionName) => {
+                    console.error(`Error in ${functionName}:`, error);
+                    document.getElementById('error').innerText = `Error in ${functionName}: ` + error;
+                    document.getElementById('error').style.display = 'block';
+                };
+
+                // Fetch HTML content  - needs special handling due to displayResults
+                const htmlPromise = fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: url
+                    })
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error fetching HTML! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(htmlData => {
+                        return displaySimulatorResults(htmlData.body);  // displayResults *returns* a promise or void
+                    })
+                    .catch(error => handleError(error, 'fetchHtml'));
+
+                // Call keywordDensity simultaneously
+                const keywordDensityPromise = keywordDensity();
+
+                // Optionally, keep track of all promises to ensure they all complete
+                Promise.all([
+                    htmlPromise,
+                    keywordDensityPromise
+                ]).then(() => {
+                    document.getElementById('simulatorBtn').innerText = "Analyse";
+                }).catch(error => {
+                    console.error('Error in Promise.all:', error);
+                    document.getElementById('simulatorBtn').innerText = "Analyse";
+                });
+
+
+            } catch (error) {
+                console.error('General Error:', error);
+                document.getElementById('simulatorBtn').innerText = "Analyse";
+            }
+        }
+
+        async function displaySimulatorResults(html) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+
+                    // Meta Information
+                    document.getElementById('simulator-meta-title').innerText = doc.querySelector('meta[name="title"]') ? doc
+                        .querySelector('meta[name="title"]').content : doc.title;
+                    document.getElementById('simulator-meta-description').innerText = doc.querySelector('meta[name="description"]') ?
+                        doc.querySelector('meta[name="description"]').content : "";
+                    document.getElementById('simulator-canonical-tag').innerText = doc.querySelector('link[rel="canonical"]') ? doc
+                        .querySelector('link[rel="canonical"]').href : "";
+
+
+                    // Headers (H1-H6)
+                    const headers = doc.querySelectorAll('h1, h2, h3, h4, h5, h6');
+                    const headersBody = document.getElementById('simulator-headers-body');
+                    const indentation = {
+                        'H1': 0,
+                        'H2': 1,
+                        'H3': 2,
+                        'H4': 3,
+                        'H5': 4,
+                        'H6': 5
+                    };
+                    headers.forEach(header => {
+                        let row = headersBody.insertRow();
+                        let cell = row.insertCell();
+                        // Remove whitespace and newlines
+                        const headerText = header.innerText.trim().replace(/\s+/g, ' ');
+                        const indentLevel = indentation[header.tagName];
+                        const indent = ' '.repeat(indentLevel * 4); // Adjust the number for desired indentation
+                        cell.innerHTML = `<span class="header-text">${indent}${header.tagName}: ${headerText}</span>`;
+                    });
+
+
+                    // Links (Internal and External)
+                    const links = doc.querySelectorAll('a[href]');
+                    const linksBody = document.getElementById('simulator-links-body');
+                    const existingLinks = new Set();
+
+                    const linkPromises = [];
+
+                    links.forEach(async link => {
+                        const href = link.href;
+                        const linkText = link.innerText.trim(); // Extract link text and trim whitespace
+
+                        if (existingLinks.has(href)) {
+                            return;
+                        }
+
+                        existingLinks.add(href);
+
+                        let linkType = 'External';
+                        try {
+                            const url = new URL(href);
+                            const currentUrl = new URL(document.getElementById('google-simulator-url').value);
+                            if (url.hostname === currentUrl.hostname) {
+                                linkType = 'Internal';
+                            }
+                        } catch (e) {
+                            linkType = 'Internal';
+                        }
+
+                        let row = linksBody.insertRow();
+                        let typeCell = row.insertCell();
+                        let urlCell = row.insertCell();
+                        let linkTextCell = row.insertCell(); // Add cell for link text
+
+                        typeCell.innerText = linkType;
+                        urlCell.innerHTML = `<a href="${href}" target="_blank" rel="noopener noreferrer">${href}</a>`;
+                        linkTextCell.innerText = linkText; // Set the link text
+                    });
+
+                    // Image Alt Text
+                    const images = doc.querySelectorAll('img');
+                    const imageAltBody = document.getElementById('simulator-image-alt-body');
+                    images.forEach(image => {
+                        let row = imageAltBody.insertRow();
+                        let thumbCell = row.insertCell();
+                        let urlCell = row.insertCell();
+                        let altCell = row.insertCell();
+
+                        thumbCell.innerHTML = `<img src="${image.src}" alt="Thumbnail" class="thumbnail">`;
+                        urlCell.innerText = image.src;
+                        altCell.innerText = image.alt;
+                    });
+
+                    // Wait for all status code fetches to complete.
+                    Promise.all(linkPromises)
+                        .then(() => {
+                            document.getElementById("crawler-simulator-results").style.display = "block";
+                            resolve();
+                        })
+                        .catch(error => {
+                            console.error("Error in displayResults", error);
+                            reject(error);
+                        });
+
+
+                } catch (error) {
+                    console.error("Error in displayResults", error);
+                    reject(error);
+
+                }
+            });
+
+        }
+
 
         async function exportToPdf() {
             window.jsPDF = window.jspdf.jsPDF;
