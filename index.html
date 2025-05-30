@@ -6971,7 +6971,7 @@
         <td>${keyword}</td>
     `;
 
-    console.log(results);
+                console.log(results);
 
                 // Get target1 data
                 tableHTML += `
@@ -10234,7 +10234,7 @@
 
             document.getElementById('simulatorBtn').innerText = "Loading..";
             document.getElementById('simulatorButton').style.backgroundColor = "004c9d";
-            document.getElementById("crawler-simulator-results").style.display = "none"; 
+            document.getElementById("crawler-simulator-results").style.display = "none";
 
             try {
                 // Extract domain
@@ -10386,8 +10386,20 @@
                         linkTextCell.innerText = linkText; // Set the link text
                     });
 
-                    const allPageText = doc.body.innerText || "";  // Extract text from the simulated document
-                    document.getElementById("simulatorPageText").innerText = allPageText;
+                    const clonedBody = doc.body.cloneNode(true);
+
+                    // Remove script tags
+                    const scripts = clonedBody.querySelectorAll('script');
+                    scripts.forEach(script => script.remove());
+
+                    // Remove style tags
+                    const styles = clonedBody.querySelectorAll('style');
+                    styles.forEach(style => style.remove());
+
+                    // Now get the innerText
+                    const visibleText = clonedBody.innerText;
+                    //const allPageText = doc.body.innerText || "";  // Extract text from the simulated document
+                    document.getElementById("simulatorPageText").textContent = visibleText;
 
                     // Image Alt Text
                     const images = doc.querySelectorAll('img');
