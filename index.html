@@ -300,7 +300,6 @@
             width: 100%;
             margin-top: 20px;
             border-collapse: collapse;
-            background-color: #fffef7;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             border-radius: 6px;
             table-layout: auto;
@@ -353,6 +352,11 @@
             animation: spin 2s linear infinite;
             margin: 0 auto;
             /* Center the loader */
+        }
+
+        .highlight {
+            background-color: yellow;
+            font-weight: bold;
         }
 
         @keyframes spin {
@@ -2631,9 +2635,18 @@
                             </tr>
                         </tbody>
                     </table>
-                    <div id="keyword-density"></div>
+                    <div class="column40" id="keyword-density-section">
+                        <h3>Keyword Density</h3>
+                        <div id="keyword-density" style="max-height: 1000px; overflow-y: scroll;"></div>
+                    </div>
+                    <div></div>
+                    <div class="column60">
+                        <h3>Page Text</h3>
+                        <div id="simulatorPageText" style="max-height: 1000px; overflow-y: scroll;"></div>
+                    </div>
                     <div class="page-break"></div>
-                    <!-- Page break before Headers -->
+                    <div style="clear: both;"></div>
+                    <div> </div> <!-- Clearfix -->
                     <h3>Headers</h3>
                     <table id="headers-table">
                         <thead>
@@ -2674,8 +2687,7 @@
                         <tbody id="simulator-image-alt-body">
                         </tbody>
                     </table>
-                    <h3>Page Text</h3>
-                    <div id="simulatorPageText"></div>
+
                 </div>
             </div>
             <hr>
@@ -10110,13 +10122,13 @@
                 let tableHTML = '<table>';
 
                 // Create table headers (URLs)
-                tableHTML += '<tr><th onclick="sortDensityKeyword()">Keyword</th>';
+                tableHTML += '<thead><tr><th onclick="sortDensityKeyword()">Keyword</th>';
                 // Assuming 'urls' and 'responses' are defined elsewhere, and are related to multiple URLs.  Since we are only processing ONE URL at a time here, these need to be adjusted or removed.  For this example, I'm assuming it should use the current URL.  If not, you need to define/get the correct 'urls' array.
                 const urls = [url]; // Use the current URL in an array for consistency with the original logic
                 urls.forEach(url => {
                     tableHTML += `<th onclick="sortDensityTable('${url}')">${url}</th>`;
                 });
-                tableHTML += '</tr>';
+                tableHTML += '</tr></thead><tbody>';
 
                 // Extract all unique keywords
                 let allKeywords = new Set();
@@ -10128,7 +10140,7 @@
 
                 // Populate table rows with keyword data
                 allKeywords.forEach(keyword => {
-                    tableHTML += `<tr><td>${keyword}</td>`;
+                    tableHTML += `<tr style="cursor:zoom-in;" onclick="highlightKeyword('${keyword}')"><td>${keyword}</td>`; // ADDED onclick HERE!
                     urls.forEach((url, urlIndex) => {
                         let frequency = 0;
                         // Check if the data for the URL is an array.  Again, since we are processing one URL at a time, it should always be an array, *or* contain an error object.
@@ -10146,7 +10158,7 @@
                     tableHTML += '</tr>';
                 });
 
-                tableHTML += '</table>';
+                tableHTML += '</tbody></table>';
                 keywordDensityDiv.innerHTML = tableHTML;
 
 
@@ -10478,6 +10490,25 @@
             });
 
             window.print();
+        }
+
+        function highlightKeyword(keyword) {
+            const pageTextDiv = document.getElementById('simulatorPageText');
+
+            // Remove any existing highlights
+            const highlighted = pageTextDiv.querySelectorAll('.highlight');
+            highlighted.forEach(el => {
+                el.outerHTML = el.innerHTML; // Replace highlighted spans with their content
+            });
+
+            if (!keyword) return; // If no keyword, do nothing
+
+            const text = pageTextDiv.textContent;
+            const regex = new RegExp(`(${keyword})`, 'gi'); // Case-insensitive global search
+
+            console.log(regex);
+
+            pageTextDiv.innerHTML = text.replace(regex, '<span class="highlight">$1</span>');
         }
 
 
