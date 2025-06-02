@@ -2822,7 +2822,10 @@
                 <label for="comparison-keyword">Keyword:</label>
                 <input type="text" id="comparison-keyword" placeholder="e.g., digital marketing">
                 <br>
-                <label for="comparison-urls">or URLs (separate by new line or comma):</label>
+                <label for="comparison-domain">Target Domain:</label>
+                <input type="url" id="comparison-domain" placeholder="e.g., example.com">
+                <br>
+                <label for="comparison-urls">or Other Specific URLs (separate by new line or comma):</label>
                 <textarea id="comparison-urls"
                     placeholder="e.g., https://example.com, https://another-example.com"></textarea>
                 <br>
@@ -3959,7 +3962,7 @@
             closeJourneyModal();
         }
 
-        const urlFields = document.querySelectorAll('input[type="url"], textarea#comparison-urls, textarea#reference-urls, textarea#sem_webpages, textarea#persona_webpages, textarea#MediaPlanWebpages');
+        const urlFields = document.querySelectorAll('input[type="url"], textarea#reference-urls, textarea#sem_webpages, textarea#persona_webpages, textarea#MediaPlanWebpages');
 
         urlFields.forEach(input => {
             input.addEventListener('input', syncUrls);
@@ -4261,7 +4264,7 @@
                 const comparisonResponse = await fetch('https://33v5mhjt47.execute-api.ap-southeast-1.amazonaws.com/comparisonRecommender', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ output: analysisData, keyword, location, pageTypes }), // Send analysisData directly
+                    body: JSON.stringify({ output: analysisData, keyword, location, pageTypes, domain: document.getElementById('comparison-domain').value}), // Send analysisData directly
                 });
                 const comparisonData = await comparisonResponse.json();
 
