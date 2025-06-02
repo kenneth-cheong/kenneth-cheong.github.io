@@ -10492,19 +10492,28 @@
             window.print();
         }
 
+        function removeHighlights() {
+            targeted_sections = ["simulatorPageText", "meta-table", "keyword-density", "headers-table", "links-table", "image-alt-table"];
+
+            targeted_sections.forEach(sectionId => {
+                const element = document.getElementById(sectionId);
+                const highlighted = document.querySelectorAll('.highlight');
+                highlighted.forEach(el => {
+                    el.outerHTML = el.innerHTML; // Replace highlighted spans with their content
+                });
+
+            })
+        }
+
         function highlightKeyword(keyword) {
             targeted_sections = ["simulatorPageText", "meta-table", "keyword-density", "headers-table", "links-table", "image-alt-table"];
+
+            removeHighlights();
 
             targeted_sections.forEach(sectionId => {
                 const element = document.getElementById(sectionId);
 
                 if (element) {
-                    // Remove any existing highlights in this section
-                    const highlighted = element.querySelectorAll('.highlight');
-                    highlighted.forEach(el => {
-                        el.outerHTML = el.innerHTML; // Replace highlighted spans with their content
-                    });
-
                     if (!keyword) return; // If no keyword, do nothing
 
                     function highlightText(node, keyword) {
