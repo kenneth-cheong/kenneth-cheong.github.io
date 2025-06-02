@@ -2640,7 +2640,8 @@
                     </table>
                     <div class="column40" id="keyword-density-section">
                         <h3>Keyword Density</h3>
-                        <div id="keyword-density" style="max-height: 1000px; overflow-y: scroll;"></div>
+                        <div id="keyword-density" style="max-height: 1000px; overflow-y: scroll; text-align: center;">
+                        </div>
                     </div>
                     <div></div>
                     <div class="column60">
@@ -10145,7 +10146,7 @@
                 urls.forEach(url => {
                     tableHTML += `<th onclick="sortDensityTable('${url}')">${url}</th>`;
                 });
-                tableHTML += '</tr></thead><tbody>';
+                tableHTML += `<th>Add to Keyword Analysis</th></tr></thead><tbody>`; // Added the header for the new column.
 
                 // Extract all unique keywords
                 let allKeywords = new Set();
@@ -10157,7 +10158,9 @@
 
                 // Populate table rows with keyword data
                 allKeywords.forEach(keyword => {
-                    tableHTML += `<tr style="cursor:zoom-in;" onclick="highlightKeyword('${keyword}')"><td>${keyword}</td>`; // ADDED onclick HERE!
+                    const rowId = `keywordRow-${keyword.replace(/\s+/g, '-')}`; // Create a unique ID for the row.
+
+                    tableHTML += `<tr id="${rowId}" style="cursor:zoom-in;" onclick="highlightKeyword('${keyword}')"><td>${keyword}</td>`; // ADDED onclick HERE!
                     urls.forEach((url, urlIndex) => {
                         let frequency = 0;
                         // Check if the data for the URL is an array.  Again, since we are processing one URL at a time, it should always be an array, *or* contain an error object.
@@ -10172,7 +10175,8 @@
 
                         tableHTML += `<td>${frequency}</td>`;
                     });
-                    tableHTML += '</tr>';
+                    // Add the new column with the plus icon and the click handler. The data-keyword is essential.
+                    tableHTML += `<td><a href="#" class="add-keyword-button" data-keyword="${keyword}" onclick="addKeywordToAnalysis(event, this)"><i class="fas fa-plus-circle"></i></a></td></tr>`;
                 });
 
                 tableHTML += '</tbody></table>';
@@ -10185,6 +10189,26 @@
             }
         }
 
+        function addKeywordToAnalysis(event, element) { // Modify function to get event and element
+            event.preventDefault(); // Prevent page from jumping to top
+            const keyword = element.dataset.keyword; // Get the keyword from the data attribute
+            const keywordsTextArea = document.getElementById('keywords');
+            let currentKeywords = keywordsTextArea.value.trim();
+            let keywordsArray = currentKeywords.split(',').map(k => k.trim()); // Split, trim, and create an array
+            if (!keywordsArray.includes(keyword)) { // Check if the keyword already exists
+                if (currentKeywords === "") {
+                    keywordsTextArea.value = keyword;
+                } else {
+                    keywordsTextArea.value = currentKeywords + ", " + keyword;
+                }
+
+                // Change the link to display "Added"
+                element.innerHTML = "Added";
+                element.classList.remove("add-keyword-button")
+
+            }
+            updateKeywordCount(); //update the keyword count paragraph
+        }
 
         function sortDensityTable(url) {
             // Get the table element
