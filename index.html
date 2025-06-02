@@ -266,7 +266,10 @@
             border-radius: 10px;
             border: 1px solid #c8c8c8;
             font-family: inherit;
-            font-size: 14px;
+        }
+
+        input {
+            width: 90%;
         }
 
         button {
@@ -2696,7 +2699,7 @@
                 SEO</button>
             <div class="content" id="technicalSeo">
                 <label for="urlInput">Enter URL:</label>
-                <input type="text" id="urlInput">
+                <input type="url" id="urlInput">
                 <br>
                 <label for="maxPagesInput">Max Pages to Crawl:</label>
                 <input type="number" id="maxPagesInput" value="10">
@@ -3157,7 +3160,7 @@
         <div class="content" id="competitors_content">
             <div class="column50">
                 <label for="competitors-target1">Target Domain:</label>
-                <input type="text" id="competitors-target1" placeholder="e.g. www.abc.com"><br>
+                <input type="url" id="competitors-target1" placeholder="e.g. www.abc.com"><br>
                 <label for="competitor_keywords">Keywords (seperated by commas or new
                     lines):</label><br>
                 <textarea id="competitor_keywords"></textarea><br>
@@ -3953,6 +3956,20 @@
                 }
             }
             closeJourneyModal();
+        }
+
+        const urlFields = document.querySelectorAll('input[type="url"], textarea#comparison-urls, textarea#reference-urls, textarea#sem_webpages, textarea#persona_webpages, textarea#MediaPlanWebpages');
+
+        urlFields.forEach(input => {
+            input.addEventListener('input', syncUrls);
+        });
+
+        function syncUrls(event) {
+            const currentUrl = event.target.value;
+
+            urlFields.forEach(input => {
+                input.value = currentUrl;
+            });
         }
 
         let currentKeywordSortColumn = null;
