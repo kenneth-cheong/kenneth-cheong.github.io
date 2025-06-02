@@ -10493,22 +10493,56 @@
         }
 
         function highlightKeyword(keyword) {
-            const pageTextDiv = document.getElementById('simulatorPageText');
+            targeted_sections = ["simulatorPageText", "meta-table", "keyword-density", "headers-table", "links-table", "image-alt-table"];
 
-            // Remove any existing highlights
-            const highlighted = pageTextDiv.querySelectorAll('.highlight');
-            highlighted.forEach(el => {
-                el.outerHTML = el.innerHTML; // Replace highlighted spans with their content
+            targeted_sections.forEach(sectionId => {
+                const element = document.getElementById(sectionId);
+
+                if (element) {
+                    // Remove any existing highlights in this section
+                    const highlighted = element.querySelectorAll('.highlight');
+                    highlighted.forEach(el => {
+                        el.outerHTML = el.innerHTML; // Replace highlighted spans with their content
+                    });
+
+                    if (!keyword) return; // If no keyword, do nothing
+
+                    function highlightText(node, keyword) {
+                        if (node.nodeType === Node.TEXT_NODE) {
+                            const text = node.nodeValue;
+
+                            // Create the flexible regex
+                            const safeKeyword = keyword.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'); // Escape special characters in keyword for regex
+                            const regexPattern = `(${safeKeyword.replace(/\s+/g, '[\\s-]*')})`;  // Replace spaces with flexible whitespace/hyphen
+                            const regex = new RegExp(regexPattern, 'gi');
+
+                            if (regex.test(text)) {
+                                const newHtml = text.replace(regex, '<span class="highlight">$1</span>');
+                                const tempElement = document.createElement('span');
+                                tempElement.innerHTML = newHtml;
+
+                                let nextSibling = node.nextSibling;
+                                while (tempElement.firstChild) {
+                                    node.parentNode.insertBefore(tempElement.firstChild, nextSibling);
+                                }
+
+                                node.remove();
+                            }
+                        } else if (node.nodeType === Node.ELEMENT_NODE) {
+                            // Recursively process child nodes of element nodes
+                            for (let i = 0; i < node.childNodes.length; i++) {
+                                highlightText(node.childNodes[i], keyword);
+                            }
+                        }
+                    }
+
+                    // Start the recursive highlighting process from the root element
+                    highlightText(element, keyword);
+
+                } else {
+                    console.warn(`Element with ID "${sectionId}" not found. Skipping.`);
+                }
             });
-
-            if (!keyword) return; // If no keyword, do nothing
-
-            const text = pageTextDiv.textContent;
-            const regex = new RegExp(`(${keyword})`, 'gi'); // Case-insensitive global search
-
-            console.log(regex);
-
-            pageTextDiv.innerHTML = text.replace(regex, '<span class="highlight">$1</span>');
         }
 
 
