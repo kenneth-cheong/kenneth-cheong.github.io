@@ -2615,6 +2615,7 @@
                 <label for="google-simulator-url">Enter URL:</label>
                 <input type="url" id="google-simulator-url" size="50"><br>
                 <button id="simulatorBtn" onclick="googleCrawlerSimulator()">Analyse</button>
+                <div id="simulatorError" style="color: red;"></div>
                 <div id="crawler-simulator-results" style="display: none;">
                     <h3>Meta Information</h3>
                     <table id="meta-table">
@@ -4265,7 +4266,7 @@
                 const comparisonResponse = await fetch('https://33v5mhjt47.execute-api.ap-southeast-1.amazonaws.com/comparisonRecommender', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ output: analysisData, keyword, location, pageTypes, domain: document.getElementById('comparison-domain').value}), // Send analysisData directly
+                    body: JSON.stringify({ output: analysisData, keyword, location, pageTypes, domain: document.getElementById('comparison-domain').value }), // Send analysisData directly
                 });
                 const comparisonData = await comparisonResponse.json();
 
@@ -10289,6 +10290,8 @@
                 return;
             }
 
+            document.getElementById('simulatorError').innerText = "";
+            document.getElementById('simulatorError').display = 'none';
             document.getElementById('simulatorBtn').innerText = "Loading..";
             document.getElementById('simulatorButton').style.backgroundColor = "004c9d";
             document.getElementById("crawler-simulator-results").style.display = "none";
@@ -10314,16 +10317,16 @@
                         }
                     } catch (e) {
                         console.error("Error displaying result:", e);
-                        document.getElementById('error').innerText = "Error displaying result: " + e;
-                        document.getElementById('error').style.display = 'block';
+                        document.getElementById('simulatorError').innerText = "Error displaying result: " + e;
+                        document.getElementById('simulatorError').style.display = 'block';
                     }
                 };
 
                 // Function to handle errors from each promise
                 const handleError = (error, functionName) => {
                     console.error(`Error in ${functionName}:`, error);
-                    document.getElementById('error').innerText = `Error in ${functionName}: ` + error;
-                    document.getElementById('error').style.display = 'block';
+                    document.getElementById('simulatorError').innerText = `Error in ${functionName}: ` + error;
+                    document.getElementById('simulatorError').style.display = 'block';
                 };
 
                 // Fetch HTML content  - needs special handling due to displayResults
@@ -10457,9 +10460,12 @@
                     const selects = clonedBody.querySelectorAll('select');
                     selects.forEach(select => select.remove());
 
-                    const customDropdown = clonedBody.querySelector('ul[role="listbox"]').parentNode;
-                    if (customDropdown) {
-                        customDropdown.remove();
+                    try {
+                        const customDropdown = clonedBody.querySelector('ul[role="listbox"]').parentNode;
+                        if (customDropdown) {
+                        } customDropdown.remove();
+                    } catch (error) {
+
                     }
 
                     // Now get the innerText
@@ -10494,7 +10500,6 @@
                             console.error("Error in displayResults", error);
                             reject(error);
                         });
-
 
                 } catch (error) {
                     console.error("Error in displayResults", error);
