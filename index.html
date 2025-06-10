@@ -3687,6 +3687,7 @@
                     if (contentComparisonSection) {
                         contentComparisonSection.scrollIntoView({ behavior: 'smooth' });
                     }
+                    
                 }
             }
             closeJourneyModal();
@@ -10414,6 +10415,16 @@
                         'H5': 4,
                         'H6': 5
                     };
+
+                    const headerColors = { // Define colors for each header level.  Adjust these!
+                        'H1': 'lightgreen',
+                        'H2': 'lightblue',
+                        'H3': 'lightyellow',
+                        'H4': 'lightcoral',
+                        'H5': 'lightcyan',
+                        'H6': 'lightpink'
+                    };
+
                     headers.forEach(header => {
                         let row = headersBody.insertRow();
                         let cell = row.insertCell();
@@ -10421,7 +10432,13 @@
                         const headerText = header.innerText.trim().replace(/\s+/g, ' ');
                         const indentLevel = indentation[header.tagName];
                         const indent = ' '.repeat(indentLevel * 4); // Adjust the number for desired indentation
-                        cell.innerHTML = `<span class="header-text">${indent}${header.tagName}: ${headerText}</span>`;
+                        const headerTag = header.tagName;
+                        cell.innerHTML = `<span class="header-text">${indent}${headerTag}: ${headerText}</span>`;
+
+                        // Apply background color based on header type
+                        if (headerColors[headerTag]) {  // Check if a color is defined for this tag.
+                            cell.style.backgroundColor = headerColors[headerTag];
+                        }
                     });
 
 
@@ -10434,9 +10451,9 @@
 
                     links.forEach(async link => {
                         href = link.href;
-                        href = href.replace('http://127.0.0.1:5500/',document.getElementById('google-simulator-url').value);
+                        href = href.replace('http://127.0.0.1:5500/', document.getElementById('google-simulator-url').value);
                         const linkText = link.innerText.trim(); // Extract link text and trim whitespace
-                        
+
 
                         if (existingLinks.has(href)) {
                             return;
@@ -10446,7 +10463,7 @@
 
                         let linkType = 'External';
                         try {
-                            const url = new URL(href.replace('http://127.0.0.1:5500/',document.getElementById('google-simulator-url').value));
+                            const url = new URL(href.replace('http://127.0.0.1:5500/', document.getElementById('google-simulator-url').value));
                             const currentUrl = new URL(document.getElementById('google-simulator-url').value);
                             if (url.hostname === currentUrl.hostname) {
                                 linkType = 'Internal';
@@ -10461,6 +10478,15 @@
                         let linkTextCell = row.insertCell(); // Add cell for link text
 
                         typeCell.innerText = linkType;
+
+                        // Apply background color based on link type
+                        if (linkType === 'Internal') {
+                            typeCell.style.backgroundColor = 'lightblue';
+                        } else {
+                            typeCell.style.backgroundColor = 'lightcoral';
+                        }
+
+
                         urlCell.innerHTML = `<a href="${href}" target="_blank" rel="noopener noreferrer">${href}</a>`;
                         linkTextCell.innerText = linkText; // Set the link text
                     });
@@ -10476,57 +10502,7 @@
                         }
                     })
 
-                    /*
 
-                    domain = document.getElementById('google-simulator-url').value.replace("http://", "").replace("https://", "").split('/')[0];
-
-                    fetch("https://781r68gcz9.execute-api.ap-southeast-1.amazonaws.com/websiteCrawler", {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ domain, start_url: document.getElementById('google-simulator-url').value })
-                    })
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error(`HTTP error! Status: ${response.status}`); // Handle non-200 responses
-                            }
-                            return response.json(); 
-                        })
-                        .then(data => { 
-                            const taskId = data;
-
-                            console.log(taskId)
-
-                            if (!taskId) {
-                                throw new Error("Task ID not found in the response.");
-                            }
-
-                            fetch("https://68x3gtrb48.execute-api.ap-southeast-1.amazonaws.com/getWebsiteCrawlerResults", {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({ task_id: taskId })
-                            })
-                                .then(response => {
-                                    if (!response.ok) {
-                                        throw new Error(`error`);
-                                    }
-                                    return response.json();
-                                })
-                                .then(data => {
-                                    console.log("Crawler Results:", data); // Access and process crawler results here
-                                })
-                                .catch(error => {
-                                    console.error('Error fetching crawler results:', error);
-                                });
-
-                        })
-                        .catch(error => {
-                            console.error('Error starting crawler:', error);
-                        });
-                    */
 
                     const clonedBody = doc.body.cloneNode(true);
 
@@ -10565,10 +10541,15 @@
                         let titleCell = row.insertCell();
                         let altCell = row.insertCell();
 
-                        thumbCell.innerHTML = `<img src="${image.src.replace('http://127.0.0.1:5500/',document.getElementById('google-simulator-url').value)}" alt="Thumbnail" class="thumbnail">`;
-                        urlCell.innerText = image.src.replace('http://127.0.0.1:5500/',document.getElementById('google-simulator-url').value);
+                        thumbCell.innerHTML = `<img src="${image.src.replace('http://127.0.0.1:5500/', document.getElementById('google-simulator-url').value)}" alt="Thumbnail" class="thumbnail">`;
+                        urlCell.innerText = image.src.replace('http://127.0.0.1:5500/', document.getElementById('google-simulator-url').value);
                         titleCell.innerText = image.title || "(No Title)"; // Show "(No Title)" if title is empty
                         altCell.innerText = image.alt || "(No Alt Text)";
+
+                        // Highlight altCell if no alt text is present
+                        if (!image.alt) {
+                            altCell.style.backgroundColor = 'lightcoral';
+                        }
                     });
 
                     // Wait for all status code fetches to complete.
