@@ -10433,8 +10433,10 @@
                     const linkPromises = [];
 
                     links.forEach(async link => {
-                        const href = link.href;
+                        href = link.href;
+                        href = href.replace('http://127.0.0.1:5500',document.getElementById('google-simulator-url').value);
                         const linkText = link.innerText.trim(); // Extract link text and trim whitespace
+                        
 
                         if (existingLinks.has(href)) {
                             return;
@@ -10444,7 +10446,7 @@
 
                         let linkType = 'External';
                         try {
-                            const url = new URL(href);
+                            const url = new URL(href.replace('http://127.0.0.1:5500',document.getElementById('google-simulator-url').value));
                             const currentUrl = new URL(document.getElementById('google-simulator-url').value);
                             if (url.hostname === currentUrl.hostname) {
                                 linkType = 'Internal';
@@ -10452,8 +10454,6 @@
                         } catch (e) {
                             linkType = 'Internal';
                         }
-
-
 
                         let row = linksBody.insertRow();
                         let typeCell = row.insertCell();
@@ -10565,8 +10565,8 @@
                         let titleCell = row.insertCell();
                         let altCell = row.insertCell();
 
-                        thumbCell.innerHTML = `<img src="${image.src}" alt="Thumbnail" class="thumbnail">`;
-                        urlCell.innerText = image.src;
+                        thumbCell.innerHTML = `<img src="${image.src.replace('http://127.0.0.1:5500',document.getElementById('google-simulator-url').value)}" alt="Thumbnail" class="thumbnail">`;
+                        urlCell.innerText = image.src.replace('http://127.0.0.1:5500',document.getElementById('google-simulator-url').value);
                         titleCell.innerText = image.title || "(No Title)"; // Show "(No Title)" if title is empty
                         altCell.innerText = image.alt || "(No Alt Text)";
                     });
