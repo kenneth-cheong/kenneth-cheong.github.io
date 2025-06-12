@@ -4,11 +4,35 @@
 <head>
     <title>Keyword Mapping Tool</title>
     <style>
-        body {
-            font-family: sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
+        body,
+        pre {
+            font-family: 'Roboto', sans-serif;
+            margin: 10px;
+            background-color: #fbf7f5;
+            color: #333;
+            text-wrap: wrap;
+            font-size: 0.9em;
+        }
+
+        input,
+        select,
+        button,
+        textarea {
+            padding: 5px 8px;
+            margin: 5px;
+            border-radius: 10px;
+            border: 1px solid #c8c8c8;
+            font-family: inherit;
+        }
+
+        input {
+            width: 90%;
+        }
+
+        button {
+            margin: 5px;
+            transition: background-color 0.3s, transform 0.1s;
+            background-color: #c8c9ca;
         }
 
         .container {
@@ -19,11 +43,11 @@
         }
 
         .list-container {
-            width: 200px;
+            width: 300px;
             margin: 10px;
             background-color: #fff;
             border: 1px solid #ccc;
-            border-radius: 5px;
+            border-radius: 15px;
             padding: 10px;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
             position: relative;
@@ -34,6 +58,7 @@
             padding: 0;
             margin: 0;
             min-height: 200px;
+            /* Starting height */
         }
 
         .keyword-list li {
@@ -81,52 +106,222 @@
 </head>
 
 <body>
+    <label for="domain">Domain / URL:</label>
+    <input type="url" id="domain" name="domain" style="min-width: 60%"
+        placeholder="Site Audit: https://www.abc.com | Page Audit: www.abc.com">
+    <div id="tooltip"
+        style="position: absolute; font-size: 0.9em; background-color: #568cc2; color: white; border: 1px solid #ccc; padding: 5px; display: none; z-index: 1000; border-radius: 10px;">
+    </div>
+    <span class="error" id="domainError"></span>
+    <br>
+    <label for="location">Targeted Location (required):</label>
+    <select id="location" name="location" required>
+        <option value="Singapore">Singapore</option>
+        <option value="None">Global</option>
+        <option value="Australia">Australia</option>
+        <option value="Bhutan">Bhutan</option>
+        <option value="Brazil">Brazil</option>
+        <option value="Canada">Canada</option>
+        <option value="China">China</option>
+        <option value="France">France</option>
+        <option value="Germany">Germany</option>
+        <option value="India">India</option>
+        <option value="Indonesia">Indonesia</option>
+        <option value="Italy">Italy</option>
+        <option value="Japan">Japan</option>
+        <option value="Malaysia">Malaysia</option>
+        <option value="Mexico">Mexico</option>
+        <option value="Netherlands">Netherlands</option>
+        <option value="Philippines">Philippines</option>
+        <option value="South Korea">South Korea</option>
+        <option value="Spain">Spain</option>
+        <option value="Thailand">Thailand</option>
+        <option value="United Kingdom">United Kingdom</option>
+        <option value="United States">United States</option>
+        <option value="Vietnam">Vietnam</option>
+    </select><br>
 
+    <label for="language">Language (required):</label>
+    <select id="language" name="language" required>
+        <option value="English">English</option>
+        <option value="Arabic">Arabic</option>
+        <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+        <option value="Chinese (Traditional)">Chinese (Traditional)</option>
+        <option value="Dutch">Dutch</option>
+        <option value="French">French</option>
+        <option value="German">German</option>
+        <option value="Hindi">Hindi</option>
+        <option value="Indonesian">Indonesian</option>
+        <option value="Italian">Italian</option>
+        <option value="Japanese">Japanese</option>
+        <option value="Korean">Korean</option>
+        <option value="Malay">Malay</option>
+        <option value="Portuguese">Portuguese</option>
+        <option value="Russian">Russian</option>
+        <option value="Spanish">Spanish</option>
+        <option value="Tamil">Tamil</option>
+        <option value="Tagalog">Tagalog</option>
+        <option value="Thai">Thai</option>
+        <option value="Vietnamese">Vietnamese</option>
+    </select>
+    <br>
+    <div>
+        <label for="keywords">Keyword(s) of Interest (comma or newline
+            separated):</label>
+        <span id="keywordCount" style="margin-left: 10px; color: #004c9d;"></span><br> <textarea id="keywords"
+            name="keywords" required placeholder="keyword1, keyword2"></textarea>
+        <span class="error" id="keywordsError"></span>
+    </div>
+    <button id="mapKeywordsBtn" onclick="mapKeywords()">Map Keywords</button>
+    <hr>
     <button id="addListBtn">Add New URL</button>
     <button id="undoBtn" disabled>Undo Delete</button>
 
     <div class="container" id="listsContainer">
-        <div class="list-container">
-            <input type="text" class="rename-input" value="/url-1" onblur="renameList(this)">
-            <button class="delete-list-btn" onclick="deleteList(this)">X</button>
-            <ul id="list1" class="keyword-list" ondrop="drop(event)" ondragover="allowDrop(event)">
-                <li draggable="true" ondragstart="drag(event)" id="keyword1">Keyword A</li>
-                <li draggable="true" ondragstart="drag(event)" id="keyword2">Keyword B</li>
-            </ul>
-        </div>
-
-        <div class="list-container">
-            <input type="text" class="rename-input" value="/url-2" onblur="renameList(this)">
-            <button class="delete-list-btn" onclick="deleteList(this)">X</button>
-            <ul id="list2" class="keyword-list" ondrop="drop(event)" ondragover="allowDrop(event)">
-                <li draggable="true" ondragstart="drag(event)" id="keyword3">Keyword C</li>
-            </ul>
-        </div>
-
-        <div class="list-container">
-            <input type="text" class="rename-input" value="/url-3" onblur="renameList(this)">
-            <button class="delete-list-btn" onclick="deleteList(this)">X</button>
-            <ul id="list3" class="keyword-list" ondrop="drop(event)" ondragover="allowDrop(event)"></ul>
-        </div>
-
-        <div class="list-container">
-            <input type="text" class="rename-input" value="/url-4" onblur="renameList(this)">
-            <button class="delete-list-btn" onclick="deleteList(this)">X</button>
-            <ul id="list4" class="keyword-list" ondrop="drop(event)" ondragover="allowDrop(event)">
-                <li draggable="true" ondragstart="drag(event)" id="keyword4">Keyword D</li>
-                <li draggable="true" ondragstart="drag(event)" id="keyword5">Keyword E</li>
-            </ul>
-        </div>
     </div>
 
     <script>
-        let listCounter = 5;
+        let listCounter = 1;
         let deletedLists = []; // Store an array of deleted lists for multiple undo
 
         const undoBtn = document.getElementById('undoBtn');
         undoBtn.addEventListener('click', undoDelete);
 
         document.getElementById('addListBtn').addEventListener('click', addNewList);
+
+        // No longer using a hardcoded mapping
+        let keywordMapping = {};
+
+        const listsContainer = document.getElementById('listsContainer');
+
+        async function mapKeywords() {
+            const domain = document.getElementById('domain').value; // Get domain
+            const location = document.getElementById('location').value;
+            const language = document.getElementById('language').value;
+            const keywordsInput = document.getElementById('keywords').value;
+            
+            document.getElementById('mapKeywordsBtn').innerText = "Mapping...";
+
+            const keywords = keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+
+            // Clear the existing mapping
+            keywordMapping = {};
+            clearAllLists(); //remove all the lists
+            listCounter = 1; //restart the list counter
+
+
+            // Create an array to hold the promises for each fetch request
+            const fetchPromises = keywords.map(keyword => {
+                return fetch('https://6s7ijwwsa8.execute-api.ap-southeast-1.amazonaws.com/dragDrop', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        domain: domain,
+                        keyword: keyword,
+                        language: language,
+                        location: location,
+                    })
+                }).then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                }).then(data => {
+                    data = data.replace(domain,'').replace('http://','').replace('www.','').replace('https://','');
+                    // Use the API response URL as the key in your mapping
+                    if (data) {
+                        if (!keywordMapping[data]) {
+                            keywordMapping[data] = [];
+                        }
+                        keywordMapping[data].push(keyword); // Map keyword to URL
+                    } else {
+                        console.warn(`API response missing URL for keyword: ${keyword}`);
+                    }
+                })
+                .catch(error => {
+                    console.error(`Error for keyword "${keyword}":`, error);
+                });
+            });
+
+            try {
+                // Wait for all promises to resolve before populating the lists
+                await Promise.all(fetchPromises);
+
+                // Now populate the lists based on the built-up keywordMapping
+                populateListsFromMapping();
+                document.getElementById('mapKeywordsBtn').innerText = "Map Keywords";
+            } catch (error) {
+                console.error("An error occurred during the fetch requests:", error);
+                document.getElementById('mapKeywordsBtn').innerText = "Map Keywords";
+            }
+        }
+
+        function createListContainer(url) {
+            const listContainer = document.createElement('div');
+            listContainer.classList.add('list-container');
+
+            const renameInput = document.createElement('input');
+            renameInput.type = 'text';
+            renameInput.classList.add('rename-input');
+            renameInput.value = url;
+
+            // Add event listener for renameList
+            renameInput.addEventListener('blur', function() {
+               renameList(this);
+            });
+
+            const deleteButton = document.createElement('button');
+            deleteButton.classList.add('delete-list-btn');
+            deleteButton.textContent = 'X';
+            deleteButton.setAttribute('onclick', 'deleteList(this)');
+
+            const listId = 'list' + listCounter;
+            const list = document.createElement('ul');
+            list.id = listId;
+            list.classList.add('keyword-list');
+            list.setAttribute('ondrop', 'drop(event)');
+            list.setAttribute('ondragover', 'allowDrop(event)');
+
+            listContainer.appendChild(renameInput);
+            listContainer.appendChild(deleteButton);
+            listContainer.appendChild(list);
+
+            return { listContainer, list, renameInput };
+        }
+
+        function createKeywordListItem(keyword) {
+            const listItem = document.createElement('li');
+            listItem.draggable = true;
+            listItem.ondragstart = drag;
+            listItem.id = keyword;
+            listItem.textContent = keyword; // Display keyword
+            return listItem;
+        }
+
+        function populateListsFromMapping() {
+            for (const url in keywordMapping) {
+                if (keywordMapping.hasOwnProperty(url)) {
+                    const { listContainer, list, renameInput } = createListContainer(url);
+
+                    keywordMapping[url].forEach(keyword => {
+                        const listItem = createKeywordListItem(keyword);
+                        list.appendChild(listItem);
+                    });
+
+                    listsContainer.appendChild(listContainer);
+                    listCounter++;
+                }
+            }
+        }
+
+        function clearAllLists() {
+          const listsContainer = document.getElementById('listsContainer');
+          while (listsContainer.firstChild) {
+            listsContainer.removeChild(listsContainer.firstChild);
+          }
+        }
 
         function allowDrop(ev) {
             ev.preventDefault();
@@ -139,7 +334,8 @@
             ev.dataTransfer.setData("text", ev.target.id);
         }
 
-        const MAX_ITEMS_PER_LIST = 10; // Set the maximum limit
+        const MAX_ITEMS_PER_LIST = 20; // Set the maximum limit
+        const HEIGHT_PER_KEYWORD = 6; // Additional increase per keyword.
 
         function allowDrop(ev) {
             ev.preventDefault();
@@ -168,6 +364,13 @@
                     var data = ev.dataTransfer.getData("text");
                     var draggedElement = document.getElementById(data);
                     target.appendChild(draggedElement);
+
+                    // Increase the height of the list
+                    const currentHeight = parseInt(window.getComputedStyle(target).minHeight);
+                    const numberOfKeywords = target.children.length;
+                    const heightIncrease = (numberOfKeywords * HEIGHT_PER_KEYWORD);
+                    target.style.minHeight = (currentHeight + heightIncrease) + 'px';
+
                     target.classList.remove('list-full'); // remove the list-full class if there are items to drop
                 } else {
                     //Optional: Prevent the drop from occurring
@@ -195,7 +398,12 @@
             renameInput.type = 'text';
             renameInput.classList.add('rename-input');
             renameInput.value = defaultName;
-            renameInput.setAttribute('onblur', 'renameList(this)');
+
+            // Add event listener for renameList
+            renameInput.addEventListener('blur', function() {
+               renameList(this);
+            });
+
 
             const deleteButton = document.createElement('button');
             deleteButton.classList.add('delete-list-btn');
@@ -234,7 +442,7 @@
 
             listsContainer.removeChild(listContainer);
 
-            // Enable the undo button if there are deleted lists
+            // Enable the undo button if there are no more deleted lists
             undoBtn.disabled = deletedLists.length === 0;
         }
 
@@ -253,6 +461,9 @@
                 undoBtn.disabled = deletedLists.length === 0;
             }
         }
+
+        // Initialize the lists from the mapping when the page loads
+        //window.onload = populateListsFromMapping; //no need to populate when loading since it's dynamic
     </script>
 </body>
 
