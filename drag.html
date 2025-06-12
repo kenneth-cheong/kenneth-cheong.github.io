@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Keyword Mapping Tool</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            padding: 20px;
+        }
+
+        .list-container {
+            width: 200px;
+            margin: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .keyword-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            min-height: 200px;
+        }
+
+        .keyword-list li {
+            background-color: #eee;
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            margin-bottom: 5px;
+            cursor: grab;
+            border-radius: 3px;
+            user-select: none;
+        }
+
+        .keyword-list li:hover {
+            background-color: #ddd;
+        }
+
+        .keyword-list.drag-over {
+            background-color: #f9f9f9;
+            border: 2px dashed #aaa;
+        }
+
+        .rename-input {
+            width: 80%;
+            margin-bottom: 5px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 1.2em;
+        }
+
+        .delete-list-btn {
+            position: absolute;
+            top: 15px;
+            right: 4px;
+            background-color: transparent;
+            border: none;
+            cursor: pointer;
+            color: #888;
+        }
+
+        .delete-list-btn:hover {
+            color: #333;
+        }
+    </style>
+</head>
+
+<body>
+
+    <button id="addListBtn">Add New URL</button>
+    <button id="undoBtn" disabled>Undo Delete</button>
+
+    <div class="container" id="listsContainer">
+        <div class="list-container">
+            <input type="text" class="rename-input" value="/url-1" onblur="renameList(this)">
+            <button class="delete-list-btn" onclick="deleteList(this)">X</button>
+            <ul id="list1" class="keyword-list" ondrop="drop(event)" ondragover="allowDrop(event)">
+                <li draggable="true" ondragstart="drag(event)" id="keyword1">Keyword A</li>
+                <li draggable="true" ondragstart="drag(event)" id="keyword2">Keyword B</li>
+            </ul>
+        </div>
+
+        <div class="list-container">
+            <input type="text" class="rename-input" value="/url-2" onblur="renameList(this)">
+            <button class="delete-list-btn" onclick="deleteList(this)">X</button>
+            <ul id="list2" class="keyword-list" ondrop="drop(event)" ondragover="allowDrop(event)">
+                <li draggable="true" ondragstart="drag(event)" id="keyword3">Keyword C</li>
+            </ul>
+        </div>
+
+        <div class="list-container">
+            <input type="text" class="rename-input" value="/url-3" onblur="renameList(this)">
+            <button class="delete-list-btn" onclick="deleteList(this)">X</button>
+            <ul id="list3" class="keyword-list" ondrop="drop(event)" ondragover="allowDrop(event)"></ul>
+        </div>
+
+        <div class="list-container">
+            <input type="text" class="rename-input" value="/url-4" onblur="renameList(this)">
+            <button class="delete-list-btn" onclick="deleteList(this)">X</button>
+            <ul id="list4" class="keyword-list" ondrop="drop(event)" ondragover="allowDrop(event)">
+                <li draggable="true" ondragstart="drag(event)" id="keyword4">Keyword D</li>
+                <li draggable="true" ondragstart="drag(event)" id="keyword5">Keyword E</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let listCounter = 5;
+        let deletedLists = []; // Store an array of deleted lists for multiple undo
+
+        const undoBtn = document.getElementById('undoBtn');
+        undoBtn.addEventListener('click', undoDelete);
+
+        document.getElementById('addListBtn').addEventListener('click', addNewList);
+
+        function allowDrop(ev) {
+            ev.preventDefault();
+            if (ev.target.classList.contains('keyword-list')) {
+                ev.target.classList.add('drag-over');
+            }
+        }
+
+        function drag(ev) {
+            ev.dataTransfer.setData("text", ev.target.id);
+        }
+
+        const MAX_ITEMS_PER_LIST = 10; // Set the maximum limit
+
+        function allowDrop(ev) {
+            ev.preventDefault();
+            const target = ev.target;
+
+            if (target.classList.contains('keyword-list')) {
+                // Check if the list is full
+                if (target.children.length < MAX_ITEMS_PER_LIST) {
+                    target.classList.add('drag-over');
+                } else {
+                    // Optional: Provide visual feedback that the list is full
+                    target.classList.add('list-full'); // Add a class for styling, e.g., red border
+                }
+            }
+        }
+
+        function drop(ev) {
+            ev.preventDefault();
+            const target = ev.target;
+
+            if (target.classList.contains('keyword-list')) {
+                target.classList.remove('drag-over'); // Always remove the drag-over class
+
+                // Check if the list is full again before dropping (safety check)
+                if (target.children.length < MAX_ITEMS_PER_LIST) {
+                    var data = ev.dataTransfer.getData("text");
+                    var draggedElement = document.getElementById(data);
+                    target.appendChild(draggedElement);
+                    target.classList.remove('list-full'); // remove the list-full class if there are items to drop
+                } else {
+                    //Optional: Prevent the drop from occurring
+                    //You can optionally add additional error handling here
+                    target.classList.remove('list-full');
+                    return;
+                }
+
+            } else {
+                target.classList.remove('drag-over');
+                target.classList.remove('list-full'); //also, prevent adding css if element does not have the correct class
+            }
+        }
+
+        function addNewList() {
+            const listsContainer = document.getElementById('listsContainer');
+
+            const listContainer = document.createElement('div');
+            listContainer.classList.add('list-container');
+
+            const listId = 'list' + listCounter;
+            const defaultName = '/url-' + listCounter;
+
+            const renameInput = document.createElement('input');
+            renameInput.type = 'text';
+            renameInput.classList.add('rename-input');
+            renameInput.value = defaultName;
+            renameInput.setAttribute('onblur', 'renameList(this)');
+
+            const deleteButton = document.createElement('button');
+            deleteButton.classList.add('delete-list-btn');
+            deleteButton.textContent = 'X';
+            deleteButton.setAttribute('onclick', 'deleteList(this)');
+
+            const list = document.createElement('ul');
+            list.id = listId;
+            list.classList.add('keyword-list');
+            list.setAttribute('ondrop', 'drop(event)');
+            list.setAttribute('ondragover', 'allowDrop(event)');
+
+            listContainer.appendChild(renameInput);
+            listContainer.appendChild(deleteButton);
+            listContainer.appendChild(list);
+
+            listsContainer.appendChild(listContainer);
+
+            listCounter++;
+        }
+
+        function renameList(inputElement) {
+            // No longer need to update a separate H2. The input itself IS the name.
+        }
+
+        function deleteList(deleteButton) {
+            const listContainer = deleteButton.parentNode;
+            const listsContainer = document.getElementById('listsContainer');
+
+            // Store the deleted list details for undo
+            deletedLists.push({
+                element: listContainer,
+                nextSibling: listContainer.nextSibling,
+                listsContainer: listsContainer
+            });
+
+            listsContainer.removeChild(listContainer);
+
+            // Enable the undo button if there are deleted lists
+            undoBtn.disabled = deletedLists.length === 0;
+        }
+
+        function undoDelete() {
+            if (deletedLists.length > 0) {
+                const lastDeleted = deletedLists.pop(); // Get the last deleted list
+
+                // Re-insert the deleted list
+                if (lastDeleted.nextSibling) {
+                    lastDeleted.listsContainer.insertBefore(lastDeleted.element, lastDeleted.nextSibling);
+                } else {
+                    lastDeleted.listsContainer.appendChild(lastDeleted.element);
+                }
+
+                // Disable the undo button if there are no more deleted lists
+                undoBtn.disabled = deletedLists.length === 0;
+            }
+        }
+    </script>
+</body>
+
+</html>
