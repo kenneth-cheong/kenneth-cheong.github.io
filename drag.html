@@ -87,6 +87,7 @@
             border: 1px solid #ccc;
             border-radius: 3px;
             font-size: 1.2em;
+            background-color: #bee1ff;
         }
 
         .delete-list-btn {
@@ -149,19 +150,19 @@
         <option value="Chinese (Traditional)">Chinese (Traditional)</option>
         <option value="Dutch">Dutch</option>
         <option value="French">French</option>
-        <option value="German">German</option>
-        <option value="Hindi">Hindi</option>
+        <option value="German">German</German>
+        <option value="Hindi">Hindi</Hindi>
         <option value="Indonesian">Indonesian</option>
-        <option value="Italian">Italian</option>
-        <option value="Japanese">Japanese</option>
-        <option value="Korean">Korean</option>
-        <option value="Malay">Malay</option>
-        <option value="Portuguese">Portuguese</option>
-        <option value="Russian">Russian</option>
-        <option value="Spanish">Spanish</option>
-        <option value="Tamil">Tamil</option>
-        <option value="Tagalog">Tagalog</option>
-        <option value="Thai">Thai</option>
+        <option value="Italian">Italian</Italian>
+        <option value="Japanese">Japanese</Japanese>
+        <option value="Korean">Korean</Korean>
+        <option value="Malay">Malay</Malay>
+        <option value="Portuguese">Portuguese</Portuguese>
+        <option value="Russian">Russian</Russian>
+        <option value="Spanish">Spanish</Spanish>
+        <option value="Tamil">Tamil</Tamil>
+        <option value="Tagalog">Tagalog</Tagalog>
+        <option value="Thai">Thai</Thai>
         <option value="Vietnamese">Vietnamese</option>
     </select>
     <br>
@@ -172,13 +173,14 @@
             name="keywords" required placeholder="keyword1, keyword2"></textarea>
         <span class="error" id="keywordsError"></span>
     </div>
-    <button id="mapKeywordsBtn" onclick="mapKeywords()">Map Keywords</button>
+    <button id="mapKeywordsBtn">Map Keywords</button>
     <hr>
     <button id="addListBtn">Add New URL</button>
     <button id="undoBtn" disabled>Undo Delete</button>
 
     <div class="container" id="listsContainer">
     </div>
+    <div id="recommendations"></div>
 
     <script>
         let listCounter = 1;
@@ -194,13 +196,16 @@
 
         const listsContainer = document.getElementById('listsContainer');
 
+        const mapKeywordsBtn = document.getElementById('mapKeywordsBtn');
+        mapKeywordsBtn.addEventListener('click', mapKeywords);
+
         async function mapKeywords() {
             const domain = document.getElementById('domain').value; // Get domain
             const location = document.getElementById('location').value;
             const language = document.getElementById('language').value;
             const keywordsInput = document.getElementById('keywords').value;
-            
-            document.getElementById('mapKeywordsBtn').innerText = "Mapping...";
+
+            mapKeywordsBtn.innerText = "Mapping...";
 
             const keywords = keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
 
@@ -229,7 +234,7 @@
                     }
                     return response.json();
                 }).then(data => {
-                    data = data.replace(domain,'').replace('http://','').replace('www.','').replace('https://','');
+                    data = data.replace(domain, '').replace('http://', '').replace('www.', '').replace('https://', '');
                     // Use the API response URL as the key in your mapping
                     if (data) {
                         if (!keywordMapping[data]) {
@@ -240,9 +245,9 @@
                         console.warn(`API response missing URL for keyword: ${keyword}`);
                     }
                 })
-                .catch(error => {
-                    console.error(`Error for keyword "${keyword}":`, error);
-                });
+                    .catch(error => {
+                        console.error(`Error for keyword "${keyword}":`, error);
+                    });
             });
 
             try {
@@ -251,10 +256,10 @@
 
                 // Now populate the lists based on the built-up keywordMapping
                 populateListsFromMapping();
-                document.getElementById('mapKeywordsBtn').innerText = "Map Keywords";
+                mapKeywordsBtn.innerText = "Map Keywords";
             } catch (error) {
                 console.error("An error occurred during the fetch requests:", error);
-                document.getElementById('mapKeywordsBtn').innerText = "Map Keywords";
+                mapKeywordsBtn.innerText = "Map Keywords";
             }
         }
 
@@ -268,33 +273,50 @@
             renameInput.value = url;
 
             // Add event listener for renameList
-            renameInput.addEventListener('blur', function() {
-               renameList(this);
+            renameInput.addEventListener('blur', function () {
+                renameList(this);
             });
 
             const deleteButton = document.createElement('button');
             deleteButton.classList.add('delete-list-btn');
             deleteButton.textContent = 'X';
-            deleteButton.setAttribute('onclick', 'deleteList(this)');
+            deleteButton.addEventListener('click', function () {
+                deleteList(this);
+            });
+
 
             const listId = 'list' + listCounter;
             const list = document.createElement('ul');
             list.id = listId;
             list.classList.add('keyword-list');
-            list.setAttribute('ondrop', 'drop(event)');
-            list.setAttribute('ondragover', 'allowDrop(event)');
+            list.addEventListener('drop', drop);
+            list.addEventListener('dragover', allowDrop);
 
             listContainer.appendChild(renameInput);
             listContainer.appendChild(deleteButton);
             listContainer.appendChild(list);
 
+            // Add the "Page Recommendations" button
+            const recommendationsButton = document.createElement('button');
+            domain = document.getElementById('domain').value;
+            recommendationsButton.textContent = 'Page Recommendations';
+            recommendationsButton.addEventListener('click', () => {
+                // Get the URL from the input field *inside* this function
+                const currentURL = domain + renameInput.value;
+
+                // Get the list items and put them into an array
+                const listItems = Array.from(list.children).map(item => item.textContent.trim());
+
+                getPageRecommendations(currentURL, listItems);
+            });
+            listContainer.appendChild(recommendationsButton);
             return { listContainer, list, renameInput };
         }
 
         function createKeywordListItem(keyword) {
             const listItem = document.createElement('li');
             listItem.draggable = true;
-            listItem.ondragstart = drag;
+            listItem.addEventListener('dragstart', drag);
             listItem.id = keyword;
             listItem.textContent = keyword; // Display keyword
             return listItem;
@@ -317,18 +339,12 @@
         }
 
         function clearAllLists() {
-          const listsContainer = document.getElementById('listsContainer');
-          while (listsContainer.firstChild) {
-            listsContainer.removeChild(listsContainer.firstChild);
-          }
-        }
-
-        function allowDrop(ev) {
-            ev.preventDefault();
-            if (ev.target.classList.contains('keyword-list')) {
-                ev.target.classList.add('drag-over');
+            while (listsContainer.firstChild) {
+                listsContainer.removeChild(listsContainer.firstChild);
             }
         }
+
+
 
         function drag(ev) {
             ev.dataTransfer.setData("text", ev.target.id);
@@ -337,20 +353,7 @@
         const MAX_ITEMS_PER_LIST = 20; // Set the maximum limit
         const HEIGHT_PER_KEYWORD = 6; // Additional increase per keyword.
 
-        function allowDrop(ev) {
-            ev.preventDefault();
-            const target = ev.target;
 
-            if (target.classList.contains('keyword-list')) {
-                // Check if the list is full
-                if (target.children.length < MAX_ITEMS_PER_LIST) {
-                    target.classList.add('drag-over');
-                } else {
-                    // Optional: Provide visual feedback that the list is full
-                    target.classList.add('list-full'); // Add a class for styling, e.g., red border
-                }
-            }
-        }
 
         function drop(ev) {
             ev.preventDefault();
@@ -400,25 +403,42 @@
             renameInput.value = defaultName;
 
             // Add event listener for renameList
-            renameInput.addEventListener('blur', function() {
-               renameList(this);
+            renameInput.addEventListener('blur', function () {
+                renameList(this);
             });
 
 
             const deleteButton = document.createElement('button');
             deleteButton.classList.add('delete-list-btn');
             deleteButton.textContent = 'X';
-            deleteButton.setAttribute('onclick', 'deleteList(this)');
+            deleteButton.addEventListener('click', function () {
+                deleteList(this);
+            });
 
             const list = document.createElement('ul');
             list.id = listId;
             list.classList.add('keyword-list');
-            list.setAttribute('ondrop', 'drop(event)');
-            list.setAttribute('ondragover', 'allowDrop(event)');
+            list.addEventListener('drop', drop);
+            list.addEventListener('dragover', allowDrop);
 
             listContainer.appendChild(renameInput);
             listContainer.appendChild(deleteButton);
             listContainer.appendChild(list);
+
+            // Add the "Page Recommendations" button
+            const recommendationsButton = document.createElement('button');
+            recommendationsButton.textContent = 'Page Recommendations';
+            recommendationsButton.addEventListener('click', () => {
+                const url = renameInput.value; //get the url value
+
+                // Get the list items and put them into an array
+                const listItems = Array.from(list.children).map(item => item.textContent.trim());
+
+                console.log(listItems);
+
+                getPageRecommendations(url, listItems); // Pass both URL and the array of list items
+            });
+            listContainer.appendChild(recommendationsButton);
 
             listsContainer.appendChild(listContainer);
 
@@ -462,8 +482,47 @@
             }
         }
 
-        // Initialize the lists from the mapping when the page loads
-        //window.onload = populateListsFromMapping; //no need to populate when loading since it's dynamic
+        async function getPageRecommendations(url, listElement) {
+            console.log(listElement);
+
+            const recommendationEndpoint = 'https://pkkz2e02ch.execute-api.ap-southeast-1.amazonaws.com/onPageContentRecommendations';
+
+            try { // Add try-catch for error handling
+                const recommendationResponse = await fetch(recommendationEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url,
+                        "keywords": listElement
+                    })
+                });
+
+                const recommendationData = await recommendationResponse.json();
+                document.getElementById('recommendations').innerHTML += recommendationData;
+                console.log(recommendationData); // Now logs the parsed JSON data
+
+            } catch (error) {
+                console.error("Error fetching recommendations:", error);
+            }
+        }
+
+        function allowDrop(ev) {
+            ev.preventDefault();
+            const target = ev.target;
+
+            if (target.classList.contains('keyword-list')) {
+                // Check if the list is full
+                if (target.children.length < MAX_ITEMS_PER_LIST) {
+                    target.classList.add('drag-over');
+                } else {
+                    // Optional: Provide visual feedback that the list is full
+                    target.classList.add('list-full'); // Add a class for styling, e.g., red border
+                }
+            }
+        }
+
     </script>
 </body>
 
