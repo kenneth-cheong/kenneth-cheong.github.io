@@ -29,6 +29,34 @@
             width: 90%;
         }
 
+        table {
+            border-spacing: 0px;
+        }
+
+        .collapsible {
+            background-color: #004c9d;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            width: 99%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+
+        .collapsible:hover {
+            background-color: #0056b3;
+        }
+
+        th,
+        td {
+            border: 1px solid rgb(105, 105, 105);
+            padding: 8px;
+            text-align: left;
+        }
+
         button {
             margin: 5px;
             transition: background-color 0.3s, transform 0.1s;
@@ -103,6 +131,18 @@
         .delete-list-btn:hover {
             color: #333;
         }
+
+        .disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .content {
+            padding: 0 18px;
+            display: none;
+            overflow: hidden;
+            background-color: #f1f1f1;
+        }
     </style>
 </head>
 
@@ -125,21 +165,21 @@
         <option value="Canada">Canada</option>
         <option value="China">China</option>
         <option value="France">France</option>
-        <option value="Germany">Germany</option>
-        <option value="India">India</option>
-        <option value="Indonesia">Indonesia</option>
-        <option value="Italy">Italy</option>
-        <option value="Japan">Japan</option>
-        <option value="Malaysia">Malaysia</option>
-        <option value="Mexico">Mexico</option>
-        <option value="Netherlands">Netherlands</option>
-        <option value="Philippines">Philippines</option>
+        <option value="Germany">Germany</Germany>
+        <option value="India">India</India>
+        <option value="Indonesia">Indonesia</Indonesia>
+        <option value="Italy">Italy</Italy>
+        <option value="Japan">Japan</Japan>
+        <option value="Malaysia">Malaysia</Malaysia>
+        <option value="Mexico">Mexico</Mexico>
+        <option value="Netherlands">Netherlands</Netherlands>
+        <option value="Philippines">Philippines</Philippines>
         <option value="South Korea">South Korea</option>
-        <option value="Spain">Spain</option>
-        <option value="Thailand">Thailand</option>
-        <option value="United Kingdom">United Kingdom</option>
+        <option value="Spain">Spain</Spain>
+        <option value="Thailand">Thailand</Thailand>
+        <option value="United Kingdom">United Kingdom</United Kingdom>
         <option value="United States">United States</option>
-        <option value="Vietnam">Vietnam</option>
+        <option value="Vietnam">Vietnam</Vietnam>
     </select><br>
 
     <label for="language">Language (required):</label>
@@ -149,17 +189,17 @@
         <option value="Chinese (Simplified)">Chinese (Simplified)</option>
         <option value="Chinese (Traditional)">Chinese (Traditional)</option>
         <option value="Dutch">Dutch</option>
-        <option value="French">French</option>
+        <option value="French">French</French>
         <option value="German">German</German>
         <option value="Hindi">Hindi</Hindi>
-        <option value="Indonesian">Indonesian</option>
+        <option value="Indonesian">Indonesian</Indonesia>
         <option value="Italian">Italian</Italian>
         <option value="Japanese">Japanese</Japanese>
         <option value="Korean">Korean</Korean>
         <option value="Malay">Malay</Malay>
         <option value="Portuguese">Portuguese</Portuguese>
         <option value="Russian">Russian</Russian>
-        <option value="Spanish">Spanish</Spanish>
+        <option value="Spanish">Spanish</Spain>
         <option value="Tamil">Tamil</Tamil>
         <option value="Tagalog">Tagalog</Tagalog>
         <option value="Thai">Thai</Thai>
@@ -300,14 +340,18 @@
             const recommendationsButton = document.createElement('button');
             domain = document.getElementById('domain').value;
             recommendationsButton.textContent = 'Page Recommendations';
-            recommendationsButton.addEventListener('click', () => {
+            recommendationsButton.addEventListener('click', function () {
+                // Disable the button
+                this.disabled = true;
+                this.classList.add('disabled');
+
                 // Get the URL from the input field *inside* this function
                 const currentURL = domain + renameInput.value;
 
                 // Get the list items and put them into an array
                 const listItems = Array.from(list.children).map(item => item.textContent.trim());
 
-                getPageRecommendations(currentURL, listItems);
+                getPageRecommendations(currentURL, listItems, this); // Pass the button element
             });
             listContainer.appendChild(recommendationsButton);
             return { listContainer, list, renameInput };
@@ -428,7 +472,11 @@
             // Add the "Page Recommendations" button
             const recommendationsButton = document.createElement('button');
             recommendationsButton.textContent = 'Page Recommendations';
-            recommendationsButton.addEventListener('click', () => {
+            recommendationsButton.addEventListener('click', function () {
+                // Disable the button
+                this.disabled = true;
+                this.classList.add('disabled');
+
                 const url = renameInput.value; //get the url value
 
                 // Get the list items and put them into an array
@@ -436,7 +484,7 @@
 
                 console.log(listItems);
 
-                getPageRecommendations(url, listItems); // Pass both URL and the array of list items
+                getPageRecommendations(url, listItems, this); // Pass both URL and the array of list items and the button element
             });
             listContainer.appendChild(recommendationsButton);
 
@@ -482,12 +530,10 @@
             }
         }
 
-        async function getPageRecommendations(url, listElement) {
-            console.log(listElement);
-
+        async function getPageRecommendations(url, listElement, button) {
             const recommendationEndpoint = 'https://pkkz2e02ch.execute-api.ap-southeast-1.amazonaws.com/onPageContentRecommendations';
 
-            try { // Add try-catch for error handling
+            try {
                 const recommendationResponse = await fetch(recommendationEndpoint, {
                     method: 'POST',
                     headers: {
@@ -500,11 +546,87 @@
                 });
 
                 const recommendationData = await recommendationResponse.json();
-                document.getElementById('recommendations').innerHTML += recommendationData;
+
+                // Create collapsible structure
+                const collapsibleButton = document.createElement('button');
+                collapsibleButton.classList.add('collapsible');
+                collapsibleButton.textContent = `${url}`;
+
+                const contentDiv = document.createElement('div');
+                contentDiv.classList.add('content');
+
+                // Check if the response is a list of dictionaries
+                if (Array.isArray(recommendationData) && recommendationData.length > 0 && typeof recommendationData[0] === 'object') {
+                    // Create a table
+                    const table = document.createElement('table');
+                    table.style.width = '100%';
+                    table.style.borderCollapse = 'collapse';
+
+                    // Create table header
+                    const thead = document.createElement('thead');
+                    const headerRow = document.createElement('tr');
+                    const headers = Object.keys(recommendationData[0]);
+
+                    headers.forEach(headerText => {
+                        const th = document.createElement('th');
+                        th.textContent = headerText;
+                        th.style.border = '1px solid #ddd';
+                        th.style.padding = '8px';
+                        th.style.textAlign = 'left';
+                        headerRow.appendChild(th);
+                    });
+                    thead.appendChild(headerRow);
+                    table.appendChild(thead);
+
+
+                    // Create table body
+                    const tbody = document.createElement('tbody');
+                    recommendationData.forEach(item => {
+                        const row = document.createElement('tr');
+                        headers.forEach(header => {
+                            const cell = document.createElement('td');
+                            cell.textContent = item[header];
+                            cell.style.border = '1px solid #ddd';
+                            cell.style.padding = '8px';
+                            row.appendChild(cell);
+                        });
+                        tbody.appendChild(row);
+                    });
+                    table.appendChild(tbody);
+
+                    contentDiv.appendChild(table); // Append the table to the content div
+
+
+                } else {
+                    // If it's not a list of dictionaries, just set the innerHTML
+                    contentDiv.innerHTML = recommendationData;
+                }
+
+
+                // Append elements to the recommendations div
+                const recommendationsDiv = document.getElementById('recommendations');
+                recommendationsDiv.appendChild(collapsibleButton);
+                recommendationsDiv.appendChild(contentDiv);
+
+                // Add event listener for collapsible functionality
+                collapsibleButton.addEventListener('click', function () {
+                    this.classList.toggle('active');
+                    const content = this.nextElementSibling;
+                    if (content.style.display === 'block') {
+                        content.style.display = 'none';
+                    } else {
+                        content.style.display = 'block';
+                    }
+                });
+
                 console.log(recommendationData); // Now logs the parsed JSON data
 
             } catch (error) {
                 console.error("Error fetching recommendations:", error);
+            } finally {
+                // Re-enable the button in the finally block to ensure it always happens
+                button.disabled = false;
+                button.classList.remove('disabled');
             }
         }
 
