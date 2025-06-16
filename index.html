@@ -413,6 +413,19 @@
             transition: background-color 0.3s ease;
         }
 
+        .collapsible50 {
+            background-color: #4c9d00;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+            margin-left: 2%;
+        }
+
         .collapsible90 {
             background-color: #004c9d;
             color: white;
@@ -1607,6 +1620,79 @@
             background-color: #ddd;
         }
 
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+
+        .list-container {
+            width: 300px;
+            margin: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 15px;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .keyword-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            min-height: 200px;
+            /* Starting height */
+        }
+
+        .keyword-list li {
+            background-color: #eee;
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            margin-bottom: 5px;
+            cursor: grab;
+            border-radius: 20px;
+            user-select: none;
+        }
+
+        .keyword-list li:hover {
+            background-color: #ddd;
+        }
+
+        .keyword-list.drag-over {
+            background-color: #f9f9f9;
+            border: 2px dashed #aaa;
+        }
+
+        .rename-input {
+            width: 80%;
+            margin-bottom: 5px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 1.2em;
+            background-color: #bee1ff;
+        }
+
+        .delete-list-btn {
+            position: absolute;
+            top: 15px;
+            right: 4px;
+            background-color: transparent;
+            border: none;
+            cursor: pointer;
+            color: #888;
+        }
+
+        .delete-list-btn:hover {
+            color: #333;
+        }
+
+        .disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         @media screen and (max-width: 1081px) {
 
             .column,
@@ -2379,6 +2465,8 @@
                         <span>Click to get the estimated time to rank for the selected keywords and the webpage's
                             metrics.</span>
                     </button>
+                    <button id="mapKeywordsBtn" class="tooltip" onclick="mapKeywords()">Map Keywords
+                        <span>Click to get see recommended URL mapping for the selected keywords.</span></button>
                     <button onclick="openTimeToRankQueriesModal()" id="loadTimeToRankQueriesBtn">Load Previous
                         Queries</button>
                 </form>
@@ -2482,8 +2570,14 @@
                 <div id="serp-section"></div>
             </div>
 
-
             <hr>
+            <button class="collapsible" id="keyword_mapping"><i class="fas fa-plus-square"></i>Keyword Mapping</button>
+            <div class="content" id="keywordMapping">
+                <button id="addListBtn">Add New URL</button>
+                <button id="undoBtn" disabled>Undo Delete</button>
+                <div class="container" id="listsContainer"></div>
+                <div id="recommendations"></div>
+            </div>
             <button class="collapsible" id="meta_data"><i class="fas fa-plus-square"></i>Meta Data</button>
             <div class="content" id="metaData">
                 <p><b>Meta Title: </b><span id="targetTitle">-</span></p>
@@ -2745,28 +2839,36 @@
                 <input type="text" id="comparison-keyword" placeholder="e.g., digital marketing">
                 <br>
                 <label for="comparison-domain">Target Domain or URL:</label>
-                <input type="url" id="comparison-domain"  onmouseover="showTooltip(event, 'Using this field will add this URL to the top 10 SERPs comparison.')"
-                onmouseout="hideTooltip()" placeholder="e.g., example.com">
+                <input type="url" id="comparison-domain"
+                    onmouseover="showTooltip(event, 'Using this field will add this URL to the top 10 SERPs comparison.')"
+                    onmouseout="hideTooltip()" placeholder="e.g., example.com">
                 <br>
                 <label for="comparison-urls">or Other Specific URLs (separate by new line or comma):</label>
-                <textarea id="comparison-urls" onmouseover="showTooltip(event, 'Using this field will run the analysis based on the URLs in this field only.')"
+                <textarea id="comparison-urls"
+                    onmouseover="showTooltip(event, 'Using this field will run the analysis based on the URLs in this field only.')"
                     onmouseout="hideTooltip()"
                     placeholder="e.g., https://example.com, https://another-example.com"></textarea>
                 <br>
 
                 <label>Page Types to Target:</label><br>
-                <input type="checkbox" id="target-blogs" name="target-page-type" value="blog article" onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
-                onmouseout="hideTooltip()">
-                <label for="target-blogs" onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
-                onmouseout="hideTooltip()">Blog Article</label>
-                <input type="checkbox" id="target-product" name="target-page-type" value="product/service-page"  onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
-                onmouseout="hideTooltip()">
-                <label for="target-product" onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
-                onmouseout="hideTooltip()">Product/Service Page</label>
-                <input type="checkbox" id="target-landing" name="target-page-type" value="landing page"  onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
-                onmouseout="hideTooltip()">
-                <label for="target-landing" onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
-                onmouseout="hideTooltip()">Landing Page</label>
+                <input type="checkbox" id="target-blogs" name="target-page-type" value="blog article"
+                    onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
+                    onmouseout="hideTooltip()">
+                <label for="target-blogs"
+                    onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
+                    onmouseout="hideTooltip()">Blog Article</label>
+                <input type="checkbox" id="target-product" name="target-page-type" value="product/service-page"
+                    onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
+                    onmouseout="hideTooltip()">
+                <label for="target-product"
+                    onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
+                    onmouseout="hideTooltip()">Product/Service Page</label>
+                <input type="checkbox" id="target-landing" name="target-page-type" value="landing page"
+                    onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
+                    onmouseout="hideTooltip()">
+                <label for="target-landing"
+                    onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
+                    onmouseout="hideTooltip()">Landing Page</label>
                 <input type="checkbox" id="target-any" name="target-page-type" value="any" checked>
                 <label for="target-any">Any</label>
                 <br>
@@ -5682,6 +5784,7 @@
             const targetContentTableContainerId = `target-content-table-container-${keyword.replace(/\s+/g, '-')}`;
 
             try {
+                
                 // 1. Keyword Mapping API
                 const keywordMappingResponse = await fetch(keywordMappingEndpoint, {
                     method: 'POST',
@@ -5984,7 +6087,7 @@
                 console.log("Keyword Metrics after keywordAnalysis:", keywordMetrics);
 
                 await displayOverallSummaryTable(keywords, location, language, target);
-                document.getElementById('keyword-research-analysis-button').innerText = "Analyse";
+                document.getElementById('keyword-research-analysis-button').innerText = "Get Time To Rank";
 
             } catch (error) {
                 console.error(`An error occurred for ${keyword}:`, error);
@@ -5994,7 +6097,7 @@
                 } else {
                     console.warn(`Results container not found: ${resultsContainerId}`);
                 }
-                document.getElementById('keyword-research-analysis-button').innerText = "Analyse";
+                document.getElementById('keyword-research-analysis-button').innerText = "Get Time To Rank";
             }
         }
 
@@ -6043,7 +6146,7 @@
                     cpc: 'N/A',
                     search_volume: 'N/A',
                     timeToRank: 'N/A',
-                    mapping: '-'
+                    //mapping: '-'
                 }; // Provide default values
 
                 return {
@@ -6053,7 +6156,7 @@
                     cpc: metrics.cpc || 'N/A',
                     timeToRank: metrics.timeToRank || 'N/A',
                     reason: '', // Initialize the 'Reason' field
-                    mapping: metrics.mapping || '',
+                    //mapping: metrics.mapping || '',
                 };
             });
 
@@ -6070,7 +6173,7 @@
                 <th onclick="sortSummaryTable('cpc')">CPC</th>
                 <th onclick="sortSummaryTable('timeToRank')">Time to Rank</th>
                 <th>Reason</th>
-                <th>Mapping</th>
+                
             </tr>
         </thead>
         <tbody>
@@ -6092,7 +6195,6 @@
       <td>${item.cpc}</td>
       <td class="${timeToRankClass}">${item.timeToRank}</td>
       <td><textarea class="multiline-input" id="reason-${index}" onchange="updateReason(${index}, this.value)">${reason}</textarea></td>
-      <td>${item.mapping}</td>
       </tr>
   `;
             }
@@ -9200,7 +9302,6 @@
             document.getElementById("getImagesBtn").innerHTML += '<img src="https://usagif.com/wp-content/uploads/loading-73.gif" width="50">';
 
             if (!url) {
-                alert("Please enter a URL.");
                 document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations"; //Revert button text
                 return;
             }
@@ -10550,7 +10651,7 @@
                 return data;
             } catch (error) {
                 console.error("Initial request error:", error);
-                throw error; 
+                throw error;
             }
         }
 
@@ -10699,6 +10800,578 @@
                     console.warn(`Element with ID "${sectionId}" not found. Skipping.`);
                 }
             });
+        }
+
+        let listCounter = 1;
+        let deletedLists = []; // Store an array of deleted lists for multiple undo
+
+        const undoBtn = document.getElementById('undoBtn');
+        undoBtn.addEventListener('click', undoDelete);
+
+        document.getElementById('addListBtn').addEventListener('click', addNewList);
+
+        // No longer using a hardcoded mapping
+        let keywordMapping = {};
+
+        const listsContainer = document.getElementById('listsContainer');
+
+        async function mapKeywords() {
+            collapsible = document.getElementById('keyword_mapping')
+            collapsible.classList.add('active');
+            collapsible.nextElementSibling.style.display = 'block';
+            const domain = document.getElementById('domain').value; // Get domain
+            const location = document.getElementById('location').value;
+            const language = document.getElementById('language').value;
+            const keywordsInput = document.getElementById('keywords').value;
+
+            mapKeywordsBtn.innerText = "Mapping...";
+
+            const keywords = keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+
+            // Clear the existing mapping
+            keywordMapping = {};
+            clearAllLists(); //remove all the lists
+            listCounter = 1; //restart the list counter
+
+
+            // Create an array to hold the promises for each fetch request
+            const fetchPromises = keywords.map(keyword => {
+                return fetch('https://6s7ijwwsa8.execute-api.ap-southeast-1.amazonaws.com/dragDrop', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        domain: domain,
+                        keyword: keyword,
+                        language: language,
+                        location: location,
+                    })
+                }).then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                }).then(data => {
+                    data = data.replace(domain, '').replace('http://', '').replace('www.', '').replace('https://', '');
+                    // Use the API response URL as the key in your mapping
+                    if (data) {
+                        if (!keywordMapping[data]) {
+                            keywordMapping[data] = [];
+                        }
+                        keywordMapping[data].push(keyword); // Map keyword to URL
+                    } else {
+                        console.warn(`API response missing URL for keyword: ${keyword}`);
+                    }
+                })
+                    .catch(error => {
+                        console.error(`Error for keyword "${keyword}":`, error);
+                    });
+            });
+
+            try {
+                // Wait for all promises to resolve before populating the lists
+                await Promise.all(fetchPromises);
+
+                // Now populate the lists based on the built-up keywordMapping
+                populateListsFromMapping();
+                mapKeywordsBtn.innerText = "Map Keywords";
+            } catch (error) {
+                console.error("An error occurred during the fetch requests:", error);
+                mapKeywordsBtn.innerText = "Map Keywords";
+            }
+        }
+
+        function createListContainer(url) {
+            const listContainer = document.createElement('div');
+            listContainer.classList.add('list-container');
+
+            const renameInput = document.createElement('input');
+            renameInput.type = 'text';
+            renameInput.classList.add('rename-input');
+            renameInput.value = url;
+
+            // Add event listener for renameList
+            renameInput.addEventListener('blur', function () {
+                renameList(this);
+            });
+
+            const deleteButton = document.createElement('button');
+            deleteButton.classList.add('delete-list-btn');
+            deleteButton.textContent = 'X';
+            deleteButton.addEventListener('click', function () {
+                deleteList(this);
+            });
+
+
+            const listId = 'list' + listCounter;
+            const list = document.createElement('ul');
+            list.id = listId;
+            list.classList.add('keyword-list');
+            list.addEventListener('drop', drop);
+            list.addEventListener('dragover', allowDrop);
+
+            listContainer.appendChild(renameInput);
+            listContainer.appendChild(deleteButton);
+            listContainer.appendChild(list);
+
+            // Add the "Page Recommendations" button
+            const recommendationsButton = document.createElement('button');
+            recommendationsButton.style.margin = "5px auto";
+            recommendationsButton.style.display = "block";
+            domain = document.getElementById('domain').value;
+            recommendationsButton.textContent = 'Page Recommendations';
+            recommendationsButton.addEventListener('click', function () {
+                // Disable the button
+                this.disabled = true;
+                this.classList.add('disabled');
+
+                // Get the URL from the input field *inside* this function
+                const currentURL = domain + renameInput.value;
+
+                console.log(currentURL);
+
+                // Get the list items and put them into an array
+                const listItems = Array.from(list.children).map(item => item.textContent.trim());
+
+                getPageRecommendations(currentURL, listItems, this); // Pass the button element
+            });
+            listContainer.appendChild(recommendationsButton);
+            return { listContainer, list, renameInput };
+        }
+
+        function createKeywordListItem(keyword) {
+            const listItem = document.createElement('li');
+            listItem.draggable = true;
+            listItem.addEventListener('dragstart', drag);
+            listItem.id = keyword;
+            listItem.textContent = keyword; // Display keyword
+            return listItem;
+        }
+
+        function populateListsFromMapping() {
+            for (const url in keywordMapping) {
+                if (keywordMapping.hasOwnProperty(url)) {
+                    const { listContainer, list, renameInput } = createListContainer(url);
+
+                    keywordMapping[url].forEach(keyword => {
+                        const listItem = createKeywordListItem(keyword);
+                        list.appendChild(listItem);
+                    });
+
+                    listsContainer.appendChild(listContainer);
+                    listCounter++;
+                }
+            }
+        }
+
+        function clearAllLists() {
+            while (listsContainer.firstChild) {
+                listsContainer.removeChild(listsContainer.firstChild);
+            }
+        }
+
+
+
+        function drag(ev) {
+            ev.dataTransfer.setData("text", ev.target.id);
+        }
+
+        const MAX_ITEMS_PER_LIST = 20; // Set the maximum limit
+        const HEIGHT_PER_KEYWORD = 6; // Additional increase per keyword.
+
+
+
+        function drop(ev) {
+            ev.preventDefault();
+            const target = ev.target;
+
+            if (target.classList.contains('keyword-list')) {
+                target.classList.remove('drag-over'); // Always remove the drag-over class
+
+                // Check if the list is full again before dropping (safety check)
+                if (target.children.length < MAX_ITEMS_PER_LIST) {
+                    var data = ev.dataTransfer.getData("text");
+                    var draggedElement = document.getElementById(data);
+                    target.appendChild(draggedElement);
+
+                    // Increase the height of the list
+                    const currentHeight = parseInt(window.getComputedStyle(target).minHeight);
+                    const numberOfKeywords = target.children.length;
+                    const heightIncrease = (numberOfKeywords * HEIGHT_PER_KEYWORD);
+                    target.style.minHeight = (currentHeight + heightIncrease) + 'px';
+
+                    target.classList.remove('list-full'); // remove the list-full class if there are items to drop
+                } else {
+                    //Optional: Prevent the drop from occurring
+                    //You can optionally add additional error handling here
+                    target.classList.remove('list-full');
+                    return;
+                }
+
+            } else {
+                target.classList.remove('drag-over');
+                target.classList.remove('list-full'); //also, prevent adding css if element does not have the correct class
+            }
+        }
+
+        function addNewList() {
+            const listsContainer = document.getElementById('listsContainer');
+
+            const listContainer = document.createElement('div');
+            listContainer.classList.add('list-container');
+
+            const listId = 'list' + listCounter;
+            const defaultName = '/url-' + listCounter;
+
+            const renameInput = document.createElement('input');
+            renameInput.type = 'text';
+            renameInput.classList.add('rename-input');
+            renameInput.value = defaultName;
+
+            // Add event listener for renameList
+            renameInput.addEventListener('blur', function () {
+                renameList(this);
+            });
+
+
+            const deleteButton = document.createElement('button');
+            deleteButton.classList.add('delete-list-btn');
+            deleteButton.textContent = 'X';
+            deleteButton.addEventListener('click', function () {
+                deleteList(this);
+            });
+
+            const list = document.createElement('ul');
+            list.id = listId;
+            list.classList.add('keyword-list');
+            list.addEventListener('drop', drop);
+            list.addEventListener('dragover', allowDrop);
+
+            listContainer.appendChild(renameInput);
+            listContainer.appendChild(deleteButton);
+            listContainer.appendChild(list);
+
+            // Add the "Page Recommendations" button
+            const recommendationsButton = document.createElement('button');
+            recommendationsButton.textContent = 'Page Recommendations';
+            recommendationsButton.addEventListener('click', function () {
+                // Disable the button
+                this.disabled = true;
+                this.classList.add('disabled');
+
+                const url = renameInput.value; //get the url value
+
+                // Get the list items and put them into an array
+                const listItems = Array.from(list.children).map(item => item.textContent.trim());
+
+                console.log(listItems);
+
+                getPageRecommendations(url, listItems, this); // Pass both URL and the array of list items and the button element
+            });
+            listContainer.appendChild(recommendationsButton);
+
+            listsContainer.appendChild(listContainer);
+
+            listCounter++;
+        }
+
+        function renameList(inputElement) {
+            // No longer need to update a separate H2. The input itself IS the name.
+        }
+
+        function deleteList(deleteButton) {
+            const listContainer = deleteButton.parentNode;
+            const listsContainer = document.getElementById('listsContainer');
+
+            // Store the deleted list details for undo
+            deletedLists.push({
+                element: listContainer,
+                nextSibling: listContainer.nextSibling,
+                listsContainer: listsContainer
+            });
+
+            listsContainer.removeChild(listContainer);
+
+            // Enable the undo button if there are no more deleted lists
+            undoBtn.disabled = deletedLists.length === 0;
+        }
+
+        function undoDelete() {
+            if (deletedLists.length > 0) {
+                const lastDeleted = deletedLists.pop(); // Get the last deleted list
+
+                // Re-insert the deleted list
+                if (lastDeleted.nextSibling) {
+                    lastDeleted.listsContainer.insertBefore(lastDeleted.element, lastDeleted.nextSibling);
+                } else {
+                    lastDeleted.listsContainer.appendChild(lastDeleted.element);
+                }
+
+                // Disable the undo button if there are no more deleted lists
+                undoBtn.disabled = deletedLists.length === 0;
+            }
+        }
+
+        async function getPageRecommendations(url, listElement, button) {
+            const recommendationEndpoint = 'https://pkkz2e02ch.execute-api.ap-southeast-1.amazonaws.com/onPageContentRecommendations';
+
+            try {
+                const recommendationResponse = await fetch(recommendationEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url,
+                        "keywords": listElement
+                    })
+                });
+
+                recommendationData = await recommendationResponse.json();
+
+                // Create collapsible structure
+                const collapsibleButton = document.createElement('button');
+                collapsibleButton.classList.add('collapsible50');
+                collapsibleButton.textContent = `${url}`;
+
+                const contentDiv = document.createElement('div');
+                contentDiv.classList.add('content');
+
+                // Check if the response is a list of dictionaries
+                if (Array.isArray(recommendationData) && recommendationData.length > 0 && typeof recommendationData[0] === 'object') {
+                    // Create a table
+                    const table = document.createElement('table');
+                    table.style.width = '100%';
+                    table.style.borderCollapse = 'collapse';
+
+                    // Create table header
+                    const thead = document.createElement('thead');
+                    const headerRow = document.createElement('tr');
+                    const headers = Object.keys(recommendationData[0]);
+
+                    headers.forEach(headerText => {
+                        const th = document.createElement('th');
+                        th.textContent = headerText;
+                        th.style.border = '1px solid #ddd';
+                        th.style.padding = '8px';
+                        th.style.textAlign = 'left';
+                        headerRow.appendChild(th);
+                    });
+                    thead.appendChild(headerRow);
+                    table.appendChild(thead);
+
+
+                    // Create table body
+                    const tbody = document.createElement('tbody');
+                    recommendationData.forEach(item => {
+                        const row = document.createElement('tr');
+                        headers.forEach(header => {
+                            const cell = document.createElement('td');
+                            cell.textContent = item[header];
+                            cell.style.border = '1px solid #ddd';
+                            cell.style.padding = '8px';
+                            row.appendChild(cell);
+                        });
+                        tbody.appendChild(row);
+                    });
+                    table.appendChild(tbody);
+
+                    contentDiv.innerHTML += '<h3>Content Optimisation</h3>';
+
+                    contentDiv.appendChild(table); // Append the table to the content div
+
+                    endpoint = 'https://udjdc333m9.execute-api.ap-southeast-1.amazonaws.com/getImages';
+
+                    response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            url: url,
+                            keywords: listElement // Send keywords to the backend
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    data = await response.json();
+
+                    console.log(data);
+
+                    const recommendationEndpoint = 'https://vwmqqj251d.execute-api.ap-southeast-1.amazonaws.com/onPageRecommendations';
+
+                    const recommendationResponse = await fetch(recommendationEndpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            "data": data,
+                            "keywords": listElement
+                        })
+                    });
+
+                    if (!recommendationResponse.ok) {
+                        throw new Error(`HTTP error! status: ${recommendationResponse.status}`);
+                    }
+
+                    recommendationData = await recommendationResponse.json();
+
+                    data = recommendationData;
+                    let resultsHTML = '';
+
+                    let metaTableHTML = `<h3>Meta and Headings</h3>
+        <table id="metaTable">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Current Value</th>
+                    <th>Suggested Change</th>
+                    <th>Rationale</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Meta Title</td>
+                    <td>${data.meta_title.current_value}</td>
+                    <td><textarea>${data.meta_title.suggested_value}</textarea></td>
+                    <td>${data.meta_title.rationale}</td>
+                </tr>
+                <tr>
+                    <td>Meta Description</td>
+                    <td>${data.meta_description.current_value}</td>
+                    <td><textarea>${data.meta_description.suggested_value}</textarea></td>
+                    <td>${data.meta_description.rationale}</td>
+                </tr>
+                <tr>
+                    <td>Canonical URL</td>
+                    <td>${data.canonical_url.current_value}</td>
+                    <td><textarea>${data.canonical_url.suggested_value}</textarea></td>
+                    <td>${data.canonical_url.rationale}</td>
+                </tr>`;
+
+                    // Function to add heading rows
+                    function addHeadingRows(headingType, headings) {
+                        headings.forEach(heading => {
+                            metaTableHTML += `
+                <tr>
+                    <td>${headingType}</td>
+                    <td>${heading.current_value}</td>
+                    <td><textarea>${heading.suggested_value}</textarea></td>
+                    <td>${heading.rationale}</td>
+                </tr>
+            `;
+                        });
+                    }
+
+                    addHeadingRows("H1 Heading", data.headings.h1);
+                    addHeadingRows("H2 Heading", data.headings.h2);
+                    addHeadingRows("H3 Heading", data.headings.h3);
+                    addHeadingRows("H4 Heading", data.headings.h4);
+
+                    metaTableHTML += `
+
+            </tbody>
+        </table>
+    `;
+
+                    let imageTableHTML = `<h3>Image Title and Alt Text</h3>
+            <table id="imageTable">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Image URL <button class="copy-button" onclick="copyColumn(1, 'imageTable')">Copy</button></th>
+                        <th>Image Preview</th>
+                        <th>Alt Text <button class="copy-button" onclick="copyColumn(3, 'imageTable')">Copy</button></th>
+                        <th>Suggested Alt Text</th>
+                        <th>Rationale</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+                    let i = 0;
+                    for (const imageData of data.image_data) {
+                        const imageUrl = Object.keys(imageData)[0];
+                        const imageDetails = imageData[imageUrl];
+
+                        imageTableHTML += `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td><a href="${imageUrl}" target="_blank">${imageUrl}</a></td>
+                    <td><img src="${imageUrl}" alt="${imageDetails.current_value}"></td>
+                    <td>${imageDetails.current_value}</td>
+                    <td><textarea>${imageDetails.suggested_value}</textarea></td>
+                    <td>${imageDetails.rationale}</td>
+                </tr>
+            `;
+                        i++;
+                    }
+
+
+                    imageTableHTML += `
+                </tbody>
+            </table>
+        `;
+
+                    resultsHTML += metaTableHTML;
+
+                    // Add export button after image table
+                    resultsHTML += '<button class="export-button" onclick="exportOnPageToCSV()">Export to CSV</button>';
+
+                    contentDiv.innerHTML += resultsHTML;
+                    contentDiv.innerHTML += imageTableHTML;
+
+                } else {
+                    // If it's not a list of dictionaries, just set the innerHTML
+                    contentDiv.innerHTML = recommendationData;
+                }
+
+
+                // Append elements to the recommendations div
+                const recommendationsDiv = document.getElementById('recommendations');
+                recommendationsDiv.appendChild(collapsibleButton);
+                recommendationsDiv.appendChild(contentDiv);
+
+                // Add event listener for collapsible functionality
+                collapsibleButton.addEventListener('click', function () {
+                    this.classList.toggle('active');
+                    const content = this.nextElementSibling;
+                    if (content.style.display === 'block') {
+                        content.style.display = 'none';
+                    } else {
+                        content.style.display = 'block';
+                    }
+                });
+
+                console.log(recommendationData); // Now logs the parsed JSON data
+
+            } catch (error) {
+                console.error("Error fetching recommendations:", error);
+            } finally {
+                // Re-enable the button in the finally block to ensure it always happens
+                button.disabled = false;
+                button.classList.remove('disabled');
+            }
+        }
+
+        function allowDrop(ev) {
+            ev.preventDefault();
+            const target = ev.target;
+
+            if (target.classList.contains('keyword-list')) {
+                // Check if the list is full
+                if (target.children.length < MAX_ITEMS_PER_LIST) {
+                    target.classList.add('drag-over');
+                } else {
+                    // Optional: Provide visual feedback that the list is full
+                    target.classList.add('list-full'); // Add a class for styling, e.g., red border
+                }
+            }
         }
 
 
