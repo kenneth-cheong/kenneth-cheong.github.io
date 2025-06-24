@@ -33,10 +33,6 @@
   <link rel="stylesheet" href="assets/css/bootstrap.min.css" />
   <link rel="stylesheet" href="assets/css/plugins.min.css" />
   <link rel="stylesheet" href="assets/css/kaiadmin.min.css" />
-
-
-  <!-- CSS Just for demo purpose, don't include it in your project -->
-  <link rel="stylesheet" href="assets/css/demo.css" />
 </head>
 
 <body>
@@ -486,11 +482,9 @@
         }
 
         async function getSimilarKeywords() {
-          document.getElementById('similarKeywordsCard').style.display = "none";
           const country = document.getElementById('keywordAnalysisCountry').value;
           const language = document.getElementById('keywordAnalysisLanguage').value;
           const keywords = document.getElementById('keyword_analysis_keywords').value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
-          document.getElementById('similarKeywordsHeader').textContent = "Similar Keywords";
 
 
           var url = "https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords";
@@ -522,15 +516,11 @@
             // Re-throw the error to signal failure to the caller (keywordAnalysis)
             throw error;
           }
-
-
         }
 
         async function getRankingKeywords() {
-          document.getElementById('rankedKeywordsCard').style.display = "none";
           const domain = document.getElementById('keyword_analysis_url').value;
           const country = document.getElementById('keywordAnalysisCountry').value;
-          document.getElementById('rankingKeywordsHeader').textContent = "Ranked Keywords";
 
           let targetDomain = domain;
 
@@ -576,11 +566,9 @@
         }
 
         async function getWebpageKeywords() {
-          document.getElementById('webpageKeywordsCard').style.display = "none";
           const domain = document.getElementById('keyword_analysis_url').value;
           const country = document.getElementById('keywordAnalysisCountry').value;
           const language = document.getElementById('keywordAnalysisLanguage').value;
-          document.getElementById('rankingKeywordsHeader').textContent = "Ranked Keywords";
 
           const endpoint = "https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite";
           try {
@@ -653,8 +641,6 @@
             addCell.appendChild(plusIcon);
           });
           makeTableSortable('webpageKeywordsTable');
-          document.getElementById('webpageKeywordsHeader').textContent += ' (' + String(keywords.length) + ')';
-          document.getElementById('webpageKeywordsCard').style.display = "block";
         }
 
         function populateSimilarKeywordsTable(keywords) {
@@ -694,8 +680,6 @@
             addCell.appendChild(plusIcon);
           });
           makeTableSortable('similarKeywordsTable');
-          document.getElementById('similarKeywordsHeader').textContent += ' (' + String(similarKeywordsArray.length) + ')';
-          document.getElementById('similarKeywordsCard').style.display = "block";
         }
 
         function populateRankingKeywordsTable(keywords) {
@@ -735,8 +719,6 @@
             addCell.appendChild(plusIcon);
           });
           makeTableSortable('rankingKeywordsTable');
-          document.getElementById('rankingKeywordsHeader').textContent += ' (' + String(rankedKeywordsArray.length) + ')';
-          document.getElementById('rankedKeywordsCard').style.display = "block";
         }
 
 
@@ -746,6 +728,9 @@
           const existingKeywords = textarea.value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
 
           if (!existingKeywords.includes(keyword)) {
+            if (existingKeywords.length > 0) {
+              textarea.value += "\n";
+            }
             textarea.value += keyword + "\n";
             updateKeywordCount();
           } else {
@@ -892,9 +877,622 @@
           }
         }
 
+        async function mapKeywords() {
+          document.getElementById('mapKeywordsBtn').innerHTML = '<div class="custom-toggle rotate"><i class="icon-settings"></i></div>';
+          const domain = document.getElementById('keyword_analysis_url').value;
+          const country = document.getElementById('keywordAnalysisCountry').value;
+          const language = document.getElementById('keywordAnalysisLanguage').value;
+          const keywords = document.getElementById('keyword_analysis_keywords').value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+
+          // Clear the existing mapping
+          keywordMapping = {};
+          clearAllLists(); //remove all the lists
+          listCounter = 1; //restart the list counter
+
+          // Create an array to hold the promises for each fetch request
+          const fetchPromises = keywords.map(keyword => {
+            return fetch('https://6s7ijwwsa8.execute-api.ap-southeast-1.amazonaws.com/dragDrop', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                domain: domain,
+                keyword: keyword,
+                language: language,
+                location: country,
+              })
+            }).then(response => {
+              if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+              }
+              return response.json();
+            }).then(data => {
+              data = data.replace(domain, '').replace('http://', '').replace('www.', '').replace('https://', '');
+              // Use the API response URL as the key in your mapping
+              if (data) {
+                if (!keywordMapping[data]) {
+                  keywordMapping[data] = [];
+                }
+                keywordMapping[data].push(keyword); // Map keyword to URL
+              } else {
+                console.warn(`API response missing URL for keyword: ${keyword}`);
+              }
+            })
+              .catch(error => {
+                console.error(`Error for keyword "${keyword}":`, error);
+              });
+          });
+
+          try {
+            // Wait for all promises to resolve before populating the lists
+            await Promise.all(fetchPromises);
+
+            // Now populate the lists based on the built-up keywordMapping
+            populateListsFromMapping();
+          } catch (error) {
+            console.error("An error occurred during the fetch requests:", error);
+          } finally {
+            document.getElementById('mapKeywordsBtn').innerHTML = 'Map Keywords';
+          }
+        }
+
+        function populateListsFromMapping() {
+          for (const url in keywordMapping) {
+            if (keywordMapping.hasOwnProperty(url)) {
+              const { listContainer, list, renameInput } = createListContainer(url);
+
+              keywordMapping[url].forEach(keyword => {
+                const listItem = createKeywordListItem(keyword);
+                list.appendChild(listItem);
+              });
+
+              listsContainer.appendChild(listContainer);
+              listCounter++;
+            }
+          }
+        }
+
+        function createKeywordListItem(keyword) {
+          const listItem = document.createElement('li');
+          listItem.draggable = true;
+          listItem.addEventListener('dragstart', drag);
+          listItem.id = keyword;
+          listItem.textContent = keyword; // Display keyword
+          return listItem;
+        }
+
+        function createListContainer(url) {
+          const listContainer = document.createElement('div');
+          listContainer.classList.add('list-container');
+
+          const renameInput = document.createElement('input');
+          renameInput.type = 'text';
+          renameInput.classList.add('border', 'rounded', 'p-2', 'flex-grow-1', 'me-2');
+          renameInput.value = url;
+
+          // Add event listener for renameList
+          renameInput.addEventListener('blur', function () {
+            renameList(this);
+          });
+
+          const deleteButton = document.createElement('button');
+          deleteButton.classList.add('btn', 'btn-sm', 'btn-outline-danger');
+          deleteButton.innerHTML = '<i class="fas fa-times"</i>';
+          deleteButton.addEventListener('click', function () {
+            deleteList(this);
+          });
+
+
+          const listId = 'list' + listCounter;
+          const list = document.createElement('ul');
+          list.id = listId;
+          list.classList.add('keyword-list');
+          list.addEventListener('drop', drop);
+          list.addEventListener('dragover', allowDrop);
+
+          listContainer.appendChild(renameInput);
+          listContainer.appendChild(deleteButton);
+          listContainer.appendChild(list);
+
+          // Add the "Page Recommendations" button
+          const recommendationsButton = document.createElement('button');
+          recommendationsButton.classList.add("btn", "btn-primary", "w-100");
+          recommendationsButton.style.display = "block";
+          domain = document.getElementById('keyword_analysis_url').value;
+          recommendationsButton.innerHTML += '<i class="fas fa-magic me-1"></i> ';
+          recommendationsButton.textContent = 'Page Recommendations';
+          recommendationsButton.addEventListener('click', function () {
+            // Disable the button
+            this.disabled = true;
+            this.classList.add('disabled');
+
+            // Get the URL from the input field *inside* this function
+            const currentURL = domain + renameInput.value;
+
+            console.log(currentURL);
+
+            // Get the list items and put them into an array
+            const listItems = Array.from(list.children).map(item => item.textContent.trim());
+
+            getPageRecommendations(currentURL, listItems, this); // Pass the button element
+          });
+          listContainer.appendChild(recommendationsButton);
+          return { listContainer, list, renameInput };
+        }
+
+        async function getPageRecommendations(url, listElement, button) {
+          const recommendationEndpoint = 'https://pkkz2e02ch.execute-api.ap-southeast-1.amazonaws.com/onPageContentRecommendations';
+
+          try {
+            const recommendationResponse = await fetch(recommendationEndpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                url,
+                "keywords": listElement
+              })
+            });
+
+            recommendationData = await recommendationResponse.json();
+
+            // Create collapsible structure
+            const collapsibleButton = document.createElement('button');
+            collapsibleButton.classList.add('collapsible50');
+            collapsibleButton.textContent = `${url}`;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.classList.add('content');
+
+            // Check if the response is a list of dictionaries
+            if (Array.isArray(recommendationData) && recommendationData.length > 0 && typeof recommendationData[0] === 'object') {
+              // Create a table
+              const table = document.createElement('table');
+              table.style.width = '100%';
+              table.style.borderCollapse = 'collapse';
+
+              // Create table header
+              const thead = document.createElement('thead');
+              const headerRow = document.createElement('tr');
+              const headers = Object.keys(recommendationData[0]);
+
+              headers.forEach(headerText => {
+                const th = document.createElement('th');
+                th.textContent = headerText;
+                th.style.border = '1px solid #ddd';
+                th.style.padding = '8px';
+                th.style.textAlign = 'left';
+                headerRow.appendChild(th);
+              });
+              thead.appendChild(headerRow);
+              table.appendChild(thead);
+
+
+              // Create table body
+              const tbody = document.createElement('tbody');
+              recommendationData.forEach(item => {
+                const row = document.createElement('tr');
+                headers.forEach(header => {
+                  const cell = document.createElement('td');
+                  cell.textContent = item[header];
+                  cell.style.border = '1px solid #ddd';
+                  cell.style.padding = '8px';
+                  row.appendChild(cell);
+                });
+                tbody.appendChild(row);
+              });
+              table.appendChild(tbody);
+
+              contentDiv.innerHTML += '<h3>Content Optimisation</h3>';
+
+              contentDiv.appendChild(table); // Append the table to the content div
+
+              endpoint = 'https://udjdc333m9.execute-api.ap-southeast-1.amazonaws.com/getImages';
+
+              response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  url: url,
+                  keywords: listElement // Send keywords to the backend
+                })
+              });
+
+              if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+              }
+
+              data = await response.json();
+
+              console.log(data);
+
+              const recommendationEndpoint = 'https://vwmqqj251d.execute-api.ap-southeast-1.amazonaws.com/onPageRecommendations';
+
+              const recommendationResponse = await fetch(recommendationEndpoint, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  "data": data,
+                  "keywords": listElement
+                })
+              });
+
+              if (!recommendationResponse.ok) {
+                throw new Error(`HTTP error! status: ${recommendationResponse.status}`);
+              }
+
+              recommendationData = await recommendationResponse.json();
+
+              data = recommendationData;
+              let resultsHTML = '';
+
+              let metaTableHTML = `<h3>Meta and Headings</h3>
+        <table id="metaTable">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Current Value</th>
+                    <th>Suggested Change</th>
+                    <th>Rationale</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Meta Title</td>
+                    <td>${data.meta_title.current_value}</td>
+                    <td><textarea>${data.meta_title.suggested_value}</textarea></td>
+                    <td>${data.meta_title.rationale}</td>
+                </tr>
+                <tr>
+                    <td>Meta Description</td>
+                    <td>${data.meta_description.current_value}</td>
+                    <td><textarea>${data.meta_description.suggested_value}</textarea></td>
+                    <td>${data.meta_description.rationale}</td>
+                </tr>
+                <tr>
+                    <td>Canonical URL</td>
+                    <td>${data.canonical_url.current_value}</td>
+                    <td><textarea>${data.canonical_url.suggested_value}</textarea></td>
+                    <td>${data.canonical_url.rationale}</td>
+                </tr>`;
+
+              // Function to add heading rows
+              function addHeadingRows(headingType, headings) {
+                headings.forEach(heading => {
+                  metaTableHTML += `
+                <tr>
+                    <td>${headingType}</td>
+                    <td>${heading.current_value}</td>
+                    <td><textarea>${heading.suggested_value}</textarea></td>
+                    <td>${heading.rationale}</td>
+                </tr>
+            `;
+                });
+              }
+
+              addHeadingRows("H1 Heading", data.headings.h1);
+              addHeadingRows("H2 Heading", data.headings.h2);
+              addHeadingRows("H3 Heading", data.headings.h3);
+              addHeadingRows("H4 Heading", data.headings.h4);
+
+              metaTableHTML += `
+
+            </tbody>
+        </table>
+    `;
+
+              let imageTableHTML = `<h3>Image Title and Alt Text</h3>
+            <table id="imageTable">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Image URL <button class="copy-button" onclick="copyColumn(1, 'imageTable')">Copy</button></th>
+                        <th>Image Preview</th>
+                        <th>Alt Text <button class="copy-button" onclick="copyColumn(3, 'imageTable')">Copy</button></th>
+                        <th>Suggested Alt Text</th>
+                        <th>Rationale</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+              let i = 0;
+              for (const imageData of data.image_data) {
+                const imageUrl = Object.keys(imageData)[0];
+                const imageDetails = imageData[imageUrl];
+
+                imageTableHTML += `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td><a href="${imageUrl}" target="_blank">${imageUrl}</a></td>
+                    <td><img src="${imageUrl}" alt="${imageDetails.current_value}"></td>
+                    <td>${imageDetails.current_value}</td>
+                    <td><textarea>${imageDetails.suggested_value}</textarea></td>
+                    <td>${imageDetails.rationale}</td>
+                </tr>
+            `;
+                i++;
+              }
+
+
+              imageTableHTML += `
+                </tbody>
+            </table>
+        `;
+
+              resultsHTML += metaTableHTML;
+
+              // Add export button after image table
+              resultsHTML += '<button class="export-button" onclick="exportOnPageToCSV()">Export to CSV</button>';
+
+              contentDiv.innerHTML += resultsHTML;
+              contentDiv.innerHTML += imageTableHTML;
+
+            } else {
+              // If it's not a list of dictionaries, just set the innerHTML
+              contentDiv.innerHTML = recommendationData;
+            }
+
+
+            // Append elements to the recommendations div
+            const recommendationsDiv = document.getElementById('recommendations');
+            recommendationsDiv.appendChild(collapsibleButton);
+            recommendationsDiv.appendChild(contentDiv);
+
+            // Add event listener for collapsible functionality
+            collapsibleButton.addEventListener('click', function () {
+              this.classList.toggle('active');
+              const content = this.nextElementSibling;
+              if (content.style.display === 'block') {
+                content.style.display = 'none';
+              } else {
+                content.style.display = 'block';
+              }
+            });
+
+            console.log(recommendationData); // Now logs the parsed JSON data
+
+          } catch (error) {
+            console.error("Error fetching recommendations:", error);
+          } finally {
+            // Re-enable the button in the finally block to ensure it always happens
+            button.disabled = false;
+            button.classList.remove('disabled');
+          }
+        }
+
+        function allowDrop(ev) {
+          ev.preventDefault();
+          const target = ev.target;
+
+          if (target.classList.contains('keyword-list')) {
+            // Check if the list is full
+            if (target.children.length < MAX_ITEMS_PER_LIST) {
+              target.classList.add('drag-over');
+            } else {
+              // Optional: Provide visual feedback that the list is full
+              target.classList.add('list-full'); // Add a class for styling, e.g., red border
+            }
+          }
+        }
+
+        function clearAllLists() {
+          while (listsContainer.firstChild) {
+            listsContainer.removeChild(listsContainer.firstChild);
+          }
+        }
+
+        function drop(ev) {
+          ev.preventDefault();
+          const target = ev.target;
+
+          if (target.classList.contains('keyword-list')) {
+            target.classList.remove('drag-over'); // Always remove the drag-over class
+
+            // Check if the list is full again before dropping (safety check)
+            if (target.children.length < MAX_ITEMS_PER_LIST) {
+              var data = ev.dataTransfer.getData("text");
+              var draggedElement = document.getElementById(data);
+              target.appendChild(draggedElement);
+
+              // Increase the height of the list
+              const currentHeight = parseInt(window.getComputedStyle(target).minHeight);
+              const numberOfKeywords = target.children.length;
+              const heightIncrease = (numberOfKeywords * HEIGHT_PER_KEYWORD);
+              target.style.minHeight = (currentHeight + heightIncrease) + 'px';
+
+              target.classList.remove('list-full'); // remove the list-full class if there are items to drop
+            } else {
+              //Optional: Prevent the drop from occurring
+              //You can optionally add additional error handling here
+              target.classList.remove('list-full');
+              return;
+            }
+
+          } else {
+            target.classList.remove('drag-over');
+            target.classList.remove('list-full'); //also, prevent adding css if element does not have the correct class
+          }
+        }
+
+        function drag(ev) {
+          ev.dataTransfer.setData("text", ev.target.id);
+        }
+
+        const MAX_ITEMS_PER_LIST = 20; // Set the maximum limit
+        const HEIGHT_PER_KEYWORD = 6; // Additional increase per keyword.
+
+        function deleteList(deleteButton) {
+          const listContainer = deleteButton.parentNode;
+          const listsContainer = document.getElementById('listsContainer');
+
+          // Store the deleted list details for undo
+          deletedLists.push({
+            element: listContainer,
+            nextSibling: listContainer.nextSibling,
+            listsContainer: listsContainer
+          });
+
+          listsContainer.removeChild(listContainer);
+
+          // Enable the undo button if there are no more deleted lists
+          undoBtn.disabled = deletedLists.length === 0;
+        }
+
+        function addNewList() {
+          const listsContainer = document.getElementById('listsContainer');
+
+          const listContainer = document.createElement('div');
+          listContainer.classList.add('list-container');
+
+          const listId = 'list' + listCounter;
+          const defaultName = '/url-' + listCounter;
+
+          const renameInput = document.createElement('input');
+          renameInput.type = 'text';
+          renameInput.classList.add('border', 'rounded', 'p-2', 'flex-grow-1', 'me-2');
+          renameInput.value = defaultName;
+
+          // Add event listener for renameList
+          renameInput.addEventListener('blur', function () {
+            renameList(this);
+          });
+
+
+          const deleteButton = document.createElement('button');
+          deleteButton.classList.add('btn', 'btn-sm', 'btn-outline-danger');
+          deleteButton.innerHTML = '<i class="fas fa-times"</i>';
+          deleteButton.addEventListener('click', function () {
+            deleteList(this);
+          });
+
+          const list = document.createElement('ul');
+          list.id = listId;
+          list.classList.add('keyword-list');
+          list.addEventListener('drop', drop);
+          list.addEventListener('dragover', allowDrop);
+
+          listContainer.appendChild(renameInput);
+          listContainer.appendChild(deleteButton);
+          listContainer.appendChild(list);
+
+          // Add the "Page Recommendations" button
+          const recommendationsButton = document.createElement('button');
+          recommendationsButton.classList.add("btn", "btn-primary", "w-100");
+          recommendationsButton.style.display = "block";
+          recommendationsButton.innerHTML += '<i class="fas fa-magic me-1"></i> ';
+          recommendationsButton.textContent = 'Page Recommendations';
+          recommendationsButton.addEventListener('click', function () {
+            // Disable the button
+            this.disabled = true;
+            this.classList.add('disabled');
+
+            const url = renameInput.value; //get the url value
+
+            // Get the list items and put them into an array
+            const listItems = Array.from(list.children).map(item => item.textContent.trim());
+
+            console.log(listItems);
+
+            getPageRecommendations(url, listItems, this); // Pass both URL and the array of list items and the button element
+          });
+          listContainer.appendChild(recommendationsButton);
+
+          listsContainer.appendChild(listContainer);
+
+          listCounter++;
+        }
+
+        let listCounter = 1;
+        let deletedLists = []; // Store an array of deleted lists for multiple undo
+
+        function deleteList(deleteButton) {
+          const listContainer = deleteButton.parentNode;
+          const listsContainer = document.getElementById('listsContainer');
+
+          // Store the deleted list details for undo
+          deletedLists.push({
+            element: listContainer,
+            nextSibling: listContainer.nextSibling,
+            listsContainer: listsContainer
+          });
+
+          listsContainer.removeChild(listContainer);
+
+          // Enable the undo button if there are no more deleted lists
+          undoBtn.disabled = deletedLists.length === 0;
+        }
+
+        function undoDelete() {
+          if (deletedLists.length > 0) {
+            const lastDeleted = deletedLists.pop(); // Get the last deleted list
+
+            // Re-insert the deleted list
+            if (lastDeleted.nextSibling) {
+              lastDeleted.listsContainer.insertBefore(lastDeleted.element, lastDeleted.nextSibling);
+            } else {
+              lastDeleted.listsContainer.appendChild(lastDeleted.element);
+            }
+
+            // Disable the undo button if there are no more deleted lists
+            undoBtn.disabled = deletedLists.length === 0;
+          }
+        }
+
+
       </script>
 
       <style>
+        .containerForMapping {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: space-around;
+        }
+
+        .list-container {
+          width: 300px;
+          margin: 10px;
+          background-color: #fff;
+          border: 1px solid #ccc;
+          border-radius: 15px;
+          padding: 10px;
+          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+          position: relative;
+        }
+
+        .keyword-list {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          min-height: 200px;
+          /* Starting height */
+        }
+
+        .keyword-list li {
+          background-color: #eee;
+          border: 1px solid #ddd;
+          padding: 8px 12px;
+          margin: 10px;
+          cursor: grab;
+          border-radius: 20px;
+          user-select: none;
+        }
+
+        .keyword-list li:hover {
+          background-color: #ddd;
+        }
+
+        .keyword-list.drag-over {
+          background-color: #f9f9f9;
+          border: 2px dashed #aaa;
+        }
+
         .rotate {
           animation: rotate-clockwise-animation 2s linear infinite;
           display: inline-block;
@@ -980,259 +1578,209 @@
                         <textarea class="form-control" id="keyword_analysis_keywords" rows="5"></textarea>
                         <small id="keywordAnalysisKeywordsHelp" class="form-text text-muted"
                           style="display:none;">Either key in keywords and/or URL to proceed.</small>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="card-action">
-                    <button class="btn btn-success" id="keywordAnalysisSubmit"
-                      onclick="keywordAnalysis()">Submit</button>
-                    <button class="btn btn-danger" onclick="clearKeywordAnalysis()">Clear</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-md-6">
-              <div class="card" id="rankedKeywordsCard" style="display:none;">
-                <div class="card-header">
-                  <h4 class="card-title" id="rankingKeywordsHeader">Ranked Keywords</h4>
-                </div>
-                <div class="card-body">
-                  <div class="table-responsive">
-                    <table id="rankingKeywordsTable" class="display table table-striped table-hover">
-                      <thead>
-                        <tr>
-                          <th>Keyword</th>
-                          <th>Search Vol</th>
-                          <th>Rank</th>
-                          <th>CPC</th>
-                          <th>Add</th> <!-- Empty header for the plus icon column -->
-                        </tr>
-                      </thead>
-                      <tbody>
-
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="card" id="serpCard" style="display:none;">
-                <div class="card-header">
-                  <h4 id="serpHeader" class="card-title">SERP</h4>
-                </div>
-                <div class="card-body">
-                  <div class="table-responsive">
-                    <table id="serpTable" class="display table table-striped table-hover">
-                      <thead>
-                        <tr>
-                          <th>Rank</th>
-                          <th style="width: 15px;">URL</th>
-                          <th>Title</th>
-                          <th>Description</th>
-                          <th>DA</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-md-6">
-              <div class="card" id="similarKeywordsCard" style="display:none;">
-                <div class="card-header">
-                  <h4 class="card-title" id="similarKeywordsHeader">Similar Keywords</h4>
-                </div>
-                <div class="card-body">
-                  <div class="table-responsive">
-                    <table id="similarKeywordsTable" class="display table table-striped table-hover">
-                      <thead>
-                        <tr>
-                          <th>Keyword</th>
-                          <th>Search Vol</th>
-                          <th>Difficulty</th>
-                          <th>CPC</th>
-                          <th>Add</th> <!-- Empty header for the plus icon column -->
-                        </tr>
-                      </thead>
-                      <tbody>
-
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="card" id="webpageKeywordsCard" style="display:none;">
-                <div class="card-header">
-                  <h4 class="card-title" id="webpageKeywordsHeader">Keywords Based on Webpage</h4>
-                </div>
-                <div class="card-body">
-                  <div class="table-responsive">
-                    <table id="webpageKeywordsTable" class="display table table-striped table-hover">
-                      <thead>
-                        <tr>
-                          <th>Keyword</th>
-                          <th>Search Vol</th>
-                          <th>Competition</th>
-                          <th>Search Intent</th>
-                          <th>Reason</th>
-                          <th>Add</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-md-12">
-              <div class="card">
-                <div class="card-header text-white">
-                  <div class="card-title">Keyword Mapping</div>
-                </div>
-                <div class="card-body">
-                  <div class="d-flex justify-content-start mb-3">
-                    <button class="btn btn-success me-2"><i class="fas fa-plus me-1"></i> Add New URL</button>
-                    <button class="btn btn-secondary"><i class="fas fa-undo me-1"></i> Undo Delete</button>
-                  </div>
-
-                  <div class="d-flex justify-content-around flex-wrap">
-                    <div class="card shadow-sm mb-3" style="width: 280px;">
-                      <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                          <div class="border rounded p-2 flex-grow-1 me-2 text-truncate" title="/social-media/">
-                            /social-media/</div>
-                          <button class="btn btn-sm btn-outline-danger"><i class="fas fa-times"></i></button>
-                        </div>
-                        <div class="form-control form-control-sm mb-3 bg-light text-muted" readonly>social media</div>
-                        <button class="btn btn-primary w-100"><i class="fas fa-magic me-1"></i> Page
-                          Recommendations</button>
-                      </div>
-                    </div>
-
-                    <div class="card shadow-sm mb-3" style="width: 280px;">
-                      <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                          <div class="border rounded p-2 flex-grow-1 me-2 text-truncate"
-                            title="/digital-marketing-services/">/digital-marketing-services/</div>
-                          <button class="btn btn-sm btn-outline-danger"><i class="fas fa-times"></i></button>
-                        </div>
-                        <div class="form-control form-control-sm mb-3 bg-light text-muted" readonly>digital marketing
-                        </div>
-                        <button class="btn btn-primary w-100"><i class="fas fa-magic me-1"></i> Page
-                          Recommendations</button>
-                      </div>
-                    </div>
-
-                    <div class="card shadow-sm mb-3" style="width: 280px;">
-                      <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                          <div class="border rounded p-2 flex-grow-1 me-2 text-truncate" title="/seo-agency/">
-                            /seo-agency/</div>
-                          <button class="btn btn-sm btn-outline-danger"><i class="fas fa-times"></i></button>
-                        </div>
-                        <div class="form-control form-control-sm mb-3 bg-light text-muted" readonly>seo marketing</div>
-                        <button class="btn btn-primary w-100"><i class="fas fa-magic me-1"></i> Page
-                          Recommendations</button>
+                        <br>
+                        <button class="btn btn-success" id="mapKeywordsBtn" onclick="mapKeywords()">Map
+                          Keywords</button>
                       </div>
                     </div>
                   </div>
                 </div>
+                <div class="card-action">
+                  <button class="btn btn-success" id="keywordAnalysisSubmit" onclick="keywordAnalysis()">Submit</button>
+                  <button class="btn btn-danger" onclick="clearKeywordAnalysis()">Clear</button>
+                </div>
               </div>
             </div>
           </div>
-          <div class="row">
+        </div>
+        <div class="row">
+          <div class="col-md-6">
             <div class="card">
-              <div class="card-header">
-                <div class="card-title">Recommendations for /social-media/</div>
+              <div class="card-body">
+                <ul class="nav nav-pills nav-secondary" id="pills-tab" role="tablist">
+                  <li class="nav-item">
+                    <a class="nav-link active" id="pills-home-tab" data-bs-toggle="pill" href="#pills-home" role="tab"
+                      aria-controls="pills-home" aria-selected="true">Ranked Keywords</a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link" id="pills-profile-tab" data-bs-toggle="pill" href="#pills-profile" role="tab"
+                      aria-controls="pills-profile" aria-selected="false">Similar Keywords</a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link" id="pills-contact-tab" data-bs-toggle="pill" href="#pills-contact" role="tab"
+                      aria-controls="pills-contact" aria-selected="false">Based on Content</a>
+                  </li>
+                </ul>
+                <div class="tab-content mt-2 mb-3" id="pills-tabContent">
+                  <div class="tab-pane fade show active" id="pills-home" role="tabpanel"
+                    aria-labelledby="pills-ranking-tab">
+                    <div class="table-responsive">
+                      <table id="rankingKeywordsTable" class="display table table-striped table-hover">
+                        <thead>
+                          <tr>
+                            <th>Keyword</th>
+                            <th>Search Vol</th>
+                            <th>Rank</th>
+                            <th>CPC</th>
+                            <th>Add</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div class="tab-pane fade show" id="pills-profile" role="tabpanel"
+                    aria-labelledby="pills-profile-tab">
+                    <div class="table-responsive">
+                      <table id="similarKeywordsTable" class="display table table-striped table-hover">
+                        <thead>
+                          <tr>
+                            <th>Keyword</th>
+                            <th>Search Vol</th>
+                            <th>Difficulty</th>
+                            <th>CPC</th>
+                            <th>Add</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div class="tab-pane fade show" id="pills-contact" role="tabpanel"
+                    aria-labelledby="pills-contact-tab">
+                    <div class="table-responsive">
+                      <table id="webpageKeywordsTable" class="display table table-striped table-hover">
+                        <thead>
+                          <tr>
+                            <th>Keyword</th>
+                            <th>Search Vol</th>
+                            <th>Competition</th>
+                            <th>Search Intent</th>
+                            <th>Reason</th>
+                            <th>Add</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <table class="table table-bordered">
-                <thead>
-                  <tr>
-                    <th>Key</th>
-                    <th>Recommended Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                </tbody>
-              </table>
             </div>
           </div>
-
+          <div class="col-md-6">
+            <div class="card" id="serpCard">
+              <div class="card-header">
+                <h4 id="serpHeader" class="card-title">SERP</h4>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table id="serpTable" class="display table table-striped table-hover">
+                    <thead>
+                      <tr>
+                        <th>Rank</th>
+                        <th style="width: 15px;">URL</th>
+                        <th>Title</th>
+                        <th>Description</th>
+                        <th>DA</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-12">
+            <div class="card">
+              <div class="card-header text-white">
+                <div class="card-title">Keyword Mapping</div>
+              </div>
+              <div class="card-body">
+                <div class="d-flex justify-content-start mb-3">
+                  <button class="btn btn-success me-2" onclick="addNewList()"><i class="fas fa-plus me-1"></i> Add New
+                    URL</button>
+                  <button class="btn btn-secondary" onclick="undoDelete()"><i class="fas fa-undo me-1"></i> Undo
+                    Delete</button>
+                </div>
+                <div class="containerForMapping" id="listsContainer"></div>
+                <div class="d-flex justify-content-around flex-wrap">
+                  <div class="card shadow-sm mb-3" style="width: 280px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <footer class="footer">
-          <div class="container-fluid d-flex justify-content-between">
-            <nav class="pull-left">
-              <ul class="nav">
-                <li class="nav-item">
-                  <a class="nav-link" href="http://www.themekita.com">
-                    ThemeKita
-                  </a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link" href="#"> Help </a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link" href="#"> Licenses </a>
-                </li>
-              </ul>
-            </nav>
-            <div class="copyright">
-              2024, made with <i class="fa fa-heart heart text-danger"></i> by
-              <a href="http://www.themekita.com">ThemeKita</a>
-            </div>
-            <div>
-              Distributed by
-              <a target="_blank" href="https://themewagon.com/">ThemeWagon</a>.
-            </div>
-          </div>
-        </footer>
       </div>
+
+      <footer class="footer">
+        <div class="container-fluid d-flex justify-content-between">
+          <nav class="pull-left">
+            <ul class="nav">
+              <li class="nav-item">
+                <a class="nav-link" href="http://www.themekita.com">
+                  ThemeKita
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#"> Help </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#"> Licenses </a>
+              </li>
+            </ul>
+          </nav>
+          <div class="copyright">
+            2024, made with <i class="fa fa-heart heart text-danger"></i> by
+            <a href="http://www.themekita.com">ThemeKita</a>
+          </div>
+          <div>
+            Distributed by
+            <a target="_blank" href="https://themewagon.com/">ThemeWagon</a>.
+          </div>
+        </div>
+      </footer>
     </div>
-    <!--   Core JS Files   -->
-    <script src="assets/js/core/jquery-3.7.1.min.js"></script>
-    <script src="assets/js/core/popper.min.js"></script>
-    <script src="assets/js/core/bootstrap.min.js"></script>
+  </div>
+  <!--   Core JS Files   -->
+  <script src="assets/js/core/jquery-3.7.1.min.js"></script>
+  <script src="assets/js/core/popper.min.js"></script>
+  <script src="assets/js/core/bootstrap.min.js"></script>
 
-    <!-- jQuery Scrollbar -->
-    <script src="assets/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js"></script>
+  <!-- jQuery Scrollbar -->
+  <script src="assets/js/plugin/jquery-scrollbar/jquery.scrollbar.min.js"></script>
 
-    <!-- Chart JS -->
-    <script src="assets/js/plugin/chart.js/chart.min.js"></script>
+  <!-- Chart JS -->
+  <script src="assets/js/plugin/chart.js/chart.min.js"></script>
 
-    <!-- jQuery Sparkline -->
-    <script src="assets/js/plugin/jquery.sparkline/jquery.sparkline.min.js"></script>
+  <!-- jQuery Sparkline -->
+  <script src="assets/js/plugin/jquery.sparkline/jquery.sparkline.min.js"></script>
 
-    <!-- Chart Circle -->
-    <script src="assets/js/plugin/chart-circle/circles.min.js"></script>
+  <!-- Chart Circle -->
+  <script src="assets/js/plugin/chart-circle/circles.min.js"></script>
 
-    <!-- Datatables -->
-    <script src="assets/js/plugin/datatables/datatables.min.js"></script>
+  <!-- Datatables -->
+  <script src="assets/js/plugin/datatables/datatables.min.js"></script>
 
-    <!-- Bootstrap Notify -->
-    <script src="assets/js/plugin/bootstrap-notify/bootstrap-notify.min.js"></script>
+  <!-- Bootstrap Notify -->
+  <script src="assets/js/plugin/bootstrap-notify/bootstrap-notify.min.js"></script>
 
-    <!-- jQuery Vector Maps -->
-    <script src="assets/js/plugin/jsvectormap/jsvectormap.min.js"></script>
-    <script src="assets/js/plugin/jsvectormap/world.js"></script>
+  <!-- jQuery Vector Maps -->
+  <script src="assets/js/plugin/jsvectormap/jsvectormap.min.js"></script>
+  <script src="assets/js/plugin/jsvectormap/world.js"></script>
 
-    <!-- Sweet Alert -->
-    <script src="assets/js/plugin/sweetalert/sweetalert.min.js"></script>
+  <!-- Sweet Alert -->
+  <script src="assets/js/plugin/sweetalert/sweetalert.min.js"></script>
 
-    <!-- Kaiadmin JS -->
-    <script src="assets/js/kaiadmin.min.js"></script>
+  <!-- Kaiadmin JS -->
+  <script src="assets/js/kaiadmin.min.js"></script>
 </body>
 
 </html>
