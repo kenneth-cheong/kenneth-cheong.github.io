@@ -1050,8 +1050,7 @@
             if (Array.isArray(recommendationData) && recommendationData.length > 0 && typeof recommendationData[0] === 'object') {
               // Create a table
               const table = document.createElement('table');
-              table.style.width = '100%';
-              table.style.borderCollapse = 'collapse';
+              table.classList.add("table", "table-striped", "mt-3");
 
               // Create table header
               const thead = document.createElement('thead');
@@ -1133,7 +1132,7 @@
               let resultsHTML = '';
 
               let metaTableHTML = `<h3>Meta and Headings</h3>
-        <table id="metaTable">
+        <table id="metaTable" class="table table-striped mt-3">
             <thead>
                 <tr>
                     <th>Item</th>
@@ -1146,19 +1145,19 @@
                 <tr>
                     <td>Meta Title</td>
                     <td>${data.meta_title.current_value}</td>
-                    <td><textarea>${data.meta_title.suggested_value}</textarea></td>
+                    <td><textarea class="form-control">${data.meta_title.suggested_value}</textarea></td>
                     <td>${data.meta_title.rationale}</td>
                 </tr>
                 <tr>
                     <td>Meta Description</td>
                     <td>${data.meta_description.current_value}</td>
-                    <td><textarea>${data.meta_description.suggested_value}</textarea></td>
+                    <td><textarea class="form-control">${data.meta_description.suggested_value}</textarea></td>
                     <td>${data.meta_description.rationale}</td>
                 </tr>
                 <tr>
                     <td>Canonical URL</td>
                     <td>${data.canonical_url.current_value}</td>
-                    <td><textarea>${data.canonical_url.suggested_value}</textarea></td>
+                    <td><textarea class="form-control">${data.canonical_url.suggested_value}</textarea></td>
                     <td>${data.canonical_url.rationale}</td>
                 </tr>`;
 
@@ -1169,7 +1168,7 @@
                 <tr>
                     <td>${headingType}</td>
                     <td>${heading.current_value}</td>
-                    <td><textarea>${heading.suggested_value}</textarea></td>
+                    <td><textarea class="form-control">${heading.suggested_value}</textarea></td>
                     <td>${heading.rationale}</td>
                 </tr>
             `;
@@ -1188,13 +1187,13 @@
     `;
 
               let imageTableHTML = `<h3>Image Title and Alt Text</h3>
-            <table id="imageTable">
+            <table id="imageTable" class="table table-striped mt-3">
                 <thead>
                     <tr>
                         <th>No.</th>
-                        <th>Image URL <button class="copy-button" onclick="copyColumn(1, 'imageTable')">Copy</button></th>
+                        <th>Image URL</th>
                         <th>Image Preview</th>
-                        <th>Alt Text <button class="copy-button" onclick="copyColumn(3, 'imageTable')">Copy</button></th>
+                        <th>Alt Text</th>
                         <th>Suggested Alt Text</th>
                         <th>Rationale</th>
                     </tr>
@@ -1211,9 +1210,9 @@
                 <tr>
                     <td>${i + 1}</td>
                     <td><a href="${imageUrl}" target="_blank">${imageUrl}</a></td>
-                    <td><img src="${imageUrl}" alt="${imageDetails.current_value}"></td>
+                    <td><img style="width:200px;" src="${imageUrl}" alt="${imageDetails.current_value}"></td>
                     <td>${imageDetails.current_value}</td>
-                    <td><textarea>${imageDetails.suggested_value}</textarea></td>
+                    <td><textarea class="form-control">${imageDetails.suggested_value}</textarea></td>
                     <td>${imageDetails.rationale}</td>
                 </tr>
             `;
@@ -1229,7 +1228,7 @@
               resultsHTML += metaTableHTML;
 
               // Add export button after image table
-              resultsHTML += '<button class="export-button" onclick="exportOnPageToCSV()">Export to CSV</button>';
+              resultsHTML += '<button class="btn btn-black" onclick="exportOnPageToCSV()">Export to CSV</button>';
 
               contentDiv.innerHTML += resultsHTML;
               contentDiv.innerHTML += imageTableHTML;
@@ -1241,7 +1240,7 @@
 
 
             // Append elements to the recommendations div
-            const recommendationsDiv = document.getElementById('recommendations');
+            const recommendationsDiv = document.getElementById('onPageRecommendations');
             recommendationsDiv.appendChild(collapsibleButton);
             recommendationsDiv.appendChild(contentDiv);
 
@@ -1265,6 +1264,39 @@
             button.disabled = false;
             button.classList.remove('disabled');
           }
+        }
+
+        function exportOnPageToCSV() {
+          // Collect data from both tables
+          const metaTable = document.getElementById('metaTable');
+          const imageTable = document.getElementById('imageTable');
+          const contentTable = document.getElementById('contentTable');
+
+
+          if (!metaTable || !imageTable) {
+            alert('Tables not found. Please extract data first.');
+            return;
+          }
+
+          const metaData = tableToCSV(metaTable);
+          const imageData = tableToCSV(imageTable);
+          const contentData = tableToCSV(contentTable);
+
+          // Combine the data with a separator
+          const csvData = "Meta Table Data:\n" + metaData + "\n\nImage Table Data:\n" + imageData + "\n\nContent Recommendations:\n" + contentData;
+
+          // Create a download link
+          const filename = 'on_page_recommendations.csv';
+          const csvFile = new Blob([csvData], {
+            type: 'text/csv'
+          });
+          const downloadLink = document.createElement('a');
+          downloadLink.download = filename;
+          downloadLink.href = window.URL.createObjectURL(csvFile);
+          downloadLink.style.display = 'none';
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
         }
 
         function allowDrop(ev) {
@@ -1499,6 +1531,22 @@
           /* Important for transform to work */
         }
 
+        .collapsible50 {
+          border-radius: 20px;
+          background: rgba(222,222,222,.4);
+          color: #585c5d;
+          margin-top: 5px;
+          margin-bottom: 5px;
+          padding: 10px 20px;
+          border: none;
+          margin: 5px;
+        }
+
+        .collapsible50:active {
+          background: #6861ce;
+          color: white;
+        }
+
         @keyframes rotate-clockwise-animation {
           0% {
             transform: rotate(0deg);
@@ -1710,6 +1758,7 @@
                 <div class="d-flex justify-content-around flex-wrap">
                   <div class="card shadow-sm mb-3" style="width: 280px;"></div>
                 </div>
+                <div id="onPageRecommendations"></div>
               </div>
             </div>
           </div>
