@@ -461,12 +461,16 @@
 
             const promises = [];
 
-            if (urlValue != "") {
+            if (urlValue && keywordsValue) {
+              promises.push(getKeywordRankings());
+            }
+
+            if (urlValue) {
               promises.push(getRankingKeywords());
               promises.push(getWebpageKeywords());
             }
 
-            if (keywordsValue != "") {
+            if (keywordsValue) {
               promises.push(getSimilarKeywords());
             }
 
@@ -479,6 +483,54 @@
             }
 
           }
+        }
+
+        async function getKeywordRankings() {
+          const country = document.getElementById('keywordAnalysisCountry').value;
+          const language = document.getElementById('keywordAnalysisLanguage').value;
+          const keywords = document.getElementById('keyword_analysis_keywords').value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+          const domain = document.getElementById('keyword_analysis_url').value;
+          const table = document.getElementById('queriedKeywordsTable').getElementsByTagName('tbody')[0];
+          table.innerHTML = ''; // Clear existing table data
+
+          let rowNumber = 1; // Initialize the row number counter
+
+          for (const keyword of keywords) { //Iterate keywords sequentially
+            const data = await fetchRank(domain, country, language, keyword); //Fetch rank for each keyword
+
+            if (data && Object.keys(data).length > 0) {
+              for (const rank in data) {
+                if (data.hasOwnProperty(rank)) {
+                  const url = data[rank].url;
+                  const newRow = table.insertRow();
+                  const cell1 = newRow.insertCell(0);
+                  const cell2 = newRow.insertCell(1);
+                  const cell3 = newRow.insertCell(2);
+                  const cell4 = newRow.insertCell(3);
+
+                  cell1.innerHTML = rowNumber;
+                  cell2.innerHTML = keyword;
+                  cell3.innerHTML = rank;
+                  cell4.innerHTML = `<a href="${url}" target="_blank">${url}</a>`;
+                }
+              }
+              rowNumber++; // Increment the row number after displaying all entries for a keyword
+            } else {
+              // Handle case where no results are found for a keyword
+              const newRow = table.insertRow();
+              const cell1 = newRow.insertCell(0);
+              const cell2 = newRow.insertCell(1);
+              const cell3 = newRow.insertCell(2);
+              const cell4 = newRow.insertCell(3);
+
+              cell1.innerHTML = rowNumber;
+              cell2.innerHTML = keyword;
+              cell3.innerHTML = 'Not Found';
+              cell4.innerHTML = 'Not Found';
+              rowNumber++; // Increment the row number even when no results are found
+            }
+          }
+          document.getElementById('queriedKeywordsCard').style.display = "block";
         }
 
         async function getSimilarKeywords() {
@@ -719,6 +771,8 @@
             addCell.appendChild(plusIcon);
           });
           makeTableSortable('rankingKeywordsTable');
+          document.getElementById('combinedCards').style.display = "block";
+          document.getElementById('serpCard').style.display 
         }
 
 
@@ -1022,6 +1076,7 @@
         }
 
         async function getPageRecommendations(url, listElement, button) {
+          button.innerHTML = '<div class="custom-toggle rotate"><i class="icon-settings"></i></div>';
           const recommendationEndpoint = 'https://pkkz2e02ch.execute-api.ap-southeast-1.amazonaws.com/onPageContentRecommendations';
 
           try {
@@ -1263,6 +1318,7 @@
             // Re-enable the button in the finally block to ensure it always happens
             button.disabled = false;
             button.classList.remove('disabled');
+            button.innerHTML = "Page Recommendations";
           }
         }
 
@@ -1477,6 +1533,34 @@
           }
         }
 
+        async function fetchRank(domain, country, language, keyword) {
+          try {
+            const response = await fetch('https://w9opnioy78.execute-api.ap-southeast-1.amazonaws.com/checkRankingUrl', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                "keyword": keyword,
+                "language": language,
+                "location": country,
+                "target": domain
+              })
+            });
+
+            if (!response.ok) {
+              throw new Error(`HTTP error ${response.status}`);
+            }
+
+            data = await response.json();
+
+            return data
+          } catch (error) {
+            console.error("Error fetching rank:", error);
+            return ('not available');
+          }
+        }
+
 
       </script>
 
@@ -1533,7 +1617,7 @@
 
         .collapsible50 {
           border-radius: 20px;
-          background: rgba(222,222,222,.4);
+          background: rgba(222, 222, 222, .4);
           color: #585c5d;
           margin-top: 5px;
           margin-bottom: 5px;
@@ -1639,9 +1723,33 @@
             </div>
           </div>
 
+          <div class='row'>
+            <div class="card" id="queriedKeywordsCard" style="display: none;">
+              <div class="card-header">
+                <h4 id="queriedKeywordsHeader" class="card-title">Queried Keywords</h4>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive" style="height: auto;">
+                  <table id="queriedKeywordsTable" class="display table table-striped table-hover">
+                    <thead>
+                      <tr>
+                        <th>No.</th>
+                        <th>Keyword</th>
+                        <th>Current Rank</th>
+                        <th>URL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="row">
             <div class="col-md-6">
-              <div class="card" style="display:none">
+              <div class="card" id = "combinedCards" style="display:none">
                 <div class="card-body">
                   <ul class="nav nav-pills nav-secondary" id="pills-tab" role="tablist">
                     <li class="nav-item">
