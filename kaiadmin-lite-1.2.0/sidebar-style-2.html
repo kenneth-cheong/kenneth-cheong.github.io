@@ -33,6 +33,9 @@
   <link rel="stylesheet" href="assets/css/bootstrap.min.css" />
   <link rel="stylesheet" href="assets/css/plugins.min.css" />
   <link rel="stylesheet" href="assets/css/kaiadmin.min.css" />
+
+  <script src="assets/js/driver.js.iife.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@latest/dist/driver.css" />
 </head>
 
 <body>
@@ -345,6 +348,13 @@
               </div>
               <!-- Collapse Button -->
             </div>
+            <div class = "timeline-badge info">
+            <button type="button" class="btn btn-icon btn-round btn-info" id="mascotBtn" style="border:none; background-color: transparent;"
+              onclick="driverObj.drive()">
+              <i class="fas fa-question"></i>
+              <!--  <img src="assets/img/mascot.png" style="width:50px;" alt="Button Image"> -->
+            </button>
+          </div>
             <button class="navbar-toggler" style="display:block;" type="button" onclick="toggleRows()">
               <span class="navbar-toggler-icon"></span>
             </button>
@@ -374,9 +384,6 @@
             rowsHidden = true;
           }
         }
-      </script>
-
-      <script>
 
         document.addEventListener('DOMContentLoaded', function () {
           toggleRows();
@@ -772,7 +779,7 @@
           });
           makeTableSortable('rankingKeywordsTable');
           document.getElementById('combinedCards').style.display = "block";
-          document.getElementById('serpCard').style.display 
+          document.getElementById('serpCard').style.display
         }
 
 
@@ -932,7 +939,20 @@
         }
 
         async function mapKeywords() {
+          if (!document.getElementById('keyword_analysis_keywords').value || !document.getElementById('keyword_analysis_url').value) {
+            document.getElementById('keywordAnalysisUrlHelp').style.display = "block";
+            document.getElementById('keywordAnalysisUrlDiv').classList.add('has-error', 'has-feedback');
+            document.getElementById('keywordAnalysisKeywordsHelp').style.display = "block";
+            document.getElementById('keywordAnalysisKeywordsDiv').classList.add('has-error', 'has-feedback');
+            return
+          }
+
           document.getElementById('mapKeywordsBtn').innerHTML = '<div class="custom-toggle rotate"><i class="icon-settings"></i></div>';
+          const promises = [];
+
+          promises.push(getKeywordRankings());
+          await Promise.all(promises);
+
           const domain = document.getElementById('keyword_analysis_url').value;
           const country = document.getElementById('keywordAnalysisCountry').value;
           const language = document.getElementById('keywordAnalysisLanguage').value;
@@ -1749,7 +1769,7 @@
 
           <div class="row">
             <div class="col-md-6">
-              <div class="card" id = "combinedCards" style="display:none">
+              <div class="card" id="combinedCards" style="display:none">
                 <div class="card-body">
                   <ul class="nav nav-pills nav-secondary" id="pills-tab" role="tablist">
                     <li class="nav-item">
@@ -1902,6 +1922,27 @@
       </footer>
     </div>
   </div>
+
+  <script>
+    // Help prompts
+    const driver = window.driver.js.driver;
+
+    const driverObj = driver({
+      showProgress: true,
+      steps: [
+        { element: '#mascotBtn', popover: { title: 'Digimetrics Helper', description: 'Click on me to for a guided walkthrough.', side: "left", align: 'center' } },
+        { element: '#keywordAnalysisKeywordsDiv', popover: { title: 'Animated Tour Example', description: 'Here is the code example showing animated tour. Let\'s walk you through it.', side: "bottom", align: 'center' } },
+        { element: '#keywordAnalysisSubmit', popover: { title: 'Import the Library', description: 'It works the same in vanilla JavaScript as well as frameworks.', side: "bottom", align: 'start' } },
+        { element: 'code .line:nth-child(2)', popover: { title: 'Importing CSS', description: 'Import the CSS which gives you the default styling for popover and overlay.', side: "bottom", align: 'start' } },
+        { element: 'code .line:nth-child(4) span:nth-child(7)', popover: { title: 'Create Driver', description: 'Simply call the driver function to create a driver.js instance', side: "left", align: 'start' } },
+        { element: 'code .line:nth-child(18)', popover: { title: 'Start Tour', description: 'Call the drive method to start the tour and your tour will be started.', side: "top", align: 'start' } },
+        { element: 'a[href="/docs/configuration"]', popover: { title: 'More Configuration', description: 'Look at this page for all the configuration options you can pass.', side: "right", align: 'start' } },
+        { popover: { title: 'Happy Coding', description: 'And that is all, go ahead and start adding tours to your applications.' } }
+      ]
+    });
+
+    driverObj.drive();
+  </script>
   <!--   Core JS Files   -->
   <script src="assets/js/core/jquery-3.7.1.min.js"></script>
   <script src="assets/js/core/popper.min.js"></script>
