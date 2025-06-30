@@ -348,13 +348,13 @@
               </div>
               <!-- Collapse Button -->
             </div>
-            <div class = "timeline-badge info">
-            <button type="button" class="btn btn-icon btn-round btn-info" id="mascotBtn" style="border:none; background-color: transparent;"
-              onclick="driverObj.drive()">
-              <i class="fas fa-question"></i>
-              <!--  <img src="assets/img/mascot.png" style="width:50px;" alt="Button Image"> -->
-            </button>
-          </div>
+            <div class="timeline-badge info">
+              <button type="button" class="btn btn-icon btn-round btn-info" id="mascotBtn"
+                style="border:none; background-color: transparent;" onclick="driverTesting()">
+                <i class="fas fa-question"></i>
+                <!--  <img src="assets/img/mascot.png" style="width:50px;" alt="Button Image"> -->
+              </button>
+            </div>
             <button class="navbar-toggler" style="display:block;" type="button" onclick="toggleRows()">
               <span class="navbar-toggler-icon"></span>
             </button>
@@ -364,6 +364,16 @@
       </div>
       <script>
         let rowsHidden = false; // Keep track of the state
+
+        function driverTesting() {
+          steps = [{ element: '#mascotBtn', popover: { title: 'Digimetrics Helper', description: 'Hello from the other side.', side: "left", align: 'center' } }]
+          const driverObj = driver({
+            showProgress: false,
+            steps: steps
+          });
+
+          driverObj.drive();
+        }
 
         function toggleRows() {
           const semRow = document.getElementById('semRow');
@@ -580,12 +590,14 @@
         async function getRankingKeywords() {
           const domain = document.getElementById('keyword_analysis_url').value;
           const country = document.getElementById('keywordAnalysisCountry').value;
-
           let targetDomain = domain;
+
+          console.log("keywordAnalysisTypeDomain is checked:", document.getElementById('keywordAnalysisTypeDomain').checked);
 
           if (document.getElementById('keywordAnalysisTypeDomain').checked) {
             if (targetDomain.includes('http')) {
-              targetDomain = (targetDomain.replace('http://', '').replace('https://')).split('/')[0];
+              targetDomain = (targetDomain.replace('http://', '').replace('https://', '')).split('/')[0];
+              console.log("Extracted domain:", targetDomain);
             }
           } else {
             if (!targetDomain.includes('http')) {
@@ -1928,7 +1940,7 @@
     const driver = window.driver.js.driver;
 
     const driverObj = driver({
-      showProgress: true,
+      showProgress: false,
       steps: [
         { element: '#mascotBtn', popover: { title: 'Digimetrics Helper', description: 'Click on me to for a guided walkthrough.', side: "left", align: 'center' } },
         { element: '#keywordAnalysisKeywordsDiv', popover: { title: 'Animated Tour Example', description: 'Here is the code example showing animated tour. Let\'s walk you through it.', side: "bottom", align: 'center' } },
@@ -1942,6 +1954,7 @@
     });
 
     driverObj.drive();
+
   </script>
   <!--   Core JS Files   -->
   <script src="assets/js/core/jquery-3.7.1.min.js"></script>
