@@ -4260,6 +4260,8 @@
                     serpUrls = urls;
                 }
 
+                serpUrls.push(document.getElementById('comparison-domain').value);
+
                 console.log(serpUrls);
 
                 // 2. Fetch content analysis for each URL *concurrently*
@@ -4268,12 +4270,18 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url, keyword }),
-                    }).then(res => {
-                        if (!res.ok) {  // Check for errors
-                            throw new Error(`Content analysis API error for ${url}: ${res.status} ${res.statusText}`);
-                        }
-                        return res.json();
                     })
+                        .then(res => {
+                            if (!res.ok) {  // Check for errors
+                                console.warn(`Content analysis API error for ${url}: ${res.status} ${res.statusText}.  Skipping.`);
+                                return null; // Signal that this URL failed
+                            }
+                            return res.json();
+                        })
+                        .catch(error => {
+                            console.warn(`Content analysis API error for ${url}: ${error.message}.  Skipping.`);
+                            return null; // Signal that this URL failed
+                        })
                 );
 
                 // Wait for *all* content analysis calls to complete
@@ -5784,7 +5792,7 @@
             const targetContentTableContainerId = `target-content-table-container-${keyword.replace(/\s+/g, '-')}`;
 
             try {
-                
+
                 // 1. Keyword Mapping API
                 const keywordMappingResponse = await fetch(keywordMappingEndpoint, {
                     method: 'POST',
