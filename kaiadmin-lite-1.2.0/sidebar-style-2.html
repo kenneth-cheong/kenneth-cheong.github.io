@@ -412,7 +412,7 @@
         async function serpModal(keyword) {
           const country = document.getElementById('keywordAnalysisCountry').value;
           const language = document.getElementById('keywordAnalysisLanguage').value;
-          //user = JSON.parse(localStorage.getItem('googleUser')).email;
+          user = "kenneth@mediaone.co";
           const response = await fetch('https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -474,6 +474,10 @@
 
             const urlValue = document.getElementById('keyword_analysis_url').value;
             const keywordsValue = document.getElementById('keyword_analysis_keywords').value;
+            const domain = document.getElementById('keyword_analysis_url').value;
+            const location = document.getElementById('keywordAnalysisCountry').value;
+            const language = document.getElementById('keywordAnalysisLanguage').value;
+            const keywords = document.getElementById('keyword_analysis_keywords').value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
 
             const promises = [];
 
@@ -492,12 +496,363 @@
 
             try {
               await Promise.all(promises);
+
+              // Run getTimeToRank concurrently for each keyword
+              const timeToRankPromises = keywords.map(keyword => getTimeToRank(keyword, language, location, domain)); // Assuming language, location, urlValue are defined elsewhere.  Important: pass target URL here.
+              await Promise.all(timeToRankPromises);
+
             } catch (error) {
               console.error("One or more keyword analysis tasks failed:", error);
             } finally {
-              document.getElementById('keywordAnalysisSubmit').innerHTML = 'Submit';
+            }
+            document.getElementById('keywordAnalysisSubmit').innerHTML = 'Submit';
+          }
+        }
+
+        let keywordMetrics = {}; // Store search volume and cpc
+
+
+        async function getTimeToRank(keyword, language, location, target) { //Added the target parameter
+          const resultsContainerId = `serp-results-container-${keyword.replace(/\s+/g, '-')}`; // Define container ID here
+          try {
+            // Create a unique container for each keyword's results
+            const resultsContainer = document.createElement('div');
+            resultsContainer.id = resultsContainerId;
+            // Optionally, add a heading or some initial content to the container
+            resultsContainer.innerHTML = `<h4>SERP Results for: ${keyword}</h4>`;
+            document.getElementById('serpTable').after(resultsContainer); // Append container to the result table
+
+
+            const serpEndpoint = 'https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite';
+            const serpResponse = await fetch(serpEndpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': { merge: true, value: 'application/json' }
+              },
+              body: JSON.stringify({
+                keyword: keyword,
+                language: language,
+                location: location
+              })
+            });
+
+            if (!serpResponse.ok) {
+              throw new Error(`SERP API Error: ${serpResponse.status} ${serpResponse.statusText}`);
             }
 
+            const serpData = await serpResponse.json();
+            console.log(`SERP API Response for ${keyword}:`, serpData);
+
+            if (!serpData || !serpData.body) {
+              throw new Error(`Invalid SERP API response format for ${keyword}. Expected 'body' property.`);
+            }
+
+            const serp_dict = serpData.body;
+
+            // Fetch domain metrics for SERP results and then display them
+            const serpResultsWithMetrics = await Promise.all(
+              Object.entries(serp_dict).map(async ([rank, result]) => {
+                const domainMetrics = await getDomainMetrics(result.url, keyword);
+                return {
+                  rank: rank,
+                  ...result,
+                  ...domainMetrics?.body // Add domain metrics to the result object
+                };
+              })
+            );
+
+
+            // Ensure displaySerpResults receives the container ID
+            //displaySerpResults(serpResultsWithMetrics, resultsContainerId);
+
+
+            const keywordRecommendations = await getKeywordRecommendations(keyword, language, location, target, serp_dict)
+
+            // Await the keyword recommendations
+            const timeToRank = keywordRecommendations[0];
+
+            // Update the keywordMetrics object with time to rank
+            keywordMetrics[keyword] = {
+              ...keywordMetrics[keyword],
+              timeToRank: timeToRank,
+              mapping: keywordRecommendations[1]
+            };
+
+            console.log("Keyword Metrics after keywordAnalysis:", keywordMetrics);
+
+            await displayOverallSummaryTable(location, language, target);
+
+          } catch (error) {
+            console.error(`An error occurred for ${keyword}:`, error);
+            const container = document.getElementById(resultsContainerId);
+            if (container) {
+              container.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            } else {
+              console.warn(`Results container not found: ${resultsContainerId}`);
+            }
+          }
+        }
+
+        async function displayOverallSummaryTable(location, language, target) {
+          keywordsInput = document.getElementById('keywords').value;
+          keywords = keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+          const summaryContainer = document.getElementById('overall-summary');
+          if (!summaryContainer) {
+            console.error("Summary container not found");
+            return;
+          }
+
+          // Prepare the data for the summary table, using keywordMetrics
+          summaryData = keywords.map((keyword, index) => {
+            const metrics = keywordMetrics[keyword] || {
+              cpc: 'N/A',
+              search_volume: 'N/A',
+              timeToRank: 'N/A',
+              //mapping: '-'
+            }; // Provide default values
+
+            return {
+              No: index + 1,
+              keyword: keyword,
+              search_volume: metrics.search_volume || 'N/A',
+              cpc: metrics.cpc || 'N/A',
+              timeToRank: metrics.timeToRank || 'N/A',
+              reason: '', // Initialize the 'Reason' field
+              //mapping: metrics.mapping || '',
+            };
+          });
+
+
+          let tableHTML = `
+              <h2>Overall Keyword Summary</h2>
+              <div class="table-container">
+                  <table>
+                      <thead>
+                          <tr>
+                              <th>No.</th>
+                              <th onclick="sortSummaryTable('keyword')">Keyword</th>
+                              <th onclick="sortSummaryTable('search_volume')">Search Volume</th>
+                              <th onclick="sortSummaryTable('cpc')">CPC</th>
+                              <th onclick="sortSummaryTable('timeToRank')">Time to Rank</th>
+                              <th>Reason</th>
+                              
+                          </tr>
+                      </thead>
+                      <tbody>
+              `;
+
+          for (let index = 0; index < summaryData.length; index++) {
+            const item = summaryData[index];
+            const timeToRankClass = getTimeToRankClass(item.timeToRank);
+
+            // Fetch initial reason from API
+            const reason = await fetchReasonFromAPI(item.keyword, location, language, target);
+            summaryData[index].reason = reason; // Update summaryData with initial reason
+
+            tableHTML += `
+                <tr>
+                  <td>${item.No}</td>
+                  <td>${item.keyword}</td>
+                  <td>${item.search_volume}</td>
+                  <td>${item.cpc}</td>
+                  <td class="${timeToRankClass}">${item.timeToRank}</td>
+                  <td><textarea class="multiline-input" id="reason-${index}" onchange="updateReason(${index}, this.value)">${reason}</textarea></td>
+                  </tr>
+              `;
+                      }
+
+                      tableHTML += `
+                    </tbody>
+                </table>
+            </div>
+            `;
+
+          summaryContainer.innerHTML = tableHTML + '<button id="downloadCsvBtn" onclick="downloadOverallSummaryTableAsCSV()">Download Keyword Summary as CSV</button><br><br>';
+
+          // Show the download button
+          document.getElementById('overall-summary').style.display = 'block';
+          document.getElementById('downloadCsvBtn').style.display = 'block';
+        }
+
+        async function getRankForUrl(url, keyword, language, location) {
+          try {
+            const rankCheckerResponse = await fetch('https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                keyword: keyword,
+                language: language,
+                location: location,
+                target: url // Set target to the current URL
+              })
+            });
+
+            if (rankCheckerResponse.ok) {
+              const rankCheckerData = await rankCheckerResponse.json();
+              return rankCheckerData; // Returns rank number.
+            } else {
+              console.error(`Rank Checker API error for ${url}:`, rankCheckerResponse.status);
+              return 'N/A';
+            }
+          } catch (error) {
+            console.error(`Error fetching rank for ${url}:`, error);
+            return 'N/A';
+          }
+        }
+
+
+
+        async function getKeywordRecommendations(keyword, language, location, target_url, serp_dict) { //keep target_url here.  It's being passed into this function, which is what we want.
+          const keywordMappingEndpoint = 'https://c0bkxhc1s3.execute-api.ap-southeast-1.amazonaws.com/keywordMapping';
+          const kwRecommendationsEndpoint = 'https://pkbguam62a.execute-api.ap-southeast-1.amazonaws.com/kwRecommendationsStructured';
+          const recommendationsContainerId = `recommendations-container-${keyword.replace(/\s+/g, '-')}`;  // Unique container for recommendations
+          const targetContentTableContainerId = `target-content-table-container-${keyword.replace(/\s+/g, '-')}`;
+
+          try {
+            // 1. Keyword Mapping API
+            const keywordMappingResponse = await fetch(keywordMappingEndpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': { merge: true, value: 'application/json' }
+              },
+              body: JSON.stringify({
+                location: location,
+                keyword: keyword,
+                language: language,
+                target: target_url //use target_url instead of target.
+              })
+            });
+
+            if (!keywordMappingResponse.ok) {
+              throw new Error(`Keyword Mapping API Error for ${keyword}: ${keywordMappingResponse.status} ${keywordMappingResponse.statusText}`);
+            }
+
+            const keywordMappingData = await keywordMappingResponse.json();
+            console.log(`Keyword Mapping API Response for ${keyword}:`, keywordMappingData);
+
+            if (keywordMappingData && keywordMappingData.body && Array.isArray(keywordMappingData.body)) {
+              const targetUrls = keywordMappingData.body;
+
+              // 2. Get Domain Metrics for Target URLs & Rank Checking
+              const targetDataPromises = targetUrls.map(async (url) => {
+                const domainMetrics = await getDomainMetrics(url, keyword);
+
+                return {
+                  url: url,
+                  ...domainMetrics?.body,
+                  title: keywordMappingData.dict[url]?.title || 'N/A',
+                  description: keywordMappingData.dict[url]?.description || 'N/A'
+                };
+              });
+
+              const targetData = await Promise.all(targetDataPromises);
+
+              console.log(`Target Content with Metrics and Rank for ${keyword}:`, targetData);
+
+              //Get the rank from the targetData table
+              const targetDataWithRank = await Promise.all(
+                targetData.map(async (item) => {
+                  const rankData = await getRankForUrl(item.url, keyword, language, location);
+                  return {
+                    ...item,
+                    rank: rankData
+                  };
+                })
+              );
+
+              // 3. Call Keyword Recommendations API
+              if (serp_dict) {
+                const kwRecommendationsResponse = await fetch(kwRecommendationsEndpoint, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': { merge: true, value: 'application/json' }
+                  },
+                  body: JSON.stringify({
+                    keyword: keyword,
+                    target_content: targetDataWithRank.map(item => ({ url: item.url, domain_metrics: item, rank: item.rank })), // Pass all data as domain_metrics
+                    serps_dict: serp_dict
+                  })
+                });
+
+                if (!kwRecommendationsResponse.ok) {
+                  throw new Error(`Keyword Recommendations API Error for ${keyword}: ${kwRecommendationsResponse.status} ${kwRecommendationsResponse.statusText}`);
+                }
+
+                const kwRecommendationsData = await kwRecommendationsResponse.json();
+                console.log(`Keyword Recommendations API Response for ${keyword}:`, kwRecommendationsData);
+
+                //Modified here to pass the recommendation container ID
+                //displayKeywordRecommendations(kwRecommendationsData.body, recommendationsContainerId);
+
+                // Extract URL
+                let mapped_url = null;
+
+                // Make sure the recommendation data is not null
+                if (kwRecommendationsData.body) {
+                  try {
+                    const urlMatch = kwRecommendationsData.body.match(/(https?:\/\/|www\.)([a-zA-Z0-9.-]+(\.[a-zA-Z]{2,})+[a-zA-Z0-9_/\-\?=\&%\#\.]*)/gi);
+                    if (urlMatch && urlMatch.length > 0) {
+                      mapped_url = urlMatch[0];
+                    } else {
+                      console.warn(`No URL found in recommendations for ${keyword}`);
+                      mapped_url = 'N/A'; // Set to N/A if no URL is found
+                    }
+                  } catch (urlExtractionError) {
+                    console.error(`Error extracting URL from recommendations for ${keyword}:`, urlExtractionError);
+                    mapped_url = 'N/A';  // Set to N/A in case of an error during extraction
+                  }
+                } else {
+                  console.warn(`Empty keyword recommendations for ${keyword}`);
+                  mapped_url = 'N/A';  // Set to N/A if the recommendations are empty
+                }
+
+
+                // Extract Time to Rank using regex
+                const timeToRankMatch = kwRecommendationsData.body.match(/(0-3 months|3-6 months|6-9 months|9-12 months|more than 12 months|More than 12 months)/);
+                const timeToRank = timeToRankMatch ? timeToRankMatch[0] : 'N/A';
+                return [timeToRank, mapped_url];
+              } else {
+                console.warn(`Skipping Keyword Recommendations for ${keyword} due to missing serp_dict.`);
+                return ['N/A', 'N/A'];
+              }
+            } else {
+              console.warn(`Invalid Keyword Mapping API response format for ${keyword}. Expected 'body' as array.`);
+              return ['N/A', 'N/A'];
+            }
+
+          } catch (error) {
+            console.error(`Error during Keyword Mapping, Target Content Processing, or Keyword Recommendations for ${keyword}:`, error);
+            return ['N/A', 'N/A'];
+          }
+        }
+
+        async function getDomainMetrics(url, keyword) {
+          const domainMetricsEndpoint = 'https://5zdbpwaia5.execute-api.ap-southeast-1.amazonaws.com/pageDomainMetrics';
+
+          try {
+            const response = await fetch(domainMetricsEndpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                url: url,
+                keyword: keyword
+              })
+            });
+
+            if (!response.ok) {
+              console.warn(`Domain Metrics API Error for URL ${url}: ${response.status} ${response.statusText}`);
+              return null;
+            }
+
+            const data = await response.json();
+            return data;
+          } catch (error) {
+            console.error(`Error fetching domain metrics for URL ${url}:`, error);
+            return null;
           }
         }
 
@@ -1756,6 +2111,20 @@
           </div>
 
           <div class='row'>
+            <div class="card" id="keywordsSummaryCard" style="display: none;">
+              <div class="card-header">
+                <h4 id="keywordsSummaryHeader" class="card-title">Keywords Summary</h4>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive" style="height: auto;">
+                  <table id="overall-summary" class="display table table-striped table-hover">
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class='row'>
             <div class="card" id="queriedKeywordsCard" style="display: none;">
               <div class="card-header">
                 <h4 id="queriedKeywordsHeader" class="card-title">Queried Keywords</h4>
@@ -1940,15 +2309,15 @@
     const driver = window.driver.js.driver;
 
     steps = [
-        { element: '#mascotBtn', popover: { title: 'Digimetrics Helper', description: 'Click on me to for a guided walkthrough.', side: "left", align: 'center' } },
-        { element: '#keywordAnalysisKeywordsDiv', popover: { title: 'Animated Tour Example', description: 'Here is the code example showing animated tour. Let\'s walk you through it.', side: "bottom", align: 'center' } },
-        { element: '#keywordAnalysisSubmit', popover: { title: 'Import the Library', description: 'It works the same in vanilla JavaScript as well as frameworks.', side: "bottom", align: 'start' } },
-        { element: 'code .line:nth-child(2)', popover: { title: 'Importing CSS', description: 'Import the CSS which gives you the default styling for popover and overlay.', side: "bottom", align: 'start' } },
-        { element: 'code .line:nth-child(4) span:nth-child(7)', popover: { title: 'Create Driver', description: 'Simply call the driver function to create a driver.js instance', side: "left", align: 'start' } },
-        { element: 'code .line:nth-child(18)', popover: { title: 'Start Tour', description: 'Call the drive method to start the tour and your tour will be started.', side: "top", align: 'start' } },
-        { element: 'a[href="/docs/configuration"]', popover: { title: 'More Configuration', description: 'Look at this page for all the configuration options you can pass.', side: "right", align: 'start' } },
-        { popover: { title: 'Happy Coding', description: 'And that is all, go ahead and start adding tours to your applications.' } }
-      ]
+      { element: '#mascotBtn', popover: { title: 'Digimetrics Helper', description: 'Click on me to for a guided walkthrough.', side: "left", align: 'center' } },
+      { element: '#keywordAnalysisKeywordsDiv', popover: { title: 'Animated Tour Example', description: 'Here is the code example showing animated tour. Let\'s walk you through it.', side: "bottom", align: 'center' } },
+      { element: '#keywordAnalysisSubmit', popover: { title: 'Import the Library', description: 'It works the same in vanilla JavaScript as well as frameworks.', side: "bottom", align: 'start' } },
+      { element: 'code .line:nth-child(2)', popover: { title: 'Importing CSS', description: 'Import the CSS which gives you the default styling for popover and overlay.', side: "bottom", align: 'start' } },
+      { element: 'code .line:nth-child(4) span:nth-child(7)', popover: { title: 'Create Driver', description: 'Simply call the driver function to create a driver.js instance', side: "left", align: 'start' } },
+      { element: 'code .line:nth-child(18)', popover: { title: 'Start Tour', description: 'Call the drive method to start the tour and your tour will be started.', side: "top", align: 'start' } },
+      { element: 'a[href="/docs/configuration"]', popover: { title: 'More Configuration', description: 'Look at this page for all the configuration options you can pass.', side: "right", align: 'start' } },
+      { popover: { title: 'Happy Coding', description: 'And that is all, go ahead and start adding tours to your applications.' } }
+    ]
 
     const driverObj = driver({
       showProgress: false,

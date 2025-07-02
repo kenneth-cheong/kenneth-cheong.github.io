@@ -4944,7 +4944,7 @@
         }
 
         function rankingKeywords() {
-            var domain = document.getElementById('domain').value;
+            var domain = document.getElementById('domain').value.replace('www.','').replace('htttps://','').replace('http://','');
             var location = document.getElementById('location').value;
 
             document.getElementById('rankingError').textContent = '';
@@ -5874,12 +5874,12 @@
                         displayKeywordRecommendations(kwRecommendationsData.body, `recommendations-container-${keyword.replace(/\s+/g, '-')}`);
 
                         // Extract URL
-                        mapped_url = kwRecommendationsData.body.match(/(https?:\/\/|www\.)([a-zA-Z0-9.-]+(\.[a-zA-Z]{2,})+[a-zA-Z0-9_/\-\?=\&%\#\.]*)/gi)[0];
+                        //mapped_url = kwRecommendationsData.body.match(/(https?:\/\/|www\.)([a-zA-Z0-9.-]+(\.[a-zA-Z]{2,})+[a-zA-Z0-9_/\-\?=\&%\#\.]*)/gi)[0];
 
                         // Extract Time to Rank using regex
                         const timeToRankMatch = kwRecommendationsData.body.match(/(0-3 months|3-6 months|6-9 months|9-12 months|more than 12 months|More than 12 months)/);
                         const timeToRank = timeToRankMatch ? timeToRankMatch[0] : 'N/A';
-                        return [timeToRank, mapped_url];
+                        return [timeToRank];
                     } else {
                         console.warn(`Skipping Keyword Recommendations for ${keyword} due to missing serp_dict.`);
                         return 'N/A';
@@ -6092,8 +6092,7 @@
                 // Update the keywordMetrics object with time to rank
                 keywordMetrics[keyword] = {
                     ...keywordMetrics[keyword],
-                    timeToRank: timeToRank,
-                    mapping: keywordRecommendations[1]
+                    timeToRank: timeToRank
                 };
 
                 console.log("Keyword Metrics after keywordAnalysis:", keywordMetrics);
@@ -7948,7 +7947,6 @@
                     item.cpc,
                     item.timeToRank,
                     item.reason,
-                    item.mapping
                 ];
                 // Use .map() and double quotes to handle commas and special characters
                 const row = values.map(value => `"${String(value).replace(/"/g, '""')}"`).join(','); //IMPORTANT: Escape double quotes within the string
