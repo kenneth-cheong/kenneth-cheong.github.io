@@ -49,7 +49,7 @@
             <img src="assets/img/kaiadmin/Digimetrics Logo-02.png" alt="navbar brand" class="navbar-brand"
               height="20" />
           </a>
-          <div class="nav-toggle">
+          <div id="leftNav" class="nav-toggle">
             <button class="btn btn-toggle toggle-sidebar">
               <i class="gg-menu-right"></i>
             </button>
@@ -350,12 +350,13 @@
             </div>
             <div class="timeline-badge info">
               <button type="button" class="btn btn-icon btn-round btn-info" id="mascotBtn"
-                style="border:none; background-color: transparent;" onclick="driverTesting()">
+                style="border:none; background-color: transparent;" onclick="launchDriver(navigation_steps)">
                 <i class="fas fa-question"></i>
                 <!--  <img src="assets/img/mascot.png" style="width:50px;" alt="Button Image"> -->
               </button>
             </div>
-            <button class="navbar-toggler" style="display:block;" type="button" onclick="toggleRows()">
+            <button id="topNavToggler" class="navbar-toggler" style="display:block;" type="button"
+              onclick="toggleRows()">
               <span class="navbar-toggler-icon"></span>
             </button>
           </div>
@@ -363,9 +364,10 @@
         <!-- End Navbar -->
       </div>
       <script>
+        let keywordMetrics = {};
         let rowsHidden = false; // Keep track of the state
 
-        function driverTesting() {
+        function launchDriver(steps) {
           const driverObj = driver({
             showProgress: false,
             steps: steps
@@ -422,6 +424,13 @@
 
           console.log(serpData);
           document.getElementById('serpHeader').textContent = 'SERP for ' + keyword;
+
+          try {
+            keywordMetrics[keyword]['serp'] = serpData.body;
+          } catch (error) {
+            keywordMetrics[keyword] = {};
+            keywordMetrics[keyword]['serp'] = serpData.body;
+          }
 
           populateSerpTable(serpData.body);
         }
@@ -506,10 +515,11 @@
             } finally {
             }
             document.getElementById('keywordAnalysisSubmit').innerHTML = 'Submit';
+            console.log(keywordMetrics);
           }
         }
 
-        let keywordMetrics = {}; // Store search volume and cpc
+
 
 
         async function getTimeToRank(keyword, language, location, target) { //Added the target parameter
@@ -624,7 +634,6 @@
 
 
           let tableHTML = `
-              <h2>Overall Keyword Summary</h2>
               <div class="table-container">
                   <table>
                       <thead>
@@ -659,19 +668,65 @@
                   <td><textarea class="multiline-input" id="reason-${index}" onchange="updateReason(${index}, this.value)">${reason}</textarea></td>
                   </tr>
               `;
-                      }
+          }
 
-                      tableHTML += `
+          tableHTML += `
                     </tbody>
                 </table>
             </div>
             `;
 
-          summaryContainer.innerHTML = tableHTML + '<button id="downloadCsvBtn" onclick="downloadOverallSummaryTableAsCSV()">Download Keyword Summary as CSV</button><br><br>';
+          //tableHTML += '<button id="downloadCsvBtn" onclick="downloadOverallSummaryTableAsCSV()">Download Keyword Summary as CSV</button><br><br>';
 
-          // Show the download button
-          document.getElementById('overall-summary').style.display = 'block';
-          document.getElementById('downloadCsvBtn').style.display = 'block';
+          summaryContainer.innerHTML = tableHTML
+
+          document.getElementById('keywordsSummaryCard').style.display = 'block';
+        }
+
+        function getTimeToRankClass(timeToRank) {
+          if (timeToRank === 'more than 12 months') {
+            return 'time-to-rank-more-than-12';
+          } else if (timeToRank === '9-12 months') {
+            return 'time-to-rank-9-12';
+          } else if (timeToRank === '6-9 months') {
+            return 'time-to-rank-6-9';
+          } else if (timeToRank === '3-6 months') {
+            return 'time-to-rank-3-6';
+          } else if (timeToRank === '0-3 months') {
+            return 'time-to-rank-0-3';
+          } else {
+            return ''; // Default class or no class
+          }
+        }
+
+        async function fetchReasonFromAPI(keyword, location, language, target) {
+          const reasonApiEndpoint = "https://cdahvw5qi7.execute-api.ap-southeast-1.amazonaws.com/reasonForKwSelection";
+
+          try {
+            const response = await fetch(reasonApiEndpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                location: location,
+                language: language,
+                target: target,
+                keyword: keyword
+              })
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              return data.body;
+            } else {
+              console.error("Error fetching reason from API:", response.status);
+              return ''; // Return empty string in case of error
+            }
+          } catch (error) {
+            console.error("Error fetching reason from API:", error);
+            return ''; // Return empty string in case of error
+          }
         }
 
         async function getRankForUrl(url, keyword, language, location) {
@@ -691,6 +746,12 @@
 
             if (rankCheckerResponse.ok) {
               const rankCheckerData = await rankCheckerResponse.json();
+              try {
+                keywordMetrics[keyword]['rank'] = rankCheckerData;
+              } catch (error) {
+                keywordMetrics[keyword] = {};
+                keywordMetrics[keyword]['rank'] = rankCheckerData;
+              }
               return rankCheckerData; // Returns rank number.
             } else {
               console.error(`Rank Checker API error for ${url}:`, rankCheckerResponse.status);
@@ -1095,6 +1156,18 @@
             competitionCell.textContent = keyword.competition;
             cpcCell.textContent = keyword.cpc;
 
+
+            try {
+              keywordMetrics[keyword]['search_volume'] = keyword.search_volume;
+              keywordMetrics[keyword]['competition'] = keyword.competition;
+              keywordMetrics[keyword]['cpc'] = keyword.cpc;
+            } catch (error) {
+              keywordMetrics[keyword] = {};
+              keywordMetrics[keyword]['search_volume'] = keyword.search_volume;
+              keywordMetrics[keyword]['competition'] = keyword.competition;
+              keywordMetrics[keyword]['cpc'] = keyword.cpc;
+            }
+
             // Create the + icon with a class for styling and a click handler
             const plusIcon = document.createElement("i");
             plusIcon.classList.add("fas", "fa-plus-circle", "clickable-plus");
@@ -1134,6 +1207,19 @@
             searchVolCell.textContent = keyword.search_volume;
             rankCell.textContent = keyword.rank;
             cpcCell.textContent = keyword.cpc;
+
+            try {
+              keywordMetrics[keyword]['search_volume'] = keyword.search_volume;
+              keywordMetrics[keyword]['competition'] = keyword.competition;
+              keywordMetrics[keyword]['cpc'] = keyword.cpc;
+              keywordMetrics[keyword]['rank'] = keyword.rank;
+            } catch (error) {
+              keywordMetrics[keyword] = {}
+              keywordMetrics[keyword]['search_volume'] = keyword.search_volume;
+              keywordMetrics[keyword]['competition'] = keyword.competition;
+              keywordMetrics[keyword]['cpc'] = keyword.cpc;
+              keywordMetrics[keyword]['rank'] = keyword.rank;
+            }
 
             // Create the + icon with a class for styling and a click handler
             const plusIcon = document.createElement("i");
@@ -2033,6 +2119,9 @@
         <div class="page-inner">
           <div class="page-header">
             <h3 class="fw-bold mb-3">Keyword Analysis</h3>
+            <button style="margin:5px 0 0 20px" type="button" class="btn btn-icon btn-round btn-info" onclick="launchDriver(keyword_analysis_steps)">
+                        <i class="fas fa-question"></i>
+                      </button>
           </div>
           <div class="row">
             <div class="card">
@@ -2050,7 +2139,7 @@
                     </div>
                     <div class="form-group">
                       <label class="form-label">Analysis Type</label>
-                      <div class="selectgroup w-100">
+                      <div id="domainOrWebpage" class="selectgroup w-100">
                         <label class="selectgroup-item">
                           <input type="radio" name="keywordAnalysisType" value="domain" class="selectgroup-input"
                             id="keywordAnalysisTypeDomain" checked />
@@ -2062,7 +2151,7 @@
                           <span class="selectgroup-button">Webpage</span>
                         </label>
                       </div>
-                      <div class="row">
+                      <div class="row" id="countryAndLanguage">
                         <div class="col-md-6">
                           <div class="form-group">
                             <label for="keywordAnalysisCountry">Country</label>
@@ -2111,20 +2200,6 @@
           </div>
 
           <div class='row'>
-            <div class="card" id="keywordsSummaryCard" style="display: none;">
-              <div class="card-header">
-                <h4 id="keywordsSummaryHeader" class="card-title">Keywords Summary</h4>
-              </div>
-              <div class="card-body">
-                <div class="table-responsive" style="height: auto;">
-                  <table id="overall-summary" class="display table table-striped table-hover">
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class='row'>
             <div class="card" id="queriedKeywordsCard" style="display: none;">
               <div class="card-header">
                 <h4 id="queriedKeywordsHeader" class="card-title">Queried Keywords</h4>
@@ -2142,6 +2217,20 @@
                     </thead>
                     <tbody>
                     </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class='row'>
+            <div class="card" id="keywordsSummaryCard" style="display: none;">
+              <div class="card-header">
+                <h4 id="keywordsSummaryHeader" class="card-title">Keywords Summary</h4>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive" style="height: auto;">
+                  <table id="overall-summary" class="display table table-striped table-hover">
                   </table>
                 </div>
               </div>
@@ -2308,20 +2397,28 @@
     // Help prompts
     const driver = window.driver.js.driver;
 
-    steps = [
-      { element: '#mascotBtn', popover: { title: 'Digimetrics Helper', description: 'Click on me to for a guided walkthrough.', side: "left", align: 'center' } },
-      { element: '#keywordAnalysisKeywordsDiv', popover: { title: 'Animated Tour Example', description: 'Here is the code example showing animated tour. Let\'s walk you through it.', side: "bottom", align: 'center' } },
-      { element: '#keywordAnalysisSubmit', popover: { title: 'Import the Library', description: 'It works the same in vanilla JavaScript as well as frameworks.', side: "bottom", align: 'start' } },
-      { element: 'code .line:nth-child(2)', popover: { title: 'Importing CSS', description: 'Import the CSS which gives you the default styling for popover and overlay.', side: "bottom", align: 'start' } },
-      { element: 'code .line:nth-child(4) span:nth-child(7)', popover: { title: 'Create Driver', description: 'Simply call the driver function to create a driver.js instance', side: "left", align: 'start' } },
-      { element: 'code .line:nth-child(18)', popover: { title: 'Start Tour', description: 'Call the drive method to start the tour and your tour will be started.', side: "top", align: 'start' } },
-      { element: 'a[href="/docs/configuration"]', popover: { title: 'More Configuration', description: 'Look at this page for all the configuration options you can pass.', side: "right", align: 'start' } },
-      { popover: { title: 'Happy Coding', description: 'And that is all, go ahead and start adding tours to your applications.' } }
+
+
+    navigation_steps = [
+      { element: '#mascotBtn', popover: { title: 'Digimetrics Helper', description: 'Click on me for a guided walkthrough. Click anywhere outside the box at anytime to leave the walkthrough.', side: "left", align: 'center' } },
+      { element: '#topNavToggler', popover: { title: 'Top Navigation Toggler', description: 'Click here to expand / hide the listing of functions.', side: "left", align: 'center' } },
+      { element: '#navbarNav', popover: { title: 'Top Navigation Toggler', description: 'The green tick shows which functions have been done and the one in bold is the current function that you are on.', side: "left", align: 'center' } },
+      { element: '#leftNav', popover: { title: 'Left Navigation Toggler', description: 'You can also expand / collapse the navigational menu here.', side: "left", align: 'center' } },
+    ]
+
+    keyword_analysis_steps = [
+      { element: '#keyword_analysis_url', popover: { title: 'Keyword Analysis', description: 'Start by entering the URL of your target domain or URL Entering this field would allow you to find ranking keywords for the domain/webpage.', side: "bottom", align: 'center' } },
+      { element: '#domainOrWebpage', popover: { title: 'Keyword Analysis', description: 'Choose whether you are analysing the whole domain or just one specific URL.', side: "bottom", align: 'center' } },
+      { element: '#countryAndLanguage', popover: { title: 'Keyword Analysis', description: 'Choose the Country and Lanauage accordingly.', side: "bottom", align: 'center' } },
+      { element: '#keyword_analysis_keywords', popover: { title: 'Keyword Analysis', description: 'Enter any targeted keywords here. This is required for the generation of related keywords and also to check the ranking, search volume, CPC, etc. for each keyword.', side: "bottom", align: 'center' } },
+      { element: '#keywordAnalysisSubmit', popover: { title: 'Keyword Analysis', description: 'Click Submit to get Ranking Keywords, Related Keywords, Current Rankings, Keywords based on Page Content and Estimated Time To Rank', side: "bottom", align: 'center' } },
+
+      { popover: { title: 'Happy Keywording', description: 'And that is all, go ahead and make magic.' } }
     ]
 
     const driverObj = driver({
       showProgress: false,
-      steps: steps
+      steps: navigation_steps
     });
 
     driverObj.drive();
