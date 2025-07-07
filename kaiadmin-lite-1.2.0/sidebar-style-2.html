@@ -233,15 +233,14 @@
                     <li class="separator">
                       <i class="icon-arrow-right"></i>
                     </li>
-                    <li class="nav-item">
+                    <li class="nav-item" id="keywordAnalysisFunctionExecuted">
                       <a href="#" style="font-weight:1000;"> Keyword Analysis</a>
                     </li>
                     <li class="separator">
                       <i class="icon-arrow-right"></i>
                     </li>
-                    <li class="nav-item">
-                      <a href="#"><i class="fas fa-check-circle" style="color: green; margin-right: 5px;"
-                          aria-hidden="true"></i> Rank Checker</a>
+                    <li class="nav-item" id="rankCheckerFunctionExecuted">
+                      <a href="#"> Rank Checker</a>
                     </li>
                     <li class="separator">
                       <i class="icon-arrow-right"></i>
@@ -963,6 +962,7 @@
         }
 
         async function getKeywordRankings() {
+          document.getElementById('rankCheckerFunctionExecuted').innerHTML = '<a href="#"> Rank Checker</a>';
           const country = document.getElementById('keywordAnalysisCountry').value;
           const language = document.getElementById('keywordAnalysisLanguage').value;
           const keywords = document.getElementById('keyword_analysis_keywords').value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
@@ -1007,6 +1007,7 @@
               rowNumber++; // Increment the row number even when no results are found
             }
           }
+          document.getElementById('rankCheckerFunctionExecuted').innerHTML = '<a href="#"><i class="fas fa-check-circle" style="color: green; margin-right: 5px;"aria-hidden="true"></i> Rank Checker</a>';
           document.getElementById('queriedKeywordsCard').style.display = "block";
         }
 
@@ -1436,7 +1437,7 @@
           }
 
           document.getElementById('keywordMappingCard').style.display = "none";
-          document.getElementById('mapKeywordsBtn').innerHTML = '<div class="custom-toggle rotate"><i class="icon-settings"></i></div>';
+          //document.getElementById('mapKeywordsBtn').innerHTML = '<div class="custom-toggle rotate"><i class="icon-settings"></i></div>';
           const promises = [];
 
           promises.push(getKeywordRankings());
@@ -1503,8 +1504,10 @@
           } catch (error) {
             console.error("An error occurred during the fetch requests:", error);
           } finally {
-            document.getElementById('mapKeywordsBtn').innerHTML = 'Map Keywords';
+            //document.getElementById('mapKeywordsBtn').innerHTML = 'Map Keywords';
             document.getElementById('keywordMappingCard').style.display = "block";
+            document.getElementById('rankCheckerFunctionExecuted').innerHTML = '<a href="#"><i class="fas fa-check-circle" style="color: green; margin-right: 5px;"aria-hidden="true"></i> Rank Checker</a>';
+
           }
         }
 
@@ -1540,6 +1543,7 @@
           const renameInput = document.createElement('input');
           renameInput.type = 'text';
           renameInput.classList.add('border', 'rounded', 'p-2', 'flex-grow-1', 'me-2');
+          renameInput.style.width = "80%";
           renameInput.value = url;
 
           const deleteButton = document.createElement('button');
@@ -2055,6 +2059,128 @@
           } catch (error) {
             console.error("Error fetching rank:", error);
             return ('not available');
+          }
+        }
+
+
+        async function contentComparisonAnalysis() {
+          const keywords = document.getElementById('keyword_analysis_keywords').value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+          const domain = document.getElementById('keyword_analysis_url').value;
+          const country = document.getElementById('keywordAnalysisCountry').value;
+          const language = document.getElementById('keywordAnalysisLanguage').value;
+          urls = urlsInput.split(/[\s,]+/).filter(url => url.trim() !== "");
+
+          try {
+            let serpUrls = [];
+            try {
+              if (keyword != "") {
+                // 1. Fetch URLs from SERP API
+                const serpResponse = await fetch('https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ keyword, language, location, user, page_types: pageTypes }),
+                });
+                const serpData = await serpResponse.json();
+                console.log(serpData);
+                serpUrls = Object.values(serpData).map(result => result.url);
+
+                if (urls != "") {
+                  serpUrls = [...new Set([...serpUrls, ...urls])]; // Combine and deduplicate
+                }
+
+              } else {
+                serpUrls = urls;
+              }
+            } catch (error) {
+              serpUrls = urls;
+            }
+
+            serpUrls.push(document.getElementById('comparison-domain').value);
+
+            console.log(serpUrls);
+
+            // 2. Fetch content analysis for each URL *concurrently*
+            const analysisPromises = serpUrls.map(url =>
+              fetch('https://u24f9208q0.execute-api.ap-southeast-1.amazonaws.com/gptTopicsPerUrl', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url, keyword }),
+              })
+                .then(res => {
+                  if (!res.ok) {  // Check for errors
+                    console.warn(`Content analysis API error for ${url}: ${res.status} ${res.statusText}.  Skipping.`);
+                    return null; // Signal that this URL failed
+                  }
+                  return res.json();
+                })
+                .catch(error => {
+                  console.warn(`Content analysis API error for ${url}: ${error.message}.  Skipping.`);
+                  return null; // Signal that this URL failed
+                })
+            );
+
+            // Wait for *all* content analysis calls to complete
+            analysisDataArray = await Promise.all(analysisPromises);
+
+            // Combine analysis data, handling potential errors from individual API calls
+            analysisData = {};
+            analysisDataArray.forEach(item => {
+              try {
+                url = Object.keys(item['body'])[0];
+                analysisData[url] = item['body'][url];
+              } catch (error) {
+
+              }
+            }
+            );
+
+            // Check if analysisData is empty after combining results.
+            if (Object.keys(analysisData).length === 0) {
+              throw new Error("Content analysis failed for all URLs. Please check the URLs and try again.");
+            }
+
+            // 3. Create and display the table (modified createAnalysisTable function below)
+            comparisonTableHTML = createAnalysisTable(analysisData, keyword, urls);  // Pass keyword and target URLs
+            document.getElementById('initial-table').innerHTML = `<div id="tableContainer">${comparisonTableHTML}</div>`;
+
+            // 4. Apply gradients (no change needed)
+            applyGradientsToRows();
+
+            // 5. Submit table data to comparisonRecommender API
+            const comparisonResponse = await fetch('https://33v5mhjt47.execute-api.ap-southeast-1.amazonaws.com/comparisonRecommender', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ output: analysisData, keyword, location, pageTypes, domain: document.getElementById('comparison-domain').value }), // Send analysisData directly
+            });
+            const comparisonData = await comparisonResponse.json();
+
+            console.log(comparisonData);
+
+            // Display recommendations and output table from comparison API
+            const recommendation = comparisonData.body.recommendation;
+
+            try {
+              //const outputTableHTML = createHTMLTableFromJSON(comparisonData.body.output); // Parse JSON string to object
+              const outputTableHTML = createAnalysisTable(comparisonData.body.output, keyword, urls)
+              document.getElementById('initial-table').innerHTML = "";
+              document.getElementById('initial-table').innerHTML = `<div id="tableContainer">${outputTableHTML}</div>`;
+              resultsDiv.innerHTML += `<pre>${recommendation}</pre>`;
+              console.log('refresh succesful');
+
+              // 4. Apply gradients (no change needed)
+              applyGradientsToRows();
+
+            } catch (error) {
+              console.log(error)
+              resultsDiv.innerHTML += `<pre>${recommendation}</pre>`;
+            }
+            await contentComparisonToDatabase();
+
+          } catch (error) {
+            cosnole.log(error);
+            try {
+            } catch (error) {
+            }
           }
         }
 
@@ -2830,7 +2956,7 @@
                   <button class="btn btn-secondary" onclick="undoDelete()"><i class="fas fa-undo me-1"></i> Undo
                     Delete</button>
                 </div>
-                <div class="containerForMapping" id="listsContainer"><div class="list-container"><input type="text" class="border rounded p-2 flex-grow-1 me-2" value="targeted-domain/url"><button class="btn btn-sm btn-outline-danger"><i class="fas fa-times" <="" i=""></i></button><ul id="list1" class="keyword-list"><li draggable="true" id="digital marketing singapore">digital marketing singapore</li></ul><button class="btn btn-primary w-100" style="display: block;">Page Recommendations</button></div></div>
+                <div class="containerForMapping" id="listsContainer"><div class="list-container"><input type="text" class="border rounded p-2 flex-grow-1 me-2" style = "width:80%;"value="targeted-domain/url"><button class="btn btn-sm btn-outline-danger"><i class="fas fa-times" <="" i=""></i></button><ul id="list1" class="keyword-list"><li draggable="true" id="digital marketing singapore">digital marketing singapore</li></ul><button class="btn btn-primary w-100" style="display: block;">Page Recommendations</button></div></div>
                 <div class="d-flex justify-content-around flex-wrap">
                   <div class="card shadow-sm mb-3" style="width: 280px;"></div>
                 </div>
