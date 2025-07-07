@@ -354,8 +354,8 @@
                 <!--  <img src="assets/img/mascot.png" style="width:50px;" alt="Button Image"> -->
               </button>
             </div>
-            <button id="topNavToggler" class="navbar-toggler" style="display:block; border-radius: 0 5px 5px 0;" type="button"
-              onclick="toggleRows()">
+            <button id="topNavToggler" class="navbar-toggler" style="display:block; border-radius: 0 5px 5px 0;"
+              type="button" onclick="toggleRows()">
               <span class="navbar-toggler-icon"></span>
             </button>
           </div>
@@ -495,6 +495,7 @@
 
             if (urlValue && keywordsValue) {
               promises.push(getKeywordRankings());
+              promises.push(checkKeywordsRelevancy());
             }
 
             if (urlValue) {
@@ -502,16 +503,12 @@
               promises.push(getWebpageKeywords());
             }
 
-            if (keywordsValue) {
-              promises.push(getSimilarKeywords());
-            }
-
             try {
               await Promise.all(promises);
 
               // Run getTimeToRank concurrently for each keyword
-              const timeToRankPromises = keywords.map(keyword => getTimeToRank(keyword, language, location, domain)); // Assuming language, location, urlValue are defined elsewhere.  Important: pass target URL here.
-              await Promise.all(timeToRankPromises);
+              //const timeToRankPromises = keywords.map(keyword => getTimeToRank(keyword, language, location, domain)); // Assuming language, location, urlValue are defined elsewhere.  Important: pass target URL here.
+              //await Promise.all(timeToRankPromises);
 
             } catch (error) {
               console.error("One or more keyword analysis tasks failed:", error);
@@ -520,6 +517,32 @@
             document.getElementById('keywordAnalysisSubmit').innerHTML = 'Submit';
             console.log(keywordMetrics);
           }
+        }
+
+        async function proceedKeywordAnalysis() {
+          const urlValue = document.getElementById('keyword_analysis_url').value;
+          const keywordsValue = document.getElementById('keyword_analysis_keywords').value;
+          const domain = document.getElementById('keyword_analysis_url').value;
+          const location = document.getElementById('keywordAnalysisCountry').value;
+          const language = document.getElementById('keywordAnalysisLanguage').value;
+          const keywords = document.getElementById('keyword_analysis_keywords').value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+
+          keywordAnalysisSubmit
+          document.getElementById('proceedKeywordAnalysisBtn').innerHTML = '<div class="custom-toggle rotate"><i class="icon-settings"></i></div>';
+
+          getSimilarKeywords();
+
+          try {
+            // Run getTimeToRank concurrently for each keyword
+            const timeToRankPromises = keywords.map(keyword => getTimeToRank(keyword, language, location, domain)); // Assuming language, location, urlValue are defined elsewhere.  Important: pass target URL here.
+            await Promise.all(timeToRankPromises);
+          } catch (error) {
+            console.error("One or more keyword analysis tasks failed:", error);
+          } finally {
+          }
+          document.getElementById('keywordAnalysisSubmit').innerHTML = 'Submit';
+          document.getElementById('proceedKeywordAnalysisBtn').innerHTML = 'Proceed with the keywords.';
+          console.log(keywordMetrics);
         }
 
         async function getTimeToRank(keyword, language, location, target) {
@@ -545,6 +568,8 @@
                 location: location
               })
             });
+
+            console.log(keyword);
 
             if (!serpResponse.ok) {
               throw new Error(`SERP API Error: ${serpResponse.status} ${serpResponse.statusText}`);
@@ -2213,8 +2238,10 @@
                       <small id="keywordAnalysisKeywordsHelp" class="form-text text-muted" style="display:none;">Either
                         key in keywords and/or URL to proceed.</small>
                       <br>
+                      <!--
                       <button class="btn btn-success" id="mapKeywordsBtn" onclick="mapKeywords()">Map
                         Keywords</button>
+                      -->
                     </div>
                   </div>
                 </div>
@@ -2222,6 +2249,29 @@
               <div class="card-action">
                 <button class="btn btn-success" id="keywordAnalysisSubmit" onclick="keywordAnalysis()">Submit</button>
                 <button class="btn btn-danger" onclick="clearKeywordAnalysis()">Clear</button>
+              </div>
+            </div>
+          </div>
+
+          <div class='row'>
+            <div class="card" id="removeKeywordsCard" style="display: none;">
+              <div class="card-header">
+                <h4 id="removeKeywordsHeader" class="card-title">Some of your keywords seem unrelated to your site.
+                  Remove them?</h4>
+                <button style="margin: 20px 0 20px 0;" class="btn btn-success" id="proceedKeywordAnalysisBtn"
+                  onclick="proceedKeywordAnalysis()">Proceed with the keywords.</button>
+              </div>
+              <div class="table-responsive" style="height: auto;">
+                <table id="removeKeywordsTable" class="display table table-striped table-hover">
+                  <thead>
+                    <tr>
+                      <th>Keyword</th>
+                      <th>Remove</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -2374,7 +2424,8 @@
               </div>
               <div class="card-body">
                 <div class="d-flex justify-content-start mb-3">
-                  <button class="btn btn-success me-2" onclick="addNewList()"><i class="fas fa-plus me-1"></i> Add New
+                  <button class="btn btn-success me-2" onclick="addNewList()"><i class="fas fa-plus me-1"></i> Add
+                    New
                     URL</button>
                   <button class="btn btn-secondary" onclick="undoDelete()"><i class="fas fa-undo me-1"></i> Undo
                     Delete</button>
@@ -2389,6 +2440,8 @@
           </div>
         </div>
       </div>
+
+
 
       <footer class="footer">
         <div class="container-fluid d-flex justify-content-between">
@@ -2417,6 +2470,93 @@
   </div>
 
   <script>
+
+    async function checkKeywordsRelevancy() {
+      document.getElementById('removeKeywordsCard').style.display = 'none';
+      const domain = document.getElementById('keyword_analysis_url').value;
+      const keywordsTextarea = document.getElementById('keyword_analysis_keywords');
+      const keywords = keywordsTextarea.value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+      const language = document.getElementById('keywordAnalysisLanguage').value;
+      const country = document.getElementById('keywordAnalysisCountry').value;
+
+      try {
+        const dataResponse = await fetch("https://s340antute.execute-api.ap-southeast-1.amazonaws.com/checkKeywordRelevance", {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            keywords: keywords,
+            domain: domain
+          })
+        });
+
+        if (!dataResponse.ok) {
+          throw new Error(`HTTP error! status: ${dataResponse.status}`);
+        }
+
+        const data = await dataResponse.json();
+        console.log(data);
+
+        // Extract non-related keywords
+
+        nonRelatedKeywords = "";
+
+        nonRelatedKeywords = data.keywords.filter(keyword => !keyword.related).map(keyword => keyword.keyword);
+
+        console.log(keywords);
+        // Populate the table with non-related keywords
+        if (nonRelatedKeywords.length > 0) {
+          populateIrrelevantKeywordsTable(nonRelatedKeywords, keywordsTextarea); // Pass the textarea element
+        } else {
+          getSimilarKeywords();
+          // Run getTimeToRank concurrently for each keyword
+          const timeToRankPromises = keywords.map(keyword => getTimeToRank(keyword, language, country, domain)); // Assuming language, location, urlValue are defined elsewhere.  Important: pass target URL here.
+          await Promise.all(timeToRankPromises);
+        }
+
+      } catch (error) {
+        console.error("Error during keyword relevancy check:", error);
+      } finally {
+        mapKeywords();
+        document.getElementById('keywordAnalysisSubmit').innerHTML = 'Submit';
+      }
+    }
+
+    function populateIrrelevantKeywordsTable(keywords, keywordsTextarea) {
+      const tableBody = document.getElementById('removeKeywordsTable').querySelector('tbody');
+      tableBody.innerHTML = ''; // Clear existing table content
+
+      keywords.forEach(keyword => {
+        const row = tableBody.insertRow();
+        const keywordCell = row.insertCell();
+        const removeCell = row.insertCell();
+
+        keywordCell.textContent = keyword;
+
+        const removeButton = document.createElement('button');
+        removeButton.textContent = 'Remove';
+        removeButton.classList.add('btn', 'btn-danger', 'btn-sm'); // Add Bootstrap button classes
+
+        removeButton.addEventListener('click', () => {
+          // Remove the row from the table when the button is clicked
+          tableBody.removeChild(row);
+
+          // Remove the keyword from the textarea
+          removeKeywordFromTextarea(keyword, keywordsTextarea);
+
+        });
+
+        removeCell.appendChild(removeButton);
+      });
+      document.getElementById('removeKeywordsCard').style.display = 'block';
+    }
+
+    function removeKeywordFromTextarea(keywordToRemove, keywordsTextarea) {
+      const currentKeywords = keywordsTextarea.value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+      const updatedKeywords = currentKeywords.filter(keyword => keyword !== keywordToRemove);
+      keywordsTextarea.value = updatedKeywords.join('\n'); // Update the textarea with newline-separated keywords
+    }
 
     function removeMockData() {
       document.getElementById("queriedKeywordsCard").innerHTML = `
@@ -2553,9 +2693,9 @@
                     </table>
                   </div>
                 </div>`;
-              document.getElementById("serpCard").style.display = "none";
+      document.getElementById("serpCard").style.display = "none";
 
-        document.getElementById('keywordsSummaryCard').innerHTML = `
+      document.getElementById('keywordsSummaryCard').innerHTML = `
               <div class="card-header">
                 <h4 id="keywordsSummaryHeader" class="card-title">Keywords Summary</h4>
               </div>
@@ -2565,7 +2705,7 @@
                   </table>
                 </div>
               </div>`;
-            document.getElementById('keywordsSummaryCard').style.display = "none";
+      document.getElementById('keywordsSummaryCard').style.display = "none";
     }
 
     function mockDataDemo() {
@@ -2718,9 +2858,9 @@
                     </table>
                   </div>
                 </div>`;
-              document.getElementById("serpCard").style.display = "block";
+      document.getElementById("serpCard").style.display = "block";
 
-        document.getElementById('keywordsSummaryCard').innerHTML = `
+      document.getElementById('keywordsSummaryCard').innerHTML = `
               <div class="card-header">
                 <h4 id="keywordsSummaryHeader" class="card-title">Keywords Summary</h4>
               </div>
@@ -2757,7 +2897,7 @@
             </table>
                 </div>
               </div>`;
-            document.getElementById('keywordsSummaryCard').style.display = "block";
+      document.getElementById('keywordsSummaryCard').style.display = "block";
     }
 
     // Help prompts
