@@ -426,7 +426,6 @@
           });
           const serpData = await response.json();
 
-          console.log(serpData);
           document.getElementById('serpHeader').textContent = 'SERP for ' + keyword;
 
           if (!keywordMetrics[keyword]) {
@@ -514,7 +513,6 @@
             } finally {
             }
             document.getElementById('keywordAnalysisSubmit').innerHTML = 'Submit';
-            console.log(keywordMetrics);
           }
         }
 
@@ -541,7 +539,6 @@
           }
           document.getElementById('keywordAnalysisSubmit').innerHTML = 'Submit';
           document.getElementById('proceedKeywordAnalysisBtn').innerHTML = 'Proceed with the keywords.';
-          console.log(keywordMetrics);
         }
 
         async function getTimeToRank(keyword, language, location, target) {
@@ -568,14 +565,11 @@
               })
             });
 
-            console.log(keyword);
-
             if (!serpResponse.ok) {
               throw new Error(`SERP API Error: ${serpResponse.status} ${serpResponse.statusText}`);
             }
 
             const serpData = await serpResponse.json();
-            console.log(`SERP API Response for ${keyword}:`, serpData);
 
             if (!keywordMetrics[keyword]) {
               keywordMetrics[keyword] = {};
@@ -621,8 +615,6 @@
               keywordMapping[keywordRecommendations[1]] = [];
               keywordMapping[keywordRecommendations[1]].push(keyword);
             }
-
-            console.log("Keyword Metrics after keywordAnalysis:", keywordMetrics);
 
             await displayOverallSummaryTable(location, language, target);
 
@@ -823,7 +815,6 @@
             }
 
             const keywordMappingData = await keywordMappingResponse.json();
-            console.log(`Keyword Mapping API Response for ${keyword}:`, keywordMappingData);
 
             if (keywordMappingData && keywordMappingData.body && Array.isArray(keywordMappingData.body)) {
               const targetUrls = keywordMappingData.body;
@@ -841,8 +832,6 @@
               });
 
               const targetData = await Promise.all(targetDataPromises);
-
-              console.log(`Target Content with Metrics and Rank for ${keyword}:`, targetData);
 
               if (!keywordMetrics[keyword]) {
                 keywordMetrics[keyword] = {};
@@ -880,7 +869,6 @@
                 }
 
                 const kwRecommendationsData = await kwRecommendationsResponse.json();
-                console.log(`Keyword Recommendations API Response for ${keyword}:`, kwRecommendationsData);
 
                 if (!keywordMetrics[keyword]) {
                   keywordMetrics[keyword] = {};
@@ -1457,8 +1445,6 @@
             for (key in keywordMapping) {
               value = keywordMapping[key];
               if (value.includes(keyword)) {
-                console.log(keywordMapping);
-
               } else {
                 return fetch('https://6s7ijwwsa8.execute-api.ap-southeast-1.amazonaws.com/dragDrop', {
                   method: 'POST',
@@ -1579,8 +1565,6 @@
 
             // Get the URL from the input field *inside* this function
             const currentURL = renameInput.value;
-
-            console.log(currentURL);
 
             // Get the list items and put them into an array
             const listItems = Array.from(list.children).map(item => item.textContent.trim());
@@ -1828,6 +1812,7 @@
 
             console.log(recommendationData); // Now logs the parsed JSON data
 
+
           } catch (error) {
             console.error("Error fetching recommendations:", error);
           } finally {
@@ -1993,8 +1978,6 @@
             // Get the list items and put them into an array
             const listItems = Array.from(list.children).map(item => item.textContent.trim());
 
-            console.log(listItems);
-
             getPageRecommendations(url, listItems, this); // Pass both URL and the array of list items and the button element
           });
           listContainer.appendChild(recommendationsButton);
@@ -2063,41 +2046,25 @@
         }
 
 
-        async function contentComparisonAnalysis() {
-          const keywords = document.getElementById('keyword_analysis_keywords').value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+        async function contentComparisonAnalysis(keyword) {
           const domain = document.getElementById('keyword_analysis_url').value;
           const country = document.getElementById('keywordAnalysisCountry').value;
           const language = document.getElementById('keywordAnalysisLanguage').value;
-          urls = urlsInput.split(/[\s,]+/).filter(url => url.trim() !== "");
+
+          serpUrls = [];
+
+          for ([key, value] of Object.entries(keywordMetrics[keyword]['serp'])) {
+            for ([key2, value2] of Object.entries(value)) {
+              if (key2 === 'url') {
+                serpUrls.push(value2);
+              }
+            }
+          }
 
           try {
-            let serpUrls = [];
-            try {
-              if (keyword != "") {
-                // 1. Fetch URLs from SERP API
-                const serpResponse = await fetch('https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ keyword, language, location, user, page_types: pageTypes }),
-                });
-                const serpData = await serpResponse.json();
-                console.log(serpData);
-                serpUrls = Object.values(serpData).map(result => result.url);
-
-                if (urls != "") {
-                  serpUrls = [...new Set([...serpUrls, ...urls])]; // Combine and deduplicate
-                }
-
-              } else {
-                serpUrls = urls;
-              }
-            } catch (error) {
-              serpUrls = urls;
-            }
-
-            serpUrls.push(document.getElementById('comparison-domain').value);
-
-            console.log(serpUrls);
+            target = document.getElementById('keyword_analysis_url').value;
+            if ('https://')
+            serpUrls.push(target);
 
             // 2. Fetch content analysis for each URL *concurrently*
             const analysisPromises = serpUrls.map(url =>
@@ -2140,17 +2107,19 @@
             }
 
             // 3. Create and display the table (modified createAnalysisTable function below)
-            comparisonTableHTML = createAnalysisTable(analysisData, keyword, urls);  // Pass keyword and target URLs
+            comparisonTableHTML = createAnalysisTable(analysisData, keyword, serpUrls);  // Pass keyword and target URLs
             document.getElementById('initial-table').innerHTML = `<div id="tableContainer">${comparisonTableHTML}</div>`;
 
             // 4. Apply gradients (no change needed)
             applyGradientsToRows();
 
+            pageTypes = ['all'];
+
             // 5. Submit table data to comparisonRecommender API
             const comparisonResponse = await fetch('https://33v5mhjt47.execute-api.ap-southeast-1.amazonaws.com/comparisonRecommender', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ output: analysisData, keyword, location, pageTypes, domain: document.getElementById('comparison-domain').value }), // Send analysisData directly
+              body: JSON.stringify({ output: analysisData, keyword, location, pageTypes, domain: document.getElementById('keyword_analysis_url').value }), // Send analysisData directly
             });
             const comparisonData = await comparisonResponse.json();
 
@@ -2177,11 +2146,128 @@
             await contentComparisonToDatabase();
 
           } catch (error) {
-            cosnole.log(error);
+            console.log(error);
             try {
             } catch (error) {
             }
           }
+        }
+
+        function createAnalysisTable(data, keyword, targetUrls) {
+          let tableHTML = '<table id="analysisTable" class="display table table-striped table-hover">';
+          tableHTML += '<tr><th>URL</th>';
+
+          const urls = Object.keys(data);
+          urls.forEach(url => {
+            tableHTML += `<th ${targetUrls.includes(url) && keyword ? 'class="targetUrl"' : ''}>
+                        <a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></th>`;
+          });
+          tableHTML += '</tr>';
+
+
+          // Add Word Count row
+          tableHTML += '<tr><td>Word Count</td>';
+          urls.forEach(url => {
+            try {
+              tableHTML += `<td data-value="${data[url].word_count}">${data[url].word_count}</td>`;
+            } catch (error) {
+              tableHTML += `<td data-value="0">0</td>`;
+            }
+          });
+          tableHTML += '</tr>';
+
+          // Add Page Type row
+          tableHTML += '<tr><td>Page Type</td>';
+          urls.forEach(url => {
+            try {
+              tableHTML += `<td>${data[url].page_type}</td>`;
+            } catch (error) {
+              tableHTML += `<td>-</td>`;
+            }
+          });
+          tableHTML += '</tr>';
+
+          // Add headings rows
+          tableHTML += '<tr><td>h1</td>';
+          urls.forEach(url => {
+            try {
+              tableHTML += `<td> • ${data[url].h1.join('<br> • ')}</td>`;
+            } catch (error) {
+              tableHTML += `<td>-</td>`;
+            }
+          });
+          tableHTML += '</tr>';
+
+          tableHTML += '<tr><td>h2</td>';
+          urls.forEach(url => {
+            try {
+              tableHTML += `<td> • ${data[url].h2.join('<br> • ')}</td>`;
+            } catch (error) {
+              tableHTML += `<td>-</td>`;
+            }
+          });
+          tableHTML += '</tr>';
+
+          tableHTML += '<tr><td>h3</td>';
+          urls.forEach(url => {
+            try {
+              tableHTML += `<td> • ${data[url].h3.join('<br> • ')}</td>`;
+            } catch (error) {
+              tableHTML += `<td>-</td>`;
+            }
+          });
+          tableHTML += '</tr>';
+
+          // Get all unique topics, handling missing topics
+          let allTopics = [];
+          urls.forEach(url => {
+            if (data[url] && data[url].topics) {
+              allTopics = [...allTopics, ...Object.keys(data[url].topics)];
+            }
+          });
+          const uniqueTopics = [...new Set(allTopics)];
+
+          // Add Topic rows (handling missing topic data)
+          uniqueTopics.forEach(topic => {
+            tableHTML += `<tr><td>${topic.replaceAll('_', ' ')}</td>`;
+            urls.forEach(url => {
+              const value = (data[url] && data[url].topics && data[url].topics[topic]) ? data[url].topics[topic] : 0;
+              tableHTML += `<td data-value="${value}">${value}</td>`;
+            });
+            tableHTML += '</tr>';
+          });
+
+          tableHTML += '</table>';
+          return tableHTML;
+        }
+
+        function applyGradientsToRows() {
+          const table = document.getElementById('analysisTable');
+          for (let i = 1; i < table.rows.length; i++) { // Start from row 1 to skip header
+            applyGradientToRow(table.rows[i]);
+          }
+        }
+
+        function applyGradientToRow(row) {
+          const values = Array.from(row.cells)
+            .slice(1) // Skip the first cell (topic name)
+            .map(cell => {
+              const value = parseFloat(cell.dataset.value);
+              return isNaN(value) ? -1 : value; // Assign -1 for non-numeric values
+            });
+
+          const max = Math.max(...values);
+          const min = Math.min(...values);
+
+          values.forEach((value, index) => {
+            const cell = row.cells[index + 1]; // +1 to account for the first cell
+            if (!isNaN(value) && value !== -1) { // Apply gradient only to numeric values
+              const percent = (value - min) / (max - min);
+              const red = Math.round(255 * (1 - percent));
+              const green = Math.round(255 * percent);
+              cell.style.backgroundColor = `rgb(${red}, ${green}, 0)`;
+            }
+          });
         }
 
 
@@ -2379,6 +2465,15 @@
             </div>
           </div>
 
+          <div class='row'>
+            <div class="card" id="contentComparisonCard" style="display: block;">
+              <div class="card-header">
+                <h4 id="contentComparisonsHeader" class="card-title">Content Comparison</h4>
+                <div id="initial-table" style="overflow-y: scroll; overflow-y: scroll; height: 500px"></div>
+              </div>
+            </div>
+          </div>
+          
           <div class='row'>
             <div class="card" id="removeKeywordsCard" style="display: none;">
               <div class="card-header">
@@ -2622,7 +2717,6 @@
         }
 
         const data = await dataResponse.json();
-        console.log(data);
 
         // Extract non-related keywords
 
@@ -2630,7 +2724,6 @@
 
         nonRelatedKeywords = data.keywords.filter(keyword => !keyword.related).map(keyword => keyword.keyword);
 
-        console.log(keywords);
         // Populate the table with non-related keywords
         if (nonRelatedKeywords.length > 0) {
           populateIrrelevantKeywordsTable(nonRelatedKeywords, keywordsTextarea); // Pass the textarea element
@@ -2645,6 +2738,9 @@
         console.error("Error during keyword relevancy check:", error);
       } finally {
         mapKeywords();
+        keywords.forEach(keyword => {
+          contentComparisonAnalysis(keyword);
+        });
         document.getElementById('keywordAnalysisSubmit').innerHTML = 'Submit';
       }
     }
