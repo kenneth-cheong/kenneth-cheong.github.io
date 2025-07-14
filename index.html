@@ -3599,6 +3599,26 @@
             });
         });
 
+        function addFaqItem() {
+            faqItemCount++;
+            const faqItemsDiv = document.getElementById('faq-items');
+            const newItem = document.createElement('div');
+            newItem.className = "faq-item";
+            newItem.innerHTML = `
+        <input type="text" class="form-control" id="question${faqItemCount}" placeholder="Question #${faqItemCount}" oninput="updateSchema()">
+        <textarea class="form-control" id="answer${faqItemCount}" placeholder="Answer" oninput="updateSchema()"></textarea>
+        <button class="btn-danger" onclick="removeFaqItem(this)">x</button>
+    `;
+            faqItemsDiv.appendChild(newItem);
+
+            // Attach event listeners to new elements
+            newItem.querySelectorAll('input, textarea').forEach(input => {
+                input.addEventListener('input', updateSchema);
+            });
+
+            updateSchema();
+        }
+
         function deactivateAllButtons() {
             const buttons = document.querySelectorAll('button.collapsible'); // Select all collapsible buttons
             buttons.forEach(button => {
@@ -4290,11 +4310,11 @@
                 // Combine analysis data, handling potential errors from individual API calls
                 analysisData = {};
                 analysisDataArray.forEach(item => {
-                    try{
-                    url = Object.keys(item['body'])[0];
-                    analysisData[url] = item['body'][url];
+                    try {
+                        url = Object.keys(item['body'])[0];
+                        analysisData[url] = item['body'][url];
                     } catch (error) {
-                        
+
                     }
                 }
                 );
@@ -4944,7 +4964,7 @@
         }
 
         function rankingKeywords() {
-            var domain = document.getElementById('domain').value.replace('www.','').replace('htttps://','').replace('http://','');
+            var domain = document.getElementById('domain').value.replace('www.', '').replace('htttps://', '').replace('http://', '');
             var location = document.getElementById('location').value;
 
             document.getElementById('rankingError').textContent = '';
