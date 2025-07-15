@@ -515,6 +515,54 @@
           text-align: center;
         }
 
+        .funnel-container {
+            width: 90%;
+            margin: 20px auto;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .funnel-collapsible-before {
+            color: white;
+            cursor: pointer;
+            padding: 20px;
+            width: 100%;
+            border: none;
+            text-align: center;
+            outline: none;
+            transition: background-color 0.8s ease;
+            border-radius: 3px;
+            font-size: 1em;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+
+        .funnel-collapsible {
+            color: white;
+            cursor: pointer;
+            padding: 20px;
+            width: 100%;
+            border: none;
+            text-align: center;
+            outline: none;
+            transition: background-color 0.8s ease;
+            border-radius: 3px;
+            font-size: 1em;
+            box-sizing: border-box;
+            margin: 0px;
+        }
+
+        .funnel-content {
+            width: 100%;
+            display: block;
+            padding: 20px;
+            border-radius: 3px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+
         @keyframes rotate-clockwise-animation {
           0% {
             transform: rotate(0deg);
@@ -5071,28 +5119,28 @@
                     <label for="MediaPlanAdFormats">Preferred Ad Formats:</label><br>
                     <div class="selectgroup selectgroup-pills">
                       <label class="selectgroup-item">
-                        <input type="checkbox" name="value" value="MediaPlanAdFormatsGoogleDisplay"
+                        <input type="checkbox" name="value" id="MediaPlanAdFormatsGoogleDisplay"
                           class="selectgroup-input" checked>
                         <span class="selectgroup-button">Google Display</span>
                       </label>
                       <label class="selectgroup-item">
-                        <input type="checkbox" name="value" value="MediaPlanAdFormatsGoogleSearch"
+                        <input type="checkbox" name="value" id="MediaPlanAdFormatsGoogleSearch"
                           class="selectgroup-input" checked>
                         <span class="selectgroup-button">Google Search</span>
                       </label>
                       <br>
                       <label class="selectgroup-item">
-                        <input type="checkbox" name="value" value="MediaPlanAdFormatsFBIG" class="selectgroup-input"
+                        <input type="checkbox" name="value" id="MediaPlanAdFormatsFBIG" class="selectgroup-input"
                           checked>
                         <span class="selectgroup-button">Facebook / Instagram</span>
                       </label>
                       <label class="selectgroup-item">
-                        <input type="checkbox" name="value" value="MediaPlanAdFormatsLinkedIn" class="selectgroup-input"
+                        <input type="checkbox" name="value" id="MediaPlanAdFormatsLinkedIn" class="selectgroup-input"
                           checked>
                         <span class="selectgroup-button">LinkedIn</span>
                       </label>
                       <label class="selectgroup-item">
-                        <input type="checkbox" name="value" value="MediaPlanAdFormatsTikTok" class="selectgroup-input"
+                        <input type="checkbox" name="value" id="MediaPlanAdFormatsTikTok" class="selectgroup-input"
                           checked>
                         <span class="selectgroup-button">TikTok</span>
                       </label>
@@ -5175,7 +5223,7 @@
             </div>
             <div id="mediaPlanResults"></div>
 
-            <div class="funnel-container" id="funnel-container" style="display:none;">
+            <div class="funnel-container" id="funnel-container" style="display:flex;">
               <button class="funnel-collapsible-before" style="background-color: #7554ae; width:100%;"><b>AWARENESS
                   (TOFU)</b>
                 <p id="awareness-summary">Attract a wider audience. Make your brand known using tactics like
@@ -8804,7 +8852,7 @@
                 }
 
                 const mediaPlanData = await mediaPlanResponse.json();
-                mediaplanContentDiv.innerHTML += "<br>" + mediaPlanData.body;
+                mediaplanContentDiv.innerHTML += "<br>" + mediaPlanData.body.replace('<table','<table class="display table table-striped table-hover" ');
 
                 // Funnel
                 funnelResponse = await fetch("https://dpjtg2sr30.execute-api.ap-southeast-1.amazonaws.com/generateFunnel", {
@@ -8849,7 +8897,6 @@
                 }
 
                 document.getElementById("funnel-container").style.display = "flex";
-                document.getElementById("mediaPlanBtn").style.backgroundColor = "green";
 
             } catch (error) {
                 mediaplanContentDiv.innerHTML = `<p style="color: red;">Error sending data to media plan API: ${error.message}</p>`;
