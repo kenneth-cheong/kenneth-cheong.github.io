@@ -5447,7 +5447,7 @@
   <script>
     let keywordMetrics = {};
     let keywordMapping = {};
-    let rowsHidden = false; // Keep track of the state
+    //let rowsHidden = false; 
 
     function launchDriver(steps) {
       const driverObj = driver({
@@ -5468,26 +5468,49 @@
       const smmRow = document.getElementById('smmRow');
       const bdRow = document.getElementById('bdRow');
 
-      if (rowsHidden) {
-        // Show the rows
-        seoRow.style.display = "block";
-        semRow.style.display = "block";
-        smmRow.style.display = "block";
-        bdRow.style.display = "block";
-        rowsHidden = false;
-      } else {
-        // Hide the rows
+      //console.log(window.getComputedStyle(seoRow).getPropertyValue("display"));
+
+      if (window.getComputedStyle(seoRow).getPropertyValue("display") === "block" && window.getComputedStyle(semRow).getPropertyValue("display") === "block" && window.getComputedStyle(smmRow).getPropertyValue("display") === "block" && window.getComputedStyle(bdRow).getPropertyValue("display") === "block") {
+        target = localStorage.getItem('targetRow');
         seoRow.style.display = "none";
         semRow.style.display = "none";
         smmRow.style.display = "none";
         bdRow.style.display = "none";
-        rowsHidden = true;
+        document.getElementById(target).style.display = "block";
+      } else {
+        if (window.getComputedStyle(seoRow).getPropertyValue("display") === "block" && window.getComputedStyle(semRow).getPropertyValue("display") === "none") {
+          target = "seoRow";
+          seoRow.style.display = "block";
+          semRow.style.display = "block";
+          smmRow.style.display = "block";
+          bdRow.style.display = "block";
+        } else if (window.getComputedStyle(semRow).getPropertyValue("display") === "block" && window.getComputedStyle(seoRow).getPropertyValue("display") === "none") {
+          target = "semRow";
+          seoRow.style.display = "block";
+          semRow.style.display = "block";
+          smmRow.style.display = "block";
+          bdRow.style.display = "block";
+        } else if (window.getComputedStyle(smmRow).getPropertyValue("display") === "block" && window.getComputedStyle(bdRow).getPropertyValue("display") === "none") {
+          target = "smmRow";
+          seoRow.style.display = "block";
+          semRow.style.display = "block";
+          smmRow.style.display = "block";
+          bdRow.style.display = "block";
+        } else if (window.getComputedStyle(bdRow).getPropertyValue("display") === "block" && window.getComputedStyle(smmRow).getPropertyValue("display") === "none") {
+          target = "bdRow";
+          seoRow.style.display = "block";
+          semRow.style.display = "block";
+          smmRow.style.display = "block";
+          bdRow.style.display = "block";
+        }
+        localStorage.setItem('targetRow', target);
       }
     }
 
 
     document.addEventListener('DOMContentLoaded', function () {
       toggleRows();
+      localStorage.setItem('targetRow', "seoRow");
       const textarea = document.getElementById('keyword_analysis_keywords');
       if (textarea) {
         textarea.addEventListener('input', updateKeywordCount);
@@ -9376,19 +9399,19 @@
     }
 
     function hideOtherLines(clickedRowId) {
-  const rows = ['semRow', 'smmRow', 'seoRow', 'bdRow'];
+      const rows = ['semRow', 'smmRow', 'seoRow', 'bdRow'];
 
-  rows.forEach(rowId => {
-    const row = document.getElementById(rowId);
-    if (row) {
-      if (rowId === clickedRowId) {
-        row.style.display = 'block';
-      } else {
-        row.style.display = 'none';
-      }
+      rows.forEach(rowId => {
+        const row = document.getElementById(rowId);
+        if (row) {
+          if (rowId === clickedRowId) {
+            row.style.display = 'block';
+          } else {
+            row.style.display = 'none';
+          }
+        }
+      });
     }
-  });
-}
 
     window.addEventListener('load', function () {
       const leftNav = document.querySelector('#leftNavMinimise');
