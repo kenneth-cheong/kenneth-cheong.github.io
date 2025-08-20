@@ -2664,7 +2664,7 @@
                     <div></div>
                     <div class="column60">
                         <h3>Page Text</h3>
-                        <div id="simulatorPageText" style="max-height: 1000px; overflow-y: scroll;"></div>
+                        <div id="simulatorPageText" style="max-height: 1000px; overflow-y: scroll; padding:10px"></div>
                     </div>
                     <div class="page-break"></div>
                     <div style="clear: both;"></div>
@@ -10630,7 +10630,7 @@
                     images.forEach(image => {
                         const imageUrl = image.src.replace('http://127.0.0.1:5500/', domain).replace('https://app.digimetrics.ai/', domain);
                         imageSizePromises.push(
-                            getImageSize(imageUrl)
+                            retryGetImageSize(imageUrl) // Use the retry function here
                                 .then(sizeData => {
                                     let row = imageAltBody.insertRow();
                                     let thumbCell = row.insertCell();
@@ -10691,6 +10691,20 @@
                 }
             });
 
+        }
+
+        async function retryGetImageSize(imageUrl, retries = 1) {
+            try {
+                return await getImageSize(imageUrl);
+            } catch (error) {
+                if (retries > 0) {
+                    console.log(`Retrying getImageSize for ${imageUrl}, ${retries} retries remaining`);
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retrying
+                    return retryGetImageSize(imageUrl, retries - 1); // Decrement retries
+                } else {
+                    throw error; // If no retries left, throw the error
+                }
+            }
         }
 
         async function getImageSize(url) {
