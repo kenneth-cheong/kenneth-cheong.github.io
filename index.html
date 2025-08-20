@@ -2704,6 +2704,7 @@
                                 <th>Image URL</th>
                                 <th>Title</th>
                                 <th>Alt Text</th>
+                                <th>Size</th>
                             </tr>
                         </thead>
                         <tbody id="simulator-image-alt-body">
@@ -10576,14 +10577,14 @@
                     // Main function execution
                     /*
                     let initialResponse;
-
+        
                     sendInitialRequest(document.getElementById('google-simulator-url').value, internalLinks)
                         .then(response => {
                             initialResponse = response;
-
+        
                             console.log(document.getElementById('google-simulator-url').value);
                             console.log(initialResponse);
-
+        
                             pollForResults(document.getElementById('google-simulator-url').value, initialResponse);
                         })
                         .catch(error => {
@@ -10624,26 +10625,56 @@
                     // Image Alt Text
                     const images = doc.querySelectorAll('img');
                     const imageAltBody = document.getElementById('simulator-image-alt-body');
+                    const imageSizePromises = []; // Array to hold all the image size promises
+
                     images.forEach(image => {
-                        let row = imageAltBody.insertRow();
-                        let thumbCell = row.insertCell();
-                        let urlCell = row.insertCell();
-                        let titleCell = row.insertCell();
-                        let altCell = row.insertCell();
+                        const imageUrl = image.src.replace('http://127.0.0.1:5500/', domain).replace('https://app.digimetrics.ai/', domain);
+                        imageSizePromises.push(
+                            getImageSize(imageUrl)
+                                .then(sizeData => {
+                                    let row = imageAltBody.insertRow();
+                                    let thumbCell = row.insertCell();
+                                    let urlCell = row.insertCell();
+                                    let titleCell = row.insertCell();
+                                    let altCell = row.insertCell();
+                                    let sizeCell = row.insertCell(); // New cell for image size
 
-                        thumbCell.innerHTML = `<img src="${image.src.replace('http://127.0.0.1:5500/', domain).replace('https://app.digimetrics.ai/', domain)}" alt="Thumbnail" class="thumbnail">`;
-                        urlCell.innerText = image.src.replace('http://127.0.0.1:5500/', domain).replace('https://app.digimetrics.ai/', domain);
-                        titleCell.innerText = image.title || "(No Title)"; // Show "(No Title)" if title is empty
-                        altCell.innerText = image.alt || "(No Alt Text)";
+                                    thumbCell.innerHTML = `<img src="${imageUrl}" alt="Thumbnail" class="thumbnail">`;
+                                    urlCell.innerText = imageUrl;
+                                    titleCell.innerText = image.title || "(No Title)"; // Show "(No Title)" if title is empty
+                                    altCell.innerText = image.alt || "(No Alt Text)";
+                                    sizeCell.innerText = sizeData || "Size Unavailable"; // Display image size
 
-                        // Highlight altCell if no alt text is present
-                        if (!image.alt) {
-                            altCell.style.backgroundColor = 'lightcoral';
-                        }
+                                    // Highlight altCell if no alt text is present
+                                    if (!image.alt) {
+                                        altCell.style.backgroundColor = 'lightcoral';
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error(`Failed to get size for ${imageUrl}: ${error}`);
+                                    let row = imageAltBody.insertRow();
+                                    let thumbCell = row.insertCell();
+                                    let urlCell = row.insertCell();
+                                    let titleCell = row.insertCell();
+                                    let altCell = row.insertCell();
+                                    let sizeCell = row.insertCell(); // New cell for image size
+
+                                    thumbCell.innerHTML = `<img src="${imageUrl}" alt="Thumbnail" class="thumbnail">`;
+                                    urlCell.innerText = imageUrl;
+                                    titleCell.innerText = image.title || "(No Title)"; // Show "(No Title)" if title is empty
+                                    altCell.innerText = image.alt || "(No Alt Text)";
+                                    sizeCell.innerText = "Size Unavailable"; // Indicate size is unavailable
+
+                                    // Highlight altCell if no alt text is present
+                                    if (!image.alt) {
+                                        altCell.style.backgroundColor = 'lightcoral';
+                                    }
+                                })
+                        );
                     });
 
-                    // Wait for all status code fetches to complete.
-                    Promise.all(linkPromises)
+                    // Wait for all image size fetches and status code fetches to complete.
+                    Promise.all([...imageSizePromises, ...linkPromises])
                         .then(() => {
                             document.getElementById("crawler-simulator-results").style.display = "block";
                             document.getElementById('simulatorButton').style.backgroundColor = "green";
@@ -10657,10 +10688,34 @@
                 } catch (error) {
                     console.error("Error in displayResults", error);
                     reject(error);
-
                 }
             });
 
+        }
+
+        async function getImageSize(url) {
+            const endpoint = "https://ftz64xiuh3.execute-api.ap-southeast-1.amazonaws.com/getImageSize";
+            try {
+                const response = await fetch(endpoint, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        url: url
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error("Initial request error:", error);
+                throw error;
+            }
         }
 
         async function sendInitialRequest(domain, urls) {
