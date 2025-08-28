@@ -619,6 +619,34 @@
         font-size: 0.8em;
       }
 
+      .tooltip {
+        position: relative;
+        display: inline-block;
+      }
+
+      .tooltip span {
+        position: absolute;
+        z-index: 10;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: calc(100% + 5px);
+        min-width: 200px;
+        max-width: 500px;
+        padding: 10px;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s, visibility 0.3s;
+        border-radius: 15px;
+        font-size: 0.9em;
+      }
+
+      .tooltip:hover span {
+        opacity: 1;
+        visibility: visible;
+      }
+
       @keyframes rotate-clockwise-animation {
         0% {
           transform: rotate(0deg);
@@ -713,7 +741,9 @@
               </div>
             </div>
             <div class="card-action">
-              <button class="btn btn-success" id="keywordAnalysisSubmit" onclick="keywordAnalysis()">Submit</button>
+              <button class="btn btn-success tooltip" id="keywordAnalysisSubmit" onclick="keywordAnalysis()">Submit
+                <span>Testing</span>
+              </button>
               <button class="btn btn-danger" onclick="clearKeywordAnalysis()">Clear</button>
             </div>
           </div>
@@ -829,7 +859,7 @@
                             <th style="cursor: pointer;">Add</th>
                           </tr>
                         </thead>
-                      <tbody></tbody>
+                        <tbody></tbody>
                       </table>
                     </div>
                   </div>
@@ -873,7 +903,7 @@
                         <th style="cursor: pointer;">DA</th>
                       </tr>
                     </thead>
-                   <tbody></tbody>
+                    <tbody></tbody>
                   </table>
                 </div>
               </div>
@@ -918,7 +948,7 @@
                     </div>
 
                   </div>
-                  </div>
+                </div>
                 <div class="tab-pane fade" id="pills-url-2" role="tabpanel" aria-labelledby="pills-url-2-btn">
                   <div class="card-body">
                     <div class="card-header">
@@ -1827,7 +1857,7 @@
 
 
     document.addEventListener('DOMContentLoaded', function () {
-      toggleRows();
+      //toggleRows();
       localStorage.setItem('targetRow', "seoRow");
       const textarea = document.getElementById('keyword_analysis_keywords');
       if (textarea) {
@@ -4013,7 +4043,7 @@
                     <div class="tab-pane fade show active" id="pills-home" role="tabpanel" aria-labelledby="pills-ranking-tab">
                       <div class="table-responsive" style="height: 487px;">
                         <table id="rankingKeywordsTable" class="display table table-striped table-hover">
-                          <thead>x
+                          <thead>
                             <tr>
                               <th>Keyword</th>
                               <th>Search Vol</th>
@@ -5832,6 +5862,18 @@
       const green = Math.round(255 * scaledValue);
 
       return `rgb(${red}, ${green}, 0)`;
+    }
+
+    function showTooltip(event, text) {
+      const tooltip = document.getElementById('tooltip');
+      tooltip.innerHTML = text;
+      tooltip.style.display = 'block';
+      //tooltip.style.left = (event.pageX + 10) + 'px';  // Position it next to the mouse
+      //tooltip.style.top = (event.pageY + 10) + 'px';
+    }
+
+    function hideTooltip() {
+      document.getElementById('tooltip').style.display = 'none';
     }
 
     window.addEventListener('load', function () {
