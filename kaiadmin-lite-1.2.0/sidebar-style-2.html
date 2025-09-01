@@ -622,6 +622,7 @@
       .tooltip {
         position: relative;
         display: inline-block;
+        z-index: 1;
       }
 
       .tooltip span {
@@ -660,7 +661,7 @@
         width: 30%;
       }
 
-       #serpTable th:nth-child(3),
+      #serpTable th:nth-child(3),
       #serrpTable td:nth-child(3) {
         width: 20%;
       }
@@ -1917,10 +1918,10 @@
       }
       keywordMetrics[keyword]['serp'] = serpData.body;
 
-      populateSerpTable(serpData.body);
+      await populateSerpTable(serpData.body); // Added await here
     }
 
-    function populateSerpTable(keywords) {
+    async function populateSerpTable(keywords) {
       const tableBody = document.querySelector("#serpTable tbody");
 
       //Clear existing table rows
@@ -1934,21 +1935,59 @@
       }));
 
       //Iterate through the keywords and create table rows
-      serpArray.forEach(rank => {
+      for (const rank of serpArray) { // Changed forEach to a for...of loop to use await
         const row = tableBody.insertRow();
         const rankCell = row.insertCell();
         const urlCell = row.insertCell();
         const titleCell = row.insertCell();
         const descriptionCell = row.insertCell();
+        const daCell = row.insertCell(); // added DA cell
 
         rankCell.textContent = rank.rank;
         urlCell.textContent = rank.url;
         titleCell.textContent = rank.title;
         descriptionCell.textContent = rank.description;
-      });
+
+        try {
+          const daData = await fetchDA(rank.url);
+          daCell.textContent = daData.DA || "Error"; // Added DA value or "Error" if there's an error
+
+        } catch (error) {
+          console.error("Error fetching DA for", rank.url, error);
+          daCell.textContent = "Error"; // Display "Error" in DA cell if fetchDA fails
+        }
+      }
 
       makeTableSortable('serpTable');
       document.getElementById('serpCard').style.display = "block";
+    }
+
+    async function fetchDA(domain) { // for moz
+      try {
+        // Extract the domain name from the URL
+        const urlObject = new URL(domain);
+        const hostname = urlObject.hostname;
+
+        const response = await fetch('https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain: hostname }) // Send hostname
+        });
+
+        if (!response.ok) {
+          throw new Error(`Metrics API Error: ${response.status} ${response.statusText}`);
+        }
+        const data = await response.json();
+
+        console.log(data);
+
+        return { "DA": data.domain_authority };
+
+
+      } catch (error) {
+        console.error("Error fetching metrics:", error);
+        return { DA: null, error: error.message }; // Return error object, better for handling
+      }
     }
 
     async function keywordAnalysis() {
