@@ -6443,7 +6443,6 @@
       }
 
       async function ranking_keywords(target, location) {
-        console.log(target);
         const url = "https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords";
         const payload = {
           'target': target,
@@ -6557,19 +6556,30 @@
       }
 
       async function sendMessage(input_messages) {
-        const response = fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            'question': question,
-            'input': input_messages
-          })
-        });
-        const data = await response.json();
-        console.log(data);
-        return ('data');
+        try {
+          const response = await fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              'input': input_messages
+            })
+          });
+
+          if (!response.ok) {
+            // Handle non-2xx HTTP responses
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          console.log(data);
+          return data; // Return the parsed JSON data
+        } catch (error) {
+          console.error("Error sending message:", error);
+          // Consider re-throwing the error or returning a default value/error object
+          throw error; // Re-throwing allows the caller to handle the error
+        }
       }
 
       async function processData(data) {
@@ -6579,17 +6589,19 @@
             function_result = await call_function(data['functions'][item][0], data['functions'][item][1]);
             console.log(`Result for ${data['functions'][item][0]}:`, function_result); // Added a label to the output
             input_messages = data['input_messages'];
-            console.log(input_messages);
             input_messages.push({
               "type": "function_call_output",
-              "call_id": data['functions'][2],
+              "call_id": data['functions'][item][2],
               "output": function_result
             });
-            console.log(input_messages)
           } catch (error) {
             console.error(`Error processing ${data['functions'][item][0]}:`, error); // More informative error message
           }
         }
+
+        final_output = await sendMessage(input_messages);
+
+        addMessage('chatbot', final_output, '');
 
       }
 
