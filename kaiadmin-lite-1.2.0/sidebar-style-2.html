@@ -671,6 +671,101 @@
         width: 20%;
       }
 
+      #chatbot-modal {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        z-index: 1001;
+        /* Lower z-index than feedback modal */
+        width: 60%;
+        border: 5px solid #bababa;
+        height: 80%;
+      }
+
+      #chat-messages {
+        overflow-y: scroll;
+        margin-bottom: 10px;
+        padding: 10px;
+        height: 80%;
+      }
+
+      .message {
+        padding: 8px 12px;
+        border-radius: 20px;
+        margin-bottom: 8px;
+        clear: both;
+        /* Prevents floating issues */
+        max-width: 70%;
+        /* Limits bubble width */
+        word-wrap: break-word;
+        /* Long words don't break the layout */
+      }
+
+      .user {
+        background-color: #DCF8C6;
+        /* Light green for user */
+        float: right;
+        /* Align user messages to the right */
+      }
+
+      .chatbot {
+        background-color: #ECE5DD;
+        /* Light gray for chatbot */
+        float: left;
+        /* Align chatbot messages to the left */
+      }
+
+      #question-input {
+        flex-grow: 1;
+        padding: 8px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        min-width: 70%;
+      }
+
+      .collapsible-icon {
+        margin-right: 5px;
+        /* Changed from margin-left to margin-right */
+        cursor: pointer;
+        /*  Change cursor on hover */
+        font-size: larger;
+        /* Adjust size of the icon as needed */
+        transition: transform 0.2s ease-in-out;
+        /* Smooth animation when changing */
+      }
+
+      .collapsible-icon.open {
+        transform: rotate(45deg);
+        /* Rotate to become a "x" sign when open */
+      }
+
+      .feedback-modal {
+        display: none;
+        /* Hidden by default */
+        position: fixed;
+        /* Stay in place */
+        z-index: 1001;
+        /* Sit on top */
+        left: 0;
+        top: 0;
+        width: 100%;
+        /* Full width */
+        height: 100%;
+        /* Full height */
+        overflow: auto;
+        /* Enable scroll if needed */
+        background-color: rgb(0, 0, 0);
+        /* Fallback color */
+        background-color: rgba(0, 0, 0, 0.4);
+        /* Black w/ opacity */
+      }
+
 
       @keyframes rotate-clockwise-animation {
         0% {
@@ -682,6 +777,25 @@
         }
       }
     </style>
+
+    <div id="chatbot-modal">
+      <div style="display: none;" id="threadId"></div>
+      <div style="display: none;" id="previous-response-id"></div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>Chat with Digimetrics AI</h2>
+        <button id="close-chatbot" style="background: none; border: none; font-size: 25px; cursor: pointer;">×</button>
+      </div>
+      <div id="chat-messages"></div>
+      <div style="display: flex;">
+        <input type="text" id="question-input" placeholder="Type your question...">
+        <button class="btn btn-success" id="send-button-2">Send</button>
+      </div>
+    </div>
+
+    <button id="chatbot-button"
+      style="position: fixed; bottom: 10px; right: 10px; background-color: hsl(118, 40%, 43%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.2em;box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.7);">
+      <i class="fas fa-comment-dots"></i>
+    </button>
 
     <div class="container">
       <div class="page-inner">
@@ -5941,6 +6055,532 @@
     function hideTooltip() {
       document.getElementById('tooltip').style.display = 'none';
     }
+
+    function logConversation(question, generated_answer, feedback, suggested_answer, conversation_id) {
+      let user;
+      try {
+        user = JSON.parse(localStorage.getItem('googleUser')).email;
+      } catch (error) {
+        console.error("Error parsing user from local storage", error);
+        return; // Early exit if user cannot be determined
+      }
+
+      fetch('https://7spo2afb9i.execute-api.ap-southeast-1.amazonaws.com/chatbotLogger', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          question: question,
+          generated_answer: generated_answer,
+          feedback: feedback || "",
+          suggested_answer: suggested_answer || "",
+          conversation_id: conversation_id,
+          user: user,
+          is_feedback: "no"
+        })
+      })
+        .then(response => {
+          if (!response.ok) {
+            // Handle HTTP errors (4xx, 5xx status codes)
+            console.error("HTTP error!", response.status, response.statusText);
+            throw new Error(`HTTP error! ${response.status} ${response.statusText}`); //Re-throw to be caught in the .catch block
+
+          }
+          return response.json(); // Parse JSON body if the request is successful
+        })
+        .then(data => {
+          console.log("Conversation logged successfully:", data); //Log successful response
+        })
+        .catch(error => {
+          console.error("Fetch error:", error);
+          // Log the error message to the console, and potentially display it to the user
+
+        });
+    }
+
+
+    //chatbot2
+    document.addEventListener('DOMContentLoaded', () => {
+      const chatbotButton = document.getElementById('chatbot-button');
+      const chatbotModal = document.getElementById('chatbot-modal');
+      const closeChatbotButton = document.getElementById('close-chatbot');
+      const chatMessages = document.getElementById('chat-messages');
+      const questionInput = document.getElementById('question-input');
+      const sendButton = document.getElementById('send-button-2');
+
+      let isChatbotOpen = false; // Track chatbot state
+
+      chatbotButton.addEventListener('click', () => {
+        isChatbotOpen = !isChatbotOpen;
+        chatbotModal.style.display = isChatbotOpen ? 'block' : 'none';
+
+        if (chatMessages.textContent == "") {
+          addMessage('chatbot', 'Hello ' + JSON.parse(localStorage.getItem('googleUser')).name.split(' ')[0] + ', how can I help you today?');
+        }
+      });
+
+      closeChatbotButton.addEventListener('click', () => {
+        chatbotModal.style.display = 'none';
+        isChatbotOpen = false;
+      });
+
+      sendButton.addEventListener('click', async () => {
+        const question = questionInput.value.trim();
+        if (question !== '') {
+          addMessage('user', question);
+          +                    addMessage('chatbot', 'getting an answer...'); // Display "getting an answer..."
+          questionInput.value = '';
+          try {
+            const response = await fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ 'question': question, 'previous_response_id': document.getElementById('previous-response-id').innerText || "" })
+            });
+            + chatMessages.lastChild.remove(); // Remove "getting an answer..."
+            const data = await response.json();
+
+            if (Array.isArray(data)) {
+              processData(data);
+              //addMessage('chatbot', function_result);
+            } else {
+              addMessage('chatbot', data.answer);
+              document.getElementById('previous-response-id').innerText = data.response_id;
+              logConversation(question, data.answer, "-", "-", document.getElementById('threadId').innerText);
+            }
+          } catch (error) {
+            console.error('Error:', error);
+            addMessage('chatbot', 'Sorry, I could not process your request.');
+          }
+        }
+      });
+
+      questionInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+          sendButton.click();
+        }
+      });
+
+      // Function to create and open the feedback modal
+      function openFeedbackModal(question, answer) {
+        // 1. Create the Modal Structure
+        const modal = document.createElement('div');
+        modal.id = 'feedbackModal';
+        modal.classList.add('feedback-modal');
+        modal.innerHTML = `
+                    <div class="feedback-modal-content">
+                    <span class="feedback-close">×</span>
+                    <h2>Give Feedback</h2>
+                    <p><b>Question:</b></p>
+                    <p>${question}</p>
+                    <p><b>Generated Answer:</b></p>
+                    <p>${answer}</p>
+                    <label for="userFeedback"><b>Your Feedback:</b></label>
+                    <textarea id="userFeedback" style="width: 100%; height: 100px;"></textarea><br>
+                    <label for="suggestedAnswer"><b>Suggested Answer:</b></label><br>
+                    <textarea id="suggestedAnswer" style="width: 100%; height: 100px;"></textarea>
+                    <button id="submitFeedbackBtn">Submit Feedback</button>
+                    </div>
+                `;
+
+        // 2. Add Event Listeners
+        document.body.appendChild(modal); // Append to the document
+
+        // Close Modal Button
+        const closeBtn = modal.querySelector('.feedback-close');
+        closeBtn.addEventListener('click', () => {
+          modal.style.display = 'none';
+          modal.remove()
+        });
+
+        // Submit Feedback Button
+        const submitBtn = modal.querySelector('#submitFeedbackBtn');
+        submitBtn.addEventListener('click', () => {
+          const feedback = modal.querySelector('#userFeedback').value;
+          const suggestedAnswer = modal.querySelector('#suggestedAnswer').value;
+          const conversationId = document.getElementById('threadId').innerText; // Or however you get it
+
+          submitFeedback(question, answer, feedback, suggestedAnswer, conversationId); // Call the submission function
+          modal.style.display = 'none'; // Hide the modal after submission
+          modal.remove()//remove the modal after submission
+        });
+
+        // Click outside the modal to close
+        window.addEventListener('click', (event) => {
+          if (event.target === modal) {
+            modal.style.display = 'none';
+            modal.remove()
+          }
+        });
+
+        // 3. Display the Modal
+        modal.style.display = 'block';
+      }
+
+      // Function to submit the feedback to your API
+      async function submitFeedback(question, generatedAnswer, feedback, suggestedAnswer, conversationId) {
+        user = JSON.parse(localStorage.getItem('googleUser')).email
+        try {
+          const response = await fetch('https://7spo2afb9i.execute-api.ap-southeast-1.amazonaws.com/chatbotLogger', { // Replace with your API endpoint
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              question: question,
+              generated_answer: generatedAnswer,
+              feedback: feedback,
+              suggested_answer: suggestedAnswer,
+              conversation_id: conversationId,
+              user: user,
+              is_feedback: "yes"
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          console.log('Feedback submitted:', data);
+          alert('Thank you for your feedback!');
+
+        } catch (error) {
+          console.error('Error submitting feedback:', error);
+          alert('Failed to submit feedback. Please try again.');
+        }
+      }
+
+      function addMessage(sender, message, question = null) {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message', sender);
+        messageDiv.innerHTML = message;
+
+        // Add the "Give Feedback" button *only* to chatbot messages
+        if (sender === 'chatbot') {
+          const feedbackButton = document.createElement('button');
+          feedbackButton.textContent = 'Feedback';
+          feedbackButton.classList.add('btn-secondary');
+          feedbackButton.classList.add('btn'); // Add a class for styling
+          feedbackButton.addEventListener('click', () => {
+            // Get the current message element
+            const currentMessageDiv = feedbackButton.parentNode; // The parent is the messageDiv
+
+            // Find the previous element (if it exists)
+            let previousElement = currentMessageDiv.previousElementSibling;
+
+            let questionText = "";
+
+            if (previousElement) {
+              questionText = previousElement.textContent;
+
+            } else {
+              console.warn("No previous element found.  Using empty string for questionText.");
+            }
+
+            openFeedbackModal(questionText, message);
+          });
+
+          console.log(document.getElementById('chat-messages').textContent);
+          messageDiv.innerHTML = messageDiv.innerHTML + "<br>";
+          if (message != 'Hello ' + JSON.parse(localStorage.getItem('googleUser')).name.split(' ')[0] + ', how can I help you today?') {
+            messageDiv.appendChild(feedbackButton);
+          }
+        }
+
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      async function get_serps(keyword, language, location) {
+        const url = "https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite";
+        const payload = {
+          'keyword': keyword,
+          'language': language,
+          'location': location
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in get_serps:", error);
+          throw error; // Re-throw to allow handling further up the call stack
+        }
+      }
+
+
+      async function rank_checker(keyword, language, location, target) {
+        const url = "https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker";
+        const payload = {
+          'keyword': keyword,
+          'language': language,
+          'location': location,
+          'target': target
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in rank_checker:", error);
+          throw error;
+        }
+      }
+
+      async function moz(domain) {
+        const url = "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
+        const payload = {
+          'domain': domain
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in moz:", error);
+          throw error;
+        }
+      }
+
+      async function keyword_metrics(keywords, location, language) {
+        const url = "https://eo2ckwvxmf.execute-api.ap-southeast-1.amazonaws.com/keywordMetrics";
+        const payload = {
+          'keywords': keywords,
+          'language': language,
+          'location': location
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in keyword_metrics:", error);
+          throw error;
+        }
+      }
+
+      async function scrape_webpage(target_url) {
+        const url = "https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing";
+        const payload = {
+          'url': target_url
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in scrape_webpage:", error);
+          throw error;
+        }
+      }
+
+      async function ranking_keywords(target, location) {
+        console.log(target);
+        const url = "https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords";
+        const payload = {
+          'target': target,
+          'location': location
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in ranking_keywords:", error);
+          throw error;
+        }
+      }
+
+      async function similar_keywords(keywords, language, location) {
+        const url = "https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords";
+        const payload = {
+          'keywords': keywords,
+          'location': location,
+          'language': language
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in similar_keywords:", error);
+          throw error;
+        }
+      }
+
+      async function keywords_for_site(target_url, language, location) {
+        const url = "https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite";
+        const payload = {
+          'target': target_url,
+          'location': location,
+          'language': language
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in keywords_for_site:", error);
+          throw error;
+        }
+      }
+
+
+      async function call_function(name, args) {
+        console.log(args);
+        switch (name) {
+          case "get_serps":
+            return await get_serps(args.keyword, args.language, args.location);
+          case "rank_checker":
+            return await rank_checker(args.keyword, args.language, args.location, args.target);
+          case "moz":
+            return await moz(args.domain);
+          case "keyword_metrics":
+            return await keyword_metrics(args.keywords, args.location, args.language);
+          case "scrape_webpage":
+            return await scrape_webpage(args.url);
+          case "ranking_keywords":
+            return await ranking_keywords(args.target, args.location);
+          case "similar_keywords":
+            return await similar_keywords(args.keywords, args.language, args.location);
+          case "keywords_for_site":
+            return await keywords_for_site(args.target, args.language, args.location);
+          default:
+            throw new Error(`Function ${name} not found`);
+        }
+      }
+
+      async function processData(data) {
+        for (const item in data) {
+          console.log(data[item][0]);
+          console.log(data[item][1]);
+          
+          if (data.hasOwnProperty(item)) {
+            try {
+              const function_result = await call_function(data[item][0], data[item][1]);
+              console.log(`Result for ${data[item][0]}:`, function_result); // Added a label to the output
+            } catch (error) {
+              console.error(`Error processing ${data[item][0]}:`, error); // More informative error message
+            }
+          }
+        }
+      }
+
+      // Close chatbot on Esc key press
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && isChatbotOpen) {
+          chatbotModal.style.display = 'none';
+          isChatbotOpen = false;
+        }
+      });
+    });
 
     window.addEventListener('load', function () {
       const leftNav = document.querySelector('#leftNavMinimise');
