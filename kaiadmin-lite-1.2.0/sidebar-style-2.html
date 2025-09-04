@@ -6142,7 +6142,7 @@
             + chatMessages.lastChild.remove(); // Remove "getting an answer..."
             const data = await response.json();
 
-            if (Array.isArray(data)) {
+            if (Array.isArray(data['functions'])) {
               processData(data);
               //addMessage('chatbot', function_result);
             } else {
@@ -6283,7 +6283,7 @@
             openFeedbackModal(questionText, message);
           });
 
-          console.log(document.getElementById('chat-messages').textContent);
+          //console.log(document.getElementById('chat-messages').textContent);
           messageDiv.innerHTML = messageDiv.innerHTML + "<br>";
           if (message != 'Hello ' + JSON.parse(localStorage.getItem('googleUser')).name.split(' ')[0] + ', how can I help you today?') {
             messageDiv.appendChild(feedbackButton);
@@ -6534,7 +6534,6 @@
 
 
       async function call_function(name, args) {
-        console.log(args);
         switch (name) {
           case "get_serps":
             return await get_serps(args.keyword, args.language, args.location);
@@ -6557,20 +6556,41 @@
         }
       }
 
+      async function sendMessage(input_messages) {
+        const response = fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            'question': question,
+            'input': input_messages
+          })
+        });
+        const data = await response.json();
+        console.log(data);
+        return ('data');
+      }
+
       async function processData(data) {
-        for (const item in data) {
-          console.log(data[item][0]);
-          console.log(data[item][1]);
-          
-          if (data.hasOwnProperty(item)) {
-            try {
-              const function_result = await call_function(data[item][0], data[item][1]);
-              console.log(`Result for ${data[item][0]}:`, function_result); // Added a label to the output
-            } catch (error) {
-              console.error(`Error processing ${data[item][0]}:`, error); // More informative error message
-            }
+        console.log(data);
+        for (const item in data['functions']) {
+          try {
+            function_result = await call_function(data['functions'][item][0], data['functions'][item][1]);
+            console.log(`Result for ${data['functions'][item][0]}:`, function_result); // Added a label to the output
+            input_messages = data['input_messages'];
+            console.log(input_messages);
+            input_messages.push({
+              "type": "function_call_output",
+              "call_id": data['functions'][2],
+              "output": function_result
+            });
+            console.log(input_messages)
+          } catch (error) {
+            console.error(`Error processing ${data['functions'][item][0]}:`, error); // More informative error message
           }
         }
+
       }
 
       // Close chatbot on Esc key press
