@@ -788,7 +788,7 @@
       <div id="chat-messages"></div>
       <div style="display: flex;">
         <input type="text" id="question-input" placeholder="Type your question...">
-        <button class="btn btn-success" id="send-button-2">Send</button>
+        <button class="btn btn-success" id="send-button-2" onclick="sendBackToGpt()">Send</button>
       </div>
     </div>
 
@@ -1951,6 +1951,382 @@
 
       driverObj.drive();
     }
+
+    localStorage.setItem('input_messages',[]);
+    questionInput = document.getElementById('question-input').value.trim();
+    localStorage.setItem('question',questionInput);
+
+    const chatMessages = document.getElementById('chat-messages');
+
+    async function sendBackToGpt() {
+      input_messages = localStorage.getItem('input_messages');
+      question = localStorage.getItem('question');
+      if (question !== '') {
+        addMessage('user', question);
+        +                    addMessage('chatbot', 'getting an answer...'); // Display "getting an answer..."
+        question = '';
+        try {
+          const response = await fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              'question': localStorage.getItem('question'),
+              'previous_response_id': document.getElementById('previous-response-id').innerText || "",
+              'input_messages': input_messages
+            })
+          });
+          + chatMessages.lastChild.remove(); // Remove "getting an answer..."
+          const data = await response.json();
+          console.log(data);
+
+          if (Array.isArray(data['functions'])) {
+            processData(data);
+            //addMessage('chatbot', function_result);
+          } else {
+            addMessage('chatbot', data.answer);
+            document.getElementById('previous-response-id').innerText = data.response_id;
+            //logConversation(question, data.answer, "-", "-", document.getElementById('threadId').innerText);
+          }
+        } catch (error) {
+          console.error('Error:', error);
+          addMessage('chatbot', 'Sorry, I could not process your request.');
+        }
+      }
+    }
+
+    function addMessage(sender, message, question = null) {
+      const messageDiv = document.createElement('div');
+      messageDiv.classList.add('message', sender);
+      messageDiv.innerHTML = message;
+
+      // Add the "Give Feedback" button *only* to chatbot messages
+      if (sender === 'chatbot') {
+        const feedbackButton = document.createElement('button');
+        feedbackButton.textContent = 'Feedback';
+        feedbackButton.classList.add('btn-secondary');
+        feedbackButton.classList.add('btn'); // Add a class for styling
+        feedbackButton.addEventListener('click', () => {
+          // Get the current message element
+          const currentMessageDiv = feedbackButton.parentNode; // The parent is the messageDiv
+
+          // Find the previous element (if it exists)
+          let previousElement = currentMessageDiv.previousElementSibling;
+
+          let questionText = "";
+
+          if (previousElement) {
+            questionText = previousElement.textContent;
+
+          } else {
+            console.warn("No previous element found.  Using empty string for questionText.");
+          }
+
+          openFeedbackModal(questionText, message);
+        });
+
+        //console.log(document.getElementById('chat-messages').textContent);
+        messageDiv.innerHTML = messageDiv.innerHTML + "<br>";
+        if (message != 'Hello ' + JSON.parse(localStorage.getItem('googleUser')).name.split(' ')[0] + ', how can I help you today?') {
+          messageDiv.appendChild(feedbackButton);
+        }
+      }
+
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    async function processData(data) {
+      input_messages = data['input_messages'];
+      console.log(data['output']);
+      data['output'].forEach(func => {
+        console.log(func);
+        if (func['type'] == "function_call") {
+          input_messages.push(func);
+        }
+      });
+
+      for (const item in data['functions']) {
+        try {
+          function_result = await call_function(data['functions'][item][0], data['functions'][item][1]);
+          console.log(`Result for ${data['functions'][item][0]}:`, function_result); // Added a label to the output
+          addMessage('chatbot', JSON.stringify(function_result.body));
+          input_messages.push({
+            "type": "function_call_output",
+            "call_id": data['functions'][item][2],
+            "output": JSON.stringify(function_result)
+          });
+        } catch (error) {
+          console.error(`Error processing ${data['functions'][item][0]}:`, error); // More informative error message
+        }
+      }
+
+      final_output = await sendBackToGpt(input_messages);
+
+      addMessage('chatbot', final_output, '');
+
+    }
+
+     async function call_function(name, args) {
+        switch (name) {
+          case "get_serps":
+            return await get_serps(args.keyword, args.language, args.location);
+          case "rank_checker":
+            return await rank_checker(args.keyword, args.language, args.location, args.target);
+          case "moz":
+            return await moz(args.domain);
+          case "keyword_metrics":
+            return await keyword_metrics(args.keywords, args.location, args.language);
+          case "scrape_webpage":
+            return await scrape_webpage(args.url);
+          case "ranking_keywords":
+            return await ranking_keywords(args.target, args.location);
+          case "similar_keywords":
+            return await similar_keywords(args.keywords, args.language, args.location);
+          case "keywords_for_site":
+            return await keywords_for_site(args.target, args.language, args.location);
+          default:
+            throw new Error(`Function ${name} not found`);
+        }
+      }
+    
+    async function get_serps(keyword, language, location) {
+        const url = "https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite";
+        const payload = {
+          'keyword': keyword,
+          'language': language,
+          'location': location
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in get_serps:", error);
+          throw error; // Re-throw to allow handling further up the call stack
+        }
+      }
+
+
+      async function rank_checker(keyword, language, location, target) {
+        const url = "https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker";
+        const payload = {
+          'keyword': keyword,
+          'language': language,
+          'location': location,
+          'target': target
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in rank_checker:", error);
+          throw error;
+        }
+      }
+
+      async function moz(domain) {
+        const url = "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
+        const payload = {
+          'domain': domain
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in moz:", error);
+          throw error;
+        }
+      }
+
+      async function keyword_metrics(keywords, location, language) {
+        const url = "https://eo2ckwvxmf.execute-api.ap-southeast-1.amazonaws.com/keywordMetrics";
+        const payload = {
+          'keywords': keywords,
+          'language': language,
+          'location': location
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in keyword_metrics:", error);
+          throw error;
+        }
+      }
+
+      async function scrape_webpage(target_url) {
+        const url = "https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing";
+        const payload = {
+          'url': target_url
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in scrape_webpage:", error);
+          throw error;
+        }
+      }
+
+      async function ranking_keywords(target, location) {
+        const url = "https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords";
+        const payload = {
+          'target': target,
+          'location': location
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in ranking_keywords:", error);
+          throw error;
+        }
+      }
+
+      async function similar_keywords(keywords, language, location) {
+        const url = "https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords";
+        const payload = {
+          'keywords': keywords,
+          'location': location,
+          'language': language
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in similar_keywords:", error);
+          throw error;
+        }
+      }
+
+      async function keywords_for_site(target_url, language, location) {
+        const url = "https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite";
+        const payload = {
+          'target': target_url,
+          'location': location,
+          'language': language
+        };
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in keywords_for_site:", error);
+          throw error;
+        }
+      }
 
     function toggleRows() {
       const seoRow = document.getElementById('seoRow');
@@ -6105,7 +6481,7 @@
       const chatbotButton = document.getElementById('chatbot-button');
       const chatbotModal = document.getElementById('chatbot-modal');
       const closeChatbotButton = document.getElementById('close-chatbot');
-      const chatMessages = document.getElementById('chat-messages');
+
       const questionInput = document.getElementById('question-input');
       const sendButton = document.getElementById('send-button-2');
 
@@ -6123,38 +6499,6 @@
       closeChatbotButton.addEventListener('click', () => {
         chatbotModal.style.display = 'none';
         isChatbotOpen = false;
-      });
-
-      sendButton.addEventListener('click', async () => {
-        const question = questionInput.value.trim();
-        if (question !== '') {
-          addMessage('user', question);
-          +                    addMessage('chatbot', 'getting an answer...'); // Display "getting an answer..."
-          questionInput.value = '';
-          try {
-            const response = await fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ 'question': question, 'previous_response_id': document.getElementById('previous-response-id').innerText || "" })
-            });
-            + chatMessages.lastChild.remove(); // Remove "getting an answer..."
-            const data = await response.json();
-
-            if (Array.isArray(data['functions'])) {
-              processData(data);
-              //addMessage('chatbot', function_result);
-            } else {
-              addMessage('chatbot', data.answer);
-              document.getElementById('previous-response-id').innerText = data.response_id;
-              logConversation(question, data.answer, "-", "-", document.getElementById('threadId').innerText);
-            }
-          } catch (error) {
-            console.error('Error:', error);
-            addMessage('chatbot', 'Sorry, I could not process your request.');
-          }
-        }
       });
 
       questionInput.addEventListener('keypress', (event) => {
@@ -6252,358 +6596,7 @@
           alert('Failed to submit feedback. Please try again.');
         }
       }
-
-      function addMessage(sender, message, question = null) {
-        const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message', sender);
-        messageDiv.innerHTML = message;
-
-        // Add the "Give Feedback" button *only* to chatbot messages
-        if (sender === 'chatbot') {
-          const feedbackButton = document.createElement('button');
-          feedbackButton.textContent = 'Feedback';
-          feedbackButton.classList.add('btn-secondary');
-          feedbackButton.classList.add('btn'); // Add a class for styling
-          feedbackButton.addEventListener('click', () => {
-            // Get the current message element
-            const currentMessageDiv = feedbackButton.parentNode; // The parent is the messageDiv
-
-            // Find the previous element (if it exists)
-            let previousElement = currentMessageDiv.previousElementSibling;
-
-            let questionText = "";
-
-            if (previousElement) {
-              questionText = previousElement.textContent;
-
-            } else {
-              console.warn("No previous element found.  Using empty string for questionText.");
-            }
-
-            openFeedbackModal(questionText, message);
-          });
-
-          //console.log(document.getElementById('chat-messages').textContent);
-          messageDiv.innerHTML = messageDiv.innerHTML + "<br>";
-          if (message != 'Hello ' + JSON.parse(localStorage.getItem('googleUser')).name.split(' ')[0] + ', how can I help you today?') {
-            messageDiv.appendChild(feedbackButton);
-          }
-        }
-
-        chatMessages.appendChild(messageDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-      }
-
-      async function get_serps(keyword, language, location) {
-        const url = "https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite";
-        const payload = {
-          'keyword': keyword,
-          'language': language,
-          'location': location
-        };
-        const headers = {
-          'Content-Type': 'application/json'
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(payload)
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in get_serps:", error);
-          throw error; // Re-throw to allow handling further up the call stack
-        }
-      }
-
-
-      async function rank_checker(keyword, language, location, target) {
-        const url = "https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker";
-        const payload = {
-          'keyword': keyword,
-          'language': language,
-          'location': location,
-          'target': target
-        };
-        const headers = {
-          'Content-Type': 'application/json'
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(payload)
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in rank_checker:", error);
-          throw error;
-        }
-      }
-
-      async function moz(domain) {
-        const url = "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
-        const payload = {
-          'domain': domain
-        };
-        const headers = {
-          'Content-Type': 'application/json'
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(payload)
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in moz:", error);
-          throw error;
-        }
-      }
-
-      async function keyword_metrics(keywords, location, language) {
-        const url = "https://eo2ckwvxmf.execute-api.ap-southeast-1.amazonaws.com/keywordMetrics";
-        const payload = {
-          'keywords': keywords,
-          'language': language,
-          'location': location
-        };
-        const headers = {
-          'Content-Type': 'application/json'
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(payload)
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in keyword_metrics:", error);
-          throw error;
-        }
-      }
-
-      async function scrape_webpage(target_url) {
-        const url = "https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing";
-        const payload = {
-          'url': target_url
-        };
-        const headers = {
-          'Content-Type': 'application/json'
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(payload)
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in scrape_webpage:", error);
-          throw error;
-        }
-      }
-
-      async function ranking_keywords(target, location) {
-        const url = "https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords";
-        const payload = {
-          'target': target,
-          'location': location
-        };
-        const headers = {
-          'Content-Type': 'application/json'
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(payload)
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in ranking_keywords:", error);
-          throw error;
-        }
-      }
-
-      async function similar_keywords(keywords, language, location) {
-        const url = "https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords";
-        const payload = {
-          'keywords': keywords,
-          'location': location,
-          'language': language
-        };
-        const headers = {
-          'Content-Type': 'application/json'
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(payload)
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in similar_keywords:", error);
-          throw error;
-        }
-      }
-
-      async function keywords_for_site(target_url, language, location) {
-        const url = "https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite";
-        const payload = {
-          'target': target_url,
-          'location': location,
-          'language': language
-        };
-        const headers = {
-          'Content-Type': 'application/json'
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(payload)
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in keywords_for_site:", error);
-          throw error;
-        }
-      }
-
-
-      async function call_function(name, args) {
-        switch (name) {
-          case "get_serps":
-            return await get_serps(args.keyword, args.language, args.location);
-          case "rank_checker":
-            return await rank_checker(args.keyword, args.language, args.location, args.target);
-          case "moz":
-            return await moz(args.domain);
-          case "keyword_metrics":
-            return await keyword_metrics(args.keywords, args.location, args.language);
-          case "scrape_webpage":
-            return await scrape_webpage(args.url);
-          case "ranking_keywords":
-            return await ranking_keywords(args.target, args.location);
-          case "similar_keywords":
-            return await similar_keywords(args.keywords, args.language, args.location);
-          case "keywords_for_site":
-            return await keywords_for_site(args.target, args.language, args.location);
-          default:
-            throw new Error(`Function ${name} not found`);
-        }
-      }
-
-      async function sendMessage(input_messages) {
-        try {
-          const response = await fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              'input': input_messages
-            })
-          });
-
-          if (!response.ok) {
-            // Handle non-2xx HTTP responses
-            throw new Error(`HTTP error! Status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          console.log(data);
-          return data; // Return the parsed JSON data
-        } catch (error) {
-          console.error("Error sending message:", error);
-          // Consider re-throwing the error or returning a default value/error object
-          throw error; // Re-throwing allows the caller to handle the error
-        }
-      }
-
-      async function processData(data) {
-        console.log(data);
-        for (const item in data['functions']) {
-          try {
-            function_result = await call_function(data['functions'][item][0], data['functions'][item][1]);
-            console.log(`Result for ${data['functions'][item][0]}:`, function_result); // Added a label to the output
-            input_messages = data['input_messages'];
-            input_messages.push({
-              "type": "function_call_output",
-              "call_id": data['functions'][item][2],
-              "output": function_result
-            });
-          } catch (error) {
-            console.error(`Error processing ${data['functions'][item][0]}:`, error); // More informative error message
-          }
-        }
-
-        final_output = await sendMessage(input_messages);
-
-        addMessage('chatbot', final_output, '');
-
-      }
+     
 
       // Close chatbot on Esc key press
       document.addEventListener('keydown', (event) => {
