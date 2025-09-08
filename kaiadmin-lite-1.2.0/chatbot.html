@@ -116,7 +116,6 @@
         const chatMessages = document.getElementById('chat-messages');
         const messageInput = document.getElementById('message-input');
         const typingIndicator = document.getElementById('typing-indicator');
-        localStorage.setItem("input_messages", "");
 
         messageInput.addEventListener("keyup", function (event) {
             if (event.key === "Enter") {
@@ -138,8 +137,7 @@
             if (!messageText) return;
 
             input_messages = localStorage.getItem("input_messages");
-
-            console.log(input_messages.length);
+            console.log(input_messages);
 
             // Display user message
             displayMessage(messageText, 'user');
@@ -147,6 +145,7 @@
 
             // Show typing indicator
             displayTypingIndicator();
+
 
             // Send message to API
             fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
@@ -168,8 +167,8 @@
                     hideTypingIndicator();
 
                     // Display bot response
-                    displayMessage(data.answer, 'bot');
-                    localStorage.setItem("input_messages", JSON.stringify(input_messages));
+                    //displayMessage(data.answer, 'bot');
+                    localStorage.setItem("input_messages", data.input_messages);
                 })
                 .catch(error => {
                     // Hide typing indicator
@@ -180,35 +179,37 @@
         }
 
         async function processData(data) {
-            input_messages = data['input_messages'];
+            console.log(data);
+            input_messages = data.input_messages;
+            console.log(input_messages);
             console.log(data['output']);
             input_messages = input_messages.concat(data['output']);
 
-            for (const item in data['functions']) {
-                try {
-                    function_result = await call_function(data['functions'][item][0], data['functions'][item][1]);
-                    console.log(`Result for ${data['functions'][item][0]}:`, function_result); // Added a label to the output
-                    displayMessage(JSON.stringify(function_result.body), 'bot');
-                    input_messages.push({
-                        "type": "function_call_output",
-                        "call_id": data['functions'][item][2],
-                        "output": JSON.stringify(function_result)
-                    });
-                } catch (error) {
-                    console.error(`Error processing ${data['functions'][item][0]}:`, error); // More informative error message
+            if (!('functions' in data)) {
+                displayMessage(data.answer, 'bot');
+            } else {
+                for (const item in data['functions']) {
+                    try {
+                        function_result = await call_function(data['functions'][item][0], data['functions'][item][1]);
+                        console.log(`Result for ${data['functions'][item][0]}:`, function_result); // Added a label to the output
+                        input_messages.push({
+                            "type": "function_call_output",
+                            "call_id": data['functions'][item][2],
+                            "output": JSON.stringify(function_result)
+                        });
+                    } catch (error) {
+                        console.error(`Error processing ${data['functions'][item][0]}:`, error); // More informative error message
+                    }
                 }
+                localStorage.setItem("input_messages", JSON.stringify(input_messages));
+
+                final_output = await returnFunctionResult(input_messages);
             }
-            localStorage.setItem("input_messages", JSON.stringify(input_messages));
-
-            final_output = await returnFunctionResult(input_messages);
-
-            displayMessage(final_output, 'bot');
-
         }
 
         async function returnFunctionResult() {
             console.log(JSON.parse(localStorage.getItem("input_messages")));
-             fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
+            fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -226,7 +227,7 @@
                     hideTypingIndicator();
 
                     // Display bot response
-                    displayMessage(data, 'bot');
+                    displayMessage(data['answer'], 'bot');
                     localStorage.setItem("input_messages", JSON.stringify(data.input_messages));
                 })
                 .catch(error => {
@@ -506,6 +507,12 @@
                 throw error;
             }
         }
+
+        // Display initial greeting message on page load
+        window.onload = function () {
+            displayMessage('Hello! How can I help you today?', 'bot');
+            localStorage.setItem("input_messages", []);
+        };
     </script>
 
 </body>
