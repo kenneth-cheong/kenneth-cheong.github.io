@@ -18,15 +18,21 @@
         }
 
         .chat-container {
-            width: 80%;
+            width: 95%;
             background-color: #fff;
             border-radius: 8px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            height: 600px;
-            /* Fixed height for the chat container */
+            height: 800px;
+            margin: 0 auto;
+            resize: both;
+            /* Allow resizing both horizontally and vertically */
+            overflow: auto;
+            /* Ensures content doesn't overflow when resized */
+            cursor: se-resize;
+            /* Cursor shows as a resize handle */
         }
 
         .chat-header {
@@ -39,10 +45,54 @@
         .chat-messages {
             padding: 20px;
             overflow-y: auto;
-            /* Enable vertical scrolling */
             flex-grow: 1;
-            /* Let it grow to fill available space */
         }
+
+        .chat-input {
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-top: 1px solid #eee;
+            display: flex;
+        }
+
+        @media (max-width: 768px) {
+            .chat-container {
+                width: 95%;
+                /* Make container take 95% of the screen width on smaller screens */
+                height: auto;
+                /* Allow height to adjust based on content */
+            }
+
+            .chat-header {
+                padding: 15px;
+                /* Adjust header padding for smaller screens */
+            }
+
+            .chat-input {
+                padding: 8px;
+                /* Reduce padding for chat input on smaller screens */
+            }
+
+            .chat-input input[type="text"] {
+                padding: 8px;
+                /* Reduce padding for text input */
+            }
+
+            .chat-input button {
+                padding: 8px 12px;
+                /* Adjust padding for button */
+            }
+
+            .message {
+                padding: 8px;
+                /* Reduce padding in messages */
+                font-size: 14px;
+                /* Smaller font size for messages */
+            }
+        }
+
+
+
 
         .message {
             margin-bottom: 15px;
@@ -59,13 +109,6 @@
         .message.bot {
             background-color: #f0f0f0;
             float: left;
-        }
-
-        .chat-input {
-            padding: 10px;
-            background-color: #f9f9f9;
-            border-top: 1px solid #eee;
-            display: flex;
         }
 
         .chat-input input[type="text"] {
@@ -91,6 +134,51 @@
             padding: 5px 10px;
             font-style: italic;
             color: #888;
+        }
+
+        table {
+            width: auto;
+            border-collapse: collapse;
+            margin: 20px 0px 20px 0;
+            background-color: #f9f9f9;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            text-align: left;
+            font-size: 16px;
+            color: #333;
+        }
+
+        th {
+            background-color: #656565;
+            color: white;
+            font-weight: bold;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        tr:hover {
+            background-color: #ddd;
+        }
+
+        table td {
+            border-bottom: 1px solid #ddd;
+        }
+
+        table th {
+            border-top: 1px solid #ddd;
+            border-bottom: 2px solid #ddd;
+        }
+
+        table td,
+        table th {
+            text-align: center;
         }
     </style>
 </head>
@@ -124,7 +212,7 @@
         });
 
         function displayTypingIndicator() {
-            typingIndicator.textContent = "Typing...";
+            typingIndicator.textContent = "Processing...";
         }
 
         function hideTypingIndicator() {
@@ -136,8 +224,13 @@
             const messageText = messageInput.value.trim();
             if (!messageText) return;
 
-            input_messages = localStorage.getItem("input_messages");
-            console.log(input_messages);
+            try {
+                input_messages = JSON.parse(localStorage.getItem("input_messages"));
+            } catch (error) {
+                console.log(error);
+                console.log("no previous messages");
+                input_messages = [];
+            }
 
             // Display user message
             displayMessage(messageText, 'user');
@@ -160,15 +253,11 @@
             })
                 .then(response => response.json())
                 .then(data => {
-                    console.log(data);
                     processData(data);
-
-                    // Hide typing indicator
-                    hideTypingIndicator();
 
                     // Display bot response
                     //displayMessage(data.answer, 'bot');
-                    localStorage.setItem("input_messages", data.input_messages);
+                    localStorage.setItem("input_messages", JSON.stringify(data.input_messages));
                 })
                 .catch(error => {
                     // Hide typing indicator
@@ -182,11 +271,15 @@
             console.log(data);
             input_messages = data.input_messages;
             console.log(input_messages);
-            console.log(data['output']);
-            input_messages = input_messages.concat(data['output']);
 
             if (!('functions' in data)) {
                 displayMessage(data.answer, 'bot');
+                // Hide typing indicator
+                hideTypingIndicator();
+
+                localStorage.setItem("input_messages", JSON.stringify(input_messages));
+                console.log(JSON.parse(localStorage.getItem("input_messages")));
+
             } else {
                 for (const item in data['functions']) {
                     try {
@@ -202,6 +295,7 @@
                     }
                 }
                 localStorage.setItem("input_messages", JSON.stringify(input_messages));
+                console.log(JSON.parse(localStorage.getItem("input_messages")));
 
                 final_output = await returnFunctionResult(input_messages);
             }
