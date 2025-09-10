@@ -25,7 +25,7 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            height: 800px;
+            height: 700px;
             margin: 0 auto;
             resize: both;
             /* Allow resizing both horizontally and vertically */
@@ -180,6 +180,36 @@
         table th {
             text-align: center;
         }
+
+        .chat-options {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            padding: 10px;
+        }
+
+        .chat-options button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .chat-options button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Adjust button container within the message bubble */
+        .button-container {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            padding: 10px;
+        }
     </style>
 </head>
 
@@ -190,9 +220,8 @@
             <h2>Chatbot</h2>
         </div>
         <div class="chat-messages" id="chat-messages">
-            <!-- Messages will be added here -->
+            <div class="chat-options" id="chat-options" style="display: none;"></div>
         </div>
-        <!-- Typing indicator -->
         <div class="typing-indicator" id="typing-indicator"></div>
         <div class="chat-input">
             <input type="text" id="message-input" placeholder="Type your message...">
@@ -283,6 +312,7 @@
             } else {
                 for (const item in data['functions']) {
                     try {
+                        typingIndicator.textContent = "Getting external data...";
                         function_result = await call_function(data['functions'][item][0], data['functions'][item][1]);
                         console.log(`Result for ${data['functions'][item][0]}:`, function_result); // Added a label to the output
                         input_messages.push({
@@ -602,11 +632,56 @@
             }
         }
 
-        // Display initial greeting message on page load
         window.onload = function () {
             displayMessage('Hello! How can I help you today?', 'bot');
             localStorage.setItem("input_messages", []);
-        };
+            displayOptions(); // show the quick buttons after greeting
+        }
+
+        // Function to display option buttons inside a message bubble
+        function displayOptions() {
+            const optionsContainer = document.getElementById('chat-options');
+            optionsContainer.innerHTML = ''; // clear previous options
+
+            // Create a message container for the options
+            const optionsMessage = document.createElement('div');
+            optionsMessage.classList.add('message', 'bot');
+            optionsMessage.style.marginBottom = '10px';
+            optionsMessage.innerHTML = "Here are some quick actions you can take:";
+
+            // Add the options to the message container
+            const buttonContainer = document.createElement('div');
+            buttonContainer.classList.add('button-container');
+            buttonContainer.style.display = 'flex';
+            buttonContainer.style.gap = '10px';
+            buttonContainer.style.flexWrap = 'wrap';
+
+            const options = [
+                { label: 'Keyword Research', value: 'I want to do keyword research' },
+                { label: 'Check SERPs', value: 'I want to check SERPs' },
+                { label: 'Rank Checker', value: 'I want to check rankings' },
+                { label: 'Similar Keywords', value: 'I want to find similar keywords' }
+            ];
+
+            options.forEach(opt => {
+                const button = document.createElement('button');
+                button.textContent = opt.label;
+                button.onclick = () => {
+                    optionsContainer.style.display = 'none';  // Hide the buttons after selection
+                    // Simulate user sending the message
+                    //displayMessage(opt.value, 'user');
+                    messageInput.value = opt.value;
+                    sendMessage();
+                };
+                buttonContainer.appendChild(button);
+            });
+
+            optionsMessage.appendChild(buttonContainer);
+            optionsContainer.appendChild(optionsMessage);
+
+            // Show the option buttons in a message bubble
+            optionsContainer.style.display = 'block';
+        }
     </script>
 
 </body>
