@@ -4,7 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chatbot</title>
+    <link rel="icon"
+        href="https://mediaonemarketing.com.sg/wp-content/uploads/2023/11/cropped-MediaOne-M-favicon-logo-32x32.png"
+        sizes="32x32">
+    <title>Digimetrics Chatbot</title>
+
     <style>
         /* General Styles */
         body {
@@ -21,11 +25,11 @@
         /* Layout Container */
         .main-container {
             display: flex;
-            width: 90%;
+            width: 95%;
             /* Adjust as needed */
             max-width: 1200px;
             /* Maximum width for larger screens */
-            height: 80vh;
+            height: 90vh;
             /* Occupy 80% of the viewport height */
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
             border-radius: 10px;
@@ -33,10 +37,38 @@
             background-color: #fff;
         }
 
+        table {
+            border-collapse: collapse;
+            /* Remove double borders */
+            width: 100%;
+            /* Make table fill its container */
+            margin: 20px 0;
+            /* Add some space around the table */
+            font-family: Arial, sans-serif;
+            /* Change the font */
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            /* Add borders to cells */
+            padding: 8px;
+            /* Add padding inside cells */
+            text-align: left;
+            /* Align text to the left */
+        }
+
+        th {
+            background-color: #f2f2f2;
+            /* Grey background for header */
+            font-weight: bold;
+            /* Make header text bold */
+        }
+
         /* Conversation Picker Styles */
         .conversation-picker {
-            flex: 0 0 25%;
-            /* Fixed width for the conversation list */
+            flex: 0 0 30%;
+            /* Changed from 25% to 30% */
             border-right: 1px solid #e6e9ed;
             display: flex;
             flex-direction: column;
@@ -44,7 +76,7 @@
 
         .conversation-picker .chat-header {
             padding: 15px;
-            background-color: #007bff;
+            background-color: #2a2f5b;
             /* Dark background for header */
             color: #fff;
             text-align: left;
@@ -115,7 +147,7 @@
             font-size: 0.9rem;
             color: #6c757d;
             overflow: hidden;
-            white-space: nowrap;
+            white-space: break-spaces;
             text-overflow: ellipsis;
         }
 
@@ -135,10 +167,14 @@
 
         .chat-container .chat-header {
             padding: 15px;
-            background-color: #007bff;
+            background-color: #2a2f5b;
             color: #fff;
             text-align: left;
             font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            /* Add space between the title and the button */
+            align-items: center;
         }
 
         .chat-messages {
@@ -153,7 +189,7 @@
             margin-bottom: 10px;
             border-radius: 20px;
             clear: both;
-            max-width: 80%;
+            max-width: 90%;
             /* Limit message width */
         }
 
@@ -209,11 +245,11 @@
         }
 
         .chat-input input[type="text"]:focus {
-            border-color: #007bff;
+            border-color: #2a2f5b;
         }
 
         .chat-input button {
-            background-color: #007bff;
+            background-color: #2a2f5b;
             color: #fff;
             border: none;
             padding: 10px 20px;
@@ -240,7 +276,7 @@
         }
 
         .button-container button {
-            background-color: #007bff;
+            background-color: #2a2f5b;
             color: #fff;
             border: none;
             padding: 8px 16px;
@@ -279,6 +315,24 @@
                 /* Chat container takes remaining space */
             }
         }
+
+        /* Style for the New Chat Button */
+        .new-chat-button {
+            background-color: #515261;
+            /* Green color, you can change this */
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        .new-chat-button:hover {
+            background-color: #218838;
+            /* Darker green on hover */
+        }
     </style>
 </head>
 
@@ -296,7 +350,8 @@
         </div>
         <div class="chat-container">
             <div class="chat-header">
-                <h2>Chatbot</h2>
+                <img src="assets/img/kaiadmin/Digimetrics Logo-02.png" alt="navbar brand" class="navbar-brand" height="30"/>
+                <button class="new-chat-button" onclick="startNewConversation()">New Chat</button>
             </div>
             <div class="chat-messages" id="chat-messages">
                 <div class="chat-options" id="chat-options" style="display: none;"></div>
@@ -314,6 +369,7 @@
         const messageInput = document.getElementById('message-input');
         const typingIndicator = document.getElementById('typing-indicator');
         const conversationList = document.getElementById('conversation-list');
+        userEmail = "kenneth@mediaone.co";
 
         messageInput.addEventListener("keyup", function (event) {
             if (event.key === "Enter") {
@@ -368,12 +424,14 @@
                     // Display bot response
                     //displayMessage(data.answer, 'bot');
                     localStorage.setItem("input_messages", JSON.stringify(data.input_messages));
+                    saveConversation();
                 })
                 .catch(error => {
                     // Hide typing indicator
                     hideTypingIndicator();
                     console.error('Error:', error);
                     displayMessage('Error: Could not get response.', 'bot');
+                    saveConversation()
                 });
         }
 
@@ -384,6 +442,8 @@
 
             if (!('functions' in data)) {
                 displayMessage(data.answer, 'bot');
+                localStorage.setItem("input_messages", JSON.stringify(data.input_messages));
+                saveConversation();
                 // Hide typing indicator
                 hideTypingIndicator();
 
@@ -395,6 +455,7 @@
                     try {
                         typingIndicator.textContent = "Getting external data...";
                         function_result = await call_function(data['functions'][item][0], data['functions'][item][1]);
+                        localStorage.setItem("conversation_title", data['functions'][item][0]);
                         console.log(`Result for ${data['functions'][item][0]}:`, function_result); // Added a label to the output
                         input_messages.push({
                             "type": "function_call_output",
@@ -406,10 +467,12 @@
                     }
                 }
                 localStorage.setItem("input_messages", JSON.stringify(input_messages));
+                saveConversation();
                 console.log(JSON.parse(localStorage.getItem("input_messages")));
 
                 final_output = await returnFunctionResult(input_messages);
             }
+
         }
 
         async function returnFunctionResult() {
@@ -434,12 +497,15 @@
                     // Display bot response
                     displayMessage(data['answer'], 'bot');
                     localStorage.setItem("input_messages", JSON.stringify(data.input_messages));
+                    saveConversation();
+
                 })
                 .catch(error => {
                     // Hide typing indicator
                     hideTypingIndicator();
                     console.error('Error:', error);
                     displayMessage('Error: Could not get response.', 'bot');
+                    saveConversation()
                 });
         }
 
@@ -728,12 +794,14 @@
         window.onload = function () {
             displayMessage('Hello! How can I help you today?', 'bot');
             localStorage.setItem("input_messages", []);
+            localStorage.setItem("conversation_title", "New Conversation");
             displayOptions(); // show the quick buttons after greeting
             loadPastConversations();
         }
 
         // Function to display option buttons inside a message bubble
         function displayOptions() {
+            chatMessages.innerHTML += '<div class="chat-options" id="chat-options" style="display: none;"></div>';
             const optionsContainer = document.getElementById('chat-options');
             optionsContainer.innerHTML = ''; // clear previous options
 
@@ -775,7 +843,7 @@
         }
 
         async function loadPastConversations() {
-            const userEmail = "kenneth@mediaone.co"; // Replace with the actual user email
+            const userEmail = "kenneth@mediaone.co";
 
             try {
                 const response = await fetch('https://ro2g6qodt1.execute-api.ap-southeast-1.amazonaws.com/chatbotPastConversations', {
@@ -797,18 +865,17 @@
 
             } catch (error) {
                 console.error('Error fetching past conversations:', error);
-                // Display a user-friendly error message in the conversation list
                 conversationList.innerHTML = '<div class="conversation-item">Error loading conversations.</div>';
             }
         }
 
         function populateConversationList(conversations) {
-            conversationList.innerHTML = ''; // Clear existing list
+            conversationList.innerHTML = '';
 
             conversations.forEach(conversation => {
                 const conversationItem = document.createElement('div');
                 conversationItem.classList.add('conversation-item');
-                conversationItem.addEventListener('click', () => loadConversation(conversation)); // Add click listener
+                conversationItem.addEventListener('click', () => loadConversation(conversation));
 
                 const conversationDetails = document.createElement('div');
                 conversationDetails.classList.add('conversation-details');
@@ -819,13 +886,12 @@
 
                 const latestMessageDiv = document.createElement('div');
                 latestMessageDiv.classList.add('latest-message');
-                // Display the latest user message or a default message
-                const lastMessage = conversation.messages.filter(msg => msg.user).pop();
-                latestMessageDiv.textContent = lastMessage ? lastMessage.user : 'No messages yet';
+                const lastMessage = conversation.messages.filter(msg => msg.role === 'user').pop();
+                latestMessageDiv.textContent = lastMessage ? lastMessage.content : 'No messages yet';
 
                 const dateDiv = document.createElement('div');
                 dateDiv.classList.add('date');
-                dateDiv.textContent = conversation.last_updated.split(' ')[0]; // Extract date part
+                dateDiv.textContent = conversation.last_updated.split(' ')[0];
 
                 conversationDetails.appendChild(nameDiv);
                 conversationDetails.appendChild(latestMessageDiv);
@@ -835,10 +901,8 @@
                 conversationList.appendChild(conversationItem);
             });
 
-            // Add click event listener to each item
             let conversationItems = document.querySelectorAll('.conversation-item');
 
-            // Add click event listener to each item
             conversationItems.forEach(item => {
                 item.addEventListener('click', function () {
                     setActiveClass(this);
@@ -847,21 +911,73 @@
         }
 
         async function loadConversation(conversation) {
-            // Clear existing messages
+            localStorage.setItem("conversation_id", conversation['id']);
             chatMessages.innerHTML = '';
 
-            // Display each message in the chat
-            conversation.messages.forEach(message => {
-                if (message.user) {
-                    displayMessage(message.user, 'user');
-                } else if (message.bot) {
-                    displayMessage(message.bot, 'bot');
+            // Filter messages to only display user and assistant messages
+            const filteredMessages = conversation.messages.filter(message =>
+                message.role === 'user' || message.role === 'assistant'
+            );
+
+            filteredMessages.forEach(message => {
+                if (message.role === 'user') {
+                    displayMessage(message.content, 'user');
+                } else if (message.role === 'assistant') {
+                    displayMessage(message.content, 'bot');
                 }
             });
 
-            // Store the messages in local storage to maintain state
+            // Store the filtered messages in local storage
             localStorage.setItem("input_messages", JSON.stringify(conversation.messages));
+        }
 
+        async function saveConversation() {
+            try {
+                const response = await fetch('https://8i8tbru5m2.execute-api.ap-southeast-1.amazonaws.com/createUpdateConversation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        "user": userEmail,
+                        "conversation_id": localStorage.getItem("conversation_id"),
+                        "messages": JSON.parse(localStorage.getItem("input_messages")),
+                        "title": localStorage.getItem("conversation_title")
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                output = await response.json();
+                localStorage.setItem("conversation_id", output);
+                loadPastConversations()
+
+            } catch (error) {
+                console.error('Error updating/creating conversations:', error);
+                // Display a user-friendly error message in the conversation list
+                conversationList.innerHTML = '<div class="conversation-item">Error creating / updating conversations.</div>';
+                loadPastConversations()
+            }
+        }
+
+        function startNewConversation() {
+            // Clear chat messages
+            chatMessages.innerHTML = '';
+            localStorage.setItem("conversation_id", "");
+            localStorage.setItem("input_messages", []);
+            localStorage.setItem("conversation_title", "New Conversation");
+
+            // Clear local storage
+            localStorage.removeItem("input_messages");
+            localStorage.setItem("input_messages", JSON.stringify([]));
+
+            // Display initial bot message
+            displayMessage('Hello! How can I help you today?', 'bot');
+
+            // Display options
+            displayOptions();
         }
     </script>
 </body>
