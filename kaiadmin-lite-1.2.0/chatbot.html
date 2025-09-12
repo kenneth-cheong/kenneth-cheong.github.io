@@ -6,9 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chatbot</title>
     <style>
+        /* General Styles */
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
             margin: 0;
             padding: 0;
             display: flex;
@@ -17,29 +18,127 @@
             min-height: 100vh;
         }
 
-        .chat-container {
-            width: 95%;
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        /* Layout Container */
+        .main-container {
+            display: flex;
+            width: 90%;
+            /* Adjust as needed */
+            max-width: 1200px;
+            /* Maximum width for larger screens */
+            height: 80vh;
+            /* Occupy 80% of the viewport height */
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
             overflow: hidden;
+            background-color: #fff;
+        }
+
+        /* Conversation Picker Styles */
+        .conversation-picker {
+            flex: 0 0 25%;
+            /* Fixed width for the conversation list */
+            border-right: 1px solid #e6e9ed;
             display: flex;
             flex-direction: column;
-            height: 700px;
-            margin: 0 auto;
-            resize: both;
-            /* Allow resizing both horizontally and vertically */
-            overflow: auto;
-            /* Ensures content doesn't overflow when resized */
-            cursor: se-resize;
-            /* Cursor shows as a resize handle */
+        }
+
+        .conversation-picker .chat-header {
+            padding: 15px;
+            background-color: #007bff;
+            /* Dark background for header */
+            color: #fff;
+            text-align: left;
+            /* Slightly larger font size */
         }
 
         .chat-header {
+            height: 70px;
+        }
+
+        .search-bar {
+            padding: 10px;
+            background-color: #f7f7f7;
+            border-bottom: 1px solid #e6e9ed;
+        }
+
+        .search-bar input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s ease-in-out;
+        }
+
+        .search-bar input[type="text"]:focus {
+            border-color: #495057;
+            /* Darker border on focus */
+        }
+
+        .conversation-list {
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .conversation-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e6e9ed;
+            cursor: pointer;
+            transition: background-color 0.15s ease-in-out;
+            display: flex;
+            align-items: center;
+        }
+
+        .conversation-item:hover {
+            background-color: #f5f7fa;
+        }
+
+        .conversation-item.active {
+            background-color: #e9ecef;
+        }
+
+        .conversation-details {
+            flex-grow: 1;
+        }
+
+        .name {
+            font-weight: 500;
+            color: #343a40;
+            margin-bottom: 3px;
+        }
+
+        .latest-message {
+            font-size: 0.9rem;
+            color: #6c757d;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .date {
+            font-size: 0.8rem;
+            color: #adb5bd;
+            margin-left: auto;
+            /* Push date to the right */
+        }
+
+        /* Chat Container Styles */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-container .chat-header {
+            padding: 15px;
             background-color: #007bff;
             color: #fff;
-            padding: 20px;
-            text-align: center;
+            text-align: left;
+            font-size: 1.2rem;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
         }
 
         .chat-messages {
@@ -48,291 +147,146 @@
             flex-grow: 1;
         }
 
-        .chat-input {
-            padding: 10px;
-            background-color: #f9f9f9;
-            border-top: 1px solid #eee;
-            display: flex;
-        }
-
-        @media (max-width: 768px) {
-            .chat-container {
-                width: 95%;
-                /* Make container take 95% of the screen width on smaller screens */
-                height: auto;
-                /* Allow height to adjust based on content */
-            }
-
-            .chat-header {
-                padding: 15px;
-                /* Adjust header padding for smaller screens */
-            }
-
-            .chat-input {
-                padding: 8px;
-                /* Reduce padding for chat input on smaller screens */
-            }
-
-            .chat-input input[type="text"] {
-                padding: 8px;
-                /* Reduce padding for text input */
-            }
-
-            .chat-input button {
-                padding: 8px 12px;
-                /* Adjust padding for button */
-            }
-
-            .message {
-                padding: 8px;
-                /* Reduce padding in messages */
-                font-size: 14px;
-                /* Smaller font size for messages */
-            }
-        }
-
-
-
-
+        /* Message Styles */
         .message {
-            margin-bottom: 15px;
-            padding: 10px;
-            border-radius: 8px;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            border-radius: 20px;
             clear: both;
+            max-width: 80%;
+            /* Limit message width */
         }
 
         .message.user {
-            background-color: #dcdefc;
+            background-color: #d1e7ff;
+            color: #004085;
             float: right;
         }
 
         .message.bot {
-            background-color: #f0f0f0;
+            background-color: #f8f9fa;
+            color: #212529;
             float: left;
+        }
+
+        /* Typing Indicator */
+        .typing-indicator {
+            padding: 10px 20px;
+            font-style: italic;
+            color: #6c757d;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        /* Chat Input Styles */
+        .chat-input {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #e6e9ed;
+            display: flex;
+            align-items: center;
         }
 
         .chat-input input[type="text"] {
             flex-grow: 1;
             padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+            border: 1px solid #ced4da;
+            border-radius: 25px;
             margin-right: 10px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s ease-in-out;
+        }
+
+        .chat-input input[type="text"]:focus {
+            border-color: #007bff;
         }
 
         .chat-input button {
             background-color: #007bff;
             color: #fff;
             border: none;
-            padding: 10px 15px;
-            border-radius: 4px;
+            padding: 10px 20px;
+            border-radius: 25px;
             cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.2s ease-in-out;
         }
 
-        /* Style for the typing indicator */
-        .typing-indicator {
-            text-align: left;
-            padding: 5px 10px;
-            font-style: italic;
-            color: #888;
-            animation: fadeInOut 2s infinite;
-            /* Apply fade in/out animation */
-        }
-
-        /* Create the fade-in and fade-out animation */
-        @keyframes fadeInOut {
-
-            0%,
-            100% {
-                opacity: 0;
-                /* Start and end as invisible */
-            }
-
-            50% {
-                opacity: 1;
-                /* Make it fully visible at the middle of the cycle */
-            }
-        }
-
-        .typing-indicator {
-            text-align: left;
-            padding: 5px 10px;
-            font-style: italic;
-            color: #888;
-            animation: blink 2s infinite step-end;
-            /* Apply blinking effect */
-        }
-
-        /* Create the blinking animation */
-        @keyframes blink {
-
-            0%,
-            100% {
-                opacity: 0;
-                /* Make it invisible at the start and end */
-            }
-
-            50% {
-                opacity: 1;
-                /* Make it visible at the middle of the cycle */
-            }
-        }
-
-
-        table {
-            width: auto;
-            border-collapse: collapse;
-            margin: 20px 0px 20px 0;
-            background-color: #f9f9f9;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-        }
-
-        th,
-        td {
-            padding: 12px 15px;
-            text-align: left;
-            font-size: 16px;
-            color: #333;
-        }
-
-        th {
-            background-color: #656565;
-            color: white;
-            font-weight: bold;
-        }
-
-        tr:nth-child(even) {
-            background-color: #f2f2f2;
-        }
-
-        tr:hover {
-            background-color: #ddd;
-        }
-
-        table td {
-            border-bottom: 1px solid #ddd;
-        }
-
-        table th {
-            border-top: 1px solid #ddd;
-            border-bottom: 2px solid #ddd;
-        }
-
-        table td,
-        table th {
-            text-align: center;
-        }
-
-        .chat-options {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            padding: 10px;
-        }
-
-        .chat-options button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background 0.2s;
-        }
-
-        .chat-options button:hover {
+        .chat-input button:hover {
             background-color: #0056b3;
         }
 
-        /* Adjust button container within the message bubble */
+        /* Chat Options Styles */
+        .chat-options {
+            padding: 15px;
+        }
+
         .button-container {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
-            padding: 10px;
         }
 
-        .col60 {
-            width: 60%;
-        }
-
-        .col30 {
-            width: 30%;
-            /* Adjust as needed */
-            float: left;
-            /* Or use flexbox/grid for layout */
-            box-sizing: border-box;
-            /* Important for width calculation */
-        }
-
-        .conversation-picker {
-            border: 1px solid #ccc;
+        .button-container button {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
             border-radius: 5px;
-            overflow: hidden;
-            /* Prevent content from overflowing the rounded corners */
-            height: 700px;
-            border-radius: 10px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .search-bar {
-            padding: 8px;
-            background-color: #f9f9f9;
-            border-bottom: 1px solid #eee;
-        }
-
-        .search-bar input[type="text"] {
-            width: 100%;
-            padding: 6px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-            /* Ensures padding doesn't affect width */
-        }
-
-        .conversation-list {
-            overflow-y: auto;
-            /* Make the list scrollable */
-            flex-grow: 1;
-            /* Take up remaining vertical space */
-            background-color: white;
-        }
-
-        .conversation-item {
-            display: flex;
-            padding: 8px;
-            border-bottom: 1px solid #eee;
             cursor: pointer;
+            font-size: 0.9rem;
+            transition: background-color 0.2s ease-in-out;
         }
 
-        .conversation-item:hover {
-            background-color: #f0f0f0;
+        .button-container button:hover {
+            background-color: #0056b3;
         }
 
-        .conversation-item.active {
-            background-color: #e0e0e0;
-        }
+        /* Media Queries for Responsiveness */
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+                /* Stack conversation list and chat container */
+                height: auto;
+                /* Adjust height as needed */
+            }
 
-        .conversation-details {
-            flex-grow: 1;
-        }
+            .conversation-picker {
+                flex: none;
+                /* Allow conversation picker to take up necessary space */
+                width: 100%;
+                /* Full width */
+                border-right: none;
+                /* Remove border */
+                border-bottom: 1px solid #e6e9ed;
+                /* Add border to bottom */
+            }
 
-        .name {
-            font-weight: bold;
-        }
-
-        .latest-message {
-            font-size: 0.9em;
-            color: #666;
+            .chat-container {
+                flex: 1;
+                /* Chat container takes remaining space */
+            }
         }
     </style>
 </head>
 
 <body>
-    <div class="col30">
+    <div class="main-container">
         <div class="conversation-picker">
+            <div class="chat-header">
+                <h2>Past Conversations</h2>
+            </div>
             <div class="search-bar">
                 <input type="text" placeholder="Search conversations...">
             </div>
@@ -341,25 +295,82 @@
                     <div class="conversation-details">
                         <div class="name">mediaonemarketing.com.sg</div>
                         <div class="latest-message">Keyword Research</div>
+                        <div class="date">2025-09-11</div>
                     </div>
                 </div>
                 <div class="conversation-item">
                     <div class="conversation-details">
                         <div class="name">example.com</div>
                         <div class="latest-message">Persona Generator</div>
+                        <div class="date">2025-09-10</div>
                     </div>
                 </div>
                 <div class="conversation-item">
                     <div class="conversation-details">
-                        <div class="name">numberoneseo</div>
+                        <div class="name">numberoneseo.com</div>
                         <div class="latest-message">Content Generator</div>
+                        <div class="date">2025-09-09</div>
+                    </div>
+                </div>
+                <div class="conversation-item">
+                    <div class="conversation-details">
+                        <div class="name">numberoneseo.com</div>
+                        <div class="latest-message">Content Generator</div>
+                        <div class="date">2025-09-09</div>
+                    </div>
+                </div>
+                <div class="conversation-item">
+                    <div class="conversation-details">
+                        <div class="name">numberoneseo.com</div>
+                        <div class="latest-message">Content Generator</div>
+                        <div class="date">2025-09-09</div>
+                    </div>
+                </div>
+                <div class="conversation-item">
+                    <div class="conversation-details">
+                        <div class="name">numberoneseo.com</div>
+                        <div class="latest-message">Content Generator</div>
+                        <div class="date">2025-09-09</div>
+                    </div>
+                </div>
+                <div class="conversation-item">
+                    <div class="conversation-details">
+                        <div class="name">numberoneseo.com</div>
+                        <div class="latest-message">Content Generator</div>
+                        <div class="date">2025-09-09</div>
+                    </div>
+                </div>
+                <div class="conversation-item">
+                    <div class="conversation-details">
+                        <div class="name">numberoneseo.com</div>
+                        <div class="latest-message">Content Generator</div>
+                        <div class="date">2025-09-09</div>
+                    </div>
+                </div>
+                <div class="conversation-item">
+                    <div class="conversation-details">
+                        <div class="name">numberoneseo.com</div>
+                        <div class="latest-message">Content Generator</div>
+                        <div class="date">2025-09-09</div>
+                    </div>
+                </div>
+                <div class="conversation-item">
+                    <div class="conversation-details">
+                        <div class="name">numberoneseo.com</div>
+                        <div class="latest-message">Content Generator</div>
+                        <div class="date">2025-09-09</div>
+                    </div>
+                </div>
+                <div class="conversation-item">
+                    <div class="conversation-details">
+                        <div class="name">numberoneseo.com</div>
+                        <div class="latest-message">Content Generator</div>
+                        <div class="date">2025-09-09</div>
                     </div>
                 </div>
                 <!-- Add more conversation items here -->
             </div>
         </div>
-    </div>
-    <div class="col60">
         <div class="chat-container">
             <div class="chat-header">
                 <h2>Chatbot</h2>
@@ -778,6 +789,27 @@
             }
         }
 
+        function setActiveClass(element) {
+            // Remove 'active' class from any previously active items
+            let activeItems = document.querySelectorAll('.conversation-item.active');
+            activeItems.forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // Add 'active' class to the clicked element
+            element.classList.add('active');
+        }
+
+        // Get all conversation items
+        let conversationItems = document.querySelectorAll('.conversation-item');
+
+        // Add click event listener to each item
+        conversationItems.forEach(item => {
+            item.addEventListener('click', function () {
+                setActiveClass(this);
+            });
+        });
+
         window.onload = function () {
             displayMessage('Hello! How can I help you today?', 'bot');
             localStorage.setItem("input_messages", []);
@@ -829,7 +861,6 @@
             optionsContainer.style.display = 'block';
         }
     </script>
-
 </body>
 
 </html>
