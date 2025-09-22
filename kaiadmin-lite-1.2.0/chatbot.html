@@ -161,7 +161,7 @@
         /* Chat Container Styles */
         .chat-container {
             flex: 1;
-            display: flex;
+            display: grid;
             flex-direction: column;
         }
 
@@ -179,6 +179,7 @@
 
         .chat-messages {
             padding: 20px;
+            height: 400px;
             overflow-y: auto;
             flex-grow: 1;
         }
@@ -350,7 +351,8 @@
         </div>
         <div class="chat-container">
             <div class="chat-header">
-                <img src="assets/img/kaiadmin/Digimetrics Logo-02.png" alt="navbar brand" class="navbar-brand" height="30"/>
+                <img src="assets/img/kaiadmin/Digimetrics Logo-02.png" alt="navbar brand" class="navbar-brand"
+                    height="30" />
                 <button class="new-chat-button" onclick="startNewConversation()">New Chat</button>
             </div>
             <div class="chat-messages" id="chat-messages">
@@ -437,77 +439,100 @@
 
         async function processData(data) {
             console.log(data);
-            input_messages = data.input_messages;
-            console.log(input_messages);
+            let input_messages = data.input_messages || [];
 
-            if (!('functions' in data)) {
-                displayMessage(data.answer, 'bot');
-                localStorage.setItem("input_messages", JSON.stringify(data.input_messages));
-                saveConversation();
-                // Hide typing indicator
-                hideTypingIndicator();
+            const hasFunctions = Array.isArray(data.functions) && data.functions.length > 0;
 
-                localStorage.setItem("input_messages", JSON.stringify(input_messages));
-                console.log(JSON.parse(localStorage.getItem("input_messages")));
-
-            } else {
-                for (const item in data['functions']) {
-                    try {
-                        typingIndicator.textContent = "Getting external data...";
-                        function_result = await call_function(data['functions'][item][0], data['functions'][item][1]);
-                        localStorage.setItem("conversation_title", data['functions'][item][0]);
-                        console.log(`Result for ${data['functions'][item][0]}:`, function_result); // Added a label to the output
-                        input_messages.push({
-                            "type": "function_call_output",
-                            "call_id": data['functions'][item][2],
-                            "output": JSON.stringify(function_result)
-                        });
-                    } catch (error) {
-                        console.error(`Error processing ${data['functions'][item][0]}:`, error); // More informative error message
-                    }
+            if (!hasFunctions) {
+                // No more tool calls expected — render answer safely
+                if (typeof data.answer === 'string' && data.answer.trim()) {
+                    displayMessage(data.answer, 'bot');
+                } else {
+                    displayMessage('Sorry, I couldn’t parse a reply from the model.', 'bot');
                 }
                 localStorage.setItem("input_messages", JSON.stringify(input_messages));
                 saveConversation();
-                console.log(JSON.parse(localStorage.getItem("input_messages")));
-
-                final_output = await returnFunctionResult(input_messages);
+                hideTypingIndicator();
+                return;
             }
 
+            // There are pending function calls: execute them serially
+            try {
+                typingIndicator.textContent = "Getting external data...";
+                for (const fn of data.functions) {
+                    // fn is [name, args, call_id]
+                    const [name, args, call_id] = fn;
+                    const function_result = await call_function(name, args);
+
+                    // Optional: only set title once (first tool call of a chain)
+                    if (!localStorage.getItem("conversation_title") ||
+                        localStorage.getItem("conversation_title") === "New Conversation") {
+                        localStorage.setItem("conversation_title", name);
+                    }
+
+                    input_messages.push({
+                        "type": "function_call_output",
+                        "call_id": call_id,
+                        "output": JSON.stringify(function_result)
+                    });
+                }
+
+                localStorage.setItem("input_messages", JSON.stringify(input_messages));
+                saveConversation();
+
+                // Send the tool outputs back to the model and continue the loop
+                await returnFunctionResult();
+
+            } catch (err) {
+                console.error('Error during function execution chain:', err);
+                hideTypingIndicator();
+                displayMessage('Error: Could not complete external data retrieval.', 'bot');
+                saveConversation();
+            }
         }
+
 
         async function returnFunctionResult() {
-            console.log(JSON.parse(localStorage.getItem("input_messages")));
-            fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    input_messages: JSON.parse(localStorage.getItem("input_messages"))
-                })
-            })
-                .then(response => response.json())
-                .then(data => {
-                    console.log(data);
-                    //processData(data);
+            try {
+                const input_messages = JSON.parse(localStorage.getItem("input_messages")) || [];
 
-                    // Hide typing indicator
-                    hideTypingIndicator();
-
-                    // Display bot response
-                    displayMessage(data['answer'], 'bot');
-                    localStorage.setItem("input_messages", JSON.stringify(data.input_messages));
-                    saveConversation();
-
-                })
-                .catch(error => {
-                    // Hide typing indicator
-                    hideTypingIndicator();
-                    console.error('Error:', error);
-                    displayMessage('Error: Could not get response.', 'bot');
-                    saveConversation()
+                const resp = await fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input_messages })
                 });
+
+                const data = await resp.json();
+                console.log('returnFunctionResult ->', data);
+
+                // Keep chaining until no functions remain
+                const hasFunctions = Array.isArray(data.functions) && data.functions.length > 0;
+
+                if (hasFunctions) {
+                    // Re-enter the same decision logic
+                    await processData(data);
+                    return;
+                }
+
+                // Terminal response
+                if (typeof data.answer === 'string' && data.answer.trim()) {
+                    displayMessage(data.answer, 'bot');
+                } else {
+                    displayMessage('Sorry, I couldn’t parse a reply from the model.', 'bot');
+                }
+
+                localStorage.setItem("input_messages", JSON.stringify(data.input_messages || input_messages));
+                saveConversation();
+                hideTypingIndicator();
+
+            } catch (error) {
+                console.error('Error in returnFunctionResult:', error);
+                hideTypingIndicator();
+                displayMessage('Error: Could not get response.', 'bot');
+                saveConversation();
+            }
         }
+
 
         function displayMessage(message, sender) {
             const messageDiv = document.createElement('div');
