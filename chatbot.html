@@ -565,6 +565,8 @@
                     return await keywords_for_site(args.target, args.language, args.location);
                 case "gtMetrix":
                     return await gtMetrix(args.target);
+                case "getHTML":
+                    return await getHTML(args.target);
                 default:
                     throw new Error(`Function ${name} not found`);
             }
@@ -572,6 +574,34 @@
 
          async function gtMetrix(target) {
             const url = "https://y5830908vh.execute-api.ap-southeast-1.amazonaws.com/gtmetrix";
+            const payload = {
+                'url': target
+            };
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error("Error in moz:", error);
+                throw error;
+            }
+        }
+
+        async function getHTML(target) {
+            const url = "https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml";
             const payload = {
                 'url': target
             };
