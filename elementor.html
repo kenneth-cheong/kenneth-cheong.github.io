@@ -17,6 +17,7 @@
         }
         h1, h2 {
             color: #343a40;
+            margin-top: 20px;
         }
         #inputArea {
             width: 100%;
@@ -27,18 +28,7 @@
             box-sizing: border-box;
             resize: vertical;
         }
-        #highlightedArea {
-            width: 100%;
-            height: 700px; /* Fixed height */
-            border: 1px solid #aaa;
-            padding: 10px;
-            box-sizing: border-box;
-            white-space: pre-wrap; /* preserve formatting */
-            overflow-y: scroll; /* Enable vertical scrolling */
-        }
-        .highlight {
-            background-color: yellow;
-        }
+
         #extractedText {
             margin-top: 20px;
         }
@@ -79,12 +69,20 @@
         }
 
         .side-by-side-container > div {
-            width: 48%; /* Adjust as needed */
+            width: 100%; /* Adjust as needed */
         }
 
         /* Style for editable cells */
         .editable-cell {
             background-color: #ffffdd;
+        }
+
+        .recommended-cell-changed {
+            background-color: rgb(255, 227, 175); /* Yellow */
+        }
+
+        .recommended-cell-unchanged {
+            background-color: #c4ffc4; /* Green */
         }
     </style>
 </head>
@@ -109,26 +107,19 @@
         <button id="getRecommendationsButton" class="btn btn-primary">Get Recommendations and Replace Text</button>
 
 
-        <div class="side-by-side-container">
-            <div>
-                <h2>Highlighted Text:</h2>
-                <div id="highlightedArea"></div>
-            </div>
-
-            <div>
-                <h2>Extracted Text:</h2>
-                <div id="extractedText">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Extracted Titles/Content</th>
-                                <th>Recommended Text</th>
-                            </tr>
-                        </thead>
-                        <tbody id="textOutput">
-                        </tbody>
-                    </table>
-                </div>
+        <div>
+            <h2>Extracted Text:</h2>
+            <div id="extractedText">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Extracted Titles/Content</th>
+                            <th>Recommended Text</th>
+                        </tr>
+                    </thead>
+                    <tbody id="textOutput">
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -157,17 +148,10 @@
                 const jsonData = JSON.parse(jsonString);
                 extractedText = await recursivelyExtractTitlesAndContent(jsonData);  // Extract titles & content
 
-                // Highlight the extracted text (using asynchronous processing)
-                const highlightedHTML = await highlightText(jsonString, extractedText);
-                document.getElementById('highlightedArea').innerHTML = highlightedHTML;
-
-                // Output the extracted text to the designated area
                 extractedTexts = extractedText.split('\n').filter(text => text !== ''); // Store in global variable
                 populateTable(extractedTexts); // Pass extractedTexts to populateTable
-                console.log(extractedText);
 
             } catch (error) {
-                document.getElementById('highlightedArea').innerText = 'Error parsing JSON: ' + error;
                 document.getElementById('textOutput').innerText = '';
             }
         }
@@ -195,43 +179,6 @@
             return text;
         }
 
-        async function highlightText(jsonString, extractedText) {
-            let highlightedHTML = jsonString;
-            highlightedHTML = escapeHTML(highlightedHTML);
-
-            const textArray = extractedText.split('\n');
-            for (const text of textArray) {
-                if (text) {
-                    const escapedText = escapeRegExp(text);
-                    const regex = new RegExp(escapedText, 'g');
-                    highlightedHTML = highlightedHTML.replace(regex, `<span class="highlight">${text}</span>`);
-                }
-            }
-
-            return highlightedHTML;
-        }
-
-
-        function escapeHTML(str) {
-            return str.replace(/[&><"'`]/g, function(m) {
-                switch (m) {
-                    case '&':
-                        return '&amp;';
-                    case '>':
-                        return '&gt;';
-                    case '<':
-                        return '&lt;';
-                    case '"':
-                        return '&quot;';
-                    case "'":
-                        return '&#39;';
-                    case '`':
-                        return '&#769;';
-                    default:
-                        return m;
-                }
-            });
-        }
 
         function escapeRegExp(string) {
             return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
@@ -256,10 +203,7 @@
                     extractedCell.textContent = text;
                     extractedCell.classList.add('editable-cell'); // Add class for styling
                     extractedCell.setAttribute('contenteditable', 'true'); // Make cell editable
-                    extractedCell.addEventListener('click', () => {
-                        scrollToHighlightedText(text);
-                    });
-                     extractedCell.addEventListener('input', () => {
+                    extractedCell.addEventListener('input', () => {
                         extractedTexts[index] = extractedCell.textContent; // Update extractedTexts array
                         updateModifiedJson(); // Update the modified JSON after editing
                     });
@@ -270,9 +214,26 @@
                     recommendedCell.textContent = recommendedTexts[index] || '';
                     recommendedCell.classList.add('editable-cell');
                     recommendedCell.setAttribute('contenteditable', 'true');
+
+                    // Add class based on whether the recommended text is changed or not
+                    if (recommendedTextsData.length > 0 && recommendedTextsData[index] !== extractedTexts[index]) {
+                        recommendedCell.classList.add('recommended-cell-changed');
+                    } else {
+                        recommendedCell.classList.add('recommended-cell-unchanged');
+                    }
+
                     recommendedCell.addEventListener('input', () => {
                         recommendedTexts[index] = recommendedCell.textContent; // Update recommendedTexts array
                         updateModifiedJson(); // Update the modified JSON after editing
+
+                        // Update class based on whether the recommended text is changed or not
+                        if (recommendedCell.textContent !== extractedTexts[index]) {
+                            recommendedCell.classList.add('recommended-cell-changed');
+                            recommendedCell.classList.remove('recommended-cell-unchanged');
+                        } else {
+                            recommendedCell.classList.remove('recommended-cell-changed');
+                            recommendedCell.classList.add('recommended-cell-unchanged');
+                        }
                     });
                     row.appendChild(recommendedCell);
 
@@ -282,33 +243,9 @@
         }
 
 
-       function scrollToHighlightedText(text) {
-            const highlightedArea = document.getElementById('highlightedArea');
-            const escapedText = escapeRegExp(text);
-
-            // Create a regex that matches the text *within* the highlight span
-            const regex = new RegExp(`<span class="highlight">${escapedText}<\/span>`);
-
-             const highlightedHTML = highlightedArea.innerHTML;
-            let match = regex.exec(highlightedHTML);
-
-            if (match) {
-              const spanIndex = match.index;
-                const highlightedAreaTop = highlightedArea.offsetTop;
-
-                // Get the position of the highlighted span relative to the document
-                const spanTop = match.index+ highlightedAreaTop;
-
-               $(highlightedArea).animate({
-                        scrollTop: spanTop - highlightedAreaTop - 100  // Adjust offset if needed
-                    }, 500); // Animation duration in milliseconds
-            }
-            else {
-                alert('Text not found in highlighted area.');
-            }
-        }
 
         document.getElementById('getRecommendationsButton').addEventListener('click', async () => {
+            document.getElementById('getRecommendationsButton').innerText = "Processing...";
             const clientName = document.getElementById('clientName').value;
             const instructions = document.getElementById('instructions').value;
             const jsonString = document.getElementById('inputArea').value;
@@ -345,6 +282,8 @@
             } catch (error) {
                 console.error('Error:', error);
                 alert('Error fetching recommendations: ' + error);
+            } finally {
+                document.getElementById('getRecommendationsButton').innerText = "Get Recommendations and Replace Text";
             }
         });
 
