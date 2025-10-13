@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elementor Text Extractor (Titles Only)</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1400px; /* Increased container width */
+            margin: 0 auto;
+        }
+        h1, h2 {
+            color: #343a40;
+        }
+        #inputArea {
+            width: 100%;
+            height: 150px;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        #highlightedArea {
+            width: 100%;
+            height: 700px; /* Fixed height */
+            border: 1px solid #aaa;
+            padding: 10px;
+            box-sizing: border-box;
+            white-space: pre-wrap; /* preserve formatting */
+            overflow-y: scroll; /* Enable vertical scrolling */
+        }
+        .highlight {
+            background-color: yellow;
+        }
+        #extractedText {
+            margin-top: 20px;
+        }
+        #extractedText table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #extractedText th, #extractedText td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+            cursor: pointer;
+        }
+        #extractedText tr:nth-child(odd) {
+            background-color: #f2f2f2;
+        }
+        #extractedText tr:hover {
+            background-color: #ddd;
+        }
+        .even-row {
+            background-color: #ffffff; /* white */
+        }
+
+        .odd-row {
+            background-color: #f9f9f9; /* light gray */
+        }
+
+        .table-row:hover {
+            background-color: #e9ecef; /* darker gray on hover */
+        }
+
+        /* Side-by-side layout */
+        .side-by-side-container {
+            display: flex;
+            justify-content: space-between; /* Distribute space evenly */
+            margin-top: 20px;
+        }
+
+        .side-by-side-container > div {
+            width: 48%; /* Adjust as needed */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Elementor Text Extractor (Titles Only)</h1>
+
+        <p>Paste Elementor JSON data here:</p>
+        <textarea id="inputArea" class="form-control"></textarea>
+
+        <button onclick="extractText()" class="btn btn-primary">Extract and Highlight Text</button>
+
+        <div class="side-by-side-container">
+            <div>
+                <h2>Highlighted Text:</h2>
+                <div id="highlightedArea"></div>
+            </div>
+
+            <div>
+                <h2>Webpage Text:</h2>
+                <div id="extractedText">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Extracted Text</th>
+                            </tr>
+                        </thead>
+                        <tbody id="textOutput">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <script>
+        async function extractText() {
+            const jsonString = document.getElementById('inputArea').value;
+            let extractedText = '';
+
+            try {
+                const jsonData = JSON.parse(jsonString);
+                extractedText = await recursivelyExtractTitles(jsonData);  // Extract titles only
+
+                // Highlight the extracted text (using asynchronous processing)
+                const highlightedHTML = await highlightText(jsonString, extractedText);
+                document.getElementById('highlightedArea').innerHTML = highlightedHTML;
+
+                // Output the extracted text to the designated area
+                populateTable(extractedText);
+
+            } catch (error) {
+                document.getElementById('highlightedArea').innerText = 'Error parsing JSON: ' + error;
+                document.getElementById('textOutput').innerText = '';
+            }
+        }
+
+        async function recursivelyExtractTitles(data) {
+            let text = '';
+
+            if (typeof data === 'object') {
+                for (const key in data) {
+                    if (data.hasOwnProperty(key)) {
+                        if (key === 'title' && typeof data[key] === 'string') {
+                            text += data[key] + '\n'; // Add title values with newline
+                        } else {
+                            text += await recursivelyExtractTitles(data[key]); // Recurse deeper
+                        }
+                    }
+                }
+            }
+
+            return text;
+        }
+
+        async function highlightText(jsonString, extractedText) {
+            let highlightedHTML = jsonString;
+            const textArray = extractedText.split('\n');
+
+            for (const text of textArray) {
+                if (text) {
+                    const escapedText = escapeRegExp(text);
+                    // Find the text in the original jsonString
+                    const regex = new RegExp(escapedText, 'g');
+                    highlightedHTML = highlightedHTML.replace(regex, `<span class="highlight">${text}</span>`);
+                }
+            }
+
+            return highlightedHTML;
+        }
+
+
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
+        }
+
+        function populateTable(extractedText) {
+            const textArray = extractedText.split('\n');
+            const tableBody = document.getElementById('textOutput');
+            tableBody.innerHTML = ''; // Clear previous table content
+
+            textArray.forEach((text, index) => {
+                if (text) {
+                    const row = document.createElement('tr');
+                    row.classList.add('table-row'); // Add class for consistent styling
+                    row.classList.add(index % 2 === 0 ? 'even-row' : 'odd-row'); // Alternating row colors
+                    const cell = document.createElement('td');
+                    cell.textContent = text;
+
+                    // Add click event to scroll highlighted area
+                    cell.addEventListener('click', () => {
+                        scrollToHighlightedText(text);
+                    });
+
+                    row.appendChild(cell);
+                    tableBody.appendChild(row);
+                }
+            });
+        }
+
+       function scrollToHighlightedText(text) {
+            const highlightedArea = document.getElementById('highlightedArea');
+            const escapedText = escapeRegExp(text);
+
+            // Create a regex that matches the text *within* the highlight span
+            const regex = new RegExp(`<span class="highlight">${escapedText}<\/span>`);
+            const highlightedHTML = highlightedArea.innerHTML;
+            const match = regex.exec(highlightedHTML);
+
+            if (match) {
+                // Calculate the position of the *start* of the highlighted text
+                const spanIndex = match.index;
+
+                if (spanIndex !== -1) {
+                    // Use jQuery to animate the scroll (optional, but smoother)
+                    $(highlightedArea).animate({
+                        scrollTop: spanIndex - 300 // Adjust offset if needed
+                    }, 500); // Animation duration in milliseconds
+                }
+            } else {
+                alert('Text not found in highlighted area.');
+            }
+        }
+    </script>
+
+</body>
+</html>
