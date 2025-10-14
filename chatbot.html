@@ -43,9 +43,6 @@
             width: 100%;
             /* Make table fill its container */
             margin: 20px 0;
-            /* Add some space around the table */
-            font-family: Arial, sans-serif;
-            /* Change the font */
         }
 
         th,
@@ -236,18 +233,33 @@
             align-items: center;
         }
 
-        .chat-input input[type="text"] {
+        .chat-input textarea {
             flex-grow: 1;
             padding: 10px;
             border: 1px solid #ced4da;
             border-radius: 25px;
+            /* Keep consistent rounding */
             margin-right: 10px;
             font-size: 1rem;
             outline: none;
             transition: border-color 0.2s ease-in-out;
+            resize: none;
+            /* Prevents users from manually resizing the textarea */
+            min-height: 45px;
+            /* Minimum height for a single line */
+            max-height: 200px;
+            /* Maximum height before vertical scrollbar appears */
+            overflow-y: auto;
+            /* Enable vertical scrolling */
+            box-sizing: border-box;
+            /* Ensures padding/border is inside the element's width/height */
+            line-height: 1.4;
+            /* Improve text readability */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
         }
 
-        .chat-input input[type="text"]:focus {
+        .chat-input textarea:focus {
             border-color: #2a2f5b;
         }
 
@@ -371,7 +383,7 @@
                 <h2>Past Conversations</h2>
             </div>
             <div class="search-bar">
-                <input type="text" placeholder="Search conversations...">
+                <input type="text" placeholder="Search conversations..." disabled>
             </div>
             <div class="conversation-list" id="conversation-list">
             </div>
@@ -386,7 +398,7 @@
             </div>
             <div class="typing-indicator" id="typing-indicator"></div>
             <div class="chat-input">
-                <input type="text" id="message-input" placeholder="Type your message...">
+                <textarea id="message-input" placeholder="Type your message..." rows="1"></textarea>
                 <button onclick="sendMessage()">Send</button>
             </div>
         </div>
@@ -399,11 +411,18 @@
         const conversationList = document.getElementById('conversation-list');
         userEmail = "kenneth@mediaone.co";
 
-        messageInput.addEventListener("keyup", function (event) {
+        messageInput.addEventListener("keydown", function (event) {
+            // Check for Enter key press
             if (event.key === "Enter") {
-                sendMessage();
+                // If Shift is NOT pressed, send the message
+                if (!event.shiftKey) {
+                    event.preventDefault(); // Prevent the default new line in the textarea
+                    sendMessage();
+                }
+                // If Shift IS pressed (Shift + Enter), do nothing, allowing the default new line action to occur
             }
         });
+
 
         function displayTypingIndicator() {
             typingIndicator.textContent = "Processing...";
@@ -481,7 +500,7 @@
                 if (typeof data.answer === 'string' && data.answer.trim()) {
                     displayMessage(data.answer, 'bot');
                 } else {
-                    displayMessage('Sorry, I couldn’t parse a reply from the model.', 'bot');
+                    displayMessage('Sorry, I could not get an answer.', 'bot');
                 }
                 localStorage.setItem("input_messages", JSON.stringify(input_messages));
                 saveConversation();
@@ -664,6 +683,8 @@
                     return await similar_keywords(args.keywords, args.language, args.location);
                 case "keywords_for_site":
                     return await keywords_for_site(args.target, args.language, args.location);
+                case "getHTML":
+                    return await getHTML(args.target);
                 default:
                     throw new Error(`Function ${name} not found`);
             }
@@ -727,6 +748,34 @@
                 return data;
             } catch (error) {
                 console.error("Error in rank_checker:", error);
+                throw error;
+            }
+        }
+
+        async function getHTML(target) {
+            const url = "https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml";
+            const payload = {
+                'url': target,
+            };
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error("Error in getHtml:", error);
                 throw error;
             }
         }
@@ -954,14 +1003,16 @@
                     options: [
                         { label: 'Check Page Speed', value: 'I want to check my pagespeed using GTmetrix' },
                         { label: 'Check Domain Authority', value: 'I want to check domain authority' },
-                        { label: 'Generate schema', value: 'I want to generate schema markup' }
+                        { label: 'Generate Schema', value: 'I want to generate schema markup' },
+                        { label: 'Google Webpage Crawler Simulator', value: 'I want to simulate the Google Webpage Crawler' }
 
                     ]
                 },
                 {
                     header: 'Content Analysis',
                     options: [
-                        { label: 'Analyse Meta Tags', value: 'I want to analyse meta tags' }
+                        { label: 'Check Content', value: "I want to check the content I've written" },
+                        { label: 'Content Comparison', value: "I want to do content comparison" }
                     ]
                 }
             ];
