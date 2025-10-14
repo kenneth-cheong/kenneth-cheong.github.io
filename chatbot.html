@@ -393,7 +393,7 @@
     </div>
 
     <script>
-        const chatMessages = document.getElementById('chat-messages');
+        chatMessages = document.getElementById('chat-messages');
         const messageInput = document.getElementById('message-input');
         const typingIndicator = document.getElementById('typing-indicator');
         const conversationList = document.getElementById('conversation-list');
@@ -418,6 +418,8 @@
             const messageText = messageInput.value.trim();
             if (!messageText) return;
 
+
+
             try {
                 input_messages = JSON.parse(localStorage.getItem("input_messages"));
             } catch (error) {
@@ -430,9 +432,14 @@
             displayMessage(messageText, 'user');
             messageInput.value = ''; // Clear the input
 
+            if (messageText.toLowerCase().includes('show options')) {
+                chatMessages = document.getElementById('chat-messages');
+                displayOptions();
+                return
+            }
+
             // Show typing indicator
             displayTypingIndicator();
-
 
             // Send message to API
             fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
@@ -925,43 +932,82 @@
             const optionsContainer = document.getElementById('chat-options');
             optionsContainer.innerHTML = ''; // clear previous options
 
-            // Create a message container for the options
+            // Create the main message
             const optionsMessage = document.createElement('div');
             optionsMessage.classList.add('message', 'bot');
             optionsMessage.style.marginBottom = '10px';
             optionsMessage.innerHTML = "Here are some quick actions you can take:";
 
-            // Add the options to the message container
-            const buttonContainer = document.createElement('div');
-            buttonContainer.classList.add('button-container');
+            // Define multiple sections with headers and buttons
+            const sections = [
+                {
+                    header: 'Keywords',
+                    options: [
+                        { label: 'Keyword Research', value: 'I want to do keyword research' },
+                        { label: 'Check SERPs', value: 'I want to check SERPs' },
+                        { label: 'Rank Checker', value: 'I want to check rankings' },
+                        { label: 'Find Similar Keywords', value: 'I want to find similar keywords' }
+                    ]
+                },
+                {
+                    header: 'Technical SEO',
+                    options: [
+                        { label: 'Check Page Speed', value: 'I want to check my pagespeed using GTmetrix' },
+                        { label: 'Check Domain Authority', value: 'I want to check domain authority' },
+                        { label: 'Generate schema', value: 'I want to generate schema markup' }
 
-            const options = [
-                { label: 'Keyword Research', value: 'I want to do keyword research' },
-                { label: 'Check SERPs', value: 'I want to check SERPs' },
-                { label: 'Rank Checker', value: 'I want to check rankings' },
-                { label: 'Similar Keywords', value: 'I want to find similar keywords' },
-                { label: 'Check Webpage Loading Speed', value: 'I want to do a pagespeed test' }
+                    ]
+                },
+                {
+                    header: 'Content Analysis',
+                    options: [
+                        { label: 'Analyse Meta Tags', value: 'I want to analyse meta tags' }
+                    ]
+                }
             ];
 
-            options.forEach(opt => {
-                const button = document.createElement('button');
-                button.textContent = opt.label;
-                button.onclick = () => {
-                    optionsContainer.style.display = 'none';  // Hide the buttons after selection
-                    // Simulate user sending the message
-                    //displayMessage(opt.value, 'user');
-                    messageInput.value = opt.value;
-                    sendMessage();
-                };
-                buttonContainer.appendChild(button);
+            // Loop through each section
+            sections.forEach(section => {
+                const sectionDiv = document.createElement('div');
+                sectionDiv.classList.add('option-section');
+                sectionDiv.style.marginBottom = '15px';
+
+                // Header
+                const header = document.createElement('h4');
+                header.textContent = section.header;
+                header.style.marginBottom = '8px';
+                header.style.color = '#333';
+                sectionDiv.appendChild(header);
+
+                // Button container
+                const buttonContainer = document.createElement('div');
+                buttonContainer.classList.add('button-container');
+
+                section.options.forEach(opt => {
+                    const button = document.createElement('button');
+                    button.textContent = opt.label;
+                    button.onclick = () => {
+                        optionsContainer.style.display = 'none';  // Hide after selection
+                        messageInput.value = opt.value;
+                        sendMessage();
+                    };
+                    buttonContainer.appendChild(button);
+                });
+
+                sectionDiv.appendChild(buttonContainer);
+                optionsMessage.appendChild(sectionDiv);
             });
 
-            optionsMessage.appendChild(buttonContainer);
-            optionsContainer.appendChild(optionsMessage);
+            //optionsContainer.appendChild(optionsMessage);
+            //optionsContainer.style.display = 'block';
 
-            // Show the option buttons in a message bubble
-            optionsContainer.style.display = 'block';
+
+            chatMessages.appendChild(optionsMessage);
+
+            // Scroll to bottom of chat messages
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
+
 
         async function loadPastConversations() {
             const userEmail = "kenneth@mediaone.co";
