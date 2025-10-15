@@ -437,8 +437,6 @@
             const messageText = messageInput.value.trim();
             if (!messageText) return;
 
-
-
             try {
                 input_messages = JSON.parse(localStorage.getItem("input_messages"));
             } catch (error) {
@@ -485,7 +483,7 @@
                     hideTypingIndicator();
                     console.error('Error:', error);
                     displayMessage('Error: Could not get response.', 'bot');
-                    saveConversation()
+                    saveConversation();
                 });
         }
 
@@ -563,6 +561,7 @@
                 if (hasFunctions) {
                     // Re-enter the same decision logic
                     await processData(data);
+                    saveConversation();
                     return;
                 }
 
@@ -1201,8 +1200,11 @@
                 }
 
                 output = await response.json();
-                localStorage.setItem("conversation_id", output);
-                loadPastConversations()
+                if (localStorage.getItem("conversation_id") == "") {
+                    localStorage.setItem("conversation_id", output);
+                }
+                
+                loadPastConversations();
 
             } catch (error) {
                 console.error('Error updating/creating conversations:', error);
