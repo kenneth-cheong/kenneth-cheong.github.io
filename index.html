@@ -1959,7 +1959,7 @@
         </div>
 
         <div class="nav-item" id="seoNavItem">
-            <a href="#">SEO</a>
+            <a href="#" onclick="showSeoOnly(event)">SEO</a>
             <div class="dropdown-content">
                 <a href="#keywordAnalysis" onclick="openKeywordAnalysis(event)">Keyword Analysis</a>
                 <a href="#crawlerSimulator" onclick="openCrawlerSimulator(event)">Google Crawler Simulator</a>
@@ -1972,7 +1972,7 @@
         </div>
 
         <div class="nav-item" id="smmNavItem">
-            <a href="#">SMM</a>
+            <a href="#"  onclick="showSmmOnly(event)">SMM</a>
             <div class="dropdown-content">
                 <a href="#contentGenerator" onclick="openContentGenerator(event)">Content Generator</a>
             </div>
@@ -2267,1183 +2267,1205 @@
             </div>
         </div>
 
-        <button class="collapsible" id="seo"><i class="fas fa-plus-square"></i><i class="fab fa-google"></i>Search
-            Engine Optimisation (SEO)</button>
-        <div class="content" id="seoSection">
+        <div id="seoSection">
+            <button class="collapsible" id="seo"><i class="fas fa-plus-square"></i><i class="fab fa-google"></i>Search
+                Engine Optimisation (SEO)</button>
+            <div class="content">
 
-            <!-- Modal for Content Comparison Queries -->
-            <div id="contentComparisonkModal" class="queries-modal" style="display:none">
-                <div class="queries-modal-content">
-                    <span class="close" onclick="closeContentComparisonQueriesModal()">×</span>
-                    <h2>Previous Content Comparison Queries</h2>
-                    <div id="content_comparison_loading"
-                        style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
-                        <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..."
-                            style="width: 100px; height: 100px;">
-                        <p style="text-align: center;">Loading queries...</p>
+                <!-- Modal for Content Comparison Queries -->
+                <div id="contentComparisonkModal" class="queries-modal" style="display:none">
+                    <div class="queries-modal-content">
+                        <span class="close" onclick="closeContentComparisonQueriesModal()">×</span>
+                        <h2>Previous Content Comparison Queries</h2>
+                        <div id="content_comparison_loading"
+                            style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
+                            <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..."
+                                style="width: 100px; height: 100px;">
+                            <p style="text-align: center;">Loading queries...</p>
+                        </div>
+
+                        <table id="contentComparisonQueriesTable">
+                            <thead>
+                                <tr>
+                                    <th>No.</th>
+                                    <th>Date</th>
+                                    <th>URL</th>
+                                    <th>Keywords</th>
+                                    <th>User</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Queries will be populated here -->
+                            </tbody>
+                        </table>
                     </div>
+                </div>
 
-                    <table id="contentComparisonQueriesTable">
-                        <thead>
-                            <tr>
-                                <th>No.</th>
-                                <th>Date</th>
-                                <th>URL</th>
-                                <th>Keywords</th>
-                                <th>User</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Queries will be populated here -->
-                        </tbody>
+                <!-- Modal for Previous Time To Rank Queries -->
+                <div id="timeToRankModal" class="queries-modal" style="display:none">
+                    <div class="queries-modal-content">
+                        <span class="close" onclick="closeTimeToRankQueriesModal()">×</span>
+                        <h2>Previous Time To Rank Queries</h2>
+                        <div id="time_to_rank_loading"
+                            style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
+                            <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..."
+                                style="width: 100px; height: 100px;">
+                            <p style="text-align: center;">Loading queries...</p>
+                        </div>
+
+                        <table id="timeToRankQueriesTable">
+                            <thead>
+                                <tr>
+                                    <th>No.</th>
+                                    <th>Date</th>
+                                    <th>URL</th>
+                                    <th>Keywords</th>
+                                    <th>User</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Queries will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Modal for Previous On-Page Queries -->
+                <div id="queriesModal" class="queries-modal" style="display:none">
+                    <div class="queries-modal-content">
+                        <span class="close" onclick="closeQueriesModal()">×</span>
+                        <h2>Previous On-Page Queries</h2>
+
+                        <div id="on_page_loading"
+                            style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
+                            <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..."
+                                style="width: 100px; height: 100px;">
+                            <p style="text-align: center;">Loading queries...</p>
+                        </div>
+
+                        <table id="queriesTable">
+                            <thead>
+                                <tr>
+                                    <th>No.</th>
+                                    <th>Date</th>
+                                    <th>URL</th>
+                                    <th>Keywords</th>
+                                    <th>User</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Queries will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="feedbackModal" class="feedback-modal">
+                    <div class="feedback-modal-content">
+                        <span class="feedback-close">×</span>
+                        <h2>Feedback</h2>
+
+                        <label for="userFeedback">Your Feedback:</label>
+                        <textarea id="userFeedback"
+                            style="width: 100%; height: 100px; background-color:#eef5fe;"></textarea><br>
+
+                        <label for="checkResults">Check Results:</label>
+                        <textarea id="checkResults" readonly style="width: 100%; height: 100px;"></textarea><br>
+
+                        <label for="guidelinesURLs">URLs of Guidelines PDFs:</label>
+                        <textarea id="guidelinesURLs" readonly style="width: 100%; height: 20px;"></textarea><br>
+
+                        <label for="websiteURLs">Any other website/guidelines URLs:</label>
+                        <textarea id="websiteURLs" readonly style="width: 100%; height: 20px;"></textarea><br>
+
+                        <label for="otherInstructions">Any other instructions:</label>
+                        <textarea id="otherInstructions" readonly style="width: 100%; height: 20px;"></textarea><br>
+
+                        <label for="contentToCheck">Content to Check:</label>
+                        <textarea id="contentToCheck" readonly style="width: 100%; height: 30px;"></textarea><br>
+
+                        <button id="submitFeedbackBtn">Submit Feedback</button>
+                    </div>
+                </div>
+
+                <!-- Input Form for User Data -->
+                <div class="column50">
+                    <form id="seoForm">
+                        <label-fixed for="domain">Domain / URL:</label-fixed>
+                        <input type="url" id="domain" name="domain" style="min-width: 60%"
+                            placeholder="Site Audit: https://www.abc.com | Page Audit: www.abc.com"
+                            onmouseover="showTooltip(event, 'E.g.<br>https:\/\/www.example.com will target one webpage<br>www.example.com will target the entire website')"
+                            onmouseout="hideTooltip()">
+                        <div id="tooltip"
+                            style="position: absolute; font-size: 0.9em; background-color: #568cc2; color: white; border: 1px solid #ccc; padding: 5px; display: none; z-index: 1000; border-radius: 10px;">
+                        </div>
+                        <span class="error" id="domainError"></span>
+                        <br>
+                        <label-fixed for="location">Targeted Location (required):</label-fixed>
+                        <select id="location" name="location" required>
+                            <option value="Singapore">Singapore</option>
+                            <option value="None">Global</option>
+                            <option value="Australia">Australia</option>
+                            <option value="Bhutan">Bhutan</option>
+                            <option value="Brazil">Brazil</option>
+                            <option value="Canada">Canada</option>
+                            <option value="China">China</option>
+                            <option value="France">France</option>
+                            <option value="Germany">Germany</option>
+                            <option value="Hong Kong">Hong Kong</option>
+                            <option value="India">India</option>
+                            <option value="Indonesia">Indonesia</option>
+                            <option value="Italy">Italy</option>
+                            <option value="Japan">Japan</option>
+                            <option value="Malaysia">Malaysia</option>
+                            <option value="Mexico">Mexico</option>
+                            <option value="Netherlands">Netherlands</option>
+                            <option value="Netherlands">Philippines</option>
+                            <option value="South Korea">South Korea</option>
+                            <option value="Spain">Spain</option>
+                            <option value="Taiwan">Taiwan</option>
+                            <option value="Thailand">Thailand</option>
+                            <option value="United Kingdom">United Kingdom</option>
+                            <option value="United States">United States</option>
+                            <option value="Vietnam">Vietnam</option>
+                        </select><br>
+
+                        <label-fixed for="language">Language (required):</label-fixed>
+                        <select id="language" name="language" required>
+                            <option value="English">English</option>
+                            <option value="Arabic">Arabic</option>
+                            <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+                            <option value="Chinese (Traditional)">Chinese (Traditional)</option>
+                            <option value="Dutch">Dutch</option>
+                            <option value="French">French</option>
+                            <option value="German">German</option>
+                            <option value="Hindi">Hindi</option>
+                            <option value="Indonesian">Indonesian</option>
+                            <option value="Italian">Italian</option>
+                            <option value="Japanese">Japanese</option>
+                            <option value="Korean">Korean</option>
+                            <option value="Malay">Malay</option>
+                            <option value="Portuguese">Portuguese</option>
+                            <option value="Russian">Russian</option>
+                            <option value="Spanish">Spanish</option>
+                            <option value="Tamil">Tagalog</option>
+                            <option value="Tamil">Tamil</option>
+                            <option value="Thai">Thai</option>
+                            <option value="Vietnamese">Vietnamese</option>
+                        </select>
+                        <br>
+                        <div>
+                            <label-fixed for="keywords">Keyword(s) of Interest (comma or newline
+                                separated):</label-fixed>
+                            <span id="keywordCount" style="margin-left: 10px; color: #004c9d;"></span><br> <textarea
+                                id="keywords" name="keywords" required placeholder="keyword1, keyword2"
+                                oninput="updateKeywordCount()"></textarea>
+                            <span class="error" id="keywordsError"></span>
+                        </div>
+
+                        <button type="button" id="keyword-research-analysis-button" class="tooltip"
+                            onclick="validateAndSubmit(event)">Get Time To Rank
+                            <span>Click to get the estimated time to rank for the selected keywords and the webpage's
+                                metrics.</span>
+                        </button>
+                        <button type="button" id="mapKeywordsBtn" class="tooltip" onclick="mapKeywords()">Map Keywords
+                            <span>Click to get see recommended URL mapping for the selected keywords.</span></button>
+                        <button onclick="openTimeToRankQueriesModal()" id="loadTimeToRankQueriesBtn">Load Previous
+                            Queries</button>
+                    </form>
+                    <div id="rankingError"></div>
+                    <table id="keywordTable" style="display: none;">
+                        <tr>
+                            <th>Keyword</th>
+                            <th>Search Volume</th>
+                            <th>Competition</th>
+                            <th>Rank</th>
+                        </tr>
                     </table>
-                </div>
-            </div>
 
-            <!-- Modal for Previous Time To Rank Queries -->
-            <div id="timeToRankModal" class="queries-modal" style="display:none">
-                <div class="queries-modal-content">
-                    <span class="close" onclick="closeTimeToRankQueriesModal()">×</span>
-                    <h2>Previous Time To Rank Queries</h2>
-                    <div id="time_to_rank_loading"
-                        style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
-                        <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..."
-                            style="width: 100px; height: 100px;">
-                        <p style="text-align: center;">Loading queries...</p>
-                    </div>
-
-                    <table id="timeToRankQueriesTable">
-                        <thead>
-                            <tr>
-                                <th>No.</th>
-                                <th>Date</th>
-                                <th>URL</th>
-                                <th>Keywords</th>
-                                <th>User</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Queries will be populated here -->
-                        </tbody>
+                    <table id="top100Table" style="display: none;">
+                        <tr>
+                            <th>Keyword</th>
+                            <th>Search Volume</th>
+                            <th>Competition</th>
+                            <th>Rank</th>
+                        </tr>
                     </table>
-                </div>
-            </div>
-
-            <!-- Modal for Previous On-Page Queries -->
-            <div id="queriesModal" class="queries-modal" style="display:none">
-                <div class="queries-modal-content">
-                    <span class="close" onclick="closeQueriesModal()">×</span>
-                    <h2>Previous On-Page Queries</h2>
-
-                    <div id="on_page_loading"
-                        style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; /* Adjust height as needed */">
-                        <img src="https://usagif.com/wp-content/uploads/loading-73.gif" alt="Loading..."
-                            style="width: 100px; height: 100px;">
-                        <p style="text-align: center;">Loading queries...</p>
-                    </div>
-
-                    <table id="queriesTable">
-                        <thead>
-                            <tr>
-                                <th>No.</th>
-                                <th>Date</th>
-                                <th>URL</th>
-                                <th>Keywords</th>
-                                <th>User</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Queries will be populated here -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div id="feedbackModal" class="feedback-modal">
-                <div class="feedback-modal-content">
-                    <span class="feedback-close">×</span>
-                    <h2>Feedback</h2>
-
-                    <label for="userFeedback">Your Feedback:</label>
-                    <textarea id="userFeedback"
-                        style="width: 100%; height: 100px; background-color:#eef5fe;"></textarea><br>
-
-                    <label for="checkResults">Check Results:</label>
-                    <textarea id="checkResults" readonly style="width: 100%; height: 100px;"></textarea><br>
-
-                    <label for="guidelinesURLs">URLs of Guidelines PDFs:</label>
-                    <textarea id="guidelinesURLs" readonly style="width: 100%; height: 20px;"></textarea><br>
-
-                    <label for="websiteURLs">Any other website/guidelines URLs:</label>
-                    <textarea id="websiteURLs" readonly style="width: 100%; height: 20px;"></textarea><br>
-
-                    <label for="otherInstructions">Any other instructions:</label>
-                    <textarea id="otherInstructions" readonly style="width: 100%; height: 20px;"></textarea><br>
-
-                    <label for="contentToCheck">Content to Check:</label>
-                    <textarea id="contentToCheck" readonly style="width: 100%; height: 30px;"></textarea><br>
-
-                    <button id="submitFeedbackBtn">Submit Feedback</button>
-                </div>
-            </div>
-
-            <!-- Input Form for User Data -->
-            <div class="column50">
-                <form id="seoForm">
-                    <label-fixed for="domain">Domain / URL:</label-fixed>
-                    <input type="url" id="domain" name="domain" style="min-width: 60%"
-                        placeholder="Site Audit: https://www.abc.com | Page Audit: www.abc.com"
-                        onmouseover="showTooltip(event, 'E.g.<br>https:\/\/www.example.com will target one webpage<br>www.example.com will target the entire website')"
-                        onmouseout="hideTooltip()">
-                    <div id="tooltip"
-                        style="position: absolute; font-size: 0.9em; background-color: #568cc2; color: white; border: 1px solid #ccc; padding: 5px; display: none; z-index: 1000; border-radius: 10px;">
-                    </div>
-                    <span class="error" id="domainError"></span>
-                    <br>
-                    <label-fixed for="location">Targeted Location (required):</label-fixed>
-                    <select id="location" name="location" required>
-                        <option value="Singapore">Singapore</option>
-                        <option value="None">Global</option>
-                        <option value="Australia">Australia</option>
-                        <option value="Bhutan">Bhutan</option>
-                        <option value="Brazil">Brazil</option>
-                        <option value="Canada">Canada</option>
-                        <option value="China">China</option>
-                        <option value="France">France</option>
-                        <option value="Germany">Germany</option>
-                        <option value="Hong Kong">Hong Kong</option>
-                        <option value="India">India</option>
-                        <option value="Indonesia">Indonesia</option>
-                        <option value="Italy">Italy</option>
-                        <option value="Japan">Japan</option>
-                        <option value="Malaysia">Malaysia</option>
-                        <option value="Mexico">Mexico</option>
-                        <option value="Netherlands">Netherlands</option>
-                        <option value="Netherlands">Philippines</option>
-                        <option value="South Korea">South Korea</option>
-                        <option value="Spain">Spain</option>
-                        <option value="Taiwan">Taiwan</option>
-                        <option value="Thailand">Thailand</option>
-                        <option value="United Kingdom">United Kingdom</option>
-                        <option value="United States">United States</option>
-                        <option value="Vietnam">Vietnam</option>
-                    </select><br>
-
-                    <label-fixed for="language">Language (required):</label-fixed>
-                    <select id="language" name="language" required>
-                        <option value="English">English</option>
-                        <option value="Arabic">Arabic</option>
-                        <option value="Chinese (Simplified)">Chinese (Simplified)</option>
-                        <option value="Chinese (Traditional)">Chinese (Traditional)</option>
-                        <option value="Dutch">Dutch</option>
-                        <option value="French">French</option>
-                        <option value="German">German</option>
-                        <option value="Hindi">Hindi</option>
-                        <option value="Indonesian">Indonesian</option>
-                        <option value="Italian">Italian</option>
-                        <option value="Japanese">Japanese</option>
-                        <option value="Korean">Korean</option>
-                        <option value="Malay">Malay</option>
-                        <option value="Portuguese">Portuguese</option>
-                        <option value="Russian">Russian</option>
-                        <option value="Spanish">Spanish</option>
-                        <option value="Tamil">Tagalog</option>
-                        <option value="Tamil">Tamil</option>
-                        <option value="Thai">Thai</option>
-                        <option value="Vietnamese">Vietnamese</option>
-                    </select>
-                    <br>
-                    <div>
-                        <label-fixed for="keywords">Keyword(s) of Interest (comma or newline
-                            separated):</label-fixed>
-                        <span id="keywordCount" style="margin-left: 10px; color: #004c9d;"></span><br> <textarea
-                            id="keywords" name="keywords" required placeholder="keyword1, keyword2"
-                            oninput="updateKeywordCount()"></textarea>
-                        <span class="error" id="keywordsError"></span>
-                    </div>
-
-                    <button type="button" id="keyword-research-analysis-button" class="tooltip"
-                        onclick="validateAndSubmit(event)">Get Time To Rank
-                        <span>Click to get the estimated time to rank for the selected keywords and the webpage's
-                            metrics.</span>
+                    <button class="collapsible-plus" id="expandSimilarKeywords"><i class="fas fa-plus-square"></i></button>
+                    <button class="collapsible90" id="keyword_suggestions" onclick="similarKeywords(event)">Keyword
+                        Suggestions (Similar Keywords / SERPs)
                     </button>
-                    <button type="button" id="mapKeywordsBtn" class="tooltip" onclick="mapKeywords()">Map Keywords
-                        <span>Click to get see recommended URL mapping for the selected keywords.</span></button>
-                    <button onclick="openTimeToRankQueriesModal()" id="loadTimeToRankQueriesBtn">Load Previous
-                        Queries</button>
-                </form>
-                <div id="rankingError"></div>
-                <table id="keywordTable" style="display: none;">
-                    <tr>
-                        <th>Keyword</th>
-                        <th>Search Volume</th>
-                        <th>Competition</th>
-                        <th>Rank</th>
-                    </tr>
-                </table>
-
-                <table id="top100Table" style="display: none;">
-                    <tr>
-                        <th>Keyword</th>
-                        <th>Search Volume</th>
-                        <th>Competition</th>
-                        <th>Rank</th>
-                    </tr>
-                </table>
-                <button class="collapsible-plus" id="expandSimilarKeywords"><i class="fas fa-plus-square"></i></button>
-                <button class="collapsible90" id="keyword_suggestions" onclick="similarKeywords(event)">Keyword
-                    Suggestions (Similar Keywords / SERPs)
-                </button>
-                <div class="content" id="keywordSuggestions">
-                    <div id="keywordListContainer">
-                        <div class="keyword-row" id="keywordHeaderRow">
-                            <div class="keyword-column tooltip" onclick="sortKeywordSuggestions(0)">
-                                <strong>Keyword</strong>
-                                <span>Click on the keyword to see it's SERPs.</span>
+                    <div class="content" id="keywordSuggestions">
+                        <div id="keywordListContainer">
+                            <div class="keyword-row" id="keywordHeaderRow">
+                                <div class="keyword-column tooltip" onclick="sortKeywordSuggestions(0)">
+                                    <strong>Keyword</strong>
+                                    <span>Click on the keyword to see it's SERPs.</span>
+                                </div>
+                                <div class="keyword-column" onclick="sortKeywordSuggestions(1)">
+                                    <strong>Search Vol</strong>
+                                </div>
+                                <div class="keyword-column" onclick="sortKeywordSuggestions(2)">
+                                    <strong>Difficulty</strong>
+                                </div>
+                                <div class="keyword-column" onclick="sortKeywordSuggestions(3)">
+                                    <strong>CPC</strong>
+                                </div>
+                                <div class="checkbox-column"></div><strong>Choose</strong>
                             </div>
-                            <div class="keyword-column" onclick="sortKeywordSuggestions(1)">
-                                <strong>Search Vol</strong>
+                            <ul id="keywordList"></ul>
+                            <div id="keywordSuggestionsExport" style="display:none">
+                                <button type="button"
+                                    onclick="exportSelectedKeywordSuggestionsToCSV(keywordHeaderRow, keywordList)">Export
+                                    selected as
+                                    .csv</button>
+                                <button type="button"
+                                    onclick="exportKeywordSuggestionsToCSV(keywordHeaderRow, keywordList)">Export all as
+                                    .csv</button>
                             </div>
-                            <div class="keyword-column" onclick="sortKeywordSuggestions(2)">
-                                <strong>Difficulty</strong>
-                            </div>
-                            <div class="keyword-column" onclick="sortKeywordSuggestions(3)">
-                                <strong>CPC</strong>
-                            </div>
-                            <div class="checkbox-column"></div><strong>Choose</strong>
-                        </div>
-                        <ul id="keywordList"></ul>
-                        <div id="keywordSuggestionsExport" style="display:none">
-                            <button type="button"
-                                onclick="exportSelectedKeywordSuggestionsToCSV(keywordHeaderRow, keywordList)">Export
-                                selected as
-                                .csv</button>
-                            <button type="button"
-                                onclick="exportKeywordSuggestionsToCSV(keywordHeaderRow, keywordList)">Export all as
-                                .csv</button>
                         </div>
                     </div>
+
+                    <br>
+                    <button class="collapsible-plus" id="expandRankingKeywords"><i class="fas fa-plus-square"></i></button>
+                    <button class="collapsible90" id="ranking_keywords" onclick="rankingKeywords(event)">Ranking
+                        Keywords</button>
+                    <div class="content" id="rankingKeywords">
+                        <div id="rankedKeywordsCount"></div>
+                        <div id="keywordListContainer">
+                            <div class="keyword-row" id="rankedKeywordHeaderRow">
+                                <div class="keyword-column" onclick="sortRankedKeywords(0)">
+                                    <strong>Keyword</strong>
+                                </div>
+                                <div class="keyword-column" onclick="sortRankedKeywords(1)">
+                                    <strong>Search Vol</strong>
+                                </div>
+                                <div class="keyword-column" onclick="sortRankedKeywords(2)">
+                                    <strong>Rank</strong>
+                                </div>
+                                <div class="keyword-column" onclick="sortRankedKeywords(3)">
+                                    <strong>Difficulty</strong>
+                                </div>
+                                <div class="checkbox-column"></div><strong>Choose</strong>
+                            </div>
+                            <ul id="rankedKeywordList"></ul>
+                            <div id="rankingKeywordsExport" style="display:none">
+                                <button type="button"
+                                    onclick="exportSelectedRankedKeywordsToCSV(rankedKeywordHeaderRow, rankedKeywordList)">Export
+                                    selected as
+                                    .csv</button>
+                                <button type="button"
+                                    onclick="exportRankedKeywordsToCSV(rankedKeywordHeaderRow, rankedKeywordList)">Export
+                                    all as
+                                    .csv</button>
+                            </div>
+                        </div>
+                    </div><br>
+                    <button class="collapsible-plus" id="expandWebpageKeywords"><i class="fas fa-plus-square"></i></button>
+                    <button class="collapsible90" id="keywords_for_site" onclick="getWebpageKeywords(event)">Keywords
+                        Based
+                        on Webpage Content</button>
+                    <div class="content" id="siteKeywords" style="padding:10px">
+                    </div>
                 </div>
+
+                <div class="column50">
+                    <div id="serp-section"></div>
+                </div>
+
+                <hr>
+                <button class="collapsible" id="keyword_mapping"><i class="fas fa-plus-square"></i>Keyword Mapping</button>
+                <div class="content" id="keywordMapping">
+                    <button id="addListBtn">Add New URL</button>
+                    <button id="undoBtn" disabled>Undo Delete</button>
+                    <div class="container" id="listsContainer"></div>
+                    <div id="recommendations"></div>
+                </div>
+                <button class="collapsible" id="meta_data"><i class="fas fa-plus-square"></i>Meta Data</button>
+                <div class="content" id="metaData">
+                    <p><b>Meta Title: </b><span id="targetTitle">-</span></p>
+                    <p><b>Meta Description: </b><span id="targetDescription">-</span></p>
+                    <p><b>h1 Header: </b><span id="targetH1">-</span></p>
+
+                </div>
+
+                <button class="collapsible" id="domain_metrics"><i class="fas fa-plus-square"></i>Domain Metrics (DA,
+                    PA,
+                    PageSpeed)</button>
+                <div class="content" id="domainMetrics">
+                    <div class="column">
+                        <p><b>Domain Authority (DA): </b><span id="da">-</span></p>
+                        <p><b>Page Authority (PA): </b><span id="pa">-</span></p>
+                        <p><b>Backlinks Spam Score: </b><span id="targetSpamScore">-</span></p>
+                        <p><b>Backlinks: </b><span id="targetBacklinks">-</span></p>
+                        <p><b>Referring Domains: </b><span id="targetRefDomains">-</span></p>
+                        <p><b>Page Word Count: </b><span id="targetWordCount">-</span></p>
+                    </div>
+                    <div class="column">
+                        <p><b>Internal Links: </b><span id="targetInternalLinks">-</span></p>
+                        <p><b>External Links: </b><span id="targetExternalLinks">-</span></p>
+                        <p><b>Flesch Readability: </b><span id="targetReadability">-</span></p>
+                        <p><b>Images: </b><span id="targetImages">-</span></p>
+                        <p><b>CLS: </b><span id="targetCls">-</span></p>
+                        <p><b>LCP: </b><span id="targetLcp">-</span></p>
+                        <p><b>FID: </b><span id="targetFid">-</span></p>
+                        <p><b>Schema: </b><span id="targetSchema">-</span></p>
+                    </div>
+                    <div style="clear: both;"></div>
+                    <div> </div> <!-- Clearfix -->
+                </div>
+                <hr>
+                <div class="page-break"></div>
+                <button class="collapsible" id="keywordAnalysisBtn"><i class="fas fa-plus-square"></i>Keyword
+                    Analysis</button>
+                <div class="content" id="keywordAnalysis">
+                    <div id="overall-summary" style="display:none;"></div>
+                    <div id="keyword-analysis-results">
+                        <!-- Collapsible sections for each keyword analysis will be added here -->
+                    </div>
+                </div>
+                <hr>
+                <div class="page-break"></div>
+                <button class="collapsible" id="simulatorButton"><i class="fas fa-plus-square"></i>Google Crawler
+                    Simulator</button>
+                <div class="content" id="crawlerSimulator">
+                    <label for="google-simulator-url">Enter URL:</label>
+                    <input type="url" id="google-simulator-url" size="50"><br>
+                    <button id="simulatorBtn" onclick="googleCrawlerSimulator()">Analyse</button>
+                    <div id="simulatorError" style="color: red;"></div>
+                    <div id="crawler-simulator-results" style="display: none;">
+                        <h3>Meta Information</h3>
+                        <table id="meta-table">
+                            <thead>
+                                <tr>
+                                    <th>Property</th>
+                                    <th>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Meta Title</td>
+                                    <td id="simulator-meta-title"></td>
+                                </tr>
+                                <tr>
+                                    <td>Meta Description</td>
+                                    <td id="simulator-meta-description"></td>
+                                </tr>
+                                <tr>
+                                    <td>Canonical Tag</td>
+                                    <td id="simulator-canonical-tag"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="column40" id="keyword-density-section">
+                            <h3>Keyword Density</h3>
+                            <div id="keyword-density" style="max-height: 1000px; overflow-y: scroll; text-align: center;">
+                            </div>
+                        </div>
+                        <div></div>
+                        <div class="column60">
+                            <h3>Page Text</h3>
+                            <div id="simulatorPageText" style="max-height: 1000px; overflow-y: scroll; padding:10px"></div>
+                        </div>
+                        <div class="page-break"></div>
+                        <div style="clear: both;"></div>
+                        <div> </div> <!-- Clearfix -->
+                        <h3>Headers</h3>
+                        <table id="headers-table">
+                            <thead>
+                                <tr>
+                                    <th>Header</th>
+                                </tr>
+                            </thead>
+                            <tbody id="simulator-headers-body">
+                            </tbody>
+                        </table>
+
+                        <div class="page-break"></div>
+                        <!-- Page break before Links -->
+                        <h3>Links</h3>
+                        <table id="links-table">
+                            <thead>
+                                <tr>
+                                    <th>Link Type</th>
+                                    <th>URL</th>
+                                    <th>Link Text</th>
+                                </tr>
+                            </thead>
+                            <tbody id="simulator-links-body">
+                            </tbody>
+                        </table>
+
+
+                        <h3>Image Alt Text</h3>
+                        <table id="image-alt-table">
+                            <thead>
+                                <tr>
+                                    <th>Thumbnail</th>
+                                    <th>Image URL</th>
+                                    <th>Title</th>
+                                    <th>Alt Text</th>
+                                    <th>Size</th>
+                                </tr>
+                            </thead>
+                            <tbody id="simulator-image-alt-body">
+                            </tbody>
+                        </table>
+
+                    </div>
+                </div>
+                <hr>
+                <div class="page-break"></div>
+                <button class="collapsible" id="technicalButton"><i class="fas fa-plus-square"></i>Technical
+                    SEO</button>
+                <div class="content" id="technicalSeo">
+                    <label for="urlInput">Enter URL:</label>
+                    <input type="url" id="urlInput">
+                    <br>
+                    <label for="maxPagesInput">Max Pages to Crawl:</label>
+                    <input type="number" id="maxPagesInput" value="10">
+
+                    <button id="submitBtn">Analyse Website</button>
+
+                    <br><br>
+
+                    <div id="auditSummary"></div>
+
+                    <button class="collapsible" id="gtButton"><i class="fas fa-plus-square"></i>GTmetrix
+                        Results</button>
+                    <div class="content" id="gtMetrix">
+                        <div id="gtmetrixReport" style="display:none;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Metric</th>
+                                        <th>Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Report URL</td>
+                                        <td id="reportUrl"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Cumulative Layout Shift</td>
+                                        <td id="cls"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Largest Contentful Paint</td>
+                                        <td id="lcp"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Total Blocking Time</td>
+                                        <td id="tbt"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>GTmetrix Grade</td>
+                                        <td id="grade"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>GTmetrix Performance Score</td>
+                                        <td id="performance"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <br><br>
+                        </div>
+                    </div>
+
+                    <button class="collapsible" id="pageButton"><i class="fas fa-plus-square"></i>Page Analysis
+                        Results</button>
+                    <div class="content" id="pageAnalysis">
+                        <div id="pageAuditReport" style="display:none;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Metric</th>
+                                        <th>Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>PageSpeed (Mobile)</td>
+                                        <td id="pagespeed_audit"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Malware</td>
+                                        <td id="malware"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>robots.txt</td>
+                                        <td id="robots"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Sitemap</td>
+                                        <td id="sitemap"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <br><br>
+                        </div>
+                    </div>
+
+                    <button class="collapsible" id="crawlerButton"><i class="fas fa-plus-square"></i>Crawler
+                        Report</button>
+                    <div class="content" id="crawlerSection">
+                        <div id="crawlerReport" style="display:none;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>URL</th>
+                                        <th>Code</th>
+                                        <th>Title</th>
+                                        <th>Description</th>
+                                        <th>Canonical</th>
+                                        <th>Hreflang</th>
+                                        <th>Alt Text</th>
+                                        <th>H1</th>
+                                        <th>H2</th>
+                                        <th>Word Count</th>
+                                        <th>UI/UX</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="crawlerTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <button id="downloadResultsBtn" onclick="downloadResultsAsXlsx()">Download results as xlsx</button>
+                </div>
+                <hr>
+                <div class="page-break"></div>
+                <button class="collapsible" id="contentComparisonButton"><i class="fas fa-plus-square"></i>Content
+                    Comparison</button>
+                <div class="content" id="contentComparison">
+                    <label for="comparison-keyword">Keyword:</label>
+                    <input type="text" id="comparison-keyword" placeholder="e.g., digital marketing">
+                    <br>
+                    <label for="comparison-domain">Target Domain or URL:</label>
+                    <input type="url" id="comparison-domain"
+                        onmouseover="showTooltip(event, 'Using this field will add this URL to the top 10 SERPs comparison.')"
+                        onmouseout="hideTooltip()" placeholder="e.g., example.com">
+                    <br>
+                    <label for="comparison-urls">or Other Specific URLs (separate by new line or comma):</label>
+                    <textarea id="comparison-urls"
+                        onmouseover="showTooltip(event, 'Using this field will run the analysis based on the URLs in this field only.')"
+                        onmouseout="hideTooltip()"
+                        placeholder="e.g., https://example.com, https://another-example.com"></textarea>
+                    <br>
+
+                    <label>Page Types to Target:</label><br>
+                    <input type="checkbox" id="target-blogs" name="target-page-type" value="blog article"
+                        onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
+                        onmouseout="hideTooltip()">
+                    <label for="target-blogs"
+                        onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
+                        onmouseout="hideTooltip()">Blog Article</label>
+                    <input type="checkbox" id="target-product" name="target-page-type" value="product/service-page"
+                        onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
+                        onmouseout="hideTooltip()">
+                    <label for="target-product"
+                        onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
+                        onmouseout="hideTooltip()">Product/Service Page</label>
+                    <input type="checkbox" id="target-landing" name="target-page-type" value="landing page"
+                        onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
+                        onmouseout="hideTooltip()">
+                    <label for="target-landing"
+                        onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
+                        onmouseout="hideTooltip()">Landing Page</label>
+                    <input type="checkbox" id="target-any" name="target-page-type" value="any" checked>
+                    <label for="target-any">Any</label>
+                    <br>
+
+                    <div class="column">
+                        <label for="comparison-language">Language:</label>
+                        <input type="text" id="comparison-language" value="English" placeholder="e.g., English">
+                    </div>
+                    <div class="column">
+                        <label for="comparison-location">Location:</label>
+                        <input type="text" id="comparison-location" value="Singapore" placeholder="e.g., Singapore">
+                    </div>
+                    <br>
+                    <button id="contentComparisonAnalyzeBtn" onclick="contentComparisonAnalysis()">Analyse (up to 3
+                        mins)</button>
+                    <button onclick="openContentComparisonQueriesModal()" id="loadTimeToRankQueriesBtn">Load Previous
+                        Queries</button>
+                    <div id="initial-table"></div>
+                    <div id="comparison-results"></div>
+                    <div id="keyword-density"></div>
+                </div>
+
+                <hr>
+                <div class="page-break"></div>
+                <button class="collapsible" id="schemaGeneratorButton"><i class="fas fa-plus-square"></i>Schema
+                    Generator</button>
+                <div class="content" id="schema">
+                    <label for="schema-type">Schema Type:</label>
+                    <select id="schema-type">
+                        <option value="LocalBusiness">Local Business</option>
+                        <option value="Product">Product</option>
+                        <option value="Event">Event</option>
+                        <option value="Article">Article</option>
+                        <option value="BreadcrumbList">Breadcrumb</option>
+                        <option value="Event">Event</option>
+                        <option value="FAQPage">FAQ Page</option>
+                        <option value="HowTo">How-to</option>
+                        <option value="JobPosting">Job Posting</option>
+                        <option value="Organization">Organisation</option>
+                        <option value="Person">Person</option>
+                        <option value="Product">Product</option>
+                        <option value="VideoObject">Video</option>
+                        <option value="Website">Website</option>
+                        <!-- Add more schema types as needed -->
+                    </select>
+
+                    <div id="input-fields"></div>
+                    <div id="schema-output"></div>
+                </div>
+                <hr>
+                <div class="page-break"></div>
+                <button class="collapsible" id="onPageButton"><i class="fas fa-plus-square"></i>On-Page Optimisation</button>
+                <div id="onPageSection" class="content">
+                    <div class="input-group">
+                        <div style="align-items: center; margin-bottom: 5px;">
+                            <label for="on-page-url" style="margin-right: 5px;">Enter URL:</label><br>
+                            <input type="url" id="on-page-url" placeholder="https://example.com" required>
+
+                        </div>
+
+                        <label for="on-page-keywords">Enter Keywords (comma or newline separated):</label>
+                        <textarea id="on-page-keywords" rows="4" placeholder="keyword1, keyword2, keyword3"></textarea>
+
+                        <button onclick="getImages()" id="getImagesBtn">Extract Elements & Generate
+                            Recommendations</button>
+                        <!-- 
+                    <button onclick="loadCachedData()" class="load-cache-button">Load Cached Data From Browser</button>
+                    -->
+                        <button onclick="openQueriesModal()" id="loadQueriesBtn">Load Previous Queries</button>
+                        <button onclick="clearOnPageData()" style="white-space: nowrap;">Clear Data</button>
+                    </div>
+                    <button class="collapsible" id="onPageResultsCollapsible" style="display: none;">Meta Data and
+                        Headings</button>
+                    <div class="content" id="onPageResults"></div>
+                    <button class="collapsible" id="imageCollapsible" style="display: none;">Image Alt Text</button>
+                    <div class="content" id="imageRecommendations"></div>
+                    <button class="collapsible" id="contentCollapsible" style="display: none;">Content</button>
+                    <div class="content" id="contentRecommendations"></div>
+                </div>
+                <hr>
+                <div class="page-break"></div>
+                <button class="collapsible" id="rankCheckerButton"><i class="fas fa-plus-square"></i>Rank
+                    Checker</button>
+                <div class="content" id="rankChecker">
+                    <label-fixed for="rankCheckerKeywords">Keywords:</label-fixed><br>
+                    <textarea id="rankCheckerKeywords" rows="10" cols="50"
+                        placeholder="Enter keywords, one per line, up to 1,200 keywords"></textarea>
+                    <br>
+                    <label-fixed for="rankCheckerDomain">Targeted Domain / URL:</label-fixed><br>
+                    <input type="url" id="rankCheckerDomain" value="https://mediaonemarketing.com.sg"><br>
+                    <label-fixed for="rankCheckerLanguage">Language:</label-fixed><br>
+                    <input type="text" id="rankCheckerLanguage" value="English"><br>
+                    <label-fixed for="rankCheckerLocation">Location:</label-fixed><br>
+                    <input type="text" id="rankCheckerLocation" value="Singapore">
+                    <br><br>
+                    <button id="checkRanksButton" onclick="checkRanks()">Check Ranks</button>
+                    <hr>
+                    <br>
+                    <table id="rankCheckerResultsTable" style="display: none;">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Keyword</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rankCheckerResultsTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <hr>
+            <div class="page-break"></div>
+        </div>
+
+        <div id = "smmSection">
+            <button class="collapsible" id="smm"><i class="fas fa-plus-square"></i><i class="fas fa-share-alt"></i>Social
+                Media (SMM)</button>
+            <div class="content" id="socialMedia">
+                <button class="collapsible" id="contentGeneratorButton"><i class="fas fa-plus-square"></i>Content
+                    Generator</button>
+                <div class="content" id="contentGenerator">
+                    <form id="content-form">
+                        <div class="column">
+                            <div class="column">
+                                <label for="gender">Gender:</label><br>
+                                <select id="gender" name="gender">
+                                    <option value=""></option>
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                    <option value="non-specfic-gender">Non-Specific</option>
+                                </select>
+                            </div>
+                            <div class="column">
+                                <label for="age-range">Age e.g. Students, 30-40 years old:</label>
+                                <input class="input-short" type="text" id="age-range" name="age-range">
+                            </div>
+
+                            <div style="clear: both;"></div>
+
+                            <label for="occupation">Occupation e.g. Homemakers, Professionals:</label><br>
+                            <input type="text" id="occupation" name="occupation"><br>
+
+                            <label for="income">Income (e.g. Mid Income):</label>
+                            <input type="text" id="income" name="income"><br>
+
+                            <label for="reference-url">Reference Webpage URL (Optional):</label>
+                            <textarea id="reference-url" name="reference-url"
+                                placeholder="Enter URLs separated by commas or newlines"></textarea><br>
+
+                        </div>
+
+                        <div class="column">
+
+                            <label for="subgroups">Sub-Groups (e.g. Badminton Players):</label>
+                            <input type="text" id="subgroups" name="subgroups"><br>
+
+                            <label for="painpoints">Pain Points (e.g. not enough time):</label>
+                            <input type="text" id="painpoints" name="painpoints"><br>
+
+                            <label for="audience_goal">Audience Goals (e.g. Convenience):</label>
+                            <input type="text" id="audience_goal" name="audience_goal"><br>
+
+                            <label for="generator_brand_guide_urls">URLs of Brand Guide PDFs (public
+                                accessible):</label><br>
+                            <textarea style="min-width: 90%; max-width: 90%;" id="generator_brand_guide_urls"
+                                placeholder="Enter URLs separated by commas or newlines"></textarea><br>
+                            <br>
+                        </div>
+                        <br>
+
+                        <label for="sample-text">Sample Text/Post (Optional):</label><br>
+                        <textarea id="sample-text" name="sample-text"></textarea><br><br>
+
+                        <label for="post-info">Content of Post:</label><br>
+                        <textarea id="post-info" name="post-info"></textarea><br><br>
+
+                        <div class="column">
+
+                            <label for="product_service">Product / Service:</label>
+                            <input type="text" id="product_service" name="product_service">
+                            <br>
+                            <label for="desired_action">Desired Action e.g. Contact us:</label>
+                            <input type="text" id="desired_action" name="desired_action">
+                            <br>
+
+                            <label for="post_objectives">Post Objectives e.g. Branding, Lifestyle, Seasonal
+                                Greetings:</label>
+                            <input type="text" id="post_objectives" name="post_objectives">
+
+                            <div class="column">
+                                <label for="content-type">Type of Content:</label><br>
+                                <select id="content-type" name="content-type">
+                                    <option value="blog-post">Blog Post</option>
+                                    <option value="instagram-caption">Instagram Caption</option>
+                                    <option value="facebook-post">Facebook Post</option>
+                                    <option value="linkedin-post">LinkedIn Post</option>
+                                </select>
+                            </div>
+
+                            <br>
+                            <div class="column">
+
+                                <label for="word_count">Word Count e.g. Long, 100 words:</label>
+                                <input class="input-short" type="text" id="word_count" name="word_count">
+                            </div>
+
+
+                        </div>
+
+                        <div class="column">
+
+                            <label for="tone">Tone of Voice e.g. Luxury, Professional, Casual:</label>
+                            <input type="text" id="tone" name="tone">
+                            <br>
+
+                            <label for="usp">Unique Selling Point e.g. Available 24/7, Budget friendly:</label>
+                            <input type="text" id="usp" name="usp"><br>
+
+                            <label for="pov">POV e.g. 1st person, 3rd person:</label>
+                            <input type="text" id="pov" name="pov">
+                            <br>
+
+                            <div class="column">
+                                <label for="emojis">Emojis:</label><br>
+                                <select id="emojis" name="emojis">
+                                    <option value="yes">Yes</option>
+                                    <option value="no">No</option>
+                                </select>
+                            </div>
+                            <div class="column">
+                                <label for="hashtags">Hashtags:</label><br>
+                                <select id="hashtags" name="hashtags">
+                                    <option value="yes">Yes</option>
+                                    <option value="no">No</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="clear: both;"></div>
+
+                        <button type="submit" id="generate-button">Generate Content</button>
+                    </form>
+
+                    <div id="generated-content"></div>
+                </div>
+            </div>
+            <hr>
+        </div>
+
+        <div id="semSection">
+            <div class="page-break"></div>
+            <button class="collapsible" id="semButton"><i class="fas fa-plus-square"></i><i class="fas fa-ad"></i>Search
+                Engine Marketing (SEM)</button>
+            <div class="content" id="SEM">
+                <label for="ad_format">Ad Formats:</label><br>
+                <select id="ad_format" name="ad_format">
+                    <option value="google-responsive-search-ads">Google Responsive Search Ads</option>
+                    <option value="google-performance-max-ads">Google Performance Max Ads</option>
+                    <option value="google-display-ads">Google Display Ads</option>
+                    <option value="meta-image-ads">Meta Image Ads</option>
+                    <option value="meta-video-ads">Meta Video Ads</option>
+                    <option value="meta-carousel-ads">Meta Carousel Ads</option>
+                    <option value="meta-collection-ads">Meta Collection Ads</option>
+                    <option value="linkedin-image-ads">LinkedIn Image Ads</option>
+                    <option value="linkedin-carousel-ads">LinkedIn Carousel Ads</option>
+                    <option value="linkedin-video-ads">LinkedIn Video Ads</option>
+                    <option value="linkedin-click-to-message-ads">LinkedIn Click To Message Ads</option>
+                </select>
+                <br>
+                <label for="sem_webpages">Webpages (seperated by commas or new lines):</label><br>
+                <textarea id="sem_webpages" placeholder="e.g., https://example.com, https://another-example.com"></textarea>
+                <br>
+                <div class="column">
+                    <label for="sem_country">Country:</label><br>
+                    <input type="text" id="sem_country" value="Singapore"><br>
+                </div>
+                <div class="column">
+                    <label for="sem_tone">Tone of Voice:</label><br>
+                    <input type="text" id="sem_tone" value="Salesy"><br>
+                </div>
+                <div class="column">
+                    <label for="sem_language">Language:</label><br>
+                    <input type="text" id="sem_language" value="English"><br>
+                </div>
+                <div style="clear: both;"></div><br>
+                <div class="toggle-container" id="semBrandFocus">
+                    <span class="toggle-label">Don't Focus on Brand/Company</span>
+                    <label class="switch">
+                        <input type="checkbox" id="brand-checkbox" class="sliderMobile"> <span class="slider round"></span>
+                    </label>
+                    <span class="toggle-label-right">Focus on Brand/Company</span>
+                </div><br>
+                <div class="toggle-container" id="semProductFocus">
+                    <span class="toggle-label">Don't Focus on Products/Services</span>
+                    <label class="switch">
+                        <input type="checkbox" id="product-checkbox" class="sliderMobile" checked> <span
+                            class="slider round"></span>
+                    </label>
+                    <span class="toggle-label-right">Focus on Products/Services</span>
+                </div>
+                <div style="clear: both;"></div>
+                <br>
+                <label for="sem_additional">Addtional Information (optional):</label><br>
+                <textarea id="sem_additional"
+                    placeholder="You can input information that is not found in the webpage(s) content or focus area(s) here"></textarea></textarea>
 
                 <br>
-                <button class="collapsible-plus" id="expandRankingKeywords"><i class="fas fa-plus-square"></i></button>
-                <button class="collapsible90" id="ranking_keywords" onclick="rankingKeywords(event)">Ranking
-                    Keywords</button>
-                <div class="content" id="rankingKeywords">
-                    <div id="rankedKeywordsCount"></div>
-                    <div id="keywordListContainer">
-                        <div class="keyword-row" id="rankedKeywordHeaderRow">
-                            <div class="keyword-column" onclick="sortRankedKeywords(0)">
-                                <strong>Keyword</strong>
-                            </div>
-                            <div class="keyword-column" onclick="sortRankedKeywords(1)">
-                                <strong>Search Vol</strong>
-                            </div>
-                            <div class="keyword-column" onclick="sortRankedKeywords(2)">
-                                <strong>Rank</strong>
-                            </div>
-                            <div class="keyword-column" onclick="sortRankedKeywords(3)">
-                                <strong>Difficulty</strong>
-                            </div>
-                            <div class="checkbox-column"></div><strong>Choose</strong>
-                        </div>
-                        <ul id="rankedKeywordList"></ul>
-                        <div id="rankingKeywordsExport" style="display:none">
-                            <button type="button"
-                                onclick="exportSelectedRankedKeywordsToCSV(rankedKeywordHeaderRow, rankedKeywordList)">Export
-                                selected as
-                                .csv</button>
-                            <button type="button"
-                                onclick="exportRankedKeywordsToCSV(rankedKeywordHeaderRow, rankedKeywordList)">Export
-                                all as
-                                .csv</button>
-                        </div>
-                    </div>
-                </div><br>
-                <button class="collapsible-plus" id="expandWebpageKeywords"><i class="fas fa-plus-square"></i></button>
-                <button class="collapsible90" id="keywords_for_site" onclick="getWebpageKeywords(event)">Keywords
-                    Based
-                    on Webpage Content</button>
-                <div class="content" id="siteKeywords" style="padding:10px">
-                </div>
-            </div>
+                <button id="getProducts" onclick="semWebpageProducts()">Step 1: Identify
+                    products/services/brand/company</button>
+                <br>
+                <div id="products"></div>
+                <br>
+                <button id="semAnalyse" onclick="semAnalyseWebsite()">Step 2: Generate KWs, USPs & Audience</button>
+                <br>
 
-            <div class="column50">
-                <div id="serp-section"></div>
-            </div>
-
-            <hr>
-            <button class="collapsible" id="keyword_mapping"><i class="fas fa-plus-square"></i>Keyword Mapping</button>
-            <div class="content" id="keywordMapping">
-                <button id="addListBtn">Add New URL</button>
-                <button id="undoBtn" disabled>Undo Delete</button>
-                <div class="container" id="listsContainer"></div>
-                <div id="recommendations"></div>
-            </div>
-            <button class="collapsible" id="meta_data"><i class="fas fa-plus-square"></i>Meta Data</button>
-            <div class="content" id="metaData">
-                <p><b>Meta Title: </b><span id="targetTitle">-</span></p>
-                <p><b>Meta Description: </b><span id="targetDescription">-</span></p>
-                <p><b>h1 Header: </b><span id="targetH1">-</span></p>
-
-            </div>
-
-            <button class="collapsible" id="domain_metrics"><i class="fas fa-plus-square"></i>Domain Metrics (DA,
-                PA,
-                PageSpeed)</button>
-            <div class="content" id="domainMetrics">
-                <div class="column">
-                    <p><b>Domain Authority (DA): </b><span id="da">-</span></p>
-                    <p><b>Page Authority (PA): </b><span id="pa">-</span></p>
-                    <p><b>Backlinks Spam Score: </b><span id="targetSpamScore">-</span></p>
-                    <p><b>Backlinks: </b><span id="targetBacklinks">-</span></p>
-                    <p><b>Referring Domains: </b><span id="targetRefDomains">-</span></p>
-                    <p><b>Page Word Count: </b><span id="targetWordCount">-</span></p>
-                </div>
-                <div class="column">
-                    <p><b>Internal Links: </b><span id="targetInternalLinks">-</span></p>
-                    <p><b>External Links: </b><span id="targetExternalLinks">-</span></p>
-                    <p><b>Flesch Readability: </b><span id="targetReadability">-</span></p>
-                    <p><b>Images: </b><span id="targetImages">-</span></p>
-                    <p><b>CLS: </b><span id="targetCls">-</span></p>
-                    <p><b>LCP: </b><span id="targetLcp">-</span></p>
-                    <p><b>FID: </b><span id="targetFid">-</span></p>
-                    <p><b>Schema: </b><span id="targetSchema">-</span></p>
+                <div class="column" id="output"></div>
+                <div class="column" id="selected" style="display:none;">
+                    <h2>Selected</h2>
+                    <textarea id="selectedText" rows="20"></textarea><br>
+                    <button id="generateSem" onclick="generateGoogle()">Step 3: Select checkboxes then click
+                        here</button>
+                    <h2>Generated</h2>
+                    <div id="generated"></div>
                 </div>
                 <div style="clear: both;"></div>
                 <div> </div> <!-- Clearfix -->
             </div>
             <hr>
+        </div>
+
+        <div id="competitorsSection">
             <div class="page-break"></div>
-            <button class="collapsible" id="keywordAnalysisBtn"><i class="fas fa-plus-square"></i>Keyword
-                Analysis</button>
-            <div class="content" id="keywordAnalysis">
-                <div id="overall-summary" style="display:none;"></div>
-                <div id="keyword-analysis-results">
-                    <!-- Collapsible sections for each keyword analysis will be added here -->
+            <button class="collapsible" id="competitionBtn"><i class="fas fa-plus-square"></i><i
+                    class="fas fa-search"></i>Competitors Identifier</button>
+            <div class="content" id="competitors_content">
+                <div class="column50">
+                    <label for="competitors-target1">Target Domain:</label>
+                    <input type="url" id="competitors-target1" placeholder="e.g. www.abc.com"><br>
+                    <label for="competitor_keywords">Keywords (seperated by commas or new
+                        lines):</label><br>
+                    <textarea id="competitor_keywords"></textarea><br>
+                    <label for="competitors-language">Language:</label>
+                    <input type="text" id="competitors-language" value="English" placeholder="e.g., English"><br>
+                    <label for="competitors-location">Location:</label>
+                    <input type="text" id="competitors-location" value="Singapore" placeholder="e.g., Singapore"><br>
+                    <button id="getCompetitorsBtn" onclick="getCompetitors()">Get Competitors</button><br>
+                    <div id="competitorsOutput" style="display:none;height:400px;overflow:auto;">
+                        <br>
+                    </div>
+                </div>
+                <div class="column50">
+                    <label for="competitor_domains">Competitor Domains:</label><br>
+                    <textarea id="competitor_domains"></textarea><br>
+                    <button id="getIntersectionResults2" onclick="getIntersectionResults2()">
+                        Get Intersection
+                        Results</button><br>
+
+
+                    <div id="getIntersectionResults"></div>
+                    <div id="competitorsRanking" style="display:none;height:400px;overflow:auto;"></div>
                 </div>
             </div>
             <hr>
+        </div>
+
+        <div id="personaSection">
             <div class="page-break"></div>
-            <button class="collapsible" id="simulatorButton"><i class="fas fa-plus-square"></i>Google Crawler
-                Simulator</button>
-            <div class="content" id="crawlerSimulator">
-                <label for="google-simulator-url">Enter URL:</label>
-                <input type="url" id="google-simulator-url" size="50"><br>
-                <button id="simulatorBtn" onclick="googleCrawlerSimulator()">Analyse</button>
-                <div id="simulatorError" style="color: red;"></div>
-                <div id="crawler-simulator-results" style="display: none;">
-                    <h3>Meta Information</h3>
-                    <table id="meta-table">
-                        <thead>
-                            <tr>
-                                <th>Property</th>
-                                <th>Value</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>Meta Title</td>
-                                <td id="simulator-meta-title"></td>
-                            </tr>
-                            <tr>
-                                <td>Meta Description</td>
-                                <td id="simulator-meta-description"></td>
-                            </tr>
-                            <tr>
-                                <td>Canonical Tag</td>
-                                <td id="simulator-canonical-tag"></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <div class="column40" id="keyword-density-section">
-                        <h3>Keyword Density</h3>
-                        <div id="keyword-density" style="max-height: 1000px; overflow-y: scroll; text-align: center;">
-                        </div>
-                    </div>
-                    <div></div>
-                    <div class="column60">
-                        <h3>Page Text</h3>
-                        <div id="simulatorPageText" style="max-height: 1000px; overflow-y: scroll; padding:10px"></div>
-                    </div>
-                    <div class="page-break"></div>
-                    <div style="clear: both;"></div>
-                    <div> </div> <!-- Clearfix -->
-                    <h3>Headers</h3>
-                    <table id="headers-table">
-                        <thead>
-                            <tr>
-                                <th>Header</th>
-                            </tr>
-                        </thead>
-                        <tbody id="simulator-headers-body">
-                        </tbody>
-                    </table>
-
-                    <div class="page-break"></div>
-                    <!-- Page break before Links -->
-                    <h3>Links</h3>
-                    <table id="links-table">
-                        <thead>
-                            <tr>
-                                <th>Link Type</th>
-                                <th>URL</th>
-                                <th>Link Text</th>
-                            </tr>
-                        </thead>
-                        <tbody id="simulator-links-body">
-                        </tbody>
-                    </table>
-
-
-                    <h3>Image Alt Text</h3>
-                    <table id="image-alt-table">
-                        <thead>
-                            <tr>
-                                <th>Thumbnail</th>
-                                <th>Image URL</th>
-                                <th>Title</th>
-                                <th>Alt Text</th>
-                                <th>Size</th>
-                            </tr>
-                        </thead>
-                        <tbody id="simulator-image-alt-body">
-                        </tbody>
-                    </table>
-
-                </div>
-            </div>
-            <hr>
-            <div class="page-break"></div>
-            <button class="collapsible" id="technicalButton"><i class="fas fa-plus-square"></i>Technical
-                SEO</button>
-            <div class="content" id="technicalSeo">
-                <label for="urlInput">Enter URL:</label>
-                <input type="url" id="urlInput">
-                <br>
-                <label for="maxPagesInput">Max Pages to Crawl:</label>
-                <input type="number" id="maxPagesInput" value="10">
-
-                <button id="submitBtn">Analyse Website</button>
-
-                <br><br>
-
-                <div id="auditSummary"></div>
-
-                <button class="collapsible" id="gtButton"><i class="fas fa-plus-square"></i>GTmetrix
-                    Results</button>
-                <div class="content" id="gtMetrix">
-                    <div id="gtmetrixReport" style="display:none;">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Metric</th>
-                                    <th>Value</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>Report URL</td>
-                                    <td id="reportUrl"></td>
-                                </tr>
-                                <tr>
-                                    <td>Cumulative Layout Shift</td>
-                                    <td id="cls"></td>
-                                </tr>
-                                <tr>
-                                    <td>Largest Contentful Paint</td>
-                                    <td id="lcp"></td>
-                                </tr>
-                                <tr>
-                                    <td>Total Blocking Time</td>
-                                    <td id="tbt"></td>
-                                </tr>
-                                <tr>
-                                    <td>GTmetrix Grade</td>
-                                    <td id="grade"></td>
-                                </tr>
-                                <tr>
-                                    <td>GTmetrix Performance Score</td>
-                                    <td id="performance"></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <br><br>
-                    </div>
-                </div>
-
-                <button class="collapsible" id="pageButton"><i class="fas fa-plus-square"></i>Page Analysis
-                    Results</button>
-                <div class="content" id="pageAnalysis">
-                    <div id="pageAuditReport" style="display:none;">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Metric</th>
-                                    <th>Value</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>PageSpeed (Mobile)</td>
-                                    <td id="pagespeed_audit"></td>
-                                </tr>
-                                <tr>
-                                    <td>Malware</td>
-                                    <td id="malware"></td>
-                                </tr>
-                                <tr>
-                                    <td>robots.txt</td>
-                                    <td id="robots"></td>
-                                </tr>
-                                <tr>
-                                    <td>Sitemap</td>
-                                    <td id="sitemap"></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        <br><br>
-                    </div>
-                </div>
-
-                <button class="collapsible" id="crawlerButton"><i class="fas fa-plus-square"></i>Crawler
-                    Report</button>
-                <div class="content" id="crawlerSection">
-                    <div id="crawlerReport" style="display:none;">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>URL</th>
-                                    <th>Code</th>
-                                    <th>Title</th>
-                                    <th>Description</th>
-                                    <th>Canonical</th>
-                                    <th>Hreflang</th>
-                                    <th>Alt Text</th>
-                                    <th>H1</th>
-                                    <th>H2</th>
-                                    <th>Word Count</th>
-                                    <th>UI/UX</th>
-                                </tr>
-                            </thead>
-                            <tbody id="crawlerTableBody">
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <button id="downloadResultsBtn" onclick="downloadResultsAsXlsx()">Download results as xlsx</button>
-            </div>
-            <hr>
-            <div class="page-break"></div>
-            <button class="collapsible" id="contentComparisonButton"><i class="fas fa-plus-square"></i>Content
-                Comparison</button>
-            <div class="content" id="contentComparison">
-                <label for="comparison-keyword">Keyword:</label>
-                <input type="text" id="comparison-keyword" placeholder="e.g., digital marketing">
-                <br>
-                <label for="comparison-domain">Target Domain or URL:</label>
-                <input type="url" id="comparison-domain"
-                    onmouseover="showTooltip(event, 'Using this field will add this URL to the top 10 SERPs comparison.')"
-                    onmouseout="hideTooltip()" placeholder="e.g., example.com">
-                <br>
-                <label for="comparison-urls">or Other Specific URLs (separate by new line or comma):</label>
-                <textarea id="comparison-urls"
-                    onmouseover="showTooltip(event, 'Using this field will run the analysis based on the URLs in this field only.')"
-                    onmouseout="hideTooltip()"
-                    placeholder="e.g., https://example.com, https://another-example.com"></textarea>
-                <br>
-
-                <label>Page Types to Target:</label><br>
-                <input type="checkbox" id="target-blogs" name="target-page-type" value="blog article"
-                    onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
-                    onmouseout="hideTooltip()">
-                <label for="target-blogs"
-                    onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
-                    onmouseout="hideTooltip()">Blog Article</label>
-                <input type="checkbox" id="target-product" name="target-page-type" value="product/service-page"
-                    onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
-                    onmouseout="hideTooltip()">
-                <label for="target-product"
-                    onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
-                    onmouseout="hideTooltip()">Product/Service Page</label>
-                <input type="checkbox" id="target-landing" name="target-page-type" value="landing page"
-                    onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
-                    onmouseout="hideTooltip()">
-                <label for="target-landing"
-                    onmouseover="showTooltip(event, 'If no URLs are classifed as this page type, the analysis will be done for the all page types.')"
-                    onmouseout="hideTooltip()">Landing Page</label>
-                <input type="checkbox" id="target-any" name="target-page-type" value="any" checked>
-                <label for="target-any">Any</label>
-                <br>
-
-                <div class="column">
-                    <label for="comparison-language">Language:</label>
-                    <input type="text" id="comparison-language" value="English" placeholder="e.g., English">
-                </div>
-                <div class="column">
-                    <label for="comparison-location">Location:</label>
-                    <input type="text" id="comparison-location" value="Singapore" placeholder="e.g., Singapore">
-                </div>
-                <br>
-                <button id="contentComparisonAnalyzeBtn" onclick="contentComparisonAnalysis()">Analyse (up to 3
-                    mins)</button>
-                <button onclick="openContentComparisonQueriesModal()" id="loadTimeToRankQueriesBtn">Load Previous
-                    Queries</button>
-                <div id="initial-table"></div>
-                <div id="comparison-results"></div>
-                <div id="keyword-density"></div>
-            </div>
-
-            <hr>
-            <div class="page-break"></div>
-            <button class="collapsible" id="schemaGeneratorButton"><i class="fas fa-plus-square"></i>Schema
+            <button class="collapsible" id="persona"><i class="fas fa-plus-square"></i><i class="fas fa-users"></i>Persona
                 Generator</button>
-            <div class="content" id="schema">
-                <label for="schema-type">Schema Type:</label>
-                <select id="schema-type">
-                    <option value="LocalBusiness">Local Business</option>
-                    <option value="Product">Product</option>
-                    <option value="Event">Event</option>
-                    <option value="Article">Article</option>
-                    <option value="BreadcrumbList">Breadcrumb</option>
-                    <option value="Event">Event</option>
-                    <option value="FAQPage">FAQ Page</option>
-                    <option value="HowTo">How-to</option>
-                    <option value="JobPosting">Job Posting</option>
-                    <option value="Organization">Organisation</option>
-                    <option value="Person">Person</option>
-                    <option value="Product">Product</option>
-                    <option value="VideoObject">Video</option>
-                    <option value="Website">Website</option>
-                    <!-- Add more schema types as needed -->
-                </select>
-
-                <div id="input-fields"></div>
-                <div id="schema-output"></div>
-            </div>
-            <hr>
-            <div class="page-break"></div>
-            <button class="collapsible" id="onPageButton"><i class="fas fa-plus-square"></i>On-Page Optimisation</button>
-            <div id="onPageSection" class="content">
-                <div class="input-group">
-                    <div style="align-items: center; margin-bottom: 5px;">
-                        <label for="on-page-url" style="margin-right: 5px;">Enter URL:</label><br>
-                        <input type="url" id="on-page-url" placeholder="https://example.com" required>
-
-                    </div>
-
-                    <label for="on-page-keywords">Enter Keywords (comma or newline separated):</label>
-                    <textarea id="on-page-keywords" rows="4" placeholder="keyword1, keyword2, keyword3"></textarea>
-
-                    <button onclick="getImages()" id="getImagesBtn">Extract Elements & Generate
-                        Recommendations</button>
-                    <!-- 
-                <button onclick="loadCachedData()" class="load-cache-button">Load Cached Data From Browser</button>
-                -->
-                    <button onclick="openQueriesModal()" id="loadQueriesBtn">Load Previous Queries</button>
-                    <button onclick="clearOnPageData()" style="white-space: nowrap;">Clear Data</button>
-                </div>
-                <button class="collapsible" id="onPageResultsCollapsible" style="display: none;">Meta Data and
-                    Headings</button>
-                <div class="content" id="onPageResults"></div>
-                <button class="collapsible" id="imageCollapsible" style="display: none;">Image Alt Text</button>
-                <div class="content" id="imageRecommendations"></div>
-                <button class="collapsible" id="contentCollapsible" style="display: none;">Content</button>
-                <div class="content" id="contentRecommendations"></div>
-            </div>
-            <hr>
-            <div class="page-break"></div>
-            <button class="collapsible" id="rankCheckerButton"><i class="fas fa-plus-square"></i>Rank
-                Checker</button>
-            <div class="content" id="rankChecker">
-                <label-fixed for="rankCheckerKeywords">Keywords:</label-fixed><br>
-                <textarea id="rankCheckerKeywords" rows="10" cols="50"
-                    placeholder="Enter keywords, one per line, up to 1,200 keywords"></textarea>
-                <br>
-                <label-fixed for="rankCheckerDomain">Targeted Domain / URL:</label-fixed><br>
-                <input type="url" id="rankCheckerDomain" value="https://mediaonemarketing.com.sg"><br>
-                <label-fixed for="rankCheckerLanguage">Language:</label-fixed><br>
-                <input type="text" id="rankCheckerLanguage" value="English"><br>
-                <label-fixed for="rankCheckerLocation">Location:</label-fixed><br>
-                <input type="text" id="rankCheckerLocation" value="Singapore">
-                <br><br>
-                <button id="checkRanksButton" onclick="checkRanks()">Check Ranks</button>
-                <hr>
-                <br>
-                <table id="rankCheckerResultsTable" style="display: none;">
-                    <thead>
-                        <tr>
-                            <th>Rank</th>
-                            <th>Keyword</th>
-                        </tr>
-                    </thead>
-                    <tbody id="rankCheckerResultsTableBody">
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <hr>
-        <div class="page-break"></div>
-        <button class="collapsible" id="smm"><i class="fas fa-plus-square"></i><i class="fas fa-share-alt"></i>Social
-            Media (SMM)</button>
-        <div class="content" id="socialMedia">
-            <button class="collapsible" id="contentGeneratorButton"><i class="fas fa-plus-square"></i>Content
-                Generator</button>
-            <div class="content" id="contentGenerator">
-                <form id="content-form">
-                    <div class="column">
-                        <div class="column">
-                            <label for="gender">Gender:</label><br>
-                            <select id="gender" name="gender">
-                                <option value=""></option>
-                                <option value="male">Male</option>
-                                <option value="female">Female</option>
-                                <option value="non-specfic-gender">Non-Specific</option>
-                            </select>
-                        </div>
-                        <div class="column">
-                            <label for="age-range">Age e.g. Students, 30-40 years old:</label>
-                            <input class="input-short" type="text" id="age-range" name="age-range">
-                        </div>
-
-                        <div style="clear: both;"></div>
-
-                        <label for="occupation">Occupation e.g. Homemakers, Professionals:</label><br>
-                        <input type="text" id="occupation" name="occupation"><br>
-
-                        <label for="income">Income (e.g. Mid Income):</label>
-                        <input type="text" id="income" name="income"><br>
-
-                        <label for="reference-url">Reference Webpage URL (Optional):</label>
-                        <textarea id="reference-url" name="reference-url"
-                            placeholder="Enter URLs separated by commas or newlines"></textarea><br>
-
-                    </div>
-
-                    <div class="column">
-
-                        <label for="subgroups">Sub-Groups (e.g. Badminton Players):</label>
-                        <input type="text" id="subgroups" name="subgroups"><br>
-
-                        <label for="painpoints">Pain Points (e.g. not enough time):</label>
-                        <input type="text" id="painpoints" name="painpoints"><br>
-
-                        <label for="audience_goal">Audience Goals (e.g. Convenience):</label>
-                        <input type="text" id="audience_goal" name="audience_goal"><br>
-
-                        <label for="generator_brand_guide_urls">URLs of Brand Guide PDFs (public
-                            accessible):</label><br>
-                        <textarea style="min-width: 90%; max-width: 90%;" id="generator_brand_guide_urls"
-                            placeholder="Enter URLs separated by commas or newlines"></textarea><br>
-                        <br>
-                    </div>
-                    <br>
-
-                    <label for="sample-text">Sample Text/Post (Optional):</label><br>
-                    <textarea id="sample-text" name="sample-text"></textarea><br><br>
-
-                    <label for="post-info">Content of Post:</label><br>
-                    <textarea id="post-info" name="post-info"></textarea><br><br>
-
-                    <div class="column">
-
-                        <label for="product_service">Product / Service:</label>
-                        <input type="text" id="product_service" name="product_service">
-                        <br>
-                        <label for="desired_action">Desired Action e.g. Contact us:</label>
-                        <input type="text" id="desired_action" name="desired_action">
-                        <br>
-
-                        <label for="post_objectives">Post Objectives e.g. Branding, Lifestyle, Seasonal
-                            Greetings:</label>
-                        <input type="text" id="post_objectives" name="post_objectives">
-
-                        <div class="column">
-                            <label for="content-type">Type of Content:</label><br>
-                            <select id="content-type" name="content-type">
-                                <option value="blog-post">Blog Post</option>
-                                <option value="instagram-caption">Instagram Caption</option>
-                                <option value="facebook-post">Facebook Post</option>
-                                <option value="linkedin-post">LinkedIn Post</option>
-                            </select>
-                        </div>
-
-                        <br>
-                        <div class="column">
-
-                            <label for="word_count">Word Count e.g. Long, 100 words:</label>
-                            <input class="input-short" type="text" id="word_count" name="word_count">
-                        </div>
-
-
-                    </div>
-
-                    <div class="column">
-
-                        <label for="tone">Tone of Voice e.g. Luxury, Professional, Casual:</label>
-                        <input type="text" id="tone" name="tone">
-                        <br>
-
-                        <label for="usp">Unique Selling Point e.g. Available 24/7, Budget friendly:</label>
-                        <input type="text" id="usp" name="usp"><br>
-
-                        <label for="pov">POV e.g. 1st person, 3rd person:</label>
-                        <input type="text" id="pov" name="pov">
-                        <br>
-
-                        <div class="column">
-                            <label for="emojis">Emojis:</label><br>
-                            <select id="emojis" name="emojis">
-                                <option value="yes">Yes</option>
-                                <option value="no">No</option>
-                            </select>
-                        </div>
-                        <div class="column">
-                            <label for="hashtags">Hashtags:</label><br>
-                            <select id="hashtags" name="hashtags">
-                                <option value="yes">Yes</option>
-                                <option value="no">No</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div style="clear: both;"></div>
-
-                    <button type="submit" id="generate-button">Generate Content</button>
-                </form>
-
-                <div id="generated-content"></div>
-            </div>
-        </div>
-        <hr>
-        <div class="page-break"></div>
-        <button class="collapsible" id="semButton"><i class="fas fa-plus-square"></i><i class="fas fa-ad"></i>Search
-            Engine Marketing (SEM)</button>
-        <div class="content" id="SEM">
-            <label for="ad_format">Ad Formats:</label><br>
-            <select id="ad_format" name="ad_format">
-                <option value="google-responsive-search-ads">Google Responsive Search Ads</option>
-                <option value="google-performance-max-ads">Google Performance Max Ads</option>
-                <option value="google-display-ads">Google Display Ads</option>
-                <option value="meta-image-ads">Meta Image Ads</option>
-                <option value="meta-video-ads">Meta Video Ads</option>
-                <option value="meta-carousel-ads">Meta Carousel Ads</option>
-                <option value="meta-collection-ads">Meta Collection Ads</option>
-                <option value="linkedin-image-ads">LinkedIn Image Ads</option>
-                <option value="linkedin-carousel-ads">LinkedIn Carousel Ads</option>
-                <option value="linkedin-video-ads">LinkedIn Video Ads</option>
-                <option value="linkedin-click-to-message-ads">LinkedIn Click To Message Ads</option>
-            </select>
-            <br>
-            <label for="sem_webpages">Webpages (seperated by commas or new lines):</label><br>
-            <textarea id="sem_webpages" placeholder="e.g., https://example.com, https://another-example.com"></textarea>
-            <br>
-            <div class="column">
-                <label for="sem_country">Country:</label><br>
-                <input type="text" id="sem_country" value="Singapore"><br>
-            </div>
-            <div class="column">
-                <label for="sem_tone">Tone of Voice:</label><br>
-                <input type="text" id="sem_tone" value="Salesy"><br>
-            </div>
-            <div class="column">
-                <label for="sem_language">Language:</label><br>
-                <input type="text" id="sem_language" value="English"><br>
-            </div>
-            <div style="clear: both;"></div><br>
-            <div class="toggle-container" id="semBrandFocus">
-                <span class="toggle-label">Don't Focus on Brand/Company</span>
-                <label class="switch">
-                    <input type="checkbox" id="brand-checkbox" class="sliderMobile"> <span class="slider round"></span>
-                </label>
-                <span class="toggle-label-right">Focus on Brand/Company</span>
-            </div><br>
-            <div class="toggle-container" id="semProductFocus">
-                <span class="toggle-label">Don't Focus on Products/Services</span>
-                <label class="switch">
-                    <input type="checkbox" id="product-checkbox" class="sliderMobile" checked> <span
-                        class="slider round"></span>
-                </label>
-                <span class="toggle-label-right">Focus on Products/Services</span>
-            </div>
-            <div style="clear: both;"></div>
-            <br>
-            <label for="sem_additional">Addtional Information (optional):</label><br>
-            <textarea id="sem_additional"
-                placeholder="You can input information that is not found in the webpage(s) content or focus area(s) here"></textarea></textarea>
-
-            <br>
-            <button id="getProducts" onclick="semWebpageProducts()">Step 1: Identify
-                products/services/brand/company</button>
-            <br>
-            <div id="products"></div>
-            <br>
-            <button id="semAnalyse" onclick="semAnalyseWebsite()">Step 2: Generate KWs, USPs & Audience</button>
-            <br>
-
-            <div class="column" id="output"></div>
-            <div class="column" id="selected" style="display:none;">
-                <h2>Selected</h2>
-                <textarea id="selectedText" rows="20"></textarea><br>
-                <button id="generateSem" onclick="generateGoogle()">Step 3: Select checkboxes then click
-                    here</button>
-                <h2>Generated</h2>
-                <div id="generated"></div>
-            </div>
-            <div style="clear: both;"></div>
-            <div> </div> <!-- Clearfix -->
-        </div>
-        <hr>
-        <div class="page-break"></div>
-        <button class="collapsible" id="competitionBtn"><i class="fas fa-plus-square"></i><i
-                class="fas fa-search"></i>Competitors Identifier</button>
-        <div class="content" id="competitors_content">
-            <div class="column50">
-                <label for="competitors-target1">Target Domain:</label>
-                <input type="url" id="competitors-target1" placeholder="e.g. www.abc.com"><br>
-                <label for="competitor_keywords">Keywords (seperated by commas or new
+            <div class="content" id="persona_content">
+                <label for="persona_webpages">Company / Product Information Webpages (seperated by commas or new
                     lines):</label><br>
-                <textarea id="competitor_keywords"></textarea><br>
-                <label for="competitors-language">Language:</label>
-                <input type="text" id="competitors-language" value="English" placeholder="e.g., English"><br>
-                <label for="competitors-location">Location:</label>
-                <input type="text" id="competitors-location" value="Singapore" placeholder="e.g., Singapore"><br>
-                <button id="getCompetitorsBtn" onclick="getCompetitors()">Get Competitors</button><br>
-                <div id="competitorsOutput" style="display:none;height:400px;overflow:auto;">
+                <textarea id="persona_webpages"
+                    placeholder="e.g., https://example.com, https://another-example.com"></textarea><br>
+                <label for="persona_manual">Any other information (optional):</label><br>
+                <textarea id="persona_manual" placeholder="Focus on this product."></textarea>
+                <button id="generatePersonaBtn" onclick="generatePersona()">Generate Personas</button>
+                <div id="persona-results"></div>
+                <button type="button" id="copy-persona-results-button" class="tooltip" style="display:none"
+                    onclick="copyPersonaResults(event)">Copy to clipboard<span>Click to copy the persona results to your
+                        clipboard.</span>
+                </button>
+            </div>
+            <hr>
+        </div>
+
+        <div id="mediaPlanSection">
+            <div class="page-break"></div>
+            <button class="collapsible" id="mediaPlanBtn"><i class="fas fa-plus-square"></i><i
+                    class="fas fa-bullseye"></i>Media Plan</button>
+            <div class="content" id="mediaplan">
+                <label for="MediaPlanWebpages">Company / Product Information Webpages (seperated by commas or new
+                    lines):</label><br>
+                <textarea id="MediaPlanWebpages"
+                    placeholder="e.g., https://example.com, https://another-example.com"></textarea><br>
+                <label for="MediaPlanBudget">Monthly Budget:</label><br>
+                <input type="text" id="MediaPlanBudget" name="budget"><br>
+                <label for="MediaPlanAdFormats">Preferred Ad Formats:</label><br>
+
+                <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsGoogleDisplay"
+                    name="MediaPlanAdFormatsGoogleDisplay" value="MediaPlanAdFormatsGoogleDisplay">
+                <label for="MediaPlanAdFormatsGoogleDisplay">Google Display</label><br>
+                <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsGoogleSearch"
+                    name="MediaPlanAdFormatsGoogleSearch" value="MediaPlanAdFormatsGoogleSearch">
+                <label for="MediaPlanAdFormatsGoogleSearch">Google Search</label><br>
+                <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsFBIG"
+                    name="MediaPlanAdFormatsFBIG" value="MediaPlanAdFormatsFBIG">
+                <label for="MediaPlanAdFormatsFBIG">Facebook / Instagram</label><br>
+                <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsLinkedIn"
+                    name="MediaPlanAdFormatsLinkedIn" value="MediaPlanAdFormatsLinkedIn">
+                <label for="MediaPlanAdFormatsLinkedIn">LinkedIn</label><br>
+                <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsTikTok"
+                    name="MediaPlanAdFormatsTikTok" value="MediaPlanAdFormatsTikTok">
+                <label for="MediaPlanAdFormatsTikTok">TikTok</label><br><br>
+
+                <label for="MediaPlanManual">Any other information (optional):</label><br>
+                <textarea id="MediaPlanManual" placeholder="Focus on this product."></textarea><br>
+
+                <button class="collapsible" id="mediaPlanOtherFieldsBtn">Other Fields (optional)</button>
+                <div class="content" id="mediaplanothers">
+
+                    <label for="MediaPlanOrganisationalObjectives">Organisational Objectives:</label><br>
+                    <textarea id="MediaPlanOrganisationalObjectives"
+                        placeholder="e.g., Increase brand awareness by 20%"></textarea><br>
+
+                    <label for="MediaPlanLocation">Target Location:</label><br>
+                    <input type="text" id="MediaPlanLocation" name="mediaPlanLocation" placeholder="e.g., Singapore"><br>
+
+                    <label for="MediaPlanTargetAudience">Target Audience:</label><br>
+                    <input type="text" id="MediaPlanTargetAudience" name="mediaPlanTargetAudience"
+                        placeholder="e.g., Millennials, Tech Enthusiasts"><br>
+
+                    <label for="MediaPlanCustomerPersonas">Customer Personas:</label><br>
+                    <textarea id="MediaPlanCustomerPersonas"
+                        placeholder="Description of your ideal customers."></textarea><br>
+
+                    <label for="MediaPlanTouchpoints">Customer Touchpoints:</label><br>
+                    <textarea id="MediaPlanTouchpoints"
+                        placeholder="List all interaction points a customer might have with your brand."></textarea><br>
+
+                    <label for="MediaPlanContentStrategy">Content Strategy:</label><br>
+                    <textarea id="MediaPlanContentStrategy"
+                        placeholder="e.g., Blog posts, videos, infographics"></textarea><br>
+
+                    <label for="MediaPlanLandingPages">Landing Pages:</label><br>
+                    <textarea id="MediaPlanLandingPages" placeholder="URLs of relevant landing pages."></textarea><br>
+
+                    <label for="MediaPlanCta">Calls-to-Action (CTAs):</label><br>
+                    <textarea id="MediaPlanCta" placeholder="e.g., Sign up, Download, Buy Now"></textarea><br>
+
+                    <label for="MediaPlanProductService">Specific Products/Services to Promote:</label><br>
+                    <textarea id="MediaPlanProductService"
+                        placeholder="List the products or services you want to highlight."></textarea><br>
+
+                    <label for="MediaPlanKpis">Key Performance Indicators (KPIs):</label><br>
+                    <textarea id="MediaPlanKpis" placeholder="e.g., Engagement rate, Conversion rate, ROAS"></textarea><br>
+
+                    <label for="MediaPlanCompetitiveAnalysis">Competitive Analysis:</label><br>
+                    <textarea id="MediaPlanCompetitiveAnalysis"
+                        placeholder="Information about your competitors' strategies."></textarea><br>
+
+                    <label for="MediaPlanCompliance">Compliance and Regulations:</label><br>
+                    <textarea id="MediaPlanCompliance"
+                        placeholder="Relevant legal and industry regulations."></textarea><br>
+
+                    <label for="MediaPlanTechnologyPlan">Technology Plan:</label><br>
+                    <textarea id="MediaPlanTechnologyPlan"
+                        placeholder="Marketing technologies and tools to be used."></textarea><br>
+
+                    <label for="MediaPlanAnalyticsReporting">Analytics and Reporting:</label><br>
+                    <textarea id="MediaPlanAnalyticsReporting"
+                        placeholder="Processes for tracking and reporting performance."></textarea><br>
+
+                </div>
+
+                <button id="generateMediaPlanBtn" onclick="generateMediaPlan()">Generate Media Plan</button>
+                <div id="mediaPlanPersonaResults" class="mediaPlanPersonaResults">
+                    <hr>
+                </div>
+                <div id="mediaPlanResults"></div>
+
+                <div class="funnel-container" id="funnel-container" style="display:none;">
+                    <button class="funnel-collapsible-before" style="background-color: #7554ae; width:100%;"><b>AWARENESS
+                            (TOFU)</b>
+                        <p id="awareness-summary">Attract a wider audience. Make your brand known using tactics like
+                            SEO, social media, content marketing, and paid ads. The goal is to increase visibility and
+                            spark
+                            initial interest in your brand.</p>
+                    </button>
+                    <div class="funnel-content" style="background-color: #bba9d9;">
+                        <p id="awareness-details">N.A.</p>
+                    </div>
+
+                    <button class="funnel-collapsible-before" style="background-color: #3a857d; width:90%;"><b>DISCOVERY
+                            (MOFU)</b>
+                        <p id="discovery-summary">Educate and engage your audience. Provide valuable information and
+                            resources that help potential customers understand their problem and your potential
+                            solution.
+                            Content like ebooks, webinars, and helpful blog posts are key.</p>
+                    </button>
+                    <div class="funnel-content" style="background-color: #b8d1cf; width:90%;">
+                        <p id="discovery-details">N.A.</p>
+                    </div>
+
+                    <button class="funnel-collapsible-before" style="background-color: #e67c3a; width:80%;"><b>CONSIDERATION
+                            (MOFU)</b>
+                        <p id="consideration-summary">Showcase your value proposition. Demonstrate how your product or
+                            service specifically solves the customer's needs and stands out from the competition. Use
+                            case
+                            studies, testimonials, product demos, and comparisons.</p>
+                    </button>
+                    <div class="funnel-content" style="background-color: #f0cbb4; width:80%;">
+                        <p id="consideration-details">N.A.</p>
+                    </div>
+
+                    <button class="funnel-collapsible-before" style="background-color: #e57373; width:70%;"><b>CONVERSION
+                            (BOFU)</b>
+                        <p id="conversion-summary">Drive action and close the sale. Make it easy for potential customers
+                            to purchase by offering trials, discounts, consultations, or clear calls to action. Focus on
+                            removing obstacles and building confidence in their decision.</p>
+                    </button>
+                    <div class="funnel-content" style="background-color: #f4c8c8; width:70%;">
+                        <p id="conversion-details">N.A.</p>
+                    </div>
+
+                    <button class="funnel-collapsible-before" style="background-color: #3a85c3; width:60%;"><b>RETENTION</b>
+                        <p id="retention-summary">Foster loyalty. Provide ongoing value and build lasting relationships
+                            with
+                            your customers. Offer
+                            personalized communications, loyalty programs, and exclusive offers to encourage repeat
+                            purchases and
+                            brand advocacy. Happy customers become your best marketers.</p>
+                    </button>
+                    <div class="funnel-content" style="background-color: #b2cfe7; width:60%;">
+                        <p id="retention-details">N.A.</p>
+                    </div>
+                </div>
+            </div>
+
+            <hr>
+        </div>
+
+        <div id="contentCheckerSection">
+            <div class="page-break"></div>
+            <button class="collapsible" id="contentcheck"><i class="fas fa-plus-square"></i><i
+                    class="fas fa-book-open"></i>Content Checker</button>
+            <div class="content" id="content_check_content">
+                <label for="brand_guide_urls">URLs of Guidelines PDFs (public accessible) e.g. brand guides:</label><br>
+                <textarea id="brand_guide_urls"
+                    placeholder="e.g., https://drive.google.com/file/d/xxxxxxxxx/view?usp=drive_link&#10https://another-example.com/sample.pdf"></textarea><br>
+                <label for="content_check_other_urls">Any other website/guidelines URLs: </label><br>
+                <textarea id="content_check_other_urls"
+                    placeholder="https://regulations-for-industry-advertising.com/"></textarea><br>
+                <label for="content_check_instructions">Any other instructions: </label><br>
+                <textarea id="content_check_instructions"
+                    placeholder="e.g Do not use the word 'cheap' in the content'"></textarea><br>
+                <label for="content_to_check">Content to Check: </label><br>
+                <textarea id="content_to_check" style="min-height: 200px;" placeholder="Your content here"></textarea><br>
+                <button id="contentCheckBtn" onclick="checkContent()">Check Content</button><br>
+                <div id="checkContentResults"></div>
+                <div style="display: flex; align-items: center;">
+                    <button type="button" id="copy-check-results-button" class="tooltip" style="display:none"
+                        onclick="copyCheckContentResults(event)">
+                        <i class="fa fa-copy"></i>
+                        <span>Click to copy the check results to your clipboard.</span>
+                    </button>
+                    <button id="openFeedbackModalBtn" style="display:none; margin-left: 10px;">Feedback</button>
+                </div>
+            </div>
+            <hr>
+        </div>
+
+        <div id="landingPageAuditSection">
+            <div class="page-break"></div>
+            <button class="collapsible" id="landingPageAuditBtn"><i class="fas fa-plus-square"></i><i
+                    class="fas fa-clipboard-check"></i>Landing Page
+                Audit</button>
+            <div class="content" id="landingPageAudit">
+                <label for="landingPageUrl">Landing Page URL:</label><br>
+                <input type="url" id="landingPageUrl" placeholder="e.g., https://example.com"><br>
+                <label for="landingPageAuditKeyword">Target Keyword (optional):</label><br>
+                <input type="text" id="landingPageAuditKeyword" name="landingPageAuditKeyword"><br>
+                <button id="auditLandingPageBtn" onclick="auditLandingPageDirectWeb()">Audit Landing Page</button>
+                <div class="gauge" id="gauge" style="display:none;">
+                    <br>
+                    <div class="gauge__body">
+                        <div class="gauge__fill"></div>
+                        <div class="gauge__cover"></div>
+                        <br>
+                    </div>
                     <br>
                 </div>
+                <div id="landingPageAuditResults"></div>
             </div>
-            <div class="column50">
-                <label for="competitor_domains">Competitor Domains:</label><br>
-                <textarea id="competitor_domains"></textarea><br>
-                <button id="getIntersectionResults2" onclick="getIntersectionResults2()">
-                    Get Intersection
-                    Results</button><br>
-
-
-                <div id="getIntersectionResults"></div>
-                <div id="competitorsRanking" style="display:none;height:400px;overflow:auto;"></div>
-            </div>
-        </div>
-        <hr>
-
-        <div class="page-break"></div>
-        <button class="collapsible" id="persona"><i class="fas fa-plus-square"></i><i class="fas fa-users"></i>Persona
-            Generator</button>
-        <div class="content" id="persona_content">
-            <label for="persona_webpages">Company / Product Information Webpages (seperated by commas or new
-                lines):</label><br>
-            <textarea id="persona_webpages"
-                placeholder="e.g., https://example.com, https://another-example.com"></textarea><br>
-            <label for="persona_manual">Any other information (optional):</label><br>
-            <textarea id="persona_manual" placeholder="Focus on this product."></textarea>
-            <button id="generatePersonaBtn" onclick="generatePersona()">Generate Personas</button>
-            <div id="persona-results"></div>
-            <button type="button" id="copy-persona-results-button" class="tooltip" style="display:none"
-                onclick="copyPersonaResults(event)">Copy to clipboard<span>Click to copy the persona results to your
-                    clipboard.</span>
-            </button>
-        </div>
-        <hr>
-        <div class="page-break"></div>
-        <button class="collapsible" id="mediaPlanBtn"><i class="fas fa-plus-square"></i><i
-                class="fas fa-bullseye"></i>Media Plan</button>
-        <div class="content" id="mediaplan">
-            <label for="MediaPlanWebpages">Company / Product Information Webpages (seperated by commas or new
-                lines):</label><br>
-            <textarea id="MediaPlanWebpages"
-                placeholder="e.g., https://example.com, https://another-example.com"></textarea><br>
-            <label for="MediaPlanBudget">Monthly Budget:</label><br>
-            <input type="text" id="MediaPlanBudget" name="budget"><br>
-            <label for="MediaPlanAdFormats">Preferred Ad Formats:</label><br>
-
-            <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsGoogleDisplay"
-                name="MediaPlanAdFormatsGoogleDisplay" value="MediaPlanAdFormatsGoogleDisplay">
-            <label for="MediaPlanAdFormatsGoogleDisplay">Google Display</label><br>
-            <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsGoogleSearch"
-                name="MediaPlanAdFormatsGoogleSearch" value="MediaPlanAdFormatsGoogleSearch">
-            <label for="MediaPlanAdFormatsGoogleSearch">Google Search</label><br>
-            <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsFBIG"
-                name="MediaPlanAdFormatsFBIG" value="MediaPlanAdFormatsFBIG">
-            <label for="MediaPlanAdFormatsFBIG">Facebook / Instagram</label><br>
-            <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsLinkedIn"
-                name="MediaPlanAdFormatsLinkedIn" value="MediaPlanAdFormatsLinkedIn">
-            <label for="MediaPlanAdFormatsLinkedIn">LinkedIn</label><br>
-            <input type="checkbox" checked class="media-plan-checkbox" id="MediaPlanAdFormatsTikTok"
-                name="MediaPlanAdFormatsTikTok" value="MediaPlanAdFormatsTikTok">
-            <label for="MediaPlanAdFormatsTikTok">TikTok</label><br><br>
-
-            <label for="MediaPlanManual">Any other information (optional):</label><br>
-            <textarea id="MediaPlanManual" placeholder="Focus on this product."></textarea><br>
-
-            <button class="collapsible" id="mediaPlanOtherFieldsBtn">Other Fields (optional)</button>
-            <div class="content" id="mediaplanothers">
-
-                <label for="MediaPlanOrganisationalObjectives">Organisational Objectives:</label><br>
-                <textarea id="MediaPlanOrganisationalObjectives"
-                    placeholder="e.g., Increase brand awareness by 20%"></textarea><br>
-
-                <label for="MediaPlanLocation">Target Location:</label><br>
-                <input type="text" id="MediaPlanLocation" name="mediaPlanLocation" placeholder="e.g., Singapore"><br>
-
-                <label for="MediaPlanTargetAudience">Target Audience:</label><br>
-                <input type="text" id="MediaPlanTargetAudience" name="mediaPlanTargetAudience"
-                    placeholder="e.g., Millennials, Tech Enthusiasts"><br>
-
-                <label for="MediaPlanCustomerPersonas">Customer Personas:</label><br>
-                <textarea id="MediaPlanCustomerPersonas"
-                    placeholder="Description of your ideal customers."></textarea><br>
-
-                <label for="MediaPlanTouchpoints">Customer Touchpoints:</label><br>
-                <textarea id="MediaPlanTouchpoints"
-                    placeholder="List all interaction points a customer might have with your brand."></textarea><br>
-
-                <label for="MediaPlanContentStrategy">Content Strategy:</label><br>
-                <textarea id="MediaPlanContentStrategy"
-                    placeholder="e.g., Blog posts, videos, infographics"></textarea><br>
-
-                <label for="MediaPlanLandingPages">Landing Pages:</label><br>
-                <textarea id="MediaPlanLandingPages" placeholder="URLs of relevant landing pages."></textarea><br>
-
-                <label for="MediaPlanCta">Calls-to-Action (CTAs):</label><br>
-                <textarea id="MediaPlanCta" placeholder="e.g., Sign up, Download, Buy Now"></textarea><br>
-
-                <label for="MediaPlanProductService">Specific Products/Services to Promote:</label><br>
-                <textarea id="MediaPlanProductService"
-                    placeholder="List the products or services you want to highlight."></textarea><br>
-
-                <label for="MediaPlanKpis">Key Performance Indicators (KPIs):</label><br>
-                <textarea id="MediaPlanKpis" placeholder="e.g., Engagement rate, Conversion rate, ROAS"></textarea><br>
-
-                <label for="MediaPlanCompetitiveAnalysis">Competitive Analysis:</label><br>
-                <textarea id="MediaPlanCompetitiveAnalysis"
-                    placeholder="Information about your competitors' strategies."></textarea><br>
-
-                <label for="MediaPlanCompliance">Compliance and Regulations:</label><br>
-                <textarea id="MediaPlanCompliance"
-                    placeholder="Relevant legal and industry regulations."></textarea><br>
-
-                <label for="MediaPlanTechnologyPlan">Technology Plan:</label><br>
-                <textarea id="MediaPlanTechnologyPlan"
-                    placeholder="Marketing technologies and tools to be used."></textarea><br>
-
-                <label for="MediaPlanAnalyticsReporting">Analytics and Reporting:</label><br>
-                <textarea id="MediaPlanAnalyticsReporting"
-                    placeholder="Processes for tracking and reporting performance."></textarea><br>
-
-            </div>
-
-            <button id="generateMediaPlanBtn" onclick="generateMediaPlan()">Generate Media Plan</button>
-            <div id="mediaPlanPersonaResults" class="mediaPlanPersonaResults">
-                <hr>
-            </div>
-            <div id="mediaPlanResults"></div>
-
-            <div class="funnel-container" id="funnel-container" style="display:none;">
-                <button class="funnel-collapsible-before" style="background-color: #7554ae; width:100%;"><b>AWARENESS
-                        (TOFU)</b>
-                    <p id="awareness-summary">Attract a wider audience. Make your brand known using tactics like
-                        SEO, social media, content marketing, and paid ads. The goal is to increase visibility and
-                        spark
-                        initial interest in your brand.</p>
-                </button>
-                <div class="funnel-content" style="background-color: #bba9d9;">
-                    <p id="awareness-details">N.A.</p>
-                </div>
-
-                <button class="funnel-collapsible-before" style="background-color: #3a857d; width:90%;"><b>DISCOVERY
-                        (MOFU)</b>
-                    <p id="discovery-summary">Educate and engage your audience. Provide valuable information and
-                        resources that help potential customers understand their problem and your potential
-                        solution.
-                        Content like ebooks, webinars, and helpful blog posts are key.</p>
-                </button>
-                <div class="funnel-content" style="background-color: #b8d1cf; width:90%;">
-                    <p id="discovery-details">N.A.</p>
-                </div>
-
-                <button class="funnel-collapsible-before" style="background-color: #e67c3a; width:80%;"><b>CONSIDERATION
-                        (MOFU)</b>
-                    <p id="consideration-summary">Showcase your value proposition. Demonstrate how your product or
-                        service specifically solves the customer's needs and stands out from the competition. Use
-                        case
-                        studies, testimonials, product demos, and comparisons.</p>
-                </button>
-                <div class="funnel-content" style="background-color: #f0cbb4; width:80%;">
-                    <p id="consideration-details">N.A.</p>
-                </div>
-
-                <button class="funnel-collapsible-before" style="background-color: #e57373; width:70%;"><b>CONVERSION
-                        (BOFU)</b>
-                    <p id="conversion-summary">Drive action and close the sale. Make it easy for potential customers
-                        to purchase by offering trials, discounts, consultations, or clear calls to action. Focus on
-                        removing obstacles and building confidence in their decision.</p>
-                </button>
-                <div class="funnel-content" style="background-color: #f4c8c8; width:70%;">
-                    <p id="conversion-details">N.A.</p>
-                </div>
-
-                <button class="funnel-collapsible-before" style="background-color: #3a85c3; width:60%;"><b>RETENTION</b>
-                    <p id="retention-summary">Foster loyalty. Provide ongoing value and build lasting relationships
-                        with
-                        your customers. Offer
-                        personalized communications, loyalty programs, and exclusive offers to encourage repeat
-                        purchases and
-                        brand advocacy. Happy customers become your best marketers.</p>
-                </button>
-                <div class="funnel-content" style="background-color: #b2cfe7; width:60%;">
-                    <p id="retention-details">N.A.</p>
-                </div>
-            </div>
-        </div>
-
-        <hr>
-        <div class="page-break"></div>
-        <button class="collapsible" id="contentcheck"><i class="fas fa-plus-square"></i><i
-                class="fas fa-book-open"></i>Content Checker</button>
-        <div class="content" id="content_check_content">
-            <label for="brand_guide_urls">URLs of Guidelines PDFs (public accessible) e.g. brand guides:</label><br>
-            <textarea id="brand_guide_urls"
-                placeholder="e.g., https://drive.google.com/file/d/xxxxxxxxx/view?usp=drive_link&#10https://another-example.com/sample.pdf"></textarea><br>
-            <label for="content_check_other_urls">Any other website/guidelines URLs: </label><br>
-            <textarea id="content_check_other_urls"
-                placeholder="https://regulations-for-industry-advertising.com/"></textarea><br>
-            <label for="content_check_instructions">Any other instructions: </label><br>
-            <textarea id="content_check_instructions"
-                placeholder="e.g Do not use the word 'cheap' in the content'"></textarea><br>
-            <label for="content_to_check">Content to Check: </label><br>
-            <textarea id="content_to_check" style="min-height: 200px;" placeholder="Your content here"></textarea><br>
-            <button id="contentCheckBtn" onclick="checkContent()">Check Content</button><br>
-            <div id="checkContentResults"></div>
-            <div style="display: flex; align-items: center;">
-                <button type="button" id="copy-check-results-button" class="tooltip" style="display:none"
-                    onclick="copyCheckContentResults(event)">
-                    <i class="fa fa-copy"></i>
-                    <span>Click to copy the check results to your clipboard.</span>
-                </button>
-                <button id="openFeedbackModalBtn" style="display:none; margin-left: 10px;">Feedback</button>
-            </div>
-        </div>
-        <hr>
-        <div class="page-break"></div>
-        <button class="collapsible" id="landingPageAuditBtn"><i class="fas fa-plus-square"></i><i
-                class="fas fa-clipboard-check"></i>Landing Page
-            Audit</button>
-        <div class="content" id="landingPageAudit">
-            <label for="landingPageUrl">Landing Page URL:</label><br>
-            <input type="url" id="landingPageUrl" placeholder="e.g., https://example.com"><br>
-            <label for="landingPageAuditKeyword">Target Keyword (optional):</label><br>
-            <input type="text" id="landingPageAuditKeyword" name="landingPageAuditKeyword"><br>
-            <button id="auditLandingPageBtn" onclick="auditLandingPageDirectWeb()">Audit Landing Page</button>
-            <div class="gauge" id="gauge" style="display:none;">
-                <br>
-                <div class="gauge__body">
-                    <div class="gauge__fill"></div>
-                    <div class="gauge__cover"></div>
-                    <br>
-                </div>
-                <br>
-            </div>
-            <div id="landingPageAuditResults"></div>
         </div>
     </div>
 
@@ -3639,6 +3661,39 @@
 
 
             });
+        }
+
+        function showSeoOnly(event) {
+            document.getElementById('seoSection').style.display = "block";
+            document.getElementById('smmSection').style.display = "none";
+            document.getElementById('semSection').style.display = "none";
+            document.getElementById('competitorsSection').style.display = "none";
+            document.getElementById('personaSection').style.display = "none";
+            document.getElementById('mediaPlanSection').style.display = "none";
+            document.getElementById('contentCheckerSection').style.display = "none";
+            document.getElementById('landingPageAuditSection').style.display = "none";
+        }
+
+        function showSmmOnly(event) {
+            document.getElementById('seoSection').style.display = "none";
+            document.getElementById('smmSection').style.display = "block";
+            document.getElementById('semSection').style.display = "none";
+            document.getElementById('competitorsSection').style.display = "none";
+            document.getElementById('personaSection').style.display = "none";
+            document.getElementById('mediaPlanSection').style.display = "none";
+            document.getElementById('contentCheckerSection').style.display = "none";
+            document.getElementById('landingPageAuditSection').style.display = "none";
+        }
+
+        function showSemOnly(event) {
+            document.getElementById('seoSection').style.display = "none";
+            document.getElementById('smmSection').style.display = "none";
+            document.getElementById('semSection').style.display = "block";
+            document.getElementById('competitorsSection').style.display = "none";
+            document.getElementById('personaSection').style.display = "none";
+            document.getElementById('mediaPlanSection').style.display = "none";
+            document.getElementById('contentCheckerSection').style.display = "none";
+            document.getElementById('landingPageAuditSection').style.display = "none";
         }
 
         function openKeywordAnalysis(event) {
@@ -3867,6 +3922,8 @@
         function openSem(event) {
             event.preventDefault();
             deactivateAllButtons();
+
+             showSemOnly(event);
 
             const semButton = document.querySelector('button#semButton');
             if (semButton) {
