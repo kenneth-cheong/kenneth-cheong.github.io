@@ -573,7 +573,7 @@
               options: [
                 {
                   label: "AI SEO audit for brand Research",
-                  value: "Run an AI SEO audit for my brand",
+                  value: "GEO: Run an AI SEO audit for my brand",
                 },
                 {
                   label: "Improve GEO for website",
@@ -581,7 +581,7 @@
                 },
                 {
                   label: "Compare AI visibility against competitors",
-                  value: "Compare my AI visibility vs competitors",
+                  value: "GEO: Compare my AI visibility vs competitors",
                 },
                 {
                   label: "GEO prompt proposal",
@@ -944,6 +944,8 @@
             );
           case "moz":
             return await moz(args.domain);
+          case "gtMetrix":
+            return await gtMetrix(args.target);
           case "keyword_metrics":
             return await keyword_metrics(
               args.keywords,
@@ -1242,6 +1244,27 @@
           return data;
         } catch (error) {
           console.error("Error in keywords_for_site:", error);
+          throw error;
+        }
+      }
+
+      async function gtMetrix(target) {
+        try {
+          response = await fetch(
+            "https://y5830908vh.execute-api.ap-southeast-1.amazonaws.com/gtmetrix",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ url: target }),
+            }
+          );
+          const data = await response.json();
+
+          return data;
+        } catch (error) {
+          console.error("Error in gtMetrix:", error);
           throw error;
         }
       }
