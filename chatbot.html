@@ -1,1237 +1,1527 @@
 <!DOCTYPE html>
 <html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon"
-        href="https://mediaonemarketing.com.sg/wp-content/uploads/2023/11/cropped-MediaOne-M-favicon-logo-32x32.png"
-        sizes="32x32">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="icon"
+      href="https://mediaonemarketing.com.sg/wp-content/uploads/2023/11/cropped-MediaOne-M-favicon-logo-32x32.png"
+      sizes="32x32"
+    />
     <title>Digimetrics Chatbot</title>
 
     <style>
-        /* General Styles */
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f0f2f5;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
+      /* General Styles */
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f0f2f5;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+      }
+
+      /* Layout Container */
+      .main-container {
+        display: flex;
+        width: 95%;
+        /* Adjust as needed */
+        max-width: 1200px;
+        /* Maximum width for larger screens */
+        height: 90vh;
+        /* Occupy 80% of the viewport height */
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        border-radius: 10px;
+        overflow: hidden;
+        background-color: #fff;
+      }
+
+      table {
+        border-collapse: collapse;
+        /* Remove double borders */
+        width: 100%;
+        /* Make table fill its container */
+        margin: 20px 0;
+      }
+
+      th,
+      td {
+        border: 1px solid #ddd;
+        /* Add borders to cells */
+        padding: 8px;
+        /* Add padding inside cells */
+        text-align: left;
+        /* Align text to the left */
+      }
+
+      th {
+        background-color: #f2f2f2;
+        /* Grey background for header */
+        font-weight: bold;
+        /* Make header text bold */
+      }
+
+      /* Conversation Picker Styles */
+      .conversation-picker {
+        flex: 0 0 30%;
+        /* Changed from 25% to 30% */
+        border-right: 1px solid #e6e9ed;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .conversation-picker .chat-header {
+        padding: 15px;
+        background-color: #2a2f5b;
+        /* Dark background for header */
+        color: #fff;
+        text-align: left;
+        /* Slightly larger font size */
+      }
+
+      .chat-header {
+        display: flex;
+        height: 50px;
+        align-items: center;
+      }
+
+      .search-bar {
+        padding: 10px;
+        background-color: #f7f7f7;
+        border-bottom: 1px solid #e6e9ed;
+      }
+
+      .search-bar input[type="text"] {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ced4da;
+        border-radius: 5px;
+        box-sizing: border-box;
+        font-size: 1rem;
+        outline: none;
+        transition: border-color 0.2s ease-in-out;
+      }
+
+      .search-bar input[type="text"]:focus {
+        border-color: #495057;
+        /* Darker border on focus */
+      }
+
+      .conversation-list {
+        overflow-y: auto;
+        flex-grow: 1;
+      }
+
+      .conversation-item {
+        padding: 12px 15px;
+        border-bottom: 1px solid #e6e9ed;
+        cursor: pointer;
+        transition: background-color 0.15s ease-in-out;
+        display: flex;
+        align-items: center;
+        position: relative;
+        /* Needed for the delete button positioning */
+      }
+
+      .conversation-item:hover {
+        background-color: #f5f7fa;
+      }
+
+      .conversation-item.active {
+        background-color: #e9ecef;
+      }
+
+      .conversation-details {
+        flex-grow: 1;
+      }
+
+      .name {
+        font-weight: 500;
+        color: #343a40;
+        margin-bottom: 3px;
+      }
+
+      .latest-message {
+        font-size: 0.9rem;
+        color: #6c757d;
+        overflow: hidden;
+        white-space: break-spaces;
+        text-overflow: ellipsis;
+      }
+
+      .date {
+        font-size: 0.8rem;
+        color: #adb5bd;
+        margin-left: auto;
+        /* Push date to the right */
+      }
+
+      /* Chat Container Styles */
+      .chat-container {
+        flex: 1;
+        display: grid;
+        flex-direction: column;
+      }
+
+      .chat-container .chat-header {
+        padding: 15px;
+        background-color: #2a2f5b;
+        color: #fff;
+        text-align: left;
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+        /* Add space between the title and the button */
+        align-items: center;
+      }
+
+      .chat-messages {
+        padding: 20px;
+        height: 400px;
+        overflow-y: auto;
+        flex-grow: 1;
+      }
+
+      /* Message Styles */
+      .message {
+        padding: 12px 15px;
+        margin-bottom: 10px;
+        border-radius: 20px;
+        clear: both;
+        max-width: 90%;
+        /* Limit message width */
+      }
+
+      .message.user {
+        background-color: #d1e7ff;
+        color: #004085;
+        float: right;
+      }
+
+      .message.bot {
+        background-color: #f8f9fa;
+        color: #212529;
+        float: left;
+      }
+
+      /* Typing Indicator */
+      .typing-indicator {
+        padding: 10px 20px;
+        font-style: italic;
+        color: #6c757d;
+      }
+
+      @keyframes blink {
+        0%,
+        100% {
+          opacity: 0;
         }
 
-        /* Layout Container */
+        50% {
+          opacity: 1;
+        }
+      }
+
+      /* Chat Input Styles */
+      .chat-input {
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-top: 1px solid #e6e9ed;
+        display: flex;
+        align-items: center;
+      }
+
+      .chat-input textarea {
+        flex-grow: 1;
+        padding: 10px;
+        border: 1px solid #ced4da;
+        border-radius: 25px;
+        /* Keep consistent rounding */
+        margin-right: 10px;
+        font-size: 1rem;
+        outline: none;
+        transition: border-color 0.2s ease-in-out;
+        resize: none;
+        /* Prevents users from manually resizing the textarea */
+        min-height: 45px;
+        /* Minimum height for a single line */
+        max-height: 200px;
+        /* Maximum height before vertical scrollbar appears */
+        overflow-y: auto;
+        /* Enable vertical scrolling */
+        box-sizing: border-box;
+        /* Ensures padding/border is inside the element's width/height */
+        line-height: 1.4;
+        /* Improve text readability */
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      .chat-input textarea:focus {
+        border-color: #2a2f5b;
+      }
+
+      .chat-input button {
+        background-color: #2a2f5b;
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 25px;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: background-color 0.2s ease-in-out;
+      }
+
+      .chat-input button:hover {
+        background-color: #0056b3;
+      }
+
+      /* Chat Options Styles */
+      .chat-options {
+        padding: 15px;
+      }
+
+      .button-container {
+        display: flex;
+        padding: 10px;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .button-container button {
+        background-color: #2a2f5b;
+        color: #fff;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: background-color 0.2s ease-in-out;
+      }
+
+      .button-container button:hover {
+        background-color: #0056b3;
+      }
+
+      /* Media Queries for Responsiveness */
+      @media (max-width: 768px) {
         .main-container {
-            display: flex;
-            width: 95%;
-            /* Adjust as needed */
-            max-width: 1200px;
-            /* Maximum width for larger screens */
-            height: 90vh;
-            /* Occupy 80% of the viewport height */
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
-            overflow: hidden;
-            background-color: #fff;
+          flex-direction: column;
+          /* Stack conversation list and chat container */
+          height: auto;
+          /* Adjust height as needed */
         }
 
-        table {
-            border-collapse: collapse;
-            /* Remove double borders */
-            width: 100%;
-            /* Make table fill its container */
-            margin: 20px 0;
-        }
-
-        th,
-        td {
-            border: 1px solid #ddd;
-            /* Add borders to cells */
-            padding: 8px;
-            /* Add padding inside cells */
-            text-align: left;
-            /* Align text to the left */
-        }
-
-        th {
-            background-color: #f2f2f2;
-            /* Grey background for header */
-            font-weight: bold;
-            /* Make header text bold */
-        }
-
-        /* Conversation Picker Styles */
         .conversation-picker {
-            flex: 0 0 30%;
-            /* Changed from 25% to 30% */
-            border-right: 1px solid #e6e9ed;
-            display: flex;
-            flex-direction: column;
+          flex: none;
+          /* Allow conversation picker to take up necessary space */
+          width: 100%;
+          /* Full width */
+          border-right: none;
+          /* Remove border */
+          border-bottom: 1px solid #e6e9ed;
+          /* Add border to bottom */
         }
 
-        .conversation-picker .chat-header {
-            padding: 15px;
-            background-color: #2a2f5b;
-            /* Dark background for header */
-            color: #fff;
-            text-align: left;
-            /* Slightly larger font size */
-        }
-
-        .chat-header {
-            display: flex;
-            height: 50px;
-            align-items: center;
-        }
-
-        .search-bar {
-            padding: 10px;
-            background-color: #f7f7f7;
-            border-bottom: 1px solid #e6e9ed;
-        }
-
-        .search-bar input[type="text"] {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ced4da;
-            border-radius: 5px;
-            box-sizing: border-box;
-            font-size: 1rem;
-            outline: none;
-            transition: border-color 0.2s ease-in-out;
-        }
-
-        .search-bar input[type="text"]:focus {
-            border-color: #495057;
-            /* Darker border on focus */
-        }
-
-        .conversation-list {
-            overflow-y: auto;
-            flex-grow: 1;
-        }
-
-        .conversation-item {
-            padding: 12px 15px;
-            border-bottom: 1px solid #e6e9ed;
-            cursor: pointer;
-            transition: background-color 0.15s ease-in-out;
-            display: flex;
-            align-items: center;
-            position: relative;
-            /* Needed for the delete button positioning */
-        }
-
-        .conversation-item:hover {
-            background-color: #f5f7fa;
-        }
-
-        .conversation-item.active {
-            background-color: #e9ecef;
-        }
-
-        .conversation-details {
-            flex-grow: 1;
-        }
-
-        .name {
-            font-weight: 500;
-            color: #343a40;
-            margin-bottom: 3px;
-        }
-
-        .latest-message {
-            font-size: 0.9rem;
-            color: #6c757d;
-            overflow: hidden;
-            white-space: break-spaces;
-            text-overflow: ellipsis;
-        }
-
-        .date {
-            font-size: 0.8rem;
-            color: #adb5bd;
-            margin-left: auto;
-            /* Push date to the right */
-        }
-
-        /* Chat Container Styles */
         .chat-container {
-            flex: 1;
-            display: grid;
-            flex-direction: column;
+          flex: 1;
+          /* Chat container takes remaining space */
         }
+      }
 
-        .chat-container .chat-header {
-            padding: 15px;
-            background-color: #2a2f5b;
-            color: #fff;
-            text-align: left;
-            font-weight: 600;
-            display: flex;
-            justify-content: space-between;
-            /* Add space between the title and the button */
-            align-items: center;
-        }
+      /* Style for the New Chat Button */
+      .new-chat-button {
+        background-color: #515261;
+        /* Green color, you can change this */
+        color: #fff;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: background-color 0.2s ease-in-out;
+      }
 
-        .chat-messages {
-            padding: 20px;
-            height: 400px;
-            overflow-y: auto;
-            flex-grow: 1;
-        }
+      .new-chat-button:hover {
+        background-color: #218838;
+        /* Darker green on hover */
+      }
 
-        /* Message Styles */
-        .message {
-            padding: 12px 15px;
-            margin-bottom: 10px;
-            border-radius: 20px;
-            clear: both;
-            max-width: 90%;
-            /* Limit message width */
-        }
+      .delete-button {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        background-color: #f44336;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 5px;
+        cursor: pointer;
+        display: none;
+        /* Initially hidden */
+      }
 
-        .message.user {
-            background-color: #d1e7ff;
-            color: #004085;
-            float: right;
-        }
+      .conversation-item:hover .delete-button {
+        display: inline-block;
+        /* Show on hover */
+      }
 
-        .message.bot {
-            background-color: #f8f9fa;
-            color: #212529;
-            float: left;
-        }
-
-        /* Typing Indicator */
-        .typing-indicator {
-            padding: 10px 20px;
-            font-style: italic;
-            color: #6c757d;
-        }
-
-        @keyframes blink {
-
-            0%,
-            100% {
-                opacity: 0;
-            }
-
-            50% {
-                opacity: 1;
-            }
-        }
-
-        /* Chat Input Styles */
-        .chat-input {
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-top: 1px solid #e6e9ed;
-            display: flex;
-            align-items: center;
-        }
-
-        .chat-input textarea {
-            flex-grow: 1;
-            padding: 10px;
-            border: 1px solid #ced4da;
-            border-radius: 25px;
-            /* Keep consistent rounding */
-            margin-right: 10px;
-            font-size: 1rem;
-            outline: none;
-            transition: border-color 0.2s ease-in-out;
-            resize: none;
-            /* Prevents users from manually resizing the textarea */
-            min-height: 45px;
-            /* Minimum height for a single line */
-            max-height: 200px;
-            /* Maximum height before vertical scrollbar appears */
-            overflow-y: auto;
-            /* Enable vertical scrolling */
-            box-sizing: border-box;
-            /* Ensures padding/border is inside the element's width/height */
-            line-height: 1.4;
-            /* Improve text readability */
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-
-        }
-
-        .chat-input textarea:focus {
-            border-color: #2a2f5b;
-        }
-
-        .chat-input button {
-            background-color: #2a2f5b;
-            color: #fff;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: background-color 0.2s ease-in-out;
-        }
-
-        .chat-input button:hover {
-            background-color: #0056b3;
-        }
-
-        /* Chat Options Styles */
-        .chat-options {
-            padding: 15px;
-        }
-
-        .button-container {
-            display: flex;
-            padding: 10px;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .button-container button {
-            background-color: #2a2f5b;
-            color: #fff;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: background-color 0.2s ease-in-out;
-        }
-
-        .button-container button:hover {
-            background-color: #0056b3;
-        }
-
-        /* Media Queries for Responsiveness */
-        @media (max-width: 768px) {
-            .main-container {
-                flex-direction: column;
-                /* Stack conversation list and chat container */
-                height: auto;
-                /* Adjust height as needed */
-            }
-
-            .conversation-picker {
-                flex: none;
-                /* Allow conversation picker to take up necessary space */
-                width: 100%;
-                /* Full width */
-                border-right: none;
-                /* Remove border */
-                border-bottom: 1px solid #e6e9ed;
-                /* Add border to bottom */
-            }
-
-            .chat-container {
-                flex: 1;
-                /* Chat container takes remaining space */
-            }
-        }
-
-        /* Style for the New Chat Button */
-        .new-chat-button {
-            background-color: #515261;
-            /* Green color, you can change this */
-            color: #fff;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: background-color 0.2s ease-in-out;
-        }
-
-        .new-chat-button:hover {
-            background-color: #218838;
-            /* Darker green on hover */
-        }
-
-        .delete-button {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background-color: #f44336;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 5px;
-            cursor: pointer;
-            display: none;
-            /* Initially hidden */
-        }
-
-        .conversation-item:hover .delete-button {
-            display: inline-block;
-            /* Show on hover */
-        }
-
-        /* Show delete button on hover */
-        .conversation-item:hover .delete-btn {
-            display: inline;
-        }
+      /* Show delete button on hover */
+      .conversation-item:hover .delete-btn {
+        display: inline;
+      }
     </style>
-</head>
+  </head>
 
-<body>
+  <body>
     <div class="main-container">
-        <div class="conversation-picker">
-            <div class="chat-header">
-                <h2>Past Conversations</h2>
-            </div>
-            <div class="search-bar">
-                <input type="text" placeholder="Search conversations..." disabled>
-            </div>
-            <div class="conversation-list" id="conversation-list">
-            </div>
+      <div class="conversation-picker">
+        <div class="chat-header">
+          <h2>Past Conversations</h2>
         </div>
-        <div class="chat-container">
-            <div class="chat-header">
-                <img src="Digimetrics Logo-02.png" alt="navbar brand" class="navbar-brand" height="30" />
-                <button class="new-chat-button" onclick="startNewConversation()">New Chat</button>
-            </div>
-            <div class="chat-messages" id="chat-messages">
-                <div class="chat-options" id="chat-options" style="display: none;"></div>
-            </div>
-            <div class="typing-indicator" id="typing-indicator"></div>
-            <div class="chat-input">
-                <textarea id="message-input" placeholder="Type your message..." rows="1"></textarea>
-                <button onclick="sendMessage()">Send</button>
-            </div>
+        <div class="search-bar">
+          <input type="text" placeholder="Search conversations..." disabled />
         </div>
+        <div class="conversation-list" id="conversation-list"></div>
+      </div>
+      <div class="chat-container">
+        <div class="chat-header">
+          <img
+            src="Digimetrics Logo-02.png"
+            alt="navbar brand"
+            class="navbar-brand"
+            height="30"
+          />
+          <button class="new-chat-button" onclick="startNewConversation()">
+            New Chat
+          </button>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+          <div
+            class="chat-options"
+            id="chat-options"
+            style="display: none"
+          ></div>
+        </div>
+        <div class="typing-indicator" id="typing-indicator"></div>
+        <div class="chat-input">
+          <textarea
+            id="message-input"
+            placeholder="Type your message..."
+            rows="1"
+          ></textarea>
+          <button onclick="sendMessage()">Send</button>
+        </div>
+      </div>
     </div>
 
     <script>
-        chatMessages = document.getElementById('chat-messages');
-        const messageInput = document.getElementById('message-input');
-        const typingIndicator = document.getElementById('typing-indicator');
-        const conversationList = document.getElementById('conversation-list');
-        userEmail = "kenneth@mediaone.co";
+      chatMessages = document.getElementById("chat-messages");
+      const messageInput = document.getElementById("message-input");
+      const typingIndicator = document.getElementById("typing-indicator");
+      const conversationList = document.getElementById("conversation-list");
+      userEmail = "kenneth@mediaone.co";
 
-        messageInput.addEventListener("keydown", function (event) {
-            // Check for Enter key press
-            if (event.key === "Enter") {
-                // If Shift is NOT pressed, send the message
-                if (!event.shiftKey) {
-                    event.preventDefault(); // Prevent the default new line in the textarea
-                    sendMessage();
+      messageInput.addEventListener("keydown", function (event) {
+        // Check for Enter key press
+        if (event.key === "Enter") {
+          // If Shift is NOT pressed, send the message
+          if (!event.shiftKey) {
+            event.preventDefault(); // Prevent the default new line in the textarea
+            sendMessage();
+          }
+          // If Shift IS pressed (Shift + Enter), do nothing, allowing the default new line action to occur
+        }
+      });
+
+      function displayTypingIndicator() {
+        typingIndicator.textContent = "Processing...";
+      }
+
+      function hideTypingIndicator() {
+        typingIndicator.textContent = "";
+      }
+
+      function sendMessage() {
+        const messageText = messageInput.value.trim();
+        const optionsContainer = document.getElementById("chat-options");
+        optionsContainer.innerHTML = ""; // clear previous options
+        if (!messageText) return;
+
+        try {
+          input_messages = JSON.parse(localStorage.getItem("input_messages"));
+        } catch (error) {
+          console.log(error);
+          console.log("no previous messages");
+          input_messages = [];
+        }
+
+        // Display user message
+        displayMessage(messageText, "user");
+        messageInput.value = ""; // Clear the input
+
+        if (messageText.toLowerCase().includes("show options")) {
+          chatMessages = document.getElementById("chat-messages");
+          displayOptions();
+          return;
+        } else if (messageText.includes("I would like to look at SEO today")) {
+          // Show typing indicator
+          displayTypingIndicator();
+          const sections = [
+            {
+              header: "Keywords",
+              options: [
+                {
+                  label: "Keyword Research",
+                  value: "I want to do keyword research",
+                },
+                { label: "Check SERPs", value: "I want to check SERPs" },
+                { label: "Rank Checker", value: "I want to check rankings" },
+                {
+                  label: "Find Similar Keywords",
+                  value: "I want to find similar keywords",
+                },
+                {
+                  label: "Keyword Mapping",
+                  value: "I want to do keyword mapping",
+                },
+              ],
+            },
+            {
+              header: "Technical SEO",
+              options: [
+                {
+                  label: "Check Page Speed",
+                  value: "I want to check my pagespeed using GTmetrix",
+                },
+                {
+                  label: "Check Domain Authority",
+                  value: "I want to check domain authority",
+                },
+                {
+                  label: "Generate Schema",
+                  value: "I want to generate schema markup",
+                },
+                {
+                  label: "Google Webpage Crawler Simulator",
+                  value: "I want to simulate the Google Webpage Crawler",
+                },
+              ],
+            },
+            {
+              header: "Content Analysis",
+              options: [
+                {
+                  label: "Check Content",
+                  value: "I want to check the content I've written",
+                },
+                {
+                  label: "Content Comparison",
+                  value: "I want to do content comparison",
+                },
+              ],
+            },
+          ];
+
+          const optionsMessage = document.createElement("div");
+          optionsMessage.classList.add("message", "bot");
+          optionsMessage.style.marginBottom = "10px";
+
+          // Loop through each section
+          sections.forEach((section) => {
+            const sectionDiv = document.createElement("div");
+            sectionDiv.classList.add("option-section");
+            sectionDiv.style.marginBottom = "15px";
+
+            // Header
+            const header = document.createElement("h4");
+            header.textContent = section.header;
+            header.style.marginBottom = "8px";
+            header.style.color = "#333";
+            sectionDiv.appendChild(header);
+
+            // Button container
+            const buttonContainer = document.createElement("div");
+            buttonContainer.classList.add("button-container");
+
+            section.options.forEach((opt) => {
+              const button = document.createElement("button");
+              button.textContent = opt.label;
+              button.onclick = () => {
+                optionsContainer.style.display = "none"; // Hide after selection
+                messageInput.value = opt.value;
+                sendMessage();
+              };
+              buttonContainer.appendChild(button);
+            });
+
+            sectionDiv.appendChild(buttonContainer);
+            optionsMessage.appendChild(sectionDiv);
+          });
+          setTimeout(hideTypingIndicator(), 2000);
+          chatMessages.appendChild(optionsMessage);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+          return;
+        } else if (messageText.includes("I would like to look at GEO today")) {
+          // Show typing indicator
+          displayTypingIndicator();
+          const sections = [
+            {
+              header: "Quickstart",
+              options: [
+                {
+                  label: "AI SEO audit for brand Research",
+                  value: "Run an AI SEO audit for my brand",
+                },
+                {
+                  label: "Improve GEO for website",
+                  value: "How can I improve GEO for my website?",
+                },
+                {
+                  label: "Compare AI visibility against competitors",
+                  value: "Compare my AI visibility vs competitors",
+                },
+                {
+                  label: "GEO prompt proposal",
+                  value: "I need prompt proposal for my GEO project",
+                },
+              ],
+            },
+          ];
+
+          const optionsMessage = document.createElement("div");
+          optionsMessage.classList.add("message", "bot");
+          optionsMessage.style.marginBottom = "10px";
+
+          // Loop through each section
+          sections.forEach((section) => {
+            const sectionDiv = document.createElement("div");
+            sectionDiv.classList.add("option-section");
+            sectionDiv.style.marginBottom = "15px";
+
+            // Header
+            const header = document.createElement("h4");
+            header.textContent = section.header;
+            header.style.marginBottom = "8px";
+            header.style.color = "#333";
+            sectionDiv.appendChild(header);
+
+            // Button container
+            const buttonContainer = document.createElement("div");
+            buttonContainer.classList.add("button-container");
+
+            section.options.forEach((opt) => {
+              const button = document.createElement("button");
+              button.textContent = opt.label;
+              button.onclick = () => {
+                optionsContainer.style.display = "none"; // Hide after selection
+                messageInput.value = opt.value;
+                sendMessage();
+              };
+              buttonContainer.appendChild(button);
+            });
+
+            sectionDiv.appendChild(buttonContainer);
+            optionsMessage.appendChild(sectionDiv);
+          });
+          setTimeout(hideTypingIndicator(), 2000);
+          chatMessages.appendChild(optionsMessage);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+          return;
+        } else if (messageText.includes("I would like to look at social media toda")) {
+          // Show typing indicator
+          displayTypingIndicator();
+          const sections = [
+            {
+              header: "Social Media",
+              options: [
+                {
+                  label: "Check Content",
+                  value: "I want to check the content I've written"
                 }
-                // If Shift IS pressed (Shift + Enter), do nothing, allowing the default new line action to occur
+              ],
+            },
+          ];
+
+          const optionsMessage = document.createElement("div");
+          optionsMessage.classList.add("message", "bot");
+          optionsMessage.style.marginBottom = "10px";
+
+          // Loop through each section
+          sections.forEach((section) => {
+            const sectionDiv = document.createElement("div");
+            sectionDiv.classList.add("option-section");
+            sectionDiv.style.marginBottom = "15px";
+
+            // Header
+            const header = document.createElement("h4");
+            header.textContent = section.header;
+            header.style.marginBottom = "8px";
+            header.style.color = "#333";
+            sectionDiv.appendChild(header);
+
+            // Button container
+            const buttonContainer = document.createElement("div");
+            buttonContainer.classList.add("button-container");
+
+            section.options.forEach((opt) => {
+              const button = document.createElement("button");
+              button.textContent = opt.label;
+              button.onclick = () => {
+                optionsContainer.style.display = "none"; // Hide after selection
+                messageInput.value = opt.value;
+                sendMessage();
+              };
+              buttonContainer.appendChild(button);
+            });
+
+            sectionDiv.appendChild(buttonContainer);
+            optionsMessage.appendChild(sectionDiv);
+          });
+          setTimeout(hideTypingIndicator(), 2000);
+          chatMessages.appendChild(optionsMessage);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+          return;
+        }
+
+        // Show typing indicator
+        displayTypingIndicator();
+
+        // Send message to API
+        fetch(
+          "https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              question: messageText,
+              input_messages: input_messages,
+            }),
+          }
+        )
+          .then((response) => response.json())
+          .then((data) => {
+            processData(data);
+
+            // Display bot response
+            //displayMessage(data.answer, 'bot');
+            localStorage.setItem(
+              "input_messages",
+              JSON.stringify(data.input_messages)
+            );
+            saveConversation();
+          })
+          .catch((error) => {
+            // Hide typing indicator
+            hideTypingIndicator();
+            console.error("Error:", error);
+            displayMessage("Error: Could not get response.", "bot");
+            saveConversation();
+          });
+      }
+
+      async function processData(data) {
+        console.log(data);
+        let input_messages = data.input_messages || [];
+
+        const hasFunctions =
+          Array.isArray(data.functions) && data.functions.length > 0;
+
+        if (!hasFunctions) {
+          // No more tool calls expected — render answer safely
+          if (typeof data.answer === "string" && data.answer.trim()) {
+            displayMessage(data.answer, "bot");
+          } else {
+            displayMessage("Sorry, I could not get an answer.", "bot");
+          }
+          localStorage.setItem(
+            "input_messages",
+            JSON.stringify(input_messages)
+          );
+          saveConversation();
+          hideTypingIndicator();
+          return;
+        }
+
+        // There are pending function calls: execute them serially
+        try {
+          typingIndicator.textContent = "Getting external data...";
+          for (const fn of data.functions) {
+            // fn is [name, args, call_id]
+            const [name, args, call_id] = fn;
+            const function_result = await call_function(name, args);
+
+            // Optional: only set title once (first tool call of a chain)
+            if (
+              !localStorage.getItem("conversation_title") ||
+              localStorage.getItem("conversation_title") === "New Conversation"
+            ) {
+              localStorage.setItem("conversation_title", name);
             }
+
+            input_messages.push({
+              type: "function_call_output",
+              call_id: call_id,
+              output: JSON.stringify(function_result),
+            });
+          }
+
+          localStorage.setItem(
+            "input_messages",
+            JSON.stringify(input_messages)
+          );
+          saveConversation();
+
+          // Send the tool outputs back to the model and continue the loop
+          await returnFunctionResult();
+        } catch (err) {
+          console.error("Error during function execution chain:", err);
+          hideTypingIndicator();
+          displayMessage(
+            "Error: Could not complete external data retrieval.",
+            "bot"
+          );
+          saveConversation();
+        }
+      }
+
+      async function returnFunctionResult() {
+        try {
+          const input_messages =
+            JSON.parse(localStorage.getItem("input_messages")) || [];
+
+          const resp = await fetch(
+            "https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ input_messages }),
+            }
+          );
+
+          const data = await resp.json();
+          console.log("returnFunctionResult ->", data);
+
+          // Keep chaining until no functions remain
+          const hasFunctions =
+            Array.isArray(data.functions) && data.functions.length > 0;
+
+          if (hasFunctions) {
+            // Re-enter the same decision logic
+            await processData(data);
+            saveConversation();
+            return;
+          }
+
+          // Terminal response
+          if (typeof data.answer === "string" && data.answer.trim()) {
+            displayMessage(data.answer, "bot");
+          } else {
+            displayMessage(
+              "Sorry, I couldn’t parse a reply from the model.",
+              "bot"
+            );
+          }
+
+          localStorage.setItem(
+            "input_messages",
+            JSON.stringify(data.input_messages || input_messages)
+          );
+          saveConversation();
+          hideTypingIndicator();
+        } catch (error) {
+          console.error("Error in returnFunctionResult:", error);
+          hideTypingIndicator();
+          displayMessage("Error: Could not get response.", "bot");
+          saveConversation();
+        }
+      }
+
+      function handleSearch() {
+        const searchTerm = document.getElementById("search-bar").value.trim();
+
+        if (searchTerm.length > 0) {
+          fetchConversations(searchTerm);
+        } else {
+          conversationList.innerHTML = "";
+        }
+      }
+
+      // Function to fetch conversations based on search term
+      async function fetchConversations(searchTerm) {
+        try {
+          const response = await fetch(
+            "https://your-api-endpoint.com/searchConversations",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ query: searchTerm }),
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error("Failed to fetch search results");
+          }
+
+          const conversations = await response.json();
+          displaySearchResults(conversations);
+        } catch (error) {
+          console.error("Error fetching search results:", error);
+          conversationList.innerHTML =
+            '<div class="conversation-item">Error loading results.</div>';
+        }
+      }
+
+      // Function to display the search results
+      function displaySearchResults(conversations) {
+        conversationList.innerHTML = "";
+        if (conversations.length === 0) {
+          conversationList.innerHTML =
+            '<div class="conversation-item">No results found.</div>';
+          return;
+        }
+
+        conversations.forEach((conversation) => {
+          const conversationItem = document.createElement("div");
+          conversationItem.classList.add("conversation-item");
+          conversationItem.id = conversation.id;
+
+          const conversationDetails = document.createElement("div");
+          conversationDetails.classList.add("conversation-details");
+
+          const nameDiv = document.createElement("div");
+          nameDiv.classList.add("name");
+          nameDiv.textContent = conversation.title;
+
+          const latestMessageDiv = document.createElement("div");
+          latestMessageDiv.classList.add("latest-message");
+          const firstMessage = conversation.messages
+            .filter((msg) => msg.role === "user")
+            .shift();
+          latestMessageDiv.textContent = firstMessage
+            ? firstMessage.content
+            : "No messages yet";
+
+          const dateDiv = document.createElement("div");
+          dateDiv.classList.add("date");
+          dateDiv.textContent = conversation.last_updated.split(" ")[0];
+
+          conversationDetails.appendChild(nameDiv);
+          conversationDetails.appendChild(latestMessageDiv);
+          conversationDetails.appendChild(dateDiv);
+
+          conversationItem.appendChild(conversationDetails);
+          conversationList.appendChild(conversationItem);
+        });
+      }
+
+      function displayMessage(message, sender) {
+        const messageDiv = document.createElement("div");
+        messageDiv.classList.add("message", sender);
+        messageDiv.innerHTML = message;
+        chatMessages.appendChild(messageDiv);
+
+        // Scroll to bottom of chat messages
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      async function call_function(name, args) {
+        switch (name) {
+          case "get_serps":
+            return await get_serps(args.keyword, args.language, args.location);
+          case "rank_checker":
+            return await rank_checker(
+              args.keyword,
+              args.language,
+              args.location,
+              args.target
+            );
+          case "moz":
+            return await moz(args.domain);
+          case "keyword_metrics":
+            return await keyword_metrics(
+              args.keywords,
+              args.location,
+              args.language
+            );
+          case "scrape_webpage":
+            return await scrape_webpage(args.url);
+          case "ranking_keywords":
+            return await ranking_keywords(args.target, args.location);
+          case "similar_keywords":
+            return await similar_keywords(
+              args.keywords,
+              args.language,
+              args.location
+            );
+          case "keywords_for_site":
+            return await keywords_for_site(
+              args.target,
+              args.language,
+              args.location
+            );
+          case "getHTML":
+            return await getHTML(args.target);
+          default:
+            throw new Error(`Function ${name} not found`);
+        }
+      }
+
+      async function get_serps(keyword, language, location) {
+        const url =
+          "https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite";
+        const payload = {
+          keyword: keyword,
+          language: language,
+          location: location,
+        };
+        const headers = {
+          "Content-Type": "application/json",
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in get_serps:", error);
+          throw error; // Re-throw to allow handling further up the call stack
+        }
+      }
+
+      async function rank_checker(keyword, language, location, target) {
+        const url =
+          "https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker";
+        const payload = {
+          keyword: keyword,
+          language: language,
+          location: location,
+          target: target,
+        };
+        const headers = {
+          "Content-Type": "application/json",
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in rank_checker:", error);
+          throw error;
+        }
+      }
+
+      async function getHTML(target) {
+        const url =
+          "https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml";
+        const payload = {
+          url: target,
+        };
+        const headers = {
+          "Content-Type": "application/json",
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in getHtml:", error);
+          throw error;
+        }
+      }
+
+      async function moz(domain) {
+        const url =
+          "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
+        const payload = {
+          domain: domain,
+        };
+        const headers = {
+          "Content-Type": "application/json",
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in moz:", error);
+          throw error;
+        }
+      }
+
+      async function keyword_metrics(keywords, location, language) {
+        const url =
+          "https://eo2ckwvxmf.execute-api.ap-southeast-1.amazonaws.com/keywordMetrics";
+        const payload = {
+          keywords: keywords,
+          language: language,
+          location: location,
+        };
+        const headers = {
+          "Content-Type": "application/json",
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in keyword_metrics:", error);
+          throw error;
+        }
+      }
+
+      async function scrape_webpage(target_url) {
+        const url =
+          "https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing";
+        const payload = {
+          url: target_url,
+        };
+        const headers = {
+          "Content-Type": "application/json",
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in scrape_webpage:", error);
+          throw error;
+        }
+      }
+
+      async function ranking_keywords(target, location) {
+        const url =
+          "https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords";
+        const payload = {
+          target: target,
+          location: location,
+        };
+        const headers = {
+          "Content-Type": "application/json",
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in ranking_keywords:", error);
+          throw error;
+        }
+      }
+
+      async function similar_keywords(keywords, language, location) {
+        const url =
+          "https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords";
+        const payload = {
+          keywords: keywords,
+          location: location,
+          language: language,
+        };
+        const headers = {
+          "Content-Type": "application/json",
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in similar_keywords:", error);
+          throw error;
+        }
+      }
+
+      async function keywords_for_site(target_url, language, location) {
+        const url =
+          "https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite";
+        const payload = {
+          target: target_url,
+          location: location,
+          language: language,
+        };
+        const headers = {
+          "Content-Type": "application/json",
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in keywords_for_site:", error);
+          throw error;
+        }
+      }
+
+      function setActiveClass(element) {
+        // Remove 'active' class from any previously active items
+        let activeItems = document.querySelectorAll(
+          ".conversation-item.active"
+        );
+        activeItems.forEach((item) => {
+          item.classList.remove("active");
         });
 
+        // Add 'active' class to the clicked element
+        element.classList.add("active");
+      }
 
-        function displayTypingIndicator() {
-            typingIndicator.textContent = "Processing...";
-        }
+      window.onload = function () {
+        //displayMessage('Hello! How can I help you today?', 'bot');
+        localStorage.setItem("input_messages", []);
+        localStorage.setItem("conversation_title", "New Conversation");
+        displayOptions(); // show the quick buttons after greeting
+        loadPastConversations();
+      };
 
-        function hideTypingIndicator() {
-            typingIndicator.textContent = "";
-        }
+      // Function to display option buttons inside a message bubble
+      function displayOptions() {
+        chatMessages.innerHTML +=
+          '<div class="chat-options" id="chat-options" style="display: none;"></div>';
+        const optionsContainer = document.getElementById("chat-options");
+        optionsContainer.innerHTML = ""; // clear previous options
 
+        // Create the main message
+        const optionsMessage = document.createElement("div");
+        optionsMessage.classList.add("message", "bot");
+        optionsMessage.style.marginBottom = "10px";
+        optionsMessage.innerHTML =
+          "Which area would you like to explore today?";
 
-        function sendMessage() {
-            const messageText = messageInput.value.trim();
-            if (!messageText) return;
+        const pathwayOne = [
+          {
+            header: "Focus",
+            options: [
+              {
+                label: "Search Engine Optimisation (SEO)",
+                value: "I would like to look at SEO today",
+              },
+              {
+                label: "Generative Engine Optimisation (GEO)",
+                value: "I would like to look at GEO today",
+              },
+              {
+                label: "Paid Ads",
+                value: "I would like to look at Paid Ads today",
+              },
+              {
+                label: "Social Media",
+                value: "I would like to look at social media today",
+              },
+            ],
+          },
+        ];
 
-            try {
-                input_messages = JSON.parse(localStorage.getItem("input_messages"));
-            } catch (error) {
-                console.log(error);
-                console.log("no previous messages");
-                input_messages = [];
-            }
+        pathwayOne.forEach((section) => {
+          const sectionDiv = document.createElement("div");
+          sectionDiv.classList.add("option-section");
+          sectionDiv.style.marginBottom = "15px";
 
-            // Display user message
-            displayMessage(messageText, 'user');
-            messageInput.value = ''; // Clear the input
+          // Header
+          const header = document.createElement("h4");
+          header.textContent = section.header;
+          header.style.marginBottom = "8px";
+          header.style.color = "#333";
+          sectionDiv.appendChild(header);
 
-            if (messageText.toLowerCase().includes('show options')) {
-                chatMessages = document.getElementById('chat-messages');
-                displayOptions();
-                return
-            }
+          // Button container
+          const buttonContainer = document.createElement("div");
+          buttonContainer.classList.add("button-container");
 
-            // Show typing indicator
-            displayTypingIndicator();
-
-            // Send message to API
-            fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    question: messageText,
-                    input_messages: input_messages
-                })
-            })
-                .then(response => response.json())
-                .then(data => {
-                    processData(data);
-
-                    // Display bot response
-                    //displayMessage(data.answer, 'bot');
-                    localStorage.setItem("input_messages", JSON.stringify(data.input_messages));
-                    saveConversation();
-                })
-                .catch(error => {
-                    // Hide typing indicator
-                    hideTypingIndicator();
-                    console.error('Error:', error);
-                    displayMessage('Error: Could not get response.', 'bot');
-                    saveConversation();
-                });
-        }
-
-        async function processData(data) {
-            console.log(data);
-            let input_messages = data.input_messages || [];
-
-            const hasFunctions = Array.isArray(data.functions) && data.functions.length > 0;
-
-            if (!hasFunctions) {
-                // No more tool calls expected — render answer safely
-                if (typeof data.answer === 'string' && data.answer.trim()) {
-                    displayMessage(data.answer, 'bot');
-                } else {
-                    displayMessage('Sorry, I could not get an answer.', 'bot');
-                }
-                localStorage.setItem("input_messages", JSON.stringify(input_messages));
-                saveConversation();
-                hideTypingIndicator();
-                return;
-            }
-
-            // There are pending function calls: execute them serially
-            try {
-                typingIndicator.textContent = "Getting external data...";
-                for (const fn of data.functions) {
-                    // fn is [name, args, call_id]
-                    const [name, args, call_id] = fn;
-                    const function_result = await call_function(name, args);
-
-                    // Optional: only set title once (first tool call of a chain)
-                    if (!localStorage.getItem("conversation_title") ||
-                        localStorage.getItem("conversation_title") === "New Conversation") {
-                        localStorage.setItem("conversation_title", name);
-                    }
-
-                    input_messages.push({
-                        "type": "function_call_output",
-                        "call_id": call_id,
-                        "output": JSON.stringify(function_result)
-                    });
-                }
-
-                localStorage.setItem("input_messages", JSON.stringify(input_messages));
-                saveConversation();
-
-                // Send the tool outputs back to the model and continue the loop
-                await returnFunctionResult();
-
-            } catch (err) {
-                console.error('Error during function execution chain:', err);
-                hideTypingIndicator();
-                displayMessage('Error: Could not complete external data retrieval.', 'bot');
-                saveConversation();
-            }
-        }
-
-
-        async function returnFunctionResult() {
-            try {
-                const input_messages = JSON.parse(localStorage.getItem("input_messages")) || [];
-
-                const resp = await fetch('https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ input_messages })
-                });
-
-                const data = await resp.json();
-                console.log('returnFunctionResult ->', data);
-
-                // Keep chaining until no functions remain
-                const hasFunctions = Array.isArray(data.functions) && data.functions.length > 0;
-
-                if (hasFunctions) {
-                    // Re-enter the same decision logic
-                    await processData(data);
-                    saveConversation();
-                    return;
-                }
-
-                // Terminal response
-                if (typeof data.answer === 'string' && data.answer.trim()) {
-                    displayMessage(data.answer, 'bot');
-                } else {
-                    displayMessage('Sorry, I couldn’t parse a reply from the model.', 'bot');
-                }
-
-                localStorage.setItem("input_messages", JSON.stringify(data.input_messages || input_messages));
-                saveConversation();
-                hideTypingIndicator();
-
-            } catch (error) {
-                console.error('Error in returnFunctionResult:', error);
-                hideTypingIndicator();
-                displayMessage('Error: Could not get response.', 'bot');
-                saveConversation();
-            }
-        }
-
-        function handleSearch() {
-            const searchTerm = document.getElementById("search-bar").value.trim();
-
-            if (searchTerm.length > 0) {
-                fetchConversations(searchTerm);
-            } else {
-                conversationList.innerHTML = "";
-            }
-        }
-
-        // Function to fetch conversations based on search term
-        async function fetchConversations(searchTerm) {
-            try {
-                const response = await fetch("https://your-api-endpoint.com/searchConversations", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ query: searchTerm }),
-                });
-
-                if (!response.ok) {
-                    throw new Error("Failed to fetch search results");
-                }
-
-                const conversations = await response.json();
-                displaySearchResults(conversations);
-            } catch (error) {
-                console.error("Error fetching search results:", error);
-                conversationList.innerHTML = '<div class="conversation-item">Error loading results.</div>';
-            }
-        }
-
-        // Function to display the search results
-        function displaySearchResults(conversations) {
-            conversationList.innerHTML = "";
-            if (conversations.length === 0) {
-                conversationList.innerHTML = '<div class="conversation-item">No results found.</div>';
-                return;
-            }
-
-            conversations.forEach((conversation) => {
-                const conversationItem = document.createElement("div");
-                conversationItem.classList.add("conversation-item");
-                conversationItem.id = conversation.id;
-
-                const conversationDetails = document.createElement("div");
-                conversationDetails.classList.add("conversation-details");
-
-                const nameDiv = document.createElement("div");
-                nameDiv.classList.add("name");
-                nameDiv.textContent = conversation.title;
-
-                const latestMessageDiv = document.createElement("div");
-                latestMessageDiv.classList.add("latest-message");
-                const firstMessage = conversation.messages.filter((msg) => msg.role === "user").shift();
-                latestMessageDiv.textContent = firstMessage ? firstMessage.content : "No messages yet";
-
-                const dateDiv = document.createElement("div");
-                dateDiv.classList.add("date");
-                dateDiv.textContent = conversation.last_updated.split(" ")[0];
-
-                conversationDetails.appendChild(nameDiv);
-                conversationDetails.appendChild(latestMessageDiv);
-                conversationDetails.appendChild(dateDiv);
-
-                conversationItem.appendChild(conversationDetails);
-                conversationList.appendChild(conversationItem);
-            });
-        }
-
-
-        function displayMessage(message, sender) {
-            const messageDiv = document.createElement('div');
-            messageDiv.classList.add('message', sender);
-            messageDiv.innerHTML = message;
-            chatMessages.appendChild(messageDiv);
-
-            // Scroll to bottom of chat messages
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        async function call_function(name, args) {
-            switch (name) {
-                case "get_serps":
-                    return await get_serps(args.keyword, args.language, args.location);
-                case "rank_checker":
-                    return await rank_checker(args.keyword, args.language, args.location, args.target);
-                case "moz":
-                    return await moz(args.domain);
-                case "keyword_metrics":
-                    return await keyword_metrics(args.keywords, args.location, args.language);
-                case "scrape_webpage":
-                    return await scrape_webpage(args.url);
-                case "ranking_keywords":
-                    return await ranking_keywords(args.target, args.location);
-                case "similar_keywords":
-                    return await similar_keywords(args.keywords, args.language, args.location);
-                case "keywords_for_site":
-                    return await keywords_for_site(args.target, args.language, args.location);
-                case "getHTML":
-                    return await getHTML(args.target);
-                default:
-                    throw new Error(`Function ${name} not found`);
-            }
-        }
-
-        async function get_serps(keyword, language, location) {
-            const url = "https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite";
-            const payload = {
-                'keyword': keyword,
-                'language': language,
-                'location': location
+          section.options.forEach((opt) => {
+            const button = document.createElement("button");
+            button.textContent = opt.label;
+            button.onclick = () => {
+              optionsContainer.style.display = "none"; // Hide after selection
+              messageInput.value = opt.value;
+              sendMessage();
             };
-            const headers = {
-                'Content-Type': 'application/json'
-            };
+            buttonContainer.appendChild(button);
+          });
 
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(payload)
-                });
+          sectionDiv.appendChild(buttonContainer);
+          optionsMessage.appendChild(sectionDiv);
+        });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
+        chatMessages.appendChild(optionsMessage);
 
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error("Error in get_serps:", error);
-                throw error; // Re-throw to allow handling further up the call stack
+        // Scroll to bottom of chat messages
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      async function loadPastConversations() {
+        const userEmail = "kenneth@mediaone.co";
+
+        try {
+          const response = await fetch(
+            "https://ro2g6qodt1.execute-api.ap-southeast-1.amazonaws.com/chatbotPastConversations",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                user: userEmail,
+              }),
             }
+          );
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const conversations = await response.json();
+          populateConversationList(conversations);
+        } catch (error) {
+          console.error("Error fetching past conversations:", error);
+          conversationList.innerHTML =
+            '<div class="conversation-item">Error loading conversations.</div>';
         }
+      }
 
+      function populateConversationList(conversations) {
+        conversationList.innerHTML = "";
 
-        async function rank_checker(keyword, language, location, target) {
-            const url = "https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker";
-            const payload = {
-                'keyword': keyword,
-                'language': language,
-                'location': location,
-                'target': target
-            };
-            const headers = {
-                'Content-Type': 'application/json'
-            };
+        conversations.forEach((conversation) => {
+          const conversationItem = document.createElement("div");
+          conversationItem.classList.add("conversation-item");
+          conversationItem.id = conversation.id; // Assign a unique ID for the conversation
+          conversationItem.addEventListener("click", () =>
+            loadConversation(conversation)
+          );
 
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(payload)
-                });
+          const conversationDetails = document.createElement("div");
+          conversationDetails.classList.add("conversation-details");
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
+          const nameDiv = document.createElement("div");
+          nameDiv.classList.add("name");
+          nameDiv.textContent = conversation.title;
 
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error("Error in rank_checker:", error);
-                throw error;
+          const latestMessageDiv = document.createElement("div");
+          latestMessageDiv.classList.add("latest-message");
+          const firstMessage = conversation.messages
+            .filter((msg) => msg.role === "user")
+            .shift(); // get the first user message
+          latestMessageDiv.textContent = firstMessage
+            ? firstMessage.content
+            : "No messages yet";
+
+          const dateDiv = document.createElement("div");
+          dateDiv.classList.add("date");
+          dateDiv.textContent = conversation.last_updated.split(" ")[0];
+
+          conversationDetails.appendChild(nameDiv);
+          conversationDetails.appendChild(latestMessageDiv);
+          conversationDetails.appendChild(dateDiv);
+
+          // Create the delete button
+          const deleteButton = document.createElement("button");
+          deleteButton.classList.add("delete-button");
+          deleteButton.textContent = "Delete";
+          deleteButton.onclick = () => deleteConversation(conversation.id);
+
+          // Append delete button to the conversation item
+          conversationItem.appendChild(conversationDetails);
+          conversationItem.appendChild(deleteButton);
+          conversationList.appendChild(conversationItem);
+        });
+      }
+
+      // Function to delete the conversation
+      async function deleteConversation(conversationId) {
+        try {
+          // Send delete API request
+          const response = await fetch(
+            "https://zuhpw7ts50.execute-api.ap-southeast-1.amazonaws.com/deleteChatbotConversation", // Replace with actual API endpoint
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ conversation_id: conversationId }),
             }
+          );
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          // Successfully deleted, remove from UI
+          document.getElementById(conversationId).remove();
+        } catch (error) {
+          console.error("Error deleting conversation:", error);
         }
+      }
 
-        async function getHTML(target) {
-            const url = "https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml";
-            const payload = {
-                'url': target,
-            };
-            const headers = {
-                'Content-Type': 'application/json'
-            };
+      async function loadConversation(conversation) {
+        localStorage.setItem("conversation_id", conversation["id"]);
+        chatMessages.innerHTML = "";
 
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(payload)
-                });
+        // Filter messages to only display user and assistant messages
+        const filteredMessages = conversation.messages.filter(
+          (message) => message.role === "user" || message.role === "assistant"
+        );
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
+        filteredMessages.forEach((message) => {
+          if (message.role === "user") {
+            displayMessage(message.content, "user");
+          } else if (message.role === "assistant") {
+            displayMessage(message.content, "bot");
+          }
+        });
 
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error("Error in getHtml:", error);
-                throw error;
+        // Store the filtered messages in local storage
+        localStorage.setItem(
+          "input_messages",
+          JSON.stringify(conversation.messages)
+        );
+      }
+
+      async function saveConversation() {
+        try {
+          const response = await fetch(
+            "https://8i8tbru5m2.execute-api.ap-southeast-1.amazonaws.com/createUpdateConversation",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                user: userEmail,
+                conversation_id: localStorage.getItem("conversation_id"),
+                messages: JSON.parse(localStorage.getItem("input_messages")),
+                title: localStorage.getItem("conversation_title"),
+              }),
             }
+          );
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          output = await response.json();
+          if (localStorage.getItem("conversation_id") == "") {
+            localStorage.setItem("conversation_id", output);
+          }
+
+          loadPastConversations();
+        } catch (error) {
+          console.error("Error updating/creating conversations:", error);
+          // Display a user-friendly error message in the conversation list
+          conversationList.innerHTML =
+            '<div class="conversation-item">Error creating / updating conversations.</div>';
+          loadPastConversations();
         }
-
-        async function moz(domain) {
-            const url = "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
-            const payload = {
-                'domain': domain
-            };
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error("Error in moz:", error);
-                throw error;
-            }
-        }
-
-        async function keyword_metrics(keywords, location, language) {
-            const url = "https://eo2ckwvxmf.execute-api.ap-southeast-1.amazonaws.com/keywordMetrics";
-            const payload = {
-                'keywords': keywords,
-                'language': language,
-                'location': location
-            };
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error("Error in keyword_metrics:", error);
-                throw error;
-            }
-        }
-
-        async function scrape_webpage(target_url) {
-            const url = "https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing";
-            const payload = {
-                'url': target_url
-            };
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error("Error in scrape_webpage:", error);
-                throw error;
-            }
-        }
-
-        async function ranking_keywords(target, location) {
-            const url = "https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords";
-            const payload = {
-                'target': target,
-                'location': location
-            };
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error("Error in ranking_keywords:", error);
-                throw error;
-            }
-        }
-
-        async function similar_keywords(keywords, language, location) {
-            const url = "https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords";
-            const payload = {
-                'keywords': keywords,
-                'location': location,
-                'language': language
-            };
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error("Error in similar_keywords:", error);
-                throw error;
-            }
-        }
-
-        async function keywords_for_site(target_url, language, location) {
-            const url = "https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite";
-            const payload = {
-                'target': target_url,
-                'location': location,
-                'language': language
-            };
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error("Error in keywords_for_site:", error);
-                throw error;
-            }
-        }
-
-        function setActiveClass(element) {
-            // Remove 'active' class from any previously active items
-            let activeItems = document.querySelectorAll('.conversation-item.active');
-            activeItems.forEach(item => {
-                item.classList.remove('active');
-            });
-
-            // Add 'active' class to the clicked element
-            element.classList.add('active');
-        }
-
-
-        window.onload = function () {
-            displayMessage('Hello! How can I help you today?', 'bot');
-            localStorage.setItem("input_messages", []);
-            localStorage.setItem("conversation_title", "New Conversation");
-            displayOptions(); // show the quick buttons after greeting
-            loadPastConversations();
-        }
-
-        // Function to display option buttons inside a message bubble
-        function displayOptions() {
-            chatMessages.innerHTML += '<div class="chat-options" id="chat-options" style="display: none;"></div>';
-            const optionsContainer = document.getElementById('chat-options');
-            optionsContainer.innerHTML = ''; // clear previous options
-
-            // Create the main message
-            const optionsMessage = document.createElement('div');
-            optionsMessage.classList.add('message', 'bot');
-            optionsMessage.style.marginBottom = '10px';
-            optionsMessage.innerHTML = "Here are some quick actions you can take:";
-
-            // Define multiple sections with headers and buttons
-            const sections = [
-                {
-                    header: 'Keywords',
-                    options: [
-                        { label: 'Keyword Research', value: 'I want to do keyword research' },
-                        { label: 'Check SERPs', value: 'I want to check SERPs' },
-                        { label: 'Rank Checker', value: 'I want to check rankings' },
-                        { label: 'Find Similar Keywords', value: 'I want to find similar keywords' },
-                        { label: 'Keyword Mapping', value: 'I want to do keyword mapping' }
-                    ]
-                },
-                {
-                    header: 'Technical SEO',
-                    options: [
-                        { label: 'Check Page Speed', value: 'I want to check my pagespeed using GTmetrix' },
-                        { label: 'Check Domain Authority', value: 'I want to check domain authority' },
-                        { label: 'Generate Schema', value: 'I want to generate schema markup' },
-                        { label: 'Google Webpage Crawler Simulator', value: 'I want to simulate the Google Webpage Crawler' }
-
-                    ]
-                },
-                {
-                    header: 'Content Analysis',
-                    options: [
-                        { label: 'Check Content', value: "I want to check the content I've written" },
-                        { label: 'Content Comparison', value: "I want to do content comparison" }
-                    ]
-                }
-            ];
-
-            // Loop through each section
-            sections.forEach(section => {
-                const sectionDiv = document.createElement('div');
-                sectionDiv.classList.add('option-section');
-                sectionDiv.style.marginBottom = '15px';
-
-                // Header
-                const header = document.createElement('h4');
-                header.textContent = section.header;
-                header.style.marginBottom = '8px';
-                header.style.color = '#333';
-                sectionDiv.appendChild(header);
-
-                // Button container
-                const buttonContainer = document.createElement('div');
-                buttonContainer.classList.add('button-container');
-
-                section.options.forEach(opt => {
-                    const button = document.createElement('button');
-                    button.textContent = opt.label;
-                    button.onclick = () => {
-                        optionsContainer.style.display = 'none';  // Hide after selection
-                        messageInput.value = opt.value;
-                        sendMessage();
-                    };
-                    buttonContainer.appendChild(button);
-                });
-
-                sectionDiv.appendChild(buttonContainer);
-                optionsMessage.appendChild(sectionDiv);
-            });
-
-            //optionsContainer.appendChild(optionsMessage);
-            //optionsContainer.style.display = 'block';
-
-
-            chatMessages.appendChild(optionsMessage);
-
-            // Scroll to bottom of chat messages
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-
-        async function loadPastConversations() {
-            const userEmail = "kenneth@mediaone.co";
-
-            try {
-                const response = await fetch('https://ro2g6qodt1.execute-api.ap-southeast-1.amazonaws.com/chatbotPastConversations', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        "user": userEmail
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const conversations = await response.json();
-                populateConversationList(conversations);
-
-            } catch (error) {
-                console.error('Error fetching past conversations:', error);
-                conversationList.innerHTML = '<div class="conversation-item">Error loading conversations.</div>';
-            }
-        }
-
-        function populateConversationList(conversations) {
-            conversationList.innerHTML = "";
-
-            conversations.forEach((conversation) => {
-                const conversationItem = document.createElement("div");
-                conversationItem.classList.add("conversation-item");
-                conversationItem.id = conversation.id; // Assign a unique ID for the conversation
-                conversationItem.addEventListener("click", () => loadConversation(conversation));
-
-                const conversationDetails = document.createElement("div");
-                conversationDetails.classList.add("conversation-details");
-
-                const nameDiv = document.createElement("div");
-                nameDiv.classList.add("name");
-                nameDiv.textContent = conversation.title;
-
-                const latestMessageDiv = document.createElement("div");
-                latestMessageDiv.classList.add("latest-message");
-                const firstMessage = conversation.messages
-                    .filter((msg) => msg.role === "user")
-                    .shift(); // get the first user message
-                latestMessageDiv.textContent = firstMessage
-                    ? firstMessage.content
-                    : "No messages yet";
-
-                const dateDiv = document.createElement("div");
-                dateDiv.classList.add("date");
-                dateDiv.textContent = conversation.last_updated.split(" ")[0];
-
-                conversationDetails.appendChild(nameDiv);
-                conversationDetails.appendChild(latestMessageDiv);
-                conversationDetails.appendChild(dateDiv);
-
-                // Create the delete button
-                const deleteButton = document.createElement("button");
-                deleteButton.classList.add("delete-button");
-                deleteButton.textContent = "Delete";
-                deleteButton.onclick = () => deleteConversation(conversation.id);
-
-                // Append delete button to the conversation item
-                conversationItem.appendChild(conversationDetails);
-                conversationItem.appendChild(deleteButton);
-                conversationList.appendChild(conversationItem);
-            });
-        }
-
-        // Function to delete the conversation
-        async function deleteConversation(conversationId) {
-            try {
-                // Send delete API request
-                const response = await fetch(
-                    "https://zuhpw7ts50.execute-api.ap-southeast-1.amazonaws.com/deleteChatbotConversation", // Replace with actual API endpoint
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({ conversation_id: conversationId }),
-                    }
-                );
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                // Successfully deleted, remove from UI
-                document.getElementById(conversationId).remove();
-            } catch (error) {
-                console.error("Error deleting conversation:", error);
-            }
-        }
-
-        async function loadConversation(conversation) {
-            localStorage.setItem("conversation_id", conversation['id']);
-            chatMessages.innerHTML = '';
-
-            // Filter messages to only display user and assistant messages
-            const filteredMessages = conversation.messages.filter(message =>
-                message.role === 'user' || message.role === 'assistant'
-            );
-
-            filteredMessages.forEach(message => {
-                if (message.role === 'user') {
-                    displayMessage(message.content, 'user');
-                } else if (message.role === 'assistant') {
-                    displayMessage(message.content, 'bot');
-                }
-            });
-
-            // Store the filtered messages in local storage
-            localStorage.setItem("input_messages", JSON.stringify(conversation.messages));
-        }
-
-        async function saveConversation() {
-            try {
-                const response = await fetch('https://8i8tbru5m2.execute-api.ap-southeast-1.amazonaws.com/createUpdateConversation', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        "user": userEmail,
-                        "conversation_id": localStorage.getItem("conversation_id"),
-                        "messages": JSON.parse(localStorage.getItem("input_messages")),
-                        "title": localStorage.getItem("conversation_title")
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                output = await response.json();
-                if (localStorage.getItem("conversation_id") == "") {
-                    localStorage.setItem("conversation_id", output);
-                }
-                
-                loadPastConversations();
-
-            } catch (error) {
-                console.error('Error updating/creating conversations:', error);
-                // Display a user-friendly error message in the conversation list
-                conversationList.innerHTML = '<div class="conversation-item">Error creating / updating conversations.</div>';
-                loadPastConversations()
-            }
-        }
-
-        function startNewConversation() {
-            // Clear chat messages
-            chatMessages.innerHTML = '';
-            localStorage.setItem("conversation_id", "");
-            localStorage.setItem("input_messages", []);
-            localStorage.setItem("conversation_title", "New Conversation");
-
-            // Clear local storage
-            localStorage.removeItem("input_messages");
-            localStorage.setItem("input_messages", JSON.stringify([]));
-
-            // Display initial bot message
-            displayMessage('Hello! How can I help you today?', 'bot');
-
-            // Display options
-            displayOptions();
-        }
+      }
+
+      function startNewConversation() {
+        // Clear chat messages
+        chatMessages.innerHTML = "";
+        localStorage.setItem("conversation_id", "");
+        localStorage.setItem("input_messages", []);
+        localStorage.setItem("conversation_title", "New Conversation");
+
+        // Clear local storage
+        localStorage.removeItem("input_messages");
+        localStorage.setItem("input_messages", JSON.stringify([]));
+
+        // Display initial bot message
+        displayMessage("Hello! How can I help you today?", "bot");
+
+        // Display options
+        displayOptions();
+      }
     </script>
-</body>
-
+  </body>
 </html>
