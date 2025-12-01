@@ -487,6 +487,10 @@
                   label: "Keyword Mapping",
                   value: "I want to do keyword mapping",
                 },
+                {
+                  label: "Keyword Analysis",
+                  value: "I want to do keyword analysis",
+                }
               ],
             },
             {
@@ -954,6 +958,8 @@
             );
           case "scrape_webpage":
             return await scrape_webpage(args.url);
+          case "get_html_values":
+            return await get_html_values(args.url);
           case "ranking_keywords":
             return await ranking_keywords(args.target, args.location);
           case "similar_keywords":
@@ -1130,6 +1136,35 @@
       async function scrape_webpage(target_url) {
         const url =
           "https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing";
+        const payload = {
+          url: target_url,
+        };
+        const headers = {
+          "Content-Type": "application/json",
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in scrape_webpage:", error);
+          throw error;
+        }
+      }
+
+      async function get_html_values(target_url) {
+        const url =
+          "https://udjdc333m9.execute-api.ap-southeast-1.amazonaws.com/getImages";
         const payload = {
           url: target_url,
         };
