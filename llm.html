@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SEO Pillars: SEO Marketing Singapore - Content Strategy Visual</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg1: #0f1220;
+      --bg2: #1a1032;
+      --card: rgba(255,255,255,.08);
+      --text: #e8eaf6;
+      --muted: #cbd5e1;
+      --glow: 0 8px 24px rgba(0,0,0,.25);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto;
+      color: var(--text);
+      background: radial-gradient(circle at 20% 10%, rgba(120,50,200,.25), transparent 40%),
+                  radial-gradient(circle at 80% 0%, rgba(0,180,255,.25), transparent 40%),
+                  linear-gradient(135deg, var(--bg1), var(--bg2) 60%);
+      overflow-x: hidden;
+    }
+
+    /* Fancy header */
+    header {
+      padding: 28px 32px;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: linear-gradient(to bottom, rgba(15,18,32,.95), rgba(15,18,32,.75) 60%, rgba(15,18,32,.0) 100%);
+      backdrop-filter: blur(2px);
+    }
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: .2px;
+      font-weight: 700;
+    }
+    p.subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    /* Layout */
+    .container {
+      display: flex;
+      flex-direction: row;
+      gap: 28px;
+      padding: 18px 40px 60px;
+      margin: 0 auto;
+    }
+    #graph-area {
+      flex: 1 1 60%;
+      min-width: 320px;
+      background: linear-gradient(135deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: var(--glow);
+      border: 1px solid rgba(255,255,255,.08);
+      position: relative;
+      overflow: hidden;
+    }
+    #sidebar {
+      flex: 0 0 360px;
+      max-width: 380px;
+      min-width: 300px;
+      background: rgba(255,255,255,.04);
+      border-radius: 16px;
+      padding: 18px 18px 24px;
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: var(--glow);
+      height: fit-content;
+    }
+    h2.section {
+      font-size: 16px;
+      margin: 0 0 8px;
+      letter-spacing: .4px;
+      color: #e8f0fe;
+      text-transform: uppercase;
+    }
+    ul.urls {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    ul.urls li {
+      margin: 10px 0;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(0,0,0,.15);
+      transition: transform .2s ease, background .2s ease;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+    }
+    ul.urls li:hover {
+      transform: translateX(4px);
+      background: rgba(0,0,0,.25);
+    }
+    ul.urls a {
+      color: #eaf3ff;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    ul.urls .tag {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.15);
+      color: #fff;
+    }
+
+    /* Tooltip for nodes */
+    .tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: rgba(20,24,50,.95);
+      color: #f8fbff;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      max-width: 320px;
+      line-height: 1.3;
+      border: 1px solid rgba(255,255,255,.15);
+      box-shadow: 0 6px 20px rgba(0,0,0,.4);
+      display: none;
+      z-index: 5;
+    }
+    .tooltip strong { display: block; margin-bottom: 2px; }
+
+    /* Responsive tweaks */
+    @media (max-width: 980px) {
+      .container { flex-direction: column; padding: 14px; }
+      #sidebar { order: -1; width: 100%; max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SEO Pillars for SEO Marketing Singapore</h1>
+    <p class="subtitle">A content-pillar visualization to outrank in Singapore. Bigger nodes = higher priority topics.</p>
+  </header>
+
+  <main class="container" aria-label="SEO Pillars Visualization and URL suggestions">
+    <section id="graph-area" aria-label="Force-directed graph of content pillars">
+      <svg id="graph" width="100%" height="720" role="img" aria-label="Force-directed graph of content pillars for SEO Marketing Singapore"></svg>
+      <div id="tooltip" class="tooltip" role="tooltip" aria-hidden="true"></div>
+    </section>
+
+    <aside id="sidebar" aria-label="Content pillars and suggested URLs">
+      <h2 class="section" style="margin-top:4px;">Suggested URLs</h2>
+      <ul class="urls" id="urlList">
+        <!-- URLs will populate here -->
+      </ul>
+
+      <h2 class="section" style="margin-top:18px;">Content Pillars (Hierarchy)</h2>
+      <ul id="pillarList" style="list-style:none; padding:0; margin:0;">
+        <!-- Pillars will populate here -->
+      </ul>
+    </aside>
+  </main>
+
+  <!-- D3.js (force-directed graph) -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    // Data: central topic, pillars, and subtopics to form a two-layer pillar graph
+    const dataNodes = [
+      // Center
+      { id: 'center', name: 'SEO Marketing Singapore', group: 'center', size: 60, description: 'Core cluster for ranking SEO-related content in Singapore.' },
+
+      // Pillars
+      { id: 'local-sg', name: 'Local SEO Singapore', group: 'pillar', size: 40, description: 'Local search optimization for Singapore businesses (NAP, Google My Business, maps).' },
+      { id: 'keyword-sg', name: 'Keyword Research Singapore', group: 'pillar', size: 38, description: 'Identify local intent, volumes, and competition in SG.' },
+      { id: 'onpage-sg', name: 'On-Page SEO Singapore', group: 'pillar', size: 38, description: 'Meta tags, headings, internal linking, and UX for SG users.' },
+      { id: 'tech-sg', name: 'Technical SEO Singapore', group: 'pillar', size: 38, description: 'Crawlability, speed, mobile-first indexing, and structured data.' },
+      { id: 'content-sg', name: 'Content Marketing Singapore', group: 'pillar', size: 36, description: 'Content strategy tailored to Singapore audiences and industries.' },
+      { id: 'link-sg', name: 'Link Building Singapore', group: 'pillar', size: 36, description: 'Quality backlinks from SG-based domains and partnerships.' },
+      { id: 'ecom-sg', name: 'E-commerce SEO Singapore', group: 'pillar', size: 34, description: 'Product pages, categories, reviews, and schema for SG ecommerce.' },
+      { id: 'audit-sg', name: 'SEO Audit Singapore', group: 'pillar', size: 32, description: 'Comprehensive audit and remediation roadmap for SG sites.' },
+      { id: 'industry-sg', name: 'Industry-specific SEO Singapore', group: 'pillar', size: 32, description: 'Finance, hospitality, real estate, tech—SG-specific strategies.' },
+      { id: 'voice-sg', name: 'Voice/Search Optimization SG', group: 'pillar', size: 28, description: 'Optimizing for voice queries and conversational search in SG.' },
+
+      // Subtopics: Local
+      { id: 'gmb-sg', name: 'GMB & Local Profiles SG', group: 'sub', size: 22, description: 'Google My Business optimization for SG.' },
+      { id: 'nap-sg', name: 'NAP Consistency SG', group: 'sub', size: 22, description: 'Name/Address/Phone consistency across SG listings.' },
+      { id: 'local-citations-sg', name: 'Local Citations SG', group: 'sub', size: 22, description: 'Local directory listings and citations in SG.' },
+      { id: 'reviews-sg', name: 'Reviews & Reputation SG', group: 'sub', size: 22, description: 'Reviews signals and reputation in SG.' },
+
+      // Subtopics: Keywords
+      { id: 'local-keywords-sg', name: 'Local Keyword Volumes SG', group: 'sub', size: 22, description: 'Local search volumes for SG regions.' },
+      { id: 'competitor-sg', name: 'Competitor Analysis SG', group: 'sub', size: 22, description: 'Competitive landscape in SG markets.' },
+      { id: 'long-tail-sg', name: 'Long-tail Keywords SG', group: 'sub', size: 22, description: 'Long-tail opportunities in SG.' },
+
+      // Subtopics: On-Page
+      { id: 'schema-sg', name: 'Schema Markup SG', group: 'sub', size: 22, description: 'Structured data for SG search results.' },
+      { id: 'title-meta-sg', name: 'Title & Meta Optimization SG', group: 'sub', size: 22, description: 'Title tags and meta descriptions tailored to SG.' },
+      { id: 'internal-links-sg', name: 'Internal Linking SG', group: 'sub', size: 22, description: 'Internal link structure for SG sites.' },
+
+      // Subtopics: Technical
+      { id: 'speed-sg', name: 'Site Speed SG', group: 'sub', size: 22, description: 'Performance optimization for SG audiences.' },
+      { id: 'mobile-sg', name: 'Mobile-First SG', group: 'sub', size: 22, description: 'Mobile UX and Core Web Vitals in SG.' },
+      { id: 'crawl-sg', name: 'Crawl Budget SG', group: 'sub', size: 22, description: 'Crawl efficiency and indexing for SG sites.' },
+
+      // Subtopics: Content
+      { id: 'blog-sg', name: 'Blog Strategy SG', group: 'sub', size: 22, description: 'Editorial calendar for SG readers.' },
+      { id: 'video-sg', name: 'Video Content SG', group: 'sub', size: 22, description: 'Video content plan for SG audience.' },
+      { id: 'ugc-sg', name: 'UGC & Reviews SG', group: 'sub', size: 22, description: 'User-generated content in SG contexts.' },
+
+      // Subtopics: Link Building
+      { id: 'outreach-sg', name: 'Outreach SG', group: 'sub', size: 22, description: 'Outreach to SG domains and influencers.' },
+      { id: 'guest-sg', name: 'Guest Blogging SG', group: 'sub', size: 22, description: 'Guest posts on SG sites.' },
+      { id: 'pr-sg', name: 'Digital PR SG', group: 'sub', size: 22, description: 'Brand mentions in SG media.' },
+
+      // Subtopics: Ecommerce
+      { id: 'product-sg', name: 'Product Page Optimization SG', group: 'sub', size: 22, description: 'Product page CRO for SG shoppers.' },
+      { id: 'schema-prod-sg', name: 'Product Schema SG', group: 'sub', size: 22, description: 'Product schema markup for SG.' },
+      { id: 'reviews-prod-sg', name: 'Reviews & Q&A SG', group: 'sub', size: 22, description: 'Product reviews and Q&A snippets.' },
+
+      // Subtopics: Audit
+      { id: 'audit-checklist-sg', name: 'Audit Checklist SG', group: 'sub', size: 22, description: 'Comprehensive SG-site audit list.' },
+      { id: 'roadmap-sg', name: 'Remediation Roadmap SG', group: 'sub', size: 22, description: 'Action plan for SG sites.' },
+
+      // Subtopics: Industry
+      { id: 'finance-sg', name: 'Finance SEO SG', group: 'sub', size: 22, description: 'SEO for financial services in SG.' },
+      { id: 'hospitality-sg', name: 'Hospitality SEO SG', group: 'sub', size: 22, description: 'Hotels/restaurants SEO in SG.' },
+      { id: 'realestate-sg', name: 'Real Estate SEO SG', group: 'sub', size: 22, description: 'Real estate SEO in SG.' }
+    ];
+
+    const links = [
+      // Center to pillars
+      { source: 'center', target: 'local-sg' },
+      { source: 'center', target: 'keyword-sg' },
+      { source: 'center', target: 'onpage-sg' },
+      { source: 'center', target: 'tech-sg' },
+      { source: 'center', target: 'content-sg' },
+      { source: 'center', target: 'link-sg' },
+      { source: 'center', target: 'ecom-sg' },
+      { source: 'center', target: 'audit-sg' },
+      { source: 'center', target: 'industry-sg' },
+      { source: 'center', target: 'voice-sg' },
+
+      // Pillars to subtopics (Local)
+      { source: 'local-sg', target: 'gmb-sg' },
+      { source: 'local-sg', target: 'nap-sg' },
+      { source: 'local-sg', target: 'local-citations-sg' },
+      { source: 'local-sg', target: 'reviews-sg' },
+
+      // Keyword
+      { source: 'keyword-sg', target: 'local-keywords-sg' },
+      { source: 'keyword-sg', target: 'competitor-sg' },
+      { source: 'keyword-sg', target: 'long-tail-sg' },
+
+      // On-Page
+      { source: 'onpage-sg', target: 'schema-sg' },
+      { source: 'onpage-sg', target: 'title-meta-sg' },
+      { source: 'onpage-sg', target: 'internal-links-sg' },
+
+      // Technical
+      { source: 'tech-sg', target: 'speed-sg' },
+      { source: 'tech-sg', target: 'mobile-sg' },
+      { source: 'tech-sg', target: 'crawl-sg' },
+
+      // Content
+      { source: 'content-sg', target: 'blog-sg' },
+      { source: 'content-sg', target: 'video-sg' },
+      { source: 'content-sg', target: 'ugc-sg' },
+
+      // Link Building
+      { source: 'link-sg', target: 'outreach-sg' },
+      { source: 'link-sg', target: 'guest-sg' },
+      { source: 'link-sg', target: 'pr-sg' },
+
+      // Ecommerce
+      { source: 'ecom-sg', target: 'product-sg' },
+      { source: 'ecom-sg', target: 'schema-prod-sg' },
+      { source: 'ecom-sg', target: 'reviews-prod-sg' },
+
+      // Audit
+      { source: 'audit-sg', target: 'audit-checklist-sg' },
+      { source: 'audit-sg', target: 'roadmap-sg' },
+
+      // Industry
+      { source: 'industry-sg', target: 'finance-sg' },
+      { source: 'industry-sg', target: 'hospitality-sg' },
+      { source: 'industry-sg', target: 'realestate-sg' },
+
+      // Vibrant cross-link (optional visual interest)
+      { source: 'voice-sg', target: 'center' }
+    ];
+
+    // Build mapping for quick radius calculation
+    function nodeRadius(n) {
+      // Small tweak for readability: ensure minimum radius
+      // Actual visual radius will be scaled for legibility
+      return 6 + (n.size || 20) * 0.8;
+    }
+
+    // Color by group
+    function nodeColor(d) {
+      if (d.group === 'center') return '#8e44ad';
+      if (d.group === 'pillar') return '#1f77b4';
+      if (d.group === 'sub') return '#2ecc71';
+      return '#95a5a6';
+    }
+
+    // Prepare SVG
+    const svg = d3.select('#graph');
+    const width = Math.max(700, document.body.clientWidth * 0.95);
+    const height = 720;
+    svg.attr('viewBox', `0 0 ${width} ${height}`);
+
+    // Define forces
+    const simulation = d3.forceSimulation(dataNodes)
+      .force('link', d3.forceLink(links).id(d => d.id).distance(d => {
+        // Slightly different link distances by role to create visual hierarchy
+        if (d.source.id === 'center' || d.target.id === 'center') return 160; // Increased slightly for labels
+        const s = (dataNodes.find(n => n.id === d.source.id) || {}).size || 30;
+        const t = (dataNodes.find(n => n.id === d.target.id) || {}).size || 30;
+        const avg = (s + t) / 2;
+        return 65 + (avg * 0.4); // Increased slightly for labels
+      }))
+      .force('charge', d3.forceManyBody().strength(-200)) // Stronger repulsion
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collision', d3.forceCollide().radius(d => nodeRadius(d) + 20).strength(0.7)) // More collision buffer for text
+      .on('tick', ticked);
+
+    // Draw links
+    const link = svg.append('g')
+      .attr('stroke', '#aab2c6')
+      .attr('stroke-opacity', 0.55)
+      .selectAll('line')
+      .data(links)
+      .join('line')
+      .attr('stroke-width', 1.25);
+
+    // Draw nodes
+    const node = svg.append('g')
+      .selectAll('circle')
+      .data(dataNodes)
+      .join('circle')
+      .attr('r', d => nodeRadius(d))
+      .attr('fill', d => nodeColor(d))
+      .attr('stroke', '#eaf2ff')
+      .attr('stroke-width', 1.5)
+      .call(d3.drag()
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended))
+      .on('mouseover', (event, d) => {
+        // enlarge on hover
+        d3.select(event.currentTarget)
+          .transition().duration(120)
+          .attr('r', nodeRadius(d) * 1.15)
+          .attr('stroke', '#fff')
+          .attr('opacity', 1);
+        // highlight connected links
+        link.style('stroke', l => (l.source.id === d.id || l.target.id === d.id) ? '#ffffff' : '#aab2c6')
+            .style('stroke-opacity', l => (l.source.id === d.id || l.target.id === d.id) ? 1 : 0.3);
+        // show tooltip
+        showTooltip(event, d);
+      })
+      .on('mousemove', (event, d) => {
+        moveTooltip(event, d);
+      })
+      .on('mouseout', (event, d) => {
+        d3.select(event.currentTarget)
+          .transition().duration(120)
+          .attr('r', nodeRadius(d))
+          .attr('stroke', '#eaf2ff')
+          .attr('opacity', 1);
+        link.style('stroke', '#aab2c6').style('stroke-opacity', 0.55);
+        hideTooltip();
+      });
+
+    // --- NEW: Labels displayed permanently ---
+    const labels = svg.append('g')
+      .attr('class', 'labels')
+      .selectAll('text')
+      .data(dataNodes)
+      .join('text')
+      .text(d => d.name)
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#ffffff')
+      .style('pointer-events', 'none') // Important: allow clicks to pass through to the circle
+      .style('font-family', 'Inter, sans-serif')
+      .style('font-size', d => d.group === 'center' ? '14px' : (d.group === 'pillar' ? '11px' : '9px'))
+      .style('font-weight', d => d.group === 'center' || d.group === 'pillar' ? '600' : '400')
+      .style('text-shadow', '0 2px 4px rgba(0,0,0,0.9)'); // Shadow for readability
+    // ----------------------------------------
+
+    // Drag handlers
+    function dragstarted(event, d) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
+    function dragged(event, d) {
+      d.fx = event.x;
+      d.fy = event.y;
+    }
+    function dragended(event, d) {
+      if (!event.active) simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
+    }
+
+    // Tick: update positions
+    function ticked() {
+      link
+        .attr('x1', d => d.source.x)
+        .attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x)
+        .attr('y2', d => d.target.y);
+
+      node
+        .attr('cx', d => d.x)
+        .attr('cy', d => d.y);
+      
+      // Update label positions
+      labels
+        .attr('x', d => d.x)
+        .attr('y', d => d.y + nodeRadius(d) + 12); // Position text slightly below the node
+    }
+
+    // Tooltip helpers
+    const tooltip = document.getElementById('tooltip');
+    function showTooltip(event, d) {
+      tooltip.style.display = 'block';
+      tooltip.innerHTML = `
+        <strong>${d.name}</strong>
+        <div style="opacity:.9; margin-top:4px;">${d.description || ''}</div>
+      `;
+      tooltip.style.left = (event.pageX + 14) + 'px';
+      tooltip.style.top = (event.pageY + 14) + 'px';
+      tooltip.style.borderColor = 'rgba(255,255,255,.25)';
+    }
+    function moveTooltip(event, d) {
+      tooltip.style.left = (event.pageX + 14) + 'px';
+      tooltip.style.top = (event.pageY + 14) + 'px';
+    }
+    function hideTooltip() {
+      tooltip.style.display = 'none';
+    }
+
+    // Populate on the sidebar: URLs and Pillars
+    const urlList = document.getElementById('urlList');
+    const pillarList = document.getElementById('pillarList');
+    // URL mappings (slugs aligned with pillars and subtopics)
+    const urlItems = [
+      { slug: '/seo-marketing-singapore/', label: 'SEO Marketing Singapore (pillar)' },
+      { slug: '/local-seo-singapore/', label: 'Local SEO Singapore' },
+      { slug: '/keyword-research-singapore/', label: 'Keyword Research Singapore' },
+      { slug: '/on-page-seo-singapore/', label: 'On-Page SEO Singapore' },
+      { slug: '/technical-seo-singapore/', label: 'Technical SEO Singapore' },
+      { slug: '/content-marketing-singapore/', label: 'Content Marketing Singapore' },
+      { slug: '/link-building-singapore/', label: 'Link Building Singapore' },
+      { slug: '/ecommerce-seo-singapore/', label: 'E-commerce SEO Singapore' },
+      { slug: '/seo-audit-singapore/', label: 'SEO Audit Singapore' },
+      { slug: '/industry-specific-seo-singapore/', label: 'Industry-specific SEO Singapore' },
+      { slug: '/voice-search-singapore/', label: 'Voice/Search Optimization Singapore' }
+    ];
+
+    urlItems.forEach(u => {
+      const li = document.createElement('li');
+      li.innerHTML = `<a href="${u.slug}">${u.label}</a><span class="tag" aria-label="slug">${u.slug}</span>`;
+      urlList.appendChild(li);
+    });
+
+    // Pillar list (hierarchy)
+    const pillars = [
+      { slug: '/local-seo-singapore/', name: 'Local SEO Singapore' },
+      { slug: '/keyword-research-singapore/', name: 'Keyword Research Singapore' },
+      { slug: '/on-page-seo-singapore/', name: 'On-Page SEO Singapore' },
+      { slug: '/technical-seo-singapore/', name: 'Technical SEO Singapore' },
+      { slug: '/content-marketing-singapore/', name: 'Content Marketing Singapore' },
+      { slug: '/link-building-singapore/', name: 'Link Building Singapore' },
+      { slug: '/ecommerce-seo-singapore/', name: 'E-commerce SEO Singapore' },
+      { slug: '/seo-audit-singapore/', name: 'SEO Audit Singapore' },
+      { slug: '/industry-specific-seo-singapore/', name: 'Industry-specific SEO Singapore' },
+      { slug: '/voice-search-singapore/', name: 'Voice/Search Optimization SG' }
+    ];
+
+    pillars.forEach(p => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span style="font-weight:600">${p.name}</span> <span class="tag" style="margin-left:8px;">${p.slug}</span>`;
+      pillarList.appendChild(li);
+    });
+
+  </script>
+</body>
+</html>
