@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Digital Marketing Insights Dashboard</title>
+  <!-- Visual libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
+  <style>
+    :root{
+      --bg: #0b1020;
+      --card: rgba(255,255,255,0.84);
+      --text: #0a0f1a;
+      --muted: #5b6b7c;
+      --accent: #6a5cff;
+      --accent2: #00d2ff;
+      --glow: 0 8px 30px rgba(0,0,0,.25);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system;
+      color: var(--text);
+      background: radial-gradient( circle at 20% -10%, rgba(106,92,255,.25), transparent 40% ),
+                  radial-gradient( circle at 100% 0%, rgba(0,210,255,.25), transparent 40% ),
+                  linear-gradient(135deg, #0b1020 0%, #0a1020 60%, #0b1020 100%);
+      background-attachment: fixed;
+      overflow-y: auto;
+    }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 28px;
+      position: sticky; top: 0; z-index: 10;
+      background: linear-gradient(to right, rgba(11,16,32,0.95), rgba(11,16,32,0.75) 60%, rgba(11,16,32,0.95));
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      backdrop-filter: saturate(1.2) blur(6px);
+    }
+    .brand {
+      display: flex; align-items: center; gap: 14px;
+    }
+    .logo {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: grid; place-items: center; color: white; font-weight: 700;
+      box-shadow: 0 6px 20px rgba(106,92,255,.6);
+    }
+    .title {
+      font-size: 20px; font-weight: 700; letter-spacing: .3px;
+      background: linear-gradient(90deg, #fff, #d9e3ff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .controls {
+      display: grid; grid-template-columns: repeat(4, auto); gap: 12px; align-items: center;
+    }
+    .controls label { font-size: 12px; color: var(--muted); margin-right: 6px; }
+    .control {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px; border-radius: 8px;
+      background: rgba(255,255,255,.85);
+      border: 1px solid rgba(0,0,0,.05);
+      box-shadow: 0 2px 8px rgba(0,0,0,.04);
+    }
+    input[type="date"], select {
+      border: none; background: transparent; font-size: 13px; padding: 6px;
+      outline: none;
+    }
+    button.btn {
+      padding: 9px 14px; border-radius: 8px; border: none; cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), #4cc9f0); color: white; font-weight: 600;
+      box-shadow: 0 6px 18px rgba(106,92,255,.5);
+    }
+    main {
+      padding: 20px 28px 60px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 14px 14px 8px;
+      box-shadow: var(--glow);
+      border: 1px solid rgba(0,0,0,.04);
+      transition: transform .25s ease, box-shadow .25s ease;
+      position: relative; overflow: hidden;
+    }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,.15); }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 6px 12px;
+      border-bottom: 1px dashed rgba(0,0,0,.08);
+    }
+    .card-title { font-weight: 700; font-size: 14px; color: #111; }
+    .card-sub { font-size: 11px; color: var(--muted); }
+    .kpi {
+      display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center;
+      padding: 8px 6px;
+    }
+    .kpi .value { font-size: 28px; font-weight: 800; letter-spacing: .3px; }
+    .kpi .delta { font-size: 12px; color: #1b9e5f; font-weight: 600; }
+    .spark {
+      width: 100%; height: 40px;
+    }
+    canvas { width: 100% !important; height: 180px !important; }
+    #scatterPlot, #heatmap { width: 100%; height: 420px; }
+
+    @media (max-width: 960px){
+      .controls { grid-template-columns: repeat(2, auto); }
+    }
+    @media (max-width: 640px){
+      header { flex-direction: column; align-items: stretch; gap: 8px; }
+      .controls { grid-template-columns: 1fr; }
+      canvas { height: 160px !important; }
+      #scatterPlot, #heatmap { height: 320px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo" aria-label="Logo">DM</div>
+      <div class="title" style="font-size:16px; font-weight:800; background: linear-gradient(90deg, #fff, #e6e8ff); -webkit-background-clip: text; color: transparent;">
+        Digital Marketing Insights Dashboard
+      </div>
+    </div>
+
+    <div class="controls" aria-label="Dashboard controls">
+      <div class="control" title="Start date">
+        <label for="startDate" style="margin:0;">Start</label>
+        <input id="startDate" type="date" value="2025-11-24" />
+      </div>
+      <div class="control" title="End date">
+        <label for="endDate" style="margin:0;">End</label>
+        <input id="endDate" type="date" value="2025-12-08" />
+      </div>
+      <div class="control" title="Marketing channel filter">
+        <label for="channel" style="margin:0;">Channel</label>
+        <select id="channel">
+          <option value="All">All Channels</option>
+          <option value="Email">Email</option>
+          <option value="Social">Social</option>
+          <option value="PPC">PPC</option>
+          <option value="SEO">SEO</option>
+          <option value="Affiliates">Affiliates</option>
+        </select>
+      </div>
+      <div class="control" style="align-items: center;">
+        <button class="btn" id="applyBtn" aria-label="Apply filters">Apply</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="grid" aria-label="KPI cards">
+      <!-- KPI Cards -->
+      <div class="card" title="Revenue over selected period">
+        <div class="card-header">
+          <div class="card-title">Revenue</div>
+          <div class="card-sub">Period-based</div>
+        </div>
+        <div class="kpi">
+          <div>
+            <div class="value" id="revValue">$0</div>
+            <div class="delta" id="revDelta">vs prev: 0%</div>
+          </div>
+          <div class="spark">
+            <canvas id="sparkRevenue" class="spark" aria-label="Revenue sparkline"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" title="Clicks accumulated">
+        <div class="card-header">
+          <div class="card-title">Clicks</div>
+          <div class="card-sub">Total clicks</div>
+        </div>
+        <div class="kpi">
+          <div>
+            <div class="value" id="clkValue">0</div>
+            <div class="delta" id="clkDelta">vs prev: 0%</div>
+          </div>
+          <div class="spark">
+            <canvas id="sparkClicks" class="spark" aria-label="Clicks sparkline"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" title="Conversions achieved">
+        <div class="card-header">
+          <div class="card-title">Conversions</div>
+          <div class="card-sub">Total conversions</div>
+        </div>
+        <div class="kpi">
+          <div>
+            <div class="value" id="convValue">0</div>
+            <div class="delta" id="convDelta">vs prev: 0%</div>
+          </div>
+          <div class="spark">
+            <canvas id="sparkConversions" class="spark" aria-label="Conversions sparkline"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" title="Cost per acquisition">
+        <div class="card-header">
+          <div class="card-title">CPA</div>
+          <div class="card-sub">Cost per acquisition</div>
+        </div>
+        <div class="kpi">
+          <div>
+            <div class="value" id="cpaValue">$0</div>
+            <div class="delta" id="cpaDelta">vs prev: 0%</div>
+          </div>
+          <div class="spark">
+            <canvas id="sparkCPA" class="spark" aria-label="CPA sparkline"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid" aria-label="Charts row" style="margin-top: 16px;">
+      <!-- Line Chart -->
+      <div class="card" style="min-height: 260px;">
+        <div class="card-header">
+          <div class="card-title">Traffic Trend (Daily Revenue)</div>
+          <div class="card-sub">Last period</div>
+        </div>
+        <canvas id="lineChart" height="180"></canvas>
+      </div>
+
+      <!-- Bar Chart -->
+      <div class="card" style="min-height: 260px;">
+        <div class="card-header">
+          <div class="card-title">Channel Performance</div>
+          <div class="card-sub">Total across period</div>
+        </div>
+        <canvas id="barChart" height="180"></canvas>
+      </div>
+
+      <!-- Donut Chart -->
+      <div class="card" style="min-height: 260px;">
+        <div class="card-header">
+          <div class="card-title">Audience Distribution</div>
+          <div class="card-sub">Age groups</div>
+        </div>
+        <canvas id="donutChart" height="180"></canvas>
+      </div>
+
+      <!-- Radar Chart -->
+      <div class="card" style="min-height: 260px;">
+        <div class="card-header">
+          <div class="card-title">Channel Efficiency Radar</div>
+          <div class="card-sub">Relative performance</div>
+        </div>
+        <canvas id="radarChart" height="180"></canvas>
+      </div>
+    </section>
+
+    <section class="grid" aria-label="More visualisations" style="margin-top: 16px;">
+      <!-- Scatter (Plotly) -->
+      <div class="card" style="min-height: 360px;">
+        <div class="card-header">
+          <div class="card-title">Spend vs Conversions (Scatter)</div>
+          <div class="card-sub">Channel-level view</div>
+        </div>
+        <div id="scatterPlot"></div>
+      </div>
+
+      <!-- Heatmap (Plotly) -->
+      <div class="card" style="min-height: 360px;">
+        <div class="card-header">
+          <div class="card-title">Hourly Conversions Heatmap</div>
+          <div class="card-sub">Last 7 days</div>
+        </div>
+        <div id="heatmap" style="height: 320px;"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Utilities
+    function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+
+    // Seeded-ish generation for demo data
+    function generateData(startDateStr, endDateStr, channelFilter){
+      const start = new Date(startDateStr);
+      const end = new Date(endDateStr);
+      // inclusive days
+      const days = [];
+      for(let d = new Date(start); d <= end; d.setDate(d.getDate()+1)){
+        days.push(new Date(d));
+      }
+      // labels (MM/DD)
+      const labels = days.map(dt => dt.toLocaleDateString(undefined, {month:"short", day:"numeric"}));
+
+      // Revenue (per day)
+      const rev = days.map((_, i) => Math.round(1200 + i*60 + (Math.random()*400 - 200)));
+
+      // Clicks (per day)
+      const clicks = days.map((_, i) => Math.round(200 + i*12 + Math.random()*40));
+
+      // Conversions (per day)
+      const conversions = days.map((_, i) => Math.max(10, Math.round(6 + i*0.8 + Math.random()*4)));
+
+      // Channel totals (aggregated)
+      const channels = ["Email","Social","PPC","SEO","Affiliates"];
+      const channelTotalsRaw = channels.map((ch, idx) => {
+        // simple bias per channel
+        const base = idx*120 + 500;
+        const factor = 0.8 + Math.random()*0.4;
+        return Math.round(base*factor);
+      });
+
+      // Demographics ( donut )
+      const demo = [
+        {label:"18-24", value: Math.round(20 + Math.random()*20)},
+        {label:"25-34", value: Math.round(25 + Math.random()*25)},
+        {label:"35-44", value: Math.round(20 + Math.random()*20)},
+        {label:"45-54", value: Math.round(12 + Math.random()*12)},
+        {label:"55+", value: Math.round(8 + Math.random()*8)}
+      ];
+
+      // Radar (efficiency per channel)
+      const radar = channels.map((_, i) => 0.6 + Math.random()*0.8);
+
+      // Scatter (spend vs conversions)
+      const spend = channels.map((_, i) => Math.round(400 + i*150 + Math.random()*120));
+      const convs = channels.map((_, i) => Math.round(8 + i*2 + Math.random()*4));
+
+      // Heatmap: 7 days x 24 hours
+      const heat = [];
+      for(let day=0; day<7; day++){
+        const row = [];
+        for(let hr=0; hr<24; hr++){
+          // some diurnal pattern
+          const base = 2 + Math.max(0, Math.sin((day/7)*Math.PI)*2) + Math.cos((hr/24)*Math.PI*2)*1.5;
+          row.push(Math.max(0, Math.round(base + Math.random()*2)));
+        }
+        heat.push(row);
+      }
+
+      // Spark data (for small lines)
+      const spark = {
+        revenue: rev.slice(-14),
+        clicks: clicks.slice(-14),
+        conversions: conversions.slice(-14),
+        cpa: rev.map((r,i)=> Math.max(30, Math.round(r / Math.max(1, conversions[i%conversions.length]])))) // rough
+      };
+
+      // Apply channel filter (dummy effect: zero out non-selected)
+      if(channelFilter && channelFilter !== "All"){
+        const idxMap = {
+          "Email":0,"Social":1,"PPC":2,"SEO":3,"Affiliates":4
+        };
+        const idx = idxMap[channelFilter];
+        const factor = 0.9;
+        channelTotalsRaw.forEach((v, i) => {
+          channelTotalsRaw[i] = i===idx ? Math.round(v*1.0) : Math.round(v*factor);
+        });
+      }
+
+      // compute aggregated metrics
+      const revenueTotal = rev.reduce((a,b)=>a+b,0);
+      const clicksTotal = clicks.reduce((a,b)=>a+b,0);
+      const conversionsTotal = conversions.reduce((a,b)=>a+b,0);
+      const cpaTotal = Math.max(1, Math.round(revenueTotal/conversionsTotal));
+
+      // delta vs previous (random-ish)
+      const revDelta = (Math.random()*6-3).toFixed(1);
+      const clkDelta = (Math.random()*6-3).toFixed(1);
+      const convDelta = (Math.random()*6-3).toFixed(1);
+      const cpaDelta = (Math.random()*6-3).toFixed(1);
+
+      return {
+        labels, rev, clicks, conversions, revenueTotal, clicksTotal, conversionsTotal,
+        cpaTotal, revDelta, clkDelta, convDelta, cpaDelta,
+        channelTotalsRaw, demo, radar, spend, convs, heat, spark
+      };
+    }
+
+    // Initialize charts
+    let lineChart, barChart, donutChart, radarChart;
+    let scatterPlot, heatmapPlot;
+    function initCharts() {
+      // Line Chart
+      const lineCtx = document.getElementById('lineChart').getContext('2d');
+      lineChart = new Chart(lineCtx, {
+        type: 'line',
+        data: {
+          labels: [], datasets: [{
+            label: 'Revenue',
+            data: [], borderColor: 'rgba(106,92,255,1)', backgroundColor: 'rgba(106,92,255,.2)',
+            fill: true, tension: 0.25, pointRadius: 2
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: { x: { grid: { display: false } }, y: { beginAtZero: true } },
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      // Bar Chart
+      const barCtx = document.getElementById('barChart').getContext('2d');
+      barChart = new Chart(barCtx, {
+        type: 'bar',
+        data: {
+          labels: ["Email","Social","PPC","SEO","Affiliates"],
+          datasets: [{
+            label: 'Conversions',
+            data: [0,0,0,0,0],
+            backgroundColor: [
+              'rgba(0, 188, 212, 0.8)',
+              'rgba(0, 123, 255, 0.8)',
+              'rgba(255, 140, 26, 0.8)',
+              'rgba(96, 125, 139, 0.8)',
+              'rgba(76, 175, 80, 0.8)'
+            ],
+            borderColor: '#fff',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: { x: { grid: { display: false } }, y: { beginAtZero: true } },
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      // Donut Chart
+      const donutCtx = document.getElementById('donutChart').getContext('2d');
+      donutChart = new Chart(donutCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ["18-24","25-34","35-44","45-54","55+"],
+          datasets: [{
+            data: [20,25,25,15,15],
+            backgroundColor: [
+              '#6a5cff', '#00d2ff', '#4caf50', '#ffd54f', '#ff6b6b'
+            ]
+            // borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'right' } },
+        }
+      });
+
+      // Radar Chart
+      const radarCtx = document.getElementById('radarChart').getContext('2d');
+      radarChart = new Chart(radarCtx, {
+        type: 'radar',
+        data: {
+          labels: ["Email","Social","PPC","SEO","Affiliates"],
+          datasets: [{
+            label: 'Efficiency',
+            data: [0.8, 0.9, 0.7, 0.6, 0.75],
+            fill: true,
+            backgroundColor: 'rgba(106,92,255,0.25)',
+            borderColor: 'rgba(106,92,255,1)',
+            pointBackgroundColor: 'white'
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: { r: { beginAtZero: true, max: 1 } },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    // Scatter and Heatmap (Plotly)
+    function initPlotly() {
+      // Scatter
+      scatterPlot = document.getElementById('scatterPlot');
+      // Heatmap
+      heatmapPlot = document.getElementById('heatmap');
+    }
+
+    // Update all charts with new data
+    function updateDashboard(data){
+      // KPI values
+      document.getElementById('revValue').textContent = '$' + data.revenueTotal.toLocaleString();
+      document.getElementById('revDelta').textContent = 'vs prev: ' + data.revDelta + '%';
+      document.getElementById('clkValue').textContent = data.clicksTotal.toLocaleString();
+      document.getElementById('clkDelta').textContent = 'vs prev: ' + data.clkDelta + '%';
+      document.getElementById('convValue').textContent = data.conversionsTotal.toLocaleString();
+      document.getElementById('convDelta').textContent = 'vs prev: ' + data.convDelta + '%';
+      document.getElementById('cpaValue').textContent = '$' + data.cpaTotal.toLocaleString();
+      document.getElementById('cpaDelta').textContent = 'vs prev: ' + data.cpaDelta + '%';
+
+      // Spark lines
+      // Revenue spark
+      const sparkRev = document.getElementById('sparkRevenue').getContext('2d');
+      if (window._sparkRevenueChart) window._sparkRevenueChart.destroy();
+      window._sparkRevenueChart = new Chart(sparkRev, {
+        type: 'line', data: { labels: data.spark.revenue.map((_,i)=>i+1), datasets:[{ data: data.spark.revenue, borderColor:'#6a5cff', fill:false }]},
+        options: { responsive: true, maintainAspectRatio: false, scales: { x: { display:false }, y: { display:false } }, elements: { point: { radius: 0 } }, plugins: { legend: { display: false } } }
+      });
+
+      // Clicks spark
+      const sparkClk = document.getElementById('sparkClicks').getContext('2d');
+      if (window._sparkClicksChart) window._sparkClicksChart.destroy();
+      window._sparkClicksChart = new Chart(sparkClk, {
+        type: 'line', data: { labels: data.spark.clicks.map((_,i)=>i+1), datasets:[{ data: data.spark.clicks, borderColor:'#00d2ff', fill:false }]},
+        options: { responsive: true, maintainAspectRatio: false, scales: { x: { display:false }, y: { display:false } }, elements: { point: { radius: 0 } }, plugins: { legend: { display: false } } }
+      });
+
+      // Conversions spark
+      const sparkConv = document.getElementById('sparkConversions').getContext('2d');
+      if (window._sparkConvChart) window._sparkConvChart.destroy();
+      window._sparkConvChart = new Chart(sparkConv, {
+        type: 'line', data: { labels: data.spark.conversions.map((_,i)=>i+1), datasets:[{ data: data.spark.conversions, borderColor:'#1b9e5f', fill:false }]},
+        options: { responsive: true, maintainAspectRatio: false, scales: { x: { display:false }, y: { display:false } }, elements: { point: { radius: 0 } }, plugins: { legend: { display: false } } }
+      });
+
+      // CPA spark (simple)
+      const sparkCPA = document.getElementById('sparkCPA').getContext('2d');
+      if (window._sparkCPChart) window._sparkCPChart.destroy();
+      window._sparkCPChart = new Chart(sparkCPA, {
+        type: 'line', data: { labels: data.spark.revenue.map((_,i)=>i+1), datasets:[{ data: data.spark.cpa, borderColor:'#f44336', fill:false }]},
+        options: { responsive: true, maintainAspectRatio: false, scales: { x: { display:false }, y: { display:false } }, elements: { point: { radius: 0 } }, plugins: { legend: { display: false } } }
+      });
+
+      // Line Chart update
+      lineChart.data.labels = data.labels;
+      lineChart.data.datasets[0].data = data.rev;
+      lineChart.update();
+
+      // Bar Chart update
+      barChart.data.datasets[0].data = data.channelTotalsRaw;
+      barChart.update();
+
+      // Donut Chart update
+      donutChart.data.datasets[0].data = data.demo.map(d => d.value);
+      donutChart.update();
+
+      // Radar Chart update
+      radarChart.data.datasets[0].data = data.radar;
+      radarChart.update();
+
+      // Scatter (Spend vs Conversions)
+      const scatterTrace = {
+        x: data.spend,
+        y: data.convs,
+        mode: 'markers',
+        type: 'scatter',
+        marker: { size: 12, color: 'rgb(106,92,255)' },
+        text: ['Email','Social','PPC','SEO','Affiliates']
+      };
+      const scatterLayout = {
+        margin: { t: 20, r: 20, b: 40, l: 40 },
+        xaxis: { title: 'Spend ($)' },
+        yaxis: { title: 'Conversions' },
+        hovermode: 'closest',
+        showlegend: false
+      };
+      Plotly.newPlot(scatterPlot, [scatterTrace], scatterLayout);
+
+      // Heatmap (7 days x 24 hours)
+      const z = data.heat;
+      const x = Array.from({length:24}, (_,i)=> i.toString().padStart(2,'0') + ':00');
+      const y = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      const heatTrace = { z: z, x: x, y: y, type: 'heatmap', colorscale: 'Viridis', showscale: true };
+      Plotly.newPlot(heatmapPlot, [heatTrace], { margin: { t: 20, r: 20, b: 40, l: 60 } });
+    }
+
+    // Assemble data and render
+    function renderDashboard(){
+      // fetch inputs
+      const start = document.getElementById('startDate').value || '2025-11-24';
+      const end = document.getElementById('endDate').value || '2025-12-08';
+      const channel = document.getElementById('channel').value || 'All';
+
+      // generate data
+      const data = generateData(start, end, channel);
+
+      // Update UI
+      updateDashboard(data);
+    }
+
+    // Init
+    document.addEventListener('DOMContentLoaded', () => {
+      initCharts();
+      initPlotly();
+      renderDashboard();
+
+      // Apply button
+      document.getElementById('applyBtn').addEventListener('click', () => {
+        renderDashboard();
+      });
+    });
+  </script>
+</body>
+</html>
