@@ -3,599 +3,539 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Digital Marketing Insights Dashboard</title>
-  <!-- Visual libraries -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
+  <title>Sitemap Force-Directed Graph for Digital Marketing Blog</title>
   <style>
-    :root{
-      --bg: #0b1020;
-      --card: rgba(255,255,255,0.84);
-      --text: #0a0f1a;
-      --muted: #5b6b7c;
-      --accent: #6a5cff;
-      --accent2: #00d2ff;
-      --glow: 0 8px 30px rgba(0,0,0,.25);
+    :root {
+      --bg1: #0f1020;
+      --bg2: #1b1e3a;
+      --fg: #e8eaf6;
+      --card: rgba(255,255,255,0.08);
+      --shadow: 0 10px 25px rgba(0,0,0,0.25);
+      --tooltip: rgba(0,0,0,0.8);
     }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; }
-    body {
-      margin: 0;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system;
-      color: var(--text);
-      background: radial-gradient( circle at 20% -10%, rgba(106,92,255,.25), transparent 40% ),
-                  radial-gradient( circle at 100% 0%, rgba(0,210,255,.25), transparent 40% ),
-                  linear-gradient(135deg, #0b1020 0%, #0a1020 60%, #0b1020 100%);
-      background-attachment: fixed;
-      overflow-y: auto;
-    }
-    header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 20px 28px;
-      position: sticky; top: 0; z-index: 10;
-      background: linear-gradient(to right, rgba(11,16,32,0.95), rgba(11,16,32,0.75) 60%, rgba(11,16,32,0.95));
-      border-bottom: 1px solid rgba(255,255,255,.08);
-      backdrop-filter: saturate(1.2) blur(6px);
-    }
-    .brand {
-      display: flex; align-items: center; gap: 14px;
-    }
-    .logo {
-      width: 40px; height: 40px; border-radius: 12px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      display: grid; place-items: center; color: white; font-weight: 700;
-      box-shadow: 0 6px 20px rgba(106,92,255,.6);
-    }
-    .title {
-      font-size: 20px; font-weight: 700; letter-spacing: .3px;
-      background: linear-gradient(90deg, #fff, #d9e3ff);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-    }
-    .controls {
-      display: grid; grid-template-columns: repeat(4, auto); gap: 12px; align-items: center;
-    }
-    .controls label { font-size: 12px; color: var(--muted); margin-right: 6px; }
-    .control {
-      display: flex; align-items: center; gap: 8px;
-      padding: 8px 10px; border-radius: 8px;
-      background: rgba(255,255,255,.85);
-      border: 1px solid rgba(0,0,0,.05);
-      box-shadow: 0 2px 8px rgba(0,0,0,.04);
-    }
-    input[type="date"], select {
-      border: none; background: transparent; font-size: 13px; padding: 6px;
-      outline: none;
-    }
-    button.btn {
-      padding: 9px 14px; border-radius: 8px; border: none; cursor: pointer;
-      background: linear-gradient(135deg, var(--accent), #4cc9f0); color: white; font-weight: 600;
-      box-shadow: 0 6px 18px rgba(106,92,255,.5);
-    }
-    main {
-      padding: 20px 28px 60px;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 16px;
-    }
-    .card {
-      background: var(--card);
-      border-radius: 14px;
-      padding: 14px 14px 8px;
-      box-shadow: var(--glow);
-      border: 1px solid rgba(0,0,0,.04);
-      transition: transform .25s ease, box-shadow .25s ease;
-      position: relative; overflow: hidden;
-    }
-    .card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,.15); }
-    .card-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 6px 6px 12px;
-      border-bottom: 1px dashed rgba(0,0,0,.08);
-    }
-    .card-title { font-weight: 700; font-size: 14px; color: #111; }
-    .card-sub { font-size: 11px; color: var(--muted); }
-    .kpi {
-      display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center;
-      padding: 8px 6px;
-    }
-    .kpi .value { font-size: 28px; font-weight: 800; letter-spacing: .3px; }
-    .kpi .delta { font-size: 12px; color: #1b9e5f; font-weight: 600; }
-    .spark {
-      width: 100%; height: 40px;
-    }
-    canvas { width: 100% !important; height: 180px !important; }
-    #scatterPlot, #heatmap { width: 100%; height: 420px; }
 
-    @media (max-width: 960px){
-      .controls { grid-template-columns: repeat(2, auto); }
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+      color: #e9eaf6;
+      background: radial-gradient(circle at 20% -10%, rgba(120, 60, 200, 0.25), transparent 40%),
+                  radial-gradient(circle at 100% 0%, rgba(0, 180, 200, 0.25), transparent 40%),
+                  linear-gradient(135deg, var(--bg1) 0%, var(--bg2) 100%);
+      overflow: hidden;
     }
-    @media (max-width: 640px){
-      header { flex-direction: column; align-items: stretch; gap: 8px; }
-      .controls { grid-template-columns: 1fr; }
-      canvas { height: 160px !important; }
-      #scatterPlot, #heatmap { height: 320px; }
+
+    .header {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      padding: 14px 20px;
+      border-radius: 14px;
+      background: rgba(14, 18, 36, 0.75);
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      backdrop-filter: saturate(1.3) blur(2px);
+    }
+    .header h1 {
+      font-size: 16px;
+      margin: 0;
+      white-space: nowrap;
+    }
+    .header .hint {
+      font-size: 12px;
+      opacity: 0.85;
+    }
+    .btn {
+      appearance: none;
+      border: 0;
+      border-radius: 8px;
+      padding: 8px 12px;
+      background: #6a8cff;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+    .btn:hover { transform: translateY(-1px); background: #7a95ff; }
+    .btn.secondary {
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+
+    #graph-wrap {
+      position: fixed;
+      top: 76px;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 18px;
+      overflow: hidden;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .node {
+      cursor: pointer;
+      stroke: #fff;
+      stroke-width: 1.5px;
+    }
+
+    .node.root { fill: #4e6cff; }
+    .node.category { fill: #1ee3a1; }
+    .node.article { fill: #ffd166; }
+
+    .link {
+      stroke: rgba(255,255,255,0.6);
+      stroke-width: 1.25px;
+    }
+
+    .label {
+      font-size: 11px;
+      fill: #e7eaf6;
+      pointer-events: none;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    }
+
+    /* Tooltip styling */
+    #tooltip {
+      position: fixed;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: var(--tooltip);
+      color: #fff;
+      font-size: 12px;
+      max-width: 320px;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(-50%, -120%);
+      transition: opacity 0.15s ease;
+      white-space: nowrap;
+      z-index: 20;
+      border: 1px solid rgba(255,255,255,0.25);
+    }
+    #tooltip .t-url { color: #d6e7ff; word-break: break-all; }
+    #tooltip .t-cat { font-weight: 600; margin-right: 6px; }
+
+    @media (max-width: 800px) {
+      .header { padding: 10px 12px; }
+      .header h1 { font-size: 14px; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div class="brand">
-      <div class="logo" aria-label="Logo">DM</div>
-      <div class="title" style="font-size:16px; font-weight:800; background: linear-gradient(90deg, #fff, #e6e8ff); -webkit-background-clip: text; color: transparent;">
-        Digital Marketing Insights Dashboard
-      </div>
-    </div>
+  <div class="header" aria-label="Sitemap visualization header">
+    <button id="load-live" class="btn" title="Attempt to load live sitemap">Load Live Sitemap</button>
+    <h1>Digital Marketing Blog Sitemap — Force-Directed Graph</h1>
+    <span class="hint">Nodes linked from root to categories to articles. Hover to explore.</span>
+  </div>
 
-    <div class="controls" aria-label="Dashboard controls">
-      <div class="control" title="Start date">
-        <label for="startDate" style="margin:0;">Start</label>
-        <input id="startDate" type="date" value="2025-11-24" />
-      </div>
-      <div class="control" title="End date">
-        <label for="endDate" style="margin:0;">End</label>
-        <input id="endDate" type="date" value="2025-12-08" />
-      </div>
-      <div class="control" title="Marketing channel filter">
-        <label for="channel" style="margin:0;">Channel</label>
-        <select id="channel">
-          <option value="All">All Channels</option>
-          <option value="Email">Email</option>
-          <option value="Social">Social</option>
-          <option value="PPC">PPC</option>
-          <option value="SEO">SEO</option>
-          <option value="Affiliates">Affiliates</option>
-        </select>
-      </div>
-      <div class="control" style="align-items: center;">
-        <button class="btn" id="applyBtn" aria-label="Apply filters">Apply</button>
-      </div>
-    </div>
-  </header>
+  <div id="graph-wrap" aria-label="Graph container">
+    <svg id="graph"></svg>
+  </div>
 
-  <main>
-    <section class="grid" aria-label="KPI cards">
-      <!-- KPI Cards -->
-      <div class="card" title="Revenue over selected period">
-        <div class="card-header">
-          <div class="card-title">Revenue</div>
-          <div class="card-sub">Period-based</div>
-        </div>
-        <div class="kpi">
-          <div>
-            <div class="value" id="revValue">$0</div>
-            <div class="delta" id="revDelta">vs prev: 0%</div>
-          </div>
-          <div class="spark">
-            <canvas id="sparkRevenue" class="spark" aria-label="Revenue sparkline"></canvas>
-          </div>
-        </div>
-      </div>
+  <div id="tooltip" role="tooltip" aria-hidden="true"></div>
 
-      <div class="card" title="Clicks accumulated">
-        <div class="card-header">
-          <div class="card-title">Clicks</div>
-          <div class="card-sub">Total clicks</div>
-        </div>
-        <div class="kpi">
-          <div>
-            <div class="value" id="clkValue">0</div>
-            <div class="delta" id="clkDelta">vs prev: 0%</div>
-          </div>
-          <div class="spark">
-            <canvas id="sparkClicks" class="spark" aria-label="Clicks sparkline"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" title="Conversions achieved">
-        <div class="card-header">
-          <div class="card-title">Conversions</div>
-          <div class="card-sub">Total conversions</div>
-        </div>
-        <div class="kpi">
-          <div>
-            <div class="value" id="convValue">0</div>
-            <div class="delta" id="convDelta">vs prev: 0%</div>
-          </div>
-          <div class="spark">
-            <canvas id="sparkConversions" class="spark" aria-label="Conversions sparkline"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" title="Cost per acquisition">
-        <div class="card-header">
-          <div class="card-title">CPA</div>
-          <div class="card-sub">Cost per acquisition</div>
-        </div>
-        <div class="kpi">
-          <div>
-            <div class="value" id="cpaValue">$0</div>
-            <div class="delta" id="cpaDelta">vs prev: 0%</div>
-          </div>
-          <div class="spark">
-            <canvas id="sparkCPA" class="spark" aria-label="CPA sparkline"></canvas>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="grid" aria-label="Charts row" style="margin-top: 16px;">
-      <!-- Line Chart -->
-      <div class="card" style="min-height: 260px;">
-        <div class="card-header">
-          <div class="card-title">Traffic Trend (Daily Revenue)</div>
-          <div class="card-sub">Last period</div>
-        </div>
-        <canvas id="lineChart" height="180"></canvas>
-      </div>
-
-      <!-- Bar Chart -->
-      <div class="card" style="min-height: 260px;">
-        <div class="card-header">
-          <div class="card-title">Channel Performance</div>
-          <div class="card-sub">Total across period</div>
-        </div>
-        <canvas id="barChart" height="180"></canvas>
-      </div>
-
-      <!-- Donut Chart -->
-      <div class="card" style="min-height: 260px;">
-        <div class="card-header">
-          <div class="card-title">Audience Distribution</div>
-          <div class="card-sub">Age groups</div>
-        </div>
-        <canvas id="donutChart" height="180"></canvas>
-      </div>
-
-      <!-- Radar Chart -->
-      <div class="card" style="min-height: 260px;">
-        <div class="card-header">
-          <div class="card-title">Channel Efficiency Radar</div>
-          <div class="card-sub">Relative performance</div>
-        </div>
-        <canvas id="radarChart" height="180"></canvas>
-      </div>
-    </section>
-
-    <section class="grid" aria-label="More visualisations" style="margin-top: 16px;">
-      <!-- Scatter (Plotly) -->
-      <div class="card" style="min-height: 360px;">
-        <div class="card-header">
-          <div class="card-title">Spend vs Conversions (Scatter)</div>
-          <div class="card-sub">Channel-level view</div>
-        </div>
-        <div id="scatterPlot"></div>
-      </div>
-
-      <!-- Heatmap (Plotly) -->
-      <div class="card" style="min-height: 360px;">
-        <div class="card-header">
-          <div class="card-title">Hourly Conversions Heatmap</div>
-          <div class="card-sub">Last 7 days</div>
-        </div>
-        <div id="heatmap" style="height: 320px;"></div>
-      </div>
-    </section>
-  </main>
-
+  <!-- D3.js -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
   <script>
-    // Utilities
-    function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+    // Utility helpers
+    const svg = d3.select("#graph");
+    const tooltip = document.getElementById('tooltip');
+    let width = window.innerWidth;
+    let height = window.innerHeight * 0.78; // leave space for header
 
-    // Seeded-ish generation for demo data
-    function generateData(startDateStr, endDateStr, channelFilter){
-      const start = new Date(startDateStr);
-      const end = new Date(endDateStr);
-      // inclusive days
-      const days = [];
-      for(let d = new Date(start); d <= end; d.setDate(d.getDate()+1)){
-        days.push(new Date(d));
-      }
-      // labels (MM/DD)
-      const labels = days.map(dt => dt.toLocaleDateString(undefined, {month:"short", day:"numeric"}));
+    svg.attr("viewBox", [0, 0, width, height]);
+    const g = svg.append("g");
 
-      // Revenue (per day)
-      const rev = days.map((_, i) => Math.round(1200 + i*60 + (Math.random()*400 - 200)));
+    // Zoom and pan
+    const zoom = d3.zoom()
+      .scaleExtent([0.3, 2.5])
+      .on("zoom", (e) => {
+        g.attr("transform", e.transform);
+      });
+    svg.call(zoom);
 
-      // Clicks (per day)
-      const clicks = days.map((_, i) => Math.round(200 + i*12 + Math.random()*40));
+    // Color scale for categories (dynamic)
+    const color = d3.scaleOrdinal(d3.schemeCategory10);
 
-      // Conversions (per day)
-      const conversions = days.map((_, i) => Math.max(10, Math.round(6 + i*0.8 + Math.random()*4)));
+    // Data containers
+    let nodes = [];
+    let links = [];
 
-      // Channel totals (aggregated)
-      const channels = ["Email","Social","PPC","SEO","Affiliates"];
-      const channelTotalsRaw = channels.map((ch, idx) => {
-        // simple bias per channel
-        const base = idx*120 + 500;
-        const factor = 0.8 + Math.random()*0.4;
-        return Math.round(base*factor);
+    // Root node
+    const ROOT_ID = 'root';
+    const ROOT_NAME = 'Digital Marketing Blog';
+    const rootNode = { id: ROOT_ID, name: ROOT_NAME, type: 'root' };
+
+    // Graph rendering helpers
+    const nodeRadius = d3.scaleOrdinal()
+      .domain(['root', 'category', 'article'])
+      .range([18, 12, 7]);
+
+    const nodeById = new Map();
+
+    // Initialize with root
+    function initGraphFromItems(items) {
+      // Reset
+      nodes = [];
+      links = [];
+      nodeById.clear();
+
+      // Add root
+      nodes.push(rootNode);
+      nodeById.set(ROOT_ID, rootNode);
+
+      // Collect categories
+      const categorySet = new Set();
+      items.forEach(it => categorySet.add(it.category));
+
+      const categoryNodes = Array.from(categorySet).map((cat, idx) => {
+        const id = 'cat-' + slugify(cat);
+        const node = { id, name: cat, type: 'category' };
+        return node;
       });
 
-      // Demographics ( donut )
-      const demo = [
-        {label:"18-24", value: Math.round(20 + Math.random()*20)},
-        {label:"25-34", value: Math.round(25 + Math.random()*25)},
-        {label:"35-44", value: Math.round(20 + Math.random()*20)},
-        {label:"45-54", value: Math.round(12 + Math.random()*12)},
-        {label:"55+", value: Math.round(8 + Math.random()*8)}
-      ];
+      // Add category nodes
+      categoryNodes.forEach(n => {
+        nodes.push(n);
+        nodeById.set(n.id, n);
+        // edge root -> category
+        links.push({ source: ROOT_ID, target: n.id });
+      });
 
-      // Radar (efficiency per channel)
-      const radar = channels.map((_, i) => 0.6 + Math.random()*0.8);
-
-      // Scatter (spend vs conversions)
-      const spend = channels.map((_, i) => Math.round(400 + i*150 + Math.random()*120));
-      const convs = channels.map((_, i) => Math.round(8 + i*2 + Math.random()*4));
-
-      // Heatmap: 7 days x 24 hours
-      const heat = [];
-      for(let day=0; day<7; day++){
-        const row = [];
-        for(let hr=0; hr<24; hr++){
-          // some diurnal pattern
-          const base = 2 + Math.max(0, Math.sin((day/7)*Math.PI)*2) + Math.cos((hr/24)*Math.PI*2)*1.5;
-          row.push(Math.max(0, Math.round(base + Math.random()*2)));
-        }
-        heat.push(row);
-      }
-
-      // Spark data (for small lines)
-      const spark = {
-        revenue: rev.slice(-14),
-        clicks: clicks.slice(-14),
-        conversions: conversions.slice(-14),
-        cpa: rev.map((r,i)=> Math.max(30, Math.round(r / Math.max(1, conversions[i%conversions.length]])))) // rough
-      };
-
-      // Apply channel filter (dummy effect: zero out non-selected)
-      if(channelFilter && channelFilter !== "All"){
-        const idxMap = {
-          "Email":0,"Social":1,"PPC":2,"SEO":3,"Affiliates":4
+      // Add article nodes
+      items.forEach((it, idx) => {
+        const id = 'post-' + idx;
+        const categoryId = 'cat-' + slugify(it.category);
+        const articleNode = {
+          id,
+          name: extractTitleFromURL(it.url),
+          url: it.url,
+          type: 'article',
+          category: it.category,
+          categoryId
         };
-        const idx = idxMap[channelFilter];
-        const factor = 0.9;
-        channelTotalsRaw.forEach((v, i) => {
-          channelTotalsRaw[i] = i===idx ? Math.round(v*1.0) : Math.round(v*factor);
+        nodes.push(articleNode);
+        nodeById.set(id, articleNode);
+
+        // edge category -> article
+        // ensure categoryId exists
+        if (!nodeById.has(categoryId)) {
+          // fallback: create category if missing (shouldn't happen)
+          const fallbackCat = { id: categoryId, name: it.category, type: 'category' };
+          nodes.push(fallbackCat);
+          nodeById.set(categoryId, fallbackCat);
+          links.push({ source: ROOT_ID, target: categoryId });
+        }
+        links.push({ source: categoryId, target: id });
+      });
+
+      // Render with updated data
+      renderGraph();
+    }
+
+    function slugify(s) {
+      return s.toString().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    }
+
+    function extractTitleFromURL(url) {
+      try {
+        const u = new URL(url);
+        const p = u.pathname;
+        const parts = p.split('/').filter(Boolean);
+        const last = parts[parts.length - 1] || '';
+        // Remove category-like segments if present
+        const withNoExt = last.replace(/\.[^/.]+$/, '');
+        const t = withNoExt.replace(/[-_]+/g, ' ').trim();
+        return t.charAt(0).toUpperCase() + t.slice(1);
+      } catch {
+        return url;
+      }
+    }
+
+    // Render the graph
+    function renderGraph() {
+      // Clear previous graph
+      g.selectAll("*").remove();
+
+      const link = g.append("g")
+        .attr("class", "links")
+        .selectAll("line")
+        .data(links)
+        .enter().append("line")
+        .attr("class", "link");
+
+      const node = g.append("g")
+        .attr("class", "nodes")
+        .selectAll("circle")
+        .data(nodes)
+        .enter().append("circle")
+        .attr("class", d => `node ${d.type}`)
+        .attr("r", d => {
+          // Root slightly larger
+          if (d.type === 'root') return 22;
+          if (d.type === 'category') return 12;
+          return 7;
+        })
+        .call(d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended))
+        .on("mouseover", (event, d) => showTooltip(event, d))
+        .on("mousemove", (event) => moveTooltip(event))
+        .on("mouseout", hideTooltip)
+        .on("click", (event, d) => {
+          // quick highlight
+          highlightNode(d);
         });
+
+      const label = g.append("g")
+        .attr("class", "labels")
+        .selectAll("text")
+        .data(nodes)
+        .enter().append("text")
+        .attr("class", "label")
+        .text(d => d.name);
+
+      // Simulation
+      const simulation = d3.forceSimulation(nodes)
+        .force("link", d3.forceLink(links).id(d => d.id).distance(d => {
+          if (d.source && d.target) {
+            const s = typeof d.source === 'string' ? d.source : d.source.type;
+            const t = typeof d.target === 'string' ? d.target : d.target.type;
+            // Distances tuned by type
+            if (d.source === ROOT_ID || d.target === ROOT_ID) return 140;
+            if (s === 'category' || t === 'category') return 60;
+            return 22;
+          }
+          return 60;
+        }))
+        .force("charge", d3.forceManyBody().strength(-260))
+        .force("center", d3.forceCenter(width / 2, height / 2))
+        .force("collision", d3.forceCollide().radius(d => {
+          if (d.type === 'root') return 26;
+          if (d.type === 'category') return 14;
+          return 8;
+        }))
+        .on("tick", ticked);
+
+      function ticked() {
+        link
+          .attr("x1", d => d.source.x)
+          .attr("y1", d => d.source.y)
+          .attr("x2", d => d.target.x)
+          .attr("y2", d => d.target.y);
+
+        node
+          .attr("cx", d => d.x)
+          .attr("cy", d => d.y);
+
+        label
+          .attr("x", d => (d.x ?? 0) + ((d.type === 'root') ? 0 : 0))
+          .attr("y", d => (d.y ?? 0) - 14);
       }
 
-      // compute aggregated metrics
-      const revenueTotal = rev.reduce((a,b)=>a+b,0);
-      const clicksTotal = clicks.reduce((a,b)=>a+b,0);
-      const conversionsTotal = conversions.reduce((a,b)=>a+b,0);
-      const cpaTotal = Math.max(1, Math.round(revenueTotal/conversionsTotal));
+      function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+      }
 
-      // delta vs previous (random-ish)
-      const revDelta = (Math.random()*6-3).toFixed(1);
-      const clkDelta = (Math.random()*6-3).toFixed(1);
-      const convDelta = (Math.random()*6-3).toFixed(1);
-      const cpaDelta = (Math.random()*6-3).toFixed(1);
+      function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+      }
 
-      return {
-        labels, rev, clicks, conversions, revenueTotal, clicksTotal, conversionsTotal,
-        cpaTotal, revDelta, clkDelta, convDelta, cpaDelta,
-        channelTotalsRaw, demo, radar, spend, convs, heat, spark
-      };
+      function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+      }
+
+      // Initial glow by color
+      node.style("fill", d => {
+        if (d.type === 'root') return '#4e6cff';
+        if (d.type === 'category') return color(d.name);
+        return '#ffd166';
+      });
+
+      // Center root
+      const centerX = width / 2;
+      const centerY = height / 2;
+      rootNode.x = centerX;
+      rootNode.y = centerY;
+      // Let physics settle
+      simulation.alpha(0.9).restart();
     }
 
-    // Initialize charts
-    let lineChart, barChart, donutChart, radarChart;
-    let scatterPlot, heatmapPlot;
-    function initCharts() {
-      // Line Chart
-      const lineCtx = document.getElementById('lineChart').getContext('2d');
-      lineChart = new Chart(lineCtx, {
-        type: 'line',
-        data: {
-          labels: [], datasets: [{
-            label: 'Revenue',
-            data: [], borderColor: 'rgba(106,92,255,1)', backgroundColor: 'rgba(106,92,255,.2)',
-            fill: true, tension: 0.25, pointRadius: 2
-          }]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          scales: { x: { grid: { display: false } }, y: { beginAtZero: true } },
-          plugins: { legend: { display: false } }
+    // Tooltip helpers
+    function showTooltip(event, d) {
+      const html = [];
+      html.push(`<span class="t-cat" style="color:#ffd166">Category: ${escapeHtml(d.category ?? d.name)}</span>`);
+      if (d.url) html.push(`<div class="t-url">${escapeHtml(d.url)}</div>`);
+      tooltip.innerHTML = html.join('<br/>');
+      tooltip.style.opacity = '1';
+      tooltip.setAttribute('data-id', d.id);
+      positionTooltip(event);
+    }
+    function positionTooltip(event) {
+      const x = event.clientX;
+      const y = event.clientY;
+      tooltip.style.left = x + 'px';
+      tooltip.style.top = y + 'px';
+      tooltip.style.transform = 'translate(-50%, -120%)';
+    }
+    function moveTooltip(event) { positionTooltip(event); }
+    function hideTooltip() {
+      tooltip.style.opacity = '0';
+      tooltip.setAttribute('data-id', '');
+    }
+    function escapeHtml(s) {
+      return (s ?? '').toString().replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[m]));
+    }
+    function highlightNode(d) {
+      // Temporarily enlarge targeted node and dim others
+      svg.selectAll('.node')
+        .attr('opacity', n => (n.id === d.id ? 1 : 0.25));
+      // Smooth jump to focus
+      if (d.x != null && d.y != null) {
+        // no explicit camera; could implement mini-pan
+      }
+    }
+
+    // Live sitemap loader (attempt)
+    document.getElementById('load-live').addEventListener('click', () => {
+      loadLiveSitemap();
+    });
+
+    async function loadLiveSitemap() {
+      const candidates = [
+        'https://mediaonemarketing.com.sg/sitemap.xml',
+        'https://mediaonemarketing.com.sg/sitemap_index.xml'
+      ];
+      for (const url of candidates) {
+        try {
+          const items = await fetchSitemapItems(url);
+          if (items && items.length > 0) {
+            initGraphFromItems(items);
+            return;
+          }
+        } catch (e) {
+          // try next
+          console.warn('Sitemap fetch failed for', url, e);
         }
-      });
+      }
+      alert('Could not load live sitemap. Falling back to sample data.');
+      useSampleData();
+    }
 
-      // Bar Chart
-      const barCtx = document.getElementById('barChart').getContext('2d');
-      barChart = new Chart(barCtx, {
-        type: 'bar',
-        data: {
-          labels: ["Email","Social","PPC","SEO","Affiliates"],
-          datasets: [{
-            label: 'Conversions',
-            data: [0,0,0,0,0],
-            backgroundColor: [
-              'rgba(0, 188, 212, 0.8)',
-              'rgba(0, 123, 255, 0.8)',
-              'rgba(255, 140, 26, 0.8)',
-              'rgba(96, 125, 139, 0.8)',
-              'rgba(76, 175, 80, 0.8)'
-            ],
-            borderColor: '#fff',
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          scales: { x: { grid: { display: false } }, y: { beginAtZero: true } },
-          plugins: { legend: { display: false } }
+    async function fetchSitemapItems(url) {
+      const resp = await fetch(url, { mode: 'cors' });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const text = await resp.text();
+
+      // Try parsing sitemap XML
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, 'application/xml');
+
+      // If <url><loc> entries exist
+      const locs = Array.from(doc.querySelectorAll('url > loc')).map(n => n.textContent.trim()).filter(Boolean);
+
+      // If sitemapindex, fetch nested sitemaps
+      if (locs.length === 0) {
+        const nested = Array.from(doc.querySelectorAll('sitemap > loc')).map(n => n.textContent.trim());
+        const results = [];
+        for (const nl of nested) {
+          try {
+            const r = await fetchSitemapItems(nl);
+            results.push(...r);
+          } catch {
+            // skip
+          }
         }
-      });
+        return results;
+      }
 
-      // Donut Chart
-      const donutCtx = document.getElementById('donutChart').getContext('2d');
-      donutChart = new Chart(donutCtx, {
-        type: 'doughnut',
-        data: {
-          labels: ["18-24","25-34","35-44","45-54","55+"],
-          datasets: [{
-            data: [20,25,25,15,15],
-            backgroundColor: [
-              '#6a5cff', '#00d2ff', '#4caf50', '#ffd54f', '#ff6b6b'
-            ]
-            // borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { position: 'right' } },
+      // Build approximate article list from URLs
+      // We'll derive categories heuristically using the path
+      const items = locs
+        .filter(u => /digital-marketing-blogs|digital-marketing|blog/.test(u) ) // focus on blog URLs
+        .slice(0, 150)
+        .map(u => ({
+          url: u,
+          category: heuristicCategoryFromURL(u)
+        }));
+
+      // If too few items, still proceed
+      return items;
+    }
+
+    function heuristicCategoryFromURL(url) {
+      try {
+        const u = new URL(url);
+        const segs = u.pathname.split('/').filter(Boolean);
+        // Look for a category-like segment after known blog root
+        const idx = segs.findIndex(s => s.toLowerCase().includes('digital-marketing-blogs') || s.toLowerCase().includes('blog'));
+        if (idx !== -1 && segs.length > idx + 1) {
+          const cat = segs[idx + 1];
+          // Normalize
+          const clean = cat.replace(/[-_]+/g, ' ').trim();
+          // Capitalize
+          return clean.charAt(0).toUpperCase() + clean.slice(1);
         }
-      });
-
-      // Radar Chart
-      const radarCtx = document.getElementById('radarChart').getContext('2d');
-      radarChart = new Chart(radarCtx, {
-        type: 'radar',
-        data: {
-          labels: ["Email","Social","PPC","SEO","Affiliates"],
-          datasets: [{
-            label: 'Efficiency',
-            data: [0.8, 0.9, 0.7, 0.6, 0.75],
-            fill: true,
-            backgroundColor: 'rgba(106,92,255,0.25)',
-            borderColor: 'rgba(106,92,255,1)',
-            pointBackgroundColor: 'white'
-          }]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          scales: { r: { beginAtZero: true, max: 1 } },
-          plugins: { legend: { display: false } }
-        }
-      });
+      } catch {
+        // ignore
+      }
+      // Fallback: generic category
+      return 'General';
     }
 
-    // Scatter and Heatmap (Plotly)
-    function initPlotly() {
-      // Scatter
-      scatterPlot = document.getElementById('scatterPlot');
-      // Heatmap
-      heatmapPlot = document.getElementById('heatmap');
+    // Fallback dataset (sample data)
+    function useSampleData() {
+      const sampleItems = [
+        { url: 'https://mediaonemarketing.com.sg/digital-marketing-blogs/branding/how-to-build-a-strong-brand/', category: 'Branding' },
+        { url: 'https://mediaonemarketing.com.sg/digital-marketing-blogs/branding/brand-positioning-101/', category: 'Branding' },
+        { url: 'https://mediaonemarketing.com.sg/digital-marketing-blogs/content-marketing/creating-effective-content/', category: 'Content Marketing' },
+        { url: 'https://mediaonemarketing.com.sg/digital-marketing-blogs/content-marketing/content-calendar/', category: 'Content Marketing' },
+        { url: 'https://mediaonemarketing.com.sg/digital-marketing-blogs/seo/keyword-research-guide/', category: 'SEO' },
+        { url: 'https://mediaonemarketing.com.sg/digital-marketing-blogs/seo/on-page-seo/', category: 'SEO' },
+        { url: 'https://mediaonemarketing.com.sg/digital-marketing-blogs/social-media/instagram-marketing-tips/', category: 'Social Media' },
+        { url: 'https://mediaonemarketing.com.sg/digital-marketing-blogs/social-media/facebook-ads-strategy/', category: 'Social Media' },
+        { url: 'https://mediaonemarketing.com.sg/digital-marketing-blogs/paid-media/ppc-bidding-strategies/', category: 'Paid Media' },
+        { url: 'https://mediaonemarketing.com.sg/digital-marketing-blogs/email-marketing/how-to-write-better-emails/', category: 'Email Marketing' },
+        { url: 'https://mediaonemarketing.com.sg/digital-marketing-blogs/analytics/analytics-dashboard-setup/', category: 'Analytics' },
+        { url: 'https://mediaonemarketing.com.sg/digital-marketing-blogs/influencer/working-with-influencers/', category: 'Influencer Marketing' }
+      ];
+      initGraphFromItems(sampleItems);
     }
 
-    // Update all charts with new data
-    function updateDashboard(data){
-      // KPI values
-      document.getElementById('revValue').textContent = '$' + data.revenueTotal.toLocaleString();
-      document.getElementById('revDelta').textContent = 'vs prev: ' + data.revDelta + '%';
-      document.getElementById('clkValue').textContent = data.clicksTotal.toLocaleString();
-      document.getElementById('clkDelta').textContent = 'vs prev: ' + data.clkDelta + '%';
-      document.getElementById('convValue').textContent = data.conversionsTotal.toLocaleString();
-      document.getElementById('convDelta').textContent = 'vs prev: ' + data.convDelta + '%';
-      document.getElementById('cpaValue').textContent = '$' + data.cpaTotal.toLocaleString();
-      document.getElementById('cpaDelta').textContent = 'vs prev: ' + data.cpaDelta + '%';
+    // On load, try live sitemap; otherwise fallback
+    window.addEventListener('load', () => {
+      // Start with sample data to render quickly
+      useSampleData();
 
-      // Spark lines
-      // Revenue spark
-      const sparkRev = document.getElementById('sparkRevenue').getContext('2d');
-      if (window._sparkRevenueChart) window._sparkRevenueChart.destroy();
-      window._sparkRevenueChart = new Chart(sparkRev, {
-        type: 'line', data: { labels: data.spark.revenue.map((_,i)=>i+1), datasets:[{ data: data.spark.revenue, borderColor:'#6a5cff', fill:false }]},
-        options: { responsive: true, maintainAspectRatio: false, scales: { x: { display:false }, y: { display:false } }, elements: { point: { radius: 0 } }, plugins: { legend: { display: false } } }
-      });
+      // Then asynchronously attempt live fetch
+      //loadLiveSitemap();
+    });
 
-      // Clicks spark
-      const sparkClk = document.getElementById('sparkClicks').getContext('2d');
-      if (window._sparkClicksChart) window._sparkClicksChart.destroy();
-      window._sparkClicksChart = new Chart(sparkClk, {
-        type: 'line', data: { labels: data.spark.clicks.map((_,i)=>i+1), datasets:[{ data: data.spark.clicks, borderColor:'#00d2ff', fill:false }]},
-        options: { responsive: true, maintainAspectRatio: false, scales: { x: { display:false }, y: { display:false } }, elements: { point: { radius: 0 } }, plugins: { legend: { display: false } } }
-      });
-
-      // Conversions spark
-      const sparkConv = document.getElementById('sparkConversions').getContext('2d');
-      if (window._sparkConvChart) window._sparkConvChart.destroy();
-      window._sparkConvChart = new Chart(sparkConv, {
-        type: 'line', data: { labels: data.spark.conversions.map((_,i)=>i+1), datasets:[{ data: data.spark.conversions, borderColor:'#1b9e5f', fill:false }]},
-        options: { responsive: true, maintainAspectRatio: false, scales: { x: { display:false }, y: { display:false } }, elements: { point: { radius: 0 } }, plugins: { legend: { display: false } } }
-      });
-
-      // CPA spark (simple)
-      const sparkCPA = document.getElementById('sparkCPA').getContext('2d');
-      if (window._sparkCPChart) window._sparkCPChart.destroy();
-      window._sparkCPChart = new Chart(sparkCPA, {
-        type: 'line', data: { labels: data.spark.revenue.map((_,i)=>i+1), datasets:[{ data: data.spark.cpa, borderColor:'#f44336', fill:false }]},
-        options: { responsive: true, maintainAspectRatio: false, scales: { x: { display:false }, y: { display:false } }, elements: { point: { radius: 0 } }, plugins: { legend: { display: false } } }
-      });
-
-      // Line Chart update
-      lineChart.data.labels = data.labels;
-      lineChart.data.datasets[0].data = data.rev;
-      lineChart.update();
-
-      // Bar Chart update
-      barChart.data.datasets[0].data = data.channelTotalsRaw;
-      barChart.update();
-
-      // Donut Chart update
-      donutChart.data.datasets[0].data = data.demo.map(d => d.value);
-      donutChart.update();
-
-      // Radar Chart update
-      radarChart.data.datasets[0].data = data.radar;
-      radarChart.update();
-
-      // Scatter (Spend vs Conversions)
-      const scatterTrace = {
-        x: data.spend,
-        y: data.convs,
-        mode: 'markers',
-        type: 'scatter',
-        marker: { size: 12, color: 'rgb(106,92,255)' },
-        text: ['Email','Social','PPC','SEO','Affiliates']
-      };
-      const scatterLayout = {
-        margin: { t: 20, r: 20, b: 40, l: 40 },
-        xaxis: { title: 'Spend ($)' },
-        yaxis: { title: 'Conversions' },
-        hovermode: 'closest',
-        showlegend: false
-      };
-      Plotly.newPlot(scatterPlot, [scatterTrace], scatterLayout);
-
-      // Heatmap (7 days x 24 hours)
-      const z = data.heat;
-      const x = Array.from({length:24}, (_,i)=> i.toString().padStart(2,'0') + ':00');
-      const y = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-      const heatTrace = { z: z, x: x, y: y, type: 'heatmap', colorscale: 'Viridis', showscale: true };
-      Plotly.newPlot(heatmapPlot, [heatTrace], { margin: { t: 20, r: 20, b: 40, l: 60 } });
-    }
-
-    // Assemble data and render
-    function renderDashboard(){
-      // fetch inputs
-      const start = document.getElementById('startDate').value || '2025-11-24';
-      const end = document.getElementById('endDate').value || '2025-12-08';
-      const channel = document.getElementById('channel').value || 'All';
-
-      // generate data
-      const data = generateData(start, end, channel);
-
-      // Update UI
-      updateDashboard(data);
-    }
-
-    // Init
-    document.addEventListener('DOMContentLoaded', () => {
-      initCharts();
-      initPlotly();
-      renderDashboard();
-
-      // Apply button
-      document.getElementById('applyBtn').addEventListener('click', () => {
-        renderDashboard();
-      });
+    // Resize handling
+    window.addEventListener('resize', () => {
+      width = window.innerWidth;
+      height = window.innerHeight * 0.78;
+      svg.attr("viewBox", [0, 0, width, height]);
+      // If graph already rendered, we could re-center; easiest is re-layout by re-running layout
     });
   </script>
 </body>
