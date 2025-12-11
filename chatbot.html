@@ -969,6 +969,8 @@
               args.language,
               args.location
             );
+          case "spacy":
+            return await spacy(args.text);
           case "keywords_for_site":
             return await keywords_for_site(
               args.target,
@@ -1218,6 +1220,35 @@
           return data;
         } catch (error) {
           console.error("Error in ranking_keywords:", error);
+          throw error;
+        }
+      }
+
+      async function spacy(text) {
+        const url =
+          "https://mxyyoh5y2d.execute-api.ap-southeast-1.amazonaws.com/spacy";
+        const payload = {
+          text: text
+        };
+        const headers = {
+          "Content-Type": "application/json",
+        };
+
+        try {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error("Error in keyword frequency:", error);
           throw error;
         }
       }
