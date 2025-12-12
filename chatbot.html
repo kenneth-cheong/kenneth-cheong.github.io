@@ -206,6 +206,22 @@
         float: left;
       }
 
+       .message img {
+        max-width: 100%;       /* Prevent overflow */
+        max-height: 250px;     /* Limit height for thumbnail feel */
+        border-radius: 10px;
+        margin-top: 5px;
+        margin-bottom: 5px;
+        display: block;
+        cursor: pointer;       /* Hint that it could be clickable (optional) */
+      }
+      
+      /* Ensure text wraps nicely around images if needed */
+      .message p {
+        margin: 0 0 5px 0;
+        word-wrap: break-word;
+      }
+
       /* Typing Indicator */
       .typing-indicator {
         padding: 10px 20px;
@@ -235,35 +251,84 @@
       .attachment-preview {
         display: flex;
         flex-wrap: wrap;
-        padding: 5px 15px;
+        padding: 10px 15px; /* Added padding */
         gap: 10px;
         background-color: #f0f2f5;
-        min-height: 0px;
+        min-height: 0px; 
       }
 
+      /* Container for individual file */
       .attachment-item {
-        background-color: #e2e6ea;
-        border-radius: 5px;
-        padding: 4px 8px;
-        font-size: 0.85rem;
+        position: relative;
+        width: 64px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      /* Image Thumbnail */
+      .attachment-thumb {
+        width: 64px;
+        height: 64px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid #ced4da;
+        background-color: #fff;
+      }
+
+      /* Fallback style for non-image files (e.g. PDF) */
+      .attachment-icon-placeholder {
+        width: 64px;
+        height: 64px;
+        border-radius: 8px;
+        background-color: #e9ecef;
+        border: 1px solid #ced4da;
         display: flex;
         align-items: center;
-        border: 1px solid #ced4da;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: bold;
+        color: #495057;
+        text-transform: uppercase;
       }
 
-      .attachment-item span {
-        max-width: 150px;
+      /* Filename text below thumbnail */
+      .attachment-name {
+        font-size: 0.7rem;
+        width: 100%;
         overflow: hidden;
         white-space: nowrap;
         text-overflow: ellipsis;
-        margin-right: 5px;
+        text-align: center;
+        margin-top: 4px;
+        color: #6c757d;
       }
 
-      .attachment-item .remove-btn {
+      /* The 'X' button */
+      .attachment-remove-btn {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        background-color: #dc3545;
+        color: white;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         cursor: pointer;
-        color: #dc3545;
+        font-size: 12px;
         font-weight: bold;
-        margin-left: 5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        z-index: 2;
+        transition: transform 0.1s;
+      }
+
+      .attachment-remove-btn:hover {
+        transform: scale(1.1);
+        background-color: #bd2130;
       }
 
       .chat-input {
@@ -423,6 +488,61 @@
       .conversation-item:hover .delete-btn {
         display: inline;
       }
+
+      /* --- IMAGE MODAL STYLES --- */
+      .image-modal {
+        display: none; /* Hidden by default */
+        position: fixed; 
+        z-index: 2000; /* Sit on top */
+        padding-top: 50px; 
+        left: 0;
+        top: 0;
+        width: 100%; 
+        height: 100%; 
+        overflow: auto; 
+        background-color: rgb(0,0,0); 
+        background-color: rgba(0,0,0,0.9); /* Black w/ opacity */
+      }
+
+      .modal-content {
+        margin: auto;
+        display: block;
+        width: 80%;
+        max-width: 900px;
+        max-height: 85vh;
+        object-fit: contain;
+        border-radius: 5px;
+        animation-name: zoom;
+        animation-duration: 0.3s;
+      }
+
+      @keyframes zoom {
+        from {transform:scale(0)} 
+        to {transform:scale(1)}
+      }
+
+      .close-modal {
+        position: absolute;
+        top: 15px;
+        right: 35px;
+        color: #f1f1f1;
+        font-size: 40px;
+        font-weight: bold;
+        transition: 0.3s;
+        cursor: pointer;
+      }
+
+      .close-modal:hover,
+      .close-modal:focus {
+        color: #bbb;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      /* Cursor pointer for chat images to indicate clickability */
+      .message img {
+        cursor: zoom-in; 
+      }
     </style>
   </head>
 
@@ -500,12 +620,55 @@
       </div>
     </div>
 
+    <!-- Image Modal -->
+    <div id="image-modal" class="image-modal" onclick="closeImageModal()">
+      <span class="close-modal">&times;</span>
+      <img class="modal-content" id="img-modal-full" onclick="event.stopPropagation()"> <!-- Stop propagation so clicking image doesn't close it -->
+    </div>
+
     <script>
       chatMessages = document.getElementById("chat-messages");
       const messageInput = document.getElementById("message-input");
       const typingIndicator = document.getElementById("typing-indicator");
       const conversationList = document.getElementById("conversation-list");
       userEmail = "kenneth@mediaone.co";
+
+      messageInput.addEventListener('paste', function(event) {
+        // Get the clipboard data
+        const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+        let hasImage = false;
+
+        // Loop through clipboard items
+        for (let i = 0; i < items.length; i++) {
+            // Check if the item is an image
+            if (items[i].type.indexOf("image") !== -1) {
+                const blob = items[i].getAsFile();
+                
+                if (blob) {
+                    hasImage = true;
+                    
+                    // Generate a unique name for the pasted image (e.g., pasted-image-1715622.png)
+                    const timestamp = new Date().getTime();
+                    const fileName = `pasted-image-${timestamp}.png`;
+                    
+                    // Create a File object from the blob
+                    const file = new File([blob], fileName, { type: blob.type });
+                    
+                    // Add to our global selectedFiles array
+                    selectedFiles.push(file);
+                }
+            }
+        }
+
+        // If an image was pasted, update the preview UI
+        if (hasImage) {
+            renderAttachmentPreview();
+            
+            // Optional: Prevent the default paste behavior if you don't want 
+            // the binary string/filename appearing in the text box.
+            // However, usually browsers don't paste image data into textareas anyway.
+        }
+      });
 
       // NEW Global variable for attachments
       let selectedFiles = [];
@@ -536,17 +699,49 @@
       }
 
       function renderAttachmentPreview() {
-        const previewContainer = document.getElementById("attachment-preview");
-        previewContainer.innerHTML = "";
-
+        const previewContainer = document.getElementById('attachment-preview');
+        previewContainer.innerHTML = '';
+        
         selectedFiles.forEach((file, index) => {
-          const item = document.createElement("div");
-          item.className = "attachment-item";
-          item.innerHTML = `
-                <span>${file.name}</span>
-                <span class="remove-btn" onclick="removeFile(${index})">&times;</span>
-            `;
-          previewContainer.appendChild(item);
+            const item = document.createElement('div');
+            item.className = 'attachment-item';
+            
+            // 1. Create Thumbnail or Icon
+            let contentDisplay;
+            if (file.type.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.className = 'attachment-thumb';
+                img.src = URL.createObjectURL(file); // Generate preview blob
+                img.onload = () => URL.revokeObjectURL(img.src); // Free memory after loading
+                contentDisplay = img;
+            } else {
+                // For non-images (PDF, etc), show extension
+                const div = document.createElement('div');
+                div.className = 'attachment-icon-placeholder';
+                // Get extension (e.g., pdf, txt)
+                const ext = file.name.split('.').pop().substring(0, 4); 
+                div.textContent = ext || "FILE";
+                contentDisplay = div;
+            }
+
+            // 2. Create Remove Button
+            const removeBtn = document.createElement('div');
+            removeBtn.className = 'attachment-remove-btn';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.onclick = () => removeFile(index);
+
+            // 3. Create Name Label
+            const nameSpan = document.createElement('div');
+            nameSpan.className = 'attachment-name';
+            nameSpan.textContent = file.name;
+            nameSpan.title = file.name; // Tooltip for full name
+
+            // Assemble
+            item.appendChild(removeBtn);
+            item.appendChild(contentDisplay);
+            item.appendChild(nameSpan);
+            
+            previewContainer.appendChild(item);
         });
       }
 
@@ -590,12 +785,15 @@
         if (!messageText && !hasAttachments) return;
 
         const optionsContainer = document.getElementById("chat-options");
-        if (optionsContainer) optionsContainer.innerHTML = ""; // clear previous options
+        if (optionsContainer) optionsContainer.innerHTML = ""; // Clear previous options
 
+        // ---------------------------------------------------------
         // 1. Process Attachments (Convert to Base64)
+        // ---------------------------------------------------------
         let attachmentsPayload = [];
         if (hasAttachments) {
           try {
+            // Convert all files to { name, type, data }
             attachmentsPayload = await Promise.all(
               selectedFiles.map((file) => convertToBase64(file))
             );
@@ -606,153 +804,130 @@
           }
         }
 
+        // Get history
+        let input_messages = [];
         try {
-          input_messages = JSON.parse(localStorage.getItem("input_messages"));
+          input_messages = JSON.parse(localStorage.getItem("input_messages")) || [];
         } catch (error) {
           input_messages = [];
         }
 
-        // Display user message in UI
+        // ---------------------------------------------------------
+        // 2. Display Message Locally (Visual Preview with Thumbnails)
+        // ---------------------------------------------------------
+        // We construct a structure similar to what the API returns 
+        // so displayMessage can handle text and images together.
+        let localDisplayContent = [];
+
+        // Add text part if exists
         if (messageText) {
-          displayMessage(messageText, "user");
+          localDisplayContent.push({ type: "text", text: messageText });
         }
 
-        // If there are files, display a note in the chat UI
-        if (hasAttachments) {
-          const fileNames = selectedFiles.map((f) => f.name).join(", ");
-          displayMessage(`<i>Attached: ${fileNames}</i>`, "user");
-        }
+        // Add image parts if exist
+        attachmentsPayload.forEach((att) => {
+          if (att.type.startsWith("image/")) {
+            // Display as image
+            localDisplayContent.push({
+              type: "image_url",
+              image_url: `data:${att.type};base64,${att.data}`,
+            });
+          } else {
+            // Display non-images as text reference
+            localDisplayContent.push({
+              type: "text",
+              text: `<i>[Attached File: ${att.name}]</i>`,
+            });
+          }
+        });
 
-        // Clear Inputs
+        // Render to UI
+        displayMessage(localDisplayContent, "user");
+
+        // ---------------------------------------------------------
+        // 3. Reset UI Inputs
+        // ---------------------------------------------------------
         messageInput.value = "";
-        selectedFiles = []; // Clear files array
-        renderAttachmentPreview(); // Clear preview UI
+        selectedFiles = []; // Clear global files array
+        renderAttachmentPreview(); // Clear the visual preview bar
 
-        // --- TEMPLATED ACTIONS (REINSTATED) ---
+        // ---------------------------------------------------------
+        // 4. Check for Templated Actions (SEO/GEO/Social)
+        // ---------------------------------------------------------
 
         if (messageText.toLowerCase().includes("show options")) {
           chatMessages = document.getElementById("chat-messages");
           displayOptions();
           return;
-        } else if (messageText.includes("I would like to look at SEO today")) {
+        } 
+        else if (messageText.includes("I would like to look at SEO today")) {
           displayTypingIndicator();
           const sections = [
             {
               header: "Keywords",
               options: [
-                {
-                  label: "Keyword Research",
-                  value: "I want to do keyword research",
-                },
+                { label: "Keyword Research", value: "I want to do keyword research" },
                 { label: "Check SERPs", value: "I want to check SERPs" },
                 { label: "Rank Checker", value: "I want to check rankings" },
-                {
-                  label: "Find Similar Keywords",
-                  value: "I want to find similar keywords",
-                },
-                {
-                  label: "Keyword Mapping",
-                  value: "I want to do keyword mapping",
-                },
-                {
-                  label: "Keyword Analysis",
-                  value: "I want to do keyword analysis",
-                },
-                {
-                  label: "Keyword Density",
-                  value:
-                    "I want to check the keyword density of a chunk of text.",
-                },
+                { label: "Find Similar Keywords", value: "I want to find similar keywords" },
+                { label: "Keyword Mapping", value: "I want to do keyword mapping" },
+                { label: "Keyword Analysis", value: "I want to do keyword analysis" },
+                { label: "Keyword Density", value: "I want to check the keyword density of a chunk of text." }
               ],
             },
             {
               header: "Technical SEO",
               options: [
-                {
-                  label: "Check Page Speed",
-                  value: "I want to check my pagespeed using GTmetrix",
-                },
-                {
-                  label: "Check Domain Authority",
-                  value: "I want to check domain authority",
-                },
-                {
-                  label: "Generate Schema",
-                  value: "I want to generate schema markup",
-                },
-                {
-                  label: "Google Webpage Crawler Simulator",
-                  value: "I want to simulate the Google Webpage Crawler",
-                },
+                { label: "Check Page Speed", value: "I want to check my pagespeed using GTmetrix" },
+                { label: "Check Domain Authority", value: "I want to check domain authority" },
+                { label: "Generate Schema", value: "I want to generate schema markup" },
+                { label: "Google Webpage Crawler Simulator", value: "I want to simulate the Google Webpage Crawler" },
               ],
             },
             {
               header: "Content Analysis",
               options: [
-                {
-                  label: "Check Content",
-                  value: "I want to check the content I've written",
-                },
-                {
-                  label: "Content Comparison",
-                  value: "I want to do content comparison",
-                },
+                { label: "Check Content", value: "I want to check the content I've written" },
+                { label: "Content Comparison", value: "I want to do content comparison" },
               ],
             },
           ];
-
           renderOptionsMessage(sections, optionsContainer);
           return;
-        } else if (messageText.includes("I would like to look at GEO today")) {
+        } 
+        else if (messageText.includes("I would like to look at GEO today")) {
           displayTypingIndicator();
           const sections = [
             {
               header: "Quickstart",
               options: [
-                {
-                  label: "AI SEO audit for brand Research",
-                  value: "GEO: Run an AI SEO audit for my brand",
-                },
-                {
-                  label: "Improve GEO for website",
-                  value: "How can I improve GEO for my website?",
-                },
-                {
-                  label: "Compare AI visibility against competitors",
-                  value: "GEO: Compare my AI visibility vs competitors",
-                },
-                {
-                  label: "GEO prompt proposal",
-                  value: "I need prompt proposal for my GEO project",
-                },
+                { label: "AI SEO audit for brand Research", value: "GEO: Run an AI SEO audit for my brand" },
+                { label: "Improve GEO for website", value: "How can I improve GEO for my website?" },
+                { label: "Compare AI visibility against competitors", value: "GEO: Compare my AI visibility vs competitors" },
+                { label: "GEO prompt proposal", value: "I need prompt proposal for my GEO project" },
               ],
             },
           ];
-
           renderOptionsMessage(sections, optionsContainer);
           return;
-        } else if (
-          messageText.includes("I would like to look at social media today")
-        ) {
+        } 
+        else if (messageText.includes("I would like to look at social media today")) {
           displayTypingIndicator();
           const sections = [
             {
               header: "Social Media",
               options: [
-                {
-                  label: "Check Content",
-                  value: "I want to check the content I've written",
-                },
+                { label: "Check Content", value: "I want to check the content I've written" },
               ],
             },
           ];
-
           renderOptionsMessage(sections, optionsContainer);
           return;
         }
 
-        // --- API CALL (Standard Message) ---
-
+        // ---------------------------------------------------------
+        // 5. Send to API (Standard Request)
+        // ---------------------------------------------------------
         displayTypingIndicator();
 
         fetch(
@@ -780,6 +955,53 @@
             displayMessage("Error: Could not get response.", "bot");
             saveConversation();
           });
+      }
+
+      // ---------------------------------------------------------
+      // Helper Function for Templated Options
+      // ---------------------------------------------------------
+      function renderOptionsMessage(sections, optionsContainer) {
+          const optionsMessage = document.createElement("div");
+          optionsMessage.classList.add("message", "bot");
+          optionsMessage.style.marginBottom = "10px";
+
+          sections.forEach((section) => {
+            const sectionDiv = document.createElement("div");
+            sectionDiv.classList.add("option-section");
+            sectionDiv.style.marginBottom = "15px";
+
+            // Header
+            const header = document.createElement("h4");
+            header.textContent = section.header;
+            header.style.marginBottom = "8px";
+            header.style.color = "#333";
+            sectionDiv.appendChild(header);
+
+            // Button container
+            const buttonContainer = document.createElement("div");
+            buttonContainer.classList.add("button-container");
+
+            section.options.forEach((opt) => {
+              const button = document.createElement("button");
+              button.textContent = opt.label;
+              button.onclick = () => {
+                if(optionsContainer) optionsContainer.style.display = "none";
+                messageInput.value = opt.value;
+                sendMessage();
+              };
+              buttonContainer.appendChild(button);
+            });
+
+            sectionDiv.appendChild(buttonContainer);
+            optionsMessage.appendChild(sectionDiv);
+          });
+
+          // Simulate processing time then show options
+          setTimeout(() => {
+            hideTypingIndicator();
+            chatMessages.appendChild(optionsMessage);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+          }, 500); 
       }
 
       // Helper function to render the option buttons to avoid code duplication
@@ -1055,13 +1277,50 @@
         });
       }
 
-      function displayMessage(message, sender) {
+      function displayMessage(content, sender) {
         const messageDiv = document.createElement("div");
         messageDiv.classList.add("message", sender);
-        messageDiv.innerHTML = message;
-        chatMessages.appendChild(messageDiv);
 
-        // Scroll to bottom of chat messages
+        // Case 1: Simple String
+        if (typeof content === 'string') {
+            messageDiv.innerHTML = content;
+        } 
+        // Case 2: Structured Array (New format)
+        else if (Array.isArray(content)) {
+            content.forEach(item => {
+                // Render Text
+                if (item.type === 'text' || item.type === 'input_text') {
+                    if (item.text && item.text.trim() !== "") {
+                        const textSpan = document.createElement("div");
+                        textSpan.innerHTML = item.text.replace(/\n/g, '<br>'); 
+                        messageDiv.appendChild(textSpan);
+                    }
+                } 
+                // Render Image
+                else if (item.type === 'image_url' || item.type === 'input_image') {
+                    const img = document.createElement("img");
+                    
+                    let src = "";
+                    if (typeof item.image_url === 'object') {
+                        src = item.image_url.url;
+                    } else {
+                        src = item.image_url;
+                    }
+                    
+                    img.src = src;
+                    img.alt = "Uploaded image";
+                    
+                    // --- NEW: Add Click Handler ---
+                    img.onclick = function() {
+                        openImageModal(this.src);
+                    };
+                    
+                    messageDiv.appendChild(img);
+                }
+            });
+        }
+
+        chatMessages.appendChild(messageDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
       }
 
@@ -1680,23 +1939,20 @@
         localStorage.setItem("conversation_id", conversation["id"]);
         chatMessages.innerHTML = "";
 
-        // Filter messages to only display user and assistant messages
         const filteredMessages = conversation.messages.filter(
           (message) => message.role === "user" || message.role === "assistant"
         );
 
         filteredMessages.forEach((message) => {
-          // Use the helper to parse content
-          const displayContent = formatMessageContent(message.content);
-
-          if (message.role === "user") {
-            displayMessage(displayContent, "user");
-          } else if (message.role === "assistant") {
-            displayMessage(displayContent, "bot");
-          }
+            // PASS RAW CONTENT to displayMessage, do not format it to string here.
+            // displayMessage now handles the objects/arrays.
+            if (message.role === "user") {
+                displayMessage(message.content, "user");
+            } else if (message.role === "assistant") {
+                displayMessage(message.content, "bot");
+            }
         });
 
-        // Store the raw messages (with arrays) in local storage so the API can read them correctly later
         localStorage.setItem(
           "input_messages",
           JSON.stringify(conversation.messages)
@@ -1757,6 +2013,29 @@
         // Display options
         displayOptions();
       }
+
+      // --- MODAL FUNCTIONS ---
+      function openImageModal(src) {
+        const modal = document.getElementById("image-modal");
+        const modalImg = document.getElementById("img-modal-full");
+        
+        modal.style.display = "flex";
+        modal.style.alignItems = "center";
+        modal.style.justifyContent = "center";
+        modalImg.src = src;
+      }
+
+      function closeImageModal() {
+        const modal = document.getElementById("image-modal");
+        modal.style.display = "none";
+      }
+      
+      // Close modal on Escape key
+      document.addEventListener('keydown', function(event) {
+        if (event.key === "Escape") {
+            closeImageModal();
+        }
+      });
     </script>
   </body>
 </html>
