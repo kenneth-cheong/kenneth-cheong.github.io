@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SEO Marketing Singapore – Content Pillars for MediaOne Marketing</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg1:#0b1020;
+      --bg2:#050812;
+      --card:#111428;
+      --text:#e6e6f0;
+      --muted:#a6a6c0;
+      --shadow:0 8px 24px rgba(0,0,0,.4);
+    }
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: Inter, system-ui, Arial, sans-serif;
+      color:var(--text);
+      background: linear-gradient(135deg, #0b1020 0%, #0a0d1f 40%, #0b0f1d 100%);
+      overflow:hidden;
+    }
+    header{
+      position:fixed; top:0; left:0; right:0;
+      padding:14px 20px;
+      display:flex; align-items:center; justify-content:space-between;
+      background: linear-gradient(to bottom, rgba(11,16,32,.95), rgba(11,16,32,.65) 60%, rgba(11,16,32,0));
+      z-index:10;
+      pointer-events:none;
+    }
+    header h1{ font-size:14px; margin:0; padding:0; color:#fff; opacity:.9; }
+    #titleBadge{
+      display:inline-block;
+      padding:6px 10px;
+      border-radius:999px;
+      background: rgba(255,255,255,.08);
+      color:#fff;
+      font-weight:600;
+      font-size:12px;
+      border:1px solid rgba(255,255,255,.15);
+      box-shadow: var(--shadow);
+      pointer-events:auto;
+    }
+
+    #chartContainer{
+      position: absolute;
+      top:0; bottom:0; left:0; right:0;
+      display:flex; align-items:center; justify-content:center;
+      padding-top:64px; /* leave space for header */
+    }
+
+    /* SVG canvas styles */
+    svg{
+      width: min(1100px, 92vw);
+      height: min(1100px, 82vh);
+      border-radius:16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+      background: radial-gradient(circle at 50% 40%, rgba(20,20,40,.9) 0%, rgba(9,12,26,.95) 60%, rgba(9,12,26,.95) 100%);
+      overflow: visible;
+    }
+
+    /* Node and link styling */
+    .link{
+      fill: none;
+      stroke: rgba(255,255,255,.25);
+      stroke-width: 1.75px;
+    }
+    .node circle{
+      stroke: #000;
+      stroke-width: .75px;
+    }
+    .node text{
+      font-size: 11px;
+      fill: #fff;
+      pointer-events: none;
+    }
+
+    /* Hover effects for better aesthetics */
+    .node:hover circle{ stroke:#fff; stroke-width:2px; }
+    .node-title{ font-weight:600; }
+    
+    /* Subtle UI hints for drag interaction */
+    .tooltip{
+      position: fixed;
+      left: 12px;
+      bottom: 12px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: rgba(0,0,0,.6);
+      color:#fff;
+      font-size:12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.4);
+      display:none;
+      z-index:99;
+    }
+
+    @media (max-width: 900px){
+      #chartContainer{ padding: 0 8px; }
+      svg{ width: 100%; height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SEO Marketing Singapore — MediaOne Marketing Content Pillars</h1>
+    <div id="titleBadge" title="Primary keyword: SEO marketing Singapore">SEO marketing Singapore</div>
+  </header>
+
+  <div id="chartContainer">
+    <div id="chart"></div>
+  </div>
+
+  <div class="tooltip" id="tooltip" aria-hidden="true"></div>
+
+  <!-- D3.js Radial Tree (tidy, zoomable, with draggable leaves) -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    // Data model: content pillars (categories) and their URLs (existing + new)
+    // Pillars are colored; leaves carry the URL slug for display
+    const data = {
+      name: "SEO Marketing Singapore",
+      children: [
+        {
+          name: "SEO Agency Singapore",
+          color: "#1f77b4",
+          children: [
+            { name: "/seo-agency/", url: "https://mediaonemarketing.com.sg/seo-agency/" },
+            { name: "/id/seo-pricing-singapore/", url: "https://mediaonemarketing.com.sg/id/seo-pricing-singapore/" },
+            { name: "/what-a-top-rated-seo-service-provider-can-do-for-your-site/", url: "https://mediaonemarketing.com.sg/what-a-top-rated-seo-service-provider-can-do-for-your-site/" },
+          ]
+        },
+        {
+          name: "Local SEO Singapore",
+          color: "#ff7f0e",
+          children: [
+            { name: "/best-local-seo-guide/", url: "https://mediaonemarketing.com.sg/best-local-seo-guide/" },
+            { name: "/why-you-need-to-work-with-a-local-seo-agency/", url: "https://mediaonemarketing.com.sg/why-you-need-to-work-with-a-local-seo-agency/" }
+          ]
+        },
+        {
+          name: "Content Marketing & SEO",
+          color: "#2ca02c",
+          children: [
+            { name: "/top-15-seo-marketing-basics-for-singapore-smes/", url: "https://mediaonemarketing.com.sg/top-15-seo-marketing-basics-for-singapore-smes/" },
+            { name: "/seo-vs-aeo-vs-geo/", url: "https://mediaonemarketing.com.sg/seo-vs-aeo-vs-geo/" },
+            { name: "/what-a-top-rated-seo-service-provider-can-do-for-your-site/", url: "https://mediaonemarketing.com.sg/what-a-top-rated-seo-service-provider-can-do-for-your-site/" }
+          ]
+        },
+        {
+          name: "E-commerce & Shopify SEO",
+          color: "#d62728",
+          children: [
+            { name: "/how-to-choose-the-right-shopify-developer/", url: "https://mediaonemarketing.com.sg/how-to-choose-the-right-shopify-developer/" },
+            { name: "/what-to-expect-from-an-ecommerce-seo-agency/", url: "https://mediaonemarketing.com.sg/what-to-expect-from-an-ecommerce-seo-agency/" }
+          ]
+        },
+        {
+          name: "Case Studies",
+          color: "#17becf",
+          children: [
+            { name: "/case_studies/comat/", url: "https://mediaonemarketing.com.sg/case_studies/comat/" },
+            { name: "/case_studies/helped-an-industrial-equipment-provider-go-international/", url: "https://mediaonemarketing.com.sg/case_studies/helped-an-industrial-equipment-provider-go-international/" },
+            { name: "/case_studies/increased-business-little-known-events-logistics-provider/", url: "https://mediaonemarketing.com.sg/case_studies/increased-business-little-known-events-logistics-provider/" },
+            { name: "/case_studies/urs-far-east-seo/", url: "https://mediaonemarketing.com.sg/case_studies/urs-far-east-seo/" },
+            { name: "/case_studies/helped-top-accounting-firm-increase-traffic-87/", url: "https://mediaonemarketing.com.sg/case_studies/helped-top-accounting-firm-increase-traffic-87/" }
+          ]
+        }
+      ]
+    };
+
+    // Dimensions
+    const width = Math.min(window.innerWidth, 1100);
+    const height = Math.min(window.innerWidth, 1100); // square canvas looking nice on screens
+    const radius = Math.min(width, height) / 2 - 120; // room for labels
+
+    // Create container and SVG
+    const container = d3.select("#chart").style("width", width + "px").style("height", height + "px");
+    const svg = container.append("svg")
+      .attr("width", width)
+      .attr("height", height)
+      .attr("viewBox", [-width/2, -height/2, width, height]);
+
+    // A group that will hold the radial tree (centered)
+    const g = svg.append("g");
+
+    // Zoom behavior
+    const zoom = d3.zoom()
+      .scaleExtent([0.6, 2.5])
+      .on("zoom", (event) => g.attr("transform", event.transform));
+    svg.call(zoom);
+
+    // Build the tree layout (radial)
+    const root = d3.hierarchy(data);
+    // Use a radial tree layout: angle = x, radius = y
+    const tree = d3.tree().size([2 * Math.PI, radius]);
+    tree(root);
+
+    // Create links (paths) using radial link generator
+    const linkGenerator = d3.linkRadial()
+      .angle(d => d.x)
+      .radius(d => d.y);
+
+    const link = g.selectAll(".link")
+      .data(root.links())
+      .enter()
+      .append("path")
+      .attr("class", "link")
+      .attr("d", linkGenerator)
+      .attr("fill", "none")
+      .attr("stroke", "rgba(255,255,255,.25)")
+      .attr("stroke-width", 1.75);
+
+    // Create nodes
+    const node = g.selectAll(".node")
+      .data(root.descendants())
+      .enter()
+      .append("g")
+      .attr("class", "node")
+      // Position using polar -> Cartesian conversion consistent with linkRadial
+      .attr("transform", d => {
+        const angle = d.x;
+        const r = d.y;
+        const x = r * Math.cos(angle - Math.PI / 2);
+        const y = r * Math.sin(angle - Math.PI / 2);
+        return `translate(${x},${y})`;
+      });
+
+    // Node appearance
+    node.append("circle")
+      .attr("r", d => d.depth === 1 ? 9 : 5)
+      .style("fill", d => d.depth === 1 ? d.data.color : (d.parent && d.parent.data.color) || "#888")
+      .style("cursor", d => d.depth === 2 ? "pointer" : "default")
+      .style("opacity", d => d.depth === 1 ? 0.95 : 0.95);
+
+    // Node labels: show pillar names for depth 1; show URL slug for leaves
+    node.append("text")
+      .text(d => d.data.name)
+      .attr("dy", d => d.depth === 1 ? 18 : 12)
+      .attr("text-anchor", "middle")
+      .style("font-family", "Inter, system-ui, Arial")
+      .style("font-size", d => d.depth === 1 ? 12 : 10)
+      .style("fill", "#fff");
+
+    // Create a lightweight hover tooltip for leaf URLs
+    const tooltip = d3.select("#tooltip");
+
+    node.filter(d => d.depth === 2).on("mouseover", (event, d) => {
+      tooltip.style("display", "block")
+             .text(d.data.url ? d.data.url : d.data.name);
+    }).on("mousemove", (event) => {
+      tooltip.style("left", (event.clientX + 12) + "px")
+             .style("top", (event.clientY + 12) + "px");
+    }).on("mouseout", () => tooltip.style("display", "none"));
+
+    // Drag behavior for leaves (URL nodes)
+    const drag = d3.drag()
+      .on("start", (event, d) => {
+        // bring to front
+        d3.select(event.sourceEvent.target).classed("dragging", true);
+      })
+      .on("drag", (event, d) => {
+        // Convert pointer to polar coordinates relative to chart center
+        const pt = d3.pointer(event, svg.node());
+        const cx = 0;
+        const cy = 0;
+        const dx = pt[0] - cx;
+        const dy = pt[1] - cy;
+        let angle = Math.atan2(dy, dx);
+        // Normalize angle to [0, 2PI)
+        if (angle < 0) angle += 2 * Math.PI;
+        // Radius from center; clamp to visual bounds
+        const r = Math.max(40, Math.min(radius, Math.sqrt(dx*dx + dy*dy)));
+        d.x = angle;
+        d.y = r;
+        // Update positions of all nodes & links
+        updatePositions();
+      })
+      .on("end", (event, d) => {
+        d3.select(event.sourceEvent.target).classed("dragging", false);
+      });
+
+    // Attach drag to leaves (depth 2)
+    node.filter(d => d.depth === 2).call(drag);
+
+    // Function: convert polar to cartesian (for updating positions)
+    function polarToCartesian(angle, rad) {
+      const x = rad * Math.cos(angle - Math.PI / 2);
+      const y = rad * Math.sin(angle - Math.PI / 2);
+      return [x, y];
+    }
+
+    // Update positions of all nodes/links after interaction
+    function updatePositions() {
+      // Update node transforms
+      node.attr("transform", d => {
+        const [x, y] = polarToCartesian(d.x, d.y);
+        return `translate(${x},${y})`;
+      });
+      // Update link paths
+      link.attr("d", linkGenerator);
+      // Optional: keep pillar labels readable (rotate to face outward)
+      node.select("text")
+        .attr("transform", d => {
+          const angleDeg = (d.x * 180 / Math.PI);
+          // Keep upright
+          const rotate = angleDeg < 90 || angleDeg > 270 ? angleDeg - 90 : angleDeg + 90;
+          return `rotate(${rotate - 90}) translate(0, ${d.depth === 1 ? 22 : 12}) rotate(-${rotate - 90})`;
+        })
+        .style("text-anchor", "middle");
+    }
+
+    // Initial small animation to reveal the graph
+    svg.style("opacity", 0).transition().duration(600).style("opacity", 1);
+
+    // Throttle window resize for responsiveness
+    window.addEventListener("resize", () => {
+      // Optional: re-render at new sizes if desired
+      // For simplicity, we keep the current rendering as a static fit
+    });
+
+  </script>
+</body>
+</html>
