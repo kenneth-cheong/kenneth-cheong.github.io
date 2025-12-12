@@ -224,13 +224,75 @@
         }
       }
 
-      /* Chat Input Styles */
-      .chat-input {
-        padding: 15px;
+      .chat-input-container {
         background-color: #f8f9fa;
         border-top: 1px solid #e6e9ed;
         display: flex;
+        flex-direction: column;
+      }
+
+      /* Area to show selected files before sending */
+      .attachment-preview {
+        display: flex;
+        flex-wrap: wrap;
+        padding: 5px 15px;
+        gap: 10px;
+        background-color: #f0f2f5;
+        min-height: 0px;
+      }
+
+      .attachment-item {
+        background-color: #e2e6ea;
+        border-radius: 5px;
+        padding: 4px 8px;
+        font-size: 0.85rem;
+        display: flex;
         align-items: center;
+        border: 1px solid #ced4da;
+      }
+
+      .attachment-item span {
+        max-width: 150px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        margin-right: 5px;
+      }
+
+      .attachment-item .remove-btn {
+        cursor: pointer;
+        color: #dc3545;
+        font-weight: bold;
+        margin-left: 5px;
+      }
+
+      .chat-input {
+        padding: 15px;
+        display: flex;
+        align-items: flex-end; /* Aligns items to bottom so textarea grows up */
+      }
+
+      /* The Paperclip Button */
+      .attach-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 10px;
+        margin-right: 5px;
+        color: #6c757d;
+        transition: color 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .attach-btn:hover {
+        color: #2a2f5b;
+      }
+
+      .attach-btn svg {
+        width: 24px;
+        height: 24px;
       }
 
       .chat-input textarea {
@@ -238,23 +300,16 @@
         padding: 10px;
         border: 1px solid #ced4da;
         border-radius: 25px;
-        /* Keep consistent rounding */
         margin-right: 10px;
         font-size: 1rem;
         outline: none;
         transition: border-color 0.2s ease-in-out;
         resize: none;
-        /* Prevents users from manually resizing the textarea */
         min-height: 45px;
-        /* Minimum height for a single line */
         max-height: 200px;
-        /* Maximum height before vertical scrollbar appears */
         overflow-y: auto;
-        /* Enable vertical scrolling */
         box-sizing: border-box;
-        /* Ensures padding/border is inside the element's width/height */
         line-height: 1.4;
-        /* Improve text readability */
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
       }
 
@@ -262,7 +317,7 @@
         border-color: #2a2f5b;
       }
 
-      .chat-input button {
+      .chat-input button.send-btn {
         background-color: #2a2f5b;
         color: #fff;
         border: none;
@@ -271,15 +326,11 @@
         cursor: pointer;
         font-size: 1rem;
         transition: background-color 0.2s ease-in-out;
+        height: 45px; /* Match textarea min-height */
       }
 
-      .chat-input button:hover {
+      .chat-input button.send-btn:hover {
         background-color: #0056b3;
-      }
-
-      /* Chat Options Styles */
-      .chat-options {
-        padding: 15px;
       }
 
       .button-container {
@@ -303,7 +354,6 @@
       .button-container button:hover {
         background-color: #0056b3;
       }
-      
 
       /* Media Queries for Responsiveness */
       @media (max-width: 768px) {
@@ -407,13 +457,45 @@
           ></div>
         </div>
         <div class="typing-indicator" id="typing-indicator"></div>
-        <div class="chat-input">
-          <textarea
-            id="message-input"
-            placeholder="Type your message..."
-            rows="1"
-          ></textarea>
-          <button onclick="sendMessage()">Send</button>
+        <div class="chat-input-container">
+          <div id="attachment-preview" class="attachment-preview"></div>
+          <div class="chat-input">
+            <!-- Hidden File Input -->
+            <input
+              type="file"
+              id="file-input"
+              multiple
+              style="display: none"
+              onchange="handleFileSelect(event)"
+            />
+
+            <!-- Paperclip Icon Button -->
+            <button
+              class="attach-btn"
+              onclick="document.getElementById('file-input').click()"
+              title="Attach files"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
+                ></path>
+              </svg>
+            </button>
+
+            <textarea
+              id="message-input"
+              placeholder="Type your message..."
+              rows="1"
+            ></textarea>
+            <button class="send-btn" onclick="sendMessage()">Send</button>
+          </div>
         </div>
       </div>
     </div>
@@ -425,17 +507,72 @@
       const conversationList = document.getElementById("conversation-list");
       userEmail = "kenneth@mediaone.co";
 
+      // NEW Global variable for attachments
+      let selectedFiles = [];
+
       messageInput.addEventListener("keydown", function (event) {
-        // Check for Enter key press
         if (event.key === "Enter") {
-          // If Shift is NOT pressed, send the message
           if (!event.shiftKey) {
-            event.preventDefault(); // Prevent the default new line in the textarea
+            event.preventDefault();
             sendMessage();
           }
-          // If Shift IS pressed (Shift + Enter), do nothing, allowing the default new line action to occur
         }
       });
+
+      // --- NEW: FILE HANDLING FUNCTIONS ---
+
+      function handleFileSelect(event) {
+        const files = Array.from(event.target.files);
+        // Add new files to our array
+        selectedFiles = [...selectedFiles, ...files];
+        renderAttachmentPreview();
+        // Reset the input value so same file can be selected again if needed
+        event.target.value = "";
+      }
+
+      function removeFile(index) {
+        selectedFiles.splice(index, 1);
+        renderAttachmentPreview();
+      }
+
+      function renderAttachmentPreview() {
+        const previewContainer = document.getElementById("attachment-preview");
+        previewContainer.innerHTML = "";
+
+        selectedFiles.forEach((file, index) => {
+          const item = document.createElement("div");
+          item.className = "attachment-item";
+          item.innerHTML = `
+                <span>${file.name}</span>
+                <span class="remove-btn" onclick="removeFile(${index})">&times;</span>
+            `;
+          previewContainer.appendChild(item);
+        });
+      }
+
+      // Helper to convert file to Base64
+      const convertToBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => {
+            // result looks like "data:image/png;base64,iVBOR..."
+            // We need to strip the prefix for some APIs, or keep it.
+            // The Python code expects: "data:{type};base64,{data}" construction.
+            // So we need to extract just the base64 part and the mime type.
+
+            const result = reader.result;
+            const base64Data = result.split(",")[1]; // Get data after comma
+
+            resolve({
+              name: file.name,
+              type: file.type,
+              data: base64Data,
+            });
+          };
+          reader.onerror = (error) => reject(error);
+        });
+      };
 
       function displayTypingIndicator() {
         typingIndicator.textContent = "Processing...";
@@ -445,30 +582,59 @@
         typingIndicator.textContent = "";
       }
 
-      function sendMessage() {
+      async function sendMessage() {
         const messageText = messageInput.value.trim();
+        const hasAttachments = selectedFiles.length > 0;
+
+        // If no text and no attachments, do nothing
+        if (!messageText && !hasAttachments) return;
+
         const optionsContainer = document.getElementById("chat-options");
-        optionsContainer.innerHTML = ""; // clear previous options
-        if (!messageText) return;
+        if (optionsContainer) optionsContainer.innerHTML = ""; // clear previous options
+
+        // 1. Process Attachments (Convert to Base64)
+        let attachmentsPayload = [];
+        if (hasAttachments) {
+          try {
+            attachmentsPayload = await Promise.all(
+              selectedFiles.map((file) => convertToBase64(file))
+            );
+          } catch (err) {
+            console.error("Error reading files", err);
+            alert("Error reading attached files.");
+            return;
+          }
+        }
 
         try {
           input_messages = JSON.parse(localStorage.getItem("input_messages"));
         } catch (error) {
-          console.log(error);
-          console.log("no previous messages");
           input_messages = [];
         }
 
-        // Display user message
-        displayMessage(messageText, "user");
-        messageInput.value = ""; // Clear the input
+        // Display user message in UI
+        if (messageText) {
+          displayMessage(messageText, "user");
+        }
+
+        // If there are files, display a note in the chat UI
+        if (hasAttachments) {
+          const fileNames = selectedFiles.map((f) => f.name).join(", ");
+          displayMessage(`<i>Attached: ${fileNames}</i>`, "user");
+        }
+
+        // Clear Inputs
+        messageInput.value = "";
+        selectedFiles = []; // Clear files array
+        renderAttachmentPreview(); // Clear preview UI
+
+        // --- TEMPLATED ACTIONS (REINSTATED) ---
 
         if (messageText.toLowerCase().includes("show options")) {
           chatMessages = document.getElementById("chat-messages");
           displayOptions();
           return;
         } else if (messageText.includes("I would like to look at SEO today")) {
-          // Show typing indicator
           displayTypingIndicator();
           const sections = [
             {
@@ -491,7 +657,12 @@
                 {
                   label: "Keyword Analysis",
                   value: "I want to do keyword analysis",
-                }
+                },
+                {
+                  label: "Keyword Density",
+                  value:
+                    "I want to check the keyword density of a chunk of text.",
+                },
               ],
             },
             {
@@ -530,47 +701,9 @@
             },
           ];
 
-          const optionsMessage = document.createElement("div");
-          optionsMessage.classList.add("message", "bot");
-          optionsMessage.style.marginBottom = "10px";
-
-          // Loop through each section
-          sections.forEach((section) => {
-            const sectionDiv = document.createElement("div");
-            sectionDiv.classList.add("option-section");
-            sectionDiv.style.marginBottom = "15px";
-
-            // Header
-            const header = document.createElement("h4");
-            header.textContent = section.header;
-            header.style.marginBottom = "8px";
-            header.style.color = "#333";
-            sectionDiv.appendChild(header);
-
-            // Button container
-            const buttonContainer = document.createElement("div");
-            buttonContainer.classList.add("button-container");
-
-            section.options.forEach((opt) => {
-              const button = document.createElement("button");
-              button.textContent = opt.label;
-              button.onclick = () => {
-                optionsContainer.style.display = "none"; // Hide after selection
-                messageInput.value = opt.value;
-                sendMessage();
-              };
-              buttonContainer.appendChild(button);
-            });
-
-            sectionDiv.appendChild(buttonContainer);
-            optionsMessage.appendChild(sectionDiv);
-          });
-          setTimeout(hideTypingIndicator(), 2000);
-          chatMessages.appendChild(optionsMessage);
-          chatMessages.scrollTop = chatMessages.scrollHeight;
+          renderOptionsMessage(sections, optionsContainer);
           return;
         } else if (messageText.includes("I would like to look at GEO today")) {
-          // Show typing indicator
           displayTypingIndicator();
           const sections = [
             {
@@ -596,49 +729,11 @@
             },
           ];
 
-          const optionsMessage = document.createElement("div");
-          optionsMessage.classList.add("message", "bot");
-          optionsMessage.style.marginBottom = "10px";
-
-          // Loop through each section
-          sections.forEach((section) => {
-            const sectionDiv = document.createElement("div");
-            sectionDiv.classList.add("option-section");
-            sectionDiv.style.marginBottom = "15px";
-
-            // Header
-            const header = document.createElement("h4");
-            header.textContent = section.header;
-            header.style.marginBottom = "8px";
-            header.style.color = "#333";
-            sectionDiv.appendChild(header);
-
-            // Button container
-            const buttonContainer = document.createElement("div");
-            buttonContainer.classList.add("button-container");
-
-            section.options.forEach((opt) => {
-              const button = document.createElement("button");
-              button.textContent = opt.label;
-              button.onclick = () => {
-                optionsContainer.style.display = "none"; // Hide after selection
-                messageInput.value = opt.value;
-                sendMessage();
-              };
-              buttonContainer.appendChild(button);
-            });
-
-            sectionDiv.appendChild(buttonContainer);
-            optionsMessage.appendChild(sectionDiv);
-          });
-          setTimeout(hideTypingIndicator(), 2000);
-          chatMessages.appendChild(optionsMessage);
-          chatMessages.scrollTop = chatMessages.scrollHeight;
+          renderOptionsMessage(sections, optionsContainer);
           return;
         } else if (
-          messageText.includes("I would like to look at social media toda")
+          messageText.includes("I would like to look at social media today")
         ) {
-          // Show typing indicator
           displayTypingIndicator();
           const sections = [
             {
@@ -652,51 +747,14 @@
             },
           ];
 
-          const optionsMessage = document.createElement("div");
-          optionsMessage.classList.add("message", "bot");
-          optionsMessage.style.marginBottom = "10px";
-
-          // Loop through each section
-          sections.forEach((section) => {
-            const sectionDiv = document.createElement("div");
-            sectionDiv.classList.add("option-section");
-            sectionDiv.style.marginBottom = "15px";
-
-            // Header
-            const header = document.createElement("h4");
-            header.textContent = section.header;
-            header.style.marginBottom = "8px";
-            header.style.color = "#333";
-            sectionDiv.appendChild(header);
-
-            // Button container
-            const buttonContainer = document.createElement("div");
-            buttonContainer.classList.add("button-container");
-
-            section.options.forEach((opt) => {
-              const button = document.createElement("button");
-              button.textContent = opt.label;
-              button.onclick = () => {
-                optionsContainer.style.display = "none"; // Hide after selection
-                messageInput.value = opt.value;
-                sendMessage();
-              };
-              buttonContainer.appendChild(button);
-            });
-
-            sectionDiv.appendChild(buttonContainer);
-            optionsMessage.appendChild(sectionDiv);
-          });
-          setTimeout(hideTypingIndicator(), 2000);
-          chatMessages.appendChild(optionsMessage);
-          chatMessages.scrollTop = chatMessages.scrollHeight;
+          renderOptionsMessage(sections, optionsContainer);
           return;
         }
 
-        // Show typing indicator
+        // --- API CALL (Standard Message) ---
+
         displayTypingIndicator();
 
-        // Send message to API
         fetch(
           "https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2",
           {
@@ -707,28 +765,98 @@
             body: JSON.stringify({
               question: messageText,
               input_messages: input_messages,
+              attachments: attachmentsPayload, // Send the processed files
             }),
           }
         )
           .then((response) => response.json())
           .then((data) => {
             processData(data);
-
-            // Display bot response
-            //displayMessage(data.answer, 'bot');
-            localStorage.setItem(
-              "input_messages",
-              JSON.stringify(data.input_messages)
-            );
-            saveConversation();
+            // Save history handled inside processData/saveConversation
           })
           .catch((error) => {
-            // Hide typing indicator
             hideTypingIndicator();
             console.error("Error:", error);
             displayMessage("Error: Could not get response.", "bot");
             saveConversation();
           });
+      }
+
+      // Helper function to render the option buttons to avoid code duplication
+      function renderOptionsMessage(sections, optionsContainer) {
+        const optionsMessage = document.createElement("div");
+        optionsMessage.classList.add("message", "bot");
+        optionsMessage.style.marginBottom = "10px";
+
+        sections.forEach((section) => {
+          const sectionDiv = document.createElement("div");
+          sectionDiv.classList.add("option-section");
+          sectionDiv.style.marginBottom = "15px";
+
+          // Header
+          const header = document.createElement("h4");
+          header.textContent = section.header;
+          header.style.marginBottom = "8px";
+          header.style.color = "#333";
+          sectionDiv.appendChild(header);
+
+          // Button container
+          const buttonContainer = document.createElement("div");
+          buttonContainer.classList.add("button-container");
+
+          section.options.forEach((opt) => {
+            const button = document.createElement("button");
+            button.textContent = opt.label;
+            button.onclick = () => {
+              if (optionsContainer) optionsContainer.style.display = "none";
+              messageInput.value = opt.value;
+              sendMessage();
+            };
+            buttonContainer.appendChild(button);
+          });
+
+          sectionDiv.appendChild(buttonContainer);
+          optionsMessage.appendChild(sectionDiv);
+        });
+
+        // Simulate processing time then show options
+        setTimeout(() => {
+          hideTypingIndicator();
+          chatMessages.appendChild(optionsMessage);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }, 500);
+      }
+
+      function formatMessageContent(content) {
+        if (!content) return "";
+        
+        // If it's already a string (old messages), return it
+        if (typeof content === 'string') return content;
+        
+        // If it's an array (new messages with potential attachments)
+        if (Array.isArray(content)) {
+            let textAcc = "";
+            let hasAttachment = false;
+            
+            content.forEach(item => {
+                // Check for text types
+                if (item.type === 'input_text' || item.type === 'text') {
+                    textAcc += item.text + " ";
+                } 
+                // Check for image/file types
+                else if (item.type === 'input_image' || item.type === 'image_url') {
+                    hasAttachment = true;
+                }
+            });
+            
+            // Format the output
+            if (hasAttachment) {
+                return textAcc.trim() ? `${textAcc} <em style="font-size:0.8em; color:#666;">[Attachment]</em>` : `<em style="font-size:0.8em; color:#666;">[Attachment]</em>`;
+            }
+            return textAcc.trim();
+        }
+        
+        return JSON.stringify(content); // Fallback
       }
 
       async function processData(data) {
@@ -745,6 +873,7 @@
           } else {
             displayMessage("Sorry, I could not get an answer.", "bot");
           }
+          console.log(input_messages);
           localStorage.setItem(
             "input_messages",
             JSON.stringify(input_messages)
@@ -1228,7 +1357,7 @@
         const url =
           "https://mxyyoh5y2d.execute-api.ap-southeast-1.amazonaws.com/spacy";
         const payload = {
-          text: text
+          text: text,
         };
         const headers = {
           "Content-Type": "application/json",
@@ -1469,7 +1598,7 @@
         conversations.forEach((conversation) => {
           const conversationItem = document.createElement("div");
           conversationItem.classList.add("conversation-item");
-          conversationItem.id = conversation.id; // Assign a unique ID for the conversation
+          conversationItem.id = conversation.id;
           conversationItem.addEventListener("click", () =>
             loadConversation(conversation)
           );
@@ -1483,12 +1612,18 @@
 
           const latestMessageDiv = document.createElement("div");
           latestMessageDiv.classList.add("latest-message");
+          
+          // Get the first user message
           const firstMessage = conversation.messages
             .filter((msg) => msg.role === "user")
-            .shift(); // get the first user message
-          latestMessageDiv.textContent = firstMessage
-            ? firstMessage.content
+            .shift();
+          
+          // Use helper to format the preview text
+          const previewText = firstMessage 
+            ? formatMessageContent(firstMessage.content) 
             : "No messages yet";
+            
+          latestMessageDiv.innerHTML = previewText; // Use innerHTML to render the <em> tags
 
           const dateDiv = document.createElement("div");
           dateDiv.classList.add("date");
@@ -1502,9 +1637,13 @@
           const deleteButton = document.createElement("button");
           deleteButton.classList.add("delete-button");
           deleteButton.textContent = "Delete";
-          deleteButton.onclick = () => deleteConversation(conversation.id);
+          
+          // Stop propagation so clicking delete doesn't load the chat
+          deleteButton.onclick = (e) => {
+              e.stopPropagation(); 
+              deleteConversation(conversation.id);
+          };
 
-          // Append delete button to the conversation item
           conversationItem.appendChild(conversationDetails);
           conversationItem.appendChild(deleteButton);
           conversationList.appendChild(conversationItem);
@@ -1547,14 +1686,17 @@
         );
 
         filteredMessages.forEach((message) => {
+          // Use the helper to parse content
+          const displayContent = formatMessageContent(message.content);
+
           if (message.role === "user") {
-            displayMessage(message.content, "user");
+            displayMessage(displayContent, "user");
           } else if (message.role === "assistant") {
-            displayMessage(message.content, "bot");
+            displayMessage(displayContent, "bot");
           }
         });
 
-        // Store the filtered messages in local storage
+        // Store the raw messages (with arrays) in local storage so the API can read them correctly later
         localStorage.setItem(
           "input_messages",
           JSON.stringify(conversation.messages)
