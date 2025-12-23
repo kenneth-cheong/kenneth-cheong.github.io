@@ -1975,6 +1975,7 @@
             <a href="#"  onclick="showSmmOnly(event)">SMM</a>
             <div class="dropdown-content">
                 <a href="#contentGenerator" onclick="openContentGenerator(event)">Content Generator</a>
+                <a href="#responseGenerator" onclick="openResponseGenerator(event)">Social Media Response Generator</a>
             </div>
         </div>
 
@@ -3117,19 +3118,20 @@
 
                     <div id="generated-content"></div>
                 </div>
-                <button class="collapsible" id="smmAnalyzerButton">
-    <i class="fas fa-plus-square"></i>Social Media Post Analyzer
-</button>
-<div class="content" id="smmAnalyzer">
-    <label for="smm-analysis-input">Paste Social Media Post Text:</label><br>
-    <textarea id="smm-analysis-input" style="min-height: 150px;" placeholder="Enter the comment here"></textarea><br>
-    
-    <button type="button" id="submitSmmAnalysisBtn" onclick="sendSmmTextToApi()">Generate Response</button>
-    
-    <div id="smm-analysis-results" style="margin-top: 20px; padding: 15px; background-color: #ffffff; border-radius: 10px; border: 1px solid #ddd; display: none;">
-        <!-- API Response will appear here -->
-    </div>
-</div>
+                <!-- Social Media Comment Reply Generator -->
+                <button class="collapsible" id="smmReplyButton">
+                    <i class="fas fa-plus-square"></i><i class="fas fa-comments"></i> Social Media Response Generator
+                </button>
+                <div class="content" id="smmReplyContent">
+                    <label for="smm-comment-input">Paste the Client's Comment:</label><br>
+                    <textarea id="smm-comment-input" style="min-height: 120px; width: 90%;" placeholder="e.g. I want to air my grieviance.."></textarea><br>
+                    
+                    <button type="button" id="generateSmmReplyBtn" onclick="generateHumanReply()">Generate Reply</button>
+                    
+                    <div id="smm-reply-display" style="margin-top: 15px; padding: 20px; background-color: #ffffff; border-left: 5px solid #004c9d; border-radius: 10px; display: none; line-height: 1.6; font-size: 1.1em;">
+                        <!-- Human-like text response will appear here -->
+                    </div>
+                </div>
             </div>
             <hr>
         </div>
@@ -3921,6 +3923,48 @@
 
                 const contentGeneratorLink = event.currentTarget;
                 contentGeneratorLink.classList.toggle('active-menu');
+
+                if (content.style.display === "block") {
+                    const contentGeneratorSection = document.getElementById('smm');
+                    if (contentGeneratorSection) {
+                        contentGeneratorSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+            closeJourneyModal();
+        }
+
+        function openResponseGenerator(event) {
+            event.preventDefault();
+            deactivateAllButtons();
+            const smmButton = document.querySelector('button#smm');
+            if (smmButton) {
+                smmButton.classList.toggle('active');
+                const content = smmButton.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const smmLink = event.currentTarget;
+                smmLink.classList.toggle('active-menu');
+
+                if (content.style.display === "block") {
+                    const smmSection = document.getElementById('smm');
+                    if (smmSection) {
+                        smmSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+            Button = document.querySelector('button#responseGeneratorButton');
+            if (Button) {
+                Button.classList.toggle('active');
+                const content = Button.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const responseGeneratorLink = event.currentTarget;
+                responseGeneratorLink.classList.toggle('active-menu');
 
                 if (content.style.display === "block") {
                     const contentGeneratorSection = document.getElementById('smm');
@@ -11534,68 +11578,61 @@
             }
         }
 
-        async function sendSmmTextToApi() {
-            const inputField = document.getElementById('smm-analysis-input');
-            const resultsDiv = document.getElementById('smm-analysis-results');
-            const submitBtn = document.getElementById('submitSmmAnalysisBtn');
-            const textValue = inputField.value.trim();
+        async function generateHumanReply() {
+    const commentInput = document.getElementById('smm-comment-input');
+    const replyDisplay = document.getElementById('smm-reply-display');
+    const submitBtn = document.getElementById('generateSmmReplyBtn');
+    const commentText = commentInput.value.trim();
 
-            // 1. Validation
-            if (!textValue) {
-                alert("Please enter some text to analyze.");
-                return;
-            }
+    // 1. Basic Validation
+    if (!commentText) {
+        alert("Please paste a comment to generate a reply.");
+        return;
+    }
 
-            // 2. UI Loading State
-            submitBtn.innerText = "Analyzing...";
-            submitBtn.disabled = true;
-            resultsDiv.style.display = "none";
-            resultsDiv.innerHTML = "";
+    // 2. UI State: Loading
+    submitBtn.innerText = "Drafting Reply...";
+    submitBtn.disabled = true;
+    replyDisplay.style.display = "none";
+    replyDisplay.innerHTML = "";
 
-            try {
-                // 3. API Call (Replace URL with your actual API endpoint)
-                const response = await fetch('https://5m2upu2fxf.execute-api.ap-southeast-1.amazonaws.com/communityEngagement', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ 
-                        text: textValue,
-                        user: JSON.parse(localStorage.getItem('googleUser'))?.email || "anonymous"
-                    })
-                });
+    try {
+        // 3. API Call (Replace URL with your Lambda API Gateway endpoint)
+        const response = await fetch('https://5m2upu2fxf.execute-api.ap-southeast-1.amazonaws.com/communityEngagement', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                question: commentText // Matches the 'question' key in your Lambda
+            })
+        });
 
-                if (!response.ok) {
-                    throw new Error(`API Error: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-
-                // 4. Display Results
-                resultsDiv.style.display = "block";
-                
-                // Use .body if your API returns a nested body, otherwise use data directly
-                const displayData = data.body || data;
-                
-                if (typeof displayData === 'string') {
-                    resultsDiv.innerHTML = `<h3>Analysis Result:</h3><p>${displayData}</p>`;
-                } else {
-                    resultsDiv.innerHTML = `<h3>Analysis Result:</h3><pre style="white-space: pre-wrap;">${JSON.stringify(displayData, null, 2)}</pre>`;
-                }
-
-                // Change parent collapsible color to green on success (matching your existing logic)
-                document.getElementById("smmAnalyzerButton").style.backgroundColor = "green";
-
-            } catch (error) {
-                console.error("Analysis failed:", error);
-                resultsDiv.style.display = "block";
-                resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
-            } finally {
-                // 5. Reset Button
-                submitBtn.innerText = "Analyze Content";
-                submitBtn.disabled = false;
-            }
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.statusText}`);
         }
+
+        const data = await response.json();
+
+        // 4. Display the Plain Text Result
+        // We use innerText to ensure no HTML is rendered, keeping it human-like
+        replyDisplay.innerText = data.answer; 
+        replyDisplay.style.display = "block";
+
+        // 5. Visual Feedback (Turn header green on success)
+        document.getElementById("smmReplyButton").style.backgroundColor = "green";
+
+    } catch (error) {
+        console.error("Error generating reply:", error);
+        replyDisplay.style.display = "block";
+        replyDisplay.innerText = "Sorry, I couldn't generate a reply at this moment. Please check your connection and try again.";
+        replyDisplay.style.color = "red";
+    } finally {
+        // 6. Reset Button
+        submitBtn.innerText = "Generate Reply";
+        submitBtn.disabled = false;
+    }
+}
 
         function allowDrop(ev) {
             ev.preventDefault();
