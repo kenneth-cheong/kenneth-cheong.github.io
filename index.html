@@ -3125,6 +3125,8 @@
                 <div class="content" id="smmReplyContent">
                     <label for="smm-comment-input">Paste the Client's Comment:</label><br>
                     <textarea id="smm-comment-input" style="min-height: 120px; width: 90%;" placeholder="e.g. I want to air my grieviance.."></textarea><br>
+                    <label for="smm-instructions-input">Additional Instructions:</label><br>
+                    <textarea id="smm-instructions-input" style="min-height: 120px; width: 90%;" placeholder="e.g. These are the additional information for consideration.."></textarea><br>
                     
                     <button type="button" id="generateSmmReplyBtn" onclick="generateHumanReply()">Generate Reply</button>
                     
@@ -11579,60 +11581,63 @@
         }
 
         async function generateHumanReply() {
-    const commentInput = document.getElementById('smm-comment-input');
-    const replyDisplay = document.getElementById('smm-reply-display');
-    const submitBtn = document.getElementById('generateSmmReplyBtn');
-    const commentText = commentInput.value.trim();
+            const commentInput = document.getElementById('smm-comment-input');
+            const instructionInput = document.getElementById('smm-instructions-input');
+            const replyDisplay = document.getElementById('smm-reply-display');
+            const submitBtn = document.getElementById('generateSmmReplyBtn');
+            const commentText = commentInput.value.trim();
+            const instructionText = instructionInput.value.trim();
 
-    // 1. Basic Validation
-    if (!commentText) {
-        alert("Please paste a comment to generate a reply.");
-        return;
-    }
+            // 1. Basic Validation
+            if (!commentText) {
+                alert("Please paste a comment to generate a reply.");
+                return;
+            }
 
-    // 2. UI State: Loading
-    submitBtn.innerText = "Drafting Reply...";
-    submitBtn.disabled = true;
-    replyDisplay.style.display = "none";
-    replyDisplay.innerHTML = "";
+            // 2. UI State: Loading
+            submitBtn.innerText = "Drafting Reply...";
+            submitBtn.disabled = true;
+            replyDisplay.style.display = "none";
+            replyDisplay.innerHTML = "";
 
-    try {
-        // 3. API Call (Replace URL with your Lambda API Gateway endpoint)
-        const response = await fetch('https://5m2upu2fxf.execute-api.ap-southeast-1.amazonaws.com/communityEngagement', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ 
-                question: commentText // Matches the 'question' key in your Lambda
-            })
-        });
+            try {
+                // 3. API Call (Replace URL with your Lambda API Gateway endpoint)
+                const response = await fetch('https://5m2upu2fxf.execute-api.ap-southeast-1.amazonaws.com/communityEngagement', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        question: commentText ,
+                        instruction: instructionText
+                    })
+                });
 
-        if (!response.ok) {
-            throw new Error(`Server error: ${response.statusText}`);
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                // 4. Display the Plain Text Result
+                // We use innerText to ensure no HTML is rendered, keeping it human-like
+                replyDisplay.innerText = data.answer; 
+                replyDisplay.style.display = "block";
+
+                // 5. Visual Feedback (Turn header green on success)
+                document.getElementById("smmReplyButton").style.backgroundColor = "green";
+
+            } catch (error) {
+                console.error("Error generating reply:", error);
+                replyDisplay.style.display = "block";
+                replyDisplay.innerText = "Sorry, I couldn't generate a reply at this moment. Please check your connection and try again.";
+                replyDisplay.style.color = "red";
+            } finally {
+                // 6. Reset Button
+                submitBtn.innerText = "Generate Reply";
+                submitBtn.disabled = false;
+            }
         }
-
-        const data = await response.json();
-
-        // 4. Display the Plain Text Result
-        // We use innerText to ensure no HTML is rendered, keeping it human-like
-        replyDisplay.innerText = data.answer; 
-        replyDisplay.style.display = "block";
-
-        // 5. Visual Feedback (Turn header green on success)
-        document.getElementById("smmReplyButton").style.backgroundColor = "green";
-
-    } catch (error) {
-        console.error("Error generating reply:", error);
-        replyDisplay.style.display = "block";
-        replyDisplay.innerText = "Sorry, I couldn't generate a reply at this moment. Please check your connection and try again.";
-        replyDisplay.style.color = "red";
-    } finally {
-        // 6. Reset Button
-        submitBtn.innerText = "Generate Reply";
-        submitBtn.disabled = false;
-    }
-}
 
         function allowDrop(ev) {
             ev.preventDefault();
