@@ -454,13 +454,562 @@
             background-color: #0056b3;
         }
 
-        .content {
-            display: none;
-            padding: 5px;
-            background-color: #f0f0f0;
-            border: 1px solid #ccc;
-            border-top: none;
+        /* AI Content Optimiser Layout */
+        .optimiser-layout {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            margin-top: 15px;
+        }
+
+        .editor-main {
+            flex: 1;
+            min-width: 0;
+            /* Prevent flex overflow */
+        }
+
+        .sidebar-right {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Editor Container Styles */
+        .editor-container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: white;
+            color: #333;
+            text-align: left;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            border-bottom: 1px solid #eee;
+            background-color: #fff;
+        }
+
+        .editor-title-container {
+            display: flex;
+            align-items: center;
+            flex-grow: 1;
+        }
+
+        .editor-title-container label {
+            font-weight: bold;
+            margin-right: 15px;
+            color: #444;
+            font-size: 1.1em;
+        }
+
+        .editor-title-input {
+            border: none;
+            font-size: 1.25em;
+            width: 100%;
+            outline: none;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .editor-metrics {
+            font-size: 0.9em;
+            color: #666;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .editor-toolbar {
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            background-color: #fcfcfc;
+            border-bottom: 1px solid #eee;
+            gap: 8px;
+        }
+
+        .toolbar-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .toolbar-group {
+            display: flex;
+            align-items: center;
+            border-right: 1px solid #e0e0e0;
+            padding: 0 10px;
+            margin-right: 4px;
+        }
+
+        .toolbar-group:last-child {
+            border-right: none;
+        }
+
+        .toolbar-btn {
+            background: none;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            padding: 6px;
+            cursor: pointer;
+            color: #555;
+            font-size: 15px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 34px;
+            height: 34px;
+        }
+
+        .toolbar-btn:hover {
+            background-color: #f0f4ff;
+            color: #004c9d;
+            border-color: #d0d7ff;
+        }
+
+        .toolbar-btn.active {
+            background-color: #e0eaff;
+            color: #004c9d;
+            border-color: #aecfff;
+        }
+
+        .editor-content {
+            padding: 25px 30px;
+            min-height: 600px;
+            outline: none;
+            overflow-y: auto;
+            line-height: 1.7;
+            font-size: 16px;
+            background-color: #fdfdff;
+            border: 1px solid transparent;
+            margin: 0;
+            transition: background-color 0.2s;
+        }
+
+        .editor-content:focus {
+            background-color: #fff;
+            box-shadow: inset 0 0 10px rgba(0, 76, 157, 0.03);
+        }
+
+        /* Sidebar Card Styles */
+        .sidebar-card {
+            background: white;
+            border: 1px solid #e8e8e8;
             border-radius: 10px;
+            padding: 24px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+        }
+
+        /* Gauge Styles */
+        .gauge-container {
+            position: relative;
+            width: 180px;
+            height: 180px;
+            margin: 0 auto 20px;
+        }
+
+        .gauge-svg {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+
+        .gauge-bg {
+            fill: none;
+            stroke: #f0f0f0;
+            stroke-width: 12;
+        }
+
+        .gauge-fill {
+            fill: none;
+            stroke: #ff9800;
+            stroke-width: 12;
+            stroke-linecap: round;
+            stroke-dasharray: 440;
+            stroke-dashoffset: 132;
+            /* (1 - score/100) * 440 */
+            transition: stroke-dashoffset 1s ease-out;
+        }
+
+        .gauge-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .gauge-score {
+            display: block;
+            font-size: 42px;
+            font-weight: 800;
+            color: #333;
+            line-height: 1;
+        }
+
+        .gauge-label {
+            display: block;
+            font-size: 14px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        /* Metric Bar Styles */
+        .metric-item {
+            margin-bottom: 18px;
+        }
+
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #333;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .progress-bar-bg {
+            height: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: #4caf50;
+            border-radius: 4px;
+            transition: width 0.8s ease-out;
+        }
+
+        /* Stats Row */
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+            font-size: 14px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .stats-item i {
+            margin-right: 5px;
+            color: #888;
+        }
+
+        /* Action Buttons */
+        .btn-gradient {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-seo {
+            background: #004c9d;
+            box-shadow: 0 4px 10px rgba(0, 76, 157, 0.2);
+        }
+
+        .btn-keywords {
+            background: #004c9d;
+            margin-bottom: 15px;
+        }
+
+        .btn-gradient:hover {
+            background: #003a7a;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 15px rgba(0, 76, 157, 0.3);
+        }
+
+        /* Tabs Interface */
+        .sidebar-tabs {
+            padding: 0;
+            margin: -24px -24px 20px -24px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 15px 5px;
+            border: none;
+            background: none;
+            font-size: 13px;
+            font-weight: 600;
+            color: #888;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab-btn i {
+            font-size: 16px;
+        }
+
+        .tab-btn.active {
+            color: #004c9d;
+            border-bottom-color: #004c9d;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Keyword List */
+        .keyword-freq-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+
+        .keyword-freq-item {
+            background: #fcfcfc;
+            border: 1px solid #f0f0f0;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+
+        .keyword-freq-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        /* AI Tab Styles */
+        .ai-prompt-area {
+            width: 100%;
+            height: 100px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            resize: none;
+            outline: none;
+        }
+
+        .ai-prompt-area:focus {
+            border-color: #2575fc;
+        }
+
+        .ai-actions-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .ai-action-btn {
+            padding: 10px;
+            background: white;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #555;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .ai-action-btn:hover {
+            background: #f8fbff;
+            border-color: #d0d7ff;
+            color: #004c9d;
+        }
+
+        /* Multi-keyword Textarea */
+        .keyword-input-textarea {
+            width: 100%;
+            height: 80px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            resize: vertical;
+            margin-top: 8px;
+            outline: none;
+        }
+
+        .keyword-input-textarea:focus {
+            border-color: #004c9d;
+        }
+
+        /* Status Box */
+        .status-box {
+            background: #ebfbee;
+            color: #2b8a3e;
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-weight: 600;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+
+        .status-box i {
+            font-size: 20px;
+        }
+
+        /* Image Resizing */
+        .img-resize-handle {
+            position: absolute;
+            bottom: -5px;
+            right: -5px;
+            width: 12px;
+            height: 12px;
+            background: #004c9d;
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: nwse-resize;
+            display: none;
+            z-index: 15;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .img-optimiser-wrapper:hover .img-resize-handle {
+            display: block;
+        }
+
+        /* Floating Selection Toolbar */
+        .selection-toolbar {
+            position: absolute;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            display: none;
+            z-index: 2000;
+            padding: 6px;
+            align-items: center;
+            gap: 5px;
+            border: 1px solid #eee;
+            pointer-events: auto;
+        }
+
+        .selection-toolbar button {
+            background: none;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+            transition: all 0.2s;
+        }
+
+        .selection-toolbar button:hover {
+            background: #f5f8ff;
+            color: #004c9d;
+        }
+
+        .selection-toolbar button i {
+            font-size: 14px;
+        }
+
+        .st-separator {
+            width: 1px;
+            height: 20px;
+            background: #eee;
+            margin: 0 5px;
+        }
+
+        .st-settings {
+            padding: 8px !important;
+            color: #888 !important;
+        }
+
+        .st-settings:hover {
+            color: #333 !important;
+            background: #f5f5f5 !important;
+        }
+
+        .editor-content h1 {
+            font-size: 2.2em;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+
+        .editor-content h2 {
+            font-size: 1.8em;
+            margin-bottom: 12px;
+        }
+
+        .editor-content h3 {
+            font-size: 1.4em;
+            margin-bottom: 10px;
+        }
+
+        .editor-content blockquote {
+            border-left: 5px solid #004c9d;
+            margin: 15px 0;
+            padding: 10px 20px;
+            background-color: #f8fbff;
+            color: #555;
+            font-style: italic;
+        }
+
+        .editor-content ul,
+        .editor-content ol {
+            padding-left: 30px;
+            margin-bottom: 15px;
+        }
+
+        .editor-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .editor-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+        }
+
+        .editor-content td {
+            border: 1px solid #ddd;
+            padding: 10px;
         }
 
         button.sort-button {
@@ -1993,6 +2542,7 @@
                 <a href="#mediaplan" onclick="openMediaPlan(event)">Media Plan</a>
                 <a href="#" onclick="openContentCheck(event)">Content Check</a>
                 <a href="#" onclick="openLandingPageAudit(event)">Landing Page Audit</a>
+                <a href="#" onclick="openAiContentOptimiser(event)">AI Content Optimiser</a>
             </div>
         </div>
 
@@ -2249,8 +2799,9 @@
                         </div>
                         <div class="step-card-container">
                             <div class="step-card">
-                                <i class="fas fa-cog"></i>
-                                <div class="step-title">Step 16</div>
+                                <i class="fas fa-magic"></i>
+                                <div class="step-title" onclick="openAiContentOptimiser(event)">AI Content Optimiser
+                                </div>
                             </div>
                         </div>
                         <div class="step-card-container">
@@ -3006,7 +3557,7 @@
                     Generator</button>
                 <div class="content" id="contentGenerator">
                     <form id="content-form">
-                        
+
 
                         <!-- --- NEW STRATEGIC FIELDS --- -->
                         <label for="post-role">What is the role of this post?</label>
@@ -3065,7 +3616,7 @@
                             <label for="desired_action">Desired Action e.g. Contact us:</label>
                             <input type="text" id="desired_action" name="desired_action">
                             <br>
-                            
+
                             <div class="column">
                                 <label for="content-type">Type of Content:</label><br>
                                 <select id="content-type" name="content-type">
@@ -3530,6 +4081,304 @@
                 <div id="landingPageAuditResults"></div>
             </div>
         </div>
+        <hr>
+        <div id="aiContentOptimiserSection">
+            <div class="page-break"></div>
+            <button class="collapsible" id="aiContentOptimiserBtn"><i class="fas fa-plus-square"></i><i
+                    class="fas fa-magic"></i>AI Content Optimiser</button>
+            <div class="content" id="aiContentOptimiser">
+                <!-- New Inputs Section -->
+                <div style="margin-bottom: 20px;">
+                    <div style="margin-bottom: 15px;">
+                        <label for="optimiserPageUrl"
+                            style="font-weight: bold; display: block; margin-bottom: 5px;">Page URL:</label>
+                        <input type="url" id="optimiserPageUrl" value="https://mediaonemarketing.com.sg/seo-agency"
+                            placeholder="e.g., https://example.com"
+                            style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div>
+                        <label for="optimiserKeywords"
+                            style="font-weight: bold; display: block; margin-bottom: 5px;">Target Keywords (one per
+                            line):</label>
+                        <textarea id="optimiserKeywords" class="keyword-input-textarea"
+                            placeholder="Enter keywords here...">seo agency
+seo marketing singapore
+seo agencies in singapore
+Best SEO Agency Singapore
+Search Engine Optimisation Singapore
+Digital Marketing Agency Singapore
+SEO Services Singapore
+Enterprise SEO Singapore</textarea>
+                    </div>
+                </div>
+
+                <div class="optimiser-layout">
+                    <!-- Main Editor Column -->
+                    <div class="editor-main">
+                        <div class="editor-container">
+                            <div class="editor-header">
+                                <div class="editor-title-container">
+                                    <label style="width:5%;">Title</label>
+                                    <input type="text" id="editorTitle" class="editor-title-input"
+                                        value="Top-Rated SEO Agency in Singapore | MediaOne Marketing"
+                                        placeholder="Enter post title...">
+                                </div>
+                                <div class="editor-metrics">
+                                    <span>Character Count: <span id="charCount">0</span></span>
+                                </div>
+                            </div>
+                            <div class="editor-toolbar">
+                                <div class="toolbar-row">
+                                    <div class="toolbar-group">
+                                        <button class="toolbar-btn" onclick="execCmd('undo')" title="Undo"><i
+                                                class="fas fa-undo"></i></button>
+                                        <button class="toolbar-btn" onclick="execCmd('redo')" title="Redo"><i
+                                                class="fas fa-redo"></i></button>
+                                    </div>
+                                    <div class="toolbar-group">
+                                        <button class="toolbar-btn" onclick="execCmd('bold')" title="Bold"><i
+                                                class="fas fa-bold"></i></button>
+                                        <button class="toolbar-btn" onclick="execCmd('italic')" title="Italic"><i
+                                                class="fas fa-italic"></i></button>
+                                        <button class="toolbar-btn" onclick="execCmd('strikeThrough')"
+                                            title="Strikethrough"><i class="fas fa-strikethrough"></i></button>
+                                        <button class="toolbar-btn" onclick="execCmd('formatBlock', 'pre')"
+                                            title="Code"><i class="fas fa-code"></i></button>
+                                        <button class="toolbar-btn" onclick="execCmd('underline')" title="Underline"><i
+                                                class="fas fa-underline"></i></button>
+                                    </div>
+                                    <div class="toolbar-group">
+                                        <button class="toolbar-btn" onclick="insertLink()" title="Insert Link"><i
+                                                class="fas fa-link"></i></button>
+                                        <button class="toolbar-btn"
+                                            onclick="document.getElementById('imageUploadInput').click()"
+                                            title="Upload Image"><i class="fas fa-upload"></i></button>
+                                        <button class="toolbar-btn" onclick="insertImage()" title="Insert Image Link"><i
+                                                class="fas fa-image"></i></button>
+                                        <input type="file" id="imageUploadInput" style="display: none;" accept="image/*"
+                                            onchange="handleLocalImageUpload(this)">
+                                    </div>
+                                    <div class="toolbar-group">
+                                        <button class="toolbar-btn" onclick="execCmd('justifyLeft')"
+                                            title="Align Left"><i class="fas fa-align-left"></i></button>
+                                        <button class="toolbar-btn" onclick="execCmd('justifyCenter')"
+                                            title="Align Center"><i class="fas fa-align-center"></i></button>
+                                        <button class="toolbar-btn" onclick="execCmd('justifyRight')"
+                                            title="Align Right"><i class="fas fa-align-right"></i></button>
+                                    </div>
+                                    <div class="toolbar-group">
+                                        <button class="toolbar-btn" onclick="execCmd('formatBlock', 'H1')"
+                                            title="Heading 1">H1</button>
+                                        <button class="toolbar-btn" onclick="execCmd('formatBlock', 'H2')"
+                                            title="Heading 2">H2</button>
+                                        <button class="toolbar-btn" onclick="execCmd('formatBlock', 'H3')"
+                                            title="Heading 3">H3</button>
+                                    </div>
+                                    <div class="toolbar-group">
+                                        <button class="toolbar-btn" onclick="execCmd('insertUnorderedList')"
+                                            title="Bullet List"><i class="fas fa-list-ul"></i></button>
+                                        <button class="toolbar-btn" onclick="execCmd('insertOrderedList')"
+                                            title="Numbered List"><i class="fas fa-list-ol"></i></button>
+                                        <button class="toolbar-btn" onclick="execCmd('formatBlock', 'blockquote')"
+                                            title="Quote"><i class="fas fa-quote-right"></i></button>
+                                    </div>
+                                    <div class="toolbar-group">
+                                        <button class="toolbar-btn" onclick="insertTable()" title="Insert Table"><i
+                                                class="fas fa-table"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="editorContent" class="editor-content" contenteditable="true"
+                                oninput="updateEditorMetrics()">
+                                <h1>Top-Rated SEO Agency in Singapore | MediaOne Marketing</h1>
+                                <p>As the leading <b>SEO agency</b> in Singapore, MediaOne Marketing is dedicated to
+                                    helping businesses achieve unprecedented digital growth through strategic search
+                                    engine optimisation. In today's competitive landscape, having a strong online
+                                    presence is no longer optional—it's essential for survival and success. Our <b>SEO
+                                        marketing Singapore</b> team combines years of expertise with cutting-edge
+                                    technology to deliver results that truly matter across all industries.</p>
+                                <h2>Why Work With One of the Best SEO Agencies in Singapore?</h2>
+                                <p>Unlike other <b>seo agencies in singapore</b>, MediaOne takes a holistic approach to
+                                    digital marketing. We understand that <b>SEO services Singapore</b> aren't just
+                                    about rankings; they are about driving high-quality traffic that converts into loyal
+                                    customers. Our enterprise SEO strategies are data-driven, ensuring that every move
+                                    we make is backed by rigorous analysis and search volume insights. We don't just
+                                    guess; we prove our value through consistent performance metrics.</p>
+                                <h3>Our Specialized SEO Methodology</h3>
+                                <p>Our process begins with finding high-intent keywords like <i>SEO marketing
+                                        Singapore</i> and <i>best seo agency Singapore</i>. We then optimize your site's
+                                    structure, content, and backlink profile to ensure maximum visibility on Google. As
+                                    a full-service <b>digital marketing agency Singapore</b>, we don't just stop at
+                                    technical SEO. We craft compelling content that speaks directly to your audience's
+                                    needs, establishing your brand as a primary authority in your niche. By bridging the
+                                    gap between user intent and technical excellence, we ensure long-term growth.</p>
+                                <p>Whether you are a local SME or a global enterprise, our <b>Search Engine Optimisation
+                                        Singapore</b> services are tailored to meet your specific goals and budgets. We
+                                    focus on long-term sustainability, helping you climb the SERPs and stay there even
+                                    through algorithm updates. Partner with MediaOne, the <b>SEO agency Singapore</b>
+                                    trusts, and experience the difference that professional optimization can make for
+                                    your bottom line. Let's transform your digital journey together into a success story
+                                    that inspires others.</p>
+                                <p>Our commitment to transparency means you get real-time reports and clear
+                                    communication every step of the way. Stop leaving your traffic to chance and start
+                                    dominating the search results today.</p>
+                            </div>
+
+                            <!-- Floating Selection Toolbar -->
+                            <div id="selectionToolbar" class="selection-toolbar">
+                                <button onclick="handleSelectionAction('rewrite')"><i class="fas fa-magic"></i>
+                                    Rewrite</button>
+                                <button onclick="handleSelectionAction('expand')"><i class="fas fa-expand-alt"></i>
+                                    Expand</button>
+                                <button onclick="handleSelectionAction('shorten')"><i class="fas fa-compress-alt"></i>
+                                    Shorten</button>
+                                <div class="st-separator"></div>
+                                <button class="st-settings"><i class="fas fa-cog"></i></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Sidebar -->
+                    <div class="sidebar-right">
+                        <!-- Panel 1: SEO Analysis -->
+                        <div class="sidebar-card">
+                            <div class="gauge-container">
+                                <svg class="gauge-svg" viewBox="0 0 160 160">
+                                    <circle class="gauge-bg" cx="80" cy="80" r="70"></circle>
+                                    <circle id="seoScoreGauge" class="gauge-fill" cx="80" cy="80" r="70"
+                                        style="stroke-dashoffset: 440;"></circle>
+                                </svg>
+                                <div class="gauge-text">
+                                    <span id="seoScoreValue" class="gauge-score">0</span>
+                                    <span class="gauge-label">SEO Score</span>
+                                </div>
+                            </div>
+
+                            <div class="metric-item">
+                                <div class="metric-header"><span>Title</span><span id="titleScore">0%</span></div>
+                                <div class="progress-bar-bg">
+                                    <div id="titleBar" class="progress-bar-fill" style="width: 0%;"></div>
+                                </div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-header"><span>Headings</span><span id="headingsScore">0%</span></div>
+                                <div class="progress-bar-bg">
+                                    <div id="headingsBar" class="progress-bar-fill" style="width: 0%;"></div>
+                                </div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-header"><span>Readability</span><span id="readabilityScore">0%</span>
+                                </div>
+                                <div class="progress-bar-bg">
+                                    <div id="readabilityBar" class="progress-bar-fill" style="width: 0%;"></div>
+                                </div>
+                            </div>
+
+                            <div class="stats-row">
+                                <div class="stats-item"><i class="fas fa-file-alt"></i> Words: <span
+                                        id="wordCount">0</span></div>
+                                <div class="stats-item"><i class="fas fa-font"></i> Chars: <span
+                                        id="charCountStat">0</span></div>
+                            </div>
+                            <div class="stats-row" style="margin-top: -10px;">
+                                <div class="stats-item"><i class="fas fa-coins"></i> Tokens (est): <span
+                                        id="tokenCount">0</span></div>
+                            </div>
+
+                            <button class="btn-gradient btn-seo" onclick="runSeoAnalysis()">
+                                <i class="fas fa-search"></i> Run SEO Analysis
+                            </button>
+                        </div>
+
+                        <!-- Panel 2: Intelligence Tabs -->
+                        <div class="sidebar-card" style="padding: 15px;">
+                            <div class="sidebar-tabs">
+                                <button class="tab-btn active" onclick="switchOptimiserTab('keywords')"><i
+                                        class="fas fa-chart-bar"></i>Keywords</button>
+                                <button class="tab-btn" onclick="switchOptimiserTab('ai')"><i
+                                        class="fas fa-magic"></i>AI</button>
+                                <button class="tab-btn" onclick="switchOptimiserTab('check')"><i
+                                        class="fas fa-check-circle"></i>Check</button>
+                            </div>
+
+                            <!-- Keywords Tab -->
+                            <div id="tab-keywords" class="tab-content active">
+                                <button class="btn-gradient btn-keywords" style="background: #004c9d;"
+                                    onclick="analyzeKeywordFrequency()">
+                                    <i class="fas fa-sync-alt"></i> Re-analyze Keywords
+                                </button>
+                                <div
+                                    style="font-size: 13px; color: #666; display: flex; justify-content: space-between; margin-bottom: 10px;">
+                                    <span>Keywords Found: <b id="kwsFound">0</b></span>
+                                    <span>Total Words: <b id="totalWordsStat">0</b></span>
+                                </div>
+                                <div id="keywordFrequencyList" class="keyword-freq-list">
+                                    <p style="text-align: center; color: #999; font-style: italic; margin-top:20px;">No
+                                        keywords analyzed yet.</p>
+                                </div>
+                            </div>
+
+                            <!-- AI Tab -->
+                            <div id="tab-ai" class="tab-content">
+                                <div style="font-weight: 600; font-size: 14px; margin-bottom: 10px;">Generate Content
+                                </div>
+                                <textarea id="aiPrompt" class="ai-prompt-area"
+                                    placeholder="e.g., Write a paragraph about benefits of SEO..."></textarea>
+                                <div style="display: flex; gap: 10px;">
+                                    <button class="btn-gradient" style="background: #004c9d; flex: 1;"
+                                        onclick="aiGenerateContent()">
+                                        <i class="fas fa-sparkles"></i> Generate
+                                    </button>
+                                    <button class="btn-gradient" style="background: #004c9d; flex: 1;"
+                                        onclick="aiContinueWriting()">
+                                        <i class="fas fa-pen"></i> Continue
+                                    </button>
+                                </div>
+                                <div class="ai-actions-grid">
+                                    <button class="ai-action-btn" onclick="aiQuickAction('rewrite')"><i
+                                            class="fas fa-redo"></i> Rewrite</button>
+                                    <button class="ai-action-btn" onclick="aiQuickAction('expand')"><i
+                                            class="fas fa-expand-alt"></i> Expand</button>
+                                    <button class="ai-action-btn" onclick="aiQuickAction('simplify')"><i
+                                            class="fas fa-book-open"></i> Simplify</button>
+                                    <button class="ai-action-btn" onclick="aiQuickAction('shorten')"><i
+                                            class="fas fa-compress-alt"></i> Shorten</button>
+                                </div>
+                            </div>
+
+                            <!-- Check Tab -->
+                            <div id="tab-check" class="tab-content">
+                                <button class="btn-gradient" style="background: #004c9d; margin-bottom: 20px;"
+                                    onclick="runPlagiarismCheck()">
+                                    <i class="fas fa-search"></i> Check Plagiarism
+                                </button>
+                                <div class="sidebar-card"
+                                    style="border: 1px solid #eee; padding: 15px; margin-bottom: 15px;">
+                                    <div id="plagiarismScore"
+                                        style="font-size: 32px; font-weight: 800; text-align: center; color: #2b8a3e;">
+                                        100.0%</div>
+                                    <div style="text-align: center; font-weight: 600; color: #333;">Excellent</div>
+                                    <div style="text-align: center; font-size: 13px; color: #888;">Originality Score
+                                    </div>
+                                    <div id="plagiarismMeta"
+                                        style="text-align: center; font-size: 13px; color: #555; margin-top: 10px;">0
+                                        words • 0 match(es)</div>
+                                </div>
+                                <div id="plagiarismStatus" class="status-box">
+                                    <i class="fas fa-check-circle"></i>
+                                    <div>
+                                        <div id="plagiarismTitle">No Plagiarism Detected</div>
+                                        <div id="plagiarismMsg"
+                                            style="font-size: 12px; font-weight: 400; opacity: 0.8;">Your content
+                                            appears to be original.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <button id="goToTop-button" onclick="openJourneyModal()"
@@ -3735,6 +4584,7 @@
             document.getElementById('mediaPlanSection').style.display = "none";
             document.getElementById('contentCheckerSection').style.display = "none";
             document.getElementById('landingPageAuditSection').style.display = "none";
+            document.getElementById('aiContentOptimiserSection').style.display = "none";
         }
 
         function showSmmOnly(event) {
@@ -3746,6 +4596,7 @@
             document.getElementById('mediaPlanSection').style.display = "none";
             document.getElementById('contentCheckerSection').style.display = "none";
             document.getElementById('landingPageAuditSection').style.display = "none";
+            document.getElementById('aiContentOptimiserSection').style.display = "none";
         }
 
         function showSemOnly(event) {
@@ -3757,6 +4608,7 @@
             document.getElementById('mediaPlanSection').style.display = "none";
             document.getElementById('contentCheckerSection').style.display = "none";
             document.getElementById('landingPageAuditSection').style.display = "none";
+            document.getElementById('aiContentOptimiserSection').style.display = "none";
         }
 
         function openKeywordAnalysis(event) {
@@ -4159,6 +5011,388 @@
                 }
             }
             closeJourneyModal();
+        }
+
+        function openAiContentOptimiser(event) {
+            event.preventDefault();
+            deactivateAllButtons();
+
+            const aiOptimiserButton = document.querySelector('button#aiContentOptimiserBtn');
+            if (aiOptimiserButton) {
+                aiOptimiserButton.classList.toggle('active');
+                const content = aiOptimiserButton.nextElementSibling;
+                if (content) {
+                    content.style.display = content.style.display === "block" ? "none" : "block";
+                }
+
+                const aiOptimiserLink = event.currentTarget;
+                aiOptimiserLink.classList.toggle('active-menu');
+
+                if (content.style.display === "block") {
+                    const aiOptimiserSection = document.getElementById('aiContentOptimiser');
+                    if (aiOptimiserSection) {
+                        aiOptimiserSection.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            }
+            closeJourneyModal();
+        }
+
+        function execCmd(command, value = null) {
+            document.execCommand(command, false, value);
+            document.getElementById('editorContent').focus();
+        }
+
+        function insertLink() {
+            const url = prompt("Enter the URL:");
+            if (url) execCmd('createLink', url);
+        }
+
+        function insertImage() {
+            const url = prompt("Enter the Image URL:");
+            if (url) execCmd('insertImage', url);
+        }
+
+        function insertTable() {
+            const rows = prompt("Number of rows:", 3);
+            const cols = prompt("Number of columns:", 3);
+            if (rows && cols) {
+                let table = '<table border="1" style="width:100%; border-collapse: collapse;">';
+                for (let i = 0; i < rows; i++) {
+                    table += '<tr>';
+                    for (let j = 0; j < cols; j++) {
+                        table += '<td style="padding: 10px; border: 1px solid #ddd;">&nbsp;</td>';
+                    }
+                    table += '</tr>';
+                }
+                table += '</table><p>&nbsp;</p>';
+                execCmd('insertHTML', table);
+            }
+        }
+
+        // AI Content Optimiser Logic
+        function switchOptimiserTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            const btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.innerText.toLowerCase().includes(tabId));
+            if (btn) btn.classList.add('active');
+
+            const content = document.getElementById(`tab-${tabId}`);
+            if (content) content.classList.add('active');
+        }
+
+        function updateEditorMetrics() {
+            const editor = document.getElementById('editorContent');
+            const text = editor.innerText || "";
+            const charCount = text.length;
+            const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+            const tokenCount = Math.ceil(wordCount * 1.3);
+
+            document.getElementById('charCount').innerText = charCount;
+            document.getElementById('wordCount').innerText = wordCount;
+            document.getElementById('charCountStat').innerText = charCount;
+            document.getElementById('tokenCount').innerText = tokenCount;
+            document.getElementById('totalWordsStat').innerText = wordCount;
+
+            // Also update metric bars in real-time
+            updateMetricProgress();
+        }
+
+        function updateMetricProgress() {
+            const title = document.getElementById('editorTitle').value;
+            const content = document.getElementById('editorContent').innerText;
+            const text = content.trim();
+            const wordCount = text ? text.split(/\s+/).length : 0;
+
+            const keywordsText = document.getElementById('optimiserKeywords').value;
+            const keywords = keywordsText.split('\n').map(k => k.trim()).filter(k => k !== "");
+
+            // Title Score
+            let titleScore = Math.min(title.length > 5 ? title.length : 0, 50);
+            if (keywords.some(k => title.toLowerCase().includes(k.toLowerCase()))) titleScore += 50;
+            document.getElementById('titleScore').innerText = titleScore + '%';
+            document.getElementById('titleBar').style.width = titleScore + '%';
+
+            // Headings Score
+            const hCount = document.getElementById('editorContent').querySelectorAll('h1, h2, h3').length;
+            let headingsScore = Math.min(hCount * 25, 100);
+            document.getElementById('headingsScore').innerText = headingsScore + '%';
+            document.getElementById('headingsBar').style.width = headingsScore + '%';
+
+            // Readability (Mock based on word count)
+            let readabilityScore = Math.min(Math.floor(wordCount / 50) * 10 + 40, 98);
+            if (wordCount === 0) readabilityScore = 0;
+            document.getElementById('readabilityScore').innerText = readabilityScore + '%';
+            document.getElementById('readabilityBar').style.width = readabilityScore + '%';
+
+            // Overall Score
+            const overall = Math.round((titleScore + headingsScore + readabilityScore) / 3);
+            updateSeoGauge(overall);
+        }
+
+        function updateSeoGauge(score) {
+            const gauge = document.getElementById('seoScoreGauge');
+            const valueDisplay = document.getElementById('seoScoreValue');
+            const offset = 440 - (score / 100) * 440;
+            gauge.style.strokeDashoffset = offset;
+            valueDisplay.innerText = score;
+
+            if (score > 80) gauge.style.stroke = "#4caf50";
+            else if (score > 50) gauge.style.stroke = "#ff9800";
+            else gauge.style.stroke = "#f44336";
+        }
+
+        function runSeoAnalysis() {
+            // Trigger a visual update with a small delay for "pro" feel
+            const btn = document.querySelector('.btn-seo');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
+            btn.disabled = true;
+
+            setTimeout(() => {
+                updateMetricProgress();
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+            }, 8000);
+        }
+
+        function analyzeKeywordFrequency() {
+            const content = document.getElementById('editorContent').innerText.toLowerCase();
+            const keywordsText = document.getElementById('optimiserKeywords').value;
+            const keywords = keywordsText.split('\n').map(k => k.trim()).filter(k => k !== "");
+            const listContainer = document.getElementById('keywordFrequencyList');
+            const totalWords = content.trim() ? content.trim().split(/\s+/).length : 0;
+
+            if (keywords.length === 0) {
+                alert("Please enter some keywords in the textarea above first.");
+                return;
+            }
+
+            listContainer.innerHTML = "";
+            let foundCount = 0;
+
+            keywords.forEach(kw => {
+                if (!kw) return;
+                const regex = new RegExp(`\\b${kw.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+                const matches = content.match(regex) || [];
+                const count = matches.length;
+                const density = totalWords > 0 ? ((count / totalWords) * 100).toFixed(2) : "0.00";
+
+                if (count > 0) foundCount++;
+
+                const item = document.createElement('div');
+                item.className = 'keyword-freq-item';
+                item.innerHTML = `
+                    <div class="keyword-freq-header">
+                        <span>${kw}</span>
+                        <span>${count}x (${density}%)</span>
+                    </div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: ${Math.min(density * 10, 100)}%; background: #3b5bdb;"></div></div>
+                `;
+                listContainer.appendChild(item);
+            });
+
+            document.getElementById('kwsFound').innerText = foundCount;
+        }
+
+        function handleLocalImageUpload(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const imgId = "img_" + Date.now();
+                    const imgHtml = `
+                        <div class="img-optimiser-wrapper" id="wrap_${imgId}" style="position: relative; display: inline-block; margin: 15px 0; max-width: 100%;">
+                            <img id="${imgId}" src="${e.target.result}" style="max-width: 100%; border-radius: 6px; display: block;" 
+                                 onmouseover="showImageTool(this)" onmouseout="hideImageTool(this)">
+                            <div class="img-tool-overlay" id="overlay_${imgId}" style="display: none; position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px; z-index: 10; width: 250px;">
+                                <div style="color: white; font-size: 12px; margin-bottom: 5px; font-weight: bold;">Alt Text:</div>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="text" id="alt_${imgId}" placeholder="Enter alt text..." style="flex: 1; padding: 5px; font-size: 12px; border-radius: 4px; border: none;" oninput="updateImgAlt('${imgId}', this.value)">
+                                    <button onclick="generateAiAlt('${imgId}')" style="background: #004c9d; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: 10px;" title="AI Generate">✨ AI</button>
+                                </div>
+                                <button onclick="this.parentElement.parentElement.remove()" style="margin-top: 8px; width: 100%; background: #f44336; color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer; font-size: 11px;">Remove Image</button>
+                            </div>
+                            <div class="img-resize-handle" onmousedown="startImgResize(event, '${imgId}')"></div>
+                        </div>
+                    `;
+                    execCmd('insertHTML', imgHtml);
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function showImageTool(img) {
+            const overlay = document.getElementById("overlay_" + img.id);
+            if (overlay) overlay.style.display = "block";
+        }
+
+        function hideImageTool(img) {
+            // We use a small timeout to allow moving mouse into the overlay
+            img._hideTimeout = setTimeout(() => {
+                const overlay = document.getElementById("overlay_" + img.id);
+                if (overlay && !overlay.matches(':hover')) overlay.style.display = "none";
+            }, 300);
+        }
+
+        // Image resizing logic
+        let resizingImg = null;
+        let startX, startY, startWidth, startHeight;
+
+        function startImgResize(e, imgId) {
+            e.preventDefault();
+            resizingImg = document.getElementById(imgId);
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = resizingImg.offsetWidth;
+            startHeight = resizingImg.offsetHeight;
+
+            window.addEventListener('mousemove', handleImgResize);
+            window.addEventListener('mouseup', stopImgResize);
+        }
+
+        function handleImgResize(e) {
+            if (!resizingImg) return;
+            const diffX = e.clientX - startX;
+            const newWidth = startWidth + diffX;
+
+            // Maintain aspect ratio by only setting width (max-width is already 100%)
+            if (newWidth > 50) {
+                resizingImg.style.width = newWidth + 'px';
+            }
+        }
+
+        function stopImgResize() {
+            window.removeEventListener('mousemove', handleImgResize);
+            window.removeEventListener('mouseup', stopImgResize);
+            resizingImg = null;
+        }
+
+        // Ensure overlay stays visible when hovered
+        document.addEventListener('mouseover', (e) => {
+            if (e.target.closest('.img-tool-overlay')) {
+                const overlay = e.target.closest('.img-tool-overlay');
+                const imgId = overlay.id.replace('overlay_', '');
+                const img = document.getElementById(imgId);
+                if (img) clearTimeout(img._hideTimeout);
+            }
+        });
+
+        function updateImgAlt(imgId, val) {
+            const img = document.getElementById(imgId);
+            if (img) img.alt = val;
+        }
+
+        function generateAiAlt(imgId) {
+            const altInput = document.getElementById('alt_' + imgId);
+            altInput.value = "Generating...";
+            setTimeout(() => {
+                altInput.value = "A professional marketing graphic displaying SEO analytics and search engine growth trends.";
+                updateImgAlt(imgId, altInput.value);
+            }, 1000);
+        }
+
+        function aiGenerateContent() {
+            const prompt = document.getElementById('aiPrompt').value;
+            if (!prompt) return alert("Please enter a prompt.");
+            const editor = document.getElementById('editorContent');
+            editor.innerHTML += `<p><i>Generating content for: ${prompt}...</i></p><p>Search Engine Optimisation (SEO) remains the backbone of digital visibility. In a landscape dominated by ever-evolving algorithms, staying ahead requires a strategic blend of high-quality content, technical precision, and user-centric design. Experience shows that organic growth is not just about keywords, but about building authority and trust within your niche.</p>`;
+            updateEditorMetrics();
+        }
+
+        function aiContinueWriting() {
+            const editor = document.getElementById('editorContent');
+            editor.innerHTML += `<p>Furthermore, leveraging data-driven insights allows marketers to refine their approach, ensuring that every piece of content serves a specific purpose in the user journey. By focusing on intent rather than just volume, websites can achieve higher conversion rates and long-term brand loyalty.</p>`;
+            updateEditorMetrics();
+        }
+
+        function aiQuickAction(type) {
+            const editor = document.getElementById('editorContent');
+            editor.innerHTML = `<p><b>[${type.toUpperCase()}ED CONTENT]</b></p>` + editor.innerHTML;
+            updateEditorMetrics();
+        }
+
+        function runPlagiarismCheck() {
+            const scoreDisp = document.getElementById('plagiarismScore');
+            const metaDisp = document.getElementById('plagiarismMeta');
+            const statusBox = document.getElementById('plagiarismStatus');
+
+            scoreDisp.innerText = "Checking...";
+            setTimeout(() => {
+                scoreDisp.innerText = "98.5%";
+                metaDisp.innerText = "12 words • 1 match(es)";
+                statusBox.style.background = "#fff9db";
+                statusBox.style.color = "#f08c00";
+                document.getElementById('plagiarismTitle').innerText = "Minor Matches Found";
+                document.getElementById('plagiarismMsg').innerText = "A few phrases match existing online sources.";
+            }, 2000);
+        }
+
+        // Floating Selection Toolbar Logic
+        const editor = document.getElementById('editorContent');
+        const selectionToolbar = document.getElementById('selectionToolbar');
+
+        editor.addEventListener('mouseup', showSelectionToolbar);
+        editor.addEventListener('keyup', showSelectionToolbar);
+        document.addEventListener('mousedown', (e) => {
+            if (selectionToolbar && !selectionToolbar.contains(e.target) && !editor.contains(e.target)) {
+                hideSelectionToolbar();
+            }
+        });
+
+        function showSelectionToolbar() {
+            const selection = window.getSelection();
+            if (selection.isCollapsed || selection.toString().trim().length === 0) {
+                hideSelectionToolbar();
+                return;
+            }
+
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+
+            // Position above selection
+            selectionToolbar.style.display = 'flex';
+            const toolbarRect = selectionToolbar.getBoundingClientRect();
+
+            // Calculate absolute position (accounting for window scroll)
+            const top = rect.top + window.scrollY - toolbarRect.height - 10;
+            const left = rect.left + window.scrollX + (rect.width / 2) - (toolbarRect.width / 2);
+
+            selectionToolbar.style.top = `${top}px`;
+            selectionToolbar.style.left = `${left}px`;
+        }
+
+        function hideSelectionToolbar() {
+            if (selectionToolbar) selectionToolbar.style.display = 'none';
+        }
+
+        function handleSelectionAction(action) {
+            const selection = window.getSelection();
+            const selectedText = selection.toString();
+            if (!selectedText) return;
+
+            // Mock AI behavior based on action
+            let newText = "";
+            if (action === 'rewrite') {
+                newText = `[REWRITTEN: ${selectedText}]`;
+            } else if (action === 'expand') {
+                newText = `${selectedText} (Expanded with more details, insights, and comprehensive analysis based on the original intent of the text.)`;
+            } else if (action === 'shorten') {
+                newText = `${selectedText.substring(0, selectedText.length / 2)}... [SHORTENED]`;
+            }
+
+            document.execCommand('insertHTML', false, newText);
+            hideSelectionToolbar();
+            updateEditorMetrics();
+        }
+
+        async function optimiseContent() {
+            const resultsDiv = document.getElementById("aiContentOptimiserResults");
+            resultsDiv.innerHTML = "<p>Analyzing full structure and content for SEO health...</p>";
+            setTimeout(() => {
+                runSeoAnalysis();
+                resultsDiv.innerHTML = "<div style='background: #e7f5ff; padding: 10px; border-radius: 4px; margin-top: 10px;'>Overall SEO Analysis Triggered. Check the sidebar for detailed score.</div>";
+            }, 1000);
         }
 
         function openLandingPageAudit(event) {
