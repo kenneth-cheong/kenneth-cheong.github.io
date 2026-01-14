@@ -454,6 +454,11 @@
             background-color: #0056b3;
         }
 
+        .content {
+            display: none;
+            overflow: hidden;
+        }
+
         /* AI Content Optimiser Layout */
         .optimiser-layout {
             display: flex;
@@ -583,7 +588,7 @@
 
         .editor-content {
             padding: 25px 30px;
-            min-height: 600px;
+            height: 700px;
             outline: none;
             overflow-y: auto;
             line-height: 1.7;
@@ -4124,7 +4129,7 @@ Enterprise SEO Singapore</textarea>
                                         placeholder="Enter post title...">
                                 </div>
                                 <div class="editor-metrics">
-                                    <span>Character Count: <span id="charCount">0</span></span>
+                                    <span>Word Count: <span id="editorHeaderWordCount">0</span></span>
                                 </div>
                             </div>
                             <div class="editor-toolbar">
@@ -5089,11 +5094,11 @@ Enterprise SEO Singapore</textarea>
             const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
             const tokenCount = Math.ceil(wordCount * 1.3);
 
-            document.getElementById('charCount').innerText = charCount;
+            if (document.getElementById('editorHeaderWordCount')) document.getElementById('editorHeaderWordCount').innerText = wordCount;
             document.getElementById('wordCount').innerText = wordCount;
             document.getElementById('charCountStat').innerText = charCount;
             document.getElementById('tokenCount').innerText = tokenCount;
-            document.getElementById('totalWordsStat').innerText = wordCount;
+            if (document.getElementById('totalWordsStat')) document.getElementById('totalWordsStat').innerText = wordCount;
 
             // Also update metric bars in real-time
             updateMetricProgress();
@@ -11518,13 +11523,6 @@ Enterprise SEO Singapore</textarea>
 
                 const progressBar = coll[i].querySelector('.progress-bar');
                 progressBar.style.width = `${percentage}%`;
-
-                // Open the first collapsible by default
-                if (i === 0) {
-                    coll[i].classList.add("active");
-                    var content = coll[i].nextElementSibling;
-                    content.style.display = "block";
-                }
 
                 coll[i].addEventListener("click", function () {
                     this.classList.toggle("active");
