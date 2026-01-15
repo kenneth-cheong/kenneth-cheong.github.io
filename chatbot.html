@@ -9,233 +9,423 @@
     sizes="32x32" />
   <title>Digimetrics Chatbot</title>
 
+  <!-- Modern Fonts and Icons -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
   <style>
+    :root {
+      --primary-navy: #1a1f3c;
+      --secondary-navy: #2a2f5b;
+      --accent-blue: #3b82f6;
+      --accent-light: #dbeafe;
+      --bg-gradient: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
+      --glass-bg: rgba(255, 255, 255, 0.85);
+      --glass-border: rgba(255, 255, 255, 0.3);
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+
     /* General Styles */
     body {
-      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f0f2f5;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-gradient);
       margin: 0;
       padding: 0;
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
+      color: var(--text-main);
     }
 
     /* Layout Container */
     .main-container {
       display: flex;
       width: 95%;
-      /* Adjust as needed */
-      max-width: 1200px;
-      /* Maximum width for larger screens */
+      max-width: 1400px;
       height: 90vh;
-      /* Occupy 80% of the viewport height */
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-      border-radius: 10px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      box-shadow: var(--shadow-lg);
       overflow: hidden;
-      background-color: #fff;
-    }
-
-    table {
-      border-collapse: collapse;
-      /* Remove double borders */
-      width: 100%;
-      /* Make table fill its container */
-      margin: 20px 0;
-    }
-
-    th,
-    td {
-      border: 1px solid #ddd;
-      /* Add borders to cells */
-      padding: 8px;
-      /* Add padding inside cells */
-      text-align: left;
-      /* Align text to the left */
-    }
-
-    th {
-      background-color: #f2f2f2;
-      /* Grey background for header */
-      font-weight: bold;
-      /* Make header text bold */
     }
 
     /* Conversation Picker Styles */
     .conversation-picker {
-      flex: 0 0 30%;
-      /* Changed from 25% to 30% */
-      border-right: 1px solid #e6e9ed;
+      flex: 0 0 320px;
+      background: rgba(255, 255, 255, 0.5);
+      border-right: 1px solid rgba(0, 0, 0, 0.05);
       display: flex;
       flex-direction: column;
     }
 
-    .conversation-picker .chat-header {
-      padding: 15px;
-      background-color: #2a2f5b;
-      /* Dark background for header */
+    /* Header Styles */
+    .chat-header {
+      height: 72px !important;
+      min-height: 72px !important;
+      max-height: 72px !important;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-sizing: border-box;
+      flex-shrink: 0;
+      background: var(--primary-navy);
       color: #fff;
-      text-align: left;
-      /* Slightly larger font size */
+      z-index: 10;
     }
 
-    .chat-header {
-      display: flex;
-      height: 50px;
-      align-items: center;
+    .conversation-picker .chat-header {
+      border-right: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .chat-container .chat-header {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .chat-header h2 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 700;
+      font-family: 'Outfit', sans-serif;
     }
 
     .search-bar {
-      padding: 10px;
-      background-color: #f7f7f7;
-      border-bottom: 1px solid #e6e9ed;
+      padding: 16px;
+      background: transparent;
+    }
+
+    .search-bar .search-container {
+      position: relative;
+    }
+
+    .search-bar i {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 0.9rem;
     }
 
     .search-bar input[type="text"] {
       width: 100%;
-      padding: 8px;
-      border: 1px solid #ced4da;
-      border-radius: 5px;
-      box-sizing: border-box;
-      font-size: 1rem;
+      padding: 10px 12px 10px 36px;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 12px;
+      background: #fff;
+      font-size: 0.9rem;
       outline: none;
-      transition: border-color 0.2s ease-in-out;
+      transition: all 0.2s ease;
+      box-sizing: border-box;
     }
 
     .search-bar input[type="text"]:focus {
-      border-color: #495057;
-      /* Darker border on focus */
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
     }
 
     .conversation-list {
       overflow-y: auto;
       flex-grow: 1;
+      padding: 8px;
     }
 
     .conversation-item {
-      padding: 12px 15px;
-      border-bottom: 1px solid #e6e9ed;
+      padding: 14px;
+      border-radius: 12px;
+      margin-bottom: 4px;
       cursor: pointer;
-      transition: background-color 0.15s ease-in-out;
+      transition: all 0.2s ease;
       display: flex;
       align-items: center;
       position: relative;
-      /* Needed for the delete button positioning */
+      border: 1px solid transparent;
     }
 
     .conversation-item:hover {
-      background-color: #f5f7fa;
+      background: rgba(255, 255, 255, 0.8);
+      transform: translateY(-1px);
     }
 
     .conversation-item.active {
-      background-color: #e9ecef;
+      background: #fff;
+      border-color: var(--accent-blue);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .conversation-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 20%;
+      bottom: 20%;
+      width: 3px;
+      background: var(--accent-blue);
+      border-radius: 0 4px 4px 0;
     }
 
     .conversation-details {
       flex-grow: 1;
+      min-width: 0;
     }
 
     .name {
-      font-weight: 500;
-      color: #343a40;
-      margin-bottom: 3px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text-main);
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .latest-message {
-      font-size: 0.9rem;
-      color: #6c757d;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      white-space: nowrap;
       overflow: hidden;
-      white-space: break-spaces;
       text-overflow: ellipsis;
     }
 
     .date {
-      font-size: 0.8rem;
-      color: #adb5bd;
-      margin-left: auto;
-      /* Push date to the right */
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-left: 8px;
     }
 
     /* Chat Container Styles */
     .chat-container {
       flex: 1;
-      display: grid;
+      display: flex;
       flex-direction: column;
+      background: transparent;
     }
 
     .chat-container .chat-header {
-      padding: 15px;
-      background-color: #2a2f5b;
-      color: #fff;
-      text-align: left;
-      font-weight: 600;
-      display: flex;
-      justify-content: space-between;
-      /* Add space between the title and the button */
-      align-items: center;
+      /* Specific styles only - base styles from .chat-header */
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--primary-navy);
     }
 
     .chat-messages {
-      padding: 20px;
-      height: 400px;
+      padding: 24px;
       overflow-y: auto;
       flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
     }
 
     /* Message Styles */
+    .message-wrapper {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+
     .message {
-      padding: 12px 15px;
-      margin-bottom: 10px;
-      border-radius: 20px;
-      clear: both;
-      max-width: 90%;
-      /* Limit message width */
+      padding: 14px 18px;
+      border-radius: 18px;
+      max-width: 80%;
+      line-height: 1.5;
+      font-size: 0.95rem;
+      position: relative;
+      animation: messageIn 0.3s ease-out;
+    }
+
+    @keyframes messageIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .message.user {
-      background-color: #d1e7ff;
-      color: #004085;
-      float: right;
+      background: var(--accent-blue);
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
     }
 
     .message.bot {
-      background-color: #f8f9fa;
-      color: #212529;
-      float: left;
+      background: #fff;
+      color: var(--text-main);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      margin-left: 44px;
+      /* Space for the bot avatar */
+    }
+
+    .message.user {
+      background: var(--accent-blue);
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+      margin-right: 44px;
+      /* Space for the user avatar */
+    }
+
+    .message-wrapper.bot {
+      align-items: flex-start;
+    }
+
+    .message-wrapper.user {
+      align-items: flex-end;
+    }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      position: absolute;
+      bottom: 22px;
+      /* Align with bottom of message bubble (above timestamp) */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      box-shadow: var(--shadow-sm);
+      z-index: 5;
+    }
+
+    .message.bot .avatar {
+      left: -44px;
+      background: var(--secondary-navy);
+      color: #fff;
+    }
+
+    .message.user .avatar {
+      right: -44px;
+      background: var(--accent-light);
+      color: var(--accent-blue);
+      overflow: hidden;
+    }
+
+    .avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      margin: 0 !important;
+      /* Override general img styles */
+    }
+
+    /* Remove the old bot avatar pseudo-element */
+    .message.bot::before {
+      display: none;
+    }
+
+    .timestamp {
+      font-size: 0.7rem;
+      margin-top: 6px;
+      opacity: 0.6;
+    }
+
+    .message.user .timestamp {
+      color: rgba(255, 255, 255, 0.8);
+      text-align: right;
+    }
+
+    .message.bot .timestamp {
+      color: var(--text-muted);
+      text-align: left;
     }
 
     .message img {
       max-width: 100%;
-      /* Prevent overflow */
-      max-height: 250px;
-      /* Limit height for thumbnail feel */
-      border-radius: 10px;
-      margin-top: 5px;
-      margin-bottom: 5px;
+      border-radius: 12px;
+      margin: 8px 0;
       display: block;
-      cursor: pointer;
-      /* Hint that it could be clickable (optional) */
+      cursor: zoom-in;
+      transition: transform 0.2s ease;
     }
 
-    /* Ensure text wraps nicely around images if needed */
-    .message p {
-      margin: 0 0 5px 0;
-      word-wrap: break-word;
+    .message img:hover {
+      transform: scale(1.02);
+    }
+
+    /* Option Buttons */
+    .option-section h4 {
+      margin: 0 0 12px 0;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .button-container {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .button-container button {
+      background: #fff;
+      color: var(--primary-navy);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      padding: 10px 16px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .button-container button:hover {
+      background: var(--accent-light);
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .button-container button i {
+      font-size: 0.85rem;
     }
 
     /* Typing Indicator */
     .typing-indicator {
-      padding: 10px 20px;
-      font-style: italic;
-      color: #6c757d;
+      padding: 8px 24px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .typing-indicator::after {
+      content: '...';
+      animation: blink 1.5s infinite;
     }
 
     @keyframes blink {
 
       0%,
       100% {
-        opacity: 0;
+        opacity: 0.3;
       }
 
       50% {
@@ -244,255 +434,117 @@
     }
 
     .chat-input-container {
-      background-color: #f8f9fa;
-      border-top: 1px solid #e6e9ed;
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* Area to show selected files before sending */
-    .attachment-preview {
-      display: flex;
-      flex-wrap: wrap;
-      padding: 10px 15px;
-      /* Added padding */
-      gap: 10px;
-      background-color: #f0f2f5;
-      min-height: 0px;
-    }
-
-    /* Container for individual file */
-    .attachment-item {
-      position: relative;
-      width: 64px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    /* Image Thumbnail */
-    .attachment-thumb {
-      width: 64px;
-      height: 64px;
-      object-fit: cover;
-      border-radius: 8px;
-      border: 1px solid #ced4da;
-      background-color: #fff;
-    }
-
-    /* Fallback style for non-image files (e.g. PDF) */
-    .attachment-icon-placeholder {
-      width: 64px;
-      height: 64px;
-      border-radius: 8px;
-      background-color: #e9ecef;
-      border: 1px solid #ced4da;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.7rem;
-      font-weight: bold;
-      color: #495057;
-      text-transform: uppercase;
-    }
-
-    /* Filename text below thumbnail */
-    .attachment-name {
-      font-size: 0.7rem;
-      width: 100%;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      text-align: center;
-      margin-top: 4px;
-      color: #6c757d;
-    }
-
-    /* The 'X' button */
-    .attachment-remove-btn {
-      position: absolute;
-      top: -6px;
-      right: -6px;
-      background-color: #dc3545;
-      color: white;
-      border: 2px solid #fff;
-      border-radius: 50%;
-      width: 20px;
-      height: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: bold;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      z-index: 2;
-      transition: transform 0.1s;
-    }
-
-    .attachment-remove-btn:hover {
-      transform: scale(1.1);
-      background-color: #bd2130;
+      padding: 16px 24px 24px;
+      background: #fff;
+      border-top: 1px solid rgba(0, 0, 0, 0.05);
     }
 
     .chat-input {
-      padding: 15px;
-      display: flex;
-      align-items: flex-end;
-      /* Aligns items to bottom so textarea grows up */
-    }
-
-    /* The Paperclip Button */
-    .attach-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: 10px;
-      margin-right: 5px;
-      color: #6c757d;
-      transition: color 0.2s;
       display: flex;
       align-items: center;
-      justify-content: center;
-    }
-
-    .attach-btn:hover {
-      color: #2a2f5b;
-    }
-
-    .attach-btn svg {
-      width: 24px;
-      height: 24px;
+      gap: 12px;
     }
 
     .chat-input textarea {
-      flex-grow: 1;
-      padding: 10px;
-      border: 1px solid #ced4da;
-      border-radius: 25px;
-      margin-right: 10px;
-      font-size: 1rem;
-      outline: none;
-      transition: border-color 0.2s ease-in-out;
+      flex: 1;
+      padding: 12px 20px;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 24px;
+      background: #f8fafc;
+      font-size: 0.95rem;
       resize: none;
-      min-height: 45px;
-      max-height: 200px;
-      overflow-y: auto;
-      box-sizing: border-box;
-      line-height: 1.4;
-      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      min-height: 48px;
+      max-height: 120px;
+      outline: none;
+      transition: all 0.2s ease;
+      font-family: inherit;
     }
 
     .chat-input textarea:focus {
-      border-color: #2a2f5b;
+      background: #fff;
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
     }
 
-    .chat-input button.send-btn {
-      background-color: #2a2f5b;
+    .send-btn {
+      width: 48px;
+      height: 48px;
+      background: var(--accent-blue);
       color: #fff;
       border: none;
-      padding: 10px 20px;
-      border-radius: 25px;
+      border-radius: 50%;
       cursor: pointer;
-      font-size: 1rem;
-      transition: background-color 0.2s ease-in-out;
-      height: 45px;
-      /* Match textarea min-height */
-    }
-
-    .chat-input button.send-btn:hover {
-      background-color: #0056b3;
-    }
-
-    .button-container {
       display: flex;
-      padding: 10px;
-      gap: 10px;
-      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
     }
 
-    .button-container button {
-      background-color: #2a2f5b;
-      color: #fff;
+    .send-btn:hover {
+      background: #2563eb;
+      transform: scale(1.05);
+    }
+
+    .attach-btn {
+      width: 40px;
+      height: 40px;
+      background: #f1f5f9;
+      color: var(--text-muted);
       border: none;
-      padding: 8px 16px;
-      border-radius: 5px;
+      border-radius: 50%;
       cursor: pointer;
-      font-size: 0.9rem;
-      transition: background-color 0.2s ease-in-out;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
     }
 
-    .button-container button:hover {
-      background-color: #0056b3;
-    }
-
-    /* Media Queries for Responsiveness */
-    @media (max-width: 768px) {
-      .main-container {
-        flex-direction: column;
-        /* Stack conversation list and chat container */
-        height: auto;
-        /* Adjust height as needed */
-      }
-
-      .conversation-picker {
-        flex: none;
-        /* Allow conversation picker to take up necessary space */
-        width: 100%;
-        /* Full width */
-        border-right: none;
-        /* Remove border */
-        border-bottom: 1px solid #e6e9ed;
-        /* Add border to bottom */
-      }
-
-      .chat-container {
-        flex: 1;
-        /* Chat container takes remaining space */
-      }
+    .attach-btn:hover {
+      background: var(--accent-light);
+      color: var(--accent-blue);
     }
 
     /* Style for the New Chat Button */
     .new-chat-button {
-      background-color: #515261;
-      /* Green color, you can change this */
+      background: var(--accent-blue);
       color: #fff;
       border: none;
       padding: 8px 16px;
-      border-radius: 5px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
       cursor: pointer;
-      font-size: 0.9rem;
-      transition: background-color 0.2s ease-in-out;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);
     }
 
     .new-chat-button:hover {
-      background-color: #218838;
-      /* Darker green on hover */
+      background: #2563eb;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 8px rgba(59, 130, 246, 0.3);
     }
 
     .delete-button {
-      position: absolute;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      background-color: #f44336;
-      color: white;
-      border: none;
-      padding: 5px 10px;
-      border-radius: 5px;
-      cursor: pointer;
-      display: none;
-      /* Initially hidden */
+      padding: 6px 10px;
+      background: #fee2e2;
+      color: #ef4444;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      opacity: 0;
+      transition: all 0.2s ease;
     }
 
     .conversation-item:hover .delete-button {
-      display: inline-block;
-      /* Show on hover */
+      opacity: 1;
     }
 
-    /* Show delete button on hover */
-    .conversation-item:hover .delete-btn {
-      display: inline;
+    /* Responsible */
+    @media (max-width: 900px) {
+      .conversation-picker {
+        display: none;
+      }
     }
 
     /* --- IMAGE MODAL STYLES --- */
@@ -567,7 +619,10 @@
         <h2>Past Conversations</h2>
       </div>
       <div class="search-bar">
-        <input type="text" placeholder="Search conversations..." disabled />
+        <div class="search-container">
+          <i class="fas fa-search"></i>
+          <input type="text" id="searchInput" placeholder="Search conversations..." onkeyup="filterConversations()" />
+        </div>
       </div>
       <div class="conversation-list" id="conversation-list"></div>
     </div>
@@ -617,7 +672,19 @@
     const messageInput = document.getElementById("message-input");
     const typingIndicator = document.getElementById("typing-indicator");
     const conversationList = document.getElementById("conversation-list");
-    userEmail = "kenneth@mediaone.co";
+
+    // Get Google User Info
+    const storedUser = localStorage.getItem('googleUser');
+    let userEmail = "kenneth@mediaone.co";
+    let userPhoto = null;
+    let userName = "User";
+
+    if (storedUser) {
+      const googleUser = JSON.parse(storedUser);
+      userEmail = googleUser.email || userEmail;
+      userPhoto = googleUser.picture || null;
+      userName = googleUser.name || "User";
+    }
 
     messageInput.addEventListener('paste', function (event) {
       // Get the clipboard data
@@ -852,29 +919,29 @@
           {
             header: "Keywords",
             options: [
-              { label: "Keyword Research", value: "I want to do keyword research" },
-              { label: "Check SERPs", value: "I want to check SERPs" },
-              { label: "Rank Checker", value: "I want to check rankings" },
-              { label: "Find Similar Keywords", value: "I want to find similar keywords" },
-              { label: "Keyword Mapping", value: "I want to do keyword mapping" },
-              { label: "Keyword Analysis", value: "I want to do keyword analysis" },
-              { label: "Keyword Density", value: "I want to check the keyword density of a chunk of text." }
+              { label: "Keyword Research", value: "I want to do keyword research", icon: "fa-magnifying-glass" },
+              { label: "Check SERPs", value: "I want to check SERPs", icon: "fa-list-ol" },
+              { label: "Rank Checker", value: "I want to check rankings", icon: "fa-arrow-up-9-1" },
+              { label: "Find Similar Keywords", value: "I want to find similar keywords", icon: "fa-tags" },
+              { label: "Keyword Mapping", value: "I want to do keyword mapping", icon: "fa-map" },
+              { label: "Keyword Analysis", value: "I want to do keyword analysis", icon: "fa-chart-simple" },
+              { label: "Keyword Density", value: "I want to check the keyword density of a chunk of text.", icon: "fa-percent" }
             ],
           },
           {
             header: "Technical SEO",
             options: [
-              { label: "Check Page Speed", value: "I want to check my pagespeed using GTmetrix" },
-              { label: "Check Domain Authority", value: "I want to check domain authority" },
-              { label: "Generate Schema", value: "I want to generate schema markup" },
-              { label: "Google Webpage Crawler Simulator", value: "I want to simulate the Google Webpage Crawler" },
+              { label: "Check Page Speed", value: "I want to check my pagespeed using GTmetrix", icon: "fa-gauge-high" },
+              { label: "Check Domain Authority", value: "I want to check domain authority", icon: "fa-shield-halved" },
+              { label: "Generate Schema", value: "I want to generate schema markup", icon: "fa-code" },
+              { label: "Google Webpage Crawler Simulator", value: "I want to simulate the Google Webpage Crawler", icon: "fa-robot" },
             ],
           },
           {
             header: "Content Analysis",
             options: [
-              { label: "Check Content", value: "I want to check the content I've written" },
-              { label: "Content Comparison", value: "I want to do content comparison" },
+              { label: "Check Content", value: "I want to check the content I've written", icon: "fa-file-lines" },
+              { label: "Content Comparison", value: "I want to do content comparison", icon: "fa-code-compare" },
             ],
           },
         ];
@@ -885,12 +952,25 @@
         displayTypingIndicator();
         const sections = [
           {
-            header: "Quickstart",
+            header: "GEO",
             options: [
-              { label: "AI SEO audit for brand Research", value: "GEO: Run an AI SEO audit for my brand" },
-              { label: "Improve GEO for website", value: "How can I improve GEO for my website?" },
-              { label: "Compare AI visibility against competitors", value: "GEO: Compare my AI visibility vs competitors" },
-              { label: "GEO prompt proposal", value: "I need prompt proposal for my GEO project" },
+              { label: "AI SEO audit for brand Research", value: "GEO: Run an AI SEO audit for my brand", icon: "fa-clipboard-check" },
+              { label: "Improve GEO for website", value: "How can I improve GEO for my website?", icon: "fa-wand-magic-sparkles" },
+              { label: "Compare AI visibility against competitors", value: "GEO: Compare my AI visibility vs competitors", icon: "fa-binoculars" },
+              { label: "GEO prompt proposal", value: "I need prompt proposal for my GEO project", icon: "fa-lightbulb" },
+            ],
+          },
+        ];
+        renderOptionsMessage(sections, optionsContainer);
+        return;
+      }
+      else if (messageText.includes("I would like to look at Paid Ads today")) {
+        displayTypingIndicator();
+        const sections = [
+          {
+            header: "SEM Tools",
+            options: [
+              { label: "SEM Ad Generator", value: "I want to generate SEM ads", icon: "fa-rectangle-ad" },
             ],
           },
         ];
@@ -901,9 +981,53 @@
         displayTypingIndicator();
         const sections = [
           {
-            header: "Social Media",
+            header: "Creation",
             options: [
-              { label: "Check Content", value: "I want to check the content I've written" },
+              { label: "Content Generator", value: "I want to generate social media content", icon: "fa-pen-to-square" },
+            ],
+          },
+          {
+            header: "Management",
+            options: [
+              { label: "Response Generator", value: "I want to generate a social media response", icon: "fa-reply" },
+            ],
+          },
+          {
+            header: "Analysis",
+            options: [
+              { label: "Check Content", value: "I want to check the content I've written", icon: "fa-file-circle-check" },
+            ],
+          },
+        ];
+        renderOptionsMessage(sections, optionsContainer);
+        return;
+      }
+      else if (messageText.includes("I would like to look at others today")) {
+        displayTypingIndicator();
+        const sections = [
+          {
+            header: "Strategy",
+            options: [
+              { label: "Persona Generator", value: "I want to generate a persona", icon: "fa-user-gear" },
+              { label: "Media Plan", value: "I want to create a media plan", icon: "fa-file-invoice" },
+            ],
+          },
+          {
+            header: "Competitive",
+            options: [
+              { label: "Competitors Identifier", value: "I want to identify competitors", icon: "fa-users-viewfinder" },
+            ],
+          },
+          {
+            header: "Audit",
+            options: [
+              { label: "Landing Page Audit", value: "I want to audit a landing page", icon: "fa-magnifying-glass-chart" },
+            ],
+          },
+          {
+            header: "Optimisation",
+            options: [
+              { label: "AI Content Optimiser", value: "I want to use the AI content optimiser", icon: "fa-sparkles" },
             ],
           },
         ];
@@ -969,7 +1093,11 @@
 
         section.options.forEach((opt) => {
           const button = document.createElement("button");
-          button.textContent = opt.label;
+          if (opt.icon) {
+            button.innerHTML = `<i class="fas ${opt.icon}"></i> ${opt.label}`;
+          } else {
+            button.textContent = opt.label;
+          }
           button.onclick = () => {
             if (optionsContainer) optionsContainer.style.display = "none";
             messageInput.value = opt.value;
@@ -1014,7 +1142,11 @@
 
         section.options.forEach((opt) => {
           const button = document.createElement("button");
-          button.textContent = opt.label;
+          if (opt.icon) {
+            button.innerHTML = `<i class="fas ${opt.icon}"></i> ${opt.label}`;
+          } else {
+            button.textContent = opt.label;
+          }
           button.onclick = () => {
             if (optionsContainer) optionsContainer.style.display = "none";
             messageInput.value = opt.value;
@@ -1264,8 +1396,33 @@
     }
 
     function displayMessage(content, sender) {
+      const messageContainer = document.createElement("div");
+      messageContainer.classList.add("message-wrapper", sender);
+
       const messageDiv = document.createElement("div");
       messageDiv.classList.add("message", sender);
+
+      // Create Avatar
+      const avatarDiv = document.createElement("div");
+      avatarDiv.classList.add("avatar");
+      if (sender === "bot") {
+        avatarDiv.innerHTML = '<i class="fas fa-robot"></i>';
+      } else {
+        if (userPhoto) {
+          avatarDiv.innerHTML = `<img src="${userPhoto}" alt="${userName}">`;
+        } else {
+          avatarDiv.innerHTML = '<i class="fas fa-user"></i>';
+        }
+      }
+      messageDiv.appendChild(avatarDiv);
+
+      // Add timestamp
+      const now = new Date();
+      const dateStr = now.getDate().toString().padStart(2, '0') + '/' + (now.getMonth() + 1).toString().padStart(2, '0');
+      const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+      const timestamp = document.createElement("div");
+      timestamp.classList.add("timestamp");
+      timestamp.textContent = dateStr + ' ' + timeStr;
 
       // Case 1: Simple String
       if (typeof content === 'string') {
@@ -1306,7 +1463,9 @@
         });
       }
 
-      chatMessages.appendChild(messageDiv);
+      messageDiv.appendChild(timestamp);
+      messageContainer.appendChild(messageDiv);
+      chatMessages.appendChild(messageContainer);
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
@@ -1723,6 +1882,25 @@
       element.classList.add("active");
     }
 
+    function filterConversations() {
+      const input = document.getElementById('searchInput');
+      const filter = input.value.toLowerCase();
+      const list = document.getElementById('conversation-list');
+      const items = list.getElementsByClassName('conversation-item');
+
+      for (let i = 0; i < items.length; i++) {
+        const title = items[i].getElementsByClassName('name')[0];
+        const preview = items[i].getElementsByClassName('latest-message')[0];
+        const textValue = (title.textContent || title.innerText) + " " + (preview.textContent || preview.innerText);
+
+        if (textValue.toLowerCase().indexOf(filter) > -1) {
+          items[i].style.display = "";
+        } else {
+          items[i].style.display = "none";
+        }
+      }
+    }
+
     window.onload = function () {
       //displayMessage('Hello! How can I help you today?', 'bot');
       localStorage.setItem("input_messages", []);
@@ -1752,18 +1930,27 @@
             {
               label: "Search Engine Optimisation (SEO)",
               value: "I would like to look at SEO today",
+              icon: "fa-rocket"
             },
             {
               label: "Generative Engine Optimisation (GEO)",
               value: "I would like to look at GEO today",
+              icon: "fa-brain"
             },
             {
               label: "Paid Ads",
               value: "I would like to look at Paid Ads today",
+              icon: "fa-ad"
             },
             {
               label: "Social Media",
               value: "I would like to look at social media today",
+              icon: "fa-share-nodes"
+            },
+            {
+              label: "Others",
+              value: "I would like to look at others today",
+              icon: "fa-ellipsis"
             },
           ],
         },
@@ -1787,7 +1974,11 @@
 
         section.options.forEach((opt) => {
           const button = document.createElement("button");
-          button.textContent = opt.label;
+          if (opt.icon) {
+            button.innerHTML = `<i class="fas ${opt.icon}"></i> ${opt.label}`;
+          } else {
+            button.textContent = opt.label;
+          }
           button.onclick = () => {
             optionsContainer.style.display = "none"; // Hide after selection
             messageInput.value = opt.value;
