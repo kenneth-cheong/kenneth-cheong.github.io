@@ -1627,6 +1627,33 @@
             args.language,
             args.location
           );
+        case "crawler":
+          return await crawler(args.url, args.max_pages);
+        case "persona_generator":
+          return await persona_generator(args.data, args.manual);
+        case "media_plan_generator":
+          return await media_plan_generator(args.data);
+        case "generate_funnel":
+          return await generate_funnel(args.data);
+        case "landing_page_audit":
+          return await landing_page_audit(args.url, args.keyword);
+        case "sem_ad_generator":
+          return await sem_ad_generator(
+            args.country,
+            args.input_text,
+            args.tone,
+            args.language,
+            args.ad_format
+          );
+        case "check_content":
+          return await check_content(
+            args.brand_guide_urls,
+            args.other_urls,
+            args.instructions,
+            args.content
+          );
+        case "keyword_mapping":
+          return await keyword_mapping(args.domain, args.keywords);
         case "getHTML":
           return await getHTML(args.target);
         default:
@@ -1934,13 +1961,13 @@
       }
     }
 
-    async function keywords_for_site(target_url, language, location) {
+    async function keywords_for_site(target, language, location) {
       const url =
         "https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite";
       const payload = {
-        target: target_url,
         location: location,
         language: language,
+        target: target,
       };
       const headers = {
         "Content-Type": "application/json",
@@ -1963,6 +1990,110 @@
         console.error("Error in keywords_for_site:", error);
         throw error;
       }
+    }
+
+    async function crawler(target_url, max_pages) {
+      const url = "https://464q7iox7h.execute-api.ap-southeast-1.amazonaws.com/crawler";
+      const payload = { url: target_url, max_pages: max_pages || 10 };
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return await response.json();
+    }
+
+    async function persona_generator(data, manual) {
+      const url = "https://tyqj3fni7h.execute-api.ap-southeast-1.amazonaws.com/personaGenerator";
+      const payload = { data: data, manual: manual };
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return await response.json();
+    }
+
+    async function media_plan_generator(data_obj) {
+      const url = "https://h8ih2vc2xi.execute-api.ap-southeast-1.amazonaws.com/mediaPlanGenerator";
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data_obj),
+      });
+      return await response.json();
+    }
+
+    async function generate_funnel(data_obj) {
+      const url = "https://dpjtg2sr30.execute-api.ap-southeast-1.amazonaws.com/generateFunnel";
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data_obj),
+      });
+      return await response.json();
+    }
+
+    async function landing_page_audit(target_url, keyword) {
+      const url = "https://llufeecqoe.execute-api.ap-southeast-1.amazonaws.com/auditLandingPage";
+      const payload = { url: target_url, keyword: keyword };
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return await response.json();
+    }
+
+    async function sem_ad_generator(country, input_text, tone, language, ad_format) {
+      const url = "https://bztsly2z89.execute-api.ap-southeast-1.amazonaws.com/generateSemGoogle";
+      const payload = {
+        country,
+        input: input_text,
+        tone,
+        language,
+        type: ad_format
+      };
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return await response.json();
+    }
+
+    async function check_content(brand_guide_urls, other_urls, instructions, content) {
+      const url = "https://mmyvj7yj11.execute-api.ap-southeast-1.amazonaws.com/checkContent";
+
+      // We need to resolve URLs first if they are provided, but for a simple tool call, 
+      // we might just assume the bot provides the text or we handle it here.
+      // Based on index.html, it expects combined responses.
+      // However, to keep it simple for the bot as a tool, we might need a more complex wrapper if we want it to scrape first.
+      // For now, let's assume the bot provides the content and instructions directly or we use existing scrapers.
+
+      const payload = {
+        brand_guide: brand_guide_urls, // This might need to be pre-parsed if the API expects it
+        instructions: instructions,
+        content: content,
+        other_sources: other_urls
+      };
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return await response.json();
+    }
+
+    async function keyword_mapping(domain, keywords) {
+      const url = "https://c0bkxhc1s3.execute-api.ap-southeast-1.amazonaws.com/keywordMapping";
+      const payload = { domain, keywords };
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      return await response.json();
     }
 
     async function gtMetrix(target) {
