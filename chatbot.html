@@ -609,6 +609,31 @@
       box-shadow: 0 6px 8px rgba(59, 130, 246, 0.3);
     }
 
+    .conversation-item:hover .delete-button,
+    .conversation-item:hover .rename-button {
+      opacity: 1;
+    }
+
+    .rename-button {
+      padding: 6px 10px;
+      background: #e0f2fe;
+      color: var(--accent-blue);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      opacity: 0;
+      transition: all 0.2s ease;
+      position: absolute;
+      top: 16px;
+      right: 70px;
+      /* Offset from delete button */
+      cursor: pointer;
+    }
+
+    .rename-button:hover {
+      background: var(--accent-light);
+    }
+
     .delete-button {
       padding: 6px 10px;
       background: #fee2e2;
@@ -618,10 +643,21 @@
       font-weight: 600;
       opacity: 0;
       transition: all 0.2s ease;
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      cursor: pointer;
     }
 
-    .conversation-item:hover .delete-button {
-      opacity: 1;
+    .rename-input {
+      width: 100%;
+      padding: 4px 8px;
+      border: 1px solid var(--accent-blue);
+      border-radius: 4px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      outline: none;
+      background: #fff;
     }
 
     /* Responsible */
@@ -2152,6 +2188,17 @@
         conversationDetails.appendChild(latestMessageDiv);
         conversationDetails.appendChild(dateDiv);
 
+        // Create the rename button
+        const renameButton = document.createElement("button");
+        renameButton.classList.add("rename-button");
+        renameButton.innerHTML = '<i class="fas fa-pencil-alt"></i>';
+        renameButton.title = "Rename conversation";
+
+        renameButton.onclick = (e) => {
+          e.stopPropagation();
+          startRenaming(conversation.id, nameDiv, conversation.title);
+        };
+
         // Create the delete button
         const deleteButton = document.createElement("button");
         deleteButton.classList.add("delete-button");
@@ -2163,9 +2210,76 @@
         };
 
         conversationItem.appendChild(conversationDetails);
+        conversationItem.appendChild(renameButton);
         conversationItem.appendChild(deleteButton);
         conversationList.appendChild(conversationItem);
       });
+    }
+
+    function startRenaming(id, nameDiv, currentTitle) {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "rename-input";
+      input.value = currentTitle;
+
+      const originalContent = nameDiv.textContent;
+      nameDiv.innerHTML = "";
+      nameDiv.appendChild(input);
+      input.focus();
+
+      // Handle blur and enter
+      const save = async () => {
+        const newTitle = input.value.trim();
+        if (newTitle && newTitle !== currentTitle) {
+          nameDiv.textContent = newTitle;
+          await renameConversation(id, newTitle);
+        } else {
+          nameDiv.textContent = currentTitle;
+        }
+      };
+
+      input.onblur = save;
+      input.onkeydown = (e) => {
+        if (e.key === "Enter") {
+          input.onblur = null; // Prevent double trigger
+          save();
+        }
+        if (e.key === "Escape") {
+          input.onblur = null;
+          nameDiv.textContent = currentTitle;
+        }
+      };
+    }
+
+    async function renameConversation(id, newTitle) {
+      try {
+        const response = await fetch(
+          "https://8i8tbru5m2.execute-api.ap-southeast-1.amazonaws.com/createUpdateConversation",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              conversation_id: id,
+              title: newTitle,
+              user: userEmail
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to rename conversation");
+        }
+
+        // Update the local storage title if this is the active conversation
+        if (id === localStorage.getItem("current_conversation_id")) {
+          localStorage.setItem("conversation_title", newTitle);
+        }
+      } catch (error) {
+        console.error("Error renaming:", error);
+        alert("Failed to rename conversation. Please try again.");
+      }
     }
 
     async function loadConversationById(id) {
