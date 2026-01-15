@@ -547,6 +547,48 @@
       }
     }
 
+    /* Skeleton Loading Styles */
+    .skeleton {
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: skeleton-loading 1.5s infinite;
+      border-radius: 4px;
+    }
+
+    @keyframes skeleton-loading {
+      0% {
+        background-position: 200% 0;
+      }
+
+      100% {
+        background-position: -200% 0;
+      }
+    }
+
+    .skeleton-item {
+      padding: 16px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .skeleton-name {
+      height: 18px;
+      width: 60%;
+    }
+
+    .skeleton-message {
+      height: 14px;
+      width: 85%;
+    }
+
+    .skeleton-date {
+      height: 12px;
+      width: 30%;
+      align-self: flex-end;
+    }
+
     /* --- IMAGE MODAL STYLES --- */
     .image-modal {
       display: none;
@@ -1998,7 +2040,18 @@
     }
 
     async function loadPastConversations() {
-      const userEmail = "kenneth@mediaone.co";
+      // Show skeleton loaders
+      conversationList.innerHTML = '';
+      for (let i = 0; i < 5; i++) {
+        const skeleton = document.createElement("div");
+        skeleton.classList.add("skeleton-item");
+        skeleton.innerHTML = `
+          <div class="skeleton skeleton-name"></div>
+          <div class="skeleton skeleton-message"></div>
+          <div class="skeleton skeleton-date"></div>
+        `;
+        conversationList.appendChild(skeleton);
+      }
 
       try {
         const response = await fetch(
@@ -2019,7 +2072,6 @@
         }
 
         const conversations = await response.json();
-        console.log(conversations);
         populateConversationList(conversations);
       } catch (error) {
         console.error("Error fetching past conversations:", error);
@@ -2036,7 +2088,7 @@
         conversationItem.classList.add("conversation-item");
         conversationItem.id = conversation.id;
         conversationItem.addEventListener("click", () =>
-          loadConversation(conversation)
+          loadConversationById(conversation.id)
         );
 
         const conversationDetails = document.createElement("div");
@@ -2049,17 +2101,9 @@
         const latestMessageDiv = document.createElement("div");
         latestMessageDiv.classList.add("latest-message");
 
-        // Get the first user message
-        const firstMessage = conversation.messages
-          .filter((msg) => msg.role === "user")
-          .shift();
-
-        // Use helper to format the preview text
-        const previewText = firstMessage
-          ? formatMessageContent(firstMessage.content)
-          : "No messages yet";
-
-        latestMessageDiv.innerHTML = previewText; // Use innerHTML to render the <em> tags
+        // Use the optimized first_message from backend
+        const previewText = conversation.first_message || "No messages yet";
+        latestMessageDiv.textContent = previewText;
 
         const dateDiv = document.createElement("div");
         dateDiv.classList.add("date");
@@ -2074,7 +2118,6 @@
         deleteButton.classList.add("delete-button");
         deleteButton.textContent = "Delete";
 
-        // Stop propagation so clicking delete doesn't load the chat
         deleteButton.onclick = (e) => {
           e.stopPropagation();
           deleteConversation(conversation.id);
@@ -2084,6 +2127,39 @@
         conversationItem.appendChild(deleteButton);
         conversationList.appendChild(conversationItem);
       });
+    }
+
+    async function loadConversationById(id) {
+      // Show local typing/loading indicator in chat
+      chatMessages.innerHTML = '<div class="message bot"><div class="typing-indicator active"><span></span><span></span><span></span></div></div>';
+
+      try {
+        const response = await fetch(
+          "https://ro2g6qodt1.execute-api.ap-southeast-1.amazonaws.com/chatbotPastConversations",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              conversation_id: id,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const conversation = await response.json();
+        if (conversation.error) {
+          throw new Error(conversation.error);
+        }
+        loadConversation(conversation);
+      } catch (error) {
+        console.error("Error loading conversation:", error);
+        chatMessages.innerHTML = `<div class="message bot">Error loading conversation: ${error.message}</div>`;
+      }
     }
 
     // Function to delete the conversation
