@@ -1,2041 +1,2028 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link
-      rel="icon"
-      href="https://mediaonemarketing.com.sg/wp-content/uploads/2023/11/cropped-MediaOne-M-favicon-logo-32x32.png"
-      sizes="32x32"
-    />
-    <title>Digimetrics Chatbot</title>
 
-    <style>
-      /* General Styles */
-      body {
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        background-color: #f0f2f5;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon"
+    href="https://mediaonemarketing.com.sg/wp-content/uploads/2023/11/cropped-MediaOne-M-favicon-logo-32x32.png"
+    sizes="32x32" />
+  <title>Digimetrics Chatbot</title>
+
+  <style>
+    /* General Styles */
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f0f2f5;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    /* Layout Container */
+    .main-container {
+      display: flex;
+      width: 95%;
+      /* Adjust as needed */
+      max-width: 1200px;
+      /* Maximum width for larger screens */
+      height: 90vh;
+      /* Occupy 80% of the viewport height */
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      border-radius: 10px;
+      overflow: hidden;
+      background-color: #fff;
+    }
+
+    table {
+      border-collapse: collapse;
+      /* Remove double borders */
+      width: 100%;
+      /* Make table fill its container */
+      margin: 20px 0;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      /* Add borders to cells */
+      padding: 8px;
+      /* Add padding inside cells */
+      text-align: left;
+      /* Align text to the left */
+    }
+
+    th {
+      background-color: #f2f2f2;
+      /* Grey background for header */
+      font-weight: bold;
+      /* Make header text bold */
+    }
+
+    /* Conversation Picker Styles */
+    .conversation-picker {
+      flex: 0 0 30%;
+      /* Changed from 25% to 30% */
+      border-right: 1px solid #e6e9ed;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .conversation-picker .chat-header {
+      padding: 15px;
+      background-color: #2a2f5b;
+      /* Dark background for header */
+      color: #fff;
+      text-align: left;
+      /* Slightly larger font size */
+    }
+
+    .chat-header {
+      display: flex;
+      height: 50px;
+      align-items: center;
+    }
+
+    .search-bar {
+      padding: 10px;
+      background-color: #f7f7f7;
+      border-bottom: 1px solid #e6e9ed;
+    }
+
+    .search-bar input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ced4da;
+      border-radius: 5px;
+      box-sizing: border-box;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s ease-in-out;
+    }
+
+    .search-bar input[type="text"]:focus {
+      border-color: #495057;
+      /* Darker border on focus */
+    }
+
+    .conversation-list {
+      overflow-y: auto;
+      flex-grow: 1;
+    }
+
+    .conversation-item {
+      padding: 12px 15px;
+      border-bottom: 1px solid #e6e9ed;
+      cursor: pointer;
+      transition: background-color 0.15s ease-in-out;
+      display: flex;
+      align-items: center;
+      position: relative;
+      /* Needed for the delete button positioning */
+    }
+
+    .conversation-item:hover {
+      background-color: #f5f7fa;
+    }
+
+    .conversation-item.active {
+      background-color: #e9ecef;
+    }
+
+    .conversation-details {
+      flex-grow: 1;
+    }
+
+    .name {
+      font-weight: 500;
+      color: #343a40;
+      margin-bottom: 3px;
+    }
+
+    .latest-message {
+      font-size: 0.9rem;
+      color: #6c757d;
+      overflow: hidden;
+      white-space: break-spaces;
+      text-overflow: ellipsis;
+    }
+
+    .date {
+      font-size: 0.8rem;
+      color: #adb5bd;
+      margin-left: auto;
+      /* Push date to the right */
+    }
+
+    /* Chat Container Styles */
+    .chat-container {
+      flex: 1;
+      display: grid;
+      flex-direction: column;
+    }
+
+    .chat-container .chat-header {
+      padding: 15px;
+      background-color: #2a2f5b;
+      color: #fff;
+      text-align: left;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      /* Add space between the title and the button */
+      align-items: center;
+    }
+
+    .chat-messages {
+      padding: 20px;
+      height: 400px;
+      overflow-y: auto;
+      flex-grow: 1;
+    }
+
+    /* Message Styles */
+    .message {
+      padding: 12px 15px;
+      margin-bottom: 10px;
+      border-radius: 20px;
+      clear: both;
+      max-width: 90%;
+      /* Limit message width */
+    }
+
+    .message.user {
+      background-color: #d1e7ff;
+      color: #004085;
+      float: right;
+    }
+
+    .message.bot {
+      background-color: #f8f9fa;
+      color: #212529;
+      float: left;
+    }
+
+    .message img {
+      max-width: 100%;
+      /* Prevent overflow */
+      max-height: 250px;
+      /* Limit height for thumbnail feel */
+      border-radius: 10px;
+      margin-top: 5px;
+      margin-bottom: 5px;
+      display: block;
+      cursor: pointer;
+      /* Hint that it could be clickable (optional) */
+    }
+
+    /* Ensure text wraps nicely around images if needed */
+    .message p {
+      margin: 0 0 5px 0;
+      word-wrap: break-word;
+    }
+
+    /* Typing Indicator */
+    .typing-indicator {
+      padding: 10px 20px;
+      font-style: italic;
+      color: #6c757d;
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 0;
       }
 
-      /* Layout Container */
+      50% {
+        opacity: 1;
+      }
+    }
+
+    .chat-input-container {
+      background-color: #f8f9fa;
+      border-top: 1px solid #e6e9ed;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Area to show selected files before sending */
+    .attachment-preview {
+      display: flex;
+      flex-wrap: wrap;
+      padding: 10px 15px;
+      /* Added padding */
+      gap: 10px;
+      background-color: #f0f2f5;
+      min-height: 0px;
+    }
+
+    /* Container for individual file */
+    .attachment-item {
+      position: relative;
+      width: 64px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Image Thumbnail */
+    .attachment-thumb {
+      width: 64px;
+      height: 64px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid #ced4da;
+      background-color: #fff;
+    }
+
+    /* Fallback style for non-image files (e.g. PDF) */
+    .attachment-icon-placeholder {
+      width: 64px;
+      height: 64px;
+      border-radius: 8px;
+      background-color: #e9ecef;
+      border: 1px solid #ced4da;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: bold;
+      color: #495057;
+      text-transform: uppercase;
+    }
+
+    /* Filename text below thumbnail */
+    .attachment-name {
+      font-size: 0.7rem;
+      width: 100%;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      text-align: center;
+      margin-top: 4px;
+      color: #6c757d;
+    }
+
+    /* The 'X' button */
+    .attachment-remove-btn {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      background-color: #dc3545;
+      color: white;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      z-index: 2;
+      transition: transform 0.1s;
+    }
+
+    .attachment-remove-btn:hover {
+      transform: scale(1.1);
+      background-color: #bd2130;
+    }
+
+    .chat-input {
+      padding: 15px;
+      display: flex;
+      align-items: flex-end;
+      /* Aligns items to bottom so textarea grows up */
+    }
+
+    /* The Paperclip Button */
+    .attach-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 10px;
+      margin-right: 5px;
+      color: #6c757d;
+      transition: color 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .attach-btn:hover {
+      color: #2a2f5b;
+    }
+
+    .attach-btn svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .chat-input textarea {
+      flex-grow: 1;
+      padding: 10px;
+      border: 1px solid #ced4da;
+      border-radius: 25px;
+      margin-right: 10px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s ease-in-out;
+      resize: none;
+      min-height: 45px;
+      max-height: 200px;
+      overflow-y: auto;
+      box-sizing: border-box;
+      line-height: 1.4;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .chat-input textarea:focus {
+      border-color: #2a2f5b;
+    }
+
+    .chat-input button.send-btn {
+      background-color: #2a2f5b;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background-color 0.2s ease-in-out;
+      height: 45px;
+      /* Match textarea min-height */
+    }
+
+    .chat-input button.send-btn:hover {
+      background-color: #0056b3;
+    }
+
+    .button-container {
+      display: flex;
+      padding: 10px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .button-container button {
+      background-color: #2a2f5b;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background-color 0.2s ease-in-out;
+    }
+
+    .button-container button:hover {
+      background-color: #0056b3;
+    }
+
+    /* Media Queries for Responsiveness */
+    @media (max-width: 768px) {
       .main-container {
-        display: flex;
-        width: 95%;
-        /* Adjust as needed */
-        max-width: 1200px;
-        /* Maximum width for larger screens */
-        height: 90vh;
-        /* Occupy 80% of the viewport height */
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        border-radius: 10px;
-        overflow: hidden;
-        background-color: #fff;
-      }
-
-      table {
-        border-collapse: collapse;
-        /* Remove double borders */
-        width: 100%;
-        /* Make table fill its container */
-        margin: 20px 0;
-      }
-
-      th,
-      td {
-        border: 1px solid #ddd;
-        /* Add borders to cells */
-        padding: 8px;
-        /* Add padding inside cells */
-        text-align: left;
-        /* Align text to the left */
-      }
-
-      th {
-        background-color: #f2f2f2;
-        /* Grey background for header */
-        font-weight: bold;
-        /* Make header text bold */
-      }
-
-      /* Conversation Picker Styles */
-      .conversation-picker {
-        flex: 0 0 30%;
-        /* Changed from 25% to 30% */
-        border-right: 1px solid #e6e9ed;
-        display: flex;
         flex-direction: column;
+        /* Stack conversation list and chat container */
+        height: auto;
+        /* Adjust height as needed */
       }
 
-      .conversation-picker .chat-header {
-        padding: 15px;
-        background-color: #2a2f5b;
-        /* Dark background for header */
-        color: #fff;
-        text-align: left;
-        /* Slightly larger font size */
-      }
-
-      .chat-header {
-        display: flex;
-        height: 50px;
-        align-items: center;
-      }
-
-      .search-bar {
-        padding: 10px;
-        background-color: #f7f7f7;
-        border-bottom: 1px solid #e6e9ed;
-      }
-
-      .search-bar input[type="text"] {
+      .conversation-picker {
+        flex: none;
+        /* Allow conversation picker to take up necessary space */
         width: 100%;
-        padding: 8px;
-        border: 1px solid #ced4da;
-        border-radius: 5px;
-        box-sizing: border-box;
-        font-size: 1rem;
-        outline: none;
-        transition: border-color 0.2s ease-in-out;
-      }
-
-      .search-bar input[type="text"]:focus {
-        border-color: #495057;
-        /* Darker border on focus */
-      }
-
-      .conversation-list {
-        overflow-y: auto;
-        flex-grow: 1;
-      }
-
-      .conversation-item {
-        padding: 12px 15px;
+        /* Full width */
+        border-right: none;
+        /* Remove border */
         border-bottom: 1px solid #e6e9ed;
-        cursor: pointer;
-        transition: background-color 0.15s ease-in-out;
-        display: flex;
-        align-items: center;
-        position: relative;
-        /* Needed for the delete button positioning */
+        /* Add border to bottom */
       }
 
-      .conversation-item:hover {
-        background-color: #f5f7fa;
-      }
-
-      .conversation-item.active {
-        background-color: #e9ecef;
-      }
-
-      .conversation-details {
-        flex-grow: 1;
-      }
-
-      .name {
-        font-weight: 500;
-        color: #343a40;
-        margin-bottom: 3px;
-      }
-
-      .latest-message {
-        font-size: 0.9rem;
-        color: #6c757d;
-        overflow: hidden;
-        white-space: break-spaces;
-        text-overflow: ellipsis;
-      }
-
-      .date {
-        font-size: 0.8rem;
-        color: #adb5bd;
-        margin-left: auto;
-        /* Push date to the right */
-      }
-
-      /* Chat Container Styles */
       .chat-container {
         flex: 1;
-        display: grid;
-        flex-direction: column;
+        /* Chat container takes remaining space */
+      }
+    }
+
+    /* Style for the New Chat Button */
+    .new-chat-button {
+      background-color: #515261;
+      /* Green color, you can change this */
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background-color 0.2s ease-in-out;
+    }
+
+    .new-chat-button:hover {
+      background-color: #218838;
+      /* Darker green on hover */
+    }
+
+    .delete-button {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background-color: #f44336;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      display: none;
+      /* Initially hidden */
+    }
+
+    .conversation-item:hover .delete-button {
+      display: inline-block;
+      /* Show on hover */
+    }
+
+    /* Show delete button on hover */
+    .conversation-item:hover .delete-btn {
+      display: inline;
+    }
+
+    /* --- IMAGE MODAL STYLES --- */
+    .image-modal {
+      display: none;
+      /* Hidden by default */
+      position: fixed;
+      z-index: 2000;
+      /* Sit on top */
+      padding-top: 50px;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgb(0, 0, 0);
+      background-color: rgba(0, 0, 0, 0.9);
+      /* Black w/ opacity */
+    }
+
+    .modal-content {
+      margin: auto;
+      display: block;
+      width: 80%;
+      max-width: 900px;
+      max-height: 85vh;
+      object-fit: contain;
+      border-radius: 5px;
+      animation-name: zoom;
+      animation-duration: 0.3s;
+    }
+
+    @keyframes zoom {
+      from {
+        transform: scale(0)
       }
 
-      .chat-container .chat-header {
-        padding: 15px;
-        background-color: #2a2f5b;
-        color: #fff;
-        text-align: left;
-        font-weight: 600;
-        display: flex;
-        justify-content: space-between;
-        /* Add space between the title and the button */
-        align-items: center;
+      to {
+        transform: scale(1)
       }
+    }
 
-      .chat-messages {
-        padding: 20px;
-        height: 400px;
-        overflow-y: auto;
-        flex-grow: 1;
-      }
+    .close-modal {
+      position: absolute;
+      top: 15px;
+      right: 35px;
+      color: #f1f1f1;
+      font-size: 40px;
+      font-weight: bold;
+      transition: 0.3s;
+      cursor: pointer;
+    }
 
-      /* Message Styles */
-      .message {
-        padding: 12px 15px;
-        margin-bottom: 10px;
-        border-radius: 20px;
-        clear: both;
-        max-width: 90%;
-        /* Limit message width */
-      }
+    .close-modal:hover,
+    .close-modal:focus {
+      color: #bbb;
+      text-decoration: none;
+      cursor: pointer;
+    }
 
-      .message.user {
-        background-color: #d1e7ff;
-        color: #004085;
-        float: right;
-      }
+    /* Cursor pointer for chat images to indicate clickability */
+    .message img {
+      cursor: zoom-in;
+    }
+  </style>
+</head>
 
-      .message.bot {
-        background-color: #f8f9fa;
-        color: #212529;
-        float: left;
-      }
-
-       .message img {
-        max-width: 100%;       /* Prevent overflow */
-        max-height: 250px;     /* Limit height for thumbnail feel */
-        border-radius: 10px;
-        margin-top: 5px;
-        margin-bottom: 5px;
-        display: block;
-        cursor: pointer;       /* Hint that it could be clickable (optional) */
-      }
-      
-      /* Ensure text wraps nicely around images if needed */
-      .message p {
-        margin: 0 0 5px 0;
-        word-wrap: break-word;
-      }
-
-      /* Typing Indicator */
-      .typing-indicator {
-        padding: 10px 20px;
-        font-style: italic;
-        color: #6c757d;
-      }
-
-      @keyframes blink {
-        0%,
-        100% {
-          opacity: 0;
-        }
-
-        50% {
-          opacity: 1;
-        }
-      }
-
-      .chat-input-container {
-        background-color: #f8f9fa;
-        border-top: 1px solid #e6e9ed;
-        display: flex;
-        flex-direction: column;
-      }
-
-      /* Area to show selected files before sending */
-      .attachment-preview {
-        display: flex;
-        flex-wrap: wrap;
-        padding: 10px 15px; /* Added padding */
-        gap: 10px;
-        background-color: #f0f2f5;
-        min-height: 0px; 
-      }
-
-      /* Container for individual file */
-      .attachment-item {
-        position: relative;
-        width: 64px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-      }
-
-      /* Image Thumbnail */
-      .attachment-thumb {
-        width: 64px;
-        height: 64px;
-        object-fit: cover;
-        border-radius: 8px;
-        border: 1px solid #ced4da;
-        background-color: #fff;
-      }
-
-      /* Fallback style for non-image files (e.g. PDF) */
-      .attachment-icon-placeholder {
-        width: 64px;
-        height: 64px;
-        border-radius: 8px;
-        background-color: #e9ecef;
-        border: 1px solid #ced4da;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.7rem;
-        font-weight: bold;
-        color: #495057;
-        text-transform: uppercase;
-      }
-
-      /* Filename text below thumbnail */
-      .attachment-name {
-        font-size: 0.7rem;
-        width: 100%;
-        overflow: hidden;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-        text-align: center;
-        margin-top: 4px;
-        color: #6c757d;
-      }
-
-      /* The 'X' button */
-      .attachment-remove-btn {
-        position: absolute;
-        top: -6px;
-        right: -6px;
-        background-color: #dc3545;
-        color: white;
-        border: 2px solid #fff;
-        border-radius: 50%;
-        width: 20px;
-        height: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        font-size: 12px;
-        font-weight: bold;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        z-index: 2;
-        transition: transform 0.1s;
-      }
-
-      .attachment-remove-btn:hover {
-        transform: scale(1.1);
-        background-color: #bd2130;
-      }
-
-      .chat-input {
-        padding: 15px;
-        display: flex;
-        align-items: flex-end; /* Aligns items to bottom so textarea grows up */
-      }
-
-      /* The Paperclip Button */
-      .attach-btn {
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 10px;
-        margin-right: 5px;
-        color: #6c757d;
-        transition: color 0.2s;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .attach-btn:hover {
-        color: #2a2f5b;
-      }
-
-      .attach-btn svg {
-        width: 24px;
-        height: 24px;
-      }
-
-      .chat-input textarea {
-        flex-grow: 1;
-        padding: 10px;
-        border: 1px solid #ced4da;
-        border-radius: 25px;
-        margin-right: 10px;
-        font-size: 1rem;
-        outline: none;
-        transition: border-color 0.2s ease-in-out;
-        resize: none;
-        min-height: 45px;
-        max-height: 200px;
-        overflow-y: auto;
-        box-sizing: border-box;
-        line-height: 1.4;
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      }
-
-      .chat-input textarea:focus {
-        border-color: #2a2f5b;
-      }
-
-      .chat-input button.send-btn {
-        background-color: #2a2f5b;
-        color: #fff;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 25px;
-        cursor: pointer;
-        font-size: 1rem;
-        transition: background-color 0.2s ease-in-out;
-        height: 45px; /* Match textarea min-height */
-      }
-
-      .chat-input button.send-btn:hover {
-        background-color: #0056b3;
-      }
-
-      .button-container {
-        display: flex;
-        padding: 10px;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
-
-      .button-container button {
-        background-color: #2a2f5b;
-        color: #fff;
-        border: none;
-        padding: 8px 16px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 0.9rem;
-        transition: background-color 0.2s ease-in-out;
-      }
-
-      .button-container button:hover {
-        background-color: #0056b3;
-      }
-
-      /* Media Queries for Responsiveness */
-      @media (max-width: 768px) {
-        .main-container {
-          flex-direction: column;
-          /* Stack conversation list and chat container */
-          height: auto;
-          /* Adjust height as needed */
-        }
-
-        .conversation-picker {
-          flex: none;
-          /* Allow conversation picker to take up necessary space */
-          width: 100%;
-          /* Full width */
-          border-right: none;
-          /* Remove border */
-          border-bottom: 1px solid #e6e9ed;
-          /* Add border to bottom */
-        }
-
-        .chat-container {
-          flex: 1;
-          /* Chat container takes remaining space */
-        }
-      }
-
-      /* Style for the New Chat Button */
-      .new-chat-button {
-        background-color: #515261;
-        /* Green color, you can change this */
-        color: #fff;
-        border: none;
-        padding: 8px 16px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 0.9rem;
-        transition: background-color 0.2s ease-in-out;
-      }
-
-      .new-chat-button:hover {
-        background-color: #218838;
-        /* Darker green on hover */
-      }
-
-      .delete-button {
-        position: absolute;
-        right: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        background-color: #f44336;
-        color: white;
-        border: none;
-        padding: 5px 10px;
-        border-radius: 5px;
-        cursor: pointer;
-        display: none;
-        /* Initially hidden */
-      }
-
-      .conversation-item:hover .delete-button {
-        display: inline-block;
-        /* Show on hover */
-      }
-
-      /* Show delete button on hover */
-      .conversation-item:hover .delete-btn {
-        display: inline;
-      }
-
-      /* --- IMAGE MODAL STYLES --- */
-      .image-modal {
-        display: none; /* Hidden by default */
-        position: fixed; 
-        z-index: 2000; /* Sit on top */
-        padding-top: 50px; 
-        left: 0;
-        top: 0;
-        width: 100%; 
-        height: 100%; 
-        overflow: auto; 
-        background-color: rgb(0,0,0); 
-        background-color: rgba(0,0,0,0.9); /* Black w/ opacity */
-      }
-
-      .modal-content {
-        margin: auto;
-        display: block;
-        width: 80%;
-        max-width: 900px;
-        max-height: 85vh;
-        object-fit: contain;
-        border-radius: 5px;
-        animation-name: zoom;
-        animation-duration: 0.3s;
-      }
-
-      @keyframes zoom {
-        from {transform:scale(0)} 
-        to {transform:scale(1)}
-      }
-
-      .close-modal {
-        position: absolute;
-        top: 15px;
-        right: 35px;
-        color: #f1f1f1;
-        font-size: 40px;
-        font-weight: bold;
-        transition: 0.3s;
-        cursor: pointer;
-      }
-
-      .close-modal:hover,
-      .close-modal:focus {
-        color: #bbb;
-        text-decoration: none;
-        cursor: pointer;
-      }
-
-      /* Cursor pointer for chat images to indicate clickability */
-      .message img {
-        cursor: zoom-in; 
-      }
-    </style>
-  </head>
-
-  <body>
-    <div class="main-container">
-      <div class="conversation-picker">
-        <div class="chat-header">
-          <h2>Past Conversations</h2>
-        </div>
-        <div class="search-bar">
-          <input type="text" placeholder="Search conversations..." disabled />
-        </div>
-        <div class="conversation-list" id="conversation-list"></div>
+<body>
+  <div class="main-container">
+    <div class="conversation-picker">
+      <div class="chat-header">
+        <h2>Past Conversations</h2>
       </div>
-      <div class="chat-container">
-        <div class="chat-header">
-          <img
-            src="Digimetrics Logo-02.png"
-            alt="navbar brand"
-            class="navbar-brand"
-            height="30"
-          />
-          <button class="new-chat-button" onclick="startNewConversation()">
-            New Chat
+      <div class="search-bar">
+        <input type="text" placeholder="Search conversations..." disabled />
+      </div>
+      <div class="conversation-list" id="conversation-list"></div>
+    </div>
+    <div class="chat-container">
+      <div class="chat-header">
+        <img src="Digimetrics Logo-02.png" alt="navbar brand" class="navbar-brand" height="30" />
+        <button class="new-chat-button" onclick="startNewConversation()">
+          New Chat
+        </button>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-options" id="chat-options" style="display: none"></div>
+      </div>
+      <div class="typing-indicator" id="typing-indicator"></div>
+      <div class="chat-input-container">
+        <div id="attachment-preview" class="attachment-preview"></div>
+        <div class="chat-input">
+          <!-- Hidden File Input -->
+          <input type="file" id="file-input" multiple style="display: none" onchange="handleFileSelect(event)" />
+
+          <!-- Paperclip Icon Button -->
+          <button class="attach-btn" onclick="document.getElementById('file-input').click()" title="Attach files">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path
+                d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48">
+              </path>
+            </svg>
           </button>
-        </div>
-        <div class="chat-messages" id="chat-messages">
-          <div
-            class="chat-options"
-            id="chat-options"
-            style="display: none"
-          ></div>
-        </div>
-        <div class="typing-indicator" id="typing-indicator"></div>
-        <div class="chat-input-container">
-          <div id="attachment-preview" class="attachment-preview"></div>
-          <div class="chat-input">
-            <!-- Hidden File Input -->
-            <input
-              type="file"
-              id="file-input"
-              multiple
-              style="display: none"
-              onchange="handleFileSelect(event)"
-            />
 
-            <!-- Paperclip Icon Button -->
-            <button
-              class="attach-btn"
-              onclick="document.getElementById('file-input').click()"
-              title="Attach files"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
-                ></path>
-              </svg>
-            </button>
-
-            <textarea
-              id="message-input"
-              placeholder="Type your message..."
-              rows="1"
-            ></textarea>
-            <button class="send-btn" onclick="sendMessage()">Send</button>
-          </div>
+          <textarea id="message-input" placeholder="Type your message..." rows="1"></textarea>
+          <button class="send-btn" onclick="sendMessage()">Send</button>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- Image Modal -->
-    <div id="image-modal" class="image-modal" onclick="closeImageModal()">
-      <span class="close-modal">&times;</span>
-      <img class="modal-content" id="img-modal-full" onclick="event.stopPropagation()"> <!-- Stop propagation so clicking image doesn't close it -->
-    </div>
+  <!-- Image Modal -->
+  <div id="image-modal" class="image-modal" onclick="closeImageModal()">
+    <span class="close-modal">&times;</span>
+    <img class="modal-content" id="img-modal-full" onclick="event.stopPropagation()">
+    <!-- Stop propagation so clicking image doesn't close it -->
+  </div>
 
-    <script>
-      chatMessages = document.getElementById("chat-messages");
-      const messageInput = document.getElementById("message-input");
-      const typingIndicator = document.getElementById("typing-indicator");
-      const conversationList = document.getElementById("conversation-list");
-      userEmail = "kenneth@mediaone.co";
+  <script>
+    chatMessages = document.getElementById("chat-messages");
+    const messageInput = document.getElementById("message-input");
+    const typingIndicator = document.getElementById("typing-indicator");
+    const conversationList = document.getElementById("conversation-list");
+    userEmail = "kenneth@mediaone.co";
 
-      messageInput.addEventListener('paste', function(event) {
-        // Get the clipboard data
-        const items = (event.clipboardData || event.originalEvent.clipboardData).items;
-        let hasImage = false;
+    messageInput.addEventListener('paste', function (event) {
+      // Get the clipboard data
+      const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+      let hasImage = false;
 
-        // Loop through clipboard items
-        for (let i = 0; i < items.length; i++) {
-            // Check if the item is an image
-            if (items[i].type.indexOf("image") !== -1) {
-                const blob = items[i].getAsFile();
-                
-                if (blob) {
-                    hasImage = true;
-                    
-                    // Generate a unique name for the pasted image (e.g., pasted-image-1715622.png)
-                    const timestamp = new Date().getTime();
-                    const fileName = `pasted-image-${timestamp}.png`;
-                    
-                    // Create a File object from the blob
-                    const file = new File([blob], fileName, { type: blob.type });
-                    
-                    // Add to our global selectedFiles array
-                    selectedFiles.push(file);
-                }
-            }
-        }
+      // Loop through clipboard items
+      for (let i = 0; i < items.length; i++) {
+        // Check if the item is an image
+        if (items[i].type.indexOf("image") !== -1) {
+          const blob = items[i].getAsFile();
 
-        // If an image was pasted, update the preview UI
-        if (hasImage) {
-            renderAttachmentPreview();
-            
-            // Optional: Prevent the default paste behavior if you don't want 
-            // the binary string/filename appearing in the text box.
-            // However, usually browsers don't paste image data into textareas anyway.
-        }
-      });
+          if (blob) {
+            hasImage = true;
 
-      // NEW Global variable for attachments
-      let selectedFiles = [];
+            // Generate a unique name for the pasted image (e.g., pasted-image-1715622.png)
+            const timestamp = new Date().getTime();
+            const fileName = `pasted-image-${timestamp}.png`;
 
-      messageInput.addEventListener("keydown", function (event) {
-        if (event.key === "Enter") {
-          if (!event.shiftKey) {
-            event.preventDefault();
-            sendMessage();
+            // Create a File object from the blob
+            const file = new File([blob], fileName, { type: blob.type });
+
+            // Add to our global selectedFiles array
+            selectedFiles.push(file);
           }
         }
+      }
+
+      // If an image was pasted, update the preview UI
+      if (hasImage) {
+        renderAttachmentPreview();
+
+        // Optional: Prevent the default paste behavior if you don't want 
+        // the binary string/filename appearing in the text box.
+        // However, usually browsers don't paste image data into textareas anyway.
+      }
+    });
+
+    // NEW Global variable for attachments
+    let selectedFiles = [];
+
+    messageInput.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        if (!event.shiftKey) {
+          event.preventDefault();
+          sendMessage();
+        }
+      }
+    });
+
+    // --- NEW: FILE HANDLING FUNCTIONS ---
+
+    function handleFileSelect(event) {
+      const files = Array.from(event.target.files);
+      // Add new files to our array
+      selectedFiles = [...selectedFiles, ...files];
+      renderAttachmentPreview();
+      // Reset the input value so same file can be selected again if needed
+      event.target.value = "";
+    }
+
+    function removeFile(index) {
+      selectedFiles.splice(index, 1);
+      renderAttachmentPreview();
+    }
+
+    function renderAttachmentPreview() {
+      const previewContainer = document.getElementById('attachment-preview');
+      previewContainer.innerHTML = '';
+
+      selectedFiles.forEach((file, index) => {
+        const item = document.createElement('div');
+        item.className = 'attachment-item';
+
+        // 1. Create Thumbnail or Icon
+        let contentDisplay;
+        if (file.type.startsWith('image/')) {
+          const img = document.createElement('img');
+          img.className = 'attachment-thumb';
+          img.src = URL.createObjectURL(file); // Generate preview blob
+          img.onload = () => URL.revokeObjectURL(img.src); // Free memory after loading
+          contentDisplay = img;
+        } else {
+          // For non-images (PDF, etc), show extension
+          const div = document.createElement('div');
+          div.className = 'attachment-icon-placeholder';
+          // Get extension (e.g., pdf, txt)
+          const ext = file.name.split('.').pop().substring(0, 4);
+          div.textContent = ext || "FILE";
+          contentDisplay = div;
+        }
+
+        // 2. Create Remove Button
+        const removeBtn = document.createElement('div');
+        removeBtn.className = 'attachment-remove-btn';
+        removeBtn.innerHTML = '&times;';
+        removeBtn.onclick = () => removeFile(index);
+
+        // 3. Create Name Label
+        const nameSpan = document.createElement('div');
+        nameSpan.className = 'attachment-name';
+        nameSpan.textContent = file.name;
+        nameSpan.title = file.name; // Tooltip for full name
+
+        // Assemble
+        item.appendChild(removeBtn);
+        item.appendChild(contentDisplay);
+        item.appendChild(nameSpan);
+
+        previewContainer.appendChild(item);
+      });
+    }
+
+    // Helper to convert file to Base64
+    const convertToBase64 = (file) => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+          // result looks like "data:image/png;base64,iVBOR..."
+          // We need to strip the prefix for some APIs, or keep it.
+          // The Python code expects: "data:{type};base64,{data}" construction.
+          // So we need to extract just the base64 part and the mime type.
+
+          const result = reader.result;
+          const base64Data = result.split(",")[1]; // Get data after comma
+
+          resolve({
+            name: file.name,
+            type: file.type,
+            data: base64Data,
+          });
+        };
+        reader.onerror = (error) => reject(error);
+      });
+    };
+
+    function displayTypingIndicator() {
+      typingIndicator.textContent = "Processing...";
+    }
+
+    function hideTypingIndicator() {
+      typingIndicator.textContent = "";
+    }
+
+    async function sendMessage() {
+      const messageText = messageInput.value.trim();
+      const hasAttachments = selectedFiles.length > 0;
+
+      // If no text and no attachments, do nothing
+      if (!messageText && !hasAttachments) return;
+
+      const optionsContainer = document.getElementById("chat-options");
+      if (optionsContainer) optionsContainer.innerHTML = ""; // Clear previous options
+
+      // ---------------------------------------------------------
+      // 1. Process Attachments (Convert to Base64)
+      // ---------------------------------------------------------
+      let attachmentsPayload = [];
+      if (hasAttachments) {
+        try {
+          // Convert all files to { name, type, data }
+          attachmentsPayload = await Promise.all(
+            selectedFiles.map((file) => convertToBase64(file))
+          );
+        } catch (err) {
+          console.error("Error reading files", err);
+          alert("Error reading attached files.");
+          return;
+        }
+      }
+
+      // Get history
+      let input_messages = [];
+      try {
+        input_messages = JSON.parse(localStorage.getItem("input_messages")) || [];
+      } catch (error) {
+        input_messages = [];
+      }
+
+      // ---------------------------------------------------------
+      // 2. Display Message Locally (Visual Preview with Thumbnails)
+      // ---------------------------------------------------------
+      // We construct a structure similar to what the API returns 
+      // so displayMessage can handle text and images together.
+      let localDisplayContent = [];
+
+      // Add text part if exists
+      if (messageText) {
+        localDisplayContent.push({ type: "text", text: messageText });
+      }
+
+      // Add image parts if exist
+      attachmentsPayload.forEach((att) => {
+        if (att.type.startsWith("image/")) {
+          // Display as image
+          localDisplayContent.push({
+            type: "image_url",
+            image_url: `data:${att.type};base64,${att.data}`,
+          });
+        } else {
+          // Display non-images as text reference
+          localDisplayContent.push({
+            type: "text",
+            text: `<i>[Attached File: ${att.name}]</i>`,
+          });
+        }
       });
 
-      // --- NEW: FILE HANDLING FUNCTIONS ---
+      // Render to UI
+      displayMessage(localDisplayContent, "user");
 
-      function handleFileSelect(event) {
-        const files = Array.from(event.target.files);
-        // Add new files to our array
-        selectedFiles = [...selectedFiles, ...files];
-        renderAttachmentPreview();
-        // Reset the input value so same file can be selected again if needed
-        event.target.value = "";
+      // ---------------------------------------------------------
+      // 3. Reset UI Inputs
+      // ---------------------------------------------------------
+      messageInput.value = "";
+      selectedFiles = []; // Clear global files array
+      renderAttachmentPreview(); // Clear the visual preview bar
+
+      // ---------------------------------------------------------
+      // 4. Check for Templated Actions (SEO/GEO/Social)
+      // ---------------------------------------------------------
+
+      if (messageText.toLowerCase().includes("show options")) {
+        chatMessages = document.getElementById("chat-messages");
+        displayOptions();
+        return;
+      }
+      else if (messageText.includes("I would like to look at SEO today")) {
+        displayTypingIndicator();
+        const sections = [
+          {
+            header: "Keywords",
+            options: [
+              { label: "Keyword Research", value: "I want to do keyword research" },
+              { label: "Check SERPs", value: "I want to check SERPs" },
+              { label: "Rank Checker", value: "I want to check rankings" },
+              { label: "Find Similar Keywords", value: "I want to find similar keywords" },
+              { label: "Keyword Mapping", value: "I want to do keyword mapping" },
+              { label: "Keyword Analysis", value: "I want to do keyword analysis" },
+              { label: "Keyword Density", value: "I want to check the keyword density of a chunk of text." }
+            ],
+          },
+          {
+            header: "Technical SEO",
+            options: [
+              { label: "Check Page Speed", value: "I want to check my pagespeed using GTmetrix" },
+              { label: "Check Domain Authority", value: "I want to check domain authority" },
+              { label: "Generate Schema", value: "I want to generate schema markup" },
+              { label: "Google Webpage Crawler Simulator", value: "I want to simulate the Google Webpage Crawler" },
+            ],
+          },
+          {
+            header: "Content Analysis",
+            options: [
+              { label: "Check Content", value: "I want to check the content I've written" },
+              { label: "Content Comparison", value: "I want to do content comparison" },
+            ],
+          },
+        ];
+        renderOptionsMessage(sections, optionsContainer);
+        return;
+      }
+      else if (messageText.includes("I would like to look at GEO today")) {
+        displayTypingIndicator();
+        const sections = [
+          {
+            header: "Quickstart",
+            options: [
+              { label: "AI SEO audit for brand Research", value: "GEO: Run an AI SEO audit for my brand" },
+              { label: "Improve GEO for website", value: "How can I improve GEO for my website?" },
+              { label: "Compare AI visibility against competitors", value: "GEO: Compare my AI visibility vs competitors" },
+              { label: "GEO prompt proposal", value: "I need prompt proposal for my GEO project" },
+            ],
+          },
+        ];
+        renderOptionsMessage(sections, optionsContainer);
+        return;
+      }
+      else if (messageText.includes("I would like to look at social media today")) {
+        displayTypingIndicator();
+        const sections = [
+          {
+            header: "Social Media",
+            options: [
+              { label: "Check Content", value: "I want to check the content I've written" },
+            ],
+          },
+        ];
+        renderOptionsMessage(sections, optionsContainer);
+        return;
       }
 
-      function removeFile(index) {
-        selectedFiles.splice(index, 1);
-        renderAttachmentPreview();
+      // ---------------------------------------------------------
+      // 5. Send to API (Standard Request)
+      // ---------------------------------------------------------
+      displayTypingIndicator();
+
+      fetch(
+        "https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            question: messageText,
+            input_messages: input_messages,
+            attachments: attachmentsPayload, // Send the processed files
+          }),
+        }
+      )
+        .then((response) => response.json())
+        .then((data) => {
+          processData(data);
+          // Save history handled inside processData/saveConversation
+        })
+        .catch((error) => {
+          hideTypingIndicator();
+          console.error("Error:", error);
+          displayMessage("Error: Could not get response.", "bot");
+          saveConversation();
+        });
+    }
+
+    // ---------------------------------------------------------
+    // Helper Function for Templated Options
+    // ---------------------------------------------------------
+    function renderOptionsMessage(sections, optionsContainer) {
+      const optionsMessage = document.createElement("div");
+      optionsMessage.classList.add("message", "bot");
+      optionsMessage.style.marginBottom = "10px";
+
+      sections.forEach((section) => {
+        const sectionDiv = document.createElement("div");
+        sectionDiv.classList.add("option-section");
+        sectionDiv.style.marginBottom = "15px";
+
+        // Header
+        const header = document.createElement("h4");
+        header.textContent = section.header;
+        header.style.marginBottom = "8px";
+        header.style.color = "#333";
+        sectionDiv.appendChild(header);
+
+        // Button container
+        const buttonContainer = document.createElement("div");
+        buttonContainer.classList.add("button-container");
+
+        section.options.forEach((opt) => {
+          const button = document.createElement("button");
+          button.textContent = opt.label;
+          button.onclick = () => {
+            if (optionsContainer) optionsContainer.style.display = "none";
+            messageInput.value = opt.value;
+            sendMessage();
+          };
+          buttonContainer.appendChild(button);
+        });
+
+        sectionDiv.appendChild(buttonContainer);
+        optionsMessage.appendChild(sectionDiv);
+      });
+
+      // Simulate processing time then show options
+      setTimeout(() => {
+        hideTypingIndicator();
+        chatMessages.appendChild(optionsMessage);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }, 500);
+    }
+
+    // Helper function to render the option buttons to avoid code duplication
+    function renderOptionsMessage(sections, optionsContainer) {
+      const optionsMessage = document.createElement("div");
+      optionsMessage.classList.add("message", "bot");
+      optionsMessage.style.marginBottom = "10px";
+
+      sections.forEach((section) => {
+        const sectionDiv = document.createElement("div");
+        sectionDiv.classList.add("option-section");
+        sectionDiv.style.marginBottom = "15px";
+
+        // Header
+        const header = document.createElement("h4");
+        header.textContent = section.header;
+        header.style.marginBottom = "8px";
+        header.style.color = "#333";
+        sectionDiv.appendChild(header);
+
+        // Button container
+        const buttonContainer = document.createElement("div");
+        buttonContainer.classList.add("button-container");
+
+        section.options.forEach((opt) => {
+          const button = document.createElement("button");
+          button.textContent = opt.label;
+          button.onclick = () => {
+            if (optionsContainer) optionsContainer.style.display = "none";
+            messageInput.value = opt.value;
+            sendMessage();
+          };
+          buttonContainer.appendChild(button);
+        });
+
+        sectionDiv.appendChild(buttonContainer);
+        optionsMessage.appendChild(sectionDiv);
+      });
+
+      // Simulate processing time then show options
+      setTimeout(() => {
+        hideTypingIndicator();
+        chatMessages.appendChild(optionsMessage);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }, 500);
+    }
+
+    function formatMessageContent(content) {
+      if (!content) return "";
+
+      // If it's already a string (old messages), return it
+      if (typeof content === 'string') return content;
+
+      // If it's an array (new messages with potential attachments)
+      if (Array.isArray(content)) {
+        let textAcc = "";
+        let hasAttachment = false;
+
+        content.forEach(item => {
+          // Check for text types
+          if (item.type === 'input_text' || item.type === 'text') {
+            textAcc += item.text + " ";
+          }
+          // Check for image/file types
+          else if (item.type === 'input_image' || item.type === 'image_url') {
+            hasAttachment = true;
+          }
+        });
+
+        // Format the output
+        if (hasAttachment) {
+          return textAcc.trim() ? `${textAcc} <em style="font-size:0.8em; color:#666;">[Attachment]</em>` : `<em style="font-size:0.8em; color:#666;">[Attachment]</em>`;
+        }
+        return textAcc.trim();
       }
 
-      function renderAttachmentPreview() {
-        const previewContainer = document.getElementById('attachment-preview');
-        previewContainer.innerHTML = '';
-        
-        selectedFiles.forEach((file, index) => {
-            const item = document.createElement('div');
-            item.className = 'attachment-item';
-            
-            // 1. Create Thumbnail or Icon
-            let contentDisplay;
-            if (file.type.startsWith('image/')) {
-                const img = document.createElement('img');
-                img.className = 'attachment-thumb';
-                img.src = URL.createObjectURL(file); // Generate preview blob
-                img.onload = () => URL.revokeObjectURL(img.src); // Free memory after loading
-                contentDisplay = img;
+      return JSON.stringify(content); // Fallback
+    }
+
+    async function processData(data) {
+      console.log(data);
+      let input_messages = data.input_messages || [];
+
+      const hasFunctions =
+        Array.isArray(data.functions) && data.functions.length > 0;
+
+      if (!hasFunctions) {
+        // No more tool calls expected — render answer safely
+        if (typeof data.answer === "string" && data.answer.trim()) {
+          displayMessage(data.answer, "bot");
+        } else {
+          displayMessage("Sorry, I could not get an answer.", "bot");
+        }
+        console.log(input_messages);
+        localStorage.setItem(
+          "input_messages",
+          JSON.stringify(input_messages)
+        );
+        saveConversation();
+        hideTypingIndicator();
+        return;
+      }
+
+      // There are pending function calls: execute them serially
+      try {
+        typingIndicator.textContent = "Getting external data...";
+        for (const fn of data.functions) {
+          // fn is [name, args, call_id]
+          const [name, args, call_id] = fn;
+          const function_result = await call_function(name, args);
+
+          // Optional: only set title once (first tool call of a chain)
+          if (
+            !localStorage.getItem("conversation_title") ||
+            localStorage.getItem("conversation_title") === "New Conversation"
+          ) {
+            localStorage.setItem("conversation_title", name);
+          }
+
+          input_messages.push({
+            type: "function_call_output",
+            call_id: call_id,
+            output: JSON.stringify(function_result),
+          });
+        }
+
+        localStorage.setItem(
+          "input_messages",
+          JSON.stringify(input_messages)
+        );
+        saveConversation();
+
+        // Send the tool outputs back to the model and continue the loop
+        await returnFunctionResult();
+      } catch (err) {
+        console.error("Error during function execution chain:", err);
+        hideTypingIndicator();
+        displayMessage(
+          "Error: Could not complete external data retrieval.",
+          "bot"
+        );
+        saveConversation();
+      }
+    }
+
+    async function returnFunctionResult() {
+      try {
+        const input_messages =
+          JSON.parse(localStorage.getItem("input_messages")) || [];
+
+        const resp = await fetch(
+          "https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ input_messages }),
+          }
+        );
+
+        const data = await resp.json();
+        console.log("returnFunctionResult ->", data);
+
+        // Keep chaining until no functions remain
+        const hasFunctions =
+          Array.isArray(data.functions) && data.functions.length > 0;
+
+        if (hasFunctions) {
+          // Re-enter the same decision logic
+          await processData(data);
+          saveConversation();
+          return;
+        }
+
+        // Terminal response
+        if (typeof data.answer === "string" && data.answer.trim()) {
+          displayMessage(data.answer, "bot");
+        } else {
+          displayMessage(
+            "Sorry, I couldn’t parse a reply from the model.",
+            "bot"
+          );
+        }
+
+        localStorage.setItem(
+          "input_messages",
+          JSON.stringify(data.input_messages || input_messages)
+        );
+        saveConversation();
+        hideTypingIndicator();
+      } catch (error) {
+        console.error("Error in returnFunctionResult:", error);
+        hideTypingIndicator();
+        displayMessage("Error: Could not get response.", "bot");
+        saveConversation();
+      }
+    }
+
+    function handleSearch() {
+      const searchTerm = document.getElementById("search-bar").value.trim();
+
+      if (searchTerm.length > 0) {
+        fetchConversations(searchTerm);
+      } else {
+        conversationList.innerHTML = "";
+      }
+    }
+
+    // Function to fetch conversations based on search term
+    async function fetchConversations(searchTerm) {
+      try {
+        const response = await fetch(
+          "https://your-api-endpoint.com/searchConversations",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: searchTerm }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch search results");
+        }
+
+        const conversations = await response.json();
+        displaySearchResults(conversations);
+      } catch (error) {
+        console.error("Error fetching search results:", error);
+        conversationList.innerHTML =
+          '<div class="conversation-item">Error loading results.</div>';
+      }
+    }
+
+    // Function to display the search results
+    function displaySearchResults(conversations) {
+      conversationList.innerHTML = "";
+      if (conversations.length === 0) {
+        conversationList.innerHTML =
+          '<div class="conversation-item">No results found.</div>';
+        return;
+      }
+
+      conversations.forEach((conversation) => {
+        const conversationItem = document.createElement("div");
+        conversationItem.classList.add("conversation-item");
+        conversationItem.id = conversation.id;
+
+        const conversationDetails = document.createElement("div");
+        conversationDetails.classList.add("conversation-details");
+
+        const nameDiv = document.createElement("div");
+        nameDiv.classList.add("name");
+        nameDiv.textContent = conversation.title;
+
+        const latestMessageDiv = document.createElement("div");
+        latestMessageDiv.classList.add("latest-message");
+        const firstMessage = conversation.messages
+          .filter((msg) => msg.role === "user")
+          .shift();
+        latestMessageDiv.textContent = firstMessage
+          ? firstMessage.content
+          : "No messages yet";
+
+        const dateDiv = document.createElement("div");
+        dateDiv.classList.add("date");
+        dateDiv.textContent = conversation.last_updated.split(" ")[0];
+
+        conversationDetails.appendChild(nameDiv);
+        conversationDetails.appendChild(latestMessageDiv);
+        conversationDetails.appendChild(dateDiv);
+
+        conversationItem.appendChild(conversationDetails);
+        conversationList.appendChild(conversationItem);
+      });
+    }
+
+    function displayMessage(content, sender) {
+      const messageDiv = document.createElement("div");
+      messageDiv.classList.add("message", sender);
+
+      // Case 1: Simple String
+      if (typeof content === 'string') {
+        messageDiv.innerHTML = content;
+      }
+      // Case 2: Structured Array (New format)
+      else if (Array.isArray(content)) {
+        content.forEach(item => {
+          // Render Text
+          if (item.type === 'text' || item.type === 'input_text') {
+            if (item.text && item.text.trim() !== "") {
+              const textSpan = document.createElement("div");
+              textSpan.innerHTML = item.text.replace(/\n/g, '<br>');
+              messageDiv.appendChild(textSpan);
+            }
+          }
+          // Render Image
+          else if (item.type === 'image_url' || item.type === 'input_image') {
+            const img = document.createElement("img");
+
+            let src = "";
+            if (typeof item.image_url === 'object') {
+              src = item.image_url.url;
             } else {
-                // For non-images (PDF, etc), show extension
-                const div = document.createElement('div');
-                div.className = 'attachment-icon-placeholder';
-                // Get extension (e.g., pdf, txt)
-                const ext = file.name.split('.').pop().substring(0, 4); 
-                div.textContent = ext || "FILE";
-                contentDisplay = div;
+              src = item.image_url;
             }
 
-            // 2. Create Remove Button
-            const removeBtn = document.createElement('div');
-            removeBtn.className = 'attachment-remove-btn';
-            removeBtn.innerHTML = '&times;';
-            removeBtn.onclick = () => removeFile(index);
+            img.src = src;
+            img.alt = "Uploaded image";
 
-            // 3. Create Name Label
-            const nameSpan = document.createElement('div');
-            nameSpan.className = 'attachment-name';
-            nameSpan.textContent = file.name;
-            nameSpan.title = file.name; // Tooltip for full name
+            // --- NEW: Add Click Handler ---
+            img.onclick = function () {
+              openImageModal(this.src);
+            };
 
-            // Assemble
-            item.appendChild(removeBtn);
-            item.appendChild(contentDisplay);
-            item.appendChild(nameSpan);
-            
-            previewContainer.appendChild(item);
+            messageDiv.appendChild(img);
+          }
         });
       }
 
-      // Helper to convert file to Base64
-      const convertToBase64 = (file) => {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = () => {
-            // result looks like "data:image/png;base64,iVBOR..."
-            // We need to strip the prefix for some APIs, or keep it.
-            // The Python code expects: "data:{type};base64,{data}" construction.
-            // So we need to extract just the base64 part and the mime type.
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
 
-            const result = reader.result;
-            const base64Data = result.split(",")[1]; // Get data after comma
+    async function call_function(name, args) {
+      switch (name) {
+        case "get_serps":
+          return await get_serps(args.keyword, args.language, args.location);
+        case "rank_checker":
+          return await rank_checker(
+            args.keyword,
+            args.language,
+            args.location,
+            args.target
+          );
+        case "moz":
+          return await moz(args.domain);
+        case "gtMetrix":
+          return await gtMetrix(args.target);
+        case "keyword_metrics":
+          return await keyword_metrics(
+            args.keywords,
+            args.location,
+            args.language
+          );
+        case "scrape_webpage":
+          return await scrape_webpage(args.url);
+        case "get_html_values":
+          return await get_html_values(args.url);
+        case "ranking_keywords":
+          return await ranking_keywords(args.target, args.location);
+        case "similar_keywords":
+          return await similar_keywords(
+            args.keywords,
+            args.language,
+            args.location
+          );
+        case "spacy":
+          return await spacy(args.text);
+        case "keywords_for_site":
+          return await keywords_for_site(
+            args.target,
+            args.language,
+            args.location
+          );
+        case "getHTML":
+          return await getHTML(args.target);
+        default:
+          throw new Error(`Function ${name} not found`);
+      }
+    }
 
-            resolve({
-              name: file.name,
-              type: file.type,
-              data: base64Data,
-            });
-          };
-          reader.onerror = (error) => reject(error);
-        });
+    async function get_serps(keyword, language, location) {
+      const url =
+        "https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite";
+      const payload = {
+        keyword: keyword,
+        language: language,
+        location: location,
+      };
+      const headers = {
+        "Content-Type": "application/json",
       };
 
-      function displayTypingIndicator() {
-        typingIndicator.textContent = "Processing...";
-      }
-
-      function hideTypingIndicator() {
-        typingIndicator.textContent = "";
-      }
-
-      async function sendMessage() {
-        const messageText = messageInput.value.trim();
-        const hasAttachments = selectedFiles.length > 0;
-
-        // If no text and no attachments, do nothing
-        if (!messageText && !hasAttachments) return;
-
-        const optionsContainer = document.getElementById("chat-options");
-        if (optionsContainer) optionsContainer.innerHTML = ""; // Clear previous options
-
-        // ---------------------------------------------------------
-        // 1. Process Attachments (Convert to Base64)
-        // ---------------------------------------------------------
-        let attachmentsPayload = [];
-        if (hasAttachments) {
-          try {
-            // Convert all files to { name, type, data }
-            attachmentsPayload = await Promise.all(
-              selectedFiles.map((file) => convertToBase64(file))
-            );
-          } catch (err) {
-            console.error("Error reading files", err);
-            alert("Error reading attached files.");
-            return;
-          }
-        }
-
-        // Get history
-        let input_messages = [];
-        try {
-          input_messages = JSON.parse(localStorage.getItem("input_messages")) || [];
-        } catch (error) {
-          input_messages = [];
-        }
-
-        // ---------------------------------------------------------
-        // 2. Display Message Locally (Visual Preview with Thumbnails)
-        // ---------------------------------------------------------
-        // We construct a structure similar to what the API returns 
-        // so displayMessage can handle text and images together.
-        let localDisplayContent = [];
-
-        // Add text part if exists
-        if (messageText) {
-          localDisplayContent.push({ type: "text", text: messageText });
-        }
-
-        // Add image parts if exist
-        attachmentsPayload.forEach((att) => {
-          if (att.type.startsWith("image/")) {
-            // Display as image
-            localDisplayContent.push({
-              type: "image_url",
-              image_url: `data:${att.type};base64,${att.data}`,
-            });
-          } else {
-            // Display non-images as text reference
-            localDisplayContent.push({
-              type: "text",
-              text: `<i>[Attached File: ${att.name}]</i>`,
-            });
-          }
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload),
         });
 
-        // Render to UI
-        displayMessage(localDisplayContent, "user");
-
-        // ---------------------------------------------------------
-        // 3. Reset UI Inputs
-        // ---------------------------------------------------------
-        messageInput.value = "";
-        selectedFiles = []; // Clear global files array
-        renderAttachmentPreview(); // Clear the visual preview bar
-
-        // ---------------------------------------------------------
-        // 4. Check for Templated Actions (SEO/GEO/Social)
-        // ---------------------------------------------------------
-
-        if (messageText.toLowerCase().includes("show options")) {
-          chatMessages = document.getElementById("chat-messages");
-          displayOptions();
-          return;
-        } 
-        else if (messageText.includes("I would like to look at SEO today")) {
-          displayTypingIndicator();
-          const sections = [
-            {
-              header: "Keywords",
-              options: [
-                { label: "Keyword Research", value: "I want to do keyword research" },
-                { label: "Check SERPs", value: "I want to check SERPs" },
-                { label: "Rank Checker", value: "I want to check rankings" },
-                { label: "Find Similar Keywords", value: "I want to find similar keywords" },
-                { label: "Keyword Mapping", value: "I want to do keyword mapping" },
-                { label: "Keyword Analysis", value: "I want to do keyword analysis" },
-                { label: "Keyword Density", value: "I want to check the keyword density of a chunk of text." }
-              ],
-            },
-            {
-              header: "Technical SEO",
-              options: [
-                { label: "Check Page Speed", value: "I want to check my pagespeed using GTmetrix" },
-                { label: "Check Domain Authority", value: "I want to check domain authority" },
-                { label: "Generate Schema", value: "I want to generate schema markup" },
-                { label: "Google Webpage Crawler Simulator", value: "I want to simulate the Google Webpage Crawler" },
-              ],
-            },
-            {
-              header: "Content Analysis",
-              options: [
-                { label: "Check Content", value: "I want to check the content I've written" },
-                { label: "Content Comparison", value: "I want to do content comparison" },
-              ],
-            },
-          ];
-          renderOptionsMessage(sections, optionsContainer);
-          return;
-        } 
-        else if (messageText.includes("I would like to look at GEO today")) {
-          displayTypingIndicator();
-          const sections = [
-            {
-              header: "Quickstart",
-              options: [
-                { label: "AI SEO audit for brand Research", value: "GEO: Run an AI SEO audit for my brand" },
-                { label: "Improve GEO for website", value: "How can I improve GEO for my website?" },
-                { label: "Compare AI visibility against competitors", value: "GEO: Compare my AI visibility vs competitors" },
-                { label: "GEO prompt proposal", value: "I need prompt proposal for my GEO project" },
-              ],
-            },
-          ];
-          renderOptionsMessage(sections, optionsContainer);
-          return;
-        } 
-        else if (messageText.includes("I would like to look at social media today")) {
-          displayTypingIndicator();
-          const sections = [
-            {
-              header: "Social Media",
-              options: [
-                { label: "Check Content", value: "I want to check the content I've written" },
-              ],
-            },
-          ];
-          renderOptionsMessage(sections, optionsContainer);
-          return;
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        // ---------------------------------------------------------
-        // 5. Send to API (Standard Request)
-        // ---------------------------------------------------------
-        displayTypingIndicator();
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("Error in get_serps:", error);
+        throw error; // Re-throw to allow handling further up the call stack
+      }
+    }
 
-        fetch(
-          "https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2",
+    async function rank_checker(keyword, language, location, target) {
+      const url =
+        "https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker";
+      const payload = {
+        keyword: keyword,
+        language: language,
+        location: location,
+        target: target,
+      };
+      const headers = {
+        "Content-Type": "application/json",
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("Error in rank_checker:", error);
+        throw error;
+      }
+    }
+
+    async function getHTML(target) {
+      const url =
+        "https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml";
+      const payload = {
+        url: target,
+      };
+      const headers = {
+        "Content-Type": "application/json",
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("Error in getHtml:", error);
+        throw error;
+      }
+    }
+
+    async function moz(domain) {
+      const url =
+        "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
+      const payload = {
+        domain: domain,
+      };
+      const headers = {
+        "Content-Type": "application/json",
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("Error in moz:", error);
+        throw error;
+      }
+    }
+
+    async function keyword_metrics(keywords, location, language) {
+      const url =
+        "https://eo2ckwvxmf.execute-api.ap-southeast-1.amazonaws.com/keywordMetrics";
+      const payload = {
+        keywords: keywords,
+        language: language,
+        location: location,
+      };
+      const headers = {
+        "Content-Type": "application/json",
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("Error in keyword_metrics:", error);
+        throw error;
+      }
+    }
+
+    async function scrape_webpage(target_url) {
+      const url =
+        "https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing";
+      const payload = {
+        url: target_url,
+      };
+      const headers = {
+        "Content-Type": "application/json",
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("Error in scrape_webpage:", error);
+        throw error;
+      }
+    }
+
+    async function get_html_values(target_url) {
+      const url =
+        "https://udjdc333m9.execute-api.ap-southeast-1.amazonaws.com/getImages";
+      const payload = {
+        url: target_url,
+      };
+      const headers = {
+        "Content-Type": "application/json",
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("Error in scrape_webpage:", error);
+        throw error;
+      }
+    }
+
+    async function ranking_keywords(target, location) {
+      const url =
+        "https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords";
+      const payload = {
+        target: target,
+        location: location,
+      };
+      const headers = {
+        "Content-Type": "application/json",
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("Error in ranking_keywords:", error);
+        throw error;
+      }
+    }
+
+    async function spacy(text) {
+      const url =
+        "https://mxyyoh5y2d.execute-api.ap-southeast-1.amazonaws.com/spacy";
+      const payload = {
+        text: text,
+      };
+      const headers = {
+        "Content-Type": "application/json",
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("Error in keyword frequency:", error);
+        throw error;
+      }
+    }
+
+    async function similar_keywords(keywords, language, location) {
+      const url =
+        "https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords";
+      const payload = {
+        keywords: keywords,
+        location: location,
+        language: language,
+      };
+      const headers = {
+        "Content-Type": "application/json",
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("Error in similar_keywords:", error);
+        throw error;
+      }
+    }
+
+    async function keywords_for_site(target_url, language, location) {
+      const url =
+        "https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite";
+      const payload = {
+        target: target_url,
+        location: location,
+        language: language,
+      };
+      const headers = {
+        "Content-Type": "application/json",
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("Error in keywords_for_site:", error);
+        throw error;
+      }
+    }
+
+    async function gtMetrix(target) {
+      try {
+        response = await fetch(
+          "https://y5830908vh.execute-api.ap-southeast-1.amazonaws.com/gtmetrix",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ url: target }),
+          }
+        );
+        const data = await response.json();
+
+        return data;
+      } catch (error) {
+        console.error("Error in gtMetrix:", error);
+        throw error;
+      }
+    }
+
+    function setActiveClass(element) {
+      // Remove 'active' class from any previously active items
+      let activeItems = document.querySelectorAll(
+        ".conversation-item.active"
+      );
+      activeItems.forEach((item) => {
+        item.classList.remove("active");
+      });
+
+      // Add 'active' class to the clicked element
+      element.classList.add("active");
+    }
+
+    window.onload = function () {
+      //displayMessage('Hello! How can I help you today?', 'bot');
+      localStorage.setItem("input_messages", []);
+      localStorage.setItem("conversation_title", "New Conversation");
+      displayOptions(); // show the quick buttons after greeting
+      loadPastConversations();
+    };
+
+    // Function to display option buttons inside a message bubble
+    function displayOptions() {
+      chatMessages.innerHTML +=
+        '<div class="chat-options" id="chat-options" style="display: none;"></div>';
+      const optionsContainer = document.getElementById("chat-options");
+      optionsContainer.innerHTML = ""; // clear previous options
+
+      // Create the main message
+      const optionsMessage = document.createElement("div");
+      optionsMessage.classList.add("message", "bot");
+      optionsMessage.style.marginBottom = "10px";
+      optionsMessage.innerHTML =
+        "Which area would you like to explore today?";
+
+      const pathwayOne = [
+        {
+          header: "Focus",
+          options: [
+            {
+              label: "Search Engine Optimisation (SEO)",
+              value: "I would like to look at SEO today",
+            },
+            {
+              label: "Generative Engine Optimisation (GEO)",
+              value: "I would like to look at GEO today",
+            },
+            {
+              label: "Paid Ads",
+              value: "I would like to look at Paid Ads today",
+            },
+            {
+              label: "Social Media",
+              value: "I would like to look at social media today",
+            },
+          ],
+        },
+      ];
+
+      pathwayOne.forEach((section) => {
+        const sectionDiv = document.createElement("div");
+        sectionDiv.classList.add("option-section");
+        sectionDiv.style.marginBottom = "15px";
+
+        // Header
+        const header = document.createElement("h4");
+        header.textContent = section.header;
+        header.style.marginBottom = "8px";
+        header.style.color = "#333";
+        sectionDiv.appendChild(header);
+
+        // Button container
+        const buttonContainer = document.createElement("div");
+        buttonContainer.classList.add("button-container");
+
+        section.options.forEach((opt) => {
+          const button = document.createElement("button");
+          button.textContent = opt.label;
+          button.onclick = () => {
+            optionsContainer.style.display = "none"; // Hide after selection
+            messageInput.value = opt.value;
+            sendMessage();
+          };
+          buttonContainer.appendChild(button);
+        });
+
+        sectionDiv.appendChild(buttonContainer);
+        optionsMessage.appendChild(sectionDiv);
+      });
+
+      chatMessages.appendChild(optionsMessage);
+
+      // Scroll to bottom of chat messages
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    async function loadPastConversations() {
+      const userEmail = "kenneth@mediaone.co";
+
+      try {
+        const response = await fetch(
+          "https://ro2g6qodt1.execute-api.ap-southeast-1.amazonaws.com/chatbotPastConversations",
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              question: messageText,
-              input_messages: input_messages,
-              attachments: attachmentsPayload, // Send the processed files
+              user: userEmail,
             }),
           }
-        )
-          .then((response) => response.json())
-          .then((data) => {
-            processData(data);
-            // Save history handled inside processData/saveConversation
-          })
-          .catch((error) => {
-            hideTypingIndicator();
-            console.error("Error:", error);
-            displayMessage("Error: Could not get response.", "bot");
-            saveConversation();
-          });
-      }
-
-      // ---------------------------------------------------------
-      // Helper Function for Templated Options
-      // ---------------------------------------------------------
-      function renderOptionsMessage(sections, optionsContainer) {
-          const optionsMessage = document.createElement("div");
-          optionsMessage.classList.add("message", "bot");
-          optionsMessage.style.marginBottom = "10px";
-
-          sections.forEach((section) => {
-            const sectionDiv = document.createElement("div");
-            sectionDiv.classList.add("option-section");
-            sectionDiv.style.marginBottom = "15px";
-
-            // Header
-            const header = document.createElement("h4");
-            header.textContent = section.header;
-            header.style.marginBottom = "8px";
-            header.style.color = "#333";
-            sectionDiv.appendChild(header);
-
-            // Button container
-            const buttonContainer = document.createElement("div");
-            buttonContainer.classList.add("button-container");
-
-            section.options.forEach((opt) => {
-              const button = document.createElement("button");
-              button.textContent = opt.label;
-              button.onclick = () => {
-                if(optionsContainer) optionsContainer.style.display = "none";
-                messageInput.value = opt.value;
-                sendMessage();
-              };
-              buttonContainer.appendChild(button);
-            });
-
-            sectionDiv.appendChild(buttonContainer);
-            optionsMessage.appendChild(sectionDiv);
-          });
-
-          // Simulate processing time then show options
-          setTimeout(() => {
-            hideTypingIndicator();
-            chatMessages.appendChild(optionsMessage);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-          }, 500); 
-      }
-
-      // Helper function to render the option buttons to avoid code duplication
-      function renderOptionsMessage(sections, optionsContainer) {
-        const optionsMessage = document.createElement("div");
-        optionsMessage.classList.add("message", "bot");
-        optionsMessage.style.marginBottom = "10px";
-
-        sections.forEach((section) => {
-          const sectionDiv = document.createElement("div");
-          sectionDiv.classList.add("option-section");
-          sectionDiv.style.marginBottom = "15px";
-
-          // Header
-          const header = document.createElement("h4");
-          header.textContent = section.header;
-          header.style.marginBottom = "8px";
-          header.style.color = "#333";
-          sectionDiv.appendChild(header);
-
-          // Button container
-          const buttonContainer = document.createElement("div");
-          buttonContainer.classList.add("button-container");
-
-          section.options.forEach((opt) => {
-            const button = document.createElement("button");
-            button.textContent = opt.label;
-            button.onclick = () => {
-              if (optionsContainer) optionsContainer.style.display = "none";
-              messageInput.value = opt.value;
-              sendMessage();
-            };
-            buttonContainer.appendChild(button);
-          });
-
-          sectionDiv.appendChild(buttonContainer);
-          optionsMessage.appendChild(sectionDiv);
-        });
-
-        // Simulate processing time then show options
-        setTimeout(() => {
-          hideTypingIndicator();
-          chatMessages.appendChild(optionsMessage);
-          chatMessages.scrollTop = chatMessages.scrollHeight;
-        }, 500);
-      }
-
-      function formatMessageContent(content) {
-        if (!content) return "";
-        
-        // If it's already a string (old messages), return it
-        if (typeof content === 'string') return content;
-        
-        // If it's an array (new messages with potential attachments)
-        if (Array.isArray(content)) {
-            let textAcc = "";
-            let hasAttachment = false;
-            
-            content.forEach(item => {
-                // Check for text types
-                if (item.type === 'input_text' || item.type === 'text') {
-                    textAcc += item.text + " ";
-                } 
-                // Check for image/file types
-                else if (item.type === 'input_image' || item.type === 'image_url') {
-                    hasAttachment = true;
-                }
-            });
-            
-            // Format the output
-            if (hasAttachment) {
-                return textAcc.trim() ? `${textAcc} <em style="font-size:0.8em; color:#666;">[Attachment]</em>` : `<em style="font-size:0.8em; color:#666;">[Attachment]</em>`;
-            }
-            return textAcc.trim();
-        }
-        
-        return JSON.stringify(content); // Fallback
-      }
-
-      async function processData(data) {
-        console.log(data);
-        let input_messages = data.input_messages || [];
-
-        const hasFunctions =
-          Array.isArray(data.functions) && data.functions.length > 0;
-
-        if (!hasFunctions) {
-          // No more tool calls expected — render answer safely
-          if (typeof data.answer === "string" && data.answer.trim()) {
-            displayMessage(data.answer, "bot");
-          } else {
-            displayMessage("Sorry, I could not get an answer.", "bot");
-          }
-          console.log(input_messages);
-          localStorage.setItem(
-            "input_messages",
-            JSON.stringify(input_messages)
-          );
-          saveConversation();
-          hideTypingIndicator();
-          return;
-        }
-
-        // There are pending function calls: execute them serially
-        try {
-          typingIndicator.textContent = "Getting external data...";
-          for (const fn of data.functions) {
-            // fn is [name, args, call_id]
-            const [name, args, call_id] = fn;
-            const function_result = await call_function(name, args);
-
-            // Optional: only set title once (first tool call of a chain)
-            if (
-              !localStorage.getItem("conversation_title") ||
-              localStorage.getItem("conversation_title") === "New Conversation"
-            ) {
-              localStorage.setItem("conversation_title", name);
-            }
-
-            input_messages.push({
-              type: "function_call_output",
-              call_id: call_id,
-              output: JSON.stringify(function_result),
-            });
-          }
-
-          localStorage.setItem(
-            "input_messages",
-            JSON.stringify(input_messages)
-          );
-          saveConversation();
-
-          // Send the tool outputs back to the model and continue the loop
-          await returnFunctionResult();
-        } catch (err) {
-          console.error("Error during function execution chain:", err);
-          hideTypingIndicator();
-          displayMessage(
-            "Error: Could not complete external data retrieval.",
-            "bot"
-          );
-          saveConversation();
-        }
-      }
-
-      async function returnFunctionResult() {
-        try {
-          const input_messages =
-            JSON.parse(localStorage.getItem("input_messages")) || [];
-
-          const resp = await fetch(
-            "https://8q9qwp4ytd.execute-api.ap-southeast-1.amazonaws.com/gptResponses2",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ input_messages }),
-            }
-          );
-
-          const data = await resp.json();
-          console.log("returnFunctionResult ->", data);
-
-          // Keep chaining until no functions remain
-          const hasFunctions =
-            Array.isArray(data.functions) && data.functions.length > 0;
-
-          if (hasFunctions) {
-            // Re-enter the same decision logic
-            await processData(data);
-            saveConversation();
-            return;
-          }
-
-          // Terminal response
-          if (typeof data.answer === "string" && data.answer.trim()) {
-            displayMessage(data.answer, "bot");
-          } else {
-            displayMessage(
-              "Sorry, I couldn’t parse a reply from the model.",
-              "bot"
-            );
-          }
-
-          localStorage.setItem(
-            "input_messages",
-            JSON.stringify(data.input_messages || input_messages)
-          );
-          saveConversation();
-          hideTypingIndicator();
-        } catch (error) {
-          console.error("Error in returnFunctionResult:", error);
-          hideTypingIndicator();
-          displayMessage("Error: Could not get response.", "bot");
-          saveConversation();
-        }
-      }
-
-      function handleSearch() {
-        const searchTerm = document.getElementById("search-bar").value.trim();
-
-        if (searchTerm.length > 0) {
-          fetchConversations(searchTerm);
-        } else {
-          conversationList.innerHTML = "";
-        }
-      }
-
-      // Function to fetch conversations based on search term
-      async function fetchConversations(searchTerm) {
-        try {
-          const response = await fetch(
-            "https://your-api-endpoint.com/searchConversations",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ query: searchTerm }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error("Failed to fetch search results");
-          }
-
-          const conversations = await response.json();
-          displaySearchResults(conversations);
-        } catch (error) {
-          console.error("Error fetching search results:", error);
-          conversationList.innerHTML =
-            '<div class="conversation-item">Error loading results.</div>';
-        }
-      }
-
-      // Function to display the search results
-      function displaySearchResults(conversations) {
-        conversationList.innerHTML = "";
-        if (conversations.length === 0) {
-          conversationList.innerHTML =
-            '<div class="conversation-item">No results found.</div>';
-          return;
-        }
-
-        conversations.forEach((conversation) => {
-          const conversationItem = document.createElement("div");
-          conversationItem.classList.add("conversation-item");
-          conversationItem.id = conversation.id;
-
-          const conversationDetails = document.createElement("div");
-          conversationDetails.classList.add("conversation-details");
-
-          const nameDiv = document.createElement("div");
-          nameDiv.classList.add("name");
-          nameDiv.textContent = conversation.title;
-
-          const latestMessageDiv = document.createElement("div");
-          latestMessageDiv.classList.add("latest-message");
-          const firstMessage = conversation.messages
-            .filter((msg) => msg.role === "user")
-            .shift();
-          latestMessageDiv.textContent = firstMessage
-            ? firstMessage.content
-            : "No messages yet";
-
-          const dateDiv = document.createElement("div");
-          dateDiv.classList.add("date");
-          dateDiv.textContent = conversation.last_updated.split(" ")[0];
-
-          conversationDetails.appendChild(nameDiv);
-          conversationDetails.appendChild(latestMessageDiv);
-          conversationDetails.appendChild(dateDiv);
-
-          conversationItem.appendChild(conversationDetails);
-          conversationList.appendChild(conversationItem);
-        });
-      }
-
-      function displayMessage(content, sender) {
-        const messageDiv = document.createElement("div");
-        messageDiv.classList.add("message", sender);
-
-        // Case 1: Simple String
-        if (typeof content === 'string') {
-            messageDiv.innerHTML = content;
-        } 
-        // Case 2: Structured Array (New format)
-        else if (Array.isArray(content)) {
-            content.forEach(item => {
-                // Render Text
-                if (item.type === 'text' || item.type === 'input_text') {
-                    if (item.text && item.text.trim() !== "") {
-                        const textSpan = document.createElement("div");
-                        textSpan.innerHTML = item.text.replace(/\n/g, '<br>'); 
-                        messageDiv.appendChild(textSpan);
-                    }
-                } 
-                // Render Image
-                else if (item.type === 'image_url' || item.type === 'input_image') {
-                    const img = document.createElement("img");
-                    
-                    let src = "";
-                    if (typeof item.image_url === 'object') {
-                        src = item.image_url.url;
-                    } else {
-                        src = item.image_url;
-                    }
-                    
-                    img.src = src;
-                    img.alt = "Uploaded image";
-                    
-                    // --- NEW: Add Click Handler ---
-                    img.onclick = function() {
-                        openImageModal(this.src);
-                    };
-                    
-                    messageDiv.appendChild(img);
-                }
-            });
-        }
-
-        chatMessages.appendChild(messageDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-      }
-
-      async function call_function(name, args) {
-        switch (name) {
-          case "get_serps":
-            return await get_serps(args.keyword, args.language, args.location);
-          case "rank_checker":
-            return await rank_checker(
-              args.keyword,
-              args.language,
-              args.location,
-              args.target
-            );
-          case "moz":
-            return await moz(args.domain);
-          case "gtMetrix":
-            return await gtMetrix(args.target);
-          case "keyword_metrics":
-            return await keyword_metrics(
-              args.keywords,
-              args.location,
-              args.language
-            );
-          case "scrape_webpage":
-            return await scrape_webpage(args.url);
-          case "get_html_values":
-            return await get_html_values(args.url);
-          case "ranking_keywords":
-            return await ranking_keywords(args.target, args.location);
-          case "similar_keywords":
-            return await similar_keywords(
-              args.keywords,
-              args.language,
-              args.location
-            );
-          case "spacy":
-            return await spacy(args.text);
-          case "keywords_for_site":
-            return await keywords_for_site(
-              args.target,
-              args.language,
-              args.location
-            );
-          case "getHTML":
-            return await getHTML(args.target);
-          default:
-            throw new Error(`Function ${name} not found`);
-        }
-      }
-
-      async function get_serps(keyword, language, location) {
-        const url =
-          "https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite";
-        const payload = {
-          keyword: keyword,
-          language: language,
-          location: location,
-        };
-        const headers = {
-          "Content-Type": "application/json",
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in get_serps:", error);
-          throw error; // Re-throw to allow handling further up the call stack
-        }
-      }
-
-      async function rank_checker(keyword, language, location, target) {
-        const url =
-          "https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker";
-        const payload = {
-          keyword: keyword,
-          language: language,
-          location: location,
-          target: target,
-        };
-        const headers = {
-          "Content-Type": "application/json",
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in rank_checker:", error);
-          throw error;
-        }
-      }
-
-      async function getHTML(target) {
-        const url =
-          "https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml";
-        const payload = {
-          url: target,
-        };
-        const headers = {
-          "Content-Type": "application/json",
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in getHtml:", error);
-          throw error;
-        }
-      }
-
-      async function moz(domain) {
-        const url =
-          "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
-        const payload = {
-          domain: domain,
-        };
-        const headers = {
-          "Content-Type": "application/json",
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in moz:", error);
-          throw error;
-        }
-      }
-
-      async function keyword_metrics(keywords, location, language) {
-        const url =
-          "https://eo2ckwvxmf.execute-api.ap-southeast-1.amazonaws.com/keywordMetrics";
-        const payload = {
-          keywords: keywords,
-          language: language,
-          location: location,
-        };
-        const headers = {
-          "Content-Type": "application/json",
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in keyword_metrics:", error);
-          throw error;
-        }
-      }
-
-      async function scrape_webpage(target_url) {
-        const url =
-          "https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing";
-        const payload = {
-          url: target_url,
-        };
-        const headers = {
-          "Content-Type": "application/json",
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in scrape_webpage:", error);
-          throw error;
-        }
-      }
-
-      async function get_html_values(target_url) {
-        const url =
-          "https://udjdc333m9.execute-api.ap-southeast-1.amazonaws.com/getImages";
-        const payload = {
-          url: target_url,
-        };
-        const headers = {
-          "Content-Type": "application/json",
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in scrape_webpage:", error);
-          throw error;
-        }
-      }
-
-      async function ranking_keywords(target, location) {
-        const url =
-          "https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords";
-        const payload = {
-          target: target,
-          location: location,
-        };
-        const headers = {
-          "Content-Type": "application/json",
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in ranking_keywords:", error);
-          throw error;
-        }
-      }
-
-      async function spacy(text) {
-        const url =
-          "https://mxyyoh5y2d.execute-api.ap-southeast-1.amazonaws.com/spacy";
-        const payload = {
-          text: text,
-        };
-        const headers = {
-          "Content-Type": "application/json",
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in keyword frequency:", error);
-          throw error;
-        }
-      }
-
-      async function similar_keywords(keywords, language, location) {
-        const url =
-          "https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords";
-        const payload = {
-          keywords: keywords,
-          location: location,
-          language: language,
-        };
-        const headers = {
-          "Content-Type": "application/json",
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in similar_keywords:", error);
-          throw error;
-        }
-      }
-
-      async function keywords_for_site(target_url, language, location) {
-        const url =
-          "https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite";
-        const payload = {
-          target: target_url,
-          location: location,
-          language: language,
-        };
-        const headers = {
-          "Content-Type": "application/json",
-        };
-
-        try {
-          const response = await fetch(url, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error("Error in keywords_for_site:", error);
-          throw error;
-        }
-      }
-
-      async function gtMetrix(target) {
-        try {
-          response = await fetch(
-            "https://y5830908vh.execute-api.ap-southeast-1.amazonaws.com/gtmetrix",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ url: target }),
-            }
-          );
-          const data = await response.json();
-
-          return data;
-        } catch (error) {
-          console.error("Error in gtMetrix:", error);
-          throw error;
-        }
-      }
-
-      function setActiveClass(element) {
-        // Remove 'active' class from any previously active items
-        let activeItems = document.querySelectorAll(
-          ".conversation-item.active"
         );
-        activeItems.forEach((item) => {
-          item.classList.remove("active");
-        });
 
-        // Add 'active' class to the clicked element
-        element.classList.add("active");
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const conversations = await response.json();
+        console.log(conversations);
+        populateConversationList(conversations);
+      } catch (error) {
+        console.error("Error fetching past conversations:", error);
+        conversationList.innerHTML =
+          '<div class="conversation-item">Error loading conversations.</div>';
       }
+    }
 
-      window.onload = function () {
-        //displayMessage('Hello! How can I help you today?', 'bot');
-        localStorage.setItem("input_messages", []);
-        localStorage.setItem("conversation_title", "New Conversation");
-        displayOptions(); // show the quick buttons after greeting
-        loadPastConversations();
-      };
+    function populateConversationList(conversations) {
+      conversationList.innerHTML = "";
 
-      // Function to display option buttons inside a message bubble
-      function displayOptions() {
-        chatMessages.innerHTML +=
-          '<div class="chat-options" id="chat-options" style="display: none;"></div>';
-        const optionsContainer = document.getElementById("chat-options");
-        optionsContainer.innerHTML = ""; // clear previous options
+      conversations.forEach((conversation) => {
+        const conversationItem = document.createElement("div");
+        conversationItem.classList.add("conversation-item");
+        conversationItem.id = conversation.id;
+        conversationItem.addEventListener("click", () =>
+          loadConversation(conversation)
+        );
 
-        // Create the main message
-        const optionsMessage = document.createElement("div");
-        optionsMessage.classList.add("message", "bot");
-        optionsMessage.style.marginBottom = "10px";
-        optionsMessage.innerHTML =
-          "Which area would you like to explore today?";
+        const conversationDetails = document.createElement("div");
+        conversationDetails.classList.add("conversation-details");
 
-        const pathwayOne = [
+        const nameDiv = document.createElement("div");
+        nameDiv.classList.add("name");
+        nameDiv.textContent = conversation.title;
+
+        const latestMessageDiv = document.createElement("div");
+        latestMessageDiv.classList.add("latest-message");
+
+        // Get the first user message
+        const firstMessage = conversation.messages
+          .filter((msg) => msg.role === "user")
+          .shift();
+
+        // Use helper to format the preview text
+        const previewText = firstMessage
+          ? formatMessageContent(firstMessage.content)
+          : "No messages yet";
+
+        latestMessageDiv.innerHTML = previewText; // Use innerHTML to render the <em> tags
+
+        const dateDiv = document.createElement("div");
+        dateDiv.classList.add("date");
+        dateDiv.textContent = conversation.last_updated.split(" ")[0];
+
+        conversationDetails.appendChild(nameDiv);
+        conversationDetails.appendChild(latestMessageDiv);
+        conversationDetails.appendChild(dateDiv);
+
+        // Create the delete button
+        const deleteButton = document.createElement("button");
+        deleteButton.classList.add("delete-button");
+        deleteButton.textContent = "Delete";
+
+        // Stop propagation so clicking delete doesn't load the chat
+        deleteButton.onclick = (e) => {
+          e.stopPropagation();
+          deleteConversation(conversation.id);
+        };
+
+        conversationItem.appendChild(conversationDetails);
+        conversationItem.appendChild(deleteButton);
+        conversationList.appendChild(conversationItem);
+      });
+    }
+
+    // Function to delete the conversation
+    async function deleteConversation(conversationId) {
+      try {
+        // Send delete API request
+        const response = await fetch(
+          "https://zuhpw7ts50.execute-api.ap-southeast-1.amazonaws.com/deleteChatbotConversation", // Replace with actual API endpoint
           {
-            header: "Focus",
-            options: [
-              {
-                label: "Search Engine Optimisation (SEO)",
-                value: "I would like to look at SEO today",
-              },
-              {
-                label: "Generative Engine Optimisation (GEO)",
-                value: "I would like to look at GEO today",
-              },
-              {
-                label: "Paid Ads",
-                value: "I would like to look at Paid Ads today",
-              },
-              {
-                label: "Social Media",
-                value: "I would like to look at social media today",
-              },
-            ],
-          },
-        ];
-
-        pathwayOne.forEach((section) => {
-          const sectionDiv = document.createElement("div");
-          sectionDiv.classList.add("option-section");
-          sectionDiv.style.marginBottom = "15px";
-
-          // Header
-          const header = document.createElement("h4");
-          header.textContent = section.header;
-          header.style.marginBottom = "8px";
-          header.style.color = "#333";
-          sectionDiv.appendChild(header);
-
-          // Button container
-          const buttonContainer = document.createElement("div");
-          buttonContainer.classList.add("button-container");
-
-          section.options.forEach((opt) => {
-            const button = document.createElement("button");
-            button.textContent = opt.label;
-            button.onclick = () => {
-              optionsContainer.style.display = "none"; // Hide after selection
-              messageInput.value = opt.value;
-              sendMessage();
-            };
-            buttonContainer.appendChild(button);
-          });
-
-          sectionDiv.appendChild(buttonContainer);
-          optionsMessage.appendChild(sectionDiv);
-        });
-
-        chatMessages.appendChild(optionsMessage);
-
-        // Scroll to bottom of chat messages
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-      }
-
-      async function loadPastConversations() {
-        const userEmail = "kenneth@mediaone.co";
-
-        try {
-          const response = await fetch(
-            "https://ro2g6qodt1.execute-api.ap-southeast-1.amazonaws.com/chatbotPastConversations",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                user: userEmail,
-              }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ conversation_id: conversationId }),
           }
-
-          const conversations = await response.json();
-          console.log(conversations);
-          populateConversationList(conversations);
-        } catch (error) {
-          console.error("Error fetching past conversations:", error);
-          conversationList.innerHTML =
-            '<div class="conversation-item">Error loading conversations.</div>';
-        }
-      }
-
-      function populateConversationList(conversations) {
-        conversationList.innerHTML = "";
-
-        conversations.forEach((conversation) => {
-          const conversationItem = document.createElement("div");
-          conversationItem.classList.add("conversation-item");
-          conversationItem.id = conversation.id;
-          conversationItem.addEventListener("click", () =>
-            loadConversation(conversation)
-          );
-
-          const conversationDetails = document.createElement("div");
-          conversationDetails.classList.add("conversation-details");
-
-          const nameDiv = document.createElement("div");
-          nameDiv.classList.add("name");
-          nameDiv.textContent = conversation.title;
-
-          const latestMessageDiv = document.createElement("div");
-          latestMessageDiv.classList.add("latest-message");
-          
-          // Get the first user message
-          const firstMessage = conversation.messages
-            .filter((msg) => msg.role === "user")
-            .shift();
-          
-          // Use helper to format the preview text
-          const previewText = firstMessage 
-            ? formatMessageContent(firstMessage.content) 
-            : "No messages yet";
-            
-          latestMessageDiv.innerHTML = previewText; // Use innerHTML to render the <em> tags
-
-          const dateDiv = document.createElement("div");
-          dateDiv.classList.add("date");
-          dateDiv.textContent = conversation.last_updated.split(" ")[0];
-
-          conversationDetails.appendChild(nameDiv);
-          conversationDetails.appendChild(latestMessageDiv);
-          conversationDetails.appendChild(dateDiv);
-
-          // Create the delete button
-          const deleteButton = document.createElement("button");
-          deleteButton.classList.add("delete-button");
-          deleteButton.textContent = "Delete";
-          
-          // Stop propagation so clicking delete doesn't load the chat
-          deleteButton.onclick = (e) => {
-              e.stopPropagation(); 
-              deleteConversation(conversation.id);
-          };
-
-          conversationItem.appendChild(conversationDetails);
-          conversationItem.appendChild(deleteButton);
-          conversationList.appendChild(conversationItem);
-        });
-      }
-
-      // Function to delete the conversation
-      async function deleteConversation(conversationId) {
-        try {
-          // Send delete API request
-          const response = await fetch(
-            "https://zuhpw7ts50.execute-api.ap-southeast-1.amazonaws.com/deleteChatbotConversation", // Replace with actual API endpoint
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ conversation_id: conversationId }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          // Successfully deleted, remove from UI
-          document.getElementById(conversationId).remove();
-        } catch (error) {
-          console.error("Error deleting conversation:", error);
-        }
-      }
-
-      async function loadConversation(conversation) {
-        localStorage.setItem("conversation_id", conversation["id"]);
-        chatMessages.innerHTML = "";
-
-        const filteredMessages = conversation.messages.filter(
-          (message) => message.role === "user" || message.role === "assistant"
         );
 
-        filteredMessages.forEach((message) => {
-            // PASS RAW CONTENT to displayMessage, do not format it to string here.
-            // displayMessage now handles the objects/arrays.
-            if (message.role === "user") {
-                displayMessage(message.content, "user");
-            } else if (message.role === "assistant") {
-                displayMessage(message.content, "bot");
-            }
-        });
-
-        localStorage.setItem(
-          "input_messages",
-          JSON.stringify(conversation.messages)
-        );
-      }
-
-      async function saveConversation() {
-        try {
-          const response = await fetch(
-            "https://8i8tbru5m2.execute-api.ap-southeast-1.amazonaws.com/createUpdateConversation",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                user: userEmail,
-                conversation_id: localStorage.getItem("conversation_id"),
-                messages: JSON.parse(localStorage.getItem("input_messages")),
-                title: localStorage.getItem("conversation_title"),
-              }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          output = await response.json();
-          if (localStorage.getItem("conversation_id") == "") {
-            localStorage.setItem("conversation_id", output);
-          }
-
-          loadPastConversations();
-        } catch (error) {
-          console.error("Error updating/creating conversations:", error);
-          // Display a user-friendly error message in the conversation list
-          conversationList.innerHTML =
-            '<div class="conversation-item">Error creating / updating conversations.</div>';
-          loadPastConversations();
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
+
+        // Successfully deleted, remove from UI
+        document.getElementById(conversationId).remove();
+      } catch (error) {
+        console.error("Error deleting conversation:", error);
       }
+    }
 
-      function startNewConversation() {
-        // Clear chat messages
-        chatMessages.innerHTML = "";
-        localStorage.setItem("conversation_id", "");
-        localStorage.setItem("input_messages", []);
-        localStorage.setItem("conversation_title", "New Conversation");
+    async function loadConversation(conversation) {
+      localStorage.setItem("conversation_id", conversation["id"]);
+      chatMessages.innerHTML = "";
 
-        // Clear local storage
-        localStorage.removeItem("input_messages");
-        localStorage.setItem("input_messages", JSON.stringify([]));
+      const filteredMessages = conversation.messages.filter(
+        (message) => message.role === "user" || message.role === "assistant"
+      );
 
-        // Display initial bot message
-        displayMessage("Hello! How can I help you today?", "bot");
-
-        // Display options
-        displayOptions();
-      }
-
-      // --- MODAL FUNCTIONS ---
-      function openImageModal(src) {
-        const modal = document.getElementById("image-modal");
-        const modalImg = document.getElementById("img-modal-full");
-        
-        modal.style.display = "flex";
-        modal.style.alignItems = "center";
-        modal.style.justifyContent = "center";
-        modalImg.src = src;
-      }
-
-      function closeImageModal() {
-        const modal = document.getElementById("image-modal");
-        modal.style.display = "none";
-      }
-      
-      // Close modal on Escape key
-      document.addEventListener('keydown', function(event) {
-        if (event.key === "Escape") {
-            closeImageModal();
+      filteredMessages.forEach((message) => {
+        // PASS RAW CONTENT to displayMessage, do not format it to string here.
+        // displayMessage now handles the objects/arrays.
+        if (message.role === "user") {
+          displayMessage(message.content, "user");
+        } else if (message.role === "assistant") {
+          displayMessage(message.content, "bot");
         }
       });
-    </script>
-  </body>
+
+      localStorage.setItem(
+        "input_messages",
+        JSON.stringify(conversation.messages)
+      );
+    }
+
+    async function saveConversation() {
+      try {
+        const response = await fetch(
+          "https://8i8tbru5m2.execute-api.ap-southeast-1.amazonaws.com/createUpdateConversation",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              user: userEmail,
+              conversation_id: localStorage.getItem("conversation_id"),
+              messages: JSON.parse(localStorage.getItem("input_messages")),
+              title: localStorage.getItem("conversation_title"),
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        output = await response.json();
+        if (localStorage.getItem("conversation_id") == "") {
+          localStorage.setItem("conversation_id", output);
+        }
+
+        loadPastConversations();
+      } catch (error) {
+        console.error("Error updating/creating conversations:", error);
+        // Display a user-friendly error message in the conversation list
+        conversationList.innerHTML =
+          '<div class="conversation-item">Error creating / updating conversations.</div>';
+        loadPastConversations();
+      }
+    }
+
+    function startNewConversation() {
+      // Clear chat messages
+      chatMessages.innerHTML = "";
+      localStorage.setItem("conversation_id", "");
+      localStorage.setItem("input_messages", []);
+      localStorage.setItem("conversation_title", "New Conversation");
+
+      // Clear local storage
+      localStorage.removeItem("input_messages");
+      localStorage.setItem("input_messages", JSON.stringify([]));
+
+      // Display initial bot message
+      displayMessage("Hello! How can I help you today?", "bot");
+
+      // Display options
+      displayOptions();
+    }
+
+    // --- MODAL FUNCTIONS ---
+    function openImageModal(src) {
+      const modal = document.getElementById("image-modal");
+      const modalImg = document.getElementById("img-modal-full");
+
+      modal.style.display = "flex";
+      modal.style.alignItems = "center";
+      modal.style.justifyContent = "center";
+      modalImg.src = src;
+    }
+
+    function closeImageModal() {
+      const modal = document.getElementById("image-modal");
+      modal.style.display = "none";
+    }
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function (event) {
+      if (event.key === "Escape") {
+        closeImageModal();
+      }
+    });
+  </script>
+</body>
+
 </html>
