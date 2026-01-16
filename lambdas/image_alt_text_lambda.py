@@ -9,7 +9,8 @@ def lambda_handler(event, context):
         image_data = event.get('image_data', '') # For base64 data
         page_context = event.get('page_context', 'General content')
         image_placement = event.get('image_placement', 'Within content')
-        focus_keywords = event.get('focus_keywords', '')
+        primary_keyword = event.get('primary_keyword', '')
+        secondary_keywords = event.get('secondary_keywords', '')
         
         api_key = os.environ.get('OPENAI_API_KEY')
 
@@ -34,12 +35,14 @@ def lambda_handler(event, context):
         prompt_text = (
             f"Analyze the provided image and generate a concise, descriptive alt-text (max 125 chars).\n"
             f"Context: The image is placed {image_placement} in a document about: {page_context}.\n"
-            f"Target SEO Keywords: {focus_keywords}\n\n"
+            f"Primary Target Keyword: {primary_keyword}\n"
+            f"Secondary Keywords (if relevant): {secondary_keywords}\n\n"
             f"Instructions:\n"
             f"1. Describe what is visually present in the image accurately.\n"
-            f"2. Integrate focus keywords naturally ONLY if they relate to the image content.\n"
-            f"3. Do not start with 'Image of' or 'Picture of'.\n"
-            f"4. Provide ONLY the final alt-text string."
+            f"2. Integrate the PRIMARY TARGET KEYWORD naturally as a priority if it relates to the image.\n"
+            f"3. Use Secondary Keywords only if they fit perfectly and don't dilute the primary targeting.\n"
+            f"4. Do not start with 'Image of' or 'Picture of'.\n"
+            f"5. Provide ONLY the final alt-text string."
         )
 
         # Vision API request structure

@@ -7,8 +7,9 @@ def lambda_handler(event, context):
         action = event.get('action', 'optimize')
         content = event.get('content', '')
         prompt_override = event.get('prompt', '')
-        image_context = event.get('image_context', '')
-        
+        settings = event.get('settings', {})
+        primary_keyword = event.get('primary_keyword', '')
+        secondary_keywords = event.get('secondary_keywords', '')
         
         api_key = os.environ.get('OPENAI_API_KEY')
         if not api_key:
@@ -19,7 +20,19 @@ def lambda_handler(event, context):
             "Content-Type": "application/json"
         }
 
-        system_msg = "You are an expert SEO & content editor."
+        # Construct keyword context
+        keyword_context = ""
+        if primary_keyword:
+            keyword_context += f"\n- PRIMARY FOCUS KEYWORD: '{primary_keyword}' (Prioritize this for targeting and density)."
+        if secondary_keywords:
+            keyword_context += f"\n- SECONDARY KEYWORDS: {secondary_keywords} (Include these only if they fit naturally without diluting the primary focus)."
+
+        # Construct settings context
+        settings_context = ""
+        if settings:
+            settings_context = f"\nTARGET AUDIENCE: {settings.get('audience', 'General')}\nTONE: {settings.get('brandTone', 'Professional')}"
+
+        system_msg = f"You are an expert SEO & content editor. Your goal is to create high-quality, targeted content.{keyword_context}{settings_context}"
         user_msg = ""
 
         if action == "generate":
@@ -34,9 +47,6 @@ def lambda_handler(event, context):
             user_msg = f"Simplify the language of this content for better readability: {content}"
         elif action == "continue":
             user_msg = f"Continue writing from where this leaves off: {content}"
-        elif action == "alt_text":
-            system_msg = "You are an accessibility and SEO specialist."
-            user_msg = f"Generate a concise, descriptive alt text (max 125 chars) for an image in this context: {image_context}. Provide ONLY the alt text."
         else:
             return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid action'})}
 

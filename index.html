@@ -1097,6 +1097,52 @@
             background: #f5f5f5 !important;
         }
 
+        /* Custom Tooltips */
+        .tooltip-container {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .tooltip-text {
+            visibility: hidden;
+            width: 220px;
+            background-color: #333;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 8px 12px;
+            position: absolute;
+            z-index: 2500;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.15s ease-in-out;
+            font-size: 11px;
+            font-weight: normal;
+            line-height: 1.4;
+            pointer-events: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            white-space: normal;
+        }
+
+        .tooltip-container:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .tooltip-text::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+
         .editor-content h1 {
             font-size: 2.2em;
             margin-bottom: 15px;
@@ -4429,21 +4475,45 @@
                             style="font-weight: normal; display: block; margin-bottom: 5px;">Page URL:</label>
                         <input type="url" id="optimiserPageUrl" value="https://mediaonemarketing.com.sg/seo-agency"
                             placeholder="e.g., https://example.com"
-                            style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100%; box-sizing: border-box;">
                     </div>
-                    <div>
-                        <label for="optimiserKeywords"
-                            style="font-weight: normal; display: block; margin-bottom: 5px;">Target Keywords (one per
-                            line):</label>
-                        <textarea id="optimiserKeywords" class="keyword-input-textarea"
-                            placeholder="Enter keywords here...">seo agency
-seo marketing singapore
+                    <div style="display: flex; gap: 20px;">
+                        <div style="flex: 1;">
+                            <label for="primaryKeyword"
+                                style="font-weight: bold; display: flex; align-items: center; gap: 5px; margin-bottom: 5px;">
+                                Primary Focus Keyword:
+                                <span class="tooltip-container">
+                                    <i class="fas fa-info-circle"
+                                        style="color: #004c9d; cursor: help; font-size: 13px;"></i>
+                                    <span class="tooltip-text">The most important keyword for this content. The AI will
+                                        prioritize this above all else to ensure clear targeting. Keep it concise and
+                                        highly targeted.</span>
+                                </span>
+                            </label>
+                            <input type="text" id="primaryKeyword" value="seo agency" placeholder="e.g., seo agency"
+                                style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 100%; box-sizing: border-box;">
+                        </div>
+                        <div style="flex: 1;">
+                            <label for="secondaryKeywords"
+                                style="font-weight: normal; display: flex; align-items: center; gap: 5px; margin-bottom: 5px;">
+                                Secondary Keywords (one per line):
+                                <span class="tooltip-container">
+                                    <i class="fas fa-info-circle"
+                                        style="color: #004c9d; cursor: help; font-size: 13px;"></i>
+                                    <span class="tooltip-text">Additional keywords to include if they fit naturally.
+                                        These will not dilute the main targeting. Include only truly relevant
+                                        terms.</span>
+                                </span>
+                            </label>
+                            <textarea id="secondaryKeywords" class="keyword-input-textarea"
+                                placeholder="Enter secondary keywords here..." style="min-height: 80px;">seo marketing singapore
 seo agencies in singapore
 Best SEO Agency Singapore
 Search Engine Optimisation Singapore
 Digital Marketing Agency Singapore
 SEO Services Singapore
 Enterprise SEO Singapore</textarea>
+                        </div>
                     </div>
                 </div>
 
@@ -5407,7 +5477,7 @@ Enterprise SEO Singapore</textarea>
                                 <button onclick="generateAiAlt('${imgId}')" style="background: #004c9d; color: white; border: none; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 10px;" title="AI Generate">✨ AI</button>
                             </div>
                             <textarea id="alt_${imgId}" placeholder="Enter alt text..." 
-                                      style="width: 100%; box-sizing: border-box; padding: 5px; font-size: 11px; border-radius: 4px; border: none; resize: none; min-height: 24px; max-height: 100px; font-family: inherit; line-height: 1.4;" 
+                                      style="width: 100%; box-sizing: border-box; padding: 5px; font-size: 11px; border-radius: 4px; border: none; resize: none; min-height: 45px; max-height: 200px; font-family: inherit; line-height: 1.4; overflow-y: hidden;" 
                                       oninput="updateImgAlt('${imgId}', this.value); autoResizeAlt(this)"></textarea>
                             <button onclick="this.parentElement.parentElement.remove()" style="margin-top: 8px; width: 100%; background: #f44336; color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer; font-size: 11px;">Remove Image</button>
                         </div>
@@ -5537,11 +5607,20 @@ Enterprise SEO Singapore</textarea>
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
             btn.disabled = true;
 
+            const primaryKeyword = document.getElementById('primaryKeyword')?.value || "";
+            const secondaryKeywords = document.getElementById('secondaryKeywords')?.value || "";
+
             try {
                 const response = await fetch(OPTIMISER_ENDPOINTS.SEO_ANALYSIS, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content, title, use_ai: true })
+                    body: JSON.stringify({
+                        content,
+                        title,
+                        primary_keyword: primaryKeyword,
+                        secondary_keywords: secondaryKeywords,
+                        use_ai: true
+                    })
                 });
                 const data = await response.json();
                 const result = parseLambdaResponse(data);
@@ -5639,13 +5718,19 @@ Enterprise SEO Singapore</textarea>
 
         function runLocalKeywordAnalysis() {
             const content = document.getElementById('editorContent').innerText.toLowerCase();
-            const keywordsText = document.getElementById('optimiserKeywords').value;
-            const keywords = keywordsText.split('\n').map(k => k.trim()).filter(k => k !== "");
+            const primaryKw = document.getElementById('primaryKeyword').value.trim();
+            const secondaryKwsText = document.getElementById('secondaryKeywords').value;
+            const secondaryKws = secondaryKwsText.split('\n').map(k => k.trim()).filter(k => k !== "");
+
+            const keywords = [];
+            if (primaryKw) keywords.push(primaryKw);
+            keywords.push(...secondaryKws);
+
             const listContainer = document.getElementById('keywordFrequencyList');
             const totalWords = content.trim() ? content.trim().split(/\s+/).length : 0;
 
             if (keywords.length === 0) {
-                alert("Please enter some keywords in the textarea above first.");
+                alert("Please enter at least a primary focus keyword.");
                 return;
             }
 
@@ -5692,7 +5777,7 @@ Enterprise SEO Singapore</textarea>
                                     <button onclick="generateAiAlt('${imgId}')" style="background: #004c9d; color: white; border: none; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 10px;" title="AI Generate">✨ AI</button>
                                 </div>
                                 <textarea id="alt_${imgId}" placeholder="Enter alt text..." 
-                                          style="width: 100%; box-sizing: border-box; padding: 5px; font-size: 11px; border-radius: 4px; border: none; resize: none; min-height: 24px; max-height: 100px; font-family: inherit; line-height: 1.4;" 
+                                          style="width: 100%; box-sizing: border-box; padding: 5px; font-size: 11px; border-radius: 4px; border: none; resize: none; min-height: 45px; max-height: 200px; font-family: inherit; line-height: 1.4; overflow-y: hidden;" 
                                           oninput="updateImgAlt('${imgId}', this.value); autoResizeAlt(this)"></textarea>
                                 <button onclick="this.parentElement.parentElement.remove()" style="margin-top: 8px; width: 100%; background: #f44336; color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer; font-size: 11px;">Remove Image</button>
                             </div>
@@ -5769,7 +5854,15 @@ Enterprise SEO Singapore</textarea>
 
         function autoResizeAlt(el) {
             el.style.height = 'auto';
-            el.style.height = el.scrollHeight + 'px';
+            const newHeight = el.scrollHeight;
+            el.style.height = newHeight + 'px';
+
+            // Show scrollbar only if it hits max-height (200px)
+            if (newHeight >= 200) {
+                el.style.overflowY = 'auto';
+            } else {
+                el.style.overflowY = 'hidden';
+            }
         }
 
         async function generateAiAlt(imgId) {
@@ -5779,7 +5872,9 @@ Enterprise SEO Singapore</textarea>
 
             const editor = document.getElementById('editorContent');
             const pageContext = document.getElementById('editorTitle')?.value || editor.innerText.substring(0, 500);
-            const focusKeywords = document.getElementById('optimiserKeywords')?.value || "";
+            const primaryKeyword = document.getElementById('primaryKeyword')?.value || "";
+            const secondaryKeywords = document.getElementById('secondaryKeywords')?.value || "";
+            const focusKeywords = (primaryKeyword + "\n" + secondaryKeywords).trim();
 
             // Try to find placement relative to headers
             let placement = "Within content";
@@ -5804,7 +5899,8 @@ Enterprise SEO Singapore</textarea>
                 const body = {
                     page_context: pageContext,
                     image_placement: placement,
-                    focus_keywords: focusKeywords
+                    primary_keyword: primaryKeyword,
+                    secondary_keywords: secondaryKeywords
                 };
 
                 // Handle image source (URL or base64)
@@ -5855,11 +5951,20 @@ Enterprise SEO Singapore</textarea>
             const loadingId = "loading_" + Date.now();
             editor.innerHTML += `<p id="${loadingId}"><i>Generating content for: ${prompt}...</i></p>`;
 
+            const primaryKeyword = document.getElementById('primaryKeyword')?.value || "";
+            const secondaryKeywords = document.getElementById('secondaryKeywords')?.value || "";
+
             try {
                 const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'generate', prompt: prompt, settings: aiContentSettings })
+                    body: JSON.stringify({
+                        action: 'generate',
+                        prompt: prompt,
+                        primary_keyword: primaryKeyword,
+                        secondary_keywords: secondaryKeywords,
+                        settings: aiContentSettings
+                    })
                 });
                 const data = await response.json();
                 const result = parseLambdaResponse(data);
@@ -5941,11 +6046,20 @@ Enterprise SEO Singapore</textarea>
             const loadingId = "loading_" + Date.now();
             editor.innerHTML += `<p id="${loadingId}"><i>Continuing writing...</i></p>`;
 
+            const primaryKeyword = document.getElementById('primaryKeyword')?.value || "";
+            const secondaryKeywords = document.getElementById('secondaryKeywords')?.value || "";
+
             try {
                 const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'continue', content: content, settings: aiContentSettings })
+                    body: JSON.stringify({
+                        action: 'continue',
+                        content: content,
+                        primary_keyword: primaryKeyword,
+                        secondary_keywords: secondaryKeywords,
+                        settings: aiContentSettings
+                    })
                 });
                 const data = await response.json();
                 const result = parseLambdaResponse(data);
@@ -6013,11 +6127,20 @@ Enterprise SEO Singapore</textarea>
                 btn.disabled = true;
             }
 
+            const primaryKeyword = document.getElementById('primaryKeyword')?.value || "";
+            const secondaryKeywords = document.getElementById('secondaryKeywords')?.value || "";
+
             try {
                 const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: type, content: content, settings: aiContentSettings })
+                    body: JSON.stringify({
+                        action: type,
+                        content: content,
+                        primary_keyword: primaryKeyword,
+                        secondary_keywords: secondaryKeywords,
+                        settings: aiContentSettings
+                    })
                 });
                 const data = await response.json();
                 const result = parseLambdaResponse(data);

@@ -81,6 +81,8 @@ def lambda_handler(event, context):
         content = event.get('content', '')
         title = event.get('title', '')
         use_ai = event.get('use_ai', False)
+        primary_keyword = event.get('primary_keyword', '')
+        secondary_keywords = event.get('secondary_keywords', '')
         
         plain_text = strip_html(content)
         word_count = count_words(plain_text)
@@ -104,13 +106,24 @@ def lambda_handler(event, context):
         # AI-based override if requested
         if use_ai and os.environ.get('OPENAI_API_KEY'):
             try:
-                prompt = f"Perform deep SEO analysis. Title: {title}. Content: {plain_text[:2000]}"
+                keyword_context = f"Primary Keyword: {primary_keyword}. Secondary Keywords: {secondary_keywords}."
+                prompt = (
+                    f"Perform deep SEO analysis.\n"
+                    f"Title: {title}\n"
+                    f"Keywords: {keyword_context}\n"
+                    f"Content: {plain_text[:2000]}\n\n"
+                    f"Evaluate how well the primary keyword is targeted and if secondary keywords are naturally integrated. "
+                    f"Output a JSON object with 'score', 'targeting_feedback', and 'keyword_usage' fields."
+                )
                 response = requests.post(
                     "https://api.openai.com/v1/chat/completions",
                     headers={"Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}", "Content-Type": "application/json"},
                     json={
                         "model": "gpt-4o-mini",
-                        "messages": [{"role": "system", "content": "You are an SEO analyst."}, {"role": "user", "content": prompt}],
+                        "messages": [
+                            {"role": "system", "content": "You are a senior SEO analyst. Analyze the content specifically for its focus keyword targeting and natural keyword usage."},
+                            {"role": "user", "content": prompt}
+                        ],
                         "response_format": {"type": "json_object"}
                     },
                     timeout=25
