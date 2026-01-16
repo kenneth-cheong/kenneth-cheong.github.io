@@ -604,6 +604,75 @@
             box-shadow: inset 0 0 10px rgba(0, 76, 157, 0.03);
         }
 
+        .btn-gradient:disabled {
+            background: #e0e0e0 !important;
+            color: #999 !important;
+            cursor: not-allowed;
+            box-shadow: none !important;
+            opacity: 1;
+        }
+
+        /* Generated Content Preview */
+        .generated-content-block {
+            background-color: #fff9db;
+            border: 1px dashed #f08c00;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 15px 0;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .generated-badge {
+            display: inline-block;
+            background: #f08c00;
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        .generated-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            border-top: 1px solid rgba(240, 140, 0, 0.2);
+            padding-top: 8px;
+        }
+
+        .generated-actions button {
+            padding: 6px 12px;
+            font-size: 11px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-accept-content {
+            background: #4caf50;
+            color: white;
+        }
+
+        .btn-accept-content:hover {
+            background: #43a047;
+        }
+
+        .btn-remove-content {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-remove-content:hover {
+            background: #e53935;
+        }
+
         /* Sidebar Card Styles */
         .sidebar-card {
             background: white;
@@ -4332,13 +4401,13 @@ Enterprise SEO Singapore</textarea>
                                 </div>
                                 <textarea id="aiPrompt" class="ai-prompt-area"
                                     placeholder="e.g., Write a paragraph about benefits of SEO..."></textarea>
-                                <div style="display: flex; gap: 10px;">
-                                    <button class="btn-gradient" style="background: #004c9d; flex: 1;"
-                                        onclick="aiGenerateContent()">
-                                        <i class="fas fa-sparkles"></i> Generate
+                                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                                    <button id="btnAiGenerate" class="btn-gradient"
+                                        style="background: #004c9d; flex: 1;" onclick="aiGenerateContent()">
+                                        <i class="fas fa-magic"></i> Generate
                                     </button>
-                                    <button class="btn-gradient" style="background: #004c9d; flex: 1;"
-                                        onclick="aiContinueWriting()">
+                                    <button id="btnAiContinue" class="btn-gradient"
+                                        style="background: #004c9d; flex: 1;" onclick="aiContinueWriting()">
                                         <i class="fas fa-pen"></i> Continue
                                     </button>
                                 </div>
@@ -4551,7 +4620,7 @@ Enterprise SEO Singapore</textarea>
             newItem.className = "faq-item";
             newItem.innerHTML = `
         <input type="text" id="question${faqItemCount}" placeholder="Question #${faqItemCount}" oninput="updateSchema()">
-        <textarea id="answer${faqItemCount}" placeholder="Answer" oninput="updateSchema()"></textarea>
+        <textarea type="text" id="answer${faqItemCount}" placeholder="Answer" oninput="updateSchema()"></textarea>
         <button class="remove-item" onclick="removeFaqItem(this)">x</button>
     `;
             faqItemsDiv.appendChild(newItem);
@@ -5121,70 +5190,184 @@ Enterprise SEO Singapore</textarea>
             document.getElementById('charCountStat').innerText = charCount;
             document.getElementById('tokenCount').innerText = tokenCount;
             if (document.getElementById('totalWordsStat')) document.getElementById('totalWordsStat').innerText = wordCount;
-
-            // Also update metric bars in real-time
-            updateMetricProgress();
         }
 
-        function updateMetricProgress() {
-            const title = document.getElementById('editorTitle').value;
-            const content = document.getElementById('editorContent').innerText;
-            const text = content.trim();
-            const wordCount = text ? text.split(/\s+/).length : 0;
+        // Configuration for AI Content Optimiser Lambda Endpoints
+        const OPTIMISER_ENDPOINTS = {
+            SEO_ANALYSIS: 'https://diyjtwnt4l.execute-api.ap-southeast-1.amazonaws.com/seoContentAnalysisScore',
+            CONTENT_AI: 'https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser',
+            KEYWORD_FREQ: 'https://qtd6t9voui.execute-api.ap-southeast-1.amazonaws.com/keywordFrequency',
+            PLAGIARISM: 'https://tg6m9b7gsj.execute-api.ap-southeast-1.amazonaws.com/plagarismCheck'
+        };
 
-            const keywordsText = document.getElementById('optimiserKeywords').value;
-            const keywords = keywordsText.split('\n').map(k => k.trim()).filter(k => k !== "");
-
-            // Title Score
-            let titleScore = Math.min(title.length > 5 ? title.length : 0, 50);
-            if (keywords.some(k => title.toLowerCase().includes(k.toLowerCase()))) titleScore += 50;
-            document.getElementById('titleScore').innerText = titleScore + '%';
-            document.getElementById('titleBar').style.width = titleScore + '%';
-
-            // Headings Score
-            const hCount = document.getElementById('editorContent').querySelectorAll('h1, h2, h3').length;
-            let headingsScore = Math.min(hCount * 25, 100);
-            document.getElementById('headingsScore').innerText = headingsScore + '%';
-            document.getElementById('headingsBar').style.width = headingsScore + '%';
-
-            // Readability (Mock based on word count)
-            let readabilityScore = Math.min(Math.floor(wordCount / 50) * 10 + 40, 98);
-            if (wordCount === 0) readabilityScore = 0;
-            document.getElementById('readabilityScore').innerText = readabilityScore + '%';
-            document.getElementById('readabilityBar').style.width = readabilityScore + '%';
-
-            // Overall Score
-            const overall = Math.round((titleScore + headingsScore + readabilityScore) / 3);
-            updateSeoGauge(overall);
+        /**
+         * Robustly parse response from Lambda.
+         * Handles cases where the response is a direct object or wrapped in a 'body' string (Proxy Integration).
+         */
+        function parseLambdaResponse(data) {
+            if (data && data.body && typeof data.body === 'string') {
+                try {
+                    return JSON.parse(data.body);
+                } catch (e) {
+                    console.error("Failed to parse Lambda body string:", e);
+                    return data;
+                }
+            }
+            return data;
         }
 
-        function updateSeoGauge(score) {
-            const gauge = document.getElementById('seoScoreGauge');
+        /**
+         * Simple Markdown-to-HTML formatter
+         */
+        function formatMarkdown(text) {
+            if (!text) return "";
+            let html = text;
+
+            // Headings (match from deepest to shallowest)
+            html = html.replace(/^### (.*$)/gim, '<h5>$1</h5>');
+            html = html.replace(/^## (.*$)/gim, '<h4>$1</h4>'); // Using offset levels for editor context
+            html = html.replace(/^# (.*$)/gim, '<h3>$1</h3>');
+
+            // User requested: # -> h2, ## -> h3 (but we adjust one level down for better flow in editor)
+            // Let's stick to user request mapping if they were specific:
+            // "change the '#' to h2 headers, '##' to h3 headers"
+            html = text
+                .replace(/^### (.*$)/gim, '<h4>$1</h4>')
+                .replace(/^## (.*$)/gim, '<h3>$1</h3>')
+                .replace(/^# (.*$)/gim, '<h2>$1</h2>')
+                .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+                .replace(/\n/g, '<br>');
+
+            return html;
+        }
+
+        function updateMetricGauge(id, percent) {
+            const gauge = document.getElementById(id);
             const valueDisplay = document.getElementById('seoScoreValue');
-            const offset = 440 - (score / 100) * 440;
+            const offset = 440 - (percent / 100) * 440;
             gauge.style.strokeDashoffset = offset;
-            valueDisplay.innerText = score;
+            valueDisplay.innerText = percent;
 
-            if (score > 80) gauge.style.stroke = "#4caf50";
-            else if (score > 50) gauge.style.stroke = "#ff9800";
+            if (percent > 80) gauge.style.stroke = "#4caf50";
+            else if (percent > 50) gauge.style.stroke = "#ff9800";
             else gauge.style.stroke = "#f44336";
         }
 
-        function runSeoAnalysis() {
-            // Trigger a visual update with a small delay for "pro" feel
+        async function runSeoAnalysis() {
             const btn = document.querySelector('.btn-seo');
             const originalContent = btn.innerHTML;
+            const content = document.getElementById('editorContent').innerHTML;
+            const title = document.getElementById('editorTitle').value;
+
+            if (OPTIMISER_ENDPOINTS.SEO_ANALYSIS === 'YOUR_SEO_ANALYSIS_LAMBDA_URL') {
+                alert("Please configure the SEO Analysis Lambda URL in the code.");
+                return;
+            }
+
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
             btn.disabled = true;
 
-            setTimeout(() => {
-                updateMetricProgress();
+            try {
+                const response = await fetch(OPTIMISER_ENDPOINTS.SEO_ANALYSIS, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content, title, use_ai: true })
+                });
+                const data = await response.json();
+                const result = parseLambdaResponse(data);
+
+                console.log("SEO Analysis Parsed Result:", result);
+
+                const score = result.overall_score || result.overallScore || 0;
+                console.log("Populating score to gauge:", score);
+
+                // Update Gauges and Bars with real data
+                updateMetricGauge('seoScoreGauge', score);
+
+                // Redundant update for safety
+                const scoreVal = document.getElementById('seoScoreValue');
+                if (scoreVal) scoreVal.innerText = Math.round(score);
+
+                if (result.title_analysis) {
+                    document.getElementById('titleScore').innerText = Math.round(result.title_analysis.score || 0) + '%';
+                    document.getElementById('titleBar').style.width = (result.title_analysis.score || 0) + '%';
+                }
+                if (result.heading_analysis) {
+                    document.getElementById('headingsScore').innerText = Math.round(result.heading_analysis.score || 0) + '%';
+                    document.getElementById('headingsBar').style.width = (result.heading_analysis.score || 0) + '%';
+                }
+                if (result.readability_analysis) {
+                    document.getElementById('readabilityScore').innerText = Math.round(result.readability_analysis.score || 0) + '%';
+                    document.getElementById('readabilityBar').style.width = (result.readability_analysis.score || 0) + '%';
+                }
+
+                const wordCountElem = document.getElementById('wordCount');
+                if (wordCountElem) wordCountElem.innerText = result.word_count || 0;
+            } catch (error) {
+                console.error("SEO Analysis Error:", error);
+                alert("Failed to run SEO analysis. Check console for details.");
+            } finally {
                 btn.innerHTML = originalContent;
                 btn.disabled = false;
-            }, 8000);
+            }
         }
 
-        function analyzeKeywordFrequency() {
+        async function analyzeKeywordFrequency() {
+            const content = document.getElementById('editorContent').innerHTML;
+            const listContainer = document.getElementById('keywordFrequencyList');
+            const btn = document.querySelector('.btn-keywords');
+            const originalContent = btn.innerHTML;
+
+            if (OPTIMISER_ENDPOINTS.KEYWORD_FREQ === 'YOUR_KEYWORD_FREQ_LAMBDA_URL') {
+                // Fallback to basic local analysis if no URL provided
+                runLocalKeywordAnalysis();
+                return;
+            }
+
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(OPTIMISER_ENDPOINTS.KEYWORD_FREQ, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+                const data = await response.json();
+                const result = parseLambdaResponse(data);
+
+                console.log("Keyword Freq Parsed Result:", result);
+
+                listContainer.innerHTML = "";
+                if (result.keywords && result.keywords.length > 0) {
+                    result.keywords.forEach(kw => {
+                        const item = document.createElement('div');
+                        item.className = 'keyword-freq-item';
+                        item.innerHTML = `
+                            <div class="keyword-freq-header">
+                                <span>${kw.keyword}</span>
+                                <span>${kw.count}x (${kw.density}%)</span>
+                            </div>
+                            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: ${Math.min(kw.density * 10, 100)}%; background: #3b5bdb;"></div></div>
+                        `;
+                        listContainer.appendChild(item);
+                    });
+                    document.getElementById('kwsFound').innerText = result.keywords.length;
+                    document.getElementById('totalWordsStat').innerText = result.total_words || 0;
+                } else {
+                    listContainer.innerHTML = '<p style="text-align: center; color: #999; margin-top:20px;">No keywords found.</p>';
+                    document.getElementById('totalWordsStat').innerText = result.total_words || 0;
+                }
+            } catch (error) {
+                console.error("Keyword Freq Error:", error);
+                runLocalKeywordAnalysis(); // Final fallback
+            } finally {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+            }
+        }
+
+        function runLocalKeywordAnalysis() {
             const content = document.getElementById('editorContent').innerText.toLowerCase();
             const keywordsText = document.getElementById('optimiserKeywords').value;
             const keywords = keywordsText.split('\n').map(k => k.trim()).filter(k => k !== "");
@@ -5221,6 +5404,7 @@ Enterprise SEO Singapore</textarea>
             });
 
             document.getElementById('kwsFound').innerText = foundCount;
+            document.getElementById('totalWordsStat').innerText = totalWords;
         }
 
         function handleLocalImageUpload(input) {
@@ -5311,49 +5495,303 @@ Enterprise SEO Singapore</textarea>
             if (img) img.alt = val;
         }
 
-        function generateAiAlt(imgId) {
+        async function generateAiAlt(imgId) {
             const altInput = document.getElementById('alt_' + imgId);
-            altInput.value = "Generating...";
-            setTimeout(() => {
+            const context = document.getElementById('editorContent').innerText.substring(0, 1000);
+
+            if (OPTIMISER_ENDPOINTS.CONTENT_AI === 'YOUR_CONTENT_AI_LAMBDA_URL') {
                 altInput.value = "A professional marketing graphic displaying SEO analytics and search engine growth trends.";
                 updateImgAlt(imgId, altInput.value);
-            }, 1000);
+                return;
+            }
+
+            altInput.value = "Generating...";
+            try {
+                const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'alt_text', image_context: context })
+                });
+                const data = await response.json();
+                const result = parseLambdaResponse(data);
+                altInput.value = result.result || "SEO Graphic";
+                updateImgAlt(imgId, altInput.value);
+            } catch (error) {
+                altInput.value = "Error generating alt text.";
+            }
         }
 
-        function aiGenerateContent() {
+        async function aiGenerateContent() {
             const prompt = document.getElementById('aiPrompt').value;
             if (!prompt) return alert("Please enter a prompt.");
             const editor = document.getElementById('editorContent');
-            editor.innerHTML += `<p><i>Generating content for: ${prompt}...</i></p><p>Search Engine Optimisation (SEO) remains the backbone of digital visibility. In a landscape dominated by ever-evolving algorithms, staying ahead requires a strategic blend of high-quality content, technical precision, and user-centric design. Experience shows that organic growth is not just about keywords, but about building authority and trust within your niche.</p>`;
+            const btn = document.getElementById('btnAiGenerate');
+            const originalBtnContent = btn.innerHTML;
+
+            if (OPTIMISER_ENDPOINTS.CONTENT_AI === 'YOUR_CONTENT_AI_LAMBDA_URL') {
+                alert("Please configure the Content AI Lambda URL.");
+                return;
+            }
+
+            // Button loading state
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Writing...';
+            btn.disabled = true;
+
+            const loadingId = "loading_" + Date.now();
+            editor.innerHTML += `<p id="${loadingId}"><i>Generating content for: ${prompt}...</i></p>`;
+
+            try {
+                const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'generate', prompt: prompt })
+                });
+                const data = await response.json();
+                const result = parseLambdaResponse(data);
+
+                document.getElementById(loadingId).remove();
+
+                const blockId = "gen_" + Date.now();
+                const formattedContent = formatMarkdown(result.result);
+                const generatedHtml = `
+                    <div id="${blockId}" class="generated-content-block" contenteditable="false">
+                        <div class="generated-badge">generated content</div>
+                        <div class="generated-text-body" style="color: #333;" contenteditable="true">
+                            ${formattedContent}
+                        </div>
+                        <div class="generated-actions">
+                            <button class="btn-accept-content" onclick="acceptGeneratedContent('${blockId}')">
+                                <i class="fas fa-check"></i> Accept
+                            </button>
+                            <button class="btn-remove-content" onclick="removeGeneratedContent('${blockId}')">
+                                <i class="fas fa-trash"></i> Remove
+                            </button>
+                        </div>
+                    </div>
+                    <p>&nbsp;</p>
+                `;
+
+                editor.innerHTML += generatedHtml;
+                updateEditorMetrics();
+            } catch (error) {
+                document.getElementById(loadingId).innerHTML = "<i>Error generating content.</i>";
+            } finally {
+                btn.innerHTML = originalBtnContent;
+                btn.disabled = false;
+            }
+        }
+
+        function acceptGeneratedContent(blockId) {
+            const block = document.getElementById(blockId);
+            if (!block) return;
+
+            // Get just the text content body
+            const body = block.querySelector('.generated-text-body');
+            const content = body ? body.innerHTML : "";
+
+            // Replace the block with just its content
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = content;
+
+            block.parentNode.replaceChild(wrapper, block);
             updateEditorMetrics();
         }
 
-        function aiContinueWriting() {
+        function removeGeneratedContent(blockId) {
+            const block = document.getElementById(blockId);
+            if (block) {
+                // Also remove the trailing &nbsp; p tag if it exists
+                if (block.nextElementSibling && block.nextElementSibling.tagName === 'P' && block.nextElementSibling.innerHTML === '&nbsp;') {
+                    block.nextElementSibling.remove();
+                }
+                block.remove();
+            }
+            updateEditorMetrics();
+        }
+
+        async function aiContinueWriting() {
             const editor = document.getElementById('editorContent');
-            editor.innerHTML += `<p>Furthermore, leveraging data-driven insights allows marketers to refine their approach, ensuring that every piece of content serves a specific purpose in the user journey. By focusing on intent rather than just volume, websites can achieve higher conversion rates and long-term brand loyalty.</p>`;
-            updateEditorMetrics();
+            const content = editor.innerHTML;
+            const btn = document.getElementById('btnAiContinue');
+            const originalBtnContent = btn.innerHTML;
+
+            if (OPTIMISER_ENDPOINTS.CONTENT_AI === 'YOUR_CONTENT_AI_LAMBDA_URL') {
+                alert("Please configure the Content AI Lambda URL.");
+                return;
+            }
+
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Writing...';
+            btn.disabled = true;
+
+            const loadingId = "loading_" + Date.now();
+            editor.innerHTML += `<p id="${loadingId}"><i>Continuing writing...</i></p>`;
+
+            try {
+                const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'continue', content: content })
+                });
+                const data = await response.json();
+                const result = parseLambdaResponse(data);
+
+                document.getElementById(loadingId).remove();
+
+                const blockId = "gen_" + Date.now();
+                const formattedContent = formatMarkdown(result.result);
+                const generatedHtml = `
+                    <div id="${blockId}" class="generated-content-block" contenteditable="false">
+                        <div class="generated-badge">generated content</div>
+                        <div class="generated-text-body" style="color: #333;" contenteditable="true">
+                            ${formattedContent}
+                        </div>
+                        <div class="generated-actions">
+                            <button class="btn-accept-content" onclick="acceptGeneratedContent('${blockId}')">
+                                <i class="fas fa-check"></i> Accept
+                            </button>
+                            <button class="btn-remove-content" onclick="removeGeneratedContent('${blockId}')">
+                                <i class="fas fa-trash"></i> Remove
+                            </button>
+                        </div>
+                    </div>
+                `;
+                editor.innerHTML += generatedHtml;
+                updateEditorMetrics();
+            } catch (error) {
+                document.getElementById(loadingId).innerHTML = "<i>Error continuing text.</i>";
+            } finally {
+                btn.innerHTML = originalBtnContent;
+                btn.disabled = false;
+            }
         }
 
-        function aiQuickAction(type) {
+        async function aiQuickAction(type) {
             const editor = document.getElementById('editorContent');
-            editor.innerHTML = `<p><b>[${type.toUpperCase()}ED CONTENT]</b></p>` + editor.innerHTML;
-            updateEditorMetrics();
+            const content = editor.innerHTML;
+
+            if (OPTIMISER_ENDPOINTS.CONTENT_AI === 'YOUR_CONTENT_AI_LAMBDA_URL') {
+                const blockId = "gen_" + Date.now();
+                editor.innerHTML = `
+                    <div id="${blockId}" class="generated-content-block" contenteditable="false">
+                        <div class="generated-badge">generated content</div>
+                        <div class="generated-text-body" style="color: #333;" contenteditable="true">
+                            <b>[${type.toUpperCase()}ED CONTENT]</b><br>${editor.innerHTML}
+                        </div>
+                        <div class="generated-actions">
+                            <button class="btn-accept-content" onclick="acceptGeneratedContent('${blockId}')">
+                                <i class="fas fa-check"></i> Accept
+                            </button>
+                            <button class="btn-remove-content" onclick="removeGeneratedContent('${blockId}')">
+                                <i class="fas fa-trash"></i> Remove
+                            </button>
+                        </div>
+                    </div>
+                `;
+                updateEditorMetrics();
+                return;
+            }
+
+            const btn = (event && event.currentTarget) ? event.currentTarget : (event && event.target ? event.target.closest('button') : null);
+            const originalContent = btn ? btn.innerHTML : null;
+            if (btn) {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                btn.disabled = true;
+            }
+
+            try {
+                const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: type, content: content })
+                });
+                const data = await response.json();
+                const result = parseLambdaResponse(data);
+
+                const blockId = "gen_" + Date.now();
+                const formattedContent = formatMarkdown(result.result);
+                editor.innerHTML = `
+                    <div id="${blockId}" class="generated-content-block" contenteditable="false">
+                        <div class="generated-badge">generated content</div>
+                        <div class="generated-text-body" style="color: #333;" contenteditable="true">
+                            ${formattedContent}
+                        </div>
+                        <div class="generated-actions">
+                            <button class="btn-accept-content" onclick="acceptGeneratedContent('${blockId}')">
+                                <i class="fas fa-check"></i> Accept
+                            </button>
+                            <button class="btn-remove-content" onclick="removeGeneratedContent('${blockId}')">
+                                <i class="fas fa-trash"></i> Remove
+                            </button>
+                        </div>
+                    </div>
+                `;
+                updateEditorMetrics();
+            } catch (error) {
+                alert("Error performing AI action.");
+            } finally {
+                if (btn) {
+                    btn.innerHTML = originalContent;
+                    btn.disabled = false;
+                }
+            }
         }
 
-        function runPlagiarismCheck() {
+        async function runPlagiarismCheck() {
             const scoreDisp = document.getElementById('plagiarismScore');
             const metaDisp = document.getElementById('plagiarismMeta');
             const statusBox = document.getElementById('plagiarismStatus');
+            const content = document.getElementById('editorContent').innerText;
+
+            if (OPTIMISER_ENDPOINTS.PLAGIARISM === 'YOUR_PLAGIARISM_LAMBDA_URL') {
+                scoreDisp.innerText = "Check Disabled";
+                return;
+            }
 
             scoreDisp.innerText = "Checking...";
-            setTimeout(() => {
-                scoreDisp.innerText = "98.5%";
-                metaDisp.innerText = "12 words • 1 match(es)";
-                statusBox.style.background = "#fff9db";
-                statusBox.style.color = "#f08c00";
-                document.getElementById('plagiarismTitle').innerText = "Minor Matches Found";
-                document.getElementById('plagiarismMsg').innerText = "A few phrases match existing online sources.";
-            }, 2000);
+            try {
+                const response = await fetch(OPTIMISER_ENDPOINTS.PLAGIARISM, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: content })
+                });
+                const data = await response.json();
+                const result = parseLambdaResponse(data);
+
+                console.log("Plagiarism Parsed Result:", result);
+
+                const score = result.originality_score || 0;
+                scoreDisp.innerText = score + "%";
+                metaDisp.innerText = `${content.split(/\s+/).length} words • ${result.matched_sources ? result.matched_sources.length : 0} match(es)`;
+
+                if (score > 90) {
+                    statusBox.className = "status-box success";
+                    document.getElementById('plagiarismTitle').innerText = "Original Content";
+                    document.getElementById('plagiarismMsg').innerText = "No significant matches found. Content appears original.";
+                    statusBox.style.background = "#e6ffe6"; // Light green
+                    statusBox.style.color = "#008000"; // Dark green
+                } else if (score > 70) {
+                    statusBox.className = "status-box warning";
+                    document.getElementById('plagiarismTitle').innerText = "Minor Matches Found";
+                    document.getElementById('plagiarismMsg').innerText = "A few phrases match existing online sources.";
+                    statusBox.style.background = "#fff9db"; // Light yellow
+                    statusBox.style.color = "#f08c00"; // Orange
+                } else {
+                    statusBox.className = "status-box error";
+                    document.getElementById('plagiarismTitle').innerText = "Significant Plagiarism Detected";
+                    document.getElementById('plagiarismMsg').innerText = "Multiple sections match existing online sources. Review required.";
+                    statusBox.style.background = "#ffe6e6"; // Light red
+                    statusBox.style.color = "#cc0000"; // Dark red
+                }
+            } catch (error) {
+                console.error("Plagiarism Check Error:", error);
+                scoreDisp.innerText = "Error";
+                metaDisp.innerText = "Failed to run check.";
+                statusBox.className = "status-box error";
+                document.getElementById('plagiarismTitle').innerText = "Check Failed";
+                document.getElementById('plagiarismMsg').innerText = "Could not connect to plagiarism service.";
+                statusBox.style.background = "#ffe6e6";
+                statusBox.style.color = "#cc0000";
+            }
         }
 
         // Floating Selection Toolbar Logic
