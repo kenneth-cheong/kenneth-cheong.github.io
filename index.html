@@ -5395,7 +5395,27 @@ Enterprise SEO Singapore</textarea>
 
         function insertImage() {
             const url = prompt("Enter the Image URL:");
-            if (url) execCmd('insertImage', url);
+            if (url) {
+                const imgId = "img_" + Date.now();
+                const imgHtml = `
+                    <div class="img-optimiser-wrapper" id="wrap_${imgId}" style="position: relative; display: inline-block; margin: 15px 0; max-width: 100%;">
+                        <img id="${imgId}" src="${url}" style="max-width: 100%; border-radius: 6px; display: block;" 
+                             onmouseover="showImageTool(this)" onmouseout="hideImageTool(this)">
+                        <div class="img-tool-overlay" id="overlay_${imgId}" style="display: none; position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px; z-index: 10; width: 250px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                <div style="color: white; font-size: 12px; font-weight: bold;">Alt Text:</div>
+                                <button onclick="generateAiAlt('${imgId}')" style="background: #004c9d; color: white; border: none; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 10px;" title="AI Generate">✨ AI</button>
+                            </div>
+                            <textarea id="alt_${imgId}" placeholder="Enter alt text..." 
+                                      style="width: 100%; box-sizing: border-box; padding: 5px; font-size: 11px; border-radius: 4px; border: none; resize: none; min-height: 24px; max-height: 100px; font-family: inherit; line-height: 1.4;" 
+                                      oninput="updateImgAlt('${imgId}', this.value); autoResizeAlt(this)"></textarea>
+                            <button onclick="this.parentElement.parentElement.remove()" style="margin-top: 8px; width: 100%; background: #f44336; color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer; font-size: 11px;">Remove Image</button>
+                        </div>
+                        <div class="img-resize-handle" onmousedown="startImgResize(event, '${imgId}')"></div>
+                    </div>
+                `;
+                execCmd('insertHTML', imgHtml);
+            }
         }
 
         function insertTable() {
@@ -5446,7 +5466,8 @@ Enterprise SEO Singapore</textarea>
             SEO_ANALYSIS: 'https://diyjtwnt4l.execute-api.ap-southeast-1.amazonaws.com/seoContentAnalysisScore',
             CONTENT_AI: 'https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser',
             KEYWORD_FREQ: 'https://qtd6t9voui.execute-api.ap-southeast-1.amazonaws.com/keywordFrequency',
-            PLAGIARISM: 'https://tg6m9b7gsj.execute-api.ap-southeast-1.amazonaws.com/plagarismCheck'
+            PLAGIARISM: 'https://tg6m9b7gsj.execute-api.ap-southeast-1.amazonaws.com/plagarismCheck',
+            IMAGE_ALT: 'https://ty3ndlwcnk.execute-api.ap-southeast-1.amazonaws.com/altTextGenerator'
         };
 
         /**
@@ -5666,11 +5687,13 @@ Enterprise SEO Singapore</textarea>
                             <img id="${imgId}" src="${e.target.result}" style="max-width: 100%; border-radius: 6px; display: block;" 
                                  onmouseover="showImageTool(this)" onmouseout="hideImageTool(this)">
                             <div class="img-tool-overlay" id="overlay_${imgId}" style="display: none; position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px; z-index: 10; width: 250px;">
-                                <div style="color: white; font-size: 12px; margin-bottom: 5px; font-weight: bold;">Alt Text:</div>
-                                <div style="display: flex; gap: 5px;">
-                                    <input type="text" id="alt_${imgId}" placeholder="Enter alt text..." style="flex: 1; padding: 5px; font-size: 12px; border-radius: 4px; border: none;" oninput="updateImgAlt('${imgId}', this.value)">
-                                    <button onclick="generateAiAlt('${imgId}')" style="background: #004c9d; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: 10px;" title="AI Generate">✨ AI</button>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                    <div style="color: white; font-size: 12px; font-weight: bold;">Alt Text:</div>
+                                    <button onclick="generateAiAlt('${imgId}')" style="background: #004c9d; color: white; border: none; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 10px;" title="AI Generate">✨ AI</button>
                                 </div>
+                                <textarea id="alt_${imgId}" placeholder="Enter alt text..." 
+                                          style="width: 100%; box-sizing: border-box; padding: 5px; font-size: 11px; border-radius: 4px; border: none; resize: none; min-height: 24px; max-height: 100px; font-family: inherit; line-height: 1.4;" 
+                                          oninput="updateImgAlt('${imgId}', this.value); autoResizeAlt(this)"></textarea>
                                 <button onclick="this.parentElement.parentElement.remove()" style="margin-top: 8px; width: 100%; background: #f44336; color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer; font-size: 11px;">Remove Image</button>
                             </div>
                             <div class="img-resize-handle" onmousedown="startImgResize(event, '${imgId}')"></div>
@@ -5744,29 +5767,72 @@ Enterprise SEO Singapore</textarea>
             if (img) img.alt = val;
         }
 
+        function autoResizeAlt(el) {
+            el.style.height = 'auto';
+            el.style.height = el.scrollHeight + 'px';
+        }
+
         async function generateAiAlt(imgId) {
             const altInput = document.getElementById('alt_' + imgId);
-            const context = document.getElementById('editorContent').innerText.substring(0, 1000);
+            const img = document.getElementById(imgId);
+            if (!img) return;
 
-            if (OPTIMISER_ENDPOINTS.CONTENT_AI === 'YOUR_CONTENT_AI_LAMBDA_URL') {
-                altInput.value = "A professional marketing graphic displaying SEO analytics and search engine growth trends.";
-                updateImgAlt(imgId, altInput.value);
+            const editor = document.getElementById('editorContent');
+            const pageContext = document.getElementById('editorTitle')?.value || editor.innerText.substring(0, 500);
+            const focusKeywords = document.getElementById('optimiserKeywords')?.value || "";
+
+            // Try to find placement relative to headers
+            let placement = "Within content";
+            let prev = img.previousElementSibling;
+            while (prev) {
+                if (prev.tagName && prev.tagName.startsWith('H')) {
+                    placement = `Under heading "${prev.innerText}"`;
+                    break;
+                }
+                prev = prev.previousElementSibling;
+            }
+
+            if (OPTIMISER_ENDPOINTS.IMAGE_ALT === 'YOUR_IMAGE_ALT_LAMBDA_URL') {
+                altInput.value = "Vision AI endpoint not configured.";
                 return;
             }
 
-            altInput.value = "Generating...";
+            altInput.value = "AI analyzing image...";
+
             try {
-                const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
+                // Prepare request body
+                const body = {
+                    page_context: pageContext,
+                    image_placement: placement,
+                    focus_keywords: focusKeywords
+                };
+
+                // Handle image source (URL or base64)
+                if (img.src.startsWith('data:')) {
+                    body.image_data = img.src.split(',')[1];
+                } else {
+                    body.image_url = img.src;
+                }
+
+                const response = await fetch(OPTIMISER_ENDPOINTS.IMAGE_ALT, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'alt_text', image_context: context })
+                    body: JSON.stringify(body)
                 });
+
                 const data = await response.json();
                 const result = parseLambdaResponse(data);
-                altInput.value = result.result || "SEO Graphic";
-                updateImgAlt(imgId, altInput.value);
+
+                if (result.error) {
+                    altInput.value = "Error: " + result.error;
+                } else {
+                    altInput.value = result.result || "SEO Image Description";
+                    updateImgAlt(imgId, altInput.value);
+                    autoResizeAlt(altInput);
+                }
             } catch (error) {
-                altInput.value = "Error generating alt text.";
+                console.error("Alt Gen Error:", error);
+                altInput.value = "Failed to reach AI.";
             }
         }
 
