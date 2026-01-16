@@ -57,15 +57,20 @@
       border-radius: 20px;
       box-shadow: var(--shadow-lg);
       overflow: hidden;
+      min-width: 0;
     }
 
     /* Conversation Picker Styles */
     .conversation-picker {
       flex: 0 0 320px;
+      width: 320px;
+      min-width: 320px;
+      max-width: 320px;
       background: rgba(255, 255, 255, 0.5);
       border-right: 1px solid rgba(0, 0, 0, 0.05);
       display: flex;
       flex-direction: column;
+      box-sizing: border-box;
     }
 
     /* Header Styles */
@@ -138,6 +143,7 @@
       overflow-y: auto;
       flex-grow: 1;
       padding: 8px;
+      scrollbar-gutter: stable;
     }
 
     .conversation-item {
@@ -209,6 +215,7 @@
       display: flex;
       flex-direction: column;
       background: transparent;
+      min-width: 0;
     }
 
     .chat-container .chat-header {
@@ -242,6 +249,8 @@
       font-size: 0.95rem;
       position: relative;
       animation: messageIn 0.3s ease-out;
+      overflow-x: auto;
+      box-sizing: border-box;
     }
 
     @keyframes messageIn {
@@ -646,25 +655,37 @@
       box-shadow: 0 6px 8px rgba(59, 130, 246, 0.3);
     }
 
-    .conversation-item:hover .delete-button,
-    .conversation-item:hover .rename-button {
+    .conversation-item:hover .item-actions {
       opacity: 1;
+    }
+
+    .item-actions {
+      display: flex;
+      gap: 6px;
+      opacity: 0;
+      transition: all 0.2s ease;
+      position: absolute;
+      top: 14px;
+      right: 12px;
+      background: rgba(248, 250, 252, 0.9);
+      padding: 2px 4px;
+      border-radius: 8px;
+      z-index: 10;
     }
 
     .rename-button {
       padding: 6px 10px;
       background: #e0f2fe;
       color: var(--accent-blue);
+      border: none;
       border-radius: 6px;
       font-size: 0.75rem;
       font-weight: 600;
-      opacity: 0;
       transition: all 0.2s ease;
-      position: absolute;
-      top: 16px;
-      right: 70px;
-      /* Offset from delete button */
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .rename-button:hover {
@@ -675,15 +696,19 @@
       padding: 6px 10px;
       background: #fee2e2;
       color: #ef4444;
+      border: none;
       border-radius: 6px;
       font-size: 0.75rem;
       font-weight: 600;
-      opacity: 0;
       transition: all 0.2s ease;
-      position: absolute;
-      top: 16px;
-      right: 16px;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .delete-button:hover {
+      background: #fecaca;
     }
 
     .rename-input {
@@ -723,11 +748,13 @@
     }
 
     .skeleton-item {
-      padding: 16px;
+      padding: 14px;
       border-bottom: 1px solid rgba(0, 0, 0, 0.05);
       display: flex;
       flex-direction: column;
       gap: 8px;
+      border: 1px solid transparent;
+      box-sizing: border-box;
     }
 
     .skeleton-name {
@@ -1132,7 +1159,7 @@
           {
             header: "Technical SEO",
             options: [
-              { label: "Check Page Speed", value: "I want to check my pagespeed using GTmetrix", icon: "fa-gauge-high" },
+              { label: "Check Page Speed", value: "I want to check pagespeed using GTmetrix of a webpage", icon: "fa-gauge-high" },
               { label: "Check Domain Authority", value: "I want to check domain authority", icon: "fa-shield-halved" },
               { label: "Generate Schema", value: "I want to generate schema markup", icon: "fa-code" },
               { label: "Google Webpage Crawler Simulator", value: "I want to simulate the Google Webpage Crawler", icon: "fa-robot" },
@@ -2377,9 +2404,13 @@
           deleteConversation(conversation.id, deleteButton);
         };
 
+        const actionsDiv = document.createElement("div");
+        actionsDiv.classList.add("item-actions");
+        actionsDiv.appendChild(renameButton);
+        actionsDiv.appendChild(deleteButton);
+
         conversationItem.appendChild(conversationDetails);
-        conversationItem.appendChild(renameButton);
-        conversationItem.appendChild(deleteButton);
+        conversationItem.appendChild(actionsDiv);
         conversationList.appendChild(conversationItem);
       });
     }
