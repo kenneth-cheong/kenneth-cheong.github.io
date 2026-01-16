@@ -69,18 +69,26 @@ def lambda_handler(event, context):
         except Exception as parse_err:
             result = {'raw': response.text, 'parse_error': str(parse_err)}
 
+        # Copyscape JSON typically puts matches in a 'result' key (singular)
+        # My XML fallback uses 'results' (plural). Let's check both.
+        matches = result.get('result', result.get('results', []))
+        
         # Standardize the originality score calculation if matches found
         originality_score = 100.0
-        matches = result.get('results', [])
         if isinstance(matches, list) and len(matches) > 0:
             # Simple heuristic: deduct 5% per match, cap at 0
-            originality_score = max(100 - (len(matches) * 5), 10)
+            originality_score = max(100 - (len(matches) * 5), 0)
+        
+        # If the API returned a specific count, use it to verify
+        total_matches = int(result.get('count', len(matches)))
         
         final_response = {
-            'originality_score': result.get('score', originality_score),
+            'originality_score': float(result.get('score', originality_score)),
             'matched_sources': matches,
-            'total_matches': len(matches),
-            'raw_api_response': result
+            'total_matches': total_matches,
+            'word_count': int(result.get('allwordcount', len(cleaned.split()))),
+            'raw_api_response': result,
+            'error': result.get('error')
         }
 
         return {

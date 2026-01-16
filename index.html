@@ -604,6 +604,61 @@
             box-shadow: inset 0 0 10px rgba(0, 76, 157, 0.03);
         }
 
+        /* Diff Highlights */
+        .diff-original {
+            background-color: #ffe6e6;
+            color: #cc0000;
+            text-decoration: line-through;
+            padding: 2px 4px;
+            border-radius: 3px;
+            margin: 0 2px;
+        }
+
+        .diff-new {
+            background-color: #fff9db;
+            color: #333;
+            padding: 2px 4px;
+            border-radius: 3px;
+            margin: 0 2px;
+            border-bottom: 1px dashed #f08c00;
+        }
+
+        .diff-preview-wrapper {
+            display: inline;
+            position: relative;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fafafa;
+            margin: 5px 0;
+        }
+
+        .diff-controls {
+            display: inline-flex;
+            gap: 5px;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        .diff-controls button {
+            padding: 2px 8px;
+            font-size: 10px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn-diff-accept {
+            background: #4caf50;
+            color: white;
+        }
+
+        .btn-diff-undo {
+            background: #f44336;
+            color: white;
+        }
+
         .btn-gradient:disabled {
             background: #e0e0e0 !important;
             color: #999 !important;
@@ -5748,6 +5803,8 @@ Enterprise SEO Singapore</textarea>
             }
 
             scoreDisp.innerText = "Checking...";
+            metaDisp.innerText = "Connecting to Copyscape...";
+
             try {
                 const response = await fetch(OPTIMISER_ENDPOINTS.PLAGIARISM, {
                     method: 'POST',
@@ -5759,29 +5816,58 @@ Enterprise SEO Singapore</textarea>
 
                 console.log("Plagiarism Parsed Result:", result);
 
-                const score = result.originality_score || 0;
-                scoreDisp.innerText = score + "%";
-                metaDisp.innerText = `${content.split(/\s+/).length} words • ${result.matched_sources ? result.matched_sources.length : 0} match(es)`;
+                if (result.error || (result.raw_api_response && result.raw_api_response.error)) {
+                    const errMsg = result.error || result.raw_api_response.error;
+                    scoreDisp.innerText = "Error";
+                    metaDisp.innerText = errMsg;
+                    statusBox.className = "status-box error";
+                    return;
+                }
+
+                const score = result.originality_score !== undefined ? result.originality_score : 100;
+                scoreDisp.innerText = Math.round(score) + "%";
+                metaDisp.innerText = `${result.word_count || content.split(/\s+/).length} words • ${result.total_matches || 0} match(es)`;
+
+                let sourcesHtml = "";
+                if (result.matched_sources && result.matched_sources.length > 0) {
+                    sourcesHtml = '<div style="margin-top: 10px; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 10px; font-size: 12px; text-align: left;">';
+                    sourcesHtml += '<b>Matched Sources:</b><ul style="margin: 5px 0; padding-left: 20px;">';
+                    result.matched_sources.forEach(src => {
+                        sourcesHtml += `<li style="margin-bottom: 4px;"><a href="${src.url}" target="_blank" style="color: #004c9d; word-break: break-all;">${src.title || src.url}</a> (${src.minwordsmatched || '?'}+ words)</li>`;
+                    });
+                    sourcesHtml += '</ul></div>';
+                }
 
                 if (score > 90) {
                     statusBox.className = "status-box success";
                     document.getElementById('plagiarismTitle').innerText = "Original Content";
                     document.getElementById('plagiarismMsg').innerText = "No significant matches found. Content appears original.";
-                    statusBox.style.background = "#e6ffe6"; // Light green
-                    statusBox.style.color = "#008000"; // Dark green
+                    statusBox.style.background = "#e6ffe6";
+                    statusBox.style.color = "#008000";
                 } else if (score > 70) {
                     statusBox.className = "status-box warning";
                     document.getElementById('plagiarismTitle').innerText = "Minor Matches Found";
                     document.getElementById('plagiarismMsg').innerText = "A few phrases match existing online sources.";
-                    statusBox.style.background = "#fff9db"; // Light yellow
-                    statusBox.style.color = "#f08c00"; // Orange
+                    statusBox.style.background = "#fff9db";
+                    statusBox.style.color = "#f08c00";
                 } else {
                     statusBox.className = "status-box error";
                     document.getElementById('plagiarismTitle').innerText = "Significant Plagiarism Detected";
                     document.getElementById('plagiarismMsg').innerText = "Multiple sections match existing online sources. Review required.";
-                    statusBox.style.background = "#ffe6e6"; // Light red
-                    statusBox.style.color = "#cc0000"; // Dark red
+                    statusBox.style.background = "#ffe6e6";
+                    statusBox.style.color = "#cc0000";
                 }
+
+                // Append sources list if it exists
+                const existingList = statusBox.querySelector('.sources-list');
+                if (existingList) existingList.remove();
+                if (sourcesHtml) {
+                    const listContainer = document.createElement('div');
+                    listContainer.className = "sources-list";
+                    listContainer.innerHTML = sourcesHtml;
+                    statusBox.appendChild(listContainer);
+                }
+
             } catch (error) {
                 console.error("Plagiarism Check Error:", error);
                 scoreDisp.innerText = "Error";
@@ -5832,23 +5918,98 @@ Enterprise SEO Singapore</textarea>
             if (selectionToolbar) selectionToolbar.style.display = 'none';
         }
 
-        function handleSelectionAction(action) {
+        async function handleSelectionAction(action) {
             const selection = window.getSelection();
             const selectedText = selection.toString();
             if (!selectedText) return;
 
-            // Mock AI behavior based on action
-            let newText = "";
-            if (action === 'rewrite') {
-                newText = `[REWRITTEN: ${selectedText}]`;
-            } else if (action === 'expand') {
-                newText = `${selectedText} (Expanded with more details, insights, and comprehensive analysis based on the original intent of the text.)`;
-            } else if (action === 'shorten') {
-                newText = `${selectedText.substring(0, selectedText.length / 2)}... [SHORTENED]`;
+            if (OPTIMISER_ENDPOINTS.CONTENT_AI === 'YOUR_CONTENT_AI_LAMBDA_URL') {
+                alert("AI Content endpoint not configured.");
+                return;
             }
 
-            document.execCommand('insertHTML', false, newText);
-            hideSelectionToolbar();
+            // Save the range before making the API call
+            const range = selection.getRangeAt(0);
+
+            // Show a temporary "processing" state in the toolbar
+            const originalToolbarHtml = selectionToolbar.innerHTML;
+            const actionLabel = action.charAt(0).toUpperCase() + action.slice(1);
+            selectionToolbar.innerHTML = `<div style="padding: 8px 15px; font-size: 13px; color: #004c9d; display: flex; align-items: center; gap: 10px; font-weight: 500;">
+                                            <i class="fas fa-spinner fa-spin"></i> AI ${actionLabel} in progress...
+                                          </div>`;
+
+            try {
+                const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: action, content: selectedText })
+                });
+                const data = await response.json();
+                const result = parseLambdaResponse(data);
+
+                const formattedContent = formatMarkdown(result.result);
+                const diffId = "diff_" + Date.now();
+
+                // Create the diff reveal structure
+                // Use a span wrapper so it doesn't break paragraph flow
+                const diffHtml = `
+                    <span id="${diffId}" class="diff-preview-wrapper" contenteditable="false">
+                        <span class="diff-original" title="Original text">${selectedText}</span>
+                        <span class="diff-new" contenteditable="true" title="AI suggestion (Editable)">${formattedContent}</span>
+                        <span class="diff-controls">
+                            <button class="btn-diff-accept" onclick="acceptSelectionDiff('${diffId}')">Accept</button>
+                            <button class="btn-diff-undo" onclick="undoSelectionDiff('${diffId}')">Undo</button>
+                        </span>
+                    </span>
+                `;
+
+                // Re-select the range
+                selection.removeAllRanges();
+                selection.addRange(range);
+
+                // Replace selection with the diff structure
+                document.execCommand('insertHTML', false, diffHtml);
+
+                hideSelectionToolbar();
+                updateEditorMetrics();
+            } catch (error) {
+                console.error("Selection Action Error:", error);
+                alert("Error performing AI action on selection.");
+                selectionToolbar.innerHTML = originalToolbarHtml;
+            } finally {
+                if (selectionToolbar.innerHTML.includes('spinner')) {
+                    selectionToolbar.innerHTML = originalToolbarHtml;
+                }
+            }
+        }
+
+        function acceptSelectionDiff(diffId) {
+            const diffEl = document.getElementById(diffId);
+            if (!diffEl) return;
+
+            const newTextEl = diffEl.querySelector('.diff-new');
+            const acceptedContent = newTextEl ? newTextEl.innerHTML : "";
+
+            // Replace the whole diff wrapper with just the new content
+            const temp = document.createElement('span');
+            temp.innerHTML = acceptedContent;
+            diffEl.parentNode.replaceChild(temp, diffEl);
+
+            updateEditorMetrics();
+        }
+
+        function undoSelectionDiff(diffId) {
+            const diffEl = document.getElementById(diffId);
+            if (!diffEl) return;
+
+            const originalTextEl = diffEl.querySelector('.diff-original');
+            const originalContent = originalTextEl ? originalTextEl.innerHTML : "";
+
+            // Revert back to original text
+            const temp = document.createElement('span');
+            temp.innerHTML = originalContent;
+            diffEl.parentNode.replaceChild(temp, diffEl);
+
             updateEditorMetrics();
         }
 
