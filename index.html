@@ -1718,6 +1718,205 @@
             cursor: pointer;
         }
 
+        /* AI Settings Modal Styles */
+        .ai-settings-modal-content {
+            background-color: #fff;
+            margin: 5% auto;
+            padding: 0;
+            width: 90%;
+            max-width: 600px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            position: relative;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            border: none;
+        }
+
+        .ai-settings-modal-content .modal-header {
+            padding: 20px 25px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .ai-settings-modal-content .modal-header h2 {
+            margin: 0;
+            color: #004c9d;
+            font-size: 1.5rem;
+        }
+
+        .ai-settings-modal-content .close-modal {
+            font-size: 24px;
+            color: #999;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .ai-settings-modal-content .close-modal:hover {
+            color: #333;
+        }
+
+        .settings-sections-container {
+            padding: 20px 25px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .settings-section {
+            margin-bottom: 25px;
+        }
+
+        .settings-section h3 {
+            font-size: 1.1rem;
+            color: #333;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .section-header h3 {
+            margin-bottom: 0;
+            border: none;
+            padding: 0;
+        }
+
+        .advanced-toggle {
+            background: #2b67f6;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group.half {
+            flex: 1;
+        }
+
+        .form-group.full {
+            width: 100%;
+        }
+
+        .form-group label {
+            font-size: 0.9rem;
+            color: #555 !important;
+            margin-bottom: 6px;
+            font-weight: 600 !important;
+        }
+
+        .form-group .required {
+            color: #f44336;
+        }
+
+        .form-group input[type="text"],
+        .form-group select {
+            padding: 10px 12px;
+            border: 1px solid #dce4f2;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            color: #333;
+            background: #fff;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: #004c9d;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(0, 76, 157, 0.1);
+        }
+
+        .help-text {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 4px;
+            font-style: italic;
+        }
+
+        .checkbox-group {
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checkbox-group label {
+            margin-bottom: 0 !important;
+            cursor: pointer;
+        }
+
+        .modal-footer {
+            padding: 20px 25px;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fafafa;
+            border-bottom-left-radius: 12px;
+            border-bottom-right-radius: 12px;
+        }
+
+        .btn-reset {
+            background: #ff7e1d;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .footer-right {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-close {
+            background: white;
+            color: #333;
+            border: 1px solid #ddd;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-apply {
+            background: #2b67f6;
+            color: white;
+            border: none;
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
         .funnel-container {
             width: 90%;
             margin: 20px auto;
@@ -4369,7 +4568,8 @@ Enterprise SEO Singapore</textarea>
                                 <button onclick="handleSelectionAction('shorten')"><i class="fas fa-compress-alt"></i>
                                     Shorten</button>
                                 <div class="st-separator"></div>
-                                <button class="st-settings"><i class="fas fa-cog"></i></button>
+                                <button class="st-settings" onclick="openAiSettingsModal()"><i
+                                        class="fas fa-cog"></i></button>
                             </div>
                         </div>
                     </div>
@@ -4469,16 +4669,6 @@ Enterprise SEO Singapore</textarea>
                                         style="background: #004c9d; flex: 1;" onclick="aiContinueWriting()">
                                         <i class="fas fa-pen"></i> Continue
                                     </button>
-                                </div>
-                                <div class="ai-actions-grid">
-                                    <button class="ai-action-btn" onclick="aiQuickAction('rewrite')"><i
-                                            class="fas fa-redo"></i> Rewrite</button>
-                                    <button class="ai-action-btn" onclick="aiQuickAction('expand')"><i
-                                            class="fas fa-expand-alt"></i> Expand</button>
-                                    <button class="ai-action-btn" onclick="aiQuickAction('simplify')"><i
-                                            class="fas fa-book-open"></i> Simplify</button>
-                                    <button class="ai-action-btn" onclick="aiQuickAction('shorten')"><i
-                                            class="fas fa-compress-alt"></i> Shorten</button>
                                 </div>
                             </div>
 
@@ -5603,7 +5793,7 @@ Enterprise SEO Singapore</textarea>
                 const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'generate', prompt: prompt })
+                    body: JSON.stringify({ action: 'generate', prompt: prompt, settings: aiContentSettings })
                 });
                 const data = await response.json();
                 const result = parseLambdaResponse(data);
@@ -5689,7 +5879,7 @@ Enterprise SEO Singapore</textarea>
                 const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'continue', content: content })
+                    body: JSON.stringify({ action: 'continue', content: content, settings: aiContentSettings })
                 });
                 const data = await response.json();
                 const result = parseLambdaResponse(data);
@@ -5761,7 +5951,7 @@ Enterprise SEO Singapore</textarea>
                 const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: type, content: content })
+                    body: JSON.stringify({ action: type, content: content, settings: aiContentSettings })
                 });
                 const data = await response.json();
                 const result = parseLambdaResponse(data);
@@ -5895,6 +6085,97 @@ Enterprise SEO Singapore</textarea>
                 hideSelectionToolbar();
             }
         });
+        // Global AI Content Settings State
+        let aiContentSettings = {
+            audience: "",
+            brandTone: "Professional",
+            searchIntent: "Informational",
+            industry: "General",
+            riskLevel: "Low",
+            jurisdictions: "SG",
+            locale: "en-SG",
+            readingLevel: "Grade 6-8 (Easy)",
+            doUseWords: "",
+            doNotUseWords: "",
+            focusProducts: "",
+            schemaType: "Article",
+            complianceDisclaimers: false
+        };
+
+        function openAiSettingsModal() {
+            const modal = document.getElementById('aiSettingsModal');
+            if (!modal) return;
+
+            // Populate modal with current settings
+            document.getElementById('setAudience').value = aiContentSettings.audience;
+            document.getElementById('setBrandTone').value = aiContentSettings.brandTone;
+            document.getElementById('setSearchIntent').value = aiContentSettings.searchIntent;
+            document.getElementById('setIndustry').value = aiContentSettings.industry;
+            document.getElementById('setRiskLevel').value = aiContentSettings.riskLevel;
+            document.getElementById('setJurisdictions').value = aiContentSettings.jurisdictions;
+            document.getElementById('setLocale').value = aiContentSettings.locale;
+            document.getElementById('setReadingLevel').value = aiContentSettings.readingLevel;
+            document.getElementById('setDoUseWords').value = aiContentSettings.doUseWords;
+            document.getElementById('setDoNotUseWords').value = aiContentSettings.doNotUseWords;
+            document.getElementById('setFocusProducts').value = aiContentSettings.focusProducts;
+            document.getElementById('setSchemaType').value = aiContentSettings.schemaType;
+            document.getElementById('setComplianceDisclaimers').checked = aiContentSettings.complianceDisclaimers;
+
+            modal.style.display = 'block';
+        }
+
+        function closeAiSettingsModal() {
+            const modal = document.getElementById('aiSettingsModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function resetAiSettings() {
+            // Revert global state to defaults
+            aiContentSettings = {
+                audience: "",
+                brandTone: "Professional",
+                searchIntent: "Informational",
+                industry: "General",
+                riskLevel: "Low",
+                jurisdictions: "SG",
+                locale: "en-SG",
+                readingLevel: "Grade 6-8 (Easy)",
+                doUseWords: "",
+                doNotUseWords: "",
+                focusProducts: "",
+                schemaType: "Article",
+                complianceDisclaimers: false
+            };
+            openAiSettingsModal(); // Refresh UI
+        }
+
+        function applyAiSettings() {
+            // Save modal values to global state
+            aiContentSettings = {
+                audience: document.getElementById('setAudience').value,
+                brandTone: document.getElementById('setBrandTone').value,
+                searchIntent: document.getElementById('setSearchIntent').value,
+                industry: document.getElementById('setIndustry').value,
+                riskLevel: document.getElementById('setRiskLevel').value,
+                jurisdictions: document.getElementById('setJurisdictions').value,
+                locale: document.getElementById('setLocale').value,
+                readingLevel: document.getElementById('setReadingLevel').value,
+                doUseWords: document.getElementById('setDoUseWords').value,
+                doNotUseWords: document.getElementById('setDoNotUseWords').value,
+                focusProducts: document.getElementById('setFocusProducts').value,
+                schemaType: document.getElementById('setSchemaType').value,
+                complianceDisclaimers: document.getElementById('setComplianceDisclaimers').checked
+            };
+            closeAiSettingsModal();
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function (event) {
+            const modal = document.getElementById('aiSettingsModal');
+            if (event.target == modal) {
+                closeAiSettingsModal();
+            }
+        };
 
         function showSelectionToolbar() {
             const selection = window.getSelection();
@@ -5946,7 +6227,7 @@ Enterprise SEO Singapore</textarea>
                 const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: action, content: selectedText })
+                    body: JSON.stringify({ action: action, content: selectedText, settings: aiContentSettings })
                 });
                 const data = await response.json();
                 const result = parseLambdaResponse(data);
@@ -13578,6 +13859,145 @@ Enterprise SEO Singapore</textarea>
 
     </script>
 
+    <!-- AI Settings Modal -->
+    <div id="aiSettingsModal" class="feedback-modal">
+        <div class="ai-settings-modal-content">
+            <div class="modal-header">
+                <h2>Article Optimizer</h2>
+                <span class="close-modal" onclick="closeAiSettingsModal()">&times;</span>
+            </div>
+
+            <div class="settings-sections-container">
+                <!-- Configuration Section -->
+                <div class="settings-section">
+                    <div class="section-header">
+                        <h3><i class="fas fa-cog"></i> Configuration</h3>
+                    </div>
+                    <div class="form-group full">
+                        <label>Target Audience: <span class="required">*</span></label>
+                        <input type="text" id="setAudience"
+                            placeholder="e.g., Young working professionals in Singapore">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group half">
+                            <label>Brand Tone: <span class="required">*</span></label>
+                            <select id="setBrandTone">
+                                <option value="Professional">Professional</option>
+                                <option value="Casual">Casual</option>
+                                <option value="Authoritative">Authoritative</option>
+                            </select>
+                        </div>
+                        <div class="form-group half">
+                            <label>Search Intent:</label>
+                            <select id="setSearchIntent">
+                                <option value="Informational">Informational</option>
+                                <option value="Commercial">Commercial</option>
+                                <option value="Transactional">Transactional</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Industry & Compliance Section -->
+                <div class="settings-section">
+                    <h3>Industry & Compliance</h3>
+                    <div class="form-row">
+                        <div class="form-group half">
+                            <label>Industry:</label>
+                            <select id="setIndustry">
+                                <option value="General">General</option>
+                                <option value="Finance">Finance</option>
+                                <option value="Healthcare">Healthcare</option>
+                                <option value="Technology">Technology</option>
+                            </select>
+                        </div>
+                        <div class="form-group half">
+                            <label>Risk Level:</label>
+                            <select id="setRiskLevel">
+                                <option value="Low">Low</option>
+                                <option value="Medium">Medium</option>
+                                <option value="High">High</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group full">
+                        <label>Jurisdictions:</label>
+                        <input type="text" id="setJurisdictions" placeholder="SG">
+                        <span class="help-text">Comma-separated country codes</span>
+                    </div>
+                </div>
+
+                <!-- Locale & Style Section -->
+                <div class="settings-section">
+                    <h3>Locale & Style</h3>
+                    <div class="form-row">
+                        <div class="form-group half">
+                            <label>Locale:</label>
+                            <select id="setLocale">
+                                <option value="en-SG">English (Singapore)</option>
+                                <option value="en-US">English (US)</option>
+                                <option value="en-GB">English (UK)</option>
+                            </select>
+                        </div>
+                        <div class="form-group half">
+                            <label>Reading Level:</label>
+                            <select id="setReadingLevel">
+                                <option value="Grade 6-8 (Easy)">Grade 6-8 (Easy)</option>
+                                <option value="High School">High School</option>
+                                <option value="University">University</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Content Guidelines Section -->
+                <div class="settings-section">
+                    <h3>Content Guidelines</h3>
+                    <div class="form-group full">
+                        <label>DO Use Words:</label>
+                        <input type="text" id="setDoUseWords" placeholder="e.g., premium, luxury, sophisticated">
+                        <span class="help-text">Comma-separated mandatory terms</span>
+                    </div>
+                    <div class="form-group full">
+                        <label>DO NOT Use Words:</label>
+                        <input type="text" id="setDoNotUseWords" placeholder="e.g., cheap, economical, budget">
+                        <span class="help-text">Comma-separated banned terms</span>
+                    </div>
+                    <div class="form-group full">
+                        <label>Focus Products/Services:</label>
+                        <input type="text" id="setFocusProducts" placeholder="e.g., Premium Condos, Luxury Apartments">
+                        <span class="help-text">Comma-separated products to highlight</span>
+                    </div>
+                </div>
+
+                <!-- SEO & Compliance Section -->
+                <div class="settings-section">
+                    <h3>SEO & Compliance</h3>
+                    <div class="form-group full">
+                        <label>Schema Type:</label>
+                        <select id="setSchemaType">
+                            <option value="Article">Article</option>
+                            <option value="BlogPosting">Blog Posting</option>
+                            <option value="Product">Product</option>
+                        </select>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <input type="checkbox" id="setComplianceDisclaimers">
+                        <label for="setComplianceDisclaimers">Require Compliance Disclaimers</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-reset" onclick="resetAiSettings()">Reset to Default</button>
+                <div class="footer-right">
+                    <button class="btn-close" onclick="closeAiSettingsModal()">Close</button>
+                    <button class="btn-apply" onclick="applyAiSettings()">Apply</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
+
 
 </html>
