@@ -16,6 +16,7 @@ def lambda_handler(event, context):
                 pass
         
         # Merge if necessary, but typically we just need the body or the event
+        print(data)
         action = data.get('action')
         url = data.get('url')
         site_url = data.get('site_url')
@@ -124,6 +125,8 @@ def submit_indexing(url, submission_type, token):
     Calls the Google Indexing API.
     API: https://indexing.googleapis.com/v1/urlNotifications:publish
     """
+    print(f'[System] Starting indexing submission for {url}')
+
     endpoint = "https://indexing.googleapis.com/v1/urlNotifications:publish"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     payload = {
@@ -132,14 +135,18 @@ def submit_indexing(url, submission_type, token):
     }
     
     response = requests.post(endpoint, headers=headers, json=payload)
+    
     try:
         data = response.json()
     except json.JSONDecodeError:
+        print(f"[Error] Non-JSON response from Google ({response.status_code}): {response.text}")
         return {
             'statusCode': response.status_code,
             'headers': {'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'error': f"Non-JSON response from Google ({response.status_code}): {response.text}"})
+            'body': json.dumps({'error': f"Non-JSON response (HTTP {response.status_code})"})
         }
+    
+    print(f"[System] Google Response ({response.status_code}): {data}")
     
     if response.status_code == 200:
         return {
