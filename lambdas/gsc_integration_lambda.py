@@ -6,12 +6,22 @@ import requests
 
 def lambda_handler(event, context):
     try:
-        action = event.get('action')
-        url = event.get('url')
-        site_url = event.get('site_url')
-        access_token = event.get('access_token')
+        # Robustly handle both direct calls and API Gateway Proxy events
+        data = event
+        if isinstance(event.get('body'), str):
+            try:
+                data = json.loads(event['body'])
+            except json.JSONDecodeError:
+                # If body exists but isn't JSON, we'll likely fail the action check anyway
+                pass
         
-        if not action or not url:
+        # Merge if necessary, but typically we just need the body or the event
+        action = data.get('action')
+        url = data.get('url')
+        site_url = data.get('site_url')
+        access_token = data.get('access_token')
+        
+        if not action:
             return {
                 'statusCode': 400,
                 'headers': {
@@ -19,7 +29,7 @@ def lambda_handler(event, context):
                     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
                     'Access-Control-Allow-Methods': 'OPTIONS,POST'
                 },
-                'body': json.dumps({'error': 'Missing action or url'})
+                'body': json.dumps({'error': 'Missing action parameter'})
             }
 
         if not access_token:
@@ -33,16 +43,30 @@ def lambda_handler(event, context):
             }
         
         if action == 'inspectUrl':
+            if not url or not site_url:
+                return {
+                    'statusCode': 400,
+                    'headers': {'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Both url and site_url are required for inspection'})
+                }
+            return inspect_url(url, site_url, access_token)
+        elif action == 'submitIndexing':
+            if not url:
+                return {
+                    'statusCode': 400,
+                    'headers': {'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'url is required for indexing submission'})
+                }
+            submission_type = data.get('type', 'URL_UPDATED')
+            return submit_indexing(url, submission_type, access_token)
+        elif action == 'querySearchAnalytics':
             if not site_url:
                 return {
                     'statusCode': 400,
                     'headers': {'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'error': 'site_url is required for inspection'})
+                    'body': json.dumps({'error': 'site_url is required for search analytics'})
                 }
-            return inspect_url(url, site_url, access_token)
-        elif action == 'submitIndexing':
-            submission_type = event.get('type', 'URL_UPDATED')
-            return submit_indexing(url, submission_type, access_token)
+            return query_search_analytics(site_url, access_token, data.get('payload', {}))
         else:
             return {
                 'statusCode': 400,
@@ -71,7 +95,14 @@ def inspect_url(url, site_url, token):
     }
     
     response = requests.post(endpoint, headers=headers, json=payload)
-    data = response.json()
+    try:
+        data = response.json()
+    except json.JSONDecodeError:
+        return {
+            'statusCode': response.status_code,
+            'headers': {'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': f"Non-JSON response from Google ({response.status_code}): {response.text}"})
+        }
     
     if response.status_code == 200:
         # Extract verdict
@@ -101,7 +132,14 @@ def submit_indexing(url, submission_type, token):
     }
     
     response = requests.post(endpoint, headers=headers, json=payload)
-    data = response.json()
+    try:
+        data = response.json()
+    except json.JSONDecodeError:
+        return {
+            'statusCode': response.status_code,
+            'headers': {'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': f"Non-JSON response from Google ({response.status_code}): {response.text}"})
+        }
     
     if response.status_code == 200:
         return {
@@ -110,8 +148,57 @@ def submit_indexing(url, submission_type, token):
             'body': json.dumps({'result': 'Success', 'raw': data})
         }
     else:
+        error_msg = data.get('error', {}).get('message', 'Indexing API Error')
         return {
             'statusCode': response.status_code,
             'headers': {'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'error': data.get('error', {}).get('message', 'Indexing API Error')})
+            'body': json.dumps({'error': error_msg, 'details': data.get('error', {})})
+        }
+
+def query_search_analytics(site_url, token, payload):
+    """
+    Calls the Search Console searchAnalytics:query API.
+    API: https://www.googleapis.com/webmasters/v3/sites/{siteUrl}/searchAnalytics/query
+    """
+    # site_url needs to be URL encoded for the path
+    import urllib.parse
+    encoded_site = urllib.parse.quote_plus(site_url)
+    
+    endpoint = f"https://www.googleapis.com/webmasters/v3/sites/{encoded_site}/searchAnalytics/query"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    
+    # Default payload if none provided
+    if not payload:
+        # Default to last 30 days, grouped by query
+        from datetime import datetime, timedelta
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+        payload = {
+            "startDate": start_date,
+            "endDate": end_date,
+            "dimensions": ["query"],
+            "rowLimit": 1000
+        }
+
+    response = requests.post(endpoint, headers=headers, json=payload)
+    try:
+        data = response.json()
+    except json.JSONDecodeError:
+        return {
+            'statusCode': response.status_code,
+            'headers': {'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': f"Non-JSON response from Google Performance ({response.status_code}): {response.text}"})
+        }
+
+    if response.status_code == 200:
+        return {
+            'statusCode': 200,
+            'headers': {'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'rows': data.get('rows', []), 'raw': data})
+        }
+    else:
+        return {
+            'statusCode': response.status_code,
+            'headers': {'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': data.get('error', {}).get('message', 'GSC Performance API Error')})
         }
