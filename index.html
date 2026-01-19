@@ -6343,10 +6343,10 @@ Enterprise SEO Singapore</textarea>
                             ${formattedContent}
                         </div>
                         <div class="generated-actions">
-                            <button class="btn-accept-content" onclick="acceptGeneratedContent('${blockId}')">
+                            <button class="btn-accept-content" onclick="acceptGeneratedContent(this); event.stopPropagation();">
                                 <i class="fas fa-check"></i> Accept
                             </button>
-                            <button class="btn-remove-content" onclick="removeGeneratedContent('${blockId}')">
+                            <button class="btn-remove-content" onclick="removeGeneratedContent(this); event.stopPropagation();">
                                 <i class="fas fa-trash"></i> Remove
                             </button>
                         </div>
@@ -6364,8 +6364,8 @@ Enterprise SEO Singapore</textarea>
                     }
                 }
 
-                function acceptGeneratedContent(blockId) {
-                    const block = document.getElementById(blockId);
+                function acceptGeneratedContent(btn) {
+                    const block = btn.closest('.generated-content-block');
                     if (!block) return;
 
                     // Get just the text content body
@@ -6863,15 +6863,14 @@ Enterprise SEO Singapore</textarea>
                 }
 
 
-                function removeGeneratedContent(blockId) {
-                    const block = document.getElementById(blockId);
-                    if (block) {
-                        // Also remove the trailing &nbsp; p tag if it exists
-                        if (block.nextElementSibling && block.nextElementSibling.tagName === 'P' && block.nextElementSibling.innerHTML === '&nbsp;') {
-                            block.nextElementSibling.remove();
-                        }
-                        block.remove();
+                function removeGeneratedContent(btn) {
+                    const block = btn.closest('.generated-content-block');
+                    if (!block) return;
+                    // Also remove the trailing &nbsp; p tag if it exists
+                    if (block.nextElementSibling && block.nextElementSibling.tagName === 'P' && block.nextElementSibling.innerHTML === '&nbsp;') {
+                        block.nextElementSibling.remove();
                     }
+                    block.remove();
                     updateEditorMetrics();
                 }
 
@@ -6921,10 +6920,10 @@ Enterprise SEO Singapore</textarea>
                             ${formattedContent}
                         </div>
                         <div class="generated-actions">
-                            <button class="btn-accept-content" onclick="acceptGeneratedContent('${blockId}')">
+                            <button class="btn-accept-content" onclick="acceptGeneratedContent(this); event.stopPropagation();">
                                 <i class="fas fa-check"></i> Accept
                             </button>
-                            <button class="btn-remove-content" onclick="removeGeneratedContent('${blockId}')">
+                            <button class="btn-remove-content" onclick="removeGeneratedContent(this); event.stopPropagation();">
                                 <i class="fas fa-trash"></i> Remove
                             </button>
                         </div>
@@ -6953,10 +6952,10 @@ Enterprise SEO Singapore</textarea>
                             <b>[${type.toUpperCase()}ED CONTENT]</b><br>${editor.innerHTML}
                         </div>
                         <div class="generated-actions">
-                            <button class="btn-accept-content" onclick="acceptGeneratedContent('${blockId}')">
+                            <button class="btn-accept-content" onclick="acceptGeneratedContent(this); event.stopPropagation();">
                                 <i class="fas fa-check"></i> Accept
                             </button>
-                            <button class="btn-remove-content" onclick="removeGeneratedContent('${blockId}')">
+                            <button class="btn-remove-content" onclick="removeGeneratedContent(this); event.stopPropagation();">
                                 <i class="fas fa-trash"></i> Remove
                             </button>
                         </div>
@@ -7000,10 +6999,10 @@ Enterprise SEO Singapore</textarea>
                             ${formattedContent}
                         </div>
                         <div class="generated-actions">
-                            <button class="btn-accept-content" onclick="acceptGeneratedContent('${blockId}')">
+                            <button class="btn-accept-content" onclick="acceptGeneratedContent(this); event.stopPropagation();">
                                 <i class="fas fa-check"></i> Accept
                             </button>
-                            <button class="btn-remove-content" onclick="removeGeneratedContent('${blockId}')">
+                            <button class="btn-remove-content" onclick="removeGeneratedContent(this); event.stopPropagation();">
                                 <i class="fas fa-trash"></i> Remove
                             </button>
                         </div>
@@ -7277,8 +7276,8 @@ Enterprise SEO Singapore</textarea>
                         <span class="diff-original" title="Original text">${selectedText}</span>
                         <span class="diff-new" contenteditable="true" title="AI suggestion (Editable)">${formattedContent}</span>
                         <span class="diff-controls">
-                            <button class="btn-diff-accept" onclick="acceptSelectionDiff('${diffId}')">Accept</button>
-                            <button class="btn-diff-undo" onclick="undoSelectionDiff('${diffId}')">Undo</button>
+                            <button class="btn-diff-accept" onclick="acceptSelectionDiff(this); event.stopPropagation();">Accept</button>
+                            <button class="btn-diff-undo" onclick="undoSelectionDiff(this); event.stopPropagation();">Undo</button>
                         </span>
                     </span>
                 `;
@@ -7303,8 +7302,8 @@ Enterprise SEO Singapore</textarea>
                     }
                 }
 
-                function acceptSelectionDiff(diffId) {
-                    const diffEl = document.getElementById(diffId);
+                function acceptSelectionDiff(btn) {
+                    const diffEl = btn.closest('.diff-preview-wrapper');
                     if (!diffEl) return;
 
                     const newTextEl = diffEl.querySelector('.diff-new');
@@ -7318,8 +7317,8 @@ Enterprise SEO Singapore</textarea>
                     updateEditorMetrics();
                 }
 
-                function undoSelectionDiff(diffId) {
-                    const diffEl = document.getElementById(diffId);
+                function undoSelectionDiff(btn) {
+                    const diffEl = btn.closest('.diff-preview-wrapper');
                     if (!diffEl) return;
 
                     const originalTextEl = diffEl.querySelector('.diff-original');

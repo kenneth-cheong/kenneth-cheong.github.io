@@ -121,13 +121,9 @@ def inspect_url(url, site_url, token):
         }
 
 def submit_indexing(url, submission_type, token):
-    """
-    Calls the Google Indexing API.
-    API: https://indexing.googleapis.com/v1/urlNotifications:publish
-    """
-    print(f'[System] Starting indexing submission for {url}')
+    print('user wants to index')
 
-    endpoint = "https://indexing.googleapis.com/v1/urlNotifications:publish"
+    endpoint = "https://indexing.googleapis.com/v3/urlNotifications:publish"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     payload = {
         "url": url,
@@ -135,18 +131,16 @@ def submit_indexing(url, submission_type, token):
     }
     
     response = requests.post(endpoint, headers=headers, json=payload)
+    print(response)
+    data = response.json()
     
+    print(data)
     try:
         data = response.json()
-    except json.JSONDecodeError:
-        print(f"[Error] Non-JSON response from Google ({response.status_code}): {response.text}")
-        return {
-            'statusCode': response.status_code,
-            'headers': {'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'error': f"Non-JSON response (HTTP {response.status_code})"})
-        }
-    
-    print(f"[System] Google Response ({response.status_code}): {data}")
+        print(data)
+
+    except Exception as e:
+        print(e)
     
     if response.status_code == 200:
         return {
