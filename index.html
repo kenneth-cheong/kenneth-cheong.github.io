@@ -4755,18 +4755,18 @@
 
                         <!-- NEW: AI Compliance Recommendations -->
                         <div id="complianceRecommenderWrapper"
-                            style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e1e4e8;">
-                            <div
-                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                                <h4 style="margin: 0; color: #004c9d;"><i class="fas fa-shield-halved"></i> AI
-                                    Compliance Scanner</h4>
+                            style="margin-top: 20px; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e1e4e8;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                                <h4 style="margin: 0; color: #004c9d; font-size: 14px; white-space: nowrap;"><i
+                                        class="fas fa-shield-halved"></i> AI
+                                    Compliance</h4>
                                 <button id="btnScanCompliance" class="btn-gradient"
-                                    style="background: #34a853; padding: 6px 15px; font-size: 12px; margin: 0;"
-                                    onclick="scanForCompliance()">
-                                    <i class="fas fa-search"></i> Scan for Guidelines
+                                    style="background: #34a853; padding: 10px 16px; font-size: 12px; margin: 0; white-space: nowrap; width: auto; border-radius: 50px;"
+                                    onclick="scanForCompliance('new')">
+                                    <i class="fas fa-search"></i> Check Guidelines
                                 </button>
                             </div>
-                            <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Select regulations or
+                            <p style="font-size: 12px; color: #666; margin: 8px 0;">Select regulations or
                                 guidelines the content must adhere to:</p>
                             <div id="complianceGuidelinesList"
                                 style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
@@ -4887,6 +4887,38 @@ SEO Services Singapore
 Enterprise SEO Singapore</textarea>
                         </div>
                     </div>
+
+                    <!-- AI Compliance Recommendations for Optimise Flow -->
+                    <div id="complianceRecommenderWrapper-Optimise"
+                        style="margin-top: 20px; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e1e4e8;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                            <h4 style="margin: 0; color: #004c9d; font-size: 14px; white-space: nowrap;"><i
+                                    class="fas fa-shield-halved"></i> AI
+                                Compliance</h4>
+                            <button id="btnScanCompliance-Optimise" class="btn-gradient"
+                                style="background: #34a853; padding: 10px 16px; font-size: 12px; margin: 0; white-space: nowrap; width: auto; border-radius: 50px;"
+                                onclick="scanForCompliance('optimise')">
+                                <i class="fas fa-search"></i> Check Guidelines
+                            </button>
+                        </div>
+                        <p style="font-size: 12px; color: #666; margin: 8px 0;">Select regulations or
+                            guidelines the content must adhere to:</p>
+                        <div id="complianceGuidelinesList-Optimise"
+                            style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
+                            <div style="font-size: 12px; color: #999; width: 100%; font-style: italic;">No
+                                guidelines checked yet. Click "Check" to identify relevant regulations for your
+                                keywords.</div>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <textarea id="customCompliance-Optimise"
+                                placeholder="Add any other specific compliance requirements (e.g., 'Must mention risk warnings at the end')"
+                                style="width: 100%; padding: 8px; font-size: 12px; border-radius: 4px; border: 1px solid #ddd; min-height: 40px;"></textarea>
+                        </div>
+                    </div>
+
+                    <button class="config-btn-highlight" onclick="openAiSettingsModal()" style="margin-top: 15px;">
+                        <i class="fas fa-sliders-h"></i> ARTICLE OPTIMISER SETTINGS (CONFIGURATION)
+                    </button>
                 </div>
             </div>
 
@@ -6653,6 +6685,7 @@ Enterprise SEO Singapore</textarea>
                         prompt: prompt,
                         primary_keyword: primaryKeyword,
                         secondary_keywords: secondaryKeywords,
+                        compliance_guidelines: getSelectedCompliance(currentOptimiserFlow),
                         settings: aiContentSettings
                     })
                 });
@@ -7234,6 +7267,7 @@ Enterprise SEO Singapore</textarea>
                         content: content,
                         primary_keyword: primaryKeyword,
                         secondary_keywords: secondaryKeywords,
+                        compliance_guidelines: getSelectedCompliance(currentOptimiserFlow),
                         settings: aiContentSettings
                     })
                 });
@@ -7302,6 +7336,7 @@ Enterprise SEO Singapore</textarea>
                         content: content,
                         primary_keyword: primaryKeyword,
                         secondary_keywords: secondaryKeywords,
+                        compliance_guidelines: getSelectedCompliance(currentOptimiserFlow),
                         settings: aiContentSettings
                     })
                 });
@@ -7450,6 +7485,7 @@ Enterprise SEO Singapore</textarea>
             }
         });
         // Global AI Content Settings State
+        let currentOptimiserFlow = 'new';
         let aiContentSettings = {
             audience: "Working professionals",
             brandTone: "Professional",
@@ -15220,18 +15256,30 @@ Enterprise SEO Singapore</textarea>
             }
         }
 
-        async function scanForCompliance() {
-            const topic = document.getElementById('newArticleTopic').value.trim();
-            const listContainer = document.getElementById('complianceGuidelinesList');
-            const scanBtn = document.getElementById('btnScanCompliance');
+        async function scanForCompliance(flowType = 'new') {
+            const isNew = flowType === 'new';
+            const topicId = isNew ? 'newArticleTopic' : 'primaryKeyword';
+            const listId = isNew ? 'complianceGuidelinesList' : 'complianceGuidelinesList-Optimise';
+            const btnId = isNew ? 'btnScanCompliance' : 'btnScanCompliance-Optimise';
+
+            let topic = document.getElementById(topicId).value.trim();
+
+            // Fallback for optimise flow: try title if keyword is empty
+            if (!isNew && !topic) {
+                topic = document.getElementById('editorTitle').value.trim();
+            }
+
+            const listContainer = document.getElementById(listId);
+            const scanBtn = document.getElementById(btnId);
 
             if (!topic) {
-                alert("Please enter an article topic first so the AI can identify relevant regulations.");
+                alert(`Please enter a ${isNew ? 'topic' : 'primary keyword/title'} first so the AI can identify relevant regulations.`);
                 return;
             }
 
             scanBtn.disabled = true;
-            scanBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
+            const originalBtnHtml = scanBtn.innerHTML;
+            scanBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
             listContainer.innerHTML = '<div style="font-size: 12px; color: #004c9d;">Identifying regulatory requirements...</div>';
 
             try {
@@ -15259,10 +15307,10 @@ Enterprise SEO Singapore</textarea>
                         wrapper.style.cssText = 'background: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 6px; flex: 1; min-width: 250px; display: flex; align-items: flex-start; gap: 10px;';
 
                         wrapper.innerHTML = `
-                            <input type="checkbox" id="chk_${item.id}" value="${item.name}" checked style="margin-top: 3px;">
+                            <input type="checkbox" id="chk_${item.id}_${flowType}" value="${item.name}" checked style="margin-top: 3px;">
                             <div style="flex: 1;">
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                    <label for="chk_${item.id}" style="font-size: 13px; font-weight: bold; color: #333; cursor: pointer; display: block;">${item.name}</label>
+                                    <label for="chk_${item.id}_${flowType}" style="font-size: 13px; font-weight: bold; color: #333; cursor: pointer; display: block;">${item.name}</label>
                                     ${item.url ? `<a href="${item.url}" target="_blank" title="View Source" style="color: #1a73e8; font-size: 12px; margin-left:10px;"><i class="fas fa-external-link-alt"></i></a>` : ''}
                                 </div>
                                 <p style="font-size: 11px; color: #666; margin: 3px 0 0 0; line-height: 1.3;">${item.description}</p>
@@ -15276,11 +15324,29 @@ Enterprise SEO Singapore</textarea>
                 listContainer.innerHTML = '<div style="font-size: 12px; color: #d93025;">Error scanning for guidelines. You can still manually enter requirements below.</div>';
             } finally {
                 scanBtn.disabled = false;
-                scanBtn.innerHTML = '<i class="fas fa-search"></i> Scan for Guidelines';
+                scanBtn.innerHTML = originalBtnHtml;
             }
         }
 
+        function getSelectedCompliance(flowType = 'new') {
+            const isNew = flowType === 'new';
+            const listId = isNew ? 'complianceGuidelinesList' : 'complianceGuidelinesList-Optimise';
+            const customId = isNew ? 'customCompliance' : 'customCompliance-Optimise';
+
+            const container = document.getElementById(listId);
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+            let complianceText = Array.from(checkboxes).map(cb => cb.value).join(', ');
+
+            const customValue = document.getElementById(customId).value.trim();
+            if (customValue) {
+                complianceText += (complianceText ? '; ' : '') + customValue;
+            }
+
+            return complianceText;
+        }
+
         function switchOptimiserFlow(type) {
+            currentOptimiserFlow = type;
             const decision = document.getElementById('optimiserDecisionPanel');
             const newFlow = document.getElementById('createNewFlow');
             const optimiseFlow = document.getElementById('optimiseExistingFlow');
@@ -15291,16 +15357,21 @@ Enterprise SEO Singapore</textarea>
             optimiseFlow.classList.toggle('active', type === 'optimise');
 
             // If resetting or switching to 'new', hide the editor until content is generated
-            if (type === 'reset' || type === 'new') {
+            if (type === 'reset' || type === 'new' || type === 'optimise') {
                 if (optimiserLayout) optimiserLayout.style.display = 'none';
                 const outlineWrapper = document.getElementById('outlineStepWrapper');
                 if (outlineWrapper) outlineWrapper.style.display = 'none';
 
-                // Reset compliance guidelines UI
-                const listContainer = document.getElementById('complianceGuidelinesList');
-                if (listContainer) listContainer.innerHTML = '<div style="font-size: 12px; color: #999; width: 100%; font-style: italic;">No guidelines scanned yet. Click "Scan" to identify relevant regulations for your topic.</div>';
-                const customComp = document.getElementById('customCompliance');
-                if (customComp) customComp.value = '';
+                // Reset compliance guidelines UI for both flows
+                ['complianceGuidelinesList', 'complianceGuidelinesList-Optimise'].forEach(id => {
+                    const list = document.getElementById(id);
+                    if (list) list.innerHTML = `<div style="font-size: 12px; color: #999; width: 100%; font-style: italic;">No guidelines checked yet. Click "Check" to identify relevant regulations for your ${id.includes('Optimise') ? 'keywords' : 'topic'}.</div>`;
+                });
+
+                ['customCompliance', 'customCompliance-Optimise'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
             }
 
             // Show editor immediately for 'optimise' path
@@ -15357,16 +15428,9 @@ Enterprise SEO Singapore</textarea>
                         return `URL: ${url}\nTopics: ${item.body[url].join(', ')}`;
                     }).join('\n\n');
 
-                // 3. NEW: Fetch selected compliance guidelines
-                const selectedCompliance = [];
-                document.querySelectorAll('#complianceGuidelinesList input:checked').forEach(cb => {
-                    selectedCompliance.push(cb.value);
-                });
-                const customComp = document.getElementById('customCompliance').value.trim();
-                if (customComp) selectedCompliance.push(customComp);
-
-                const complianceInstruction = selectedCompliance.length > 0
-                    ? `\n\nCRITICAL COMPLIANCE REQUIREMENTS: You MUST ensure the outline accounts for the following regulations or guidelines:\n- ${selectedCompliance.join('\n- ')}`
+                const complianceText = getSelectedCompliance('new');
+                const complianceInstruction = complianceText
+                    ? `\n\nCRITICAL COMPLIANCE REQUIREMENTS: You MUST ensure the outline accounts for the following regulations or guidelines:\n- ${complianceText}`
                     : "";
 
                 const outlinePrompt = `
@@ -15439,16 +15503,9 @@ INSTRUCTIONS:
             document.getElementById('primaryKeyword').value = pk;
             document.getElementById('secondaryKeywords').value = sk;
 
-            // NEW: Fetch selected compliance guidelines
-            const selectedCompliance = [];
-            document.querySelectorAll('#complianceGuidelinesList input:checked').forEach(cb => {
-                selectedCompliance.push(cb.value);
-            });
-            const customComp = document.getElementById('customCompliance').value.trim();
-            if (customComp) selectedCompliance.push(customComp);
-
-            const complianceInstruction = selectedCompliance.length > 0
-                ? `\n\nSTRICT COMPLIANCE NOTICE: The generated content MUST adhere to the following regulations and guidelines. Ensure legal disclaimers or required phrasing are included if these guidelines dictate so:\n- ${selectedCompliance.join('\n- ')}`
+            const complianceText = getSelectedCompliance('new');
+            const complianceInstruction = complianceText
+                ? `\n\nSTRICT COMPLIANCE NOTICE: The generated content MUST adhere to the following regulations and guidelines. Ensure legal disclaimers or required phrasing are included if these guidelines dictate so:\n- ${complianceText}`
                 : "";
 
             // EEAT and SEO Guidelines
