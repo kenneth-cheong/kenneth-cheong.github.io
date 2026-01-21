@@ -1,150 +1,149 @@
 import json
+import urllib.request
 import requests
+from bs4 import BeautifulSoup
 import os
-import base64
-
-# DataForSEO Credentials - Recommended to set these in AWS Lambda Environment Variables
-# If not set, system will look for fallback or error
-DFSO_LOGIN = os.environ.get('DATAFORSEO_LOGIN', 'your_login')
-DFSO_PASSWORD = os.environ.get('DATAFORSEO_PASSWORD', 'your_password')
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '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')
-
-def get_auth_header():
-    auth_str = f"{DFSO_LOGIN}:{DFSO_PASSWORD}"
-    encoded_auth = base64.b64encode(auth_str.encode('ascii')).decode('ascii')
-    return {"Authorization": f"Basic {encoded_auth}", "Content-Type": "application/json"}
 
 def lambda_handler(event, context):
-    action = event.get('action', 'start_crawl') # Default to start
+    homepage = event['url']
+    max_pages = int(event['max_pages'])
     
-    if action == 'start_crawl':
-        homepage = event.get('url')
-        max_pages = int(event.get('max_pages', 10))
-        
-        post_data = [{
-            "target": homepage,
-            "max_crawl_pages": max_pages,
-            "load_resources": True,
-            "enable_javascript": True,
-            "custom_user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-        }]
-        
-        response = requests.post("https://api.dataforseo.com/v3/on_page/task_post", 
-                                 headers=get_auth_header(), 
-                                 json=post_data)
-        res_json = response.json()
-        
-        if res_json.get('status_code') == 20000:
-            task_id = res_json['tasks'][0]['id']
-            return {
-                'statusCode': 200,
-                'body': {'task_id': task_id, 'status': 'started'}
-            }
-        else:
-            return {
-                'statusCode': 400,
-                'body': {'error': res_json.get('status_message', 'Failed to start task')}
-            }
+    data = {}
+    
+    opener = urllib.request.build_opener()
+    opener.addheaders = [('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36')]
+    urllib.request.install_opener(opener)
 
-    elif action == 'get_status':
-        task_id = event.get('task_id')
-        response = requests.get(f"https://api.dataforseo.com/v3/on_page/summary/{task_id}", 
-                                headers=get_auth_header())
-        res_json = response.json()
-        
-        if res_json.get('status_code') == 20000:
-            task_info = res_json['tasks'][0]['result'][0]
-            crawl_progress = task_info.get('crawl_progress', 'unknown')
-            crawl_status = task_info.get('crawl_status', 'in_progress')
-            
-            # Extract basic progress metrics
-            pages_crawled = task_info.get('pages_crawled', 0)
-            pages_in_queue = task_info.get('pages_in_queue', 0)
-            
-            return {
-                'statusCode': 200,
-                'body': {
-                    'task_id': task_id,
-                    'status': crawl_status,
-                    'pages_crawled': pages_crawled,
-                    'pages_in_queue': pages_in_queue,
-                    'progress': crawl_progress
-                }
-            }
-        else:
-            return {
-                'statusCode': 400,
-                'body': {'error': res_json.get('status_message', 'Failed to get status')}
-            }
-
-    elif action == 'get_results':
-        task_id = event.get('task_id')
-        # Get pages results
-        # payload for pages
-        payload = [{
-            "id": task_id,
-            "limit": 100
-        }]
-        response = requests.post("https://api.dataforseo.com/v3/on_page/pages", 
-                                 headers=get_auth_header(), 
-                                 json=payload)
-        res_json = response.json()
-        
-        if res_json.get('status_code') == 20000:
-            pages = res_json['tasks'][0]['result'][0]['items']
-            mapped_data = {}
-            
-            for page in pages:
-                url = page.get('url')
-                meta = page.get('meta', {})
-                
-                # Fetch OpenAI UI/UX review if needed (Optional, can be slow for many pages)
-                # For efficiency, we might only do this for the homepage or a sample, 
-                # but to match previous behavior, we'll try for each.
-                uiux_summary = ""
+    request_url = urllib.request.urlopen(homepage)
+    
+    soup = BeautifulSoup(request_url.read(), 'html.parser')
+    
+    links = []
+    crawled = [homepage]
+    
+    for link in soup.find_all('a', href=True):
+        if link['href'] not in links and homepage in link['href'] and link['href'][-4] != "." and link['href'][-5] != ".":
+            links.append(link['href'])
+    
+    while len(data.keys())<max_pages:
+        for url in links:
+            if url not in crawled and len(data.keys())<max_pages:
+                request_url = urllib.request.urlopen(url)
+                crawled.append(url)
                 try:
-                    # Only if we have content and it's an HTML page
-                    if page.get('content_type') == 'text/html':
+                    soup = BeautifulSoup(request_url.read(), 'html.parser')
+                    data[url] = {}
+                    if request_url.geturl() == url:
+                        data[url]['code'] = request_url.status
+                        data[url]['title'] = soup.title.string
+                    else:
+                        data[url]['code'] = requests.get(url).status_code
+                        data[url]['title'] = soup.title.string
+                    try:
+                        value = soup.find_all('meta', attrs={'name': 'description'})[0]
+                        if value == "" or value == [[]] or value == []:
+                            data[url]['description'] = "None"
+                        else:
+                            data[url]['description'] = soup.find_all('meta', attrs={'name': 'description'})[0]['content']
+                    except:
+                        data[url]['description'] = ""
+                    try:
+                        data[url]['canonical'] = soup.select('link[rel*=canonical]')[0]['href']
+                    except:
+                        data[url]['canonical'] = ""
+                    try:
+                        value = soup.find_all('link', rel='alternate', hreflang=True)
+                        hreflangs = []
+                        for hreflang in value:
+                            hreflangs.append(hreflang['hreflang'])
+                        if value == []:
+                            data[url]['hreflang'] = "None"
+                        else:
+                            data[url]['hreflang'] = "\n• ".join(hreflangs)
+                    except Exception as e:
+                        print(e)
+                        data[url]['hreflang'] = "None"
+                    for link in soup.find_all('a', href=True):
+                        if link['href'] not in links and homepage in link['href'] and link['href'][-4] != "." and link['href'][-5] != ".":
+                            links.append(link['href'])
+                    
+                    # Use CSS selectors to exclude common invisible elements:
+                    for script in soup(["script", "style"]):
+                        script.extract()
+
+                    # Extract text and join with spaces:
+                    text_elements = [t.strip() for t in soup.find_all(text=True) if t.strip()]
+
+                    data[url]['word_count'] = len(text_elements)
+                            
+                    value = soup.find_all('img')
+                    if value == "" or value == [[]] or value == []:
+                        data[url]['alt_text'] = "None"
+                    else:
+                        alt_texts = []
+                        for image in value:
+                            try:
+                                alt_text = image.attrs['alt']
+                                if alt_text not in alt_texts and alt_text !="":
+                                    alt_texts.append(alt_text)
+                            except:
+                                continue
+                    data[url]['alt_text'] = ',<br>'.join(alt_texts)
+                    
+                    value = soup.find_all('h1')
+                    if value == "" or value == [[]] or value == []:
+                        data[url]['h1'] = "None"
+                    else:
+                        h1s = []
+                        for header in value:
+                            h1 = header.text
+                            if h1 not in h1s and h1 !="":
+                                h1s.append(h1)
+                    data[url]['h1'] = ',<br>'.join(h1s)
+                    
+                    value = soup.find_all('h2')
+                    if value == "" or value == [[]] or value == []:
+                        data[url]['h2'] = "None"
+                    else:
+                        h2s = []
+                        for header in value:
+                            h2 = header.text
+                            if h2 not in h2s and h2 !="":
+                                h2s.append(h2)
+                    try:
+                        data[url]['h2'] = ',<br>'.join(h2s)
+                    except:
+                        data[url]['h2'] = ""
+
+                    try:
+                        #getting GPT to summarise based on page content
                         api_url = "https://api.openai.com/v1/chat/completions"
-                        prompt = f"Evaluate if this webpage UI/UX is good based on its metadata. Title: {meta.get('title')}, Description: {meta.get('description')}. Output 'Good' or 'Bad' with a short summary why."
-                        
-                        querystring = {
-                            "model": "gpt-4o-mini",
-                            "messages": [{"role": "user", "content": prompt}]
-                        }
+
+                        prompt = "Evaluate if this webpage has a good UI/UX. Output 'Good' or 'Bad' with a short summary why. Here is an excerpt of the page HTML: " +str(soup)[:100000]
+
+                        querystring = {"model":"gpt-4o-mini",
+                                    "messages":[{"role": "user", "content": prompt}]}
+
+                        openai_key = os.environ.get('OPENAI_API_KEY')
                         headers = {
                             "Content-Type": "application/json",
-                            'Authorization': f'Bearer {OPENAI_API_KEY}'
+                            'Authorization': f'Bearer {openai_key}'
                         }
-                        ai_res = requests.post(api_url, headers=headers, json=querystring)
-                        uiux_summary = ai_res.json()['choices'][0]['message']['content']
-                except Exception as e:
-                    print(f"Skipping OpenAI for {url}: {e}")
 
-                mapped_data[url] = {
-                    'code': page.get('status_code'),
-                    'title': meta.get('title', 'N/A'),
-                    'description': meta.get('description', 'N/A'),
-                    'canonical': meta.get('canonical', 'N/A'),
-                    'hreflang': ", ".join(meta.get('hreflangs', [])) if meta.get('hreflangs') else "None",
-                    'alt_text': "Included in analysis", # DataForSEO has separate images endpoint if needed
-                    'h1': ", ".join(meta.get('h1', [])) if meta.get('h1') else "None",
-                    'h2': ", ".join(meta.get('h2', [])) if meta.get('h2') else "None",
-                    'word_count': page.get('meta', {}).get('content_info', {}).get('word_count', 0),
-                    'uiux': uiux_summary
-                }
-            
-            return {
-                'statusCode': 200,
-                'body': mapped_data
-            }
-        else:
-            return {
-                'statusCode': 400,
-                'body': {'error': res_json.get('status_message', 'Failed to get results')}
-            }
+                        response = requests.post(api_url, headers=headers, json=querystring)
 
+                        print(response.json()['choices'][0]['message']['content'])
+
+                        data[url]['uiux'] = response.json()['choices'][0]['message']['content']
+
+                    except Exception as e:
+                        print(e)
+                        data[url]['uiux'] = ""
+                except:
+                    continue
+                
+        
     return {
-        'statusCode': 400,
-        'body': {'error': 'Invalid action'}
+        'statusCode': 200,
+        'body': json.loads(json.dumps(data, default=str))
     }
