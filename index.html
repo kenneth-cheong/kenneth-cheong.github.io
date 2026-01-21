@@ -4476,6 +4476,33 @@
                     <button class="collapsible" id="crawlerButton"><i class="fas fa-plus-square"></i>Crawler
                         Report</button>
                     <div class="content" id="crawlerSection">
+                        <div style="margin-bottom: 20px;">
+                            <label for="maxPagesInput">Max Pages to Crawl:</label>
+                            <input type="number" id="maxPagesInput" value="10" min="1" max="100"
+                                style="width: 60px; padding: 5px; border-radius: 4px; border: 1px solid #ddd;">
+                            <button id="btnStartCrawler" class="btn-gradient"
+                                style="background: #1a73e8; margin-left: 10px;" onclick="startWebsiteCrawl()">
+                                <i class="fas fa-search"></i> Analyse Website
+                            </button>
+                        </div>
+
+                        <div id="crawlerProgressArea"
+                            style="display: none; margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e0e0e0;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span id="crawlerStatusText" style="font-weight: 500; color: #3c4043;">Initialising
+                                    crawl...</span>
+                                <span id="crawlerProgressPercent" style="color: #1a73e8; font-weight: bold;">0%</span>
+                            </div>
+                            <div style="height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden;">
+                                <div id="crawlerProgressBar"
+                                    style="width: 0%; height: 100%; background: #1a73e8; transition: width 0.3s ease;">
+                                </div>
+                            </div>
+                            <div id="crawlerDetailText" style="margin-top: 8px; font-size: 12px; color: #70757a;">
+                                Pages crawled: 0 | Remaining in queue: 0
+                            </div>
+                        </div>
+
                         <div id="crawlerReport" style="display:none;">
                             <table>
                                 <thead>
@@ -8726,67 +8753,138 @@ Enterprise SEO Singapore</textarea>
                 .catch(error => console.error('Error fetching Webpage Audit data:', error));
 
 
-            // Crawler API call
-            fetch("https://464q7iox7h.execute-api.ap-southeast-1.amazonaws.com/crawler", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ url: url, max_pages: parseInt(maxPages) })
-            })
-                .then(response => response.json())
-                .then(data => {
-                    crawlerTableBody.innerHTML = ''; // Clear previous data
+            async function startWebsiteCrawl() {
+                const url = document.getElementById('url').value;
+                const maxPages = document.getElementById('maxPagesInput').value;
+                const btn = document.getElementById('btnStartCrawler');
+                const progressArea = document.getElementById('crawlerProgressArea');
+                const statusText = document.getElementById('crawlerStatusText');
+                const progressBar = document.getElementById('crawlerProgressBar');
+                const progressPercent = document.getElementById('crawlerProgressPercent');
+                const detailText = document.getElementById('crawlerDetailText');
+                const reportDiv = document.getElementById('crawlerReport');
 
-                    for (const pageUrl in data.body) {
-                        const pageData = data.body[pageUrl];
-                        const row = document.createElement('tr');
-                        row.innerHTML = `   
-                        <td>${pageUrl}</td>
-                        <td>${pageData.code}</td>
-                        <td>${pageData.title}</td>
-                        <td>${pageData.description}</td>
-                        <td>${pageData.canonical}</td>
-                        <td>${pageData.hreflang}</td>
-                        <td>${pageData.alt_text}</td>
-                        <td>${pageData.h1}</td>
-                        <td>${pageData.h2}</td>
-                        <td>${pageData.word_count}</td>
-                        <td>${pageData.uiux}</td>
-                    `;
-                        crawlerTableBody.appendChild(row);
-                    }
-                    crawlerReportDiv.style.display = 'block';
-                    submitBtn.innerHTML = 'Analyse Website';
+                if (!url) return alert("Please enter a URL first.");
 
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+                progressArea.style.display = 'block';
+                reportDiv.style.display = 'none';
 
-                    // Audit Summary
-                    gt_data = { "cumulative_layout_shift": document.getElementById('cls').textContent, "largest_contentful_paint": document.getElementById('lcp').textContent, "total_blocking_time": document.getElementById('tbt').textContent };
-                    webpage_audit_data = { 'google_safe_site': document.getElementById('malware').textContent, 'sitemap': document.getElementById('sitemap').textContent, 'robots_txt': document.getElementById('robots').innerHTML, 'pagespeed': document.getElementById('pagespeed_audit').textContent };
+                // Reset Progress
+                progressBar.style.width = '0%';
+                progressPercent.innerText = '0%';
+                statusText.innerText = 'Initialising crawl...';
+                detailText.innerText = `Preparing to crawl up to ${maxPages} pages...`;
 
-                    fetch("https://ccgdpp7dna.execute-api.ap-southeast-1.amazonaws.com/techAuditSummary", {
+                try {
+                    const response = await fetch("https://464q7iox7h.execute-api.ap-southeast-1.amazonaws.com/crawler", {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ crawl: data, gtmetrix: gt_data, webpage_audit: webpage_audit_data })
-                    })
-                        .then(response => response.json())
-                        .then(data => {
-                            document.getElementById('auditSummary').innerHTML = data.body;
-                            document.getElementById("crawlerButton").style.backgroundColor = "green";
-                        })
-                        .catch(error => console.error('Error fetching Audt Summary API:', error));
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'start_crawl', url: url, max_pages: maxPages })
+                    });
+                    const data = await response.json();
 
-                })
-                .catch(error => {
-                    console.error('Error fetching crawler data:', error);
-                    submitBtn.innerHTML = 'Analyse Website';
-                })
+                    if (data.statusCode === 200) {
+                        const taskId = data.body.task_id;
+                        console.log("Crawl started, Task ID:", taskId);
+                        pollCrawlStatus(taskId, maxPages);
+                    } else {
+                        throw new Error(data.body.error || 'Failed to start crawl');
+                    }
+                } catch (error) {
+                    console.error("Crawler Error:", error);
+                    alert("Error starting crawler: " + error.message);
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-search"></i> Analyse Website';
+                }
+            }
 
-                .finally(() => {
-                    document.getElementById('downloadResultsBtn').style.display = 'block';
-                });
+            let crawlPollInterval = null;
+            function pollCrawlStatus(taskId, maxPages) {
+                if (crawlPollInterval) clearInterval(crawlPollInterval);
+
+                crawlPollInterval = setInterval(async () => {
+                    try {
+                        const response = await fetch("https://464q7iox7h.execute-api.ap-southeast-1.amazonaws.com/crawler", {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'get_status', task_id: taskId })
+                        });
+                        const data = await response.json();
+
+                        if (data.statusCode === 200) {
+                            const status = data.body.status;
+                            const pagesCrawled = data.body.pages_crawled || 0;
+                            const pagesQueue = data.body.pages_in_queue || 0;
+                            const progress = data.body.progress; // e.g., "10%"
+
+                            // Update UI
+                            const progressVal = Math.min(100, Math.round((pagesCrawled / maxPages) * 100));
+                            document.getElementById('crawlerProgressBar').style.width = progressVal + '%';
+                            document.getElementById('crawlerProgressPercent').innerText = progressVal + '%';
+                            document.getElementById('crawlerStatusText').innerText = status === 'finished' ? 'Crawl Finished' : 'Crawling in progress...';
+                            document.getElementById('crawlerDetailText').innerText = `Pages crawled: ${pagesCrawled} | In queue: ${pagesQueue}`;
+
+                            if (status === 'finished' || progress === '100%') {
+                                clearInterval(crawlPollInterval);
+                                finishCrawl(taskId);
+                            }
+                        }
+                    } catch (error) {
+                        console.error("Polling Error:", error);
+                    }
+                }, 2000); // 2 second updates
+            }
+
+            async function finishCrawl(taskId) {
+                const statusText = document.getElementById('crawlerStatusText');
+                statusText.innerText = 'Processing results...';
+
+                try {
+                    const response = await fetch("https://464q7iox7h.execute-api.ap-southeast-1.amazonaws.com/crawler", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'get_results', task_id: taskId })
+                    });
+                    const data = await response.json();
+
+                    if (data.statusCode === 200) {
+                        const results = data.body;
+                        const tableBody = document.getElementById('crawlerTableBody');
+                        tableBody.innerHTML = '';
+
+                        for (const url in results) {
+                            const page = results[url];
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                            <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><a href="${url}" target="_blank">${url}</a></td>
+                            <td>${page.code}</td>
+                            <td>${page.title}</td>
+                            <td>${page.description}</td>
+                            <td>${page.canonical}</td>
+                            <td>${page.hreflang}</td>
+                            <td>${page.alt_text}</td>
+                            <td>${page.h1}</td>
+                            <td>${page.h2}</td>
+                            <td>${page.word_count}</td>
+                            <td>${page.uiux}</td>
+                        `;
+                            tableBody.appendChild(row);
+                        }
+
+                        document.getElementById('crawlerReport').style.display = 'block';
+                        statusText.innerText = 'Analysis Complete!';
+                    }
+                } catch (error) {
+                    console.error("Results Error:", error);
+                    alert("Error fetching crawl results: " + error.message);
+                } finally {
+                    const btn = document.getElementById('btnStartCrawler');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-search"></i> Analyse Website';
+                }
+            }
 
         });
 
