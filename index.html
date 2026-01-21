@@ -3108,6 +3108,70 @@
                 width: 100%;
             }
         }
+
+        .competitor-insights-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #1a73e8;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .competitor-insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .competitor-card {
+            background: #f8fafd;
+            border: 1px solid #e1e8f5;
+            border-radius: 8px;
+            padding: 15px;
+            transition: transform 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .competitor-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 76, 157, 0.08);
+        }
+
+        .competitor-card-url {
+            font-size: 0.85em;
+            color: #004c9d;
+            text-decoration: none;
+            word-break: break-all;
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .competitor-card-url:hover {
+            text-decoration: underline;
+        }
+
+        .competitor-topics-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .competitor-topic-tag {
+            background: #fff;
+            border: 1px solid #dce4f2;
+            color: #444;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+        }
     </style>
 </head>
 
@@ -4816,6 +4880,20 @@
                         <i class="fas fa-search"></i> Step 1: Analyze & Propose Outline
                     </button>
 
+                    <!-- Competitor Insights Display -->
+                    <div id="competitorAnalysisWrapper"
+                        style="display: none; margin-top: 25px; border-top: 1px solid #eee; padding-top: 20px;">
+                        <div class="competitor-insights-title">
+                            <i class="fas fa-chart-line"></i> Competitor Content Insights
+                        </div>
+                        <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">
+                            We've analyzed the top 5 SERP competitors for your keyword. Here are the topics they cover:
+                        </p>
+                        <div id="competitorInsightsGrid" class="competitor-insights-grid">
+                            <!-- Competitor cards will be injected here -->
+                        </div>
+                    </div>
+
                     <div id="outlineStepWrapper"
                         style="display: none; margin-top: 30px; border-top: 2px dashed #eee; padding-top: 20px;">
                         <label for="editableOutline"
@@ -5456,11 +5534,11 @@ Enterprise SEO Singapore</textarea>
                             <div style="overflow-x: auto; margin-bottom: 20px;">
                                 <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
                                     <thead>
-                                        <tr style="background: #f8f9fa; border-bottom: 1px solid #eee;">
-                                            <th style="padding: 12px; text-align: left; width: 50px; color: #5f6368;">
+                                        <tr style="background: #004c9d; border-bottom: 1px solid #1967d2;">
+                                            <th style="padding: 12px; text-align: left; width: 50px; color: white;">
                                                 No.</th>
-                                            <th style="padding: 12px; text-align: left; color: #5f6368;">URL</th>
-                                            <th style="padding: 12px; text-align: left; width: 180px; color: #5f6368;">
+                                            <th style="padding: 12px; text-align: left; color: white;">URL</th>
+                                            <th style="padding: 12px; text-align: left; width: 180px; color: white;">
                                                 Status/Result</th>
                                         </tr>
                                     </thead>
@@ -7076,12 +7154,35 @@ Enterprise SEO Singapore</textarea>
             document.getElementById('bar-brand-split').style.width = brandPct + '%';
         }
 
+        function normalizeGscUrl(url) {
+            if (!url) return url;
+            try {
+                // Remove whitespace
+                url = url.trim();
+                const urlObj = new URL(url);
+                let path = urlObj.pathname;
+
+                const excludedExtensions = ['.pdf', '.html', '.php', '.xml', '.txt', '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.css', '.js', '.zip', '.rar', '.doc', '.docx', '.xls', '.xlsx'];
+
+                if (!path.endsWith('/')) {
+                    const hasExcludedExtension = excludedExtensions.some(ext => path.toLowerCase().endsWith(ext));
+                    if (!hasExcludedExtension) {
+                        urlObj.pathname = path + '/';
+                    }
+                }
+                return urlObj.toString();
+            } catch (e) {
+                return url;
+            }
+        }
+
         async function runGscInspection() {
             const btn = document.getElementById('btnRunGscInspection');
             const originalHtml = btn.innerHTML;
 
             const textarea = document.getElementById('gscInspectUrls');
-            const urls = textarea.value.split('\n').map(u => u.trim()).filter(u => u !== "");
+            const rawUrls = textarea.value.split('\n').map(u => u.trim()).filter(u => u !== "");
+            const urls = rawUrls.map(u => normalizeGscUrl(u));
             const resultsArea = document.getElementById('gscResults');
 
             if (urls.length === 0) return alert("Please enter at least one URL to inspect.");
@@ -7134,12 +7235,32 @@ Enterprise SEO Singapore</textarea>
                             systemLog.innerHTML += `<div style="color: #ea4335;">[Error] URL ${count}: ${data.error.message}</div>`;
                         } else {
                             const result = data.inspectionResult || {};
-                            const verdict = result.indexStatusResult ? result.indexStatusResult.verdict : "UNKNOWN";
-                            const color = verdict === "INDEXED" ? "#34a853" : (verdict === "NEUTRAL" ? "#fbbc05" : "#666");
-                            const tooltip = verdict === "NEUTRAL" ? `title="${NEUTRAL_HINT}"` : "";
-                            const cursor = verdict === "NEUTRAL" ? "cursor: help;" : "";
+                            const statusResult = result.indexStatusResult || {};
+                            const verdict = statusResult.verdict || "UNKNOWN";
+                            const coverage = statusResult.coverageState || "";
 
-                            statusCell.innerHTML = `<b style="color: ${color}; ${cursor}" ${tooltip}>${verdict}</b>`;
+                            let displayStatus = verdict;
+                            let color = "#666";
+                            let tooltipAttr = "";
+                            let cursorStyle = "";
+
+                            if (verdict === "PASS") {
+                                displayStatus = "Indexed";
+                                color = "#34a853";
+                            } else if (verdict === "NEUTRAL") {
+                                displayStatus = coverage ? coverage.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, l => l.toUpperCase()) : "Not Indexed";
+                                color = "#fbbc05";
+                                tooltipAttr = `title="${NEUTRAL_HINT}"`;
+                                cursorStyle = "cursor: help;";
+                            } else if (verdict === "FAIL") {
+                                displayStatus = "Error";
+                                color = "#ea4335";
+                            } else if (verdict === "PARTIAL") {
+                                displayStatus = "Partially Indexed";
+                                color = "#fbbc05";
+                            }
+
+                            statusCell.innerHTML = `<b style="color: ${color}; ${cursorStyle}" ${tooltipAttr}>${displayStatus}</b>`;
                         }
                     } catch (err) {
                         document.getElementById(`gsc-res-${count}`).innerHTML = `<span style="color: #ea4335;">Failed</span>`;
@@ -7159,7 +7280,8 @@ Enterprise SEO Singapore</textarea>
             const originalHtml = btn.innerHTML;
 
             const textarea = document.getElementById('gscIndexUrls');
-            const urls = textarea.value.split('\n').map(u => u.trim()).filter(u => u !== "");
+            const rawUrls = textarea.value.split('\n').map(u => u.trim()).filter(u => u !== "");
+            const urls = rawUrls.map(u => normalizeGscUrl(u));
             const resultsArea = document.getElementById('gscResults');
 
             if (urls.length === 0) return alert("Please enter at least one URL to submit.");
@@ -15407,10 +15529,11 @@ Enterprise SEO Singapore</textarea>
                 const serpResponse = await fetch('https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ keyword, language: "English", location: "Singapore", user: "system" }),
+                    body: JSON.stringify({ keyword, language: "English", location: "Singapore", "page_types": "any" }),
                 });
                 const serpData = await serpResponse.json();
-                const serpUrls = Object.values(serpData).map(result => result.url).slice(0, 5); // Limit to top 5 for speed
+                console.log(serpData);
+                const serpUrls = Object.values(serpData).map(result => result.url); // Use all returned URLs
 
                 // 2. Extract competitor topics/gaps (simplified for the prompt)
                 const analysisPromises = serpUrls.map(url =>
@@ -15421,12 +15544,39 @@ Enterprise SEO Singapore</textarea>
                     }).then(res => res.json()).catch(() => null)
                 );
                 const analysisDataArray = await Promise.all(analysisPromises);
-                let competitorInsights = analysisDataArray
-                    .filter(item => item && item.body)
-                    .map(item => {
-                        const url = Object.keys(item.body)[0];
-                        return `URL: ${url}\nTopics: ${item.body[url].join(', ')}`;
-                    }).join('\n\n');
+                console.log(analysisDataArray);
+                // Render Competitor Cards
+                const competitorWrapper = document.getElementById('competitorAnalysisWrapper');
+                const competitorGrid = document.getElementById('competitorInsightsGrid');
+                if (competitorWrapper && competitorGrid) {
+                    competitorGrid.innerHTML = '';
+                    let cardsAdded = 0;
+                    analysisDataArray.forEach(item => {
+                        if (item && item.body) {
+                            const url = Object.keys(item.body)[0];
+                            const topics = item.body[url]['topics'];
+                            const card = document.createElement('div');
+                            card.className = 'competitor-card';
+                            const displayUrl = url.length > 50 ? url.substring(0, 47) + '...' : url;
+                            // Ensure topics is iterable (array or object keys)
+                            const topicList = Array.isArray(topics) ? topics : Object.keys(topics);
+                            card.innerHTML = `
+                    <a href="${url}" target="_blank" class="competitor-card-url" title="${url}">
+                        <i class="fas fa-external-link-alt"></i> ${displayUrl}
+                    </a>
+                    <ul class="competitor-topics-list">
+                        ${topicList.map(t => '<li class="competitor-topic-tag">' + t + '</li>').join('')}
+                    </ul>
+                `;
+                            competitorGrid.appendChild(card);
+                            cardsAdded++;
+                        }
+                    });
+                    if (cardsAdded === 0) {
+                        competitorGrid.innerHTML = `<p style="font-size:0.9em; color:#666;">No competitor data available.</p>`;
+                    }
+                    competitorWrapper.style.display = 'block';
+                }
 
                 const complianceText = getSelectedCompliance('new');
                 const complianceInstruction = complianceText
@@ -15441,8 +15591,8 @@ PRIMARY KEYWORD: "${keyword}"
 SECONDARY KEYWORDS: "${secondary}"
 ${complianceInstruction}
 
-COMPETITOR INSIGHTS (SERP TOP 5):
-${competitorInsights || "No competitor data available."}
+COMPETITOR INSIGHTS (SERP TOP 10):
+${JSON.stringify(analysisDataArray) || "No competitor data available."}
 
 INSTRUCTIONS:
 1. Identify "Content Gaps" (topics competitors missed).
