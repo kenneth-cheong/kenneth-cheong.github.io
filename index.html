@@ -5786,7 +5786,7 @@ Enterprise SEO Singapore</textarea>
                         </div>
                     </div>
 
-                    <div id="gscToolsArea" style="opacity: 0.5; pointer-events: none;">
+                    <div id="gscToolsArea" style="opacity: 0.5;">
                         <!-- Indexing Tab Panel -->
                         <div id="panel-indexing" class="gsc-tab-panel active">
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
@@ -7621,10 +7621,10 @@ Enterprise SEO Singapore</textarea>
             const toolsArea = document.getElementById('gscToolsArea');
             if (selectedGscProperty) {
                 toolsArea.style.opacity = '1';
-                toolsArea.style.pointerEvents = 'auto';
+                // toolsArea.style.pointerEvents = 'auto'; // No longer needed as we'll handle validation in functions
             } else {
-                toolsArea.style.opacity = '0.5';
-                toolsArea.style.pointerEvents = 'none';
+                // toolsArea.style.opacity = '0.5'; // Keep opacity for visual feedback
+                // toolsArea.style.pointerEvents = 'none'; // REMOVED: Allow clicks to trigger prompts
             }
         }
 
@@ -7653,7 +7653,12 @@ Enterprise SEO Singapore</textarea>
 
         async function fetchGscSearchInsights() {
             if (!gscAccessToken) return alert("Please connect to Google Search Console first.");
-            if (!selectedGscProperty) return alert("Please select a GSC property first.");
+            if (!selectedGscProperty || selectedGscProperty === "") {
+                const selector = document.getElementById('gscSiteList');
+                selector.style.border = '2px solid #ea4335';
+                setTimeout(() => selector.style.border = '1px solid #ddd', 2000);
+                return alert("Please select a Search Console property from the dropdown list first.");
+            }
 
             const period = document.getElementById('gscInsightPeriod').value;
             const loader = document.getElementById('gscInsightsLoader');
@@ -7922,7 +7927,12 @@ Enterprise SEO Singapore</textarea>
 
             if (urls.length === 0) return alert("Please enter at least one URL to inspect.");
             if (!gscAccessToken) return alert("Please connect to Google Search Console first.");
-            if (!selectedGscProperty) return alert("Please select a GSC property first.");
+            if (!selectedGscProperty || selectedGscProperty === "") {
+                const selector = document.getElementById('gscSiteList');
+                selector.style.border = '2px solid #ea4335';
+                setTimeout(() => selector.style.border = '1px solid #ddd', 2000);
+                return alert("Please select a Search Console property from the dropdown list first.");
+            }
 
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
             btn.disabled = true;
@@ -8021,7 +8031,12 @@ Enterprise SEO Singapore</textarea>
 
             if (urls.length === 0) return alert("Please enter at least one URL to submit.");
             if (!gscAccessToken) return alert("Please connect to Google Search Console first.");
-            if (!selectedGscProperty) return alert("Please select a GSC property first.");
+            if (!selectedGscProperty || selectedGscProperty === "") {
+                const selector = document.getElementById('gscSiteList');
+                selector.style.border = '2px solid #ea4335';
+                setTimeout(() => selector.style.border = '1px solid #ddd', 2000);
+                return alert("Please select a Search Console property from the dropdown list first.");
+            }
 
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
             btn.disabled = true;
@@ -16873,8 +16888,11 @@ CRITICAL CONTENT GUIDELINES (EEAT):
         }
 
         function runMasterclassSection(sectionId) {
+            if (!selectedGscProperty || selectedGscProperty === "") {
+                return alert("Please select a Search Console property first (under 'Indexing' or 'Search Insights' tab).");
+            }
             if (!gscPerformanceData || gscPerformanceData.length === 0) {
-                return alert("Please refresh search insights first (under 'Search Insights' tab) to load property data.");
+                return alert("Please click 'Refresh Insights' first (under 'Search Insights' tab) to load property data.");
             }
 
             const container = document.getElementById(`masterclass-dynamic-${sectionId}`);
