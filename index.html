@@ -16297,7 +16297,7 @@ Enterprise SEO Singapore</textarea>
                             Object.keys(data.body[url].topics).length > 0;
                     })
                         .then(data => ({ ...data, rank: index + 1 }))
-                        .catch(() => null)
+                        .catch(() => ({ url, rank: index + 1, error: true }))
                 );
                 const analysisDataArray = await Promise.all(analysisPromises);
                 console.log(analysisDataArray);
@@ -16389,7 +16389,7 @@ INSTRUCTIONS:
                             Object.keys(data.body[url].topics).length > 0;
                     })
                         .then(data => ({ ...data, rank: index + 1 }))
-                        .catch(() => null)
+                        .catch(() => ({ url, rank: index + 1, error: true }))
                 );
                 const analysisDataArray = await Promise.all(analysisPromises);
 
@@ -16553,7 +16553,7 @@ INSTRUCTIONS:
                     // Even if item is null, we might have some info if we structured it better,
                     // but for now let's use what we have.
                     const rank = item ? item.rank : '';
-                    const url = (item && item.body) ? Object.keys(item.body)[0] : (item ? item.url : 'Unknown URL');
+                    const url = item ? (item.url || ((item.body) ? Object.keys(item.body)[0] : 'Unknown URL')) : 'Unknown URL';
 
                     const topics = (item && item.body && item.body[url]) ? item.body[url].topics : null;
                     const topicEntries = topics ? Object.entries(topics) : [];
@@ -16593,7 +16593,7 @@ INSTRUCTIONS:
                                 <a href="${url}" target="_blank" class="competitor-card-url" title="${url}" style="margin-bottom: 5px;">
                                     <i class="fas fa-external-link-alt"></i> ${displayUrl}
                                 </a>
-                                <p style="font-size: 0.85em; color: #888; margin: 0;">No topic data found.</p>
+                                <p style="font-size: 0.85em; color: #888; margin: 0;">Unable to retrieve page content.</p>
                                 <button class="competitor-card-retry-btn" onclick="retrySingleCompetitorContent('${url}', '${keyword}', this.parentElement.parentElement, '${rank}')">
                                     <i class="fas fa-sync-alt"></i> Retry
                                 </button>
