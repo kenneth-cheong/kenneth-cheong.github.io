@@ -50,6 +50,7 @@ CRITICAL CONTENT GUIDELINES:
     - Use clear Header hierarchy (H2, H3).
     - Use bulleted lists for neat lists and ordered lists for listicles.
     - Use Markdown tables for comparisons.
+    - SPACING: Use concise vertical spacing. Avoid multiple empty lines between sections.
 8. TOPIC DEPTH: Synthesize information commonly found in Top 10-20 search results while adding original insights.
 """
 

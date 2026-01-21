@@ -3155,22 +3155,39 @@
             text-decoration: underline;
         }
 
-        .competitor-topics-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin: 0;
-            padding: 0;
-            list-style: none;
+        .competitor-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8em;
+            background: #fff;
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid #e1e8f5;
         }
 
-        .competitor-topic-tag {
-            background: #fff;
-            border: 1px solid #dce4f2;
+        .competitor-table th {
+            background: #f1f5fb;
+            color: #555;
+            text-align: left;
+            padding: 6px 8px;
+            border-bottom: 1px solid #e1e8f5;
+            font-weight: 600;
+        }
+
+        .competitor-table td {
+            padding: 4px 8px;
+            border-bottom: 1px dotted #eee;
             color: #444;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.8em;
+        }
+
+        .competitor-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .competitor-table .word-count-cell {
+            text-align: right;
+            color: #888;
+            font-family: monospace;
         }
     </style>
 </head>
@@ -4887,7 +4904,7 @@
                             <i class="fas fa-chart-line"></i> Competitor Content Insights
                         </div>
                         <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">
-                            We've analyzed the top 5 SERP competitors for your keyword. Here are the topics they cover:
+                            We've analyzed the top 10 SERP competitors for your keyword. Here are the topics they cover:
                         </p>
                         <div id="competitorInsightsGrid" class="competitor-insights-grid">
                             <!-- Competitor cards will be injected here -->
@@ -6360,23 +6377,31 @@ Enterprise SEO Singapore</textarea>
         function formatMarkdown(text) {
             if (!text) return "";
 
-            // Fix: Ensure headers starting with # have a newline before them if missing
-            let html = text.replace(/([^\n])\s?(#{1,6}\s|#{1,6}$)/g, '$1\n$2');
+            // 1. Normalize: Consolidate triple+ newlines into double newlines
+            // This prevents excessive vertical gaps while maintaining paragraph separation.
+            let html = text.replace(/\n{3,}/g, '\n\n').trim();
 
-            // 1. Headers (Deepest first)
+            // 2. Fix: Ensure headers starting with # have a newline before them if missing
+            html = html.replace(/([^\n])\s?(#{1,6}\s|#{1,6}$)/g, '$1\n$2');
+
+            // 3. Headers (Deepest first)
+            // Using multiline flag and supporting optional leading spaces
             html = html
-                .replace(/^######\s*(.*$)/gim, '<h6>$1</h6>')
-                .replace(/^#####\s*(.*$)/gim, '<h5>$1</h5>')
-                .replace(/^####\s*(.*$)/gim, '<h5>$1</h5>') // Map H4 to H5 for editor balance
-                .replace(/^###\s*(.*$)/gim, '<h4>$1</h4>')
-                .replace(/^##\s*(.*$)/gim, '<h3>$1</h3>')
-                .replace(/^#\s*(.*$)/gim, '<h2>$1</h2>')
+                .replace(/^\s*######\s*(.*$)/gim, '<h6>$1</h6>')
+                .replace(/^\s*#####\s*(.*$)/gim, '<h5>$1</h5>')
+                .replace(/^\s*####\s*(.*$)/gim, '<h5>$1</h5>') // Map H4 to H5 for editor balance
+                .replace(/^\s*###\s*(.*$)/gim, '<h4>$1</h4>')
+                .replace(/^\s*##\s*(.*$)/gim, '<h3>$1</h3>')
+                .replace(/^\s*#\s*(.*$)/gim, '<h2>$1</h2>')
 
-                // 2. Bold/Strong
+                // 4. Bold/Strong
                 .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
 
-                // 3. Newlines
-                .replace(/\n/g, '<br>');
+                // 5. Newlines to <br> 
+                // But only where we don't have block tags already closing/opening
+                .replace(/([^>])\n/g, '$1<br>')
+                .replace(/\n([^<])/g, '<br>$1')
+                .replace(/\n/g, ''); // Clean up any remaining single newlines
 
             return html;
         }
@@ -15522,7 +15547,7 @@ Enterprise SEO Singapore</textarea>
 
             btn.disabled = true;
             const originalBtnHtml = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing Competitors...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing SERPs...';
 
             try {
                 // 1. Fetch Top SERP URLs
@@ -15558,16 +15583,29 @@ Enterprise SEO Singapore</textarea>
                             const card = document.createElement('div');
                             card.className = 'competitor-card';
                             const displayUrl = url.length > 50 ? url.substring(0, 47) + '...' : url;
-                            // Ensure topics is iterable (array or object keys)
-                            const topicList = Array.isArray(topics) ? topics : Object.keys(topics);
+                            // topics is an object: { "Topic Name": word_count }
+                            const topicEntries = Object.entries(topics || {});
                             card.innerHTML = `
-                    <a href="${url}" target="_blank" class="competitor-card-url" title="${url}">
-                        <i class="fas fa-external-link-alt"></i> ${displayUrl}
-                    </a>
-                    <ul class="competitor-topics-list">
-                        ${topicList.map(t => '<li class="competitor-topic-tag">' + t + '</li>').join('')}
-                    </ul>
-                `;
+                                <a href="${url}" target="_blank" class="competitor-card-url" title="${url}">
+                                    <i class="fas fa-external-link-alt"></i> ${displayUrl}
+                                </a>
+                                <table class="competitor-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Topic</th>
+                                            <th style="text-align: right;">Words</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${topicEntries.map(([topic, count]) => `
+                                            <tr>
+                                                <td>${topic}</td>
+                                                <td class="word-count-cell">${count.toLocaleString()}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            `;
                             competitorGrid.appendChild(card);
                             cardsAdded++;
                         }
