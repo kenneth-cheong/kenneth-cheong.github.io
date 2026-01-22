@@ -3166,12 +3166,13 @@
         }
 
         .competitor-table th {
-            background: #f1f5fb;
-            color: #555;
+            background: #004c9d;
+            color: white;
             text-align: left;
             padding: 6px 8px;
-            border-bottom: 1px solid #e1e8f5;
+            border-bottom: 1px solid #003a7a;
             font-weight: 600;
+            font-size: 11px;
         }
 
         .competitor-table td {
@@ -3556,6 +3557,109 @@
             font-weight: bold;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
             z-index: 2;
+        }
+
+        .competitor-card-toggle {
+            display: flex;
+            background: #f1f3f4;
+            border-radius: 4px;
+            margin-bottom: 12px;
+            padding: 2px;
+        }
+
+        .competitor-card-toggle button {
+            flex: 1;
+            border: none;
+            background: none;
+            padding: 5px;
+            font-size: 10px;
+            cursor: pointer;
+            border-radius: 3px;
+            color: #666;
+            transition: all 0.2s;
+        }
+
+        .competitor-card-toggle button.active {
+            background: #fff;
+            color: #1a73e8;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            font-weight: bold;
+        }
+
+        .design-insights-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8em;
+        }
+
+        .design-insights-table th,
+        .design-insights-table td {
+            padding: 4px;
+            border-bottom: 1px solid #f1f3f4;
+            text-align: left;
+        }
+
+        .design-insights-table th {
+            background: #004c9d;
+            color: white;
+            text-align: left;
+            padding: 6px 8px;
+            border-bottom: 1px solid #003a7a;
+            font-weight: 600;
+            font-size: 11px;
+        }
+
+        .design-insights-table td {
+            padding: 4px 8px;
+            border-bottom: 1px solid #f1f3f4;
+            text-align: left;
+            font-size: 11px;
+        }
+
+        .btn-design-audit-toggle {
+            background: #f1f3f4;
+            border: 1px solid #ddd;
+            color: #444;
+            padding: 6px 12px;
+            font-size: 11px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-top: 10px;
+            width: 100%;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .btn-design-audit-toggle:hover {
+            background: #e8eaed;
+        }
+
+        .btn-design-audit-toggle.active {
+            background: #004c9d;
+            color: white;
+            border-color: #004c9d;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 1px 5px;
+            border-radius: 10px;
+            font-size: 9px;
+            font-weight: bold;
+        }
+
+        .status-present {
+            background: #e6f4ea;
+            color: #1e8e3e;
+        }
+
+        .status-absent {
+            background: #fce8e6;
+            color: #d93025;
         }
 
         .competitor-card {
@@ -5329,6 +5433,11 @@
                         <p style="font-size: 0.9em; color: #666; margin-bottom: 10px;">
                             Based on competitive analysis, here is a suggested structure. Amend it as needed.
                         </p>
+                        <div id="outlineLoading-New"
+                            style="display: none; padding: 20px; text-align: center; color: #004c9d; font-size: 0.9em;">
+                            <i class="fas fa-spinner fa-spin fa-2x"></i>
+                            <p style="margin-top: 10px;">Analyzing competitor data and generating article outline...</p>
+                        </div>
                         <textarea id="editableOutline"
                             style="width: 100%; padding: 15px; box-sizing: border-box; border-radius: 8px; border: 1px solid #004c9d; min-height: 250px; font-family: monospace; line-height: 1.6;"></textarea>
 
@@ -5454,6 +5563,11 @@ Enterprise SEO Singapore</textarea>
                                 Review and refine these suggestions. Click the button below to rewrite your article
                                 based on these insights.
                             </p>
+                            <div id="gapAnalysisLoading-Optimise"
+                                style="display: none; padding: 20px; text-align: center; color: #1a73e8; font-size: 0.9em;">
+                                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                <p style="margin-top: 10px;">Generating gap analysis based on competitor data...</p>
+                            </div>
                             <textarea id="gapAnalysisResults-Optimise" class="gap-analysis-textarea"
                                 placeholder="AI gap analysis will appear here..."></textarea>
 
@@ -7021,7 +7135,8 @@ Enterprise SEO Singapore</textarea>
             PLAGIARISM: 'https://tg6m9b7gsj.execute-api.ap-southeast-1.amazonaws.com/plagarismCheck',
             IMAGE_ALT: 'https://ty3ndlwcnk.execute-api.ap-southeast-1.amazonaws.com/altTextGenerator',
             GSC_INTEGRATION: 'https://v5gyq2sqdd.execute-api.ap-southeast-1.amazonaws.com/gscIntegration',
-            COMPLIANCE_RECOMMENDER: 'https://0jincjjy14.execute-api.ap-southeast-1.amazonaws.com/complianceRecommender'
+            COMPLIANCE_RECOMMENDER: 'https://0jincjjy14.execute-api.ap-southeast-1.amazonaws.com/complianceRecommender',
+            DESIGN_ANALYSIS: 'https://bzedwsy4mb.execute-api.ap-southeast-1.amazonaws.com/pageDesignAnalysis'
         };
 
         const GSC_CLIENT_ID = '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com';
@@ -16266,6 +16381,7 @@ Enterprise SEO Singapore</textarea>
             const btn = document.getElementById('btnAnalyzeAndPropose');
             const outlineWrapper = document.getElementById('outlineStepWrapper');
             const outlineArea = document.getElementById('editableOutline');
+            const outlineLoading = document.getElementById('outlineLoading-New');
 
             if (!keyword) return alert("Please specify a primary keyword for analysis.");
             if (!topic) return alert("Please describe what the article is about.");
@@ -16285,9 +16401,27 @@ Enterprise SEO Singapore</textarea>
                 console.log(serpData);
                 const serpUrls = Object.values(serpData).map(result => result.url); // Use all returned URLs
 
-                // 2. Extract competitor topics/gaps (simplified for the prompt)
-                const analysisPromises = serpUrls.map((url, index) =>
-                    fetchWithRetry('https://u24f9208q0.execute-api.ap-southeast-1.amazonaws.com/gptTopicsPerUrl', {
+                // 2. Initialize skeletons and render grid immediately
+                const analysisDataArray = serpUrls.map((url, index) => ({
+                    url,
+                    rank: index + 1,
+                    loading: true
+                }));
+                renderCompetitorCards(analysisDataArray, 'competitorInsightsGrid', 'competitorAnalysisWrapper', keyword);
+
+                if (outlineWrapper && outlineArea) {
+                    outlineWrapper.style.display = 'block';
+                    outlineArea.style.display = 'none';
+                    if (outlineLoading) outlineLoading.style.display = 'block';
+                    outlineWrapper.scrollIntoView({ behavior: 'smooth' });
+                }
+
+                // 3. Extract competitor topics/gaps and design insights simultaneously
+                const analysisPromises = serpUrls.map(async (url, index) => {
+                    const cardId = `comp-card-competitorInsightsGrid-${index}`;
+                    const cardElement = document.getElementById(cardId);
+
+                    const contentPromise = fetchWithRetry('https://u24f9208q0.execute-api.ap-southeast-1.amazonaws.com/gptTopicsPerUrl', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url, keyword }),
@@ -16295,15 +16429,34 @@ Enterprise SEO Singapore</textarea>
                         return data && data.body && data.body[url] &&
                             data.body[url].topics &&
                             Object.keys(data.body[url].topics).length > 0;
-                    })
-                        .then(data => ({ ...data, rank: index + 1 }))
-                        .catch(() => ({ url, rank: index + 1, error: true }))
-                );
-                const analysisDataArray = await Promise.all(analysisPromises);
-                console.log(analysisDataArray);
+                    }).catch(() => ({ url, error: true }));
 
-                // Render Competitor Cards
-                renderCompetitorCards(analysisDataArray, 'competitorInsightsGrid', 'competitorAnalysisWrapper', keyword);
+                    const designPromise = fetchWithRetry(OPTIMISER_ENDPOINTS.DESIGN_ANALYSIS, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url }),
+                    }, 2, data => {
+                        console.log(data);
+                        const actualData = data.body || data;
+                        return actualData && actualData.elements && Object.keys(actualData.elements).length > 0;
+                    }).catch(() => ({ url, designError: true }));
+
+                    const [contentData, designData] = await Promise.all([contentPromise, designPromise]);
+                    const result = {
+                        ...contentData,
+                        designData: designData,
+                        rank: index + 1,
+                        url: url
+                    };
+
+                    if (cardElement) {
+                        cardElement.innerHTML = getCompetitorCardInnerHtml(result, cardId, keyword);
+                    }
+                    return result;
+                });
+
+                const finalAnalysisDataArray = await Promise.all(analysisPromises);
+                console.log(finalAnalysisDataArray);
 
                 const complianceText = getSelectedCompliance('new');
                 const complianceInstruction = complianceText
@@ -16319,12 +16472,13 @@ SECONDARY KEYWORDS: "${secondary}"
 ${complianceInstruction}
 
 COMPETITOR INSIGHTS (SERP TOP 10):
-${JSON.stringify(analysisDataArray) || "No competitor data available."}
+${JSON.stringify(finalAnalysisDataArray) || "No competitor data available."}
 
 INSTRUCTIONS:
 1. Identify "Content Gaps" (topics competitors missed).
 2. Propose a structured outline (H1, H2, H3).
-3. Ensure the outline covers all EEAT principles (Experience, Expertise, Authoritativeness, Trustworthiness).
+3. DESIGN AUDIT: Analyze the 'designData' for each competitor. If they use charts, tables, or infographics, suggest where we should also include similar structural elements to improve engagement.
+4. Ensure the outline covers all EEAT principles (Experience, Expertise, Authoritativeness, Trustworthiness).
 4. Include a unique Point of View (POV) that differentiates this article from the SERP results.
 5. Provide the output in a clear, editable text format.
                     `.trim();
@@ -16343,9 +16497,14 @@ INSTRUCTIONS:
                 const result = parseLambdaResponse(data);
 
                 if (outlineArea) {
+                    if (outlineLoading) outlineLoading.style.display = 'none';
+                    outlineArea.style.display = 'block';
                     outlineArea.value = result.result;
                     outlineWrapper.style.display = 'block';
                     outlineWrapper.scrollIntoView({ behavior: 'smooth' });
+
+                    // Auto-activate all content tabs to sync with AI suggestions
+                    autoActivateAllContentTabs('competitorInsightsGrid');
                 }
 
             } catch (error) {
@@ -16377,9 +16536,20 @@ INSTRUCTIONS:
                 const serpData = await serpResponse.json();
                 const serpUrls = Object.values(serpData).map(result => result.url);
 
-                // 2. Extract competitor topics/gaps
-                const analysisPromises = serpUrls.map((url, index) =>
-                    fetchWithRetry('https://u24f9208q0.execute-api.ap-southeast-1.amazonaws.com/gptTopicsPerUrl', {
+                // 2. Initialize skeletons and render grid immediately
+                const analysisDataArray = serpUrls.map((url, index) => ({
+                    url,
+                    rank: index + 1,
+                    loading: true
+                }));
+                renderCompetitorCards(analysisDataArray, 'competitorInsightsGrid-Optimise', 'competitorAnalysisWrapper-Optimise', keyword);
+
+                // 3. Extract competitor topics/gaps and design insights simultaneously
+                const analysisPromises = serpUrls.map(async (url, index) => {
+                    const cardId = `comp-card-competitorInsightsGrid-Optimise-${index}`;
+                    const cardElement = document.getElementById(cardId);
+
+                    const contentPromise = fetchWithRetry('https://u24f9208q0.execute-api.ap-southeast-1.amazonaws.com/gptTopicsPerUrl', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url, keyword }),
@@ -16387,23 +16557,44 @@ INSTRUCTIONS:
                         return data && data.body && data.body[url] &&
                             data.body[url].topics &&
                             Object.keys(data.body[url].topics).length > 0;
-                    })
-                        .then(data => ({ ...data, rank: index + 1 }))
-                        .catch(() => ({ url, rank: index + 1, error: true }))
-                );
-                const analysisDataArray = await Promise.all(analysisPromises);
+                    }).catch(() => ({ url, error: true }));
 
-                // 3. Render Competitor Cards
-                renderCompetitorCards(analysisDataArray, 'competitorInsightsGrid-Optimise', 'competitorAnalysisWrapper-Optimise', keyword);
+                    const designPromise = fetchWithRetry(OPTIMISER_ENDPOINTS.DESIGN_ANALYSIS, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url }),
+                    }, 2, data => {
+                        console.log(data);
+                        const actualData = data.body || data;
+                        return actualData && actualData.elements && Object.keys(actualData.elements).length > 0;
+                    }).catch(() => ({ url, designError: true }));
+
+                    const [contentData, designData] = await Promise.all([contentPromise, designPromise]);
+                    const result = {
+                        ...contentData,
+                        designData: designData,
+                        rank: index + 1,
+                        url: url
+                    };
+
+                    if (cardElement) {
+                        cardElement.innerHTML = getCompetitorCardInnerHtml(result, cardId, keyword);
+                    }
+                    return result;
+                });
+
+                const finalAnalysisDataArray = await Promise.all(analysisPromises);
 
                 // 4. Trigger AI Gap Analysis
                 const editorContent = document.getElementById('editorContent').innerText.trim();
                 const gapAnalysisWrapper = document.getElementById('gapAnalysisWrapper-Optimise');
                 const gapAnalysisResults = document.getElementById('gapAnalysisResults-Optimise');
+                const gapAnalysisLoading = document.getElementById('gapAnalysisLoading-Optimise');
 
                 if (gapAnalysisWrapper && gapAnalysisResults && editorContent) {
                     gapAnalysisWrapper.style.display = 'block';
-                    gapAnalysisResults.innerHTML = '<p><i class="fas fa-spinner fa-spin"></i> Generating gap analysis based on competitor data...</p>';
+                    gapAnalysisResults.style.display = 'none';
+                    if (gapAnalysisLoading) gapAnalysisLoading.style.display = 'block';
 
                     const gapPrompt = `
 ANALYSE THE FOLLOWING DATA FOR CONTENT GAPS AND IMPROVEMENT SUGGESTIONS.
@@ -16411,7 +16602,7 @@ ANALYSE THE FOLLOWING DATA FOR CONTENT GAPS AND IMPROVEMENT SUGGESTIONS.
 PRIMARY KEYWORD: "${keyword}"
 
 COMPETITOR DATA (SERP TOP 10):
-${JSON.stringify(analysisDataArray)}
+${JSON.stringify(finalAnalysisDataArray)}
 
 YOUR CURRENT EDITOR CONTENT:
 """
@@ -16421,8 +16612,9 @@ ${editorContent}
 INSTRUCTIONS:
 1. Compare your content vs competitors.
 2. Identify specific "Content Gaps" (topics you missed but competitors cover well).
-3. Evaluate "Content Depth" (where you are too thin compared to the SERP average).
-4. Provide 3-5 actionable steps to improve the SEO and value of your existing content.
+3. DESIGN STRATEGY: Review 'designData' for each competitor. If top performers use interactive elements, tables, or infographics that you lack, provide specific recommendations on where to add them.
+4. Evaluate "Content Depth" (where you are too thin compared to the SERP average).
+5. Provide 3-5 actionable steps to improve the SEO and value of your existing content.
 5. Keep the tone professional and constructive.
                     `.trim();
 
@@ -16438,7 +16630,13 @@ INSTRUCTIONS:
 
                     const gapData = await aiResponse.json();
                     const gapResult = parseLambdaResponse(gapData);
+
+                    if (gapAnalysisLoading) gapAnalysisLoading.style.display = 'none';
+                    gapAnalysisResults.style.display = 'block';
                     gapAnalysisResults.value = gapResult.result || "Could not generate gap analysis.";
+
+                    // Auto-activate all content tabs to sync with AI suggestions
+                    autoActivateAllContentTabs('competitorInsightsGrid-Optimise');
                 }
 
             } catch (error) {
@@ -16544,62 +16742,12 @@ INSTRUCTIONS:
             const competitorGrid = document.getElementById(gridId);
             if (competitorWrapper && competitorGrid) {
                 competitorGrid.innerHTML = '';
-                let validCards = 0;
 
-                analysisDataArray.forEach(item => {
+                analysisDataArray.forEach((item, index) => {
                     const card = document.createElement('div');
                     card.className = 'competitor-card';
-
-                    // Even if item is null, we might have some info if we structured it better,
-                    // but for now let's use what we have.
-                    const rank = item ? item.rank : '';
-                    const url = item ? (item.url || ((item.body) ? Object.keys(item.body)[0] : 'Unknown URL')) : 'Unknown URL';
-
-                    const topics = (item && item.body && item.body[url]) ? item.body[url].topics : null;
-                    const topicEntries = topics ? Object.entries(topics) : [];
-
-                    if (item && item.body && item.body[url] && topicEntries.length > 0) {
-                        const displayUrl = url.length > 50 ? url.substring(0, 47) + '...' : url;
-
-                        card.innerHTML = `
-                            <div class="competitor-card-rank">${rank || ''}</div>
-                            <a href="${url}" target="_blank" class="competitor-card-url" title="${url}">
-                                <i class="fas fa-external-link-alt"></i> ${displayUrl}
-                            </a>
-                            <table class="competitor-table">
-                                <thead>
-                                    <tr>
-                                        <th>Topic</th>
-                                        <th style="text-align: right;">Words</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${topicEntries.map(([topic, count]) => `
-                                        <tr>
-                                            <td>${topic}</td>
-                                            <td class="word-count-cell">${count.toLocaleString()}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        `;
-                        validCards++;
-                    } else {
-                        // Render retry button for missing data
-                        const displayUrl = url.length > 50 ? url.substring(0, 47) + '...' : url;
-                        card.innerHTML = `
-                            <div class="competitor-card-rank">${rank || ''}</div>
-                            <div class="competitor-card-retry-container">
-                                <a href="${url}" target="_blank" class="competitor-card-url" title="${url}" style="margin-bottom: 5px;">
-                                    <i class="fas fa-external-link-alt"></i> ${displayUrl}
-                                </a>
-                                <p style="font-size: 0.85em; color: #888; margin: 0;">Unable to retrieve page content.</p>
-                                <button class="competitor-card-retry-btn" onclick="retrySingleCompetitorContent('${url}', '${keyword}', this.parentElement.parentElement, '${rank}')">
-                                    <i class="fas fa-sync-alt"></i> Retry
-                                </button>
-                            </div>
-                        `;
-                    }
+                    card.id = `comp-card-${gridId}-${index}`;
+                    card.innerHTML = getCompetitorCardInnerHtml(item, card.id, keyword);
                     competitorGrid.appendChild(card);
                 });
 
@@ -16607,36 +16755,41 @@ INSTRUCTIONS:
             }
         }
 
-        async function retrySingleCompetitorContent(url, keyword, cardElement, rank) {
-            const btn = cardElement.querySelector('.competitor-card-retry-btn');
-            const originalContent = cardElement.innerHTML;
+        function getCompetitorCardInnerHtml(item, cardId, keyword) {
+            const rank = item ? item.rank : '';
+            const url = item.url || 'Unknown URL';
+            const displayUrl = url.length > 50 ? url.substring(0, 47) + '...' : url;
 
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Retrying...';
+            if (item && item.loading) {
+                return `
+                    <div class="competitor-card-rank">${rank || ''}</div>
+                    <div class="competitor-card-url" title="${url}">
+                        <i class="fas fa-spinner fa-spin"></i> ${displayUrl}
+                    </div>
+                    <div style="padding: 30px 10px; text-align: center; color: #999; font-size: 0.85em;">
+                        <i class="fas fa-search-location fa-2x" style="display: block; margin-bottom: 10px; opacity: 0.3;"></i>
+                        Analyzing competitor page...
+                    </div>
+                `;
             }
 
-            try {
-                const data = await fetchWithRetry('https://u24f9208q0.execute-api.ap-southeast-1.amazonaws.com/gptTopicsPerUrl', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url, keyword }),
-                }, 2, d => {
-                    return d && d.body && d.body[url] &&
-                        d.body[url].topics &&
-                        Object.keys(d.body[url].topics).length > 0;
-                });
+            const topics = (item && item.body && item.body[url]) ? item.body[url].topics : null;
+            const topicEntries = topics ? Object.entries(topics) : [];
+            const designData = item.designData;
 
-                if (data && data.body && data.body[url]) {
-                    const topics = data.body[url]['topics'];
-                    const displayUrl = url.length > 50 ? url.substring(0, 47) + '...' : url;
-                    const topicEntries = Object.entries(topics || {});
+            if (item && !item.error) {
+                return `
+                    <div class="competitor-card-rank">${rank || ''}</div>
+                    <a href="${url}" target="_blank" class="competitor-card-url" title="${url}">
+                        <i class="fas fa-external-link-alt"></i> ${displayUrl}
+                    </a>
+                    
+                    <div class="competitor-card-toggle">
+                        <button class="active" onclick="switchCompetitorCardTab('${cardId}', 'content')">Content</button>
+                        <button onclick="switchCompetitorCardTab('${cardId}', 'design')">Design</button>
+                    </div>
 
-                    cardElement.innerHTML = `
-                        <div class="competitor-card-rank">${rank || ''}</div>
-                        <a href="${url}" target="_blank" class="competitor-card-url" title="${url}">
-                            <i class="fas fa-external-link-alt"></i> ${displayUrl}
-                        </a>
+                    <div class="tab-content content-tab">
                         <table class="competitor-table">
                             <thead>
                                 <tr>
@@ -16651,15 +16804,159 @@ INSTRUCTIONS:
                                         <td class="word-count-cell">${count.toLocaleString()}</td>
                                     </tr>
                                 `).join('')}
+                                ${topicEntries.length === 0 ? '<tr><td colspan="2" style="text-align:center; color:#999; padding: 10px;">No content data available.</td></tr>' : ''}
                             </tbody>
                         </table>
-                    `;
+                    </div>
+
+                    <div class="tab-content design-tab" style="display: none;">
+                        ${renderDesignInsightsHtml(designData)}
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="competitor-card-rank">${rank || ''}</div>
+                    <div class="competitor-card-retry-container">
+                        <a href="${url}" target="_blank" class="competitor-card-url" title="${url}" style="margin-bottom: 5px;">
+                            <i class="fas fa-external-link-alt"></i> ${displayUrl}
+                        </a>
+                        <p style="font-size: 0.85em; color: #888; margin: 0;">Unable to retrieve page content.</p>
+                        <button class="competitor-card-retry-btn" onclick="retrySingleCompetitorContent('${url}', '${keyword}', document.getElementById('${cardId}'), '${rank}')">
+                            <i class="fas fa-sync-alt"></i> Retry
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        function switchCompetitorCardTab(cardId, tabType) {
+            const card = document.getElementById(cardId);
+            if (!card) return;
+
+            const buttons = card.querySelectorAll('.competitor-card-toggle button');
+            buttons.forEach(btn => btn.classList.toggle('active', btn.innerText.toLowerCase() === tabType));
+
+            const contentTab = card.querySelector('.content-tab');
+            const designTab = card.querySelector('.design-tab');
+
+            if (tabType === 'content' && contentTab && designTab) {
+                contentTab.style.display = 'block';
+                designTab.style.display = 'none';
+            } else if (tabType === 'design' && contentTab && designTab) {
+                contentTab.style.display = 'none';
+                designTab.style.display = 'block';
+            }
+        }
+
+        /**
+         * Automatically activates the 'Content' tab for all competitor cards in a grid
+         */
+        function autoActivateAllContentTabs(gridId) {
+            const grid = document.getElementById(gridId);
+            if (!grid) return;
+
+            const cards = grid.querySelectorAll('.competitor-card');
+            cards.forEach(card => {
+                switchCompetitorCardTab(card.id, 'content');
+            });
+        }
+
+        function renderDesignInsightsHtml(designData) {
+            if (!designData || designData.designError) {
+                return '<p style="font-size: 0.8em; color: #999; text-align: center; padding: 10px;">Design analysis unavailable.</p>';
+            }
+
+            const actualData = designData.body || designData;
+            if (!actualData.elements) {
+                return '<p style="font-size: 0.8em; color: #999; text-align: center; padding: 10px;">Design analysis data structure invalid.</p>';
+            }
+
+            const elements = actualData.elements;
+            const elementKeys = [
+                { key: 'paragraphs', label: 'Paragraphs' },
+                { key: 'ordered_lists', label: 'Ordered Lists' },
+                { key: 'unordered_lists', label: 'Unordered Lists' },
+                { key: 'infographics', label: 'Infographics' },
+                { key: 'charts', label: 'Charts' },
+                { key: 'tables', label: 'Tables' },
+                { key: 'images', label: 'Images' },
+                { key: 'alt_text', label: 'Alt Text' }
+            ];
+
+            return `
+                <table class="design-insights-table">
+                    <thead>
+                        <tr>
+                            <th>Element</th>
+                            <th>Status / Count</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${elementKeys.map(({ key, label }) => {
+                const data = elements[key] || { present: false };
+                const statusClass = data.present ? 'status-present' : 'status-absent';
+                const statusText = data.present ? (data.count || 'Present') : 'None';
+                return `
+                                <tr>
+                                    <td>${label}</td>
+                                    <td>
+                                        <span class="status-badge ${statusClass}">${statusText}</span>
+                                        ${data.details ? `<div style="font-size: 9px; color: #888; margin-top: 2px;">${data.details}</div>` : ''}
+                                    </td>
+                                </tr>
+                            `;
+            }).join('')}
+                    </tbody>
+                </table>
+                ${actualData.summary ? `<div style="font-size: 10px; color: #666; font-style: italic; margin-top: 10px; border-top: 1px solid #eee; padding-top: 5px;">${actualData.summary}</div>` : ''}
+            `;
+        }
+
+        async function retrySingleCompetitorContent(url, keyword, cardElement, rank) {
+            const btn = cardElement.querySelector('.competitor-card-retry-btn');
+            // const originalContent = cardElement.innerHTML; // No longer needed as we use the rank/url passed in
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Retrying...';
+            }
+
+            try {
+                const contentPromise = fetchWithRetry('https://u24f9208q0.execute-api.ap-southeast-1.amazonaws.com/gptTopicsPerUrl', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, keyword }),
+                }, 2, d => {
+                    return d && d.body && d.body[url] &&
+                        d.body[url].topics &&
+                        Object.keys(d.body[url].topics).length > 0;
+                }).catch(() => ({ url, error: true }));
+
+                const designPromise = fetchWithRetry(OPTIMISER_ENDPOINTS.DESIGN_ANALYSIS, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url }),
+                }, 2, data => {
+                    console.log(data);
+                    const actualData = data.body || data;
+                    return actualData && actualData.elements && Object.keys(actualData.elements).length > 0;
+                }).catch(() => ({ url, designError: true }));
+
+                const [contentData, designData] = await Promise.all([contentPromise, designPromise]);
+
+                if (contentData && !contentData.error) {
+                    const result = {
+                        ...contentData,
+                        designData: designData,
+                        rank: rank,
+                        url: url
+                    };
+                    cardElement.innerHTML = getCompetitorCardInnerHtml(result, cardElement.id, keyword);
                 } else {
                     throw new Error("Failed to fetch data on retry");
                 }
             } catch (error) {
                 console.error("Manual retry failed:", error);
-                // Keep the retry button but restore its state
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fas fa-sync-alt"></i> Retry Failed (Try Again)';
