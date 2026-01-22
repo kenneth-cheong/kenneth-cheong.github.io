@@ -444,16 +444,35 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
+        }
+
+        .column-selector-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
         }
 
         .column-search-input {
-            width: 100%;
-            max-width: 400px;
-            padding: 8px;
-            margin-bottom: 10px;
+            flex: 1;
+            min-width: 200px;
+            padding: 8px 12px;
+            margin: 0 !important;
             border: 1px solid #ccc;
-            border-radius: 4px;
+            border-radius: 6px;
+        }
+
+        .column-selector-btn {
+            padding: 8px 15px;
+            font-size: 0.9em;
+            margin: 0 !important;
+            white-space: nowrap;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .column-checkbox-list {
@@ -465,6 +484,88 @@
             padding: 10px;
             background: white;
             border: 1px solid #eee;
+        }
+
+        /* Documentation Link Banner */
+        .doc-link-banner {
+            background-color: #eef6ff;
+            border-left: 4px solid #004c9d;
+            padding: 12px 16px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.95em;
+        }
+
+        .doc-link-banner i {
+            color: #004c9d;
+            font-size: 1.2em;
+        }
+
+        .doc-link-banner a {
+            color: #004c9d;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .doc-link-banner a:hover {
+            text-decoration: underline;
+        }
+
+        /* Technical SEO Form Styles */
+        .tech-seo-form {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #eee;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: flex-end;
+        }
+
+        .tech-seo-field {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .tech-seo-field label {
+            font-weight: 600;
+            color: #444;
+            font-size: 0.9em;
+            margin: 0;
+        }
+
+        .tech-seo-field input {
+            margin: 0 !important;
+            width: auto !important;
+            min-width: 250px;
+        }
+
+        .tech-seo-field input[type="number"] {
+            min-width: 100px;
+        }
+
+        .tech-seo-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        #dataForSeoCost {
+            background-color: #fff4f2;
+            color: #d93025;
+            padding: 10px 15px;
+            border-radius: 6px;
+            border-left: 4px solid #d93025;
+            font-weight: 600;
+            margin-top: 15px;
+            font-size: 0.95em;
         }
 
         .column-checkbox-item {
@@ -4571,22 +4672,31 @@
                 <button class="collapsible" id="technicalButton"><i class="fas fa-plus-square"></i>Technical
                     SEO</button>
                 <div class="content" id="technicalSeo">
-                    <label for="urlInput">Enter URL:</label>
-                    <input type="url" id="urlInput">
-                    <br>
-                    <label for="maxPagesInput">Max Pages to Crawl:</label>
-                    <input type="number" id="maxPagesInput" value="10">
-                    <label for="maxDepthInput">Max Crawl Depth:</label>
-                    <input type="number" id="maxDepthInput" value="1" min="1" max="10">
+                    <div class="tech-seo-form">
+                        <div class="tech-seo-field">
+                            <label for="urlInput">Enter URL:</label>
+                            <input type="url" id="urlInput" placeholder="https://example.com">
+                        </div>
+                        <div class="tech-seo-field">
+                            <label for="maxPagesInput">Max Pages to Crawl:</label>
+                            <input type="number" id="maxPagesInput" value="10" min="1">
+                        </div>
+                        <div class="tech-seo-field">
+                            <label for="maxDepthInput">Max Crawl Depth:</label>
+                            <input type="number" id="maxDepthInput" value="1" min="1" max="10">
+                        </div>
 
-                    <button id="submitBtn">Analyse Website</button>
-                    <button id="submitBtnDataForSEO" style="background: #1a73e8;" onclick="initiateDataForSEOCrawl()">
-                        <i class="fas fa-spider"></i> DataForSEO Crawler
-                    </button>
-                    <div id="dataForSeoCost"
-                        style="margin-top: 10px; font-weight: bold; color: #d93025; display: none;"></div>
+                        <div class="tech-seo-actions">
+                            <button id="submitBtn" class="config-btn-highlight" style="margin:0;">Analyse
+                                Website</button>
+                            <button id="submitBtnDataForSEO" style="background: #1a73e8; margin:0;"
+                                class="config-btn-highlight" onclick="initiateDataForSEOCrawl()">
+                                <i class="fas fa-spider"></i> DataForSEO Crawler
+                            </button>
+                        </div>
 
-                    <br><br>
+                        <div id="dataForSeoCost" style="display: none; width: 100%;"></div>
+                    </div>
 
                     <div id="auditSummary"></div>
 
@@ -4673,24 +4783,31 @@
                         <div id="columnSelector" class="column-selector-container" style="display:none;">
                             <div class="column-selector-header">
                                 <strong><i class="fas fa-columns"></i> Display Columns</strong>
-                                <div>
-                                    <button class="config-btn-highlight" style="padding: 5px 10px; font-size: 0.8em;"
-                                        onclick="toggleAllColumns(true)">Select All</button>
-                                    <button class="config-btn-highlight"
-                                        style="padding: 5px 10px; font-size: 0.8em; background: #666;"
-                                        onclick="toggleAllColumns(false)">Deselect All</button>
-                                </div>
                             </div>
-                            <input type="text" class="column-search-input"
-                                placeholder="Search columns... (spaces and _ are interchangeable)"
-                                onkeyup="filterColumnList(this.value)">
+                            <div class="column-selector-actions">
+                                <input type="text" class="column-search-input"
+                                    placeholder="Search columns... (spaces and _ are interchangeable)"
+                                    onkeyup="filterColumnList(this.value)">
+                                <button class="config-btn-highlight column-selector-btn"
+                                    onclick="toggleAllColumns(true)">Select All</button>
+                                <button class="config-btn-highlight column-selector-btn" style="background: #666;"
+                                    onclick="toggleAllColumns(false)">Deselect All</button>
+                            </div>
                             <div id="columnCheckboxList" class="column-checkbox-list">
                                 <!-- Checkboxes will be generated dynamically -->
                             </div>
                         </div>
 
                         <div id="crawlerReport" style="display:none;">
-                            <p style="margin-bottom: 10px;"><a href="https://docs.dataforseo.com/v3/on_page/pages/" target="_blank" rel="noopener noreferrer">Click here to see what each column means in the report</a></p>
+                            <div class="doc-link-banner">
+                                <i class="fas fa-info-circle"></i>
+                                <span>
+                                    <a href="https://docs.dataforseo.com/v3/on_page/pages/" target="_blank"
+                                        rel="noopener noreferrer">
+                                        Click here to see what each column means in the report
+                                    </a>
+                                </span>
+                            </div>
                             <table>
                                 <thead id="crawlerTableHeader">
                                     <!-- Headers will be generated dynamically -->
@@ -9058,7 +9175,7 @@ Enterprise SEO Singapore</textarea>
                 // Display Cost
                 const costDiv = document.getElementById('dataForSeoCost');
                 if (actualData.tasks && actualData.tasks[0] && actualData.tasks[0].cost !== undefined) {
-                    costDiv.innerHTML = `Estimated Crawl Cost: $${actualData.tasks[0].cost.toFixed(4)}`;
+                    costDiv.innerHTML = `Crawl Cost: $${actualData.tasks[0].cost.toFixed(4)}`;
                     costDiv.style.display = 'block';
                 }
 
