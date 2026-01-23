@@ -5731,12 +5731,63 @@
                                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                                 <h3 style="color: #004c9d; margin: 0;"><i class="fas fa-home"></i> Strategic Framework
                                     Output</h3>
-                                <button class="btn-gradient btn-seo" onclick="copyResult('sms-output-text')"
+                                <button class="btn-gradient btn-seo" onclick="copyToClipboard('sms-output-text', event)"
                                     style="max-width: 120px; font-size: 13px; padding: 8px;">
                                     <i class="fas fa-copy"></i> Copy
                                 </button>
                             </div>
-                            <div id="sms-output-text" class="html-output"></div>
+                            <div id="sms-output-text" class="html-output">
+                                <!-- Strategy House Template -->
+                                <div id="sms-house-container" class="strategy-house" style="display: none;">
+                                    <div class="house-roof" id="house-positioning"></div>
+                                    <div class="house-objectives" id="house-objectives">
+                                        <div class="objective-bar"></div>
+                                        <div class="objective-bar"></div>
+                                        <div class="objective-bar"></div>
+                                    </div>
+                                    <div class="house-methods">
+                                        <div class="method-pillar">Inspire</div>
+                                        <div class="method-pillar">Cultivate</div>
+                                        <div class="method-pillar">Connect</div>
+                                        <div class="method-pillar">Amplify</div>
+                                    </div>
+                                </div>
+
+                                <!-- Strategy Grid Template -->
+                                <table id="sms-grid-container" class="strategy-grid" style="display: none;">
+                                    <thead>
+                                        <tr>
+                                            <th colspan="4" class="grid-primary-goal" id="grid-primary-goal"></th>
+                                        </tr>
+                                        <tr>
+                                            <th class="grid-method">Inspire</th>
+                                            <th class="grid-method">Cultivate</th>
+                                            <th class="grid-method">Connect</th>
+                                            <th class="grid-method">Amplify</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr id="grid-strategies">
+                                            <td class="grid-strategy"></td>
+                                            <td class="grid-strategy"></td>
+                                            <td class="grid-strategy"></td>
+                                            <td class="grid-strategy"></td>
+                                        </tr>
+                                        <tr id="grid-audiences">
+                                            <td class="grid-audience"></td>
+                                            <td class="grid-audience"></td>
+                                            <td class="grid-audience"></td>
+                                            <td class="grid-audience"></td>
+                                        </tr>
+                                        <tr id="grid-pillars">
+                                            <td class="grid-pillars"></td>
+                                            <td class="grid-pillars"></td>
+                                            <td class="grid-pillars"></td>
+                                            <td class="grid-pillars"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -18203,7 +18254,8 @@ Enterprise SEO Singapore</textarea>
         async function generateSocialMediaStrategy() {
             const btn = document.getElementById('generateSmsBtn');
             const outputDisplay = document.getElementById('sms-results-display');
-            const outputText = document.getElementById('sms-output-text');
+            const houseContainer = document.getElementById('sms-house-container');
+            const gridContainer = document.getElementById('sms-grid-container');
 
             // Collect Form Data
             const brandContext = document.getElementById('brand_context').value;
@@ -18222,7 +18274,7 @@ Enterprise SEO Singapore</textarea>
             updateCollapsibleState('smsButton', 'running');
 
             try {
-                const response = await fetch('https://8domnt5y2f.execute-api.ap-southeast-1.amazonaws.com/socialMediaStrategy', { // Using same generator endpoint if routes are mapped
+                const response = await fetch('https://8domnt5y2f.execute-api.ap-southeast-1.amazonaws.com/socialMediaStrategy', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -18237,21 +18289,81 @@ Enterprise SEO Singapore</textarea>
 
                 if (!response.ok) throw new Error("Failed to generate strategy.");
 
-                const data = await response.json();
+                const resData = await response.json();
+                let data = resData.answer;
 
-                // Display results
+                // Robust parsing for Proxy Integration (wrapped in body)
+                if (!data && resData.body) {
+                    try {
+                        const parsedBody = typeof resData.body === 'string' ? JSON.parse(resData.body) : resData.body;
+                        data = parsedBody.answer || parsedBody;
+                    } catch (e) {
+                        data = resData.body;
+                    }
+                }
+
+                // If data is still a string, try one more parse (in case 'answer' was a JSON string)
+                if (typeof data === 'string' && (data.trim().startsWith('{') || data.trim().startsWith('['))) {
+                    try {
+                        data = JSON.parse(data);
+                    } catch (e) {
+                        console.warn("Attempted to parse string data as JSON but failed", e);
+                    }
+                }
+
+                // Fallback: if data is still a string and we can't find .house, render as innerHTML
+                if (typeof data === 'string' && !data.house) {
+                    console.warn("Received content that doesn't match expected JSON schema, rendering as-is");
+                    document.getElementById('sms-output-text').innerHTML = data;
+                    outputDisplay.style.display = 'block';
+                    updateCollapsibleState('smsButton', 'success');
+                    return;
+                }
+
+                // Ensure data is defined before accessing properties
+                if (!data) {
+                    throw new Error("Received empty or invalid data from strategy generator.");
+                }
+
+                // Populate House
+                if (data.house) {
+                    document.getElementById('house-positioning').innerText = data.house.positioning || "";
+                    const obs = document.getElementById('house-objectives').querySelectorAll('.objective-bar');
+                    if (data.house.objectives && data.house.objectives.length >= 3) {
+                        obs[0].innerText = data.house.objectives[0];
+                        obs[1].innerText = data.house.objectives[1];
+                        obs[2].innerText = data.house.objectives[2];
+                    }
+                    houseContainer.style.display = 'block';
+                }
+
+                // Populate Grid
+                if (data.grid) {
+                    document.getElementById('grid-primary-goal').innerText = data.grid.primary_goal || "";
+
+                    const methods = ["Inspire", "Cultivate", "Connect", "Amplify"];
+                    const stratCells = document.getElementById('grid-strategies').querySelectorAll('td');
+                    const audCells = document.getElementById('grid-audiences').querySelectorAll('td');
+                    const pillCells = document.getElementById('grid-pillars').querySelectorAll('td');
+
+                    methods.forEach((m, i) => {
+                        const mData = data.grid.methods[m] || {};
+                        stratCells[i].innerText = mData.strategy || "";
+                        audCells[i].innerText = mData.audience || "";
+                        pillCells[i].innerText = mData.pillars || "";
+                    });
+
+                    gridContainer.style.display = 'table';
+                }
+
                 outputDisplay.style.display = 'block';
-                const answerText = typeof data.answer === 'object' ? (data.answer.text || JSON.stringify(data.answer)) : data.answer;
-                outputText.innerHTML = answerText || data.body;
                 updateCollapsibleState('smsButton', 'success');
-
-                // Scroll to results
                 outputDisplay.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
             } catch (error) {
                 console.error("Error generating strategy:", error);
                 outputDisplay.style.display = 'block';
-                outputText.innerText = `Error: ${error.message}`;
+                document.getElementById('sms-output-text').innerText = `Error: ${error.message}`;
                 updateCollapsibleState('smsButton', 'error');
             } finally {
                 btn.disabled = false;

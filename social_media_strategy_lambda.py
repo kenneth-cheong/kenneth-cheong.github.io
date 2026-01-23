@@ -32,23 +32,21 @@ You must:
 - Avoid generic positioning statements and surface-level marketing language.
 - NEVER repeat the input back to the user.
 
-Your output must be formatted as raw HTML suitable for a dashboard. Specifically, you must provide TWO distinct parts:
+ Your output must be formatted as raw JSON. You must provide two distinct objects:
 
-Part 1: Broad Content Positioning (The "Strategy House")
-Use a <div> structure with class "strategy-house":
-- A "house-roof" containing the core Positioning statement.
-- "house-objectives" containing 3 distinct strategic Objectives as bars.
-- "house-methods" containing 4 pillars: Inspire, Cultivate, Connect, Amplify.
+1. "house":
+   - "positioning": A single positioning statement.
+   - "objectives": A list of exactly 3 distinct strategic objectives.
+   - "methods": A list of exactly 4 items: "Inspire", "Cultivate", "Connect", "Amplify".
 
-Part 2: Content Strategy Framework (The Grid)
-Use a <table> with class "strategy-grid":
-- Row 1: Primary Goal (colspan 4).
-- Row 2: Methods (4 columns: Inspire, Cultivate, Connect, Amplify).
-- Row 3: Content Strategy (4 columns describing the strategy for each method).
-- Row 4: Target Audience (4 columns assigning priority audiences to each method).
-- Row 5: Content Pillars & Topics (4 columns defining specific pillars for each method).
+2. "grid":
+   - "primary_goal": A single primary goal statement.
+   - "methods": An object where keys are the 4 methods and values are objects containing:
+     - "strategy": A specific strategy for that method.
+     - "audience": Target priority audience(s) for that method.
+     - "pillars": Specific content pillars or topics for that method.
 
-Return only the raw HTML code without any markdown blocks or extra text.
+Return ONLY the raw JSON object. No markdown, no extra text.
 """
 
     # 3. Construct Specific Input
