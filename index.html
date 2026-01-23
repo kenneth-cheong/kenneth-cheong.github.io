@@ -789,6 +789,68 @@
             color: white !important;
         }
 
+        .markdown-output table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background: #fff;
+            border: 1px solid #e0e6ed;
+            font-size: 0.95em;
+        }
+
+        .markdown-output thead th {
+            background-color: #3da9d6 !important;
+            color: white !important;
+            font-weight: 700;
+            text-align: center;
+            padding: 15px 12px;
+            border: 1px solid #e0e6ed;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .markdown-output td {
+            padding: 12px 15px;
+            border: 1px solid #e0e6ed;
+            color: #333;
+            vertical-align: top;
+            line-height: 1.5;
+        }
+
+        /* First column styling (labels) */
+        .markdown-output td:first-child {
+            font-weight: 700;
+            color: #1a1a1a;
+            background-color: #ffffff;
+            width: 120px;
+        }
+
+        /* Support for secondary tables (Matrix) which might not have the same header style */
+        .markdown-output table:not(:first-of-type) thead th {
+            background-color: #f8f9fa !important;
+            color: #333 !important;
+            text-transform: none;
+        }
+
+        .markdown-output h3 {
+            margin-top: 30px;
+            margin-bottom: 15px;
+            color: #004c9d;
+            font-size: 1.2em;
+            border-bottom: 2px solid #e0e6ed;
+            padding-bottom: 8px;
+        }
+
+        .markdown-output ul {
+            padding-left: 20px;
+            margin: 0;
+            list-style-type: square;
+        }
+
+        .markdown-output li {
+            margin-bottom: 6px;
+        }
+
         .collapsible50 {
             background-color: #4c9d00;
             color: white;
@@ -9856,8 +9918,13 @@ Enterprise SEO Singapore</textarea>
         function syncUrls(event) {
             const currentUrl = event.target.value;
 
+            // List of IDs to exclude from being synced TO (they can still be the source)
+            const excludedIds = ['pillar_website', 'pillar_brand_guide'];
+
             urlFields.forEach(input => {
-                input.value = currentUrl;
+                if (input !== event.target && !excludedIds.includes(input.id)) {
+                    input.value = currentUrl;
+                }
             });
         }
 
@@ -17931,7 +17998,7 @@ Enterprise SEO Singapore</textarea>
             }
 
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Strategizing...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Strategising...';
             updateCollapsibleState('pillarFrameworkButton', 'running');
 
             let pdfContent = "";
@@ -17949,6 +18016,19 @@ Enterprise SEO Singapore</textarea>
                     console.error("PDF Parsing failed", e);
                 }
             }
+
+            console.log(JSON.stringify({
+                type: 'pillar_framework',
+                business_model: businessModel,
+                objectives: objectives,
+                audience_type: audienceType,
+                decision_complexity: complexity,
+                platforms: platforms,
+                risk_sensitivity: sensitivity,
+                promotional_tolerance: tolerance,
+                reference_urls: { website, brandGuide, competitors },
+                additional_info: pdfContent
+            }));
 
             try {
                 const response = await fetch('https://j4aca9hcmh.execute-api.ap-southeast-1.amazonaws.com/contentPillar', { // Using same generator for now or specific if provided
@@ -17973,7 +18053,6 @@ Enterprise SEO Singapore</textarea>
                 const data = await response.json();
                 console.log("Pillar Framework Data:", data);
 
-                let answer = "";
                 if (data.answer) {
                     answer = data.answer;
                 } else if (data.body) {
@@ -17987,7 +18066,12 @@ Enterprise SEO Singapore</textarea>
                     answer = typeof data === 'string' ? data : JSON.stringify(data);
                 }
 
-                outputText.innerHTML = formatMarkdownToHTML(answer);
+                // If answer is still an object (e.g. from data.answer), extract its text
+                if (typeof answer === 'object' && answer !== null) {
+                    answer = answer.text || answer.result || JSON.stringify(answer);
+                }
+
+                outputText.innerHTML = answer;
                 outputDisplay.style.display = "block";
                 updateCollapsibleState('pillarFrameworkButton', 'success');
                 outputDisplay.scrollIntoView({ behavior: 'smooth' });
@@ -18031,6 +18115,10 @@ Enterprise SEO Singapore</textarea>
         }
 
         function formatMarkdownToHTML(md) {
+            if (typeof md !== 'string') {
+                console.error("formatMarkdownToHTML expected a string, but received:", md);
+                return "";
+            }
             // Very basic markdown to HTML for tables and bold
             let html = md.replace(/### (.*)/g, '<h3>$1</h3>')
                 .replace(/## (.*)/g, '<h2>$1</h2>')
