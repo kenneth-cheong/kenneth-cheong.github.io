@@ -5711,6 +5711,13 @@
                                     placeholder="e.g. CMOs, Content Managers, SME Owners">
                             </div>
                             <div class="input-card" style="grid-column: span 2;">
+                                <label for="sms_files"><i class="fas fa-file-upload"></i> Upload Supporting Documents
+                                    (Multiple PDF/DOCX):</label>
+                                <input type="file" id="sms_files" multiple accept=".pdf,.docx"
+                                    style="margin-top: 10px; width: 100%;">
+                                <div id="sms_file_list" style="font-size: 12px; margin-top: 5px; color: #666;"></div>
+                            </div>
+                            <div class="input-card" style="grid-column: span 2;">
                                 <label for="proof_points"><i class="fas fa-shield-alt"></i> Proof Points &
                                     Constraints:</label>
                                 <textarea id="proof_points"
@@ -18263,6 +18270,7 @@ Enterprise SEO Singapore</textarea>
             const strategicChallenge = document.getElementById('strategic_challenge').value;
             const priorityAudiences = document.getElementById('priority_audiences').value;
             const proofPoints = document.getElementById('proof_points').value;
+            const fileInput = document.getElementById('sms_files');
 
             if (!brandContext || !strategicAmbition || !strategicChallenge) {
                 alert("Please fill in the Brand Context, Strategic Ambition, and Strategic Challenge.");
@@ -18272,6 +18280,29 @@ Enterprise SEO Singapore</textarea>
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Strategising...';
             updateCollapsibleState('smsButton', 'running');
+
+            let filesContent = "";
+            if (fileInput.files && fileInput.files.length > 0) {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Parsing Files...';
+                for (let i = 0; i < fileInput.files.length; i++) {
+                    const file = fileInput.files[i];
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    try {
+                        const pdfResponse = await fetch('https://tpsk8n8hsh.execute-api.ap-southeast-1.amazonaws.com/pdfParser', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const pdfData = await pdfResponse.json();
+                        const extractedText = pdfData.text || pdfData.body || "";
+                        filesContent += `\n--- Content from file: ${file.name} ---\n${extractedText}\n`;
+                    } catch (e) {
+                        console.error(`Parsing failed for file: ${file.name}`, e);
+                    }
+                }
+            }
+
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Strategising...';
 
             try {
                 const response = await fetch('https://8domnt5y2f.execute-api.ap-southeast-1.amazonaws.com/socialMediaStrategy', {
@@ -18283,7 +18314,8 @@ Enterprise SEO Singapore</textarea>
                         strategic_ambition: strategicAmbition,
                         strategic_challenge: strategicChallenge,
                         priority_audiences: priorityAudiences,
-                        proof_points: proofPoints
+                        proof_points: proofPoints,
+                        additional_info: filesContent
                     })
                 });
 

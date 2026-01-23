@@ -19,6 +19,7 @@ def lambda_handler(event, context):
     strategic_challenge = body.get('strategic_challenge', '')
     priority_audiences = body.get('priority_audiences', [])
     proof_points = body.get('proof_points', '')
+    additional_info = body.get('additional_info', '')
 
     # 2. Construct Strategist Persona (Instructions)
     instructions = """
@@ -65,6 +66,9 @@ PRIORITY AUDIENCES:
 
 PROOF POINTS & CONSTRAINTS:
 {proof_points}
+
+ADDITIONAL SUPPORTING DOCUMENTS CONTENT:
+{additional_info}
 
 Generate the Social Media Strategy positioning and framework now.
 """
