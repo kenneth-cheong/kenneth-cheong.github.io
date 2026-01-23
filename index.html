@@ -104,7 +104,8 @@
 
                 const data = await response.json();
 
-                document.getElementById('threadId').innerText = data;
+                const threadElem = document.getElementById('threadId');
+                if (threadElem) threadElem.innerText = data;
                 console.log(data);
                 processURL();
                 initializeJourneyCollapsibles();
@@ -112,8 +113,8 @@
 
             } catch (error) {
                 console.error('Error fetching or parsing thread ID:', error);
-                // Handle the error appropriately, e.g., display an error message to the user.
-                document.getElementById('threadId').innerText = "Error retrieving thread ID"; // or some other error message
+                const threadElem = document.getElementById('threadId');
+                if (threadElem) threadElem.innerText = "Error retrieving thread ID";
             }
 
         };
@@ -4356,6 +4357,25 @@
             text-decoration: underline;
         }
 
+        .competitor-table tr {
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .competitor-table tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .competitor-table tr.selected {
+            background-color: #e3f2fd !important;
+            border-left: 4px solid #1a73e8;
+        }
+
+        .competitor-table tr.selected td {
+            font-weight: 600;
+            color: #1a73e8;
+        }
+
         .competitor-table {
             width: 100%;
             border-collapse: collapse;
@@ -7110,7 +7130,7 @@
 
                         <!-- Competitor Insights Display -->
                         <div id="competitorAnalysisWrapper"
-                            style="display: none; margin-top: 25px; border-top: 1px solid #eee; padding-top: 20px;">
+                            style="margin-top: 25px; border-top: 1px solid #eee; padding-top: 20px;">
                             <div class="competitor-insights-title">
                                 <i class="fas fa-chart-line"></i> Competitor Content Insights
                             </div>
@@ -7120,6 +7140,37 @@
                             </p>
                             <div id="competitorInsightsGrid" class="competitor-insights-grid">
                                 <!-- Competitor cards will be injected here -->
+                            </div>
+
+                            <div id="loadMoreWrapper" style="display: none; text-align: center; margin-top: 20px;">
+                                <button id="btnLoadMoreCompetitors" class="btn-action"
+                                    style="min-width: 200px; padding: 10px 20px; font-size: 0.9em;"
+                                    onclick="loadMoreCompetitors('new')">
+                                    <i class="fas fa-plus"></i> Load More Competitors
+                                </button>
+                            </div>
+
+                            <div id="selectedTopicsWrapper"
+                                style="display: none; margin-top: 25px; background: #f0f7ff; padding: 20px; border-radius: 12px; border: 1px solid #cce5ff;">
+                                <label for="selectedTopicsText"
+                                    style="font-weight: bold; color: #004c9d; display: block; margin-bottom: 10px;">
+                                    <i class="fas fa-tags"></i> Cherry-Picked Topics for Analysis
+                                </label>
+                                <p style="font-size: 0.85em; color: #555; margin-bottom: 10px;">
+                                    Click on rows in the competitor cards to add/remove topics. You can also edit these
+                                    manually.
+                                </p>
+                                <textarea id="selectedTopicsText"
+                                    style="width: 100%; min-height: 100px; padding: 12px; border-radius: 8px; border: 1px solid #b8daff; box-sizing: border-box; font-size: 0.9em; line-height: 1.5;"
+                                    placeholder="Selected topics will appear here..."></textarea>
+
+                                <div style="text-align: right; margin-top: 15px;">
+                                    <button id="btnRunAnalysisFromTopics" class="btn-gradient"
+                                        style="background: #28a745; border-radius: 8px; padding: 12px 24px; font-size: 1em; width: auto; min-width: 200px;"
+                                        onclick="runGapAnalysisWithTopics('new')">
+                                        <i class="fas fa-magic"></i> Run AI Content Analysis
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -7278,7 +7329,7 @@ Enterprise SEO Singapore</textarea>
 
                         <!-- Competitor Insights Display (Optimise Flow) -->
                         <div id="competitorAnalysisWrapper-Optimise"
-                            style="display: none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
+                            style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
                             <div class="competitor-insights-title">
                                 <i class="fas fa-chart-line"></i> Competitor Content Insights
                             </div>
@@ -7293,6 +7344,38 @@ Enterprise SEO Singapore</textarea>
                             </div>
                             <div id="competitorInsightsGrid-Optimise" class="competitor-insights-grid">
                                 <!-- Competitor cards will be injected here -->
+                            </div>
+
+                            <div id="loadMoreWrapper-Optimise"
+                                style="display: none; text-align: center; margin-top: 20px;">
+                                <button id="btnLoadMoreCompetitors-Optimise" class="btn-action"
+                                    style="min-width: 200px; padding: 10px 20px; font-size: 0.9em;"
+                                    onclick="loadMoreCompetitors('optimise')">
+                                    <i class="fas fa-plus"></i> Load More Competitors
+                                </button>
+                            </div>
+
+                            <div id="selectedTopicsWrapper-Optimise"
+                                style="display: none; margin-top: 25px; background: #f0f7ff; padding: 20px; border-radius: 12px; border: 1px solid #cce5ff;">
+                                <label for="selectedTopicsText-Optimise"
+                                    style="font-weight: bold; color: #004c9d; display: block; margin-bottom: 10px;">
+                                    <i class="fas fa-tags"></i> Cherry-Picked Topics for Analysis
+                                </label>
+                                <p style="font-size: 0.85em; color: #555; margin-bottom: 10px;">
+                                    Click on rows in the competitor cards to add/remove topics. You can also edit these
+                                    manually.
+                                </p>
+                                <textarea id="selectedTopicsText-Optimise"
+                                    style="width: 100%; min-height: 100px; padding: 12px; border-radius: 8px; border: 1px solid #b8daff; box-sizing: border-box; font-size: 0.9em; line-height: 1.5;"
+                                    placeholder="Selected topics will appear here..."></textarea>
+
+                                <div style="text-align: right; margin-top: 15px;">
+                                    <button id="btnRunGapAnalysisFromTopics" class="btn-gradient"
+                                        style="background: #28a745; border-radius: 8px; padding: 12px 24px; font-size: 1em; width: auto; min-width: 200px;"
+                                        onclick="runGapAnalysisWithTopics('optimise')">
+                                        <i class="fas fa-magic"></i> Run AI Gap Analysis
+                                    </button>
+                                </div>
                             </div>
 
                             <!-- NEW: AI Gap Analysis Results -->
@@ -13717,6 +13800,9 @@ Enterprise SEO Singapore</textarea>
 
         // --- Card Deletion & Undo Logic ---
         let deletedCardsStack = [];
+        let allCompetitorUrls_Optimiser = { new: [], optimise: [] };
+        let displayedCount_Optimiser = { new: 0, optimise: 0 };
+        let selectedTopics_Optimiser = { new: new Set(), optimise: new Set() };
 
         function deleteCard(elementId) {
             const element = document.getElementById(elementId);
@@ -19451,50 +19537,52 @@ Enterprise SEO Singapore</textarea>
 
         async function analyzeAndProposeOutline() {
             const keyword = document.getElementById('primaryKeywordNew').value.trim();
-            const secondary = document.getElementById('secondaryKeywordsNew').value.trim();
-            const topic = document.getElementById('newArticleTopic').value.trim();
             const location = document.getElementById('locationOptimiserNew').value;
+            const topic = document.getElementById('newArticleTopic').value.trim();
             const btn = document.getElementById('btnAnalyzeAndPropose');
-            const outlineWrapper = document.getElementById('outlineStepWrapper');
-            const outlineArea = document.getElementById('editableOutline');
-            const outlineLoading = document.getElementById('outlineLoading-New');
 
             if (!keyword) return alert("Please specify a primary keyword for analysis.");
             if (!topic) return alert("Please describe what the article is about.");
 
             btn.disabled = true;
             const originalBtnHtml = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing SERPs...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching SERPs...';
             updateCollapsibleState('aiContentOptimiserBtn', 'running');
 
             try {
-                // 1. Fetch Top SERP URLs
+                // 1. Fetch up to 50 SERP URLs
                 const serpResponse = await fetch('https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ keyword, language: "English", location: location, "page_types": "any" }),
+                    body: JSON.stringify({ keyword, language: "English", location: location, "page_types": "any", limit: 50 }),
                 });
                 const serpData = await serpResponse.json();
-                console.log(serpData);
-                const serpUrls = Object.values(serpData).map(result => result.url); // Use all returned URLs
+                const serpUrls = Object.values(serpData).map(result => result.url);
+                console.log("SERP Analysis (New): Found URLs:", serpUrls.length);
 
-                // 2. Initialize skeletons and render grid immediately
-                const analysisDataArray = serpUrls.map((url, index) => ({
-                    url,
-                    rank: index + 1,
-                    loading: true
+                // Save for Load More
+                allCompetitorUrls_Optimiser.new = serpUrls;
+                displayedCount_Optimiser.new = 0;
+
+                // 2. Initialize first batch skeletons (up to 10)
+                const initialBatchSize = Math.min(10, serpUrls.length);
+                const initialBatch = serpUrls.slice(0, initialBatchSize);
+                const skeletalData = initialBatch.map((url, index) => ({
+                    url, rank: index + 1, loading: true
                 }));
-                renderCompetitorCards(analysisDataArray, 'competitorInsightsGrid', 'competitorAnalysisWrapper', keyword);
+                renderCompetitorCards(skeletalData, 'competitorInsightsGrid', 'competitorAnalysisWrapper', keyword);
 
-                if (outlineWrapper && outlineArea) {
-                    outlineWrapper.style.display = 'block';
-                    outlineArea.style.display = 'none';
-                    if (outlineLoading) outlineLoading.style.display = 'block';
-                    outlineWrapper.scrollIntoView({ behavior: 'smooth' });
-                }
+                // Update displayed count
+                displayedCount_Optimiser.new = initialBatchSize;
 
-                // 3. Extract competitor topics/gaps and design insights simultaneously
-                const analysisPromises = serpUrls.map(async (url, index) => {
+                // Show Load More (Always visible if any results exist, or just always)
+                const loadMoreWrapper = document.getElementById('loadMoreWrapper');
+                const loadMoreBtn = document.getElementById('btnLoadMoreCompetitors');
+                if (loadMoreBtn) loadMoreBtn.innerHTML = '<i class="fas fa-plus"></i> Load More Competitors';
+                if (loadMoreWrapper) loadMoreWrapper.style.display = 'block';
+
+                // 3. Process first batch topics
+                const analysisPromises = initialBatch.map(async (url, index) => {
                     const cardId = `comp-card-competitorInsightsGrid-${index}`;
                     const cardElement = document.getElementById(cardId);
 
@@ -19502,29 +19590,16 @@ Enterprise SEO Singapore</textarea>
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url, keyword }),
-                    }, 2, data => {
-                        return data && data.body && data.body[url] &&
-                            data.body[url].topics &&
-                            Object.keys(data.body[url].topics).length > 0;
-                    }).catch(() => ({ url, error: true }));
+                    }, 2, data => data && data.body && data.body[url] && data.body[url].topics).catch(() => ({ url, error: true }));
 
                     const designPromise = fetchWithRetry(OPTIMISER_ENDPOINTS.DESIGN_ANALYSIS, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url }),
-                    }, 2, data => {
-                        console.log(data);
-                        const actualData = data.body || data;
-                        return actualData && actualData.elements && Object.keys(actualData.elements).length > 0;
-                    }).catch(() => ({ url, designError: true }));
+                    }, 2, data => (data.body || data).elements).catch(() => ({ url, designError: true }));
 
                     const [contentData, designData] = await Promise.all([contentPromise, designPromise]);
-                    const result = {
-                        ...contentData,
-                        designData: designData,
-                        rank: index + 1,
-                        url: url
-                    };
+                    const result = { ...contentData, designData, rank: index + 1, url };
 
                     if (cardElement) {
                         cardElement.innerHTML = getCompetitorCardInnerHtml(result, cardId, keyword);
@@ -19532,63 +19607,23 @@ Enterprise SEO Singapore</textarea>
                     return result;
                 });
 
-                const finalAnalysisDataArray = await Promise.all(analysisPromises);
-                console.log(finalAnalysisDataArray);
+                await Promise.all(analysisPromises);
+                updateCollapsibleState('aiContentOptimiserBtn', 'success');
 
-                const complianceText = getSelectedCompliance('new');
-                const complianceInstruction = complianceText
-                    ? `\n\nCRITICAL COMPLIANCE REQUIREMENTS: You MUST ensure the outline accounts for the following regulations or guidelines:\n- ${complianceText}`
-                    : "";
+                // Auto-activate all content tabs to sync with AI suggestions
+                autoActivateAllContentTabs('competitorInsightsGrid');
 
-                const outlinePrompt = `
-Analyse the following TOPIC and COMPETITOR DATA to propose a unique, high-value article outline.
-
-TOPIC: "${topic}"
-PRIMARY KEYWORD: "${keyword}"
-SECONDARY KEYWORDS: "${secondary}"
-${complianceInstruction}
-
-COMPETITOR INSIGHTS (SERP TOP 10):
-${JSON.stringify(finalAnalysisDataArray) || "No competitor data available."}
-
-INSTRUCTIONS:
-1. Identify "Content Gaps" (topics competitors missed).
-2. Propose a structured outline (H1, H2, H3).
-3. DESIGN AUDIT: Analyze the 'designData' for each competitor. If they use charts, tables, or infographics, suggest where we should also include similar structural elements to improve engagement.
-4. Ensure the outline covers all EEAT principles (Experience, Expertise, Authoritativeness, Trustworthiness).
-4. Include a unique Point of View (POV) that differentiates this article from the SERP results.
-5. Provide the output in a clear, editable text format.
-                    `.trim();
-
-                const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'generate',
-                        prompt: outlinePrompt,
-                        settings: aiContentSettings
-                    })
-                });
-
-                const data = await response.json();
-                const result = parseLambdaResponse(data);
-
-                if (outlineArea) {
-                    if (outlineLoading) outlineLoading.style.display = 'none';
-                    outlineArea.style.display = 'block';
-                    outlineArea.value = result.result;
-                    outlineWrapper.style.display = 'block';
-                    outlineWrapper.scrollIntoView({ behavior: 'smooth' });
-
-                    // Auto-activate all content tabs to sync with AI suggestions
-                    autoActivateAllContentTabs('competitorInsightsGrid');
-                    updateCollapsibleState('aiContentOptimiserBtn', 'success');
+                // Show selection area
+                const selectionWrapper = document.getElementById('selectedTopicsWrapper');
+                if (selectionWrapper) {
+                    selectionWrapper.style.display = 'block';
+                    selectionWrapper.scrollIntoView({ behavior: 'smooth' });
                 }
 
             } catch (error) {
-                console.error("Outline generation error:", error);
+                console.error("Analysis error:", error);
                 updateCollapsibleState('aiContentOptimiserBtn', 'error');
-                alert("Failed to analyse competitors and generate outline. Please try again.");
+                alert("Failed to analyze SERPs.");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalBtnHtml;
@@ -19604,29 +19639,43 @@ INSTRUCTIONS:
 
             btn.disabled = true;
             const originalBtnHtml = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analysing SERPs...';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching SERPs...';
             updateCollapsibleState('aiContentOptimiserBtn', 'running');
 
             try {
-                // 1. Fetch Top SERP URLs
+                // 1. Fetch up to 50 SERP URLs
                 const serpResponse = await fetch('https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ keyword, language: "English", location: location, "page_types": "any" }),
+                    body: JSON.stringify({ keyword, language: "English", location: location, "page_types": "any", limit: 50 }),
                 });
                 const serpData = await serpResponse.json();
                 const serpUrls = Object.values(serpData).map(result => result.url);
+                console.log("SERP Analysis (Optimise): Found URLs:", serpUrls.length);
 
-                // 2. Initialize skeletons and render grid immediately
-                const analysisDataArray = serpUrls.map((url, index) => ({
-                    url,
-                    rank: index + 1,
-                    loading: true
+                // Save for Load More
+                allCompetitorUrls_Optimiser.optimise = serpUrls;
+                displayedCount_Optimiser.optimise = 0;
+
+                // 2. Initialize first batch skeletons (up to 10)
+                const initialBatchSize = Math.min(10, serpUrls.length);
+                const initialBatch = serpUrls.slice(0, initialBatchSize);
+                const skeletalData = initialBatch.map((url, index) => ({
+                    url, rank: index + 1, loading: true
                 }));
-                renderCompetitorCards(analysisDataArray, 'competitorInsightsGrid-Optimise', 'competitorAnalysisWrapper-Optimise', keyword);
+                renderCompetitorCards(skeletalData, 'competitorInsightsGrid-Optimise', 'competitorAnalysisWrapper-Optimise', keyword);
 
-                // 3. Extract competitor topics/gaps and design insights simultaneously
-                const analysisPromises = serpUrls.map(async (url, index) => {
+                // Update displayed count
+                displayedCount_Optimiser.optimise = initialBatchSize;
+
+                // Show Load More (Always visible if results exist)
+                const loadMoreWrapper = document.getElementById('loadMoreWrapper-Optimise');
+                const loadMoreBtn = document.getElementById('btnLoadMoreCompetitors-Optimise');
+                if (loadMoreBtn) loadMoreBtn.innerHTML = '<i class="fas fa-plus"></i> Load More Competitors';
+                if (loadMoreWrapper) loadMoreWrapper.style.display = serpUrls.length > 0 ? 'block' : 'none';
+
+                // 3. Process first batch topics
+                const analysisPromises = initialBatch.map(async (url, index) => {
                     const cardId = `comp-card-competitorInsightsGrid-Optimise-${index}`;
                     const cardElement = document.getElementById(cardId);
 
@@ -19634,29 +19683,16 @@ INSTRUCTIONS:
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url, keyword }),
-                    }, 2, data => {
-                        return data && data.body && data.body[url] &&
-                            data.body[url].topics &&
-                            Object.keys(data.body[url].topics).length > 0;
-                    }).catch(() => ({ url, error: true }));
+                    }, 2, data => data && data.body && data.body[url] && data.body[url].topics).catch(() => ({ url, error: true }));
 
                     const designPromise = fetchWithRetry(OPTIMISER_ENDPOINTS.DESIGN_ANALYSIS, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url }),
-                    }, 2, data => {
-                        console.log(data);
-                        const actualData = data.body || data;
-                        return actualData && actualData.elements && Object.keys(actualData.elements).length > 0;
-                    }).catch(() => ({ url, designError: true }));
+                    }, 2, data => (data.body || data).elements).catch(() => ({ url, designError: true }));
 
                     const [contentData, designData] = await Promise.all([contentPromise, designPromise]);
-                    const result = {
-                        ...contentData,
-                        designData: designData,
-                        rank: index + 1,
-                        url: url
-                    };
+                    const result = { ...contentData, designData, rank: index + 1, url };
 
                     if (cardElement) {
                         cardElement.innerHTML = getCompetitorCardInnerHtml(result, cardId, keyword);
@@ -19664,66 +19700,23 @@ INSTRUCTIONS:
                     return result;
                 });
 
-                const finalAnalysisDataArray = await Promise.all(analysisPromises);
+                await Promise.all(analysisPromises);
+                updateCollapsibleState('aiContentOptimiserBtn', 'success');
 
-                // 4. Trigger AI Gap Analysis
-                const editorContent = document.getElementById('editorContent').innerText.trim();
-                const gapAnalysisWrapper = document.getElementById('gapAnalysisWrapper-Optimise');
-                const gapAnalysisResults = document.getElementById('gapAnalysisResults-Optimise');
-                const gapAnalysisLoading = document.getElementById('gapAnalysisLoading-Optimise');
+                // Auto-activate all content tabs
+                autoActivateAllContentTabs('competitorInsightsGrid-Optimise');
 
-                if (gapAnalysisWrapper && gapAnalysisResults && editorContent) {
-                    gapAnalysisWrapper.style.display = 'block';
-                    gapAnalysisResults.style.display = 'none';
-                    if (gapAnalysisLoading) gapAnalysisLoading.style.display = 'block';
-
-                    const gapPrompt = `
-ANALYSE THE FOLLOWING DATA FOR CONTENT GAPS AND IMPROVEMENT SUGGESTIONS.
-
-PRIMARY KEYWORD: "${keyword}"
-
-COMPETITOR DATA (SERP TOP 10):
-${JSON.stringify(finalAnalysisDataArray)}
-
-YOUR CURRENT EDITOR CONTENT:
-"""
-${editorContent}
-"""
-
-INSTRUCTIONS:
-1. Compare your content vs competitors.
-2. Identify specific "Content Gaps" (topics you missed but competitors cover well).
-3. DESIGN STRATEGY: Review 'designData' for each competitor. If top performers use interactive elements, tables, or infographics that you lack, provide specific recommendations on where to add them.
-4. Evaluate "Content Depth" (where you are too thin compared to the SERP average).
-5. Provide 3-5 actionable steps to improve the SEO and value of your existing content.
-5. Keep the tone professional and constructive.
-                    `.trim();
-
-                    const aiResponse = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'generate',
-                            prompt: gapPrompt,
-                            settings: aiContentSettings
-                        })
-                    });
-
-                    const gapData = await aiResponse.json();
-                    const gapResult = parseLambdaResponse(gapData);
-
-                    if (gapAnalysisLoading) gapAnalysisLoading.style.display = 'none';
-                    gapAnalysisResults.style.display = 'block';
-                    gapAnalysisResults.value = gapResult.result || "Could not generate gap analysis.";
-
-                    // Auto-activate all content tabs to sync with AI suggestions
-                    autoActivateAllContentTabs('competitorInsightsGrid-Optimise');
+                // Show selection area
+                const selectionWrapper = document.getElementById('selectedTopicsWrapper-Optimise');
+                if (selectionWrapper) {
+                    selectionWrapper.style.display = 'block';
+                    selectionWrapper.scrollIntoView({ behavior: 'smooth' });
                 }
 
             } catch (error) {
-                console.error("SERP analysis/Gap analysis error:", error);
+                console.error("Analysis error:", error);
                 updateCollapsibleState('aiContentOptimiserBtn', 'error');
-                alert("Failed to analyse competitors or generate gap analysis. Please try again.");
+                alert("Failed to analyze SERPs.");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalBtnHtml;
@@ -19820,16 +19813,16 @@ INSTRUCTIONS:
         /**
          * Generic function to render competitor cards into a specific grid
          */
-        function renderCompetitorCards(analysisDataArray, gridId, wrapperId, keyword) {
+        function renderCompetitorCards(analysisDataArray, gridId, wrapperId, keyword, append = false) {
             const competitorWrapper = document.getElementById(wrapperId);
             const competitorGrid = document.getElementById(gridId);
             if (competitorWrapper && competitorGrid) {
-                competitorGrid.innerHTML = '';
+                if (!append) competitorGrid.innerHTML = '';
 
                 analysisDataArray.forEach((item, index) => {
                     const card = document.createElement('div');
                     card.className = 'competitor-card';
-                    card.id = `comp-card-${gridId}-${index}`;
+                    card.id = `comp-card-${gridId}-${displayedCount_Optimiser[gridId.includes('Optimise') ? 'optimise' : 'new'] + index}`;
                     card.innerHTML = getCompetitorCardInnerHtml(item, card.id, keyword);
                     competitorGrid.appendChild(card);
                 });
@@ -19888,7 +19881,7 @@ INSTRUCTIONS:
                             </thead>
                             <tbody>
                                 ${topicEntries.map(([topic, count]) => `
-                                    <tr>
+                                    <tr onclick="toggleTopicSelection(this, '${topic.replace(/'/g, "\\'")}', '${cardId.includes('Optimise') ? 'optimise' : 'new'}')">
                                         <td>${topic}</td>
                                         <td class="word-count-cell">${count.toLocaleString()}</td>
                                     </tr>
@@ -19999,6 +19992,230 @@ INSTRUCTIONS:
                 </table>
                 ${actualData.summary ? `<div style="font-size: 10px; color: #666; font-style: italic; margin-top: 10px; border-top: 1px solid #eee; padding-top: 5px;">${actualData.summary}</div>` : ''}
             `;
+        }
+
+        // --- New Helper Functions for Topic Selection and Load More ---
+
+        function toggleTopicSelection(row, topic, flow) {
+            const isSelected = row.classList.toggle('selected');
+            const set = selectedTopics_Optimiser[flow];
+            const textId = flow === 'optimise' ? 'selectedTopicsText-Optimise' : 'selectedTopicsText';
+            const textArea = document.getElementById(textId);
+            const wrapperId = flow === 'optimise' ? 'selectedTopicsWrapper-Optimise' : 'selectedTopicsWrapper';
+
+            if (isSelected) {
+                set.add(topic);
+            } else {
+                set.delete(topic);
+            }
+
+            // Show wrapper if there are selections
+            const wrapper = document.getElementById(wrapperId);
+            if (wrapper) wrapper.style.display = 'block';
+
+            // Update textarea
+            if (textArea) {
+                textArea.value = Array.from(set).join('\n');
+            }
+        }
+
+        async function loadMoreCompetitors(flow) {
+            const batchSize = 10;
+            let start = displayedCount_Optimiser[flow];
+            let allUrls = allCompetitorUrls_Optimiser[flow];
+            let nextBatch = allUrls.slice(start, start + batchSize);
+
+            const gridId = flow === 'optimise' ? 'competitorInsightsGrid-Optimise' : 'competitorInsightsGrid';
+            const wrapperId = flow === 'optimise' ? 'competitorAnalysisWrapper-Optimise' : 'competitorAnalysisWrapper';
+            const loadMoreBtnId = flow === 'optimise' ? 'btnLoadMoreCompetitors-Optimise' : 'btnLoadMoreCompetitors';
+            const keywordId = flow === 'optimise' ? 'primaryKeyword' : 'primaryKeywordNew';
+            const keyword = document.getElementById(keywordId).value.trim();
+            const location = document.getElementById(flow === 'optimise' ? 'locationOptimiserOptimise' : 'locationOptimiserNew').value;
+
+            const btn = document.getElementById(loadMoreBtnId);
+            if (btn) btn.disabled = true;
+
+            if (nextBatch.length === 0) {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-check"></i> No more results pre-fetched';
+                }
+                return;
+            }
+
+
+            if (btn) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+
+            // 1. Initial render with skeletons
+            const skeletalData = nextBatch.map((url, index) => ({
+                url, rank: start + index + 1, loading: true
+            }));
+            renderCompetitorCards(skeletalData, gridId, wrapperId, keyword, true);
+
+            // 2. Process batch
+            const promises = nextBatch.map(async (url, index) => {
+                const actualRank = start + index + 1;
+                const cardId = `comp-card-${gridId}-${start + index}`;
+                const cardElement = document.getElementById(cardId);
+
+                const contentPromise = fetchWithRetry('https://u24f9208q0.execute-api.ap-southeast-1.amazonaws.com/gptTopicsPerUrl', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, keyword }),
+                }, 2, d => d && d.body && d.body[url] && d.body[url].topics).catch(() => ({ url, error: true }));
+
+                const designPromise = fetchWithRetry(OPTIMISER_ENDPOINTS.DESIGN_ANALYSIS, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url }),
+                }, 2, data => (data.body || data).elements).catch(() => ({ url, designError: true }));
+
+                const [contentData, designData] = await Promise.all([contentPromise, designPromise]);
+                const result = { ...contentData, designData, rank: actualRank, url };
+
+                if (cardElement) {
+                    cardElement.innerHTML = getCompetitorCardInnerHtml(result, cardId, keyword);
+                }
+                return result;
+            });
+
+            await Promise.all(promises);
+
+            displayedCount_Optimiser[flow] += nextBatch.length;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-plus"></i> Load More Competitors';
+                if (displayedCount_Optimiser[flow] >= allUrls.length) {
+                    btn.innerHTML = '<i class="fas fa-check"></i> No more results pre-fetched';
+                }
+            }
+        }
+
+        async function runGapAnalysisWithTopics(flow) {
+            const textAreaId = flow === 'optimise' ? 'selectedTopicsText-Optimise' : 'selectedTopicsText';
+            const selectedTopicsText = document.getElementById(textAreaId).value.trim();
+            const keywordId = flow === 'optimise' ? 'primaryKeyword' : 'primaryKeywordNew';
+            const keyword = document.getElementById(keywordId).value.trim();
+
+            // Collect all current analysis data for context
+            const gridId = flow === 'optimise' ? 'competitorInsightsGrid-Optimise' : 'competitorInsightsGrid';
+            const gridRows = document.querySelectorAll(`#${gridId} .competitor-card`);
+
+            if (flow === 'optimise') {
+                // Manually trigger the existing gap analysis logic but with prioritized topics
+                await runTargetedGapAnalysisOptimise(selectedTopicsText, keyword);
+            } else {
+                // For 'new' flow, we update the outline based on topics
+                await runTargetedOutlineGeneration(selectedTopicsText, keyword);
+            }
+        }
+
+        async function runTargetedGapAnalysisOptimise(selectedTopics, keyword) {
+            const btn = document.getElementById('btnRunGapAnalysisFromTopics');
+            const resultsArea = document.getElementById('gapAnalysisResults-Optimise');
+            const loading = document.getElementById('gapAnalysisLoading-Optimise');
+            const wrapper = document.getElementById('gapAnalysisWrapper-Optimise');
+            const editorContent = document.getElementById('editorContent').innerText.trim();
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing gaps...';
+            wrapper.style.display = 'block';
+            resultsArea.style.display = 'none';
+            loading.style.display = 'block';
+
+            try {
+                const gapPrompt = `
+ANALYSE THE FOLLOWING DATA FOR CONTENT GAPS AND IMPROVEMENT SUGGESTIONS.
+PRIORITIZE ANALYZING THESE SPECIFIC TOPICS CHOSEN BY THE USER:
+${selectedTopics || "No specific topics chosen, analyze overall gaps."}
+
+PRIMARY KEYWORD: "${keyword}"
+
+YOUR CURRENT EDITOR CONTENT:
+"""
+${editorContent}
+"""
+
+INSTRUCTIONS:
+1. Compare your content vs the cherry-picked topics.
+2. Identify specific "Content Gaps" related to these topics.
+3. Provide 3-5 actionable steps to improve the SEO and value of your existing content.
+4. Keep the tone professional and constructive.
+                    `.trim();
+
+                const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'generate', prompt: gapPrompt, settings: aiContentSettings })
+                });
+
+                const data = await response.json();
+                const result = parseLambdaResponse(data);
+
+                loading.style.display = 'none';
+                resultsArea.style.display = 'block';
+                resultsArea.value = result.result;
+                resultsArea.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (error) {
+                console.error("Gap analysis error:", error);
+                alert("Failed to run gap analysis.");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-magic"></i> Run AI Gap Analysis';
+            }
+        }
+
+        async function runTargetedOutlineGeneration(selectedTopics, keyword) {
+            const btn = document.getElementById('btnRunAnalysisFromTopics');
+            const outlineArea = document.getElementById('editableOutline');
+            const outlineWrapper = document.getElementById('outlineStepWrapper');
+            const loading = document.getElementById('outlineLoading-New');
+            const topic = document.getElementById('newArticleTopic').value.trim();
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating outline...';
+            outlineWrapper.style.display = 'block';
+            outlineArea.style.display = 'none';
+            loading.style.display = 'block';
+
+            try {
+                const prompt = `
+Generate a structured article outline (H1, H2, H3) for the following topic and keyword.
+PRIORITIZE INCLUDING THESE CHERRY-PICKED TOPICS IDENTIFIED FROM COMPETITOR RESEARCH:
+${selectedTopics}
+
+TOPIC: "${topic}"
+PRIMARY KEYWORD: "${keyword}"
+
+INSTRUCTIONS:
+1. Ensure the outline is unique and high-value.
+2. Cover the cherry-picked topics comprehensively.
+3. Account for EEAT principles.
+4. Output in a clear, editable text format.
+                `.trim();
+
+                const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'generate', prompt: prompt, settings: aiContentSettings })
+                });
+
+                const data = await response.json();
+                const result = parseLambdaResponse(data);
+
+                loading.style.display = 'none';
+                outlineArea.style.display = 'block';
+                outlineArea.value = result.result;
+                outlineArea.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (error) {
+                console.error("Outline generation error:", error);
+                alert("Failed to generate outline.");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-magic"></i> Run AI Content Analysis';
+            }
         }
 
         async function retrySingleCompetitorContent(url, keyword, cardElement, rank) {
