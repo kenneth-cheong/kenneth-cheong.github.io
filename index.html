@@ -3474,6 +3474,8 @@
 
         .persona-header {
             margin-bottom: 5px;
+            padding-left: 40px;
+            /* Space for top-left delete button */
         }
 
         .persona-header h3 {
@@ -3494,12 +3496,6 @@
             gap: 6px;
         }
 
-        .persona-age::before {
-            content: '\f113';
-            font-family: 'Font Awesome 5 Free';
-            font-weight: 900;
-            color: #94a3b8;
-        }
 
         .persona-body {
             display: flex;
@@ -3546,6 +3542,71 @@
             display: inline-block;
             width: 1em;
             margin-left: -1em;
+        }
+
+        /* Card Deletion & Undo Styles */
+        .card-delete-btn {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            width: 32px;
+            height: 32px;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            z-index: 10;
+        }
+
+        .card-delete-btn:hover {
+            background: #ef4444;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .undo-bar {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 15px;
+            padding: 10px 0;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+
+        .btn-undo {
+            background: #1e293b;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 0.9em;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-undo:hover:not(:disabled) {
+            background: #0f172a;
+            transform: translateY(-1px);
+        }
+
+        .btn-undo:disabled {
+            background: #f1f5f9;
+            color: #cbd5e1;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .btn-undo i {
+            font-size: 1em;
         }
 
         .persona-rationale {
@@ -4287,6 +4348,8 @@
             display: block;
             margin-bottom: 10px;
             font-weight: 600;
+            padding-left: 40px;
+            /* Space for top-left delete button */
         }
 
         .competitor-card-url:hover {
@@ -6199,8 +6262,9 @@
                         <div class="sem-card-title"><i class="fas fa-info-circle"></i> References & Data</div>
                         <div class="sem-input-group">
                             <div class="sem-input-item">
-                                <label for="pillar_website"><i class="fas fa-globe"></i> Website URL:</label>
-                                <input type="url" id="pillar_website" placeholder="https://example.com">
+                                <label for="pillar_website"><i class="fas fa-globe"></i> Website URLs:</label>
+                                <textarea id="pillar_website"
+                                    placeholder="Enter URLs, separated by commas or new lines..."></textarea>
                             </div>
                             <div class="sem-input-item">
                                 <label for="pillar_brand_guide"><i class="fas fa-book"></i> Brand Guidelines
@@ -6664,6 +6728,11 @@
                 <textarea id="persona_manual" placeholder="Focus on this product."></textarea>
                 <button id="generatePersonaBtn" class="btn-action" onclick="generatePersona()">Generate
                     Personas</button>
+                <div id="undo-bar-persona" class="undo-bar" style="display: none;">
+                    <button class="btn-undo" onclick="undoDeletion()">
+                        <i class="fas fa-undo-alt"></i> Undo Deletion
+                    </button>
+                </div>
                 <div id="persona-results"></div>
                 <button type="button" id="copy-persona-results-button" class="tooltip" style="display:none"
                     onclick="copyPersonaResults(event)">Copy to clipboard<span>Click to copy the persona results to your
@@ -7217,6 +7286,11 @@ Enterprise SEO Singapore</textarea>
                                 We've analysed the top 10 SERP competitors for your keywords. Here are the topics they
                                 cover:
                             </p>
+                            <div id="undo-bar-competitor" class="undo-bar" style="display: none;">
+                                <button class="btn-undo" onclick="undoDeletion()">
+                                    <i class="fas fa-undo-alt"></i> Undo Deletion
+                                </button>
+                            </div>
                             <div id="competitorInsightsGrid-Optimise" class="competitor-insights-grid">
                                 <!-- Competitor cards will be injected here -->
                             </div>
@@ -13627,6 +13701,7 @@ Enterprise SEO Singapore</textarea>
             }
             displaySemSelectedItems();
         }
+
         function displaySemSelectedItems() {
             let selectedText = "";
             for (const category in selectedItems) {
@@ -13635,10 +13710,54 @@ Enterprise SEO Singapore</textarea>
                     selectedItems[category].forEach(item => {
                         selectedText += `${item}\n`;
                     });
-                    selectedText += "\n"; // Add extra newline between categories
                 }
             }
-            document.getElementById("selectedText").value = selectedText;  // Update textarea value
+            document.getElementById("selectedText").value = selectedText;
+        }
+
+        // --- Card Deletion & Undo Logic ---
+        let deletedCardsStack = [];
+
+        function deleteCard(elementId) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+
+            element.style.display = 'none';
+            deletedCardsStack.push(elementId);
+            updateUndoButtonState();
+        }
+
+        function undoDeletion() {
+            if (deletedCardsStack.length === 0) return;
+
+            const elementId = deletedCardsStack.pop();
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.style.display = '';
+                // Optional: Scroll back to the restored card
+                element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            updateUndoButtonState();
+        }
+
+        function updateUndoButtonState() {
+            const undoBtns = document.querySelectorAll('.btn-undo');
+            const undoBars = document.querySelectorAll('.undo-bar');
+
+            const hasDeleted = deletedCardsStack.length > 0;
+
+            undoBtns.forEach(btn => {
+                btn.disabled = !hasDeleted;
+                if (hasDeleted) {
+                    btn.innerHTML = `<i class="fas fa-undo-alt"></i> Undo Deletion (${deletedCardsStack.length})`;
+                } else {
+                    btn.innerHTML = `<i class="fas fa-undo-alt"></i> Undo Deletion`;
+                }
+            });
+
+            undoBars.forEach(bar => {
+                bar.style.display = hasDeleted ? 'flex' : 'none';
+            });
         }
 
         function getCompetitors() {
@@ -13979,7 +14098,28 @@ Enterprise SEO Singapore</textarea>
                     }
 
                     const personaData = await personaResponse.json();
-                    personaContentDiv.innerHTML = personaData.body;
+
+                    // Parse the returned HTML to inject IDs and delete buttons
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = personaData.body;
+                    const cards = tempDiv.querySelectorAll('.persona-card');
+
+                    cards.forEach((card, index) => {
+                        const uniqueId = `persona-card-${Date.now()}-${index}`;
+                        card.id = uniqueId;
+
+                        // Add delete button if not already present
+                        if (!card.querySelector('.card-delete-btn')) {
+                            const deleteBtn = document.createElement('div');
+                            deleteBtn.className = 'card-delete-btn';
+                            deleteBtn.title = 'Delete persona';
+                            deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                            deleteBtn.setAttribute('onclick', `event.stopPropagation(); deleteCard('${uniqueId}')`);
+                            card.prepend(deleteBtn);
+                        }
+                    });
+
+                    personaContentDiv.innerHTML = tempDiv.innerHTML;
 
                 } catch (error) {
                     personaContentDiv.innerHTML = `<p style="color: red;">Error sending data to persona API: ${error.message}</p>`;
@@ -19006,7 +19146,7 @@ Enterprise SEO Singapore</textarea>
             const platforms = Array.from(document.querySelectorAll('input[name="pillar_platform"]:checked')).map(cb => cb.value);
             const sensitivity = document.getElementById('pillar_sensitivity').value;
             const tolerance = document.getElementById('pillar_promo_tolerance').value;
-            const website = document.getElementById('pillar_website').value;
+            const website = document.getElementById('pillar_website').value.trim();
             const brandGuide = document.getElementById('pillar_brand_guide').value;
             const competitors = document.getElementById('pillar_competitors').value;
 
@@ -19706,6 +19846,9 @@ INSTRUCTIONS:
             if (item && item.loading) {
                 return `
                     <div class="competitor-card-rank">${rank || ''}</div>
+                    <div class="card-delete-btn" title="Delete competitor" onclick="deleteCard('${cardId}')">
+                        <i class="fas fa-trash-alt"></i>
+                    </div>
                     <div class="competitor-card-url" title="${url}">
                         <i class="fas fa-spinner fa-spin"></i> ${displayUrl}
                     </div>
@@ -19723,6 +19866,9 @@ INSTRUCTIONS:
             if (item && !item.error) {
                 return `
                     <div class="competitor-card-rank">${rank || ''}</div>
+                    <div class="card-delete-btn" title="Delete competitor" onclick="deleteCard('${cardId}')">
+                        <i class="fas fa-trash-alt"></i>
+                    </div>
                     <a href="${url}" target="_blank" class="competitor-card-url" title="${url}">
                         <i class="fas fa-external-link-alt"></i> ${displayUrl}
                     </a>
