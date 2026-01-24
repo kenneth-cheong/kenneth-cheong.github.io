@@ -7125,19 +7125,20 @@
                             <button id="btnAnalyzeAndPropose" class="btn-gradient"
                                 style="background: #1a73e8; margin-top: 20px; padding: 15px 30px; font-size: 1.1em; display: inline-block; width: auto; min-width: 250px; border-radius: 8px;"
                                 onclick="analyzeAndProposeOutline()">
-                                <i class="fas fa-search"></i> Step 1: Analyse & Propose Outline
+                                <i class="fas fa-search"></i> Step 1: Analyse SERPs
                             </button>
                         </div>
 
                         <!-- Competitor Insights Display -->
                         <div id="competitorAnalysisWrapper"
-                            style="margin-top: 25px; border-top: 1px solid #eee; padding-top: 20px;">
+                            style="display: none; margin-top: 25px; border-top: 1px solid #eee; padding-top: 20px;">
                             <div class="competitor-insights-title">
                                 <i class="fas fa-chart-line"></i> Competitor Content Insights
                             </div>
                             <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">
-                                We've analysed the top 10 SERP competitors for your keyword. Here are the topics they
-                                cover:
+                                We've analysed the top 10 SERP competitors for your keyword. <b>Select multiple topics
+                                    by clicking on the rows across different cards</b>, then click the "Run AI Content
+                                Analysis" button below to continue.
                             </p>
                             <div style="margin-bottom: 15px; display: flex; gap: 10px; justify-content: flex-end;">
                                 <button onclick="selectAllTopics('new')"
@@ -7340,13 +7341,14 @@ Enterprise SEO Singapore</textarea>
 
                         <!-- Competitor Insights Display (Optimise Flow) -->
                         <div id="competitorAnalysisWrapper-Optimise"
-                            style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
+                            style="display: none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
                             <div class="competitor-insights-title">
                                 <i class="fas fa-chart-line"></i> Competitor Content Insights
                             </div>
                             <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">
-                                We've analysed the top 10 SERP competitors for your keywords. Here are the topics they
-                                cover:
+                                We've analysed the top 10 SERP competitors for your keywords. <b>Select multiple topics
+                                    by clicking on the rows across different cards</b>, then click the "Run AI Gap
+                                Analysis" button below to continue.
                             </p>
                             <div style="margin-bottom: 15px; display: flex; gap: 10px; justify-content: flex-end;">
                                 <button onclick="selectAllTopics('optimise')"
@@ -19473,12 +19475,13 @@ Enterprise SEO Singapore</textarea>
                     listContainer.innerHTML = '<div style="font-size: 12px; color: #666;">No specific regulations identified for this topic.</div>';
                 } else {
                     listContainer.innerHTML = '';
-                    suggestions.forEach(item => {
+                    suggestions.forEach((item, index) => {
                         const wrapper = document.createElement('div');
                         wrapper.style.cssText = 'background: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 6px; flex: 1; min-width: 250px; display: flex; align-items: flex-start; gap: 10px;';
 
+                        const isChecked = index === 0 ? 'checked' : '';
                         wrapper.innerHTML = `
-                            <input type="checkbox" id="chk_${item.id}_${flowType}" value="${item.name}" checked style="margin-top: 3px;">
+                            <input type="checkbox" id="chk_${item.id}_${flowType}" value="${item.name}" ${isChecked} style="margin-top: 3px;">
                             <div style="flex: 1;">
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                                     <label for="chk_${item.id}_${flowType}" style="font-size: 13px; font-weight: bold; color: #333; cursor: pointer; display: block;">${item.name}</label>
@@ -20155,6 +20158,7 @@ INSTRUCTIONS:
             });
 
             await Promise.all(promises);
+            autoActivateAllContentTabs(gridId);
 
             displayedCount_Optimiser[flow] += nextBatch.length;
             if (btn) {
