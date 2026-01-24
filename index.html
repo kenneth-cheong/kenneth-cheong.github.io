@@ -3548,20 +3548,21 @@
         /* Card Deletion & Undo Styles */
         .card-delete-btn {
             position: absolute;
-            top: 15px;
-            left: 15px;
-            width: 32px;
-            height: 32px;
-            background: rgba(239, 68, 68, 0.1);
-            color: #ef4444;
+            top: -10px;
+            right: 20px;
+            width: 24px;
+            height: 24px;
+            background: #ef4444;
+            color: white;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             transition: all 0.2s ease;
-            border: 1px solid rgba(239, 68, 68, 0.2);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
             z-index: 10;
+            font-size: 11px;
         }
 
         .card-delete-btn:hover {
@@ -4334,6 +4335,8 @@
             transition: transform 0.2s;
             display: flex;
             flex-direction: column;
+            position: relative;
+            overflow: visible;
         }
 
         .competitor-card:hover {
@@ -4349,8 +4352,6 @@
             display: block;
             margin-bottom: 10px;
             font-weight: 600;
-            padding-left: 40px;
-            /* Space for top-left delete button */
         }
 
         .competitor-card-url:hover {
@@ -7138,6 +7139,16 @@
                                 We've analysed the top 10 SERP competitors for your keyword. Here are the topics they
                                 cover:
                             </p>
+                            <div style="margin-bottom: 15px; display: flex; gap: 10px; justify-content: flex-end;">
+                                <button onclick="selectAllTopics('new')"
+                                    style="background: #e7f3ff; color: #007bff; border: 1px solid #cce5ff; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">
+                                    <i class="fas fa-check-double"></i> Select All Topics
+                                </button>
+                                <button onclick="deselectAllTopics('new')"
+                                    style="background: #fff1f0; color: #ff4d4f; border: 1px solid #ffa39e; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">
+                                    <i class="fas fa-times-circle"></i> Deselect All
+                                </button>
+                            </div>
                             <div id="competitorInsightsGrid" class="competitor-insights-grid">
                                 <!-- Competitor cards will be injected here -->
                             </div>
@@ -7337,6 +7348,16 @@ Enterprise SEO Singapore</textarea>
                                 We've analysed the top 10 SERP competitors for your keywords. Here are the topics they
                                 cover:
                             </p>
+                            <div style="margin-bottom: 15px; display: flex; gap: 10px; justify-content: flex-end;">
+                                <button onclick="selectAllTopics('optimise')"
+                                    style="background: #e7f3ff; color: #007bff; border: 1px solid #cce5ff; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">
+                                    <i class="fas fa-check-double"></i> Select All Topics
+                                </button>
+                                <button onclick="deselectAllTopics('optimise')"
+                                    style="background: #fff1f0; color: #ff4d4f; border: 1px solid #ffa39e; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">
+                                    <i class="fas fa-times-circle"></i> Deselect All
+                                </button>
+                            </div>
                             <div id="undo-bar-competitor" class="undo-bar" style="display: none;">
                                 <button class="btn-undo" onclick="undoDeletion()">
                                     <i class="fas fa-undo-alt"></i> Undo Deletion
@@ -7364,6 +7385,8 @@ Enterprise SEO Singapore</textarea>
                                 <p style="font-size: 0.85em; color: #555; margin-bottom: 10px;">
                                     Click on rows in the competitor cards to add/remove topics. You can also edit these
                                     manually.
+                                </p>
+                                manually.
                                 </p>
                                 <textarea id="selectedTopicsText-Optimise"
                                     style="width: 100%; min-height: 100px; padding: 12px; border-radius: 8px; border: 1px solid #b8daff; box-sizing: border-box; font-size: 0.9em; line-height: 1.5;"
@@ -11189,7 +11212,7 @@ Enterprise SEO Singapore</textarea>
                         const serpResponse = await fetch('https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ keyword, language, location, user, page_types: pageTypes }),
+                            body: JSON.stringify({ keyword, language, location, user, page_types: pageTypes, limit: 10 }),
                         });
                         const serpData = await serpResponse.json();
                         console.log(serpData);
@@ -19554,7 +19577,7 @@ Enterprise SEO Singapore</textarea>
                 const serpResponse = await fetch('https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ keyword, language: "English", location: location, "page_types": "any", limit: 50 }),
+                    body: JSON.stringify({ keyword, language: "English", location: location, "page_types": "any", limit: 30 }),
                 });
                 const serpData = await serpResponse.json();
                 const serpUrls = Object.values(serpData).map(result => result.url);
@@ -19647,7 +19670,7 @@ Enterprise SEO Singapore</textarea>
                 const serpResponse = await fetch('https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ keyword, language: "English", location: location, "page_types": "any", limit: 50 }),
+                    body: JSON.stringify({ keyword, language: "English", location: location, "page_types": "any", limit: 30 }),
                 });
                 const serpData = await serpResponse.json();
                 const serpUrls = Object.values(serpData).map(result => result.url);
@@ -19898,6 +19921,9 @@ INSTRUCTIONS:
             } else {
                 return `
                     <div class="competitor-card-rank">${rank || ''}</div>
+                    <div class="card-delete-btn" title="Delete competitor" onclick="deleteCard('${cardId}')">
+                        <i class="fas fa-trash-alt"></i>
+                    </div>
                     <div class="competitor-card-retry-container">
                         <a href="${url}" target="_blank" class="competitor-card-url" title="${url}" style="margin-bottom: 5px;">
                             <i class="fas fa-external-link-alt"></i> ${displayUrl}
@@ -20016,6 +20042,55 @@ INSTRUCTIONS:
             // Update textarea
             if (textArea) {
                 textArea.value = Array.from(set).join('\n');
+            }
+        }
+
+        function selectAllTopics(flow) {
+            const gridId = flow === 'optimise' ? 'competitorInsightsGrid-Optimise' : 'competitorInsightsGrid';
+            const grid = document.getElementById(gridId);
+            if (!grid) return;
+
+            const set = selectedTopics_Optimiser[flow];
+            const rows = grid.querySelectorAll('.competitor-table tbody tr');
+
+            rows.forEach(row => {
+                const cells = row.cells;
+                if (!cells || cells.length < 2) return;
+                const topic = cells[0].textContent.trim();
+                // Avoid selection if it's the "No data" placeholder
+                if (topic && topic !== "No content data available." && !row.classList.contains('selected')) {
+                    row.classList.add('selected');
+                    set.add(topic);
+                }
+            });
+
+            // Update Textarea
+            const textId = flow === 'optimise' ? 'selectedTopicsText-Optimise' : 'selectedTopicsText';
+            const textArea = document.getElementById(textId);
+            if (textArea) {
+                textArea.value = Array.from(set).join('\n');
+            }
+        }
+
+        function deselectAllTopics(flow) {
+            const gridId = flow === 'optimise' ? 'competitorInsightsGrid-Optimise' : 'competitorInsightsGrid';
+            const grid = document.getElementById(gridId);
+            if (!grid) return;
+
+            const set = selectedTopics_Optimiser[flow];
+            const rows = grid.querySelectorAll('.competitor-table tr.selected');
+
+            rows.forEach(row => {
+                row.classList.remove('selected');
+            });
+
+            set.clear();
+
+            // Update Textarea
+            const textId = flow === 'optimise' ? 'selectedTopicsText-Optimise' : 'selectedTopicsText';
+            const textArea = document.getElementById(textId);
+            if (textArea) {
+                textArea.value = '';
             }
         }
 

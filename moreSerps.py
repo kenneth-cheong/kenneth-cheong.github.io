@@ -20,7 +20,7 @@ def lambda_handler(event, context):
     
     # Try to extract limit from body if it's a proxy request, otherwise use event root
     try:
-        requested_limit = event['body']['limit']
+        requested_limit = event['limit']
     except:
         requested_limit = 10
 
@@ -36,7 +36,7 @@ def lambda_handler(event, context):
         "keyword": keyword,
         "location_name": location,
         "language_name": language,
-        "limit": 100
+        "depth": 50
     }]
 
     headers = {
