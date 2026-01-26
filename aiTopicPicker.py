@@ -24,18 +24,18 @@ def lambda_handler(event, context):
     prompt = f"""You are an SEO expert. I have a list of content topics extracted from the top SERP competitors for the primary keyword: "{primary_keyword}" in {location}.
 Secondary keywords (lower priority): {", ".join(secondary_keywords)}
 
-Here are all the topics found across competitors:
+Here are the topics found across competitors, with their frequency of occurrence:
 {json.dumps(all_topics)}
 
 Your task:
-1. Analyse these topics and cherry-pick the most important ones (around 15-25 topics).
-2. Prioritize topics that:
-   - Are highly relevant to the primary keyword.
-   - Appear frequently across competitors (implied by the list).
-   - Are essential for ranking well on Google for this specific intent.
-3. Use the web_search tool to verify current SEO trends for this keyword to improve your selection.
-4. Return ONLY a JSON list of the selected topic strings. No explanations.
-Format: ["Topic 1", "Topic 2", ...]"""
+1. Perform a HOLISTIC analysis of all topics. Do not just pick from the top of the list.
+2. Identify and consolidate similar or near-identical topics (e.g., "SEO Strategy" and "Search Engine Optimization Strategy") into a single, most representative SEO term.
+3. Weigh topics by their frequency across the competitive landscape. High-frequency topics are "Must-Haves".
+4. Cherry-pick the most important 15-25 topics for a comprehensive content strategy.
+5. Use the web_search tool to verify current SEO trends for this keyword to improve your selection.
+6. Return ONLY a JSON list of the selected topic strings. No explanations.
+
+Format: ["Consolidated Topic A", "Must-Have Topic B", ...]"""
 
     data = {
         "model": "gpt-4o-mini",
