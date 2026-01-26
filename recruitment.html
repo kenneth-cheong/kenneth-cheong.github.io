@@ -576,7 +576,11 @@
         </div>
 
         <section id="resultsSection" style="display: none;">
-            <h2 style="margin-bottom: 24px;">Top 5 Shortlist</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h2 style="margin: 0;">Top 5 Shortlist</h2>
+                <button id="bulkDeleteBtn" class="btn" style="display: none; background: var(--accent); color: white;"
+                    onclick="bulkDelete()">Delete Selected</button>
+            </div>
             <div class="top-shortlist" id="top5List">
                 <!-- Shortlist cards will be injected here -->
             </div>
@@ -585,6 +589,10 @@
                 <table id="candidateTable">
                     <thead>
                         <tr>
+                            <th style="width: 40px; text-align: center;">
+                                <input type="checkbox" id="selectAllCandidates"
+                                    onclick="toggleSelectAll('candidateTable')">
+                            </th>
                             <th onclick="sortJobCandidates('name')" style="cursor: pointer;">Candidate Name ↕️</th>
                             <th onclick="sortJobCandidates('date')" style="cursor: pointer;">Upload Date ↕️</th>
                             <th onclick="sortJobCandidates('score')" style="cursor: pointer;">AI Score ↕️</th>
@@ -603,8 +611,11 @@
         </section>
 
         <section id="candidatesSection" style="display: none;">
-            <div class="header" style="margin-bottom: 24px;">
-                <h2>Candidates Repository</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h2 style="margin: 0;">Candidates Repository</h2>
+                <button id="bulkDeleteRepoBtn" class="btn"
+                    style="display: none; background: var(--accent); color: white;" onclick="bulkDeleteRepo()">Delete
+                    Selected</button>
             </div>
 
             <div class="card" style="margin-bottom: 24px;">
@@ -646,6 +657,9 @@
                 <table id="repoTable">
                     <thead>
                         <tr>
+                            <th style="width: 40px; text-align: center;">
+                                <input type="checkbox" id="selectAllRepo" onclick="toggleSelectAll('repoTable')">
+                            </th>
                             <th onclick="sortRepoTable('name')" style="cursor: pointer;">Name ↕️</th>
                             <th onclick="sortRepoTable('job')" style="cursor: pointer;">Position ↕️</th>
                             <th onclick="sortRepoTable('date')" style="cursor: pointer;">Date Applied ↕️</th>
@@ -1230,7 +1244,10 @@
         function renderRepoTable(data) {
             const body = document.getElementById('repoBody');
             body.innerHTML = data.map(c => `
-                <tr style="animation: fadeIn 0.3s ease forwards;">
+                <tr style="animation: fadeIn 0.3s ease forwards;" onclick="toggleRowSelection(this)">
+                    <td style="text-align: center;" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="repo-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('repoTable')">
+                    </td>
                     <td style="font-weight: 600;">${c.name}</td>
                     <td>${c.jobTitle}</td>
                     <td>${c.date}</td>
@@ -1238,22 +1255,25 @@
                     <td>
                         <input type="number" value="${c.interviewerScore || 0}" min="0" max="100" 
                             style="width: 60px; padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px;"
-                            onchange="updateInterviewerScore('${c.id}', this.value)">
+                            onclick="event.stopPropagation()" onchange="updateInterviewerScore('${c.id}', this.value)">
                     </td>
                     <td>
                         <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%; max-width: 140px;" 
-                            onchange="updateCandidatePending('${c.id}', this.value)">
+                            onclick="event.stopPropagation()" onchange="updateCandidatePending('${c.id}', this.value)">
                             ${getAssigneeOptions(c.pendingBy)}
                         </select>
                     </td>
                     <td>
                         <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none;" 
-                            onchange="updateCandidateStatus('${c.id}', this.value)">
+                            onclick="event.stopPropagation()" onchange="updateCandidateStatus('${c.id}', this.value)">
                             ${getStatusOptions(c.status)}
                         </select>
                     </td>
                     <td>
-                        <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white;" onclick="viewCandidate('${c.id}')">Review</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white;" onclick="event.stopPropagation(); viewCandidate('${c.id}')">Review</button>
+                            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--accent); color: white;" onclick="event.stopPropagation(); deleteCandidate('${c.id}')">🗑️</button>
+                        </div>
                     </td>
                 </tr>
             `).join('');
@@ -1406,6 +1426,105 @@
             }, 2000);
         }
 
+        // Selection and Deletion Helpers
+        function toggleSelectAll(tableId) {
+            const isChecked = tableId === 'candidateTable' ?
+                document.getElementById('selectAllCandidates').checked :
+                document.getElementById('selectAllRepo').checked;
+
+            const selector = tableId === 'candidateTable' ? '.cand-checkbox' : '.repo-checkbox';
+            document.querySelectorAll(selector).forEach(cb => cb.checked = isChecked);
+            updateBulkDeleteVisibility(tableId);
+        }
+
+        function updateBulkDeleteVisibility(tableId) {
+            const selector = tableId === 'candidateTable' ? '.cand-checkbox:checked' : '.repo-checkbox:checked';
+            const btnId = tableId === 'candidateTable' ? 'bulkDeleteBtn' : 'bulkDeleteRepoBtn';
+            const checkedCount = document.querySelectorAll(selector).length;
+            document.getElementById(btnId).style.display = checkedCount > 0 ? 'block' : 'none';
+        }
+
+        function toggleRowSelection(row) {
+            const cb = row.querySelector('input[type=\"checkbox\"]');
+            if (cb) {
+                cb.checked = !cb.checked;
+                const tableId = row.closest('table').id;
+                updateBulkDeleteVisibility(tableId);
+            }
+        }
+
+        function deleteCandidate(id) {
+            if (!confirm('Are you sure you want to delete this candidate?')) return;
+
+            const index = state.candidates.findIndex(c => c.id.toString() === id.toString());
+            if (index !== -1) {
+                const cand = state.candidates[index];
+                const job = state.jobs.find(j => j.id === cand.jobId);
+                if (job) {
+                    job.applicants--;
+                    if (cand.status === 'Shortlisted') job.shortlisted--;
+                }
+                state.candidates.splice(index, 1);
+
+                renderCandidates();
+                filterCandidatesRepo();
+                updateStats();
+                renderJobs();
+            }
+        }
+
+        function bulkDelete() {
+            const checked = document.querySelectorAll('.cand-checkbox:checked');
+            if (checked.length === 0) return;
+            if (!confirm(`Are you sure you want to delete ${checked.length} selected candidates?`)) return;
+
+            checked.forEach(cb => {
+                const id = cb.value;
+                const index = state.candidates.findIndex(c => c.id.toString() === id.toString());
+                if (index !== -1) {
+                    const cand = state.candidates[index];
+                    const job = state.jobs.find(j => j.id === cand.jobId);
+                    if (job) {
+                        job.applicants--;
+                        if (cand.status === 'Shortlisted') job.shortlisted--;
+                    }
+                    state.candidates.splice(index, 1);
+                }
+            });
+
+            document.getElementById('selectAllCandidates').checked = false;
+            renderCandidates();
+            updateStats();
+            renderJobs();
+            updateBulkDeleteVisibility('candidateTable');
+        }
+
+        function bulkDeleteRepo() {
+            const checked = document.querySelectorAll('.repo-checkbox:checked');
+            if (checked.length === 0) return;
+            if (!confirm(`Are you sure you want to delete ${checked.length} selected candidates?`)) return;
+
+            checked.forEach(cb => {
+                const id = cb.value;
+                const index = state.candidates.findIndex(c => c.id.toString() === id.toString());
+                if (index !== -1) {
+                    const cand = state.candidates[index];
+                    const job = state.jobs.find(j => j.id === cand.jobId);
+                    if (job) {
+                        job.applicants--;
+                        if (cand.status === 'Shortlisted') job.shortlisted--;
+                    }
+                    state.candidates.splice(index, 1);
+                }
+            });
+
+            document.getElementById('selectAllRepo').checked = false;
+            filterCandidatesRepo();
+            updateStats();
+            renderJobs();
+            updateBulkDeleteVisibility('repoTable');
+        }
+
         async function extractText(item) {
             const ext = item.name.split('.').pop().toLowerCase();
             const arrayBuffer = await item.blob.arrayBuffer();
@@ -1527,7 +1646,10 @@
             });
 
             body.innerHTML = filtered.map(c => `
-                <tr style="animation: fadeIn 0.3s ease forwards;">
+                <tr style="animation: fadeIn 0.3s ease forwards;" onclick="toggleRowSelection(this)">
+                    <td style="text-align: center;" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="cand-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('candidateTable')">
+                    </td>
                     <td>
                         <div style="font-weight: 600;">${c.name}</div>
                         <div style="font-size: 0.7rem; color: var(--text-dim);">${c.fileName}</div>
@@ -1553,18 +1675,21 @@
                     </td>
                     <td>
                         <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%; max-width: 140px;" 
-                            onchange="updateCandidatePending('${c.id}', this.value)">
+                            onclick="event.stopPropagation()" onchange="updateCandidatePending('${c.id}', this.value)">
                             ${getAssigneeOptions(c.pendingBy)}
                         </select>
                     </td>
                     <td>
                         <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none;" 
-                            onchange="updateCandidateStatus('${c.id}', this.value)">
+                            onclick="event.stopPropagation()" onchange="updateCandidateStatus('${c.id}', this.value)">
                             ${getStatusOptions(c.status)}
                         </select>
                     </td>
                     <td>
-                        <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem;" onclick="viewCandidate('${c.id}')">Details</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem;" onclick="event.stopPropagation(); viewCandidate('${c.id}')">Details</button>
+                            <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: var(--accent); color: white;" onclick="event.stopPropagation(); deleteCandidate('${c.id}')">🗑️</button>
+                        </div>
                     </td>
                 </tr>
             `).join('');
@@ -1596,7 +1721,10 @@
                     <span class="rank-number">RANK #${i + 1}</span>
                     <div style="font-weight: 700; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${c.name}</div>
                     <div style="font-size: 1.25rem; font-weight: 800; color: var(--secondary); margin-bottom: 8px;">${c.aiScore}%</div>
-                    <button class="btn" style="background: var(--glass); padding: 4px 8px; font-size: 0.7rem; width: 100%; border: 1px solid var(--border);" onclick="viewCandidate('${c.id}')">View Analysis</button>
+                    <button class="btn" style="background: var(--glass); color: var(--text-main); padding: 4px 8px; font-size: 0.7rem; width: 100%; border: 1px solid var(--border);" 
+                        onmouseover="this.style.background='rgba(255,255,255,0.1)'" 
+                        onmouseout="this.style.background='var(--glass)'"
+                        onclick="viewCandidate('${c.id}')">View Analysis</button>
                 </div>
             `).join('');
         }
@@ -1748,6 +1876,66 @@
             desc: 'Looking for a designer with 5+ years experience in SaaS, proficiency in Figma, and a strong portfolio demonstrating UX research and high-fidelity UI design.',
             kpi: 'Improve user retention by 20%, Design 3 full features per quarter, Maintain design system consistency',
             weights: { exp: 40, skills: 30, resp: 15, kpi: 15 }
+        }, {
+            id: 2,
+            title: 'Full Stack Developer',
+            applicants: 0,
+            shortlisted: 0,
+            status: 'Open',
+            createdAt: new Date().toISOString(),
+            desc: 'Looking for a developer with experience in React, Node.js, and AWS. Experience with real-time systems is a plus.',
+            kpi: 'High code quality, 99.9% uptime, 2-week sprint completion rate',
+            weights: { exp: 30, skills: 40, resp: 20, kpi: 10 }
+        }, {
+            id: 3,
+            title: 'Marketing Executive',
+            applicants: 0,
+            shortlisted: 0,
+            status: 'Closed',
+            createdAt: new Date().toISOString(),
+            desc: 'Experienced Marketer to handle multi-channel campaigns including SEM, Social Media and Email Marketing.',
+            kpi: 'Increase lead gen by 15% MoM, ROAS > 4x',
+            weights: { exp: 25, skills: 35, resp: 20, kpi: 20 }
+        });
+
+        // Add dummy candidates
+        const dummyCandidates = [
+            { name: 'Alice Tan', jobId: 1, score: 88, status: 'Qualified', isHopper: false },
+            { name: 'Bob Lim', jobId: 1, score: 65, status: 'AI Analysed', isHopper: true },
+            { name: 'Charlie Ang', jobId: 2, score: 92, status: 'Shortlisted', isHopper: false },
+            { name: 'David Lee', jobId: 2, score: 74, status: 'Rejected', isHopper: false },
+            { name: 'Eve Wong', jobId: 2, score: 81, status: 'Shortlisted', isHopper: false },
+            { name: 'Frank Ho', jobId: 3, score: 55, status: 'Rejected', isHopper: true },
+            { name: 'Grace Low', jobId: 3, score: 79, status: 'Shortlisted', isHopper: false },
+            { name: 'Henry Ng', jobId: 1, score: 90, status: 'Shortlisted', isHopper: false },
+            { name: 'Ivy Seah', jobId: 2, score: 68, status: 'Reviewed', isHopper: false },
+            { name: 'Jack Koh', jobId: 1, score: 45, status: 'Rejected', isHopper: true }
+        ];
+
+        dummyCandidates.forEach(dc => {
+            const candidate = {
+                id: (Date.now() + Math.random()).toString(),
+                jobId: dc.jobId,
+                name: dc.name.toUpperCase(),
+                fileName: dc.name.replace(' ', '_') + '_CV.pdf',
+                date: new Date().toLocaleDateString(),
+                aiScore: dc.score,
+                interviewerScore: Math.floor(Math.random() * 100),
+                comments: [],
+                isHopper: dc.isHopper,
+                hopperDetails: dc.isHopper ? 'Frequent job changes in last 2 years' : '',
+                status: dc.status,
+                pendingBy: dc.status === 'Shortlisted' ? 'Kenneth Cheong' : '',
+                breakdown: { experience: dc.score - 5, skills: dc.score, responsibilities: dc.score - 10, kpi: dc.score - 2 },
+                summary: 'Excellent technical fit with strong relevant background.',
+                reasons: ['Strong skills match', 'Good experience level', 'Cultural fit']
+            };
+            state.candidates.push(candidate);
+            const job = state.jobs.find(j => j.id === dc.jobId);
+            if (job) {
+                job.applicants++;
+                if (dc.status === 'Shortlisted') job.shortlisted++;
+            }
         });
         renderJobs();
 
