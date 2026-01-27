@@ -107,6 +107,7 @@
             z-index: 101;
             color: white;
             border: 2px solid var(--bg-dark);
+            transform: translateX(50%);
         }
 
         .logo {
@@ -164,10 +165,18 @@
         /* Main Content */
         main {
             flex: 1;
-            padding: 40px;
+            padding: 40px 60px;
             overflow-y: auto;
             position: relative;
             height: 100vh;
+        }
+
+        section {
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            /* CENTER the content */
+            padding: 20px 0;
         }
 
         .header {
@@ -186,9 +195,10 @@
         /* Dashboard Grid */
         .dashboard-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 24px;
             margin-bottom: 40px;
+            width: 100%;
         }
 
         .card {
@@ -201,7 +211,7 @@
 
         .card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
         }
 
         .card-title {
@@ -499,33 +509,68 @@
             <a href="#" class="nav-item" onclick="showUsers()" id="nav-users">
                 <i>👤</i> <span>Users Management</span>
             </a>
+            <a href="#" class="nav-item" onclick="showAuditLogs()" id="nav-audit">
+                <i>📜</i> <span>Activity Log</span>
+            </a>
         </nav>
 
     </aside>
 
     <main id="mainContent">
-        <header class="header">
-            <div>
-                <h1>Current Active Jobs</h1>
-                <p style="color: var(--text-dim);">Manage your recruitment pipeline and candidate scoring.</p>
-            </div>
-            <button class="btn btn-primary" onclick="createNewJob()">+ Create New Job</button>
-        </header>
+        <section id="dashboardSection">
+            <header class="header">
+                <div>
+                    <h1>Recruitment Overview</h1>
+                    <p style="color: var(--text-dim);">Your recruitment performance at a glance.</p>
+                </div>
+            </header>
 
-        <div class="dashboard-grid">
-            <div class="card">
-                <div class="card-title">Total Applicants <span>👥</span></div>
-                <div class="stat-value" id="stat-total">0</div>
+            <div class="dashboard-grid">
+                <div class="card" onclick="showJobs()" style="cursor: pointer;">
+                    <div class="card-title">Total Active Jobs <span>💼</span></div>
+                    <div class="stat-value" id="stat-jobs">0</div>
+                    <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">View all listings →</p>
+                </div>
+                <div class="card" onclick="showCandidates()" style="cursor: pointer;">
+                    <div class="card-title">Total Applicants <span>👥</span></div>
+                    <div class="stat-value" id="stat-total">0</div>
+                    <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Manage candidates →</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">High Quality Leads <span>🔥</span></div>
+                    <div class="stat-value" id="stat-leads" style="color: var(--secondary);">0</div>
+                    <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Top tier scoring candidates
+                    </p>
+                </div>
             </div>
-            <div class="card">
-                <div class="card-title">Pending Analysis <span>⏳</span></div>
-                <div class="stat-value" id="stat-pending">0</div>
+        </section>
+
+        <section id="jobsSection" style="display: none;">
+            <header class="header">
+                <div>
+                    <h1>Jobs Management</h1>
+                    <p style="color: var(--text-dim);">Create and manage your specific job descriptions and scoring
+                        criteria.</p>
+                </div>
+                <button class="btn btn-primary" onclick="createNewJob()">+ Create New Job</button>
+            </header>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Job Title</th>
+                            <th>Applicants</th>
+                            <th>Shortlisted</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jobListBody">
+                        <!-- Jobs will be injected here -->
+                    </tbody>
+                </table>
             </div>
-            <div class="card">
-                <div class="card-title">High Quality Leads <span>🔥</span></div>
-                <div class="stat-value" id="stat-leads" style="color: var(--secondary);">0</div>
-            </div>
-        </div>
+        </section>
 
         <div class="action-panel" id="uploadPanel" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
@@ -701,21 +746,26 @@
             </div>
         </section>
 
-        <section id="jobsSection">
+        <section id="activityLogSection" style="display: none;">
+            <div class="header">
+                <div>
+                    <h1>Activity Log</h1>
+                    <p style="color: var(--text-dim);">Track all system activities and record changes.</p>
+                </div>
+                <button class="btn btn-primary" onclick="showDashboard()">Back to Dashboard</button>
+            </div>
             <div class="table-container">
                 <table>
                     <thead>
                         <tr>
-                            <th>Job Title</th>
-                            <th>Applicants</th>
-                            <th>Shortlisted</th>
-                            <th>Status</th>
+                            <th>Timestamp</th>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>Description</th>
                             <th>Action</th>
                         </tr>
                     </thead>
-                    <tbody id="jobListBody">
-                        <!-- Jobs will be injected here -->
-                    </tbody>
+                    <tbody id="auditLogBody"></tbody>
                 </table>
             </div>
         </section>
@@ -893,11 +943,7 @@
             jobs: [],
             activeJobId: null,
             candidates: [], // linked to jobId
-            users: [
-                { id: 1, name: 'Tom Koh', email: 'tom@mediaone.co', role: 'Admin', status: 'Active' },
-                { id: 2, name: 'June Goh', email: 'june@mediaone.co', role: 'Admin', status: 'Active' },
-                { id: 3, name: 'Kenneth Cheong', email: 'kenneth@mediaone.co', role: 'Team Lead', status: 'Active' }
-            ],
+            users: [],
             stagedFiles: [],
             currentUser: 'Tom Koh',
             apiKey: localStorage.getItem('ai_recruitment_api_key') || '',
@@ -907,9 +953,64 @@
         let jobDetailsSort = { field: 'score', direction: 'desc' };
         let repoSort = { field: 'date', direction: 'desc' };
 
-        if (state.apiKey) {
-            document.getElementById('apiKey').value = state.apiKey;
+        const PERSISTENCE_LAMBDA_URL = 'https://hntb9oehu6.execute-api.ap-southeast-1.amazonaws.com/recruitementDatabase';
+
+        async function persistenceApiCall(action, data = {}) {
+            try {
+                const response = await fetch(PERSISTENCE_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: action,
+                        data: data,
+                        currentUser: state.currentUser
+                    })
+                });
+                if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+
+                let result = await response.json();
+
+                // If the Lambda returns a structured response object (statusCode, body, headers),
+                // we need to extract and parse the nested body.
+                if (result && typeof result === 'object' && result.body !== undefined) {
+                    try {
+                        return JSON.parse(result.body);
+                    } catch (e) {
+                        return result.body; // Body might already be an object
+                    }
+                }
+
+                return result;
+            } catch (err) {
+                console.error(`Persistence API Error (${action}):`, err);
+                return null;
+            }
         }
+
+        async function initApp() {
+            // Load Jobs
+            const jobs = await persistenceApiCall('get_jobs');
+            if (Array.isArray(jobs)) {
+                state.jobs = jobs;
+            } else {
+                console.error("Failed to load jobs or response is not an array:", jobs);
+                state.jobs = [];
+            }
+
+            // Load Users
+            const users = await persistenceApiCall('get_users');
+            if (Array.isArray(users)) {
+                state.users = users;
+            } else {
+                console.warn("Failed to load users or response is not an array:", users);
+                state.users = [];
+            }
+
+            renderJobs();
+        }
+
+        // Initialize on load
+        window.onload = initApp;
 
         function saveApiKey(key) {
             state.apiKey = key;
@@ -919,14 +1020,16 @@
         // Navigation
         function showDashboard() {
             hideAllSections();
-            document.getElementById('jobsSection').style.display = 'block';
+            document.getElementById('dashboardSection').style.display = 'block';
             setActiveNavItem('nav-dashboard');
-            renderJobs();
+            updateStats();
         }
 
         function showJobs() {
-            showDashboard(); // For now same as dashboard
+            hideAllSections();
+            document.getElementById('jobsSection').style.display = 'block';
             setActiveNavItem('nav-jobs');
+            renderJobs();
         }
 
         function showCandidates() {
@@ -945,7 +1048,7 @@
         }
 
         function hideAllSections() {
-            const sections = ['jobsSection', 'resultsSection', 'uploadPanel', 'candidatesSection', 'usersSection'];
+            const sections = ['dashboardSection', 'jobsSection', 'resultsSection', 'uploadPanel', 'candidatesSection', 'usersSection', 'activityLogSection'];
             sections.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = 'none';
@@ -976,20 +1079,23 @@
         }
 
         function openEditJobModal(id) {
-            const job = state.jobs.find(j => j.id === id);
-            if (!job) return;
+            const job = state.jobs.find(j => j.id.toString() === id.toString());
+            if (!job) {
+                console.error("Job not found for editing:", id);
+                return;
+            }
 
             state.editingJobId = id;
             document.getElementById('modalTitle').innerText = 'Edit Job Advertisement';
             document.querySelector('#jobModal .btn-primary').innerText = 'Update Job';
 
             document.getElementById('jobTitle').value = job.title;
-            document.getElementById('jobDesc').value = job.desc;
+            document.getElementById('jobDesc').value = job.desc || '';
             document.getElementById('jobKpi').value = job.kpi || '';
-            document.getElementById('wExperience').value = job.weights.exp;
-            document.getElementById('wSkills').value = job.weights.skills;
-            document.getElementById('wResp').value = job.weights.resp;
-            document.getElementById('wKpi').value = job.weights.kpi;
+            document.getElementById('wExperience').value = (job.weights && job.weights.exp) || 30;
+            document.getElementById('wSkills').value = (job.weights && job.weights.skills) || 30;
+            document.getElementById('wResp').value = (job.weights && job.weights.resp) || 20;
+            document.getElementById('wKpi').value = (job.weights && job.weights.kpi) || 20;
 
             document.getElementById('jobModal').style.display = 'flex';
         }
@@ -999,7 +1105,7 @@
             state.editingJobId = null;
         }
 
-        function saveJob() {
+        async function saveJob() {
             const title = document.getElementById('jobTitle').value;
             const desc = document.getElementById('jobDesc').value;
             const kpi = document.getElementById('jobKpi').value;
@@ -1016,38 +1122,33 @@
                 kpi: parseInt(document.getElementById('wKpi').value)
             };
 
+            const jobData = {
+                title, desc, kpi, weights,
+                status: 'Open',
+                applicants: 0,
+                shortlisted: 0
+            };
+
             if (state.editingJobId) {
-                // Update existing job
-                const jobIndex = state.jobs.findIndex(j => j.id === state.editingJobId);
-                if (jobIndex > -1) {
-                    state.jobs[jobIndex] = {
-                        ...state.jobs[jobIndex],
-                        title, desc, kpi, weights
-                    };
-                }
-            } else {
-                // Create new job
-                const job = {
-                    id: Date.now(),
-                    title,
-                    desc,
-                    kpi,
-                    weights,
-                    applicants: 0,
-                    shortlisted: 0,
-                    status: 'Open',
-                    createdAt: new Date().toISOString()
-                };
-                state.jobs.push(job);
+                jobData.id = state.editingJobId;
             }
 
-            renderJobs();
-            closeJobModal();
+            const result = await persistenceApiCall('upsert_job', jobData);
+            if (result && result.success) {
+                // Refresh local list from server to ensure sync
+                const jobs = await persistenceApiCall('get_jobs');
+                if (Array.isArray(jobs)) state.jobs = jobs;
 
-            // Auto reset form
-            document.getElementById('jobTitle').value = '';
-            document.getElementById('jobDesc').value = '';
-            document.getElementById('jobKpi').value = '';
+                renderJobs();
+                closeJobModal();
+
+                // Auto reset form
+                document.getElementById('jobTitle').value = '';
+                document.getElementById('jobDesc').value = '';
+                document.getElementById('jobKpi').value = '';
+            } else {
+                alert("Failed to save job to database. Check console for details.");
+            }
         }
 
         function toggleSidebar() {
@@ -1067,33 +1168,42 @@
             if (job) job.status = newStatus;
         }
 
-        function updateCandidateStatus(candId, newStatus) {
-            const cand = state.candidates.find(c => c.id === candId);
-            if (cand) cand.status = newStatus;
+        async function updateCandidateStatus(candId, newStatus) {
+            const cand = state.candidates.find(c => c.id.toString() === candId.toString());
+            if (cand) {
+                cand.status = newStatus;
+                await persistenceApiCall('upsert_candidate', { id: candId, status: newStatus });
+                renderCandidates();
+            }
         }
 
-        function updateCandidatePending(candId, pendingBy) {
-            const cand = state.candidates.find(c => c.id === candId);
-            if (cand) cand.pendingBy = pendingBy;
+        async function updateCandidatePending(candId, pendingBy) {
+            const cand = state.candidates.find(c => c.id.toString() === candId.toString());
+            if (cand) {
+                cand.pendingBy = pendingBy;
+                await persistenceApiCall('upsert_candidate', { id: candId, pendingBy: pendingBy });
+            }
         }
 
         function renderJobs() {
             const container = document.getElementById('jobListBody');
+            if (!state.jobs || state.jobs.length === 0) {
+                container.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">No jobs found. Click "Create New Job" to start.</td></tr>';
+                return;
+            }
             container.innerHTML = state.jobs.map(job => `
-                <tr onclick="openJobDetails(${job.id})" style="cursor: pointer; transition: background 0.2s ease;">
+                <tr style="cursor: pointer; transition: background 0.2s ease;">
                     <td style="font-weight: 600;">${job.title}</td>
-                    <td>${job.applicants}</td>
-                    <td>${job.shortlisted}</td>
+                    <td>${job.applicants || 0}</td>
+                    <td>${job.shortlisted || 0}</td>
                     <td>
-                        <select class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border);" 
-                            onclick="event.stopPropagation()" onchange="updateJobStatus(${job.id}, this.value)">
-                            <option value="Open" ${job.status === 'Open' ? 'selected' : ''}>Open</option>
-                            <option value="Closed" ${job.status === 'Closed' ? 'selected' : ''}>Closed</option>
-                        </select>
+                        <span class="badge ${job.status === 'Open' ? 'badge-success' : 'badge-error'}" 
+                             style="cursor: pointer;" onclick="toggleJobStatus('${job.id}')">${job.status}</span>
                     </td>
-                    <td onclick="event.stopPropagation()" style="display: flex; gap: 8px;">
-                        <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem;" onclick="openJobDetails(${job.id})">Manage</button>
-                        <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border);" onclick="openEditJobModal(${job.id})">Edit</button>
+                    <td style="display: flex; gap: 8px;">
+                        <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem;" onclick="openJobDetails('${job.id}')">Manage</button>
+                        <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border);" onclick="openEditJobModal('${job.id}')">Edit</button>
+                        <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: rgba(244, 63, 94, 0.1); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.2);" onclick="deleteJob('${job.id}')">🗑️</button>
                     </td>
                 </tr>
             `).join('');
@@ -1101,20 +1211,65 @@
             updateStats();
         }
 
-        function updateStats() {
-            const total = state.candidates.length;
-            const leads = state.candidates.filter(c => c.aiScore > 80).length;
-            document.getElementById('stat-total').innerText = total;
-            document.getElementById('stat-pending').innerText = '0';
-            document.getElementById('stat-leads').innerText = leads;
+        async function deleteJob(jobId) {
+            if (!confirm("Are you sure you want to delete this job? You can undo this later from the Activity Log.")) return;
+            const result = await persistenceApiCall('delete_job', { id: jobId });
+            if (result && result.success) {
+                state.jobs = state.jobs.filter(j => j.id.toString() !== jobId.toString());
+                renderJobs();
+            } else {
+                alert("Failed to delete job.");
+            }
         }
 
-        function openJobDetails(id) {
+        async function restoreJob(jobId) {
+            const result = await persistenceApiCall('restore_job', { id: jobId });
+            if (result && result.success) {
+                const jobs = await persistenceApiCall('get_jobs');
+                if (Array.isArray(jobs)) state.jobs = jobs;
+                showAuditLogs(); // Refresh log view
+                alert("Job restored successfully!");
+            }
+        }
+
+        async function toggleJobStatus(jobId) {
+            const job = state.jobs.find(j => j.id.toString() === jobId.toString());
+            if (!job) return;
+            const newStatus = job.status === 'Open' ? 'Closed' : 'Open';
+            const result = await persistenceApiCall('upsert_job', { ...job, status: newStatus });
+            if (result && result.success) {
+                job.status = newStatus;
+                renderJobs();
+            }
+        }
+
+        async function updateStats() {
+            const totalCand = state.candidates.length; // This reflects filtered/job-specific
+            // For dashboard, we want GLOBAL stats if possible, or total from jobs
+            const totalApplicants = state.jobs.reduce((sum, j) => sum + (parseInt(j.applicants) || 0), 0);
+            const highQuality = state.candidates.filter(c => c.aiScore > 80).length;
+
+            if (document.getElementById('stat-jobs')) document.getElementById('stat-jobs').innerText = state.jobs.length;
+            if (document.getElementById('stat-total')) document.getElementById('stat-total').innerText = totalApplicants;
+            if (document.getElementById('stat-leads')) document.getElementById('stat-leads').innerText = highQuality;
+        }
+
+        async function openJobDetails(id) {
             state.activeJobId = id;
-            const job = state.jobs.find(j => j.id === id);
+            const job = state.jobs.find(j => j.id.toString() === id.toString());
+            if (!job) return;
+
             document.getElementById('jobTitleDisplay').innerText = job.title;
 
-            document.getElementById('jobsSection').style.display = 'none';
+            // Fetch candidates for this job from DB
+            const candidates = await persistenceApiCall('get_candidates', { jobId: id });
+            if (Array.isArray(candidates)) {
+                state.candidates = candidates;
+            } else {
+                state.candidates = [];
+            }
+
+            hideAllSections();
             document.getElementById('uploadPanel').style.display = 'block';
             document.getElementById('resultsSection').style.display = 'block';
 
@@ -1131,8 +1286,8 @@
                     <td><span class="badge ${user.role === 'Admin' ? 'badge-success' : 'badge-warning'}">${user.role}</span></td>
                     <td><span class="badge ${user.status === 'Active' ? 'badge-success' : 'badge-error'}">${user.status}</span></td>
                     <td>
-                        <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white;" onclick="editUser(${user.id})">Edit</button>
-                        <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: rgba(244, 63, 94, 0.1); color: var(--accent);" onclick="deleteUser(${user.id})">Delete</button>
+                        <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white;" onclick="openEditUserModal('${user.id}')">Edit</button>
+                        <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: rgba(244, 63, 94, 0.1); color: var(--accent);" onclick="deleteUser('${user.id}')">Delete</button>
                     </td>
                 </tr>
             `).join('');
@@ -1151,7 +1306,7 @@
             document.getElementById('userModal').style.display = 'none';
         }
 
-        function saveUser() {
+        async function saveUser() {
             const name = document.getElementById('userName').value;
             const email = document.getElementById('userEmail').value;
             const role = document.getElementById('userRole').value;
@@ -1159,20 +1314,33 @@
 
             if (!name || !email) return alert('Please fill in name and email');
 
-            if (editingUserId) {
-                const user = state.users.find(u => u.id === editingUserId);
-                Object.assign(user, { name, email, role, status });
-            } else {
-                state.users.push({ id: Date.now(), name, email, role, status });
-            }
+            const userData = {
+                id: state.activeUserId || null,
+                name,
+                email,
+                role,
+                status
+            };
 
-            renderUsers();
-            closeUserModal();
+            const result = await persistenceApiCall('upsert_user', userData);
+            if (result && result.success) {
+                // Refresh local list
+                const users = await persistenceApiCall('get_users');
+                if (Array.isArray(users)) state.users = users;
+
+                renderUsers();
+                closeUserModal();
+                alert("User saved successfully!");
+            } else {
+                alert("Failed to save user to database.");
+            }
         }
 
-        function editUser(id) {
-            editingUserId = id;
-            const user = state.users.find(u => u.id === id);
+        function openEditUserModal(id) {
+            const user = state.users.find(u => u.id.toString() === id.toString());
+            if (!user) return;
+
+            state.activeUserId = id; // Renamed to activeUserId for consistency
             document.getElementById('userModalTitle').innerText = 'Edit User';
             document.getElementById('userName').value = user.name;
             document.getElementById('userEmail').value = user.email;
@@ -1181,10 +1349,15 @@
             document.getElementById('userModal').style.display = 'flex';
         }
 
-        function deleteUser(id) {
+        async function deleteUser(id) {
             if (confirm('Are you sure you want to delete this user?')) {
-                state.users = state.users.filter(u => u.id !== id);
-                renderUsers();
+                const result = await persistenceApiCall('delete_user', { id });
+                if (result && result.success) {
+                    state.users = state.users.filter(u => u.id.toString() !== id.toString());
+                    renderUsers();
+                } else {
+                    alert("Failed to delete user.");
+                }
             }
         }
 
@@ -1453,75 +1626,64 @@
             }
         }
 
-        function deleteCandidate(id) {
-            if (!confirm('Are you sure you want to delete this candidate?')) return;
+        async function deleteCandidate(id) {
+            if (!confirm('Are you sure you want to delete this candidate? You can undo this later from the Activity Log.')) return;
 
-            const index = state.candidates.findIndex(c => c.id.toString() === id.toString());
-            if (index !== -1) {
-                const cand = state.candidates[index];
-                const job = state.jobs.find(j => j.id === cand.jobId);
-                if (job) {
-                    job.applicants--;
-                    if (cand.status === 'Shortlisted') job.shortlisted--;
+            const result = await persistenceApiCall('delete_candidate', { id });
+            if (result && result.success) {
+                const cand = state.candidates.find(c => c.id.toString() === id.toString());
+                if (cand) {
+                    const job = state.jobs.find(j => j.id.toString() === cand.jobId.toString());
+                    if (job) {
+                        job.applicants--;
+                        if (cand.status === 'Shortlisted') job.shortlisted--;
+                    }
+                    state.candidates = state.candidates.filter(c => c.id.toString() !== id.toString());
                 }
-                state.candidates.splice(index, 1);
 
                 renderCandidates();
                 filterCandidatesRepo();
                 updateStats();
                 renderJobs();
+            } else {
+                alert("Failed to delete candidate.");
             }
         }
 
-        function bulkDelete() {
+        async function restoreCandidate(id) {
+            const result = await persistenceApiCall('restore_candidate', { id });
+            if (result && result.success) {
+                // Refresh candidates for active job
+                const candidates = await persistenceApiCall('get_candidates', { jobId: state.activeJobId });
+                if (Array.isArray(candidates)) state.candidates = candidates;
+
+                showAuditLogs(); // Refresh Activity Log
+                alert("Candidate restored successfully!");
+            }
+        }
+
+        async function bulkDelete() {
             const checked = document.querySelectorAll('.cand-checkbox:checked');
             if (checked.length === 0) return;
             if (!confirm(`Are you sure you want to delete ${checked.length} selected candidates?`)) return;
 
-            checked.forEach(cb => {
-                const id = cb.value;
-                const index = state.candidates.findIndex(c => c.id.toString() === id.toString());
-                if (index !== -1) {
-                    const cand = state.candidates[index];
-                    const job = state.jobs.find(j => j.id === cand.jobId);
-                    if (job) {
-                        job.applicants--;
-                        if (cand.status === 'Shortlisted') job.shortlisted--;
-                    }
-                    state.candidates.splice(index, 1);
-                }
-            });
+            // Use Promise.all to delete all selected in parallel using the now-persistent deleteCandidate
+            const deletePromises = Array.from(checked).map(cb => deleteCandidate(cb.value));
+            await Promise.all(deletePromises);
 
             document.getElementById('selectAllCandidates').checked = false;
-            renderCandidates();
-            updateStats();
-            renderJobs();
             updateBulkDeleteVisibility('candidateTable');
         }
 
-        function bulkDeleteRepo() {
+        async function bulkDeleteRepo() {
             const checked = document.querySelectorAll('.repo-checkbox:checked');
             if (checked.length === 0) return;
             if (!confirm(`Are you sure you want to delete ${checked.length} selected candidates?`)) return;
 
-            checked.forEach(cb => {
-                const id = cb.value;
-                const index = state.candidates.findIndex(c => c.id.toString() === id.toString());
-                if (index !== -1) {
-                    const cand = state.candidates[index];
-                    const job = state.jobs.find(j => j.id === cand.jobId);
-                    if (job) {
-                        job.applicants--;
-                        if (cand.status === 'Shortlisted') job.shortlisted--;
-                    }
-                    state.candidates.splice(index, 1);
-                }
-            });
+            const deletePromises = Array.from(checked).map(cb => deleteCandidate(cb.value));
+            await Promise.all(deletePromises);
 
             document.getElementById('selectAllRepo').checked = false;
-            filterCandidatesRepo();
-            updateStats();
-            renderJobs();
             updateBulkDeleteVisibility('repoTable');
         }
 
@@ -1588,10 +1750,9 @@
             });
         }
 
-        function addCandidate(fileName, analysis) {
+        async function addCandidate(fileName, analysis) {
             const rawName = (analysis.name && !analysis.name.includes('HOLDER')) ? analysis.name : fileName.split('.')[0];
             const candidate = {
-                id: (Date.now() + Math.random()).toString(),
                 jobId: state.activeJobId,
                 name: rawName.toUpperCase(),
                 fileName: fileName,
@@ -1608,17 +1769,25 @@
                 reasons: analysis.reasons
             };
 
-            state.candidates.push(candidate);
+            const result = await persistenceApiCall('add_candidate', candidate);
+            if (result && result.success) {
+                state.candidates.push(result.candidate || candidate);
 
-            // Update job applicant count
-            const job = state.jobs.find(j => j.id === state.activeJobId);
-            if (job) {
-                job.applicants++;
-                if (candidate.status === 'Shortlisted') job.shortlisted++;
+                // Update job applicant count
+                const job = state.jobs.find(j => j.id.toString() === state.activeJobId.toString());
+                if (job) {
+                    job.applicants++;
+                    if (candidate.status === 'Shortlisted') job.shortlisted++;
+                    // We should also persist this increment back to the job object in DB
+                    await persistenceApiCall('upsert_job', job);
+                }
+
+                renderCandidates();
+                updateStats();
+                renderJobs();
+            } else {
+                console.error("Failed to persist candidate to database.");
             }
-
-            renderCandidates();
-            updateStats();
         }
 
         function getAssigneeOptions(currentVal) {
@@ -1815,11 +1984,14 @@
             alert('Downloading original file: ' + (cand ? cand.fileName : 'Unknown'));
         }
 
-        function updateInterviewerScore(candId, score) {
-            const cand = state.candidates.find(c => c.id === candId);
-            if (cand) cand.interviewerScore = parseInt(score) || 0;
-            renderCandidates();
-            filterCandidatesRepo();
+        async function updateInterviewerScore(candId, score) {
+            const cand = state.candidates.find(c => c.id.toString() === candId.toString());
+            if (cand) {
+                cand.interviewerScore = parseInt(score) || 0;
+                await persistenceApiCall('upsert_candidate', { id: candId, interviewerScore: cand.interviewerScore });
+                renderCandidates();
+                filterCandidatesRepo();
+            }
         }
 
         function updateInterviewerScoreFromModal(score) {
@@ -1865,80 +2037,39 @@
             }
         }
 
-        // Initial Sample Data
-        state.jobs.push({
-            id: 1,
-            title: 'Senior Designer',
-            applicants: 0,
-            shortlisted: 0,
-            status: 'Open',
-            createdAt: new Date().toISOString(),
-            desc: 'Looking for a designer with 5+ years experience in SaaS, proficiency in Figma, and a strong portfolio demonstrating UX research and high-fidelity UI design.',
-            kpi: 'Improve user retention by 20%, Design 3 full features per quarter, Maintain design system consistency',
-            weights: { exp: 40, skills: 30, resp: 15, kpi: 15 }
-        }, {
-            id: 2,
-            title: 'Full Stack Developer',
-            applicants: 0,
-            shortlisted: 0,
-            status: 'Open',
-            createdAt: new Date().toISOString(),
-            desc: 'Looking for a developer with experience in React, Node.js, and AWS. Experience with real-time systems is a plus.',
-            kpi: 'High code quality, 99.9% uptime, 2-week sprint completion rate',
-            weights: { exp: 30, skills: 40, resp: 20, kpi: 10 }
-        }, {
-            id: 3,
-            title: 'Marketing Executive',
-            applicants: 0,
-            shortlisted: 0,
-            status: 'Closed',
-            createdAt: new Date().toISOString(),
-            desc: 'Experienced Marketer to handle multi-channel campaigns including SEM, Social Media and Email Marketing.',
-            kpi: 'Increase lead gen by 15% MoM, ROAS > 4x',
-            weights: { exp: 25, skills: 35, resp: 20, kpi: 20 }
-        });
+        async function showAuditLogs() {
+            hideAllSections();
+            setActiveNavItem('nav-audit');
+            document.getElementById('activityLogSection').style.display = 'block';
 
-        // Add dummy candidates
-        const dummyCandidates = [
-            { name: 'Alice Tan', jobId: 1, score: 88, status: 'Qualified', isHopper: false },
-            { name: 'Bob Lim', jobId: 1, score: 65, status: 'AI Analysed', isHopper: true },
-            { name: 'Charlie Ang', jobId: 2, score: 92, status: 'Shortlisted', isHopper: false },
-            { name: 'David Lee', jobId: 2, score: 74, status: 'Rejected', isHopper: false },
-            { name: 'Eve Wong', jobId: 2, score: 81, status: 'Shortlisted', isHopper: false },
-            { name: 'Frank Ho', jobId: 3, score: 55, status: 'Rejected', isHopper: true },
-            { name: 'Grace Low', jobId: 3, score: 79, status: 'Shortlisted', isHopper: false },
-            { name: 'Henry Ng', jobId: 1, score: 90, status: 'Shortlisted', isHopper: false },
-            { name: 'Ivy Seah', jobId: 2, score: 68, status: 'Reviewed', isHopper: false },
-            { name: 'Jack Koh', jobId: 1, score: 45, status: 'Rejected', isHopper: true }
-        ];
+            const logs = await persistenceApiCall('get_audit_logs');
+            const body = document.getElementById('auditLogBody');
 
-        dummyCandidates.forEach(dc => {
-            const candidate = {
-                id: (Date.now() + Math.random()).toString(),
-                jobId: dc.jobId,
-                name: dc.name.toUpperCase(),
-                fileName: dc.name.replace(' ', '_') + '_CV.pdf',
-                date: new Date().toLocaleDateString(),
-                aiScore: dc.score,
-                interviewerScore: Math.floor(Math.random() * 100),
-                comments: [],
-                isHopper: dc.isHopper,
-                hopperDetails: dc.isHopper ? 'Frequent job changes in last 2 years' : '',
-                status: dc.status,
-                pendingBy: dc.status === 'Shortlisted' ? 'Kenneth Cheong' : '',
-                breakdown: { experience: dc.score - 5, skills: dc.score, responsibilities: dc.score - 10, kpi: dc.score - 2 },
-                summary: 'Excellent technical fit with strong relevant background.',
-                reasons: ['Strong skills match', 'Good experience level', 'Cultural fit']
-            };
-            state.candidates.push(candidate);
-            const job = state.jobs.find(j => j.id === dc.jobId);
-            if (job) {
-                job.applicants++;
-                if (dc.status === 'Shortlisted') job.shortlisted++;
+            if (logs && Array.isArray(logs) && logs.length > 0) {
+                body.innerHTML = logs.map(l => {
+                    let undoBtn = '';
+                    if (l.action === 'soft_delete') {
+                        if (l.targetType === 'job') {
+                            undoBtn = `<button class="btn" style="padding: 4px 8px; font-size: 0.7rem; background: var(--primary); color: white;" onclick="restoreJob('${l.targetId}')">Restore</button>`;
+                        } else if (l.targetType === 'candidate') {
+                            undoBtn = `<button class="btn" style="padding: 4px 8px; font-size: 0.7rem; background: var(--primary); color: white;" onclick="restoreCandidate('${l.targetId}')">Restore</button>`;
+                        }
+                    }
+
+                    return `
+                        <tr>
+                            <td style="color: var(--text-dim); font-size: 0.8rem;">${new Date(l.timestamp).toLocaleString()}</td>
+                            <td style="font-weight: 600;">${l.user}</td>
+                            <td><span class="badge" style="background: var(--glass);">${l.action}</span></td>
+                            <td>${l.details}</td>
+                            <td>${undoBtn}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } else {
+                body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">No logs found.</td></tr>';
             }
-        });
-        renderJobs();
-
+        }
     </script>
 </body>
 
