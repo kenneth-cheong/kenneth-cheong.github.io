@@ -97,6 +97,15 @@ def log_audit(db, action, target_type, target_id, user, details=""):
 
 def handle_get_jobs(db, headers):
     jobs = list(db.jobs.find({"deleted": {"$ne": True}}))
+    for job in jobs:
+        jid = job.get('id')
+        if jid:
+            # Count applicants (not deleted)
+            count = db.candidates.count_documents({"jobId": jid, "deleted": {"$ne": True}})
+            job['applicants'] = count
+            # Count shortlisted (not deleted)
+            shortlisted = db.candidates.count_documents({"jobId": jid, "status": "Shortlisted", "deleted": {"$ne": True}})
+            job['shortlisted'] = shortlisted
     return response(200, jobs, headers)
 
 def handle_upsert_job(db, job_data, user, headers):

@@ -483,6 +483,60 @@
         #statusProgress {
             transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
+
+        /* CV Viewer Modal */
+        #cvViewerModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+        }
+
+        .cv-viewer-container {
+            width: 100%;
+            max-width: 1000px;
+            height: 100%;
+            background: var(--bg-card);
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .cv-viewer-header {
+            padding: 20px 32px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .cv-viewer-content {
+            flex: 1;
+            padding: 0;
+            overflow: hidden;
+            background: white;
+            /* Good for contrast when viewing documents */
+        }
+
+        .cv-viewer-content iframe,
+        .cv-viewer-content img {
+            width: 100%;
+            height: 100%;
+            border: none;
+            object-fit: contain;
+        }
     </style>
 </head>
 
@@ -916,6 +970,14 @@
             </div>
 
             <div style="margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px;">
+                <h4 style="margin-bottom: 16px;">Extracted CV Text Content</h4>
+                <div id="cvTextContent"
+                    style="padding: 16px; background: rgba(15, 23, 42, 0.4); border-radius: 12px; border: 1px solid var(--border); color: var(--text-dim); font-size: 0.85rem; line-height: 1.6; max-height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace;">
+                    <!-- Raw text content will be injected here -->
+                </div>
+            </div>
+
+            <div style="margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px;">
                 <h4 style="margin-bottom: 16px;">Comments</h4>
                 <div id="commentsList"
                     style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; max-height: 200px; overflow-y: auto;">
@@ -929,13 +991,14 @@
             </div>
 
             <div style="margin-top: 32px; display: flex; gap: 16px;">
-                <button class="btn" style="background: var(--glass); color: white;"
-                    onclick="downloadOriginalCV()">Download Original CV</button>
+                <button class="btn btn-primary" onclick="downloadOriginalCV()">Download Original CV</button>
                 <button class="btn" style="background: rgba(244, 63, 94, 0.1); color: var(--accent);"
                     onclick="rejectCurrentCandidate()">Reject Candidate</button>
             </div>
         </div>
     </div>
+
+    <!-- CV Viewer Modal is removed as per user request to favor download -->
 
     <script>
         // Data Store
@@ -997,6 +1060,14 @@
                 state.jobs = [];
             }
 
+            // Load Candidates for accurate global stats
+            const candidates = await persistenceApiCall('get_candidates');
+            if (Array.isArray(candidates)) {
+                state.candidates = candidates;
+            } else {
+                state.candidates = [];
+            }
+
             // Load Users
             const users = await persistenceApiCall('get_users');
             if (Array.isArray(users)) {
@@ -1007,6 +1078,7 @@
             }
 
             renderJobs();
+            updateStats();
         }
 
         // Initialize on load
@@ -1032,10 +1104,17 @@
             renderJobs();
         }
 
-        function showCandidates() {
+        async function showCandidates() {
             hideAllSections();
             document.getElementById('candidatesSection').style.display = 'block';
             setActiveNavItem('nav-candidates');
+
+            // Fetch all candidates for the global repository
+            const candidates = await persistenceApiCall('get_candidates');
+            if (Array.isArray(candidates)) {
+                state.candidates = candidates;
+            }
+
             updatePositionFilter();
             filterCandidatesRepo();
         }
@@ -1573,7 +1652,8 @@
                         throw new Error(`Invalid analysis result for ${item.name}`);
                     }
 
-                    addCandidate(item.name, analysis);
+                    const cvDataBase64 = await toBase64(item.blob);
+                    addCandidate(item.name, analysis, cvDataBase64, text);
                     console.log(`[Batch] Successfully added candidate: ${item.name}`);
                 } catch (err) {
                     console.error(`[Batch] ERROR processing ${item.name}:`, err);
@@ -1750,7 +1830,7 @@
             });
         }
 
-        async function addCandidate(fileName, analysis) {
+        async function addCandidate(fileName, analysis, cvData, fullText) {
             const rawName = (analysis.name && !analysis.name.includes('HOLDER')) ? analysis.name : fileName.split('.')[0];
             const candidate = {
                 jobId: state.activeJobId,
@@ -1766,7 +1846,9 @@
                 pendingBy: '',
                 breakdown: analysis.breakdown,
                 summary: analysis.summary,
-                reasons: analysis.reasons
+                reasons: analysis.reasons,
+                cvData: cvData,
+                fullText: fullText
             };
 
             const result = await persistenceApiCall('add_candidate', candidate);
@@ -1915,6 +1997,11 @@
             document.getElementById('detailInterviewerScore').value = c.interviewerScore || 0;
             document.getElementById('detailSummary').innerText = c.summary;
 
+            const cvTextContent = document.getElementById('cvTextContent');
+            if (cvTextContent) {
+                cvTextContent.innerText = c.fullText || 'No extracted text available.';
+            }
+
             // Populating Assignee options in Modal
             const assigneeSelect = document.getElementById('modalAssignee');
             if (assigneeSelect) {
@@ -1980,8 +2067,21 @@
         }
 
         function downloadOriginalCV() {
-            const cand = state.candidates.find(c => c.id === editingCandId);
-            alert('Downloading original file: ' + (cand ? cand.fileName : 'Unknown'));
+            const cand = state.candidates.find(c => c.id.toString() === editingCandId.toString());
+            if (!cand || !cand.cvData) return alert('No file data available for download.');
+
+            const ext = cand.fileName.split('.').pop().toLowerCase();
+            let mimeType = 'application/octet-stream';
+            if (ext === 'pdf') mimeType = 'application/pdf';
+            else if (['jpg', 'jpeg', 'png'].includes(ext)) mimeType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+            else if (ext === 'docx') mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+            const link = document.createElement('a');
+            link.href = `data:${mimeType};base64,${cand.cvData}`;
+            link.download = cand.fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         async function updateInterviewerScore(candId, score) {
