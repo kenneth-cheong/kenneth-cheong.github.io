@@ -393,8 +393,8 @@
         .modal-content {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            width: 90%;
-            max-width: 800px;
+            width: 95%;
+            max-width: 1400px;
             border-radius: 32px;
             padding: 40px;
             max-height: 90vh;
@@ -536,6 +536,67 @@
             height: 100%;
             border: none;
             object-fit: contain;
+        }
+
+        /* Interview Guide Styling */
+        .interview-guide {
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+            margin-top: 32px;
+        }
+
+        .rating-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .rating-stars {
+            display: flex;
+            gap: 8px;
+        }
+
+        .star {
+            font-size: 1.5rem;
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: color 0.1s;
+        }
+
+        .star.active {
+            color: #fbbf24;
+        }
+
+        .star:hover,
+        .star:hover~.star {
+            color: #d1d5db;
+        }
+
+        .quick-prompts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .prompt-chip {
+            padding: 6px 12px;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            color: var(--text-dim);
+            transition: all 0.2s;
+        }
+
+        .prompt-chip:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
         }
     </style>
 </head>
@@ -913,7 +974,7 @@
 
     <!-- Candidate Detail Modal -->
     <div id="detailModal" class="modal">
-        <div class="modal-content" style="max-width: 1000px;">
+        <div class="modal-content">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px;">
                 <div id="detailNameSection">
                     <h2 id="detailName">John Doe</h2>
@@ -967,6 +1028,148 @@
                 style="margin-top: 24px; padding: 16px; border-radius: 12px; background: rgba(244, 63, 94, 0.05); border: 1px solid rgba(244, 63, 94, 0.2); display: none;">
                 <h4 style="color: var(--accent); margin-bottom: 8px;">⚠️ Job Hopper Alert</h4>
                 <p id="hopperDetail" style="font-size: 0.875rem; color: var(--text-dim);"></p>
+            </div>
+
+            <div class="interview-guide">
+                <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 1.5rem;">📋</span> Interviewer Guide & Evaluation
+                </h3>
+
+                <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 32px; align-items: start;">
+                    <div class="card"
+                        style="background: rgba(99, 102, 241, 0.05); border-color: rgba(99, 102, 241, 0.1);">
+                        <h4
+                            style="margin-bottom: 20px; color: var(--primary-light); display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 1.2rem;">💡</span> Interviewer Cheat Sheet
+                        </h4>
+                        <div style="max-height: 500px; overflow-y: auto; padding-right: 8px;">
+                            <table
+                                style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid var(--border);">
+                                        <th
+                                            style="text-align: left; padding: 12px; color: var(--text-dim); border-bottom: 1px solid var(--border); width: 40%;">
+                                            Suggested Question</th>
+                                        <th
+                                            style="text-align: left; padding: 12px; color: var(--secondary); border-bottom: 1px solid var(--border); width: 30%;">
+                                            Good Answer (Look for)</th>
+                                        <th
+                                            style="text-align: left; padding: 12px; color: var(--accent); border-bottom: 1px solid var(--border); width: 30%;">
+                                            Bad Answer (Red Flags)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cheatSheetBody">
+                                    <!-- Dynamically generated rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 style="margin-bottom: 16px;">Structured Evaluation</h4>
+                        <div class="rating-group" style="gap: 8px;">
+                            <!-- Core -->
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.8rem; color: var(--text-dim);">Technical Proficiency</span>
+                                <div class="rating-stars" data-rating-type="technical" id="ratingTechnical">
+                                    <span class="star" onclick="setRating('technical', 1)">★</span>
+                                    <span class="star" onclick="setRating('technical', 2)">★</span>
+                                    <span class="star" onclick="setRating('technical', 3)">★</span>
+                                    <span class="star" onclick="setRating('technical', 4)">★</span>
+                                    <span class="star" onclick="setRating('technical', 5)">★</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.8rem; color: var(--text-dim);">Communication Skills</span>
+                                <div class="rating-stars" data-rating-type="communication" id="ratingCommunication">
+                                    <span class="star" onclick="setRating('communication', 1)">★</span>
+                                    <span class="star" onclick="setRating('communication', 2)">★</span>
+                                    <span class="star" onclick="setRating('communication', 3)">★</span>
+                                    <span class="star" onclick="setRating('communication', 4)">★</span>
+                                    <span class="star" onclick="setRating('communication', 5)">★</span>
+                                </div>
+                            </div>
+                            <!-- Social -->
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.8rem; color: var(--text-dim);">Culture Fit</span>
+                                <div class="rating-stars" data-rating-type="culture" id="ratingCulture">
+                                    <span class="star" onclick="setRating('culture', 1)">★</span>
+                                    <span class="star" onclick="setRating('culture', 2)">★</span>
+                                    <span class="star" onclick="setRating('culture', 3)">★</span>
+                                    <span class="star" onclick="setRating('culture', 4)">★</span>
+                                    <span class="star" onclick="setRating('culture', 5)">★</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.8rem; color: var(--text-dim);">Teamwork & Collab</span>
+                                <div class="rating-stars" data-rating-type="teamwork" id="ratingTeamwork">
+                                    <span class="star" onclick="setRating('teamwork', 1)">★</span>
+                                    <span class="star" onclick="setRating('teamwork', 2)">★</span>
+                                    <span class="star" onclick="setRating('teamwork', 3)">★</span>
+                                    <span class="star" onclick="setRating('teamwork', 4)">★</span>
+                                    <span class="star" onclick="setRating('teamwork', 5)">★</span>
+                                </div>
+                            </div>
+                            <!-- Growth -->
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.8rem; color: var(--text-dim);">Learning Aptitude</span>
+                                <div class="rating-stars" data-rating-type="learning" id="ratingLearning">
+                                    <span class="star" onclick="setRating('learning', 1)">★</span>
+                                    <span class="star" onclick="setRating('learning', 2)">★</span>
+                                    <span class="star" onclick="setRating('learning', 3)">★</span>
+                                    <span class="star" onclick="setRating('learning', 4)">★</span>
+                                    <span class="star" onclick="setRating('learning', 5)">★</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.8rem; color: var(--text-dim);">Openness to Change</span>
+                                <div class="rating-stars" data-rating-type="openness" id="ratingOpenness">
+                                    <span class="star" onclick="setRating('openness', 1)">★</span>
+                                    <span class="star" onclick="setRating('openness', 2)">★</span>
+                                    <span class="star" onclick="setRating('openness', 3)">★</span>
+                                    <span class="star" onclick="setRating('openness', 4)">★</span>
+                                    <span class="star" onclick="setRating('openness', 5)">★</span>
+                                </div>
+                            </div>
+                            <!-- Strategic -->
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.8rem; color: var(--text-dim);">Problem Solving</span>
+                                <div class="rating-stars" data-rating-type="solving" id="ratingSolving">
+                                    <span class="star" onclick="setRating('solving', 1)">★</span>
+                                    <span class="star" onclick="setRating('solving', 2)">★</span>
+                                    <span class="star" onclick="setRating('solving', 3)">★</span>
+                                    <span class="star" onclick="setRating('solving', 4)">★</span>
+                                    <span class="star" onclick="setRating('solving', 5)">★</span>
+                                </div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.8rem; color: var(--text-dim);">Leadership</span>
+                                <div class="rating-stars" data-rating-type="leadership" id="ratingLeadership">
+                                    <span class="star" onclick="setRating('leadership', 1)">★</span>
+                                    <span class="star" onclick="setRating('leadership', 2)">★</span>
+                                    <span class="star" onclick="setRating('leadership', 3)">★</span>
+                                    <span class="star" onclick="setRating('leadership', 4)">★</span>
+                                    <span class="star" onclick="setRating('leadership', 5)">★</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h4 style="margin-bottom: 12px; font-size: 0.875rem; color: var(--text-dim);">Quick Feedback
+                            Prompts</h4>
+                        <div class="quick-prompts">
+                            <span class="prompt-chip"
+                                onclick="addQuickComment('Highly recommended for next stage')">Next Stage</span>
+                            <span class="prompt-chip"
+                                onclick="addQuickComment('Strong technical depth, well explained')">Strong Tech</span>
+                            <span class="prompt-chip"
+                                onclick="addQuickComment('Communication is clear and professional')">Good Comm</span>
+                            <span class="prompt-chip"
+                                onclick="addQuickComment('Concerns about specific technical gaps')">Tech Gaps</span>
+                            <span class="prompt-chip"
+                                onclick="addQuickComment('Excellent culture fit, high energy')">Culture Fit</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div style="margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px;">
@@ -2014,6 +2217,15 @@
 
             document.getElementById('detailReasons').innerHTML = (c.reasons || []).map(r => `<li>${r}</li>`).join('');
 
+            // Update Interview Guide
+            document.getElementById('cheatSheetBody').innerHTML = generateSuggestedQuestions(c.reasons);
+
+            // Reset/Update stars
+            ['technical', 'communication', 'culture', 'teamwork', 'learning', 'openness', 'solving', 'leadership'].forEach(type => {
+                const val = (c.evaluation && c.evaluation[type]) || 0;
+                updateRatingUI(type, val);
+            });
+
             const hopperBox = document.getElementById('hopperSection');
             if (c.isHopper) {
                 hopperBox.style.display = 'block';
@@ -2084,6 +2296,136 @@
             document.body.removeChild(link);
         }
 
+        // Interview Evaluation Functions
+        async function setRating(type, value) {
+            const cand = state.candidates.find(c => c.id.toString() === editingCandId.toString());
+            if (!cand) return;
+
+            if (!cand.evaluation) cand.evaluation = {};
+            cand.evaluation[type] = value;
+
+            updateRatingUI(type, value);
+
+            // Persist immediately
+            await persistenceApiCall('upsert_candidate', {
+                id: cand.id,
+                evaluation: cand.evaluation
+            });
+            console.log(`[Evaluation] Saved ${type} rating: ${value}`);
+        }
+
+        function updateRatingUI(type, value) {
+            const container = document.getElementById(`rating${type.charAt(0).toUpperCase() + type.slice(1)}`);
+            if (!container) return;
+            const stars = container.querySelectorAll('.star');
+            stars.forEach((star, index) => {
+                if (index < value) {
+                    star.classList.add('active');
+                } else {
+                    star.classList.remove('active');
+                }
+            });
+        }
+
+        async function addQuickComment(text) {
+            const input = document.getElementById('newCommentInput');
+            input.value = text;
+            await submitComment();
+        }
+
+        function generateSuggestedQuestions(reasons) {
+            const defaultRows = [
+                {
+                    q: "What specifically interests you about this role and our company's mission?",
+                    good: "Demonstrates research into our specific industry position and technical challenges.",
+                    bad: "Generic answer that could apply to any company; focus only on salary/benefits."
+                },
+                {
+                    q: "Tell me about the most complex technical challenge you've solved recently.",
+                    good: "Explains the 'why' behind decisions, specific technologies used, and measurable outcomes.",
+                    bad: "Vague descriptions; inability to explain technical details or personal contribution."
+                },
+                {
+                    q: "How do you handle disagreements with stakeholders when you're confident in your solution?",
+                    good: "Focuses on objective data, active listening, and finding a collaborative middle ground.",
+                    bad: "Combative or passive-aggressive behavior; inability to compromise or see other perspectives."
+                },
+                {
+                    q: "Where do you see your technical skills evolving in the next 2-3 years?",
+                    good: "Growth mindset; identifies specific emerging technologies or leadership goals.",
+                    bad: "No plan for self-improvement; happy with current state; lacks ambition or curiosity."
+                }
+            ];
+
+            if (!reasons || reasons.length === 0) return renderCheatSheet(defaultRows);
+
+            // Create smart questions based on analysis reasons
+            const generatedRows = reasons.map(r => {
+                const lowR = r.toLowerCase();
+                if (lowR.includes('experience')) {
+                    const skill = r.replace(/strong |experience with |skills in /gi, '').trim();
+                    return {
+                        q: `Walk me through a complex scenario where you leveraged your experience with ${skill}.`,
+                        good: "Demonstrates deep architectural understanding and practical problem-solving in that domain.",
+                        bad: "Only mentions using the tool at a surface level; lacks depth on internal mechanics."
+                    };
+                }
+                if (lowR.includes('skill')) {
+                    const skill = r.replace(/strong |skills in /gi, '').trim();
+                    return {
+                        q: `How do you stay updated with changes in ${skill}, and what was the last major update you implemented?`,
+                        good: "Active learning mindset; names specific resources and recent technical advancements.",
+                        bad: "Reliance on outdated methods; lack of curiosity about industry trends."
+                    };
+                }
+                if (lowR.includes('leader') || lowR.includes('manage')) {
+                    return {
+                        q: "Describe a time you had to manage conflict within a technical team or project.",
+                        good: "Balanced approach; focuses on objective resolution and team growth.",
+                        bad: "Blames others; avoids accountability; describes authoritarian or passive behavior."
+                    };
+                }
+                return {
+                    q: `I noticed your strength in "${r}". Can you provide a concrete example of this in practice?`,
+                    good: "Quantitative results (e.g., 'reduced latency by 20%') and clear methodology.",
+                    bad: "Qualitative claims without evidence; purely theoretical explanation."
+                };
+            });
+
+            // Combine and ensure at least 10
+            let finalRows = [...generatedRows];
+            defaultRows.forEach(row => {
+                if (finalRows.length < 12) finalRows.push(row);
+            });
+
+            if (finalRows.length < 10) {
+                const extra = [
+                    { q: "Tell me about a time you failed. What did you learn?", good: "Accountability and clear learning outcomes.", bad: "Blaming others or denying role in failure." },
+                    { q: "How do you prioritize tasks under tight deadlines?", good: "Using frameworks, clear communication with leads.", bad: "Panic or working on low-impact tasks." },
+                    { q: "What's the best piece of feedback you've ever received?", good: "Coachability and ability to internalize advice.", bad: "Cannot recall any or takes feedback personally." }
+                ];
+                extra.forEach(row => {
+                    if (finalRows.length < 12) finalRows.push(row);
+                });
+            }
+
+            return renderCheatSheet(finalRows);
+        }
+
+        function renderCheatSheet(rows) {
+            return rows.map(row => `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                    <td style="padding: 12px; color: var(--text-main); font-weight: 500; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: top;">${row.q}</td>
+                    <td style="padding: 12px; color: var(--text-dim); font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: top;">
+                        <span style="color: var(--secondary); display: block; margin-bottom: 4px; font-weight: 600;">✓ Good:</span> ${row.good}
+                    </td>
+                    <td style="padding: 12px; color: var(--text-dim); font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: top;">
+                        <span style="color: var(--accent); display: block; margin-bottom: 4px; font-weight: 600;">✕ Bad:</span> ${row.bad}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
         async function updateInterviewerScore(candId, score) {
             const cand = state.candidates.find(c => c.id.toString() === candId.toString());
             if (cand) {
@@ -2119,21 +2461,28 @@
             `).join('');
         }
 
-        function submitComment() {
+        async function submitComment() {
             const input = document.getElementById('newCommentInput');
             const text = input.value.trim();
             if (!text || !editingCandId) return;
 
-            const cand = state.candidates.find(c => c.id === editingCandId);
+            const cand = state.candidates.find(c => c.id.toString() === editingCandId.toString());
             if (cand) {
                 if (!cand.comments) cand.comments = [];
-                cand.comments.push({
+                const newComment = {
                     user: state.currentUser,
                     text: text,
                     date: new Date().toLocaleString()
-                });
+                };
+                cand.comments.push(newComment);
                 input.value = '';
                 renderComments(cand);
+
+                // Persist comments
+                await persistenceApiCall('upsert_candidate', {
+                    id: cand.id,
+                    comments: cand.comments
+                });
             }
         }
 
