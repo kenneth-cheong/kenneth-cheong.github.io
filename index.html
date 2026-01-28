@@ -586,38 +586,53 @@
 
         /* Summary Table Styles (for GTmetrix, etc.) */
         .summary-table {
-            width: auto !important;
-            min-width: 400px;
+            width: 100% !important;
+            max-width: 900px;
             margin-top: 15px;
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0;
             background: white;
             border: 1px solid #e0e0e0;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            table-layout: auto !important;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            table-layout: fixed !important;
+            border-radius: 8px;
+            overflow: hidden;
         }
 
         .summary-table th {
             background-color: #004c9d;
             color: white;
             text-align: left;
-            padding: 12px 15px;
+            padding: 14px 20px;
             font-weight: 600;
-            border-bottom: 2px solid #003a78;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .summary-table td {
-            padding: 10px 15px;
+            padding: 14px 20px;
             border-bottom: 1px solid #f0f0f0;
-            color: #444;
+            color: #333;
             font-size: 0.95em;
+            vertical-align: middle;
+            word-wrap: break-word;
+        }
+
+        .summary-table th:first-child,
+        .summary-table td:first-child {
+            width: 30%;
+            border-right: 1px solid #f0f0f0;
+            background-color: #fcfcfc;
+            font-weight: 500;
         }
 
         .summary-table tr:last-child td {
             border-bottom: none;
         }
 
-        .summary-table td:last-child {
-            border-right: none;
+        .summary-table tr:hover td {
+            background-color: #f8faff;
         }
 
         /* SERP Table Styles */
@@ -4550,10 +4565,22 @@
             left: 50%;
             transform: translateX(-50%);
             border-radius: 12px;
-            overflow: hidden;
+            overflow: visible;
+            /* Changed from hidden to allow pseudo-element bridge */
             border: 1px solid #eef2f6;
             padding: 8px 0;
             animation: navFadeIn 0.2s ease-out;
+        }
+
+        /* Hover bridge to prevent menu closing over the gap */
+        .dropdown-content::before {
+            content: "";
+            position: absolute;
+            top: -15px;
+            left: 0;
+            width: 100%;
+            height: 15px;
+            background: transparent;
         }
 
         @keyframes navFadeIn {
@@ -6173,6 +6200,9 @@
                             <div class="sem-input-item">
                                 <label for="maxPagesInput">Max Pages to Crawl:</label>
                                 <input type="number" id="maxPagesInput" value="10" min="1">
+                                <small id="maxPagesEstimate"
+                                    style="color: #666; font-size: 0.85em; margin-top: -4px;">Estimated Cost:
+                                    $0.0126</small>
                             </div>
                             <div class="sem-input-item">
                                 <label for="maxDepthInput">Max Crawl Depth:</label>
@@ -6183,10 +6213,6 @@
                         <div style="display: flex; gap: 15px; flex-wrap: wrap;">
                             <button id="submitBtn" class="config-btn-highlight" style="margin:0;">Analyse
                                 Website</button>
-                            <button id="submitBtnDataForSEO" style="background: #1a73e8; margin:0;"
-                                class="config-btn-highlight" onclick="initiateDataForSEOCrawl()">
-                                <i class="fas fa-spider"></i> DataForSEO Crawler
-                            </button>
                         </div>
 
                         <div id="dataForSeoCost" style="display: none; width: 100%; margin-top: 15px;"></div>
@@ -6240,7 +6266,7 @@
                         Results</button>
                     <div class="content" id="pageAnalysis">
                         <div id="pageAuditReport" style="display:none;">
-                            <table>
+                            <table class="summary-table">
                                 <thead>
                                     <tr>
                                         <th>Metric</th>
@@ -9789,13 +9815,16 @@ seo agencies in singapore</textarea>
          * Handles cases where the response is a direct object or wrapped in a 'body' string (Proxy Integration).
          */
         function parseLambdaResponse(data) {
-            if (data && data.body && typeof data.body === 'string') {
-                try {
-                    return JSON.parse(data.body);
-                } catch (e) {
-                    console.error("Failed to parse Lambda body string:", e);
-                    return data;
+            if (data && data.body !== undefined) {
+                if (typeof data.body === 'string') {
+                    try {
+                        return JSON.parse(data.body);
+                    } catch (e) {
+                        console.error("Failed to parse Lambda body string:", e);
+                        return data.body;
+                    }
                 }
+                return data.body;
             }
             return data;
         }
@@ -11598,6 +11627,18 @@ ${selectedText}
             }
         });
 
+        const maxPagesInputElemForCost = document.getElementById('maxPagesInput');
+        if (maxPagesInputElemForCost) {
+            maxPagesInputElemForCost.addEventListener('input', () => {
+                const pages = parseInt(maxPagesInputElemForCost.value) || 0;
+                const estimate = (pages / 5) * 0.0063;
+                const estimateDisplay = document.getElementById('maxPagesEstimate');
+                if (estimateDisplay) {
+                    estimateDisplay.innerText = `Estimated Cost: $${estimate.toFixed(4)}`;
+                }
+            });
+        }
+
         submitBtn.addEventListener('click', () => {
             const url = document.getElementById('urlInput').value;
             const maxPages = document.getElementById('maxPagesInput').value;
@@ -11652,11 +11693,16 @@ ${selectedText}
                 body: JSON.stringify({ url: url })
             })
                 .then(response => response.json())
-                .then(webpage_audit_data => {
-                    document.getElementById('malware').textContent = webpage_audit_data.body.malware;
-                    document.getElementById('sitemap').textContent = webpage_audit_data.body.sitemap;
-                    document.getElementById('robots').innerHTML = webpage_audit_data.body.robots;
-                    document.getElementById('pagespeed_audit').textContent = webpage_audit_data.body.pagespeed;
+                .then(webpage_audit_data_raw => {
+                    console.log("Webpage Audit Raw:", webpage_audit_data_raw);
+                    const webpage_audit_data = parseLambdaResponse(webpage_audit_data_raw);
+                    console.log("Webpage Audit Parsed:", webpage_audit_data);
+
+                    document.getElementById('malware').textContent = webpage_audit_data.malware || 'N/A';
+                    document.getElementById('sitemap').innerHTML = webpage_audit_data.sitemap ? `<a href="${webpage_audit_data.sitemap}" target="_blank" style="color: #004c9d; text-decoration: underline;">${webpage_audit_data.sitemap}</a>` : 'N/A';
+                    const robotsContent = webpage_audit_data.robots || 'N/A';
+                    document.getElementById('robots').innerHTML = `<div style="max-height: 180px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.85em; white-space: pre-wrap; background: #fafafa; padding: 12px; border: 1px solid #eef0f2; border-radius: 6px; line-height: 1.5; color: #555; box-shadow: inset 0 1px 3px rgba(0,0,0,0.03);">${robotsContent}</div>`;
+                    document.getElementById('pagespeed_audit').textContent = webpage_audit_data.pagespeed || 'N/A';
 
                     pageAuditReportDiv.style.display = 'block';
                     document.getElementById("pageButton").style.backgroundColor = "green";
@@ -11671,70 +11717,8 @@ ${selectedText}
                 });
 
 
-            // Crawler API call
-            fetch("https://464q7iox7h.execute-api.ap-southeast-1.amazonaws.com/crawler", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ url: url, max_pages: parseInt(maxPages) })
-            })
-                .then(response => response.json())
-                .then(data => {
-                    crawlerTableBody.innerHTML = ''; // Clear previous data
-
-                    for (const pageUrl in data.body) {
-                        const pageData = data.body[pageUrl];
-                        const row = document.createElement('tr');
-                        row.innerHTML = `   
-                        <td>${pageUrl}</td>
-                        <td>${pageData.code}</td>
-                        <td>${pageData.title}</td>
-                        <td>${pageData.description}</td>
-                        <td>${pageData.canonical}</td>
-                        <td>${pageData.hreflang}</td>
-                        <td>${pageData.alt_text}</td>
-                        <td>${pageData.h1}</td>
-                        <td>${pageData.h2}</td>
-                        <td>${pageData.word_count}</td>
-                        <td>${pageData.uiux}</td>
-                    `;
-                        crawlerTableBody.appendChild(row);
-                    }
-                    crawlerReportDiv.style.display = 'block';
-                    submitBtn.innerHTML = 'Analyse Website';
-
-
-                    // Audit Summary
-                    gt_data = { "cumulative_layout_shift": document.getElementById('cls').textContent, "largest_contentful_paint": document.getElementById('lcp').textContent, "total_blocking_time": document.getElementById('tbt').textContent };
-                    webpage_audit_data = { 'google_safe_site': document.getElementById('malware').textContent, 'sitemap': document.getElementById('sitemap').textContent, 'robots_txt': document.getElementById('robots').innerHTML, 'pagespeed': document.getElementById('pagespeed_audit').textContent };
-
-                    fetch("https://ccgdpp7dna.execute-api.ap-southeast-1.amazonaws.com/techAuditSummary", {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ crawl: data, gtmetrix: gt_data, webpage_audit: webpage_audit_data })
-                    })
-                        .then(response => response.json())
-                        .then(data => {
-                            document.getElementById('auditSummary').innerHTML = data.body;
-                            document.getElementById("crawlerButton").style.backgroundColor = "green";
-                            updateCollapsibleState('crawlerButton', 'success');
-                        })
-                        .catch(error => console.error('Error fetching Audt Summary API:', error));
-
-                })
-                .catch(error => {
-                    console.error('Error fetching crawler data:', error);
-                    submitBtn.innerHTML = 'Analyse Website';
-                    updateCollapsibleState('crawlerButton', 'error');
-                })
-
-                .finally(() => {
-                    document.getElementById('downloadResultsBtn').style.display = 'block';
-                });
-
+            // Trigger DataForSEO Crawler
+            initiateDataForSEOCrawl();
         });
 
         // DataForSEO Crawler State
@@ -11756,7 +11740,7 @@ ${selectedText}
 
             if (!url) return alert("Please specify a URL for crawling.");
 
-            const btn = document.getElementById('submitBtnDataForSEO');
+            const btn = document.getElementById('submitBtn');
             const originalBtnHtml = btn.innerHTML;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Initializing Task...';
             btn.disabled = true;
@@ -11854,7 +11838,7 @@ ${selectedText}
                     });
 
                     // Update button with progress
-                    const btn = document.getElementById('submitBtnDataForSEO');
+                    const btn = document.getElementById('submitBtn');
                     if (btn) {
                         const maxPagesInput = document.getElementById('maxPagesInput');
                         const maxPages = maxPagesInput ? parseInt(maxPagesInput.value) : (dataForSeoCrawlItems.length || 10);
@@ -11999,11 +11983,46 @@ ${selectedText}
 
         function stopDataForSEOCrawl() {
             clearInterval(dataForSeoPollingInterval);
-            const btn = document.getElementById('submitBtnDataForSEO');
-            btn.innerHTML = '<i class="fas fa-spider"></i> DataForSEO Crawler';
-            btn.disabled = false;
+            const btn = document.getElementById('submitBtn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating Technical Summary...';
+            btn.disabled = true;
+
             document.getElementById("crawlerButton").style.backgroundColor = "green";
             updateCollapsibleState('crawlerButton', 'success');
+            document.getElementById('downloadResultsBtn').style.display = 'block';
+
+            // Trigger Final Audit Summary
+            const gt_data = {
+                "cumulative_layout_shift": document.getElementById('cls').textContent,
+                "largest_contentful_paint": document.getElementById('lcp').textContent,
+                "total_blocking_time": document.getElementById('tbt').textContent
+            };
+            const webpage_audit_data = {
+                'google_safe_site': document.getElementById('malware').textContent,
+                'sitemap': document.getElementById('sitemap').textContent,
+                'robots_txt': document.getElementById('robots').innerHTML,
+                'pagespeed': document.getElementById('pagespeed_audit').textContent
+            };
+
+            fetch("https://ccgdpp7dna.execute-api.ap-southeast-1.amazonaws.com/techAuditSummary", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    crawl: { body: dataForSeoCrawlItems }, // Mock expected structure for backward compatibility
+                    gtmetrix: gt_data,
+                    webpage_audit: webpage_audit_data
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    const parsed = parseLambdaResponse(data);
+                    document.getElementById('auditSummary').innerHTML = parsed.body || data.body || (typeof data === 'string' ? data : "Summary generated.");
+                })
+                .catch(error => console.error('Error fetching Audit Summary:', error))
+                .finally(() => {
+                    btn.innerHTML = 'Analyse Website';
+                    btn.disabled = false;
+                });
         }
 
 
