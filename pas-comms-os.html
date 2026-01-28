@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PAS CommsOS | Governance-First Content Operations</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Chart.js (for Dashboards) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Custom Scrollbar for dashboards */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Smooth Transitions */
+        .transition-all-300 {
+            transition: all 0.3s ease-in-out;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900 h-screen flex overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside
+        class="w-16 hover:w-64 transition-all duration-300 group bg-slate-900 text-white flex flex-col shadow-xl z-20 overflow-hidden whitespace-nowrap">
+        <div class="h-16 flex items-center px-4 border-b border-slate-700 overflow-hidden shrink-0">
+            <i class="fa-solid fa-cube text-xl text-indigo-400 shrink-0 w-8 text-center"></i>
+            <div class="ml-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <h1 class="text-lg font-bold tracking-tight leading-none">PAS CommsOS</h1>
+                <div class="text-[10px] text-slate-400 uppercase tracking-wider">Governance Edition</div>
+            </div>
+        </div>
+
+        <nav class="flex-1 overflow-y-auto py-4">
+            <ul class="space-y-1 px-2" id="nav-links">
+                <!-- Nav items injected by JS -->
+            </ul>
+        </nav>
+
+        <div class="p-4 border-t border-slate-700 bg-slate-800 overflow-hidden shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-sm shrink-0"
+                    id="user-avatar">AD</div>
+                <div
+                    class="flex-1 min-w-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 overflow-hidden">
+                    <p class="text-sm font-medium truncate" id="user-name">Admin User</p>
+                    <p class="text-xs text-slate-400 truncate" id="user-role">System Admin</p>
+                </div>
+                <button onclick="app.ui.toggleRoleSwitcher()"
+                    class="text-slate-400 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    title="Switch Role"><i class="fa-solid fa-users-gear"></i></button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col relative overflow-hidden">
+        <!-- Top Header -->
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shadow-sm z-10">
+            <h2 class="text-xl font-semibold text-slate-800" id="page-title">Dashboard</h2>
+
+            <div class="flex items-center gap-4">
+                <div
+                    class="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-sm font-medium border border-indigo-100">
+                    <i class="fa-solid fa-layer-group"></i>
+                    <span id="current-phase-display">Phase 2: Live Summit</span>
+                </div>
+
+                <button class="relative p-2 text-slate-500 hover:text-slate-700 transition">
+                    <i class="fa-regular fa-bell text-lg"></i>
+                    <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Dynamic View Container -->
+        <div id="app-container" class="flex-1 overflow-y-auto p-8 bg-slate-50 relative">
+            <!-- Views will be injected here -->
+        </div>
+
+        <!-- Role Switcher Modal (Demo) -->
+        <div id="role-switcher-modal"
+            class="hidden absolute bottom-16 left-4 bg-white shadow-2xl rounded-lg border border-slate-200 w-64 p-2 z-50">
+            <div class="text-xs font-semibold text-slate-500 uppercase px-2 py-1 mb-1">Switch Persona</div>
+            <button onclick="app.auth.switchRole('admin')"
+                class="w-full text-left px-3 py-2 hover:bg-slate-100 rounded text-sm flex items-center gap-2"><i
+                    class="fa-solid fa-shield-halved text-slate-400 w-4"></i> System Admin</button>
+            <button onclick="app.auth.switchRole('approver')"
+                class="w-full text-left px-3 py-2 hover:bg-slate-100 rounded text-sm flex items-center gap-2"><i
+                    class="fa-solid fa-check-double text-slate-400 w-4"></i> Approver (Tier 2)</button>
+            <button onclick="app.auth.switchRole('strategist')"
+                class="w-full text-left px-3 py-2 hover:bg-slate-100 rounded text-sm flex items-center gap-2"><i
+                    class="fa-solid fa-chess-knight text-slate-400 w-4"></i> Content Strategist</button>
+            <button onclick="app.auth.switchRole('writer')"
+                class="w-full text-left px-3 py-2 hover:bg-slate-100 rounded text-sm flex items-center gap-2"><i
+                    class="fa-solid fa-pen-nib text-slate-400 w-4"></i> Writer / Editor</button>
+        </div>
+    </main>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        /**
+         * PAS CommsOS - Single File Prototype
+         * Architecture:
+         * - Store: Centralized state management with LocalStorage persistence
+         * - Router: Simple view switching
+         * - UI: Component rendering helpers
+         * - MockData: Pre-loaded demo data
+         */
+
+        const APP_KEY = 'pas_comms_os_v1';
+
+        // --- Mock Data ---
+        const MOCK_DATA = {
+            users: {
+                'admin': { name: 'Kenneth Cheong', role: 'System Admin', avatar: 'KC' },
+                'approver': { name: 'Sarah Chen', role: 'Approver', avatar: 'SC' },
+                'strategist': { name: 'Mike Ross', role: 'Content Strategist', avatar: 'MR' },
+                'writer': { name: 'Jessica Lee', role: 'Writer', avatar: 'JL' }
+            },
+            navItems: [
+                { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
+                { id: 'governance', label: 'Approvals & Matrix', icon: 'fa-gavel' },
+                { id: 'factory', label: 'Content Factory', icon: 'fa-pen-to-square' },
+                { id: 'lifecycle', label: 'Lifecycle Kanban', icon: 'fa-list-check' },
+                { id: 'risk', label: 'Risk Engine', icon: 'fa-triangle-exclamation' },
+                { id: 'partners', label: 'Partner Toolkit', icon: 'fa-handshake' },
+                { id: 'audit', label: 'Governance Ledger', icon: 'fa-book-journal-whills' }
+            ],
+            // Initial content if storage is empty
+            initialContent: [],
+            initialLogs: [
+                { timestamp: new Date(Date.now() - 3600000).toISOString(), user: 'System Admin', action: 'CONFIG_UPDATE', target: 'Approval Matrix', desc: 'Updated SLA for Tier 2 to 4 hours' },
+                { timestamp: new Date(Date.now() - 7200000).toISOString(), user: 'Sarah Chen', action: 'APPROVE', target: 'Speaker Spotlight: Dr. Lee', desc: 'Approved with minor edits to bio' },
+                { timestamp: new Date(Date.now() - 86400000).toISOString(), user: 'Jessica Lee', action: 'CREATE', target: 'Opening Remarks Draft', desc: 'Submitted for initial review' }
+            ]
+        };
+
+        // --- Core Application ---
+        const app = {
+            state: {
+                currentUser: MOCK_DATA.users['admin'],
+                currentView: 'dashboard',
+                currentPhase: 'Phase 2: Live Summit',
+                content: [],
+                logs: []
+            },
+
+            init() {
+                this.storage.load();
+                this.ui.renderNav();
+                this.router.navigate(this.state.currentView);
+                this.ui.updateUserDisplay();
+                console.log('PAS CommsOS Initialized');
+            },
+
+            // --- Sub-modules ---
+            storage: {
+                load() {
+                    const stored = localStorage.getItem(APP_KEY);
+                    if (stored) {
+                        const parsed = JSON.parse(stored);
+                        // Merge stored state but keep active session stuff dynamic if needed
+                        app.state = { ...app.state, ...parsed };
+                    } else {
+                        // Seed data if new
+                        app.state.content = MOCK_DATA.initialContent;
+                        app.state.logs = MOCK_DATA.initialLogs || [];
+                        this.save();
+                    }
+                },
+                save() {
+                    localStorage.setItem(APP_KEY, JSON.stringify(app.state));
+                }
+            },
+
+            auth: {
+                switchRole(roleKey) {
+                    if (MOCK_DATA.users[roleKey]) {
+                        app.state.currentUser = MOCK_DATA.users[roleKey];
+                        app.ui.updateUserDisplay();
+                        app.ui.toggleRoleSwitcher(); // Close modal
+                        // Re-render current view to reflect permissions
+                        app.router.navigate(app.state.currentView);
+
+                        // Toast notification
+                        app.ui.showToast(`Switched to ${app.state.currentUser.role}`);
+                    }
+                }
+            },
+
+            router: {
+                navigate(viewId) {
+                    app.state.currentView = viewId;
+
+                    // Update UI Header
+                    const navItem = MOCK_DATA.navItems.find(i => i.id === viewId);
+                    document.getElementById('page-title').textContent = navItem ? navItem.label : 'PAS CommsOS';
+
+                    // Update Nav State
+                    document.querySelectorAll('#nav-links li').forEach(li => {
+                        if (li.dataset.view === viewId) {
+                            li.classList.add('bg-indigo-600', 'text-white');
+                            li.classList.remove('text-slate-300', 'hover:bg-slate-800', 'hover:text-white');
+                        } else {
+                            li.classList.remove('bg-indigo-600', 'text-white');
+                            li.classList.add('text-slate-300', 'hover:bg-slate-800', 'hover:text-white');
+                        }
+                    });
+
+                    // Render View
+                    const container = document.getElementById('app-container');
+                    container.innerHTML = ''; // Clear current
+
+                    if (app.views[viewId]) {
+                        container.innerHTML = app.views[viewId].render();
+                        if (app.views[viewId].postRender) app.views[viewId].postRender();
+                    } else {
+                        container.innerHTML = `<div class="text-center mt-20 text-slate-400">View implementation pending: ${viewId}</div>`;
+                    }
+                }
+            },
+
+            ui: {
+                renderNav() {
+                    const navList = document.getElementById('nav-links');
+                    navList.innerHTML = MOCK_DATA.navItems.map(item => `
+                        <li data-view="${item.id}" onclick="app.router.navigate('${item.id}')" 
+                            class="flex items-center h-10 rounded-lg cursor-pointer transition-colors text-slate-300 hover:bg-slate-800 hover:text-white mb-1 overflow-hidden" title="${item.label}">
+                            <div class="w-12 flex justify-center shrink-0"><i class="fa-solid ${item.icon} text-lg"></i></div>
+                            <span class="text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">${item.label}</span>
+                        </li>
+                    `).join('');
+                },
+
+                updateUserDisplay() {
+                    const u = app.state.currentUser;
+                    document.getElementById('user-name').textContent = u.name;
+                    document.getElementById('user-role').textContent = u.role;
+                    document.getElementById('user-avatar').textContent = u.avatar;
+                },
+
+                toggleRoleSwitcher() {
+                    const modal = document.getElementById('role-switcher-modal');
+                    modal.classList.toggle('hidden');
+                },
+
+                showToast(msg, type = 'info') {
+                    // Simple toast implementation
+                    const toast = document.createElement('div');
+                    toast.className = `fixed bottom-4 right-4 px-4 py-3 rounded shadow-lg text-white text-sm z-50 animate-bounce ${type === 'error' ? 'bg-red-600' : 'bg-slate-800'}`;
+                    toast.textContent = msg;
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 3000);
+                }
+            }, // Close ui
+            // --- View Controllers ---
+            views: {
+                dashboard: {
+                    render() {
+                        return `
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                                    <div class="flex justify-between items-start">
+                                        <div><p class="text-xs font-semibold text-slate-500 uppercase">Approval Queue</p><h3 class="text-2xl font-bold text-slate-800 mt-1">12</h3></div>
+                                        <div class="p-2 bg-yellow-50 text-yellow-600 rounded-lg"><i class="fa-regular fa-clock"></i></div>
+                                    </div>
+                                </div>
+                                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                                    <div class="flex justify-between items-start">
+                                        <div><p class="text-xs font-semibold text-slate-500 uppercase">Published (Phase 2)</p><h3 class="text-2xl font-bold text-slate-800 mt-1">45</h3></div>
+                                        <div class="p-2 bg-green-50 text-green-600 rounded-lg"><i class="fa-solid fa-check-double"></i></div>
+                                    </div>
+                                </div>
+                                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                                    <div class="flex justify-between items-start">
+                                        <div><p class="text-xs font-semibold text-slate-500 uppercase">Risk Flags</p><h3 class="text-2xl font-bold text-slate-800 mt-1">3</h3></div>
+                                        <div class="p-2 bg-red-50 text-red-600 rounded-lg"><i class="fa-solid fa-flag"></i></div>
+                                    </div>
+                                </div>
+                                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                                    <div class="flex justify-between items-start">
+                                        <div><p class="text-xs font-semibold text-slate-500 uppercase">Avg Approval Time</p><h3 class="text-2xl font-bold text-slate-800 mt-1">14m</h3></div>
+                                        <div class="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><i class="fa-solid fa-stopwatch"></i></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                                    <h4 class="text-sm font-bold text-slate-700 mb-4">Content Volume by Status</h4>
+                                    <canvas id="chart-volume" class="max-h-64"></canvas>
+                                </div>
+                                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                                    <h4 class="text-sm font-bold text-slate-700 mb-4">Risk Category Breakdown</h4>
+                                    <canvas id="chart-risk" class="max-h-64"></canvas>
+                                </div>
+                            </div>
+                        `;
+                    },
+                    postRender() {
+                        new Chart(document.getElementById('chart-volume'), {
+                            type: 'bar',
+                            data: {
+                                labels: ['Draft', 'Risk Check', 'Approval', 'Ready', 'Published'],
+                                datasets: [{ label: 'Items', data: [8, 12, 5, 20, 45], backgroundColor: '#6366f1' }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: false }
+                        });
+                        new Chart(document.getElementById('chart-risk'), {
+                            type: 'doughnut',
+                            data: {
+                                labels: ['Political', 'Confidential', 'Unverified', 'Safe'],
+                                datasets: [{ data: [15, 10, 5, 70], backgroundColor: ['#ef4444', '#f59e0b', '#8b5cf6', '#10b981'] }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: false }
+                        });
+                    }
+                },
+
+                governance: {
+                    render() {
+                        return `
+                            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                    <h3 class="font-bold text-lg text-slate-800">Approval Matrix Configuration</h3>
+                                    <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Save Configuration</button>
+                                </div>
+                                <div class="p-6 space-y-8">
+                                    <div>
+                                        <h4 class="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4">Risk Tiers & Routing</h4>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div class="border border-green-200 bg-green-50 rounded-lg p-4 relative">
+                                                <span class="absolute top-4 right-4 text-xs font-bold text-green-700 bg-green-200 px-2 py-0.5 rounded">AUTO-APPROVE</span>
+                                                <h5 class="font-bold text-green-800">Tier 1: Green (Safe)</h5>
+                                                <p class="text-xs text-green-700 mt-1 mb-3">Routine updates, partner shout-outs, factual summaries.</p>
+                                                <label class="block text-xs font-semibold text-green-800 mb-1">Required Approver</label>
+                                                <select class="w-full text-sm border-gray-300 rounded p-1.5"><option>None (Self-Publish)</option><option>Team Lead</option></select>
+                                            </div>
+                                            <div class="border border-yellow-200 bg-yellow-50 rounded-lg p-4 relative">
+                                                 <span class="absolute top-4 right-4 text-xs font-bold text-yellow-700 bg-yellow-200 px-2 py-0.5 rounded">MANUAL REVIEW</span>
+                                                <h5 class="font-bold text-yellow-800">Tier 2: Amber (Caution)</h5>
+                                                <p class="text-xs text-yellow-700 mt-1 mb-3">Opinionated pieces, verified quotes, complex topics.</p>
+                                                <label class="block text-xs font-semibold text-yellow-800 mb-1">Required Approver</label>
+                                                <select class="w-full text-sm border-gray-300 rounded p-1.5"><option>Content Strategist</option><option selected>Approver (Tier 2)</option></select>
+                                            </div>
+                                            <div class="border border-orange-200 bg-orange-50 rounded-lg p-4 relative">
+                                                <span class="absolute top-4 right-4 text-xs font-bold text-orange-700 bg-orange-200 px-2 py-0.5 rounded">ESCALATION</span>
+                                                <h5 class="font-bold text-orange-800">Tier 3: Red (High Risk)</h5>
+                                                <p class="text-xs text-orange-700 mt-1 mb-3">Policy statements, crisis response, sensitive partnerships.</p>
+                                                <label class="block text-xs font-semibold text-orange-800 mb-1">Required Approver</label>
+                                                <select class="w-full text-sm border-gray-300 rounded p-1.5"><option>Comms Director</option><option selected>System Admin</option></select>
+                                            </div>
+                                             <div class="border border-red-200 bg-red-50 rounded-lg p-4 relative grayscale opacity-75">
+                                                <span class="absolute top-4 right-4 text-xs font-bold text-red-700 bg-red-200 px-2 py-0.5 rounded">BLOCKED</span>
+                                                <h5 class="font-bold text-red-800">Tier 4: Black (Critical)</h5>
+                                                <p class="text-xs text-red-700 mt-1 mb-3">Embargoed news, confidential leaks, legal risks.</p>
+                                                <div class="text-xs font-bold text-red-600 mt-2 bg-white inline-block px-2 py-1 rounded border border-red-100"><i class="fa-solid fa-ban"></i> Publishing Disabled</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4">Response Time SLAs</h4>
+                                        <div class="flex gap-4 items-center bg-slate-50 p-4 rounded-lg border border-slate-200">
+                                            <div class="flex-1">
+                                                <label class="block text-xs font-bold text-slate-700">Standard Turnaround</label>
+                                                <input type="text" value="4 Hours" class="w-full mt-1 p-2 border border-slate-300 rounded text-sm">
+                                            </div>
+                                            <div class="flex-1">
+                                                <label class="block text-xs font-bold text-slate-700">Rush / Event Live Mode</label>
+                                                <input type="text" value="15 Minutes" class="w-full mt-1 p-2 border border-slate-300 rounded text-sm font-bold text-red-600">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                },
+
+                factory: {
+                    render() {
+                        return `
+                            <div class="flex gap-6 h-full">
+                                <div class="w-1/3 bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col">
+                                    <h3 class="font-bold text-lg text-slate-800 mb-4">Content Factory</h3>
+                                    <div class="mb-6">
+                                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Select Phase</label>
+                                        <select class="w-full p-2 border border-slate-300 rounded-lg bg-slate-50 text-sm font-medium" onchange="app.state.currentPhase = this.value; app.router.navigate('factory')">
+                                            <option ${app.state.currentPhase.includes('1') ? 'selected' : ''}>Phase 1: Anticipation</option>
+                                            <option ${app.state.currentPhase.includes('2') ? 'selected' : ''}>Phase 2: Live Summit</option>
+                                            <option ${app.state.currentPhase.includes('3') ? 'selected' : ''}>Phase 3: Reflection</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-2 flex-1 overflow-y-auto pr-2">
+                                        <p class="text-xs font-bold text-slate-400 uppercase mb-2">Available Templates</p>
+                                        <button onclick="app.views.factory.selectTemplate('spotlight')" class="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition group">
+                                            <div class="flex justify-between items-center mb-1">
+                                                <span class="font-bold text-slate-700 group-hover:text-indigo-700">Speaker Spotlight</span>
+                                                <i class="fa-solid fa-microphone text-indigo-300 group-hover:text-indigo-500"></i>
+                                            </div>
+                                            <p class="text-xs text-slate-500">Bio card + "Why it matters" + Quote</p>
+                                        </button>
+                                        <button onclick="app.views.factory.selectTemplate('update')" class="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition group">
+                                            <div class="flex justify-between items-center mb-1">
+                                                <span class="font-bold text-slate-700 group-hover:text-indigo-700">Live Update / Flash</span>
+                                                <i class="fa-solid fa-bolt text-indigo-300 group-hover:text-indigo-500"></i>
+                                            </div>
+                                            <p class="text-xs text-slate-500">short-form text + photo for social</p>
+                                        </button>
+                                        <button onclick="app.views.factory.selectTemplate('quote')" class="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition group">
+                                            <div class="flex justify-between items-center mb-1">
+                                                <span class="font-bold text-slate-700 group-hover:text-indigo-700">Key Quote Card</span>
+                                                <i class="fa-solid fa-quote-right text-indigo-300 group-hover:text-indigo-500"></i>
+                                            </div>
+                                            <p class="text-xs text-slate-500">Verified quote + attribution + consent</p>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden relative" id="editor-panel">
+                                    <div class="flex-1 flex flex-col justify-center items-center text-slate-400">
+                                        <i class="fa-solid fa-arrow-left text-3xl mb-4 text-slate-300"></i>
+                                        <p>Select a template to start drafting</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    },
+                    selectTemplate(type) {
+                        const editor = document.getElementById('editor-panel');
+                        editor.innerHTML = `
+                            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <div>
+                                    <div class="text-xs text-indigo-600 font-bold uppercase mb-0.5">Drafting: ${type.toUpperCase()}</div>
+                                    <h3 class="font-bold text-slate-800">New Content Draft</h3>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="px-2 py-1 bg-gray-100 text-gray-500 text-xs font-bold rounded" id="risk-badge">UNCHECKED</span>
+                                    <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm" onclick="app.views.factory.submitDraft('${type}')">
+                                        <i class="fa-solid fa-paper-plane mr-1"></i> Submit for Review
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="p-8 overflow-y-auto flex-1 bg-white">
+                                <div class="max-w-2xl mx-auto space-y-6">
+                                    <div>
+                                        <label class="block text-sm font-bold text-slate-700 mb-2">Headline / Title</label>
+                                        <input type="text" id="draft-title" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" placeholder="Enter a catchy title...">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-bold text-slate-700 mb-2">Core Content</label>
+                                        <textarea id="draft-body" rows="8" class="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none" placeholder="Type your content here... (Risk engine will analyze this)" oninput="app.views.factory.checkRisk(this.value)"></textarea>
+                                        <div class="mt-2 text-xs text-slate-400 flex justify-between"><span>Markdown supported</span><span id="char-count">0 chars</span></div>
+                                    </div>
+                                    ${type === 'quote' ? `<div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100"><label class="block text-xs font-bold text-indigo-700 mb-2">Attribution & Consent</label><input type="text" placeholder="Speaker Name" class="w-full p-2 mb-2 border border-indigo-200 rounded text-sm"><label class="flex items-center gap-2 text-sm text-indigo-800 cursor-pointer"><input type="checkbox" class="text-indigo-600 rounded"><span>I have verified explicit consent for this quote</span></label></div>` : ''}
+                                    <div class="border-t border-slate-100 pt-6">
+                                        <h4 class="text-xs font-bold text-slate-500 uppercase mb-3">Governance Metadata</h4>
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div><label class="block text-xs text-slate-500 mb-1">Target Audience</label><input type="text" class="w-full p-2 bg-slate-50 border border-slate-200 rounded text-sm"></div>
+                                            <div><label class="block text-xs text-slate-500 mb-1">Embargo Date</label><input type="datetime-local" class="w-full p-2 bg-slate-50 border border-slate-200 rounded text-sm"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    },
+                    checkRisk(text) {
+                        const badge = document.getElementById('risk-badge');
+                        const riskyWords = ['leak', 'confidential', 'secret', 'political', 'attack', 'failed'];
+                        const found = riskyWords.filter(w => text.toLowerCase().includes(w));
+                        if (found.length > 0) {
+                            badge.className = 'px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded';
+                            badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> RISK DETECTED`;
+                        } else if (text.length > 10) {
+                            badge.className = 'px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded';
+                            badge.textContent = 'SAFE TO PROCEED';
+                        } else {
+                            badge.className = 'px-2 py-1 bg-gray-100 text-gray-500 text-xs font-bold rounded';
+                            badge.textContent = 'UNCHECKED';
+                        }
+                        document.getElementById('char-count').textContent = `${text.length} chars`;
+                    },
+                    submitDraft(type) {
+                        const title = document.getElementById('draft-title').value;
+                        const body = document.getElementById('draft-body').value;
+                        if (!title || !body) return alert('Please complete all fields');
+                        const newItem = {
+                            id: Date.now().toString(),
+                            type: type,
+                            title: title,
+                            phase: app.state.currentPhase,
+                            author: app.state.currentUser.name,
+                            status: 'Risk Check',
+                            timestamp: new Date().toISOString(),
+                            riskLevel: document.getElementById('risk-badge').textContent.includes('RISK') ? 'High' : 'Low'
+                        };
+                        app.state.content.unshift(newItem);
+                        app.storage.save();
+                        app.ui.showToast('Draft submitted to Risk Queue');
+                        app.router.navigate('lifecycle');
+                    }
+                },
+
+                lifecycle: {
+                    render() {
+                        const columns = [
+                            { id: 'Risk Check', label: 'Risk Screening', color: 'border-blue-500' },
+                            { id: 'Approval', label: 'Approval Queue', color: 'border-yellow-500' },
+                            { id: 'Ready', label: 'Ready to Publish', color: 'border-green-500' }
+                        ];
+                        return `
+                            <div class="h-full flex gap-6 overflow-x-auto pb-4">
+                                ${columns.map(col => `
+                                    <div class="w-80 flex-shrink-0 flex flex-col bg-slate-100 rounded-xl max-h-full">
+                                        <div class="p-4 border-t-4 ${col.color} bg-white rounded-t-xl shadow-sm z-10">
+                                            <h4 class="font-bold text-slate-700 flex justify-between items-center">${col.label}<span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs">${app.state.content.filter(i => i.status.includes(col.id.split(' ')[0])).length}</span></h4>
+                                        </div>
+                                        <div class="p-4 space-y-3 overflow-y-auto flex-1" ondrop="app.views.lifecycle.drop(event, '${col.id}')" ondragover="app.views.lifecycle.allowDrop(event)">${this.renderCards(col.id)}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    },
+                    renderCards(statusMatch) {
+                        const items = app.state.content.filter(i => i.status.includes(statusMatch.split(' ')[0]));
+                        if (items.length === 0) return `<div class="text-center text-slate-400 text-xs py-4 border-2 border-dashed border-slate-200 rounded-lg">No items</div>`;
+                        return items.map(item => `
+                            <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 cursor-move hover:shadow-md transition group relative" draggable="true" ondragstart="app.views.lifecycle.drag(event, '${item.id}')">
+                                <div class="flex justify-between items-start mb-2"><span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">${item.type}</span><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${item.riskLevel === 'High' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">${item.riskLevel} Risk</span></div>
+                                <h5 class="font-bold text-slate-800 text-sm leading-tight mb-2">${item.title}</h5>
+                                <div class="flex justify-between items-center text-xs text-slate-400"><span>${new Date(item.timestamp).toLocaleDateString()}</span><div class="flex items-center gap-1"><span class="w-5 h-5 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-[10px] font-bold" title="${item.author}">${item.author.charAt(0)}</span></div></div>
+                                <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition"><button class="bg-indigo-600 text-white w-6 h-6 rounded flex items-center justify-center shadow-lg transform scale-90 hover:scale-100" title="Inspect" onclick="app.views.lifecycle.inspect('${item.id}')"><i class="fa-solid fa-magnifying-glass text-xs"></i></button></div>
+                            </div>
+                        `).join('');
+                    },
+                    allowDrop(ev) { ev.preventDefault(); },
+                    drag(ev, id) { ev.dataTransfer.setData("text", id); },
+                    drop(ev, newStatus) {
+                        ev.preventDefault();
+                        const id = ev.dataTransfer.getData("text");
+                        const item = app.state.content.find(i => i.id === id);
+                        if (item) {
+                            const oldStatus = item.status;
+                            item.status = newStatus;
+                            app.storage.save();
+                            app.router.navigate('lifecycle');
+                            app.ui.showToast(`Moved "${item.title}" to ${newStatus}`);
+                            app.state.logs.unshift({ timestamp: new Date().toISOString(), user: app.state.currentUser.name, action: 'MOVED', desc: `Changed status from ${oldStatus} to ${newStatus}`, target: item.title });
+                        }
+                    },
+                    inspect(id) { alert('Inspector modal would open here for item: ' + id); }
+                },
+
+                risk: {
+                    render() {
+                        const flaggedItems = app.state.content.filter(i => i.riskLevel === 'High');
+                        return `
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
+                                <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                                    <h3 class="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2"><i class="fa-solid fa-radar text-red-500"></i> Active Risk Scanner</h3>
+                                    <div class="bg-slate-900 rounded-lg p-6 font-mono text-sm text-green-400 flex-1 overflow-y-auto mb-4 relative">
+                                        <div class="absolute top-4 right-4 animate-pulse"><div class="w-3 h-3 bg-green-500 rounded-full"></div></div>
+                                        <p>> Initializing Risk Engine v4.2...</p><p>> Governance Policy: "PAS Summit STRICT Mode" loaded.</p><p>> Monitoring content stream...</p><br>
+                                        ${app.state.logs.slice(0, 5).map(log => `<p class="text-slate-400">[${new Date(log.timestamp).toLocaleTimeString()}] ${log.user} : ${log.action} : ${log.target}</p>`).join('')}
+                                    </div>
+                                    <div class="flex gap-4"><input type="text" placeholder="Quick scan phrase..." class="flex-1 p-3 border border-slate-300 rounded-lg"><button class="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold">Scan</button></div>
+                                </div>
+                                <div class="bg-red-50 p-6 rounded-xl border border-red-100 flex flex-col">
+                                    <h4 class="font-bold text-red-800 mb-4 flex justify-between"><span>Flagged Content</span><span class="bg-red-200 text-red-800 px-2 rounded-full text-xs flex items-center">${flaggedItems.length}</span></h4>
+                                    <div class="space-y-3 overflow-y-auto flex-1">
+                                        ${flaggedItems.length > 0 ? flaggedItems.map(item => `
+                                            <div class="bg-white p-4 rounded-lg shadow-sm border-l-4 border-red-500">
+                                                <div class="flex justify-between mb-1"><span class="text-[10px] uppercase font-bold text-slate-400">${item.type}</span><span class="text-xs font-bold text-red-600">Tier 3</span></div>
+                                                <h5 class="font-bold text-slate-800 text-sm mb-2">${item.title}</h5>
+                                                <button class="w-full py-1.5 bg-red-100 text-red-700 text-xs font-bold rounded hover:bg-red-200">Review Conflict</button>
+                                            </div>
+                                        `).join('') : '<p class="text-sm text-red-400 italic">No high-risk items detected.</p>'}
+                                    </div>
+                                </div>
+                            </div>
+                         `;
+                    }
+                },
+
+                audit: {
+                    render() {
+                        return `
+                             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
+                                <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                    <div>
+                                        <h3 class="font-bold text-lg text-slate-800">Governance Ledger</h3>
+                                        <p class="text-xs text-slate-500">Immutable record of all system actions</p>
+                                    </div>
+                                    <button class="px-4 py-2 border border-slate-300 bg-white text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50"><i class="fa-solid fa-download mr-2"></i>Export CSV</button>
+                                </div>
+                                <div class="flex-1 overflow-auto">
+                                    <table class="w-full text-left text-sm">
+                                        <thead class="bg-slate-50 text-slate-500 uppercase font-bold text-xs">
+                                            <tr>
+                                                <th class="px-6 py-3">Timestamp</th>
+                                                <th class="px-6 py-3">User</th>
+                                                <th class="px-6 py-3">Action</th>
+                                                <th class="px-6 py-3">Target / Asset</th>
+                                                <th class="px-6 py-3">Details</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100">
+                                            ${app.state.logs.map(log => `
+                                                <tr class="hover:bg-slate-50 transition">
+                                                    <td class="px-6 py-3 font-mono text-xs text-slate-500">${new Date(log.timestamp).toLocaleString()}</td>
+                                                    <td class="px-6 py-3 font-medium text-slate-900 flex items-center gap-2">
+                                                        <span class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px]">${log.user.charAt(0)}</span>
+                                                        ${log.user}
+                                                    </td>
+                                                    <td class="px-6 py-3">
+                                                        <span class="px-2 py-1 rounded text-[10px] font-bold ${this.getActionColor(log.action)}">${log.action}</span>
+                                                    </td>
+                                                    <td class="px-6 py-3 text-slate-700">${log.target}</td>
+                                                    <td class="px-6 py-3 text-slate-500 italic truncate max-w-xs">${log.desc || '-'}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                             </div>
+                        `;
+                    },
+                    getActionColor(action) {
+                        const map = {
+                            'CREATE': 'bg-blue-100 text-blue-700',
+                            'APPROVE': 'bg-green-100 text-green-700',
+                            'REJECT': 'bg-red-100 text-red-700',
+                            'MOVED': 'bg-indigo-100 text-indigo-700',
+                            'CONFIG_UPDATE': 'bg-purple-100 text-purple-700'
+                        };
+                        return map[action] || 'bg-gray-100 text-gray-700';
+                    }
+                }
+            } // Close views
+        }; // Close app
+
+        // Boot
+        document.addEventListener('DOMContentLoaded', () => app.init());
+    </script>
+</body>
+
+</html>
