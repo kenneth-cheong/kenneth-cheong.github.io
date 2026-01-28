@@ -369,8 +369,16 @@
             }
         }
 
+        #crawlerReport {
+            max-height: 600px;
+            overflow: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
         #crawlerReport table {
-            height: 600px;
+            width: 100%;
             border-collapse: separate;
             border-spacing: 0;
         }
@@ -411,7 +419,8 @@
 
         #crawlerReport th:nth-child(1),
         #crawlerReport th:nth-child(2) {
-            z-index: 15;
+            z-index: 20;
+            /* High enough to stay above sticky column content */
             background-color: #004c9d;
         }
 
@@ -586,7 +595,7 @@
 
         /* Summary Table Styles (for GTmetrix, etc.) */
         .summary-table {
-            width: 100% !important;
+            width: 50%;
             max-width: 900px;
             margin-top: 15px;
             border-collapse: separate;
@@ -632,6 +641,83 @@
         }
 
         .summary-table tr:hover td {
+            background-color: #f8faff;
+        }
+
+        /* Flexible Variant for Multi-column Keyword Tables */
+        .keywords-table {
+            width: 100% !important;
+            margin-top: 15px;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: white;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            table-layout: fixed !important;
+            /* Force fixed widths */
+            border-radius: 8px;
+            min-width: 750px;
+            /* Reduced to help it fit in narrower containers */
+        }
+
+        .keywords-table th {
+            background-color: #004c9d;
+            color: white;
+            text-align: left;
+            padding: 12px 10px;
+            /* Tighter padding */
+            font-weight: 600;
+            font-size: 0.75em;
+            /* Slightly smaller headers */
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .keywords-table td {
+            padding: 12px 10px;
+            /* Tighter padding */
+            border-bottom: 1px solid #f0f0f0;
+            color: #333;
+            font-size: 0.85em;
+            vertical-align: top;
+            word-wrap: break-word;
+            overflow: hidden;
+        }
+
+        /* Column specific widths */
+        .kw-col-keyword {
+            width: 30%;
+        }
+
+        .kw-col-volume {
+            width: 13%;
+        }
+
+        .kw-col-comp {
+            width: 13%;
+        }
+
+        .kw-col-intent {
+            width: 15%;
+        }
+
+        .kw-col-reason {
+            width: 21%;
+            /* User requested half of previous (~42%) */
+        }
+
+        .kw-col-choose {
+            width: 8%;
+            text-align: center;
+        }
+
+        .keywords-table tr:hover td {
             background-color: #f8faff;
         }
 
@@ -11664,18 +11750,27 @@ ${selectedText}
                 body: JSON.stringify({ url: url })
             })
                 .then(response => response.json())
-                .then(gt_data => {
-                    document.getElementById('reportUrl').innerHTML = '<a href="' + gt_data.body.data.links.report_url + '" target="_blank" rel="noopener noreferrer">' + gt_data.body.data.links.report_url + '</a>';
-                    document.getElementById('cls').textContent = gt_data.body.data.attributes.cumulative_layout_shift;
-                    document.getElementById('lcp').textContent = gt_data.body.data.attributes.largest_contentful_paint;
-                    document.getElementById('tbt').textContent = gt_data.body.data.attributes.total_blocking_time;
-                    document.getElementById('grade').textContent = gt_data.body.data.attributes.gtmetrix_grade;
-                    document.getElementById('performance').textContent = gt_data.body.data.attributes.performance_score;
+                .then(gt_data_raw => {
+                    const gt_data = parseLambdaResponse(gt_data_raw);
+                    console.log("GTmetrix Parsed:", gt_data);
+
+                    if (gt_data && gt_data.data) {
+                        const links = gt_data.data.links || {};
+                        const attr = gt_data.data.attributes || {};
+
+                        document.getElementById('reportUrl').innerHTML = links.report_url ?
+                            `<a href="${links.report_url}" target="_blank" rel="noopener noreferrer">${links.report_url}</a>` : 'N/A';
+
+                        document.getElementById('cls').textContent = attr.cumulative_layout_shift || 'N/A';
+                        document.getElementById('lcp').textContent = attr.largest_contentful_paint || 'N/A';
+                        document.getElementById('tbt').textContent = attr.total_blocking_time || 'N/A';
+                        document.getElementById('grade').textContent = attr.gtmetrix_grade || 'N/A';
+                        document.getElementById('performance').textContent = attr.performance_score || 'N/A';
+                    }
 
                     gtmetrixReportDiv.style.display = 'block';
                     document.getElementById("gtButton").style.backgroundColor = "green";
                     updateCollapsibleState('gtButton', 'success');
-
                 })
 
                 .catch(error => {
@@ -12004,13 +12099,15 @@ ${selectedText}
                 'pagespeed': document.getElementById('pagespeed_audit').textContent
             };
 
+            const maxPages = parseInt(document.getElementById('maxPagesInput')?.value || 10);
             fetch("https://ccgdpp7dna.execute-api.ap-southeast-1.amazonaws.com/techAuditSummary", {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     crawl: { body: dataForSeoCrawlItems }, // Mock expected structure for backward compatibility
                     gtmetrix: gt_data,
-                    webpage_audit: webpage_audit_data
+                    webpage_audit: webpage_audit_data,
+                    total_pages: dataForSeoCrawlItems.length || dataForSeoCrawlUrls.size || maxPages
                 })
             })
                 .then(response => response.json())
@@ -16135,16 +16232,16 @@ ${selectedText}
             }
             //ADD A PARAGRAPH TO TRACK SELECTED KEYWORDS
             container.innerHTML = `
-            <div class="table-container" style="max-height:350px;overflow:auto">
-              <table>
+            <div class="table-container" style="max-height:450px; overflow:auto; border: 1px solid #e0e6ed; border-radius: 8px;">
+              <table class="keywords-table">
                 <thead>
                     <tr>
-                        <th onclick="sortSiteTable('keyword')">Keyword</th>
-                        <th onclick="sortSiteTable('search_volume')">Search Volume</th>
-                        <th onclick="sortSiteTable('competition')">Competition</th>
-                        <th onclick="sortSiteTable('search_intent')">Search Intent</th>
-                        <th onclick="sortSiteTable('reason_for_choosing')">Reason</th>
-                        <th>Choose</th>
+                        <th class="kw-col-keyword" onclick="sortSiteTable('keyword')">Keyword</th>
+                        <th class="kw-col-volume" onclick="sortSiteTable('search_volume')">Search Vol</th>
+                        <th class="kw-col-comp" onclick="sortSiteTable('competition')">Comp.</th>
+                        <th class="kw-col-intent" onclick="sortSiteTable('search_intent')">Intent</th>
+                        <th class="kw-col-reason" onclick="sortSiteTable('reason_for_choosing')">Reason</th>
+                        <th class="kw-col-choose">Choose</th>
                     </tr>
                 </thead>
                 <tbody>
