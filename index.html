@@ -9895,9 +9895,45 @@ seo agencies in singapore</textarea>
             const desc = document.getElementById('llmDescription').value || '';
             const urls = document.getElementById('llmCorePages').value || '';
 
-            let content = `# ${title}\n\n> ${desc}\n\n## Core Pages & Documentation\n\n`;
+            let content = `# ${title}\n> ${desc}\n\n`;
+
             if (urls) {
-                content += urls.split('\n').filter(u => u.trim()).map(u => `- [${u.trim()}](${u.trim()})`).join('\n');
+                const urlList = urls.split('\n').filter(u => u.trim());
+                const docs = [];
+                const products = [];
+
+                urlList.forEach(u => {
+                    const lower = u.toLowerCase();
+                    if (lower.includes('/doc') || lower.includes('/api') || lower.includes('/help') || lower.includes('/guide') || lower.includes('/wiki')) {
+                        docs.push(u.trim());
+                    } else {
+                        products.push(u.trim());
+                    }
+                });
+
+                const formatLine = (u) => {
+                    try {
+                        const urlObj = new URL(u);
+                        const pathSegments = urlObj.pathname.split('/').filter(s => s);
+                        let label = pathSegments.length > 0 ? pathSegments[pathSegments.length - 1] : title;
+                        label = decodeURIComponent(label).replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                        return `- [${label}](${u}): Description for ${label}`;
+                    } catch (e) {
+                        return `- [Link](${u})`;
+                    }
+                };
+
+                if (products.length > 0) {
+                    content += `## Services & Products\n`;
+                    content += products.map(formatLine).join('\n');
+                    content += `\n\n`;
+                }
+
+                if (docs.length > 0) {
+                    content += `## Documentation\n`;
+                    content += docs.map(formatLine).join('\n');
+                    content += `\n\n`;
+                }
             }
 
             showGeoPreview('llms.txt', content);
