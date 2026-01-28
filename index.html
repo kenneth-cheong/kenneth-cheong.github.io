@@ -5477,6 +5477,10 @@
             <a href="#" onclick="showSemOnly(event)">SEM</a>
         </div>
 
+        <div class="nav-item">
+            <a href="#" onclick="openGeoUtilities(event)">GEO Utilities</a>
+        </div>
+
         <div class="nav-item" id="othersNavItem">
             <a href="#" onclick="showOthersOnly(event)">Others</a>
             <div class="dropdown-content">
@@ -7644,6 +7648,75 @@
 
         <div id="aiContentOptimiserSection">
             <div class="page-break"></div>
+            <button class="collapsible" id="geoUtilitiesBtn"><i class="fas fa-plus-square"></i><i
+                    class="fas fa-globe"></i> GEO Utilities</button>
+            <div class="content" id="geoUtilitiesSection">
+                <div class="sem-step-card">
+                    <div class="sem-card-title"><i class="fas fa-robot"></i> llms.txt Generator</div>
+                    <p style="margin-bottom: 15px; font-size: 0.9em; color: #666;">Create a standard file to guide LLMs
+                        on how to read and index your site logic.</p>
+
+                    <div class="sem-input-group">
+                        <div class="sem-input-item">
+                            <label>Site Title</label>
+                            <input type="text" id="llmSiteTitle" placeholder="e.g., Digimetrics AI">
+                        </div>
+                        <div class="sem-input-item">
+                            <label>Description</label>
+                            <textarea id="llmDescription" class="keyword-input-textarea" style="height: 60px"
+                                placeholder="Brief summary of your site's purpose for AI agents."></textarea>
+                        </div>
+                        <div class="sem-input-item">
+                            <label>Core Pages (URLs)</label>
+                            <textarea id="llmCorePages" class="keyword-input-textarea"
+                                placeholder="https://example.com/pricing\nhttps://example.com/docs"></textarea>
+                            <div class="st-custom-label">One URL per line</div>
+                        </div>
+                        <button class="btn-action" onclick="generateLlmsTxt()" style="margin-top: 10px;">Generate
+                            llms.txt</button>
+                    </div>
+                </div>
+
+                <div class="sem-step-card" style="margin-top: 20px;">
+                    <div class="sem-card-title"><i class="fas fa-cat"></i> cats.txt Generator</div>
+                    <p style="margin-bottom: 15px; font-size: 0.9em; color: #666;">Draft a 'cats.txt' (Community Agreed
+                        Traits Standard) to define your brand entity for AI personality alignment.</p>
+
+                    <div class="sem-input-group">
+                        <div class="sem-input-item">
+                            <label>Entity Name</label>
+                            <input type="text" id="catsEntityName" placeholder="e.g., MediaOne">
+                        </div>
+                        <div class="sem-input-item">
+                            <label>Personality / Traits</label>
+                            <textarea id="catsTraits" class="keyword-input-textarea"
+                                placeholder="Professional, data-driven, authoritative, helpful..."></textarea>
+                        </div>
+                        <div class="sem-input-item">
+                            <label>Key Facts / Values</label>
+                            <textarea id="catsValues" class="keyword-input-textarea"
+                                placeholder="- Established 2010\n- ISO Certified\n- Focus on enterprise SEO"></textarea>
+                        </div>
+                        <button class="btn-action" onclick="generateCatsTxt()" style="margin-top: 10px;">Generate
+                            cats.txt</button>
+                    </div>
+                </div>
+
+                <!-- Preview Area -->
+                <div id="geoFilePreview"
+                    style="display:none; margin-top: 25px; border-top: 1px solid #eee; padding-top: 20px;">
+                    <h3 id="previewTitle" style="color: #004c9d; margin-bottom: 10px;">Preview</h3>
+                    <textarea id="geoPreviewText" class="keyword-input-textarea"
+                        style="height: 300px; font-family: monospace;"></textarea>
+                    <div style="margin-top: 10px; display: flex; gap: 10px;">
+                        <button class="btn-action" id="downloadGeoBtn" style="background: #28a745;"><i
+                                class="fas fa-download"></i> Download File</button>
+                        <button class="btn-action"
+                            onclick="document.getElementById('geoFilePreview').style.display='none'"
+                            style="background: #6c757d; min-width: auto;">Close</button>
+                    </div>
+                </div>
+            </div>
             <button class="collapsible" id="aiContentOptimiserBtn"><i class="fas fa-plus-square"></i><i
                     class="fas fa-magic"></i>AI Content Optimiser</button>
             <div class="content" id="aiContentOptimiser">
@@ -9794,6 +9867,73 @@ seo agencies in singapore</textarea>
                 }
             }
             closeJourneyModal();
+        }
+
+        // GEO Utilities Logic
+        function openGeoUtilities(event) {
+            if (event) event.preventDefault();
+
+            // Ensure section is visible (it's within the 'Others' block currently)
+            showOthersOnly(event);
+
+            const geoBtn = document.getElementById('geoUtilitiesBtn');
+            const geoContent = document.getElementById('geoUtilitiesSection');
+
+            if (geoBtn && geoContent) {
+                // Toggle if needed, or force open
+                if (geoContent.style.display !== "block") {
+                    geoBtn.classList.add('active');
+                    geoContent.style.display = "block";
+                }
+                geoBtn.scrollIntoView({ behavior: 'smooth' });
+            }
+            closeJourneyModal();
+        }
+
+        function generateLlmsTxt() {
+            const title = document.getElementById('llmSiteTitle').value || 'My Website';
+            const desc = document.getElementById('llmDescription').value || '';
+            const urls = document.getElementById('llmCorePages').value || '';
+
+            let content = `# ${title}\n\n> ${desc}\n\n## Core Pages & Documentation\n\n`;
+            if (urls) {
+                content += urls.split('\n').filter(u => u.trim()).map(u => `- [${u.trim()}](${u.trim()})`).join('\n');
+            }
+
+            showGeoPreview('llms.txt', content);
+        }
+
+        function generateCatsTxt() {
+            const name = document.getElementById('catsEntityName').value || 'Entity Name';
+            const traits = document.getElementById('catsTraits').value || '';
+            const values = document.getElementById('catsValues').value || '';
+
+            let content = `# CATS.TXT for ${name}\n\n## Personality & Voice\n${traits}\n\n## Key Facts & Verification\n${values}`;
+
+            showGeoPreview('cats.txt', content);
+        }
+
+        function showGeoPreview(filename, content) {
+            const preview = document.getElementById('geoFilePreview');
+            preview.style.display = 'block';
+            document.getElementById('previewTitle').textContent = 'Preview: ' + filename;
+            document.getElementById('geoPreviewText').value = content;
+
+            // Scroll to preview
+            preview.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+            const dlBtn = document.getElementById('downloadGeoBtn');
+            // Clone to remove old listeners
+            const newBtn = dlBtn.cloneNode(true);
+            dlBtn.parentNode.replaceChild(newBtn, dlBtn);
+
+            newBtn.onclick = function () {
+                const blob = new Blob([content], { type: 'text/plain' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = filename;
+                a.click();
+            };
         }
 
         function execCmd(command, value = null) {
