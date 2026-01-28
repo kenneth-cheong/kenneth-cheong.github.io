@@ -15,6 +15,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root {
             --primary: #6366f1;
@@ -67,7 +68,7 @@
 
         aside.collapsed .logo,
         aside.collapsed .nav-label,
-        aside.collapsed .nav-item span {
+        aside.collapsed .nav-item span:not(.nav-icon) {
             opacity: 0;
             visibility: hidden;
             width: 0;
@@ -82,9 +83,31 @@
             margin-right: 0;
         }
 
-        aside.collapsed .nav-item i {
+        aside.collapsed .nav-item {
+            justify-content: center;
+            padding: 12px;
+        }
+
+        .nav-icon {
+            margin-right: 12px;
+            font-size: 1.1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            color: var(--text-dim);
+            transition: all 0.3s ease;
+        }
+
+        .nav-item:hover .nav-icon,
+        .nav-item.active .nav-icon {
+            color: var(--primary-light);
+        }
+
+        aside.collapsed .nav-icon {
             margin-right: 0;
-            font-size: 1.5rem;
+            font-size: 1.3rem;
+            width: auto;
         }
 
         aside .logo,
@@ -159,8 +182,69 @@
             color: var(--primary-light);
         }
 
-        .nav-item i {
-            margin-right: 12px;
+
+        /* Sidebar Profile */
+        .sidebar-profile {
+            margin-top: auto;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        aside.collapsed .sidebar-profile {
+            justify-content: center;
+            gap: 0;
+        }
+
+        .profile-avatar {
+            width: 40px;
+            height: 40px;
+            background: var(--gradient);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .profile-info {
+            flex: 1;
+            min-width: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        aside.collapsed .profile-info {
+            display: none;
+        }
+
+        .profile-name {
+            font-size: 0.875rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .logout-btn {
+            font-size: 0.75rem;
+            color: var(--accent);
+            cursor: pointer;
+            display: block;
+            margin-top: 4px;
+            background: none;
+            border: none;
+            padding: 0;
+            transition: opacity 0.2s;
+        }
+
+        .logout-btn:hover {
+            opacity: 0.8;
+            text-decoration: underline;
         }
 
         /* Main Content */
@@ -599,564 +683,794 @@
             color: white;
             border-color: var(--primary);
         }
+
+        /* Login Screen Overlay */
+        #loginScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-dark);
+            background-image: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.1) 0%, transparent 50%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 32px;
+            padding: 48px;
+            width: 100%;
+            max-width: 480px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+
+        .login-logo {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
+        }
+
+        .login-subtitle {
+            color: var(--text-dim);
+            margin-bottom: 40px;
+            font-size: 1rem;
+        }
+
+        #googleBtnContainer {
+            display: flex;
+            justify-content: center;
+            margin-top: 24px;
+        }
+
+        .login-error {
+            color: var(--accent);
+            background: rgba(244, 63, 94, 0.1);
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            margin-top: 24px;
+            display: none;
+        }
+
+        /* App visibility after login */
+        #recruitmentApp {
+            display: none;
+            /* Changed to flex in JS via completeLogin if needed, but flex is safer here */
+            width: 100%;
+            height: 100vh;
+            display: none;
+            /* Initially hidden */
+        }
+
+        #recruitmentApp.active {
+            display: flex;
+        }
     </style>
 </head>
 
 <body>
-    <aside id="sidebar" class="collapsed">
-        <div class="toggle-sidebar" onclick="toggleSidebar()">‹</div>
-        <div class="logo">MediaOne Recruitment</div>
+    <div id="loginScreen">
+        <div class="login-card">
+            <div class="login-logo">MediaOne Recruitment</div>
+            <div class="login-subtitle">Sign in with your Google account to access the screening platform.</div>
+            <div id="googleBtnContainer"></div>
+            <div id="loginError" class="login-error">Unauthorized account. Please contact your administrator.</div>
+        </div>
+    </div>
 
-        <nav class="nav-section">
-            <span class="nav-label">Main Menu</span>
-            <a href="#" class="nav-item active" onclick="showDashboard()" id="nav-dashboard">
-                <i>📊</i> <span>Dashboard</span>
-            </a>
-            <a href="#" class="nav-item" onclick="showJobs()" id="nav-jobs">
-                <i>💼</i> <span>Jobs Management</span>
-            </a>
-            <a href="#" class="nav-item" onclick="showCandidates()" id="nav-candidates">
-                <i>👥</i> <span>Candidates</span>
-            </a>
-        </nav>
+    <div id="recruitmentApp">
+        <aside id="sidebar" class="collapsed" onmouseenter="expandSidebar()" onmouseleave="collapseSidebar()">
+            <div class="logo">MediaOne Recruitment</div>
 
-        <nav class="nav-section">
-            <span class="nav-label">Settings</span>
-            <a href="#" class="nav-item" onclick="showUsers()" id="nav-users">
-                <i>👤</i> <span>Users Management</span>
-            </a>
-            <a href="#" class="nav-item" onclick="showAuditLogs()" id="nav-audit">
-                <i>📜</i> <span>Activity Log</span>
-            </a>
-        </nav>
+            <nav class="nav-section">
+                <span class="nav-label">Main Menu</span>
+                <a href="#" class="nav-item active" onclick="showDashboard()" id="nav-dashboard">
+                    <span class="nav-icon"><i class="fas fa-chart-pie"></i></span> <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" onclick="showJobs()" id="nav-jobs">
+                    <span class="nav-icon"><i class="fas fa-briefcase"></i></span> <span>Jobs Management</span>
+                </a>
+                <a href="#" class="nav-item" onclick="showCandidates()" id="nav-candidates">
+                    <span class="nav-icon"><i class="fas fa-user-tie"></i></span><span>Candidates</span>
+                </a>
+            </nav>
 
-    </aside>
+            <nav class="nav-section">
+                <span class="nav-label">Settings</span>
+                <a href="#" class="nav-item" onclick="showUsers()" id="nav-users">
+                    <span class="nav-icon"><i class="fas fa-user-shield"></i></span> <span>Users Management</span>
+                </a>
+                <a href="#" class="nav-item" onclick="showAuditLogs()" id="nav-audit">
+                    <span class="nav-icon"><i class="fas fa-clipboard-list"></i></span> <span>Activity Log</span>
+                </a>
+            </nav>
 
-    <main id="mainContent">
-        <section id="dashboardSection">
-            <header class="header">
-                <div>
-                    <h1>Recruitment Overview</h1>
-                    <p style="color: var(--text-dim);">Your recruitment performance at a glance.</p>
-                </div>
-            </header>
-
-            <div class="dashboard-grid">
-                <div class="card" onclick="showJobs()" style="cursor: pointer;">
-                    <div class="card-title">Total Active Jobs <span>💼</span></div>
-                    <div class="stat-value" id="stat-jobs">0</div>
-                    <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">View all listings →</p>
-                </div>
-                <div class="card" onclick="showCandidates()" style="cursor: pointer;">
-                    <div class="card-title">Total Applicants <span>👥</span></div>
-                    <div class="stat-value" id="stat-total">0</div>
-                    <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Manage candidates →</p>
-                </div>
-                <div class="card">
-                    <div class="card-title">High Quality Leads <span>🔥</span></div>
-                    <div class="stat-value" id="stat-leads" style="color: var(--secondary);">0</div>
-                    <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Top tier scoring candidates
-                    </p>
+            <!-- User Profile Section -->
+            <div class="sidebar-profile">
+                <div class="profile-avatar" id="sidebar-avatar">U</div>
+                <div class="profile-info">
+                    <div class="profile-name" id="sidebar-user-name">User Name</div>
+                    <button class="logout-btn" onclick="logout()">Logout</button>
                 </div>
             </div>
-        </section>
+        </aside>
 
-        <section id="jobsSection" style="display: none;">
-            <header class="header">
-                <div>
-                    <h1>Jobs Management</h1>
-                    <p style="color: var(--text-dim);">Create and manage your specific job descriptions and scoring
-                        criteria.</p>
-                </div>
-                <button class="btn btn-primary" onclick="createNewJob()">+ Create New Job</button>
-            </header>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Job Title</th>
-                            <th>Applicants</th>
-                            <th>Shortlisted</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="jobListBody">
-                        <!-- Jobs will be injected here -->
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <div class="action-panel" id="uploadPanel" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
-                <div>
-                    <h2 id="jobTitleDisplay">Job Title</h2>
-                    <p style="color: var(--text-dim);">Upload CVs for this specific job ad.</p>
-                </div>
-                <button class="btn" style="background: var(--glass); color: white;" onclick="closeUpload()">Back to
-                    List</button>
-            </div>
-
-            <div class="upload-area" id="dropZone">
-                <div class="upload-icon">📁</div>
-                <h3>Drop your ZIP file or multiple CVs here</h3>
-                <p style="color: var(--text-dim);">Supported formats: PDF, DOCX, Images, ZIP</p>
-                <input type="file" id="fileInput" multiple accept=".zip,.pdf,.docx,.jpg,.png" style="display: none;">
-                <div style="margin-top: 20px;">
-                    <button class="btn btn-primary"
-                        onclick="event.stopPropagation(); document.getElementById('fileInput').click()">Browse
-                        Files</button>
-                </div>
-            </div>
-
-            <div id="stagingArea"
-                style="margin-top: 24px; display: none; background: rgba(255,255,255,0.02); border-radius: 16px; padding: 20px; border: 1px solid var(--border);">
-                <h4 style="margin-bottom: 16px; color: var(--text-dim);">Items waiting to be processed</h4>
-                <div id="stagedFilesList" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
-                    <!-- Staged files here -->
-                </div>
-                <div style="display: flex; gap: 16px;">
-                    <button class="btn btn-primary" onclick="processAllStaged()">Analyze All Files</button>
-                    <button class="btn" style="background: var(--glass); color: white;" onclick="clearStaged()">Clear
-                        All</button>
-                </div>
-            </div>
-
-            <div id="processingStatus" style="margin-top: 24px; display: none;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                    <span id="statusText">Processing 3 CVs...</span>
-                    <span id="statusPercent">45%</span>
-                </div>
-                <div style="height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
-                    <div id="statusProgress"
-                        style="width: 45%; height: 100%; background: var(--gradient); transition: width 0.3s ease;">
+        <main id="mainContent">
+            <section id="dashboardSection">
+                <header class="header">
+                    <div>
+                        <h1>Recruitment Overview</h1>
+                        <p style="color: var(--text-dim);">Your recruitment performance at a glance.</p>
                     </div>
+                </header>
+
+                <div class="dashboard-grid">
+                    <div class="card" onclick="showJobs()" style="cursor: pointer;">
+                        <div class="card-title">Total Active Jobs <span>💼</span></div>
+                        <div class="stat-value" id="stat-jobs">0</div>
+                        <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">View all listings →</p>
+                    </div>
+                    <div class="card" onclick="showCandidates()" style="cursor: pointer;">
+                        <div class="card-title">Total Applicants <span>👥</span></div>
+                        <div class="stat-value" id="stat-total">0</div>
+                        <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Manage candidates →</p>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">High Quality Leads <span>🔥</span></div>
+                        <div class="stat-value" id="stat-leads" style="color: var(--secondary);">0</div>
+                        <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Top tier scoring
+                            candidates
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="jobsSection" style="display: none;">
+                <header class="header">
+                    <div>
+                        <h1>Jobs Management</h1>
+                        <p style="color: var(--text-dim);">Create and manage your specific job descriptions and scoring
+                            criteria.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="createNewJob()">+ Create New Job</button>
+                </header>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Job Title</th>
+                                <th>Applicants</th>
+                                <th>Shortlisted</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jobListBody">
+                            <!-- Jobs will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <div class="action-panel" id="uploadPanel" style="display: none;">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
+                    <div>
+                        <h2 id="jobTitleDisplay">Job Title</h2>
+                        <p style="color: var(--text-dim);">Upload CVs for this specific job ad.</p>
+                    </div>
+                    <button class="btn" style="background: var(--glass); color: white;" onclick="closeUpload()">Back to
+                        List</button>
+                </div>
+
+                <div class="upload-area" id="dropZone">
+                    <div class="upload-icon">📁</div>
+                    <h3>Drop your ZIP file or multiple CVs here</h3>
+                    <p style="color: var(--text-dim);">Supported formats: PDF, DOCX, Images, ZIP</p>
+                    <input type="file" id="fileInput" multiple accept=".zip,.pdf,.docx,.jpg,.png"
+                        style="display: none;">
+                    <div style="margin-top: 20px;">
+                        <button class="btn btn-primary"
+                            onclick="event.stopPropagation(); document.getElementById('fileInput').click()">Browse
+                            Files</button>
+                    </div>
+                </div>
+
+                <div id="stagingArea"
+                    style="margin-top: 24px; display: none; background: rgba(255,255,255,0.02); border-radius: 16px; padding: 20px; border: 1px solid var(--border);">
+                    <h4 style="margin-bottom: 16px; color: var(--text-dim);">Items waiting to be processed</h4>
+                    <div id="stagedFilesList"
+                        style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
+                        <!-- Staged files here -->
+                    </div>
+                    <div style="display: flex; gap: 16px;">
+                        <button class="btn btn-primary" onclick="processAllStaged()">Analyze All Files</button>
+                        <button class="btn" style="background: var(--glass); color: white;"
+                            onclick="clearStaged()">Clear
+                            All</button>
+                    </div>
+                </div>
+
+                <div id="processingStatus" style="margin-top: 24px; display: none;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span id="statusText">Processing 3 CVs...</span>
+                        <span id="statusPercent">45%</span>
+                    </div>
+                    <div style="height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;">
+                        <div id="statusProgress"
+                            style="width: 45%; height: 100%; background: var(--gradient); transition: width 0.3s ease;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <section id="resultsSection" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 style="margin: 0;">Top 5 Shortlist</h2>
+                    <button id="bulkDeleteBtn" class="btn"
+                        style="display: none; background: var(--accent); color: white;" onclick="bulkDelete()">Delete
+                        Selected</button>
+                </div>
+                <div class="top-shortlist" id="top5List">
+                    <!-- Shortlist cards will be injected here -->
+                </div>
+
+                <div class="table-container">
+                    <table id="candidateTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px; text-align: center;">
+                                    <input type="checkbox" id="selectAllCandidates"
+                                        onclick="toggleSelectAll('candidateTable')">
+                                </th>
+                                <th onclick="sortJobCandidates('name')" style="cursor: pointer;">Candidate Name ↕️</th>
+                                <th onclick="sortJobCandidates('date')" style="cursor: pointer;">Upload Date ↕️</th>
+                                <th onclick="sortJobCandidates('score')" style="cursor: pointer;">AI Score ↕️</th>
+                                <th>Interviewer Score</th>
+                                <th onclick="sortJobCandidates('hopper')" style="cursor: pointer;">Job Hopper ↕️</th>
+                                <th>Pending action by</th>
+                                <th onclick="sortJobCandidates('status')" style="cursor: pointer;">Status ↕️</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="candidateBody">
+                            <!-- Candidate rows will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="candidatesSection" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 style="margin: 0;">Candidates Repository</h2>
+                    <button id="bulkDeleteRepoBtn" class="btn"
+                        style="display: none; background: var(--accent); color: white;"
+                        onclick="bulkDeleteRepo()">Delete
+                        Selected</button>
+                </div>
+
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="config-grid" style="margin-top: 0; grid-template-columns: repeat(4, 1fr);">
+                        <div class="form-group">
+                            <label>Search Name</label>
+                            <input type="text" id="searchCand" placeholder="Filter by name..."
+                                oninput="filterCandidatesRepo()">
+                        </div>
+                        <div class="form-group">
+                            <label>Position Applied</label>
+                            <select id="filterPosition" onchange="filterCandidatesRepo()"
+                                style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: white; outline: none;">
+                                <option value="">All Positions</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Status</label>
+                            <select id="filterStatus" onchange="filterCandidatesRepo()"
+                                style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: white; outline: none;">
+                                <option value="">All Statuses</option>
+                                <option value="Shortlisted">Shortlisted</option>
+                                <option value="Reviewed">Reviewed</option>
+                                <option value="Pending Interview">Pending Interview</option>
+                                <option value="Rejected">Rejected</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Date Range</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="date" id="dateStart" onchange="filterCandidatesRepo()"
+                                    style="padding: 10px;">
+                                <input type="date" id="dateEnd" onchange="filterCandidatesRepo()"
+                                    style="padding: 10px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table id="repoTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px; text-align: center;">
+                                    <input type="checkbox" id="selectAllRepo" onclick="toggleSelectAll('repoTable')">
+                                </th>
+                                <th onclick="sortRepoTable('name')" style="cursor: pointer;">Name ↕️</th>
+                                <th onclick="sortRepoTable('job')" style="cursor: pointer;">Position ↕️</th>
+                                <th onclick="sortRepoTable('date')" style="cursor: pointer;">Date Applied ↕️</th>
+                                <th onclick="sortRepoTable('score')" style="cursor: pointer;">AI Score ↕️</th>
+                                <th>Interviewer Score</th>
+                                <th>Pending action by</th>
+                                <th onclick="sortRepoTable('status')" style="cursor: pointer;">Status ↕️</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="repoBody">
+                            <!-- Full list of candidates will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="usersSection" style="display: none;">
+                <div class="header">
+                    <h2>User Management</h2>
+                    <button class="btn btn-primary" onclick="openUserModal()">+ Add New User</button>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>User Name</th>
+                                <th>Email</th>
+                                <th>Access Level</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userListBody">
+                            <!-- Users will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="activityLogSection" style="display: none;">
+                <div class="header">
+                    <div>
+                        <h1>Activity Log</h1>
+                        <p style="color: var(--text-dim);">Track all system activities and record changes.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="showDashboard()">Back to Dashboard</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Description</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auditLogBody"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- Create/Edit Job Modal -->
+        <div id="jobModal" class="modal">
+            <div class="modal-content">
+                <h2 id="modalTitle">Create New Job Advertisement</h2>
+                <div class="config-grid">
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label>Job Title</label>
+                        <input type="text" id="jobTitle" placeholder="e.g. Senior Frontend Developer">
+                    </div>
+                    <div class="form-group">
+                        <label>Job Description</label>
+                        <textarea id="jobDesc" rows="8" placeholder="Paste full job description here..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Key Responsibilities & KPIs</label>
+                        <textarea id="jobKpi" rows="8"
+                            placeholder="List specific responsibilities and KPIs..."></textarea>
+                    </div>
+                </div>
+
+                <h3 style="margin: 24px 0 16px;">Scoring Weights (%)</h3>
+                <div class="config-grid">
+                    <div class="form-group">
+                        <label>Experience Match</label>
+                        <input type="number" id="wExperience" value="30">
+                    </div>
+                    <div class="form-group">
+                        <label>Skills Match</label>
+                        <input type="number" id="wSkills" value="30">
+                    </div>
+                    <div class="form-group">
+                        <label>Responsibilities Alignment</label>
+                        <input type="number" id="wResp" value="20">
+                    </div>
+                    <div class="form-group">
+                        <label>KPI Evidence Match</label>
+                        <input type="number" id="wKpi" value="20">
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 16px; margin-top: 32px;">
+                    <button class="btn" onclick="closeJobModal()"
+                        style="background: var(--glass); color: white;">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveJob()">Create Job</button>
                 </div>
             </div>
         </div>
 
-        <section id="resultsSection" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                <h2 style="margin: 0;">Top 5 Shortlist</h2>
-                <button id="bulkDeleteBtn" class="btn" style="display: none; background: var(--accent); color: white;"
-                    onclick="bulkDelete()">Delete Selected</button>
-            </div>
-            <div class="top-shortlist" id="top5List">
-                <!-- Shortlist cards will be injected here -->
-            </div>
-
-            <div class="table-container">
-                <table id="candidateTable">
-                    <thead>
-                        <tr>
-                            <th style="width: 40px; text-align: center;">
-                                <input type="checkbox" id="selectAllCandidates"
-                                    onclick="toggleSelectAll('candidateTable')">
-                            </th>
-                            <th onclick="sortJobCandidates('name')" style="cursor: pointer;">Candidate Name ↕️</th>
-                            <th onclick="sortJobCandidates('date')" style="cursor: pointer;">Upload Date ↕️</th>
-                            <th onclick="sortJobCandidates('score')" style="cursor: pointer;">AI Score ↕️</th>
-                            <th>Interviewer Score</th>
-                            <th onclick="sortJobCandidates('hopper')" style="cursor: pointer;">Job Hopper ↕️</th>
-                            <th>Pending action by</th>
-                            <th onclick="sortJobCandidates('status')" style="cursor: pointer;">Status ↕️</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="candidateBody">
-                        <!-- Candidate rows will be injected here -->
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <section id="candidatesSection" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                <h2 style="margin: 0;">Candidates Repository</h2>
-                <button id="bulkDeleteRepoBtn" class="btn"
-                    style="display: none; background: var(--accent); color: white;" onclick="bulkDeleteRepo()">Delete
-                    Selected</button>
-            </div>
-
-            <div class="card" style="margin-bottom: 24px;">
-                <div class="config-grid" style="margin-top: 0; grid-template-columns: repeat(4, 1fr);">
+        <!-- User Management Modal -->
+        <div id="userModal" class="modal">
+            <div class="modal-content">
+                <h2 id="userModalTitle">Add New User</h2>
+                <div class="config-grid">
                     <div class="form-group">
-                        <label>Search Name</label>
-                        <input type="text" id="searchCand" placeholder="Filter by name..."
-                            oninput="filterCandidatesRepo()">
+                        <label>Full Name</label>
+                        <input type="text" id="userName" placeholder="e.g. John Smith">
                     </div>
                     <div class="form-group">
-                        <label>Position Applied</label>
-                        <select id="filterPosition" onchange="filterCandidatesRepo()"
+                        <label>Email Address</label>
+                        <input type="email" id="userEmail" placeholder="e.g. john@company.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Access Role</label>
+                        <select id="userRole"
                             style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: white; outline: none;">
-                            <option value="">All Positions</option>
+                            <option value="Admin">Admin</option>
+                            <option value="Editor">Editor</option>
+                            <option value="Viewer">Viewer</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>Status</label>
-                        <select id="filterStatus" onchange="filterCandidatesRepo()"
+                        <select id="userStatus"
                             style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: white; outline: none;">
-                            <option value="">All Statuses</option>
-                            <option value="Shortlisted">Shortlisted</option>
-                            <option value="Reviewed">Reviewed</option>
-                            <option value="Pending Interview">Pending Interview</option>
-                            <option value="Rejected">Rejected</option>
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>Date Range</label>
-                        <div style="display: flex; gap: 8px;">
-                            <input type="date" id="dateStart" onchange="filterCandidatesRepo()" style="padding: 10px;">
-                            <input type="date" id="dateEnd" onchange="filterCandidatesRepo()" style="padding: 10px;">
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 16px; margin-top: 32px;">
+                    <button class="btn" onclick="closeUserModal()"
+                        style="background: var(--glass); color: white;">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveUser()">Save User</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Candidate Detail Modal -->
+        <div id="detailModal" class="modal">
+            <div class="modal-content">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px;">
+                    <div id="detailNameSection">
+                        <h2 id="detailName">John Doe</h2>
+                        <div style="display: flex; gap: 12px; align-items: center; margin-top: 8px;">
+                            <span class="badge badge-success" id="detailScore">AI Score: 92/100</span>
+                            <div
+                                style="display: flex; align-items: center; gap: 8px; background: var(--glass); padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border);">
+                                <label style="font-size: 0.75rem; color: var(--text-dim); font-weight: 600;">Interviewer
+                                    Score:</label>
+                                <input type="number" id="detailInterviewerScore" min="0" max="100"
+                                    style="width: 60px; background: transparent; border: none; color: white; font-weight: 800; font-size: 1rem; outline: none; padding: 0;"
+                                    onchange="updateInterviewerScoreFromModal(this.value)">
+                                <span style="font-weight: 800; color: var(--text-dim); margin-left: -5px;">/100</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <div class="table-container">
-                <table id="repoTable">
-                    <thead>
-                        <tr>
-                            <th style="width: 40px; text-align: center;">
-                                <input type="checkbox" id="selectAllRepo" onclick="toggleSelectAll('repoTable')">
-                            </th>
-                            <th onclick="sortRepoTable('name')" style="cursor: pointer;">Name ↕️</th>
-                            <th onclick="sortRepoTable('job')" style="cursor: pointer;">Position ↕️</th>
-                            <th onclick="sortRepoTable('date')" style="cursor: pointer;">Date Applied ↕️</th>
-                            <th onclick="sortRepoTable('score')" style="cursor: pointer;">AI Score ↕️</th>
-                            <th>Interviewer Score</th>
-                            <th>Pending action by</th>
-                            <th onclick="sortRepoTable('status')" style="cursor: pointer;">Status ↕️</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="repoBody">
-                        <!-- Full list of candidates will be injected here -->
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <section id="usersSection" style="display: none;">
-            <div class="header">
-                <h2>User Management</h2>
-                <button class="btn btn-primary" onclick="openUserModal()">+ Add New User</button>
-            </div>
-
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>User Name</th>
-                            <th>Email</th>
-                            <th>Access Level</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="userListBody">
-                        <!-- Users will be injected here -->
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <section id="activityLogSection" style="display: none;">
-            <div class="header">
-                <div>
-                    <h1>Activity Log</h1>
-                    <p style="color: var(--text-dim);">Track all system activities and record changes.</p>
-                </div>
-                <button class="btn btn-primary" onclick="showDashboard()">Back to Dashboard</button>
-            </div>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>User</th>
-                            <th>Action</th>
-                            <th>Description</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="auditLogBody"></tbody>
-                </table>
-            </div>
-        </section>
-    </main>
-
-    <!-- Create/Edit Job Modal -->
-    <div id="jobModal" class="modal">
-        <div class="modal-content">
-            <h2 id="modalTitle">Create New Job Advertisement</h2>
-            <div class="config-grid">
-                <div class="form-group" style="grid-column: span 2;">
-                    <label>Job Title</label>
-                    <input type="text" id="jobTitle" placeholder="e.g. Senior Frontend Developer">
-                </div>
-                <div class="form-group">
-                    <label>Job Description</label>
-                    <textarea id="jobDesc" rows="8" placeholder="Paste full job description here..."></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Key Responsibilities & KPIs</label>
-                    <textarea id="jobKpi" rows="8" placeholder="List specific responsibilities and KPIs..."></textarea>
-                </div>
-            </div>
-
-            <h3 style="margin: 24px 0 16px;">Scoring Weights (%)</h3>
-            <div class="config-grid">
-                <div class="form-group">
-                    <label>Experience Match</label>
-                    <input type="number" id="wExperience" value="30">
-                </div>
-                <div class="form-group">
-                    <label>Skills Match</label>
-                    <input type="number" id="wSkills" value="30">
-                </div>
-                <div class="form-group">
-                    <label>Responsibilities Alignment</label>
-                    <input type="number" id="wResp" value="20">
-                </div>
-                <div class="form-group">
-                    <label>KPI Evidence Match</label>
-                    <input type="number" id="wKpi" value="20">
-                </div>
-            </div>
-
-            <div style="display: flex; justify-content: flex-end; gap: 16px; margin-top: 32px;">
-                <button class="btn" onclick="closeJobModal()"
-                    style="background: var(--glass); color: white;">Cancel</button>
-                <button class="btn btn-primary" onclick="saveJob()">Create Job</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- User Management Modal -->
-    <div id="userModal" class="modal">
-        <div class="modal-content">
-            <h2 id="userModalTitle">Add New User</h2>
-            <div class="config-grid">
-                <div class="form-group">
-                    <label>Full Name</label>
-                    <input type="text" id="userName" placeholder="e.g. John Smith">
-                </div>
-                <div class="form-group">
-                    <label>Email Address</label>
-                    <input type="email" id="userEmail" placeholder="e.g. john@company.com">
-                </div>
-                <div class="form-group">
-                    <label>Access Role</label>
-                    <select id="userRole"
-                        style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: white; outline: none;">
-                        <option value="Admin">Admin</option>
-                        <option value="Editor">Editor</option>
-                        <option value="Viewer">Viewer</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Status</label>
-                    <select id="userStatus"
-                        style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: white; outline: none;">
-                        <option value="Active">Active</option>
-                        <option value="Inactive">Inactive</option>
-                    </select>
-                </div>
-            </div>
-            <div style="display: flex; justify-content: flex-end; gap: 16px; margin-top: 32px;">
-                <button class="btn" onclick="closeUserModal()"
-                    style="background: var(--glass); color: white;">Cancel</button>
-                <button class="btn btn-primary" onclick="saveUser()">Save User</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Candidate Detail Modal -->
-    <div id="detailModal" class="modal">
-        <div class="modal-content">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px;">
-                <div id="detailNameSection">
-                    <h2 id="detailName">John Doe</h2>
-                    <div style="display: flex; gap: 12px; align-items: center; margin-top: 8px;">
-                        <span class="badge badge-success" id="detailScore">AI Score: 92/100</span>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 12px;">
+                        <button class="btn" style="background: var(--glass); color: white;"
+                            onclick="closeDetailModal()">Close</button>
                         <div
                             style="display: flex; align-items: center; gap: 8px; background: var(--glass); padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border);">
-                            <label style="font-size: 0.75rem; color: var(--text-dim); font-weight: 600;">Interviewer
-                                Score:</label>
-                            <input type="number" id="detailInterviewerScore" min="0" max="100"
-                                style="width: 60px; background: transparent; border: none; color: white; font-weight: 800; font-size: 1rem; outline: none; padding: 0;"
-                                onchange="updateInterviewerScoreFromModal(this.value)">
-                            <span style="font-weight: 800; color: var(--text-dim); margin-left: -5px;">/100</span>
+                            <label style="font-size: 0.75rem; color: var(--text-dim); font-weight: 600;">Assign
+                                to:</label>
+                            <select id="modalAssignee"
+                                style="background: transparent; border: none; color: white; font-size: 0.875rem; outline: none; padding: 0;"
+                                onchange="updateCandidatePending(editingCandId, this.value)">
+                                <!-- Options injected by JS -->
+                            </select>
                         </div>
                     </div>
                 </div>
-                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 12px;">
-                    <button class="btn" style="background: var(--glass); color: white;"
-                        onclick="closeDetailModal()">Close</button>
-                    <div
-                        style="display: flex; align-items: center; gap: 8px; background: var(--glass); padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border);">
-                        <label style="font-size: 0.75rem; color: var(--text-dim); font-weight: 600;">Assign to:</label>
-                        <select id="modalAssignee"
-                            style="background: transparent; border: none; color: white; font-size: 0.875rem; outline: none; padding: 0;"
-                            onchange="updateCandidatePending(editingCandId, this.value)">
-                            <!-- Options injected by JS -->
-                        </select>
+
+                <div class="config-grid">
+                    <div class="card">
+                        <h4 style="margin-bottom: 12px; color: var(--secondary);">Why Shortlisted?</h4>
+                        <ul id="detailReasons" style="padding-left: 20px; color: var(--text-dim); line-height: 1.6;">
+                            <!-- AI Reasons -->
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h4 style="margin-bottom: 12px; color: var(--accent);">Analysis Summary</h4>
+                        <p id="detailSummary" style="color: var(--text-dim); font-size: 0.875rem; line-height: 1.6;">
+                        </p>
                     </div>
                 </div>
-            </div>
 
-            <div class="config-grid">
-                <div class="card">
-                    <h4 style="margin-bottom: 12px; color: var(--secondary);">Why Shortlisted?</h4>
-                    <ul id="detailReasons" style="padding-left: 20px; color: var(--text-dim); line-height: 1.6;">
-                        <!-- AI Reasons -->
-                    </ul>
+                <div style="margin-top: 32px;">
+                    <h4 style="margin-bottom: 16px;">Detailed Score Breakdown</h4>
+                    <canvas id="scoreChart" height="100"></canvas>
                 </div>
-                <div class="card">
-                    <h4 style="margin-bottom: 12px; color: var(--accent);">Analysis Summary</h4>
-                    <p id="detailSummary" style="color: var(--text-dim); font-size: 0.875rem; line-height: 1.6;"></p>
+
+                <div id="hopperSection"
+                    style="margin-top: 24px; padding: 16px; border-radius: 12px; background: rgba(244, 63, 94, 0.05); border: 1px solid rgba(244, 63, 94, 0.2); display: none;">
+                    <h4 style="color: var(--accent); margin-bottom: 8px;">⚠️ Job Hopper Alert</h4>
+                    <p id="hopperDetail" style="font-size: 0.875rem; color: var(--text-dim);"></p>
                 </div>
-            </div>
 
-            <div style="margin-top: 32px;">
-                <h4 style="margin-bottom: 16px;">Detailed Score Breakdown</h4>
-                <canvas id="scoreChart" height="100"></canvas>
-            </div>
+                <div class="interview-guide">
+                    <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 1.5rem;">📋</span> Interviewer Guide & Evaluation
+                    </h3>
 
-            <div id="hopperSection"
-                style="margin-top: 24px; padding: 16px; border-radius: 12px; background: rgba(244, 63, 94, 0.05); border: 1px solid rgba(244, 63, 94, 0.2); display: none;">
-                <h4 style="color: var(--accent); margin-bottom: 8px;">⚠️ Job Hopper Alert</h4>
-                <p id="hopperDetail" style="font-size: 0.875rem; color: var(--text-dim);"></p>
-            </div>
+                    <div style="display: grid; grid-template-columns: 3.5fr 1fr; gap: 32px; align-items: start;">
+                        <div class="card"
+                            style="background: rgba(99, 102, 241, 0.05); border-color: rgba(99, 102, 241, 0.1); padding: 0; overflow: hidden;">
+                            <div
+                                style="padding: 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <h4
+                                        style="color: var(--primary-light); display: flex; align-items: center; gap: 10px; margin: 0;">
+                                        <span style="font-size: 1.2rem;">💡</span> Interviewer Cheat Sheet & Ratings
+                                    </h4>
+                                    <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 8px;">
+                                        Click on <b>Metric</b> or <b>Question</b> text to edit. Changes auto-save.
+                                    </p>
+                                </div>
+                                <button class="btn btn-primary" style="padding: 8px 16px; font-size: 0.85rem;"
+                                    onclick="addGuideQuestion()">
+                                    <i class="fas fa-plus"></i> Add Question
+                                </button>
+                            </div>
+                            <div style="max-height: 600px; overflow-y: auto;">
+                                <table
+                                    style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem;">
+                                    <thead>
+                                        <tr style="background: rgba(15, 23, 42, 0.3);">
+                                            <th
+                                                style="text-align: left; padding: 12px 24px; color: var(--text-dim); border-bottom: 1px solid var(--border); width: 15%;">
+                                                Metric</th>
+                                            <th
+                                                style="text-align: left; padding: 12px; color: var(--text-dim); border-bottom: 1px solid var(--border); width: 25%;">
+                                                Question</th>
+                                            <th
+                                                style="text-align: left; padding: 12px; color: var(--secondary); border-bottom: 1px solid var(--border); width: 25%;">
+                                                Good Answer</th>
+                                            <th
+                                                style="text-align: left; padding: 12px; color: var(--accent); border-bottom: 1px solid var(--border); width: 20%;">
+                                                Red Flags</th>
+                                            <th
+                                                style="text-align: center; padding: 12px; color: var(--primary-light); border-bottom: 1px solid var(--border); width: 15%;">
+                                                Rating</th>
+                                            <th
+                                                style="text-align: center; padding: 12px; color: var(--accent); border-bottom: 1px solid var(--border); width: 50px;">
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cheatSheetBody">
+                                        <!-- Unified persistable rows injected by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
 
-            <div class="interview-guide">
-                <h3 style="margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
-                    <span style="font-size: 1.5rem;">📋</span> Interviewer Guide & Evaluation
-                </h3>
-
-                <div style="display: grid; grid-template-columns: 3.5fr 1fr; gap: 32px; align-items: start;">
-                    <div class="card"
-                        style="background: rgba(99, 102, 241, 0.05); border-color: rgba(99, 102, 241, 0.1); padding: 0; overflow: hidden;">
-                        <div
-                            style="padding: 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <h4
-                                    style="color: var(--primary-light); display: flex; align-items: center; gap: 10px; margin: 0;">
-                                    <span style="font-size: 1.2rem;">💡</span> Interviewer Cheat Sheet & Ratings
+                        <div style="display: flex; flex-direction: column; gap: 24px;">
+                            <div class="card" style="background: rgba(15, 23, 42, 0.4); border-color: var(--border);">
+                                <h4 style="margin-bottom: 12px; font-size: 0.875rem; color: var(--text-dim);">Quick
+                                    Prompts
                                 </h4>
-                                <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 8px;">
-                                    Click on <b>Metric</b> or <b>Question</b> text to edit. Changes auto-save.
-                                </p>
+                                <div class="quick-prompts">
+                                    <span class="prompt-chip"
+                                        onclick="addQuickComment('Highly recommended for next stage')">Next Stage</span>
+                                    <span class="prompt-chip" onclick="addQuickComment('Strong technical depth')">Strong
+                                        Tech</span>
+                                    <span class="prompt-chip" onclick="addQuickComment('Good Comm Skills')">Good
+                                        Comm</span>
+                                    <span class="prompt-chip" onclick="addQuickComment('Tech Gaps observed')">Tech
+                                        Gaps</span>
+                                    <span class="prompt-chip" onclick="addQuickComment('Cultural Fit')">Culture
+                                        Fit</span>
+                                </div>
                             </div>
-                            <button class="btn btn-primary" style="padding: 8px 16px; font-size: 0.85rem;"
-                                onclick="addGuideQuestion()">
-                                <i class="fas fa-plus"></i> Add Question
-                            </button>
-                        </div>
-                        <div style="max-height: 600px; overflow-y: auto;">
-                            <table
-                                style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem;">
-                                <thead>
-                                    <tr style="background: rgba(15, 23, 42, 0.3);">
-                                        <th
-                                            style="text-align: left; padding: 12px 24px; color: var(--text-dim); border-bottom: 1px solid var(--border); width: 15%;">
-                                            Metric</th>
-                                        <th
-                                            style="text-align: left; padding: 12px; color: var(--text-dim); border-bottom: 1px solid var(--border); width: 25%;">
-                                            Question</th>
-                                        <th
-                                            style="text-align: left; padding: 12px; color: var(--secondary); border-bottom: 1px solid var(--border); width: 25%;">
-                                            Good Answer</th>
-                                        <th
-                                            style="text-align: left; padding: 12px; color: var(--accent); border-bottom: 1px solid var(--border); width: 20%;">
-                                            Red Flags</th>
-                                        <th
-                                            style="text-align: center; padding: 12px; color: var(--primary-light); border-bottom: 1px solid var(--border); width: 15%;">
-                                            Rating</th>
-                                        <th
-                                            style="text-align: center; padding: 12px; color: var(--accent); border-bottom: 1px solid var(--border); width: 50px;">
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody id="cheatSheetBody">
-                                    <!-- Unified persistable rows injected by JS -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
 
-                    <div style="display: flex; flex-direction: column; gap: 24px;">
-                        <div class="card" style="background: rgba(15, 23, 42, 0.4); border-color: var(--border);">
-                            <h4 style="margin-bottom: 12px; font-size: 0.875rem; color: var(--text-dim);">Quick Prompts
-                            </h4>
-                            <div class="quick-prompts">
-                                <span class="prompt-chip"
-                                    onclick="addQuickComment('Highly recommended for next stage')">Next Stage</span>
-                                <span class="prompt-chip" onclick="addQuickComment('Strong technical depth')">Strong
-                                    Tech</span>
-                                <span class="prompt-chip" onclick="addQuickComment('Good Comm Skills')">Good Comm</span>
-                                <span class="prompt-chip" onclick="addQuickComment('Tech Gaps observed')">Tech
-                                    Gaps</span>
-                                <span class="prompt-chip" onclick="addQuickComment('Cultural Fit')">Culture Fit</span>
+                            <div class="card" style="background: rgba(15, 23, 42, 0.4); border-color: var(--border);">
+                                <h4 style="margin-bottom: 12px; font-size: 0.875rem; color: var(--text-dim);">Actions
+                                </h4>
+                                <button class="btn btn-primary" style="width: 100%; justify-content: center;"
+                                    onclick="downloadOriginalCV()">
+                                    <i class="fas fa-download"></i> Download CV
+                                </button>
                             </div>
-                        </div>
-
-                        <div class="card" style="background: rgba(15, 23, 42, 0.4); border-color: var(--border);">
-                            <h4 style="margin-bottom: 12px; font-size: 0.875rem; color: var(--text-dim);">Actions</h4>
-                            <button class="btn btn-primary" style="width: 100%; justify-content: center;"
-                                onclick="downloadOriginalCV()">
-                                <i class="fas fa-download"></i> Download CV
-                            </button>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div style="margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px;">
-                <h4 style="margin-bottom: 16px;">Extracted CV Text Content</h4>
-                <div id="cvTextContent"
-                    style="padding: 16px; background: rgba(15, 23, 42, 0.4); border-radius: 12px; border: 1px solid var(--border); color: var(--text-dim); font-size: 0.85rem; line-height: 1.6; max-height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace;">
-                    <!-- Raw text content will be injected here -->
+                <div style="margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px;">
+                    <h4 style="margin-bottom: 16px;">Extracted CV Text Content</h4>
+                    <div id="cvTextContent"
+                        style="padding: 16px; background: rgba(15, 23, 42, 0.4); border-radius: 12px; border: 1px solid var(--border); color: var(--text-dim); font-size: 0.85rem; line-height: 1.6; max-height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace;">
+                        <!-- Raw text content will be injected here -->
+                    </div>
                 </div>
-            </div>
 
-            <div style="margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px;">
-                <h4 style="margin-bottom: 16px;">Comments</h4>
-                <div id="commentsList"
-                    style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; max-height: 200px; overflow-y: auto;">
-                    <!-- Comments here -->
+                <div style="margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px;">
+                    <h4 style="margin-bottom: 16px;">Comments</h4>
+                    <div id="commentsList"
+                        style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; max-height: 200px; overflow-y: auto;">
+                        <!-- Comments here -->
+                    </div>
+                    <div style="display: flex; gap: 12px;">
+                        <input type="text" id="newCommentInput" placeholder="Add a comment..."
+                            style="flex: 1; padding: 12px; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; color: white; outline: none;">
+                        <button class="btn btn-primary" onclick="submitComment()">Post</button>
+                    </div>
                 </div>
-                <div style="display: flex; gap: 12px;">
-                    <input type="text" id="newCommentInput" placeholder="Add a comment..."
-                        style="flex: 1; padding: 12px; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; color: white; outline: none;">
-                    <button class="btn btn-primary" onclick="submitComment()">Post</button>
-                </div>
-            </div>
 
-            <div style="margin-top: 32px; display: flex; gap: 16px;">
-                <button class="btn btn-primary" onclick="downloadOriginalCV()">Download Original CV</button>
-                <button class="btn" style="background: rgba(244, 63, 94, 0.1); color: var(--accent);"
-                    onclick="rejectCurrentCandidate()">Reject Candidate</button>
+                <div style="margin-top: 32px; display: flex; gap: 16px;">
+                    <button class="btn btn-primary" onclick="downloadOriginalCV()">Download Original CV</button>
+                    <button class="btn" style="background: rgba(244, 63, 94, 0.1); color: var(--accent);"
+                        onclick="rejectCurrentCandidate()">Reject Candidate</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- CV Viewer Modal is removed as per user request to favor download -->
+        <!-- CV Viewer Modal is removed as per user request to favor download -->
+
+    </div> <!-- End recruitmentApp -->
 
     <script>
-        // Data Store
+        // --- Authentication & Session Management ---
+        const GOOGLE_CLIENT_ID = '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com';
+        const VERIFY_ENDPOINT = 'https://ts9k398yn8.execute-api.ap-southeast-1.amazonaws.com/googleLogin';
+
         let state = {
             jobs: [],
             activeJobId: null,
             candidates: [], // linked to jobId
             users: [],
             stagedFiles: [],
-            currentUser: 'Tom Koh',
+            currentUser: null,
+            activeUserId: null,
             apiKey: localStorage.getItem('ai_recruitment_api_key') || '',
             editingJobId: null
         };
+
+        async function handleCredentialResponse(response) {
+            const errorEl = document.getElementById('loginError');
+            errorEl.style.display = 'none';
+
+            try {
+                // 1. Verify Google Token with Backend
+                const verifyRes = await fetch(VERIFY_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ credential: response.credential })
+                });
+                const verifyData = await verifyRes.json();
+
+                // Lambda returns body as a string in some configurations
+                const payload = typeof verifyData.body === 'string' ? JSON.parse(verifyData.body) : verifyData.body;
+
+                if (!payload.success) {
+                    throw new Error(payload.message || "Google verification failed.");
+                }
+
+                const googleProfile = payload.user;
+
+                // 2. Cross-check with Recruitment Registered Users
+                const registeredUsers = await persistenceApiCall('get_users');
+                if (!Array.isArray(registeredUsers)) {
+                    throw new Error("Unable to verify user list. Please try again.");
+                }
+
+                const matchedUser = registeredUsers.find(u =>
+                    u.email.toLowerCase() === googleProfile.email.toLowerCase() &&
+                    u.status === 'Active'
+                );
+
+                if (!matchedUser) {
+                    throw new Error("Your account is not registered or is inactive. Access denied.");
+                }
+
+                // 3. Success - Set Session
+                state.currentUser = matchedUser.name;
+                state.activeUserId = matchedUser.id;
+                state.users = registeredUsers;
+
+                localStorage.setItem('recruitment_user', JSON.stringify({
+                    name: matchedUser.name,
+                    email: matchedUser.email,
+                    id: matchedUser.id,
+                    role: matchedUser.role
+                }));
+
+                completeLogin();
+
+            } catch (err) {
+                console.error("Login Error:", err);
+                errorEl.textContent = err.message;
+                errorEl.style.display = 'block';
+            }
+        }
+
+        function checkAuth() {
+            const stored = localStorage.getItem('recruitment_user');
+            if (stored) {
+                const user = JSON.parse(stored);
+                state.currentUser = user.name;
+                state.activeUserId = user.id;
+                completeLogin();
+                return true;
+            }
+
+            google.accounts.id.initialize({
+                client_id: GOOGLE_CLIENT_ID,
+                callback: handleCredentialResponse
+            });
+            google.accounts.id.renderButton(
+                document.getElementById('googleBtnContainer'),
+                { theme: "outline", size: "large", shape: "pill" }
+            );
+            return false;
+        }
+
+        function completeLogin() {
+            document.getElementById('loginScreen').style.display = 'none';
+            const app = document.getElementById('recruitmentApp');
+            app.style.display = 'flex';
+            app.classList.add('active'); // Supporting the new CSS class too
+            updateUserUI();
+            initApp();
+        }
+
+        function logout() {
+            localStorage.removeItem('recruitment_user');
+            location.reload();
+        }
+
+        function updateUserUI() {
+            if (!state.currentUser) return;
+
+            // Update all placeholders with actual user name
+            const nameEls = document.querySelectorAll('.user-name-display');
+            nameEls.forEach(el => el.textContent = state.currentUser);
+
+            // Update Sidebar Profile
+            const profileName = document.getElementById('sidebar-user-name');
+            if (profileName) profileName.textContent = state.currentUser;
+
+            // Update Avatar (first initial)
+            const avatar = document.getElementById('sidebar-avatar');
+            if (avatar) avatar.textContent = state.currentUser.charAt(0).toUpperCase();
+        }
+
+        window.addEventListener('load', () => {
+            checkAuth();
+        });
 
         let jobDetailsSort = { field: 'score', direction: 'desc' };
         let repoSort = { field: 'date', direction: 'desc' };
@@ -1375,11 +1689,14 @@
             }
         }
 
-        function toggleSidebar() {
+        function expandSidebar() {
             const sidebar = document.getElementById('sidebar');
-            const toggle = document.querySelector('.toggle-sidebar');
-            sidebar.classList.toggle('collapsed');
-            toggle.innerText = sidebar.classList.contains('collapsed') ? '›' : '‹';
+            sidebar.classList.remove('collapsed');
+        }
+
+        function collapseSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.add('collapsed');
         }
 
         function getStatusOptions(currentStatus) {
