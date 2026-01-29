@@ -721,6 +721,94 @@
             background-color: #f8faff;
         }
 
+        /* Unified style for all keyword tables */
+        .uniform-kw-table {
+            width: auto !important;
+            min-width: unset !important;
+            max-width: 100%;
+            margin-top: 15px;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: white;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+            overflow: hidden;
+            font-size: 0.85em;
+        }
+
+        .uniform-kw-table th {
+            background-color: #004c9d;
+            color: white;
+            text-align: left;
+            padding: 10px 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            white-space: nowrap;
+        }
+
+        .uniform-kw-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #333;
+            vertical-align: top;
+            word-wrap: break-word;
+        }
+
+        .uniform-kw-table tr:hover td {
+            background-color: #f8faff;
+        }
+
+        .uniform-kw-table input[type="checkbox"] {
+            width: 1.2em !important;
+            height: 1.2em !important;
+            margin: 0 !important;
+            cursor: pointer;
+        }
+
+        /* Column specific widths for uniform tables */
+        .uniform-kw-table .col-kw {
+            width: 22%;
+        }
+
+        .uniform-kw-table .col-vol {
+            width: 12%;
+        }
+
+        .uniform-kw-table .col-comp {
+            width: 12%;
+        }
+
+        .uniform-kw-table .col-rank {
+            width: 12%;
+        }
+
+        .uniform-kw-table .col-intent {
+            width: 12%;
+        }
+
+        .uniform-kw-table .col-reason {
+            width: 34%;
+        }
+
+        .uniform-kw-table .col-cpc {
+            width: 12%;
+        }
+
+        .uniform-kw-table .col-choose {
+            width: 10%;
+            text-align: center;
+        }
+
+        .uniform-kw-table.fixed-layout {
+            table-layout: fixed !important;
+            width: 100% !important;
+        }
+
         /* SERP Table Styles */
         #serp-section table {
             border-collapse: collapse;
@@ -6047,30 +6135,30 @@
                     </button>
                     <div class="content" id="keywordSuggestions">
                         <div id="keywordListContainer">
-                            <div class="keyword-row" id="keywordHeaderRow">
-                                <div class="keyword-column tooltip" onclick="sortKeywordSuggestions(0)">
-                                    <strong>Keyword</strong>
-                                    <span>Click on the keyword to see it's SERPs.</span>
-                                </div>
-                                <div class="keyword-column" onclick="sortKeywordSuggestions(1)">
-                                    <strong>Search Vol</strong>
-                                </div>
-                                <div class="keyword-column" onclick="sortKeywordSuggestions(2)">
-                                    <strong>Difficulty</strong>
-                                </div>
-                                <div class="keyword-column" onclick="sortKeywordSuggestions(3)">
-                                    <strong>CPC</strong>
-                                </div>
-                                <div class="checkbox-column"></div><strong>Choose</strong>
+                            <div class="table-container"
+                                style="max-height: 250px; overflow-y: auto; overflow-x: hidden;">
+                                <table id="keywordListTable" class="uniform-kw-table fixed-layout">
+                                    <thead id="keywordHeaderRow">
+                                        <tr>
+                                            <th class="col-kw" onclick="sortKeywordSuggestions(0)"
+                                                title="Click on the keyword to see it's SERPs.">Keyword</th>
+                                            <th class="col-vol" onclick="sortKeywordSuggestions(1)">Search Vol</th>
+                                            <th class="col-comp" onclick="sortKeywordSuggestions(2)">Difficulty</th>
+                                            <th class="col-cpc" onclick="sortKeywordSuggestions(3)">CPC</th>
+                                            <th class="col-choose">Choose</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="keywordList"></tbody>
+                                </table>
                             </div>
-                            <ul id="keywordList"></ul>
                             <div id="keywordSuggestionsExport" style="display:none">
                                 <button type="button"
-                                    onclick="exportSelectedKeywordSuggestionsToCSV(keywordHeaderRow, keywordList)">Export
+                                    onclick="exportSelectedKeywordSuggestionsToCSV(document.getElementById('keywordHeaderRow'), document.getElementById('keywordList'))">Export
                                     selected as
                                     .csv</button>
                                 <button type="button"
-                                    onclick="exportKeywordSuggestionsToCSV(keywordHeaderRow, keywordList)">Export all as
+                                    onclick="exportKeywordSuggestionsToCSV(document.getElementById('keywordHeaderRow'), document.getElementById('keywordList'))">Export
+                                    all as
                                     .csv</button>
                             </div>
                         </div>
@@ -6084,34 +6172,34 @@
                     <div class="content" id="rankingKeywords">
                         <div id="rankedKeywordsCount"></div>
                         <div id="keywordListContainer">
-                            <div class="keyword-row" id="rankedKeywordHeaderRow">
-                                <div class="keyword-column" onclick="sortRankedKeywords(0)">
-                                    <strong>Keyword</strong>
-                                </div>
-                                <div class="keyword-column" onclick="sortRankedKeywords(1)">
-                                    <strong>Search Vol</strong>
-                                </div>
-                                <div class="keyword-column" onclick="sortRankedKeywords(2)">
-                                    <strong>Rank</strong>
-                                </div>
-                                <div class="keyword-column" onclick="sortRankedKeywords(3)">
-                                    <strong>Difficulty</strong>
-                                </div>
-                                <div class="checkbox-column"></div><strong>Choose</strong>
+                            <div class="table-container"
+                                style="max-height: 250px; overflow-y: auto; overflow-x: hidden;">
+                                <table id="rankedKeywordListTable" class="uniform-kw-table fixed-layout">
+                                    <thead id="rankedKeywordHeaderRow">
+                                        <tr>
+                                            <th class="col-kw" onclick="sortRankedKeywords(0)">Keyword</th>
+                                            <th class="col-vol" onclick="sortRankedKeywords(1)">Search Vol</th>
+                                            <th class="col-rank" onclick="sortRankedKeywords(2)">Rank</th>
+                                            <th class="col-comp" onclick="sortRankedKeywords(3)">Difficulty</th>
+                                            <th class="col-choose">Choose</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="rankedKeywordList"></tbody>
+                                </table>
                             </div>
-                            <ul id="rankedKeywordList"></ul>
                             <div id="rankingKeywordsExport" style="display:none">
                                 <button type="button"
-                                    onclick="exportSelectedRankedKeywordsToCSV(rankedKeywordHeaderRow, rankedKeywordList)">Export
+                                    onclick="exportSelectedRankedKeywordsToCSV(document.getElementById('rankedKeywordHeaderRow'), document.getElementById('rankedKeywordList'))">Export
                                     selected as
                                     .csv</button>
                                 <button type="button"
-                                    onclick="exportRankedKeywordsToCSV(rankedKeywordHeaderRow, rankedKeywordList)">Export
+                                    onclick="exportRankedKeywordsToCSV(document.getElementById('rankedKeywordHeaderRow'), document.getElementById('rankedKeywordList'))">Export
                                     all as
                                     .csv</button>
                             </div>
                         </div>
-                    </div><br>
+                    </div>
+                    <br>
                     <button class="collapsible-plus" id="expandWebpageKeywords"><i
                             class="fas fa-plus-square"></i></button>
                     <button class="collapsible90" id="keywords_for_site" onclick="getWebpageKeywords(event)">Keywords
@@ -13564,8 +13652,6 @@ ${selectedText}
             const rankedKeywordList = document.getElementById('rankedKeywordList');
             rankedKeywordList.innerHTML = ''; // Clear previous keywords
 
-            const headerCells = Array.from(document.querySelectorAll('#rankedKeywordHeaderRow .keyword-column'));
-
             // 1. Transform the data:
             const rankedKeywordsArray = Object.entries(rankedKeywordsData).map(([keyword, data]) => ({
                 keyword: keyword,
@@ -13575,55 +13661,55 @@ ${selectedText}
             }));
 
             rankedKeywordsArray.forEach((keywordObj, index) => {
-                const listItem = document.createElement('li');
-                listItem.classList.add('keyword-row');
+                const row = document.createElement('tr');
 
                 // Keyword column
-                const keywordDiv = document.createElement('div');
-                keywordDiv.classList.add('keyword-column');
-                keywordDiv.style.width = `${headerCells[0].offsetWidth}px`;
-                keywordDiv.textContent = keywordObj.keyword;
-                listItem.appendChild(keywordDiv);
+                const keywordCell = document.createElement('td');
+                keywordCell.textContent = keywordObj.keyword;
+                row.appendChild(keywordCell);
 
                 // Search Volume column
-                const searchVolumeDiv = document.createElement('div');
-                searchVolumeDiv.classList.add('keyword-column');
-                searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`;
-                searchVolumeDiv.textContent = keywordObj.search_volume != null ? keywordObj.search_volume.toLocaleString() : '-'; // Handle null search volume
-                listItem.appendChild(searchVolumeDiv);
+                const searchVolumeCell = document.createElement('td');
+                searchVolumeCell.textContent = keywordObj.search_volume != null ? keywordObj.search_volume.toLocaleString() : '-';
+                row.appendChild(searchVolumeCell);
 
                 // Rank
-                const rankDiv = document.createElement('div');
-                rankDiv.classList.add('keyword-column');
-                rankDiv.style.width = `${headerCells[2].offsetWidth}px`;
-                rankDiv.textContent = keywordObj.rank || '-';
-                listItem.appendChild(rankDiv);
+                const rankCell = document.createElement('td');
+                rankCell.textContent = keywordObj.rank || '-';
+                row.appendChild(rankCell);
 
                 // Difficulty column
-                const difficultyDiv = document.createElement('div');
-                difficultyDiv.classList.add('keyword-column');
-                difficultyDiv.style.width = `${headerCells[3].offsetWidth}px`;
-                difficultyDiv.textContent = keywordObj.difficulty || '-';
-                listItem.appendChild(difficultyDiv);
+                const difficultyCell = document.createElement('td');
+                difficultyCell.textContent = keywordObj.difficulty || '-';
+                row.appendChild(difficultyCell);
 
                 // Checkbox column
-                const checkboxDiv = document.createElement('div');
-                checkboxDiv.classList.add('checkbox-column');
+                const checkboxCell = document.createElement('td');
+                checkboxCell.style.textAlign = 'center';
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.name = `chk${index + 1}`;
-                checkbox.id = `chk${index + 1}`;
                 checkbox.value = keywordObj.keyword;
                 checkbox.checked = false;
                 checkbox.addEventListener('change', updateKeywordsField);
-                checkboxDiv.appendChild(checkbox);
-                listItem.appendChild(checkboxDiv);
+                checkboxCell.appendChild(checkbox);
+                row.appendChild(checkboxCell);
 
-                rankedKeywordList.appendChild(listItem);
+                rankedKeywordList.appendChild(row);
             });
             updateRankedKeywordsCount();
             document.getElementById('rankingKeywordsExport').style.display = 'block';
-            rankedKeywordList.innerHTML += '<button type="button" id="get-more-keywords-button" onclick="getMoreRanked()">Get More Keywords</button>';
+
+            // Add "Get More" button after the table
+            const container = document.getElementById('rankingKeywords');
+            let moreBtn = document.getElementById('get-more-keywords-button');
+            if (moreBtn) moreBtn.remove();
+
+            moreBtn = document.createElement('button');
+            moreBtn.type = 'button';
+            moreBtn.id = 'get-more-keywords-button';
+            moreBtn.textContent = 'Get More Keywords';
+            moreBtn.onclick = getMoreRanked;
+            container.appendChild(moreBtn);
         }
 
         document.getElementById('rankedKeywordList').addEventListener('change', function (event) {
@@ -13758,47 +13844,46 @@ ${selectedText}
         }
 
         function appendRankedKeyword(item, index, headerCells, rankedKeywordList) {
-            const listItem = document.createElement('li');
-            listItem.classList.add('keyword-row');
+            const row = document.createElement('tr');
 
             // Column 0: Keyword
-            const keywordDiv = document.createElement('div');
-            keywordDiv.classList.add('keyword-column');
-            keywordDiv.textContent = item.keyword;
-            listItem.appendChild(keywordDiv);
+            const keywordCell = document.createElement('td');
+            keywordCell.textContent = item.keyword;
+            row.appendChild(keywordCell);
 
             // Column 1: Search Volume
-            const searchVolumeDiv = document.createElement('div');
-            searchVolumeDiv.classList.add('keyword-column');
-            searchVolumeDiv.textContent = item.search_volume || '-';
-            listItem.appendChild(searchVolumeDiv);
+            const searchVolumeCell = document.createElement('td');
+            searchVolumeCell.textContent = item.search_volume || '-';
+            row.appendChild(searchVolumeCell);
 
             // Column 2: Rank
-            const rankDiv = document.createElement('div');
-            rankDiv.classList.add('keyword-column');
-            rankDiv.textContent = item.rank || '-';
-            listItem.appendChild(rankDiv);
+            const rankCell = document.createElement('td');
+            rankCell.textContent = item.rank || '-';
+            row.appendChild(rankCell);
 
             // Column 3: Difficulty
-            const difficultyDiv = document.createElement('div');
-            difficultyDiv.classList.add('keyword-column');
-            difficultyDiv.textContent = item.difficulty || '-';
-            listItem.appendChild(difficultyDiv);
+            const difficultyCell = document.createElement('td');
+            difficultyCell.textContent = item.difficulty || '-';
+            row.appendChild(difficultyCell);
 
             // Column 4: Checkbox
-            const checkboxDiv = document.createElement('div');
-            checkboxDiv.classList.add('checkbox-column');
+            const checkboxCell = document.createElement('td');
+            checkboxCell.style.textAlign = 'center';
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.value = item.keyword;
             checkbox.addEventListener('change', updateKeywordsField);
-            checkboxDiv.appendChild(checkbox);
-            listItem.appendChild(checkboxDiv);
+            checkboxCell.appendChild(checkbox);
+            row.appendChild(checkboxCell);
 
-            rankedKeywordList.appendChild(listItem);
+            rankedKeywordList.appendChild(row);
             updateRankedKeywordsCount();
 
-            document.getElementById('rankedKeywordList').innerHTML = document.getElementById('rankedKeywordList').innerHTML.replace('<button type="button" disabled id="get-more-keywords-button" onclick="getMoreRanked()">Getting Keywords</button>', '');
+            const getMoreBtn = document.getElementById('get-more-keywords-button');
+            if (getMoreBtn) {
+                getMoreBtn.disabled = false;
+                getMoreBtn.textContent = 'Get More Keywords';
+            }
         }
 
         keywordsCache = {};
@@ -13806,8 +13891,6 @@ ${selectedText}
         function displaySimilarKeywords(keywordsData) {
             const keywordList = document.getElementById('keywordList');
             keywordList.innerHTML = ''; // Clear previous keywords
-
-            const headerCells = Array.from(document.querySelectorAll('#keywordHeaderRow .keyword-column'));
 
             // 1. Transform the data:
             const keywordsArray = Object.entries(keywordsData.body).map(([keyword, data]) => ({
@@ -13818,64 +13901,57 @@ ${selectedText}
             }));
 
             keywordsArray.forEach((keywordObj, index) => {
-                const listItem = document.createElement('li');
-                listItem.classList.add('keyword-row');
+                const row = document.createElement('tr');
 
                 // Keyword column
-                const keywordDiv = document.createElement('div');
-                keywordDiv.classList.add('keyword-column');
-                keywordDiv.style.width = `${headerCells[0].offsetWidth}px`;
-                keywordDiv.textContent = keywordObj.keyword;
-                keywordDiv.addEventListener('click', () => showSerps(keywordObj.keyword));
-                listItem.appendChild(keywordDiv);
+                const keywordCell = document.createElement('td');
+                keywordCell.textContent = keywordObj.keyword;
+                keywordCell.style.cursor = 'pointer';
+                keywordCell.addEventListener('click', () => showSerps(keywordObj.keyword));
+                row.appendChild(keywordCell);
 
                 // Search Volume column
-                const searchVolumeDiv = document.createElement('div');
-                searchVolumeDiv.classList.add('keyword-column');
-                searchVolumeDiv.style.width = `${headerCells[1].offsetWidth}px`;
-                searchVolumeDiv.textContent = keywordObj.search_volume != null ? keywordObj.search_volume.toLocaleString() : '-'; // Handle null search volume
-                listItem.appendChild(searchVolumeDiv);
+                const searchVolumeCell = document.createElement('td');
+                searchVolumeCell.textContent = keywordObj.search_volume != null ? keywordObj.search_volume.toLocaleString() : '-';
+                row.appendChild(searchVolumeCell);
 
                 // Difficulty column
-                const difficultyDiv = document.createElement('div');
-                difficultyDiv.classList.add('keyword-column');
-                difficultyDiv.style.width = `${headerCells[2].offsetWidth}px`;
-                difficultyDiv.textContent = keywordObj.competition || '-';
-                listItem.appendChild(difficultyDiv);
+                const difficultyCell = document.createElement('td');
+                difficultyCell.textContent = keywordObj.competition || '-';
+                row.appendChild(difficultyCell);
 
                 // CPC column
-                const cpcDiv = document.createElement('div');
-                cpcDiv.classList.add('keyword-column');
-                cpcDiv.style.width = `${headerCells[3].offsetWidth}px`;
-                cpcDiv.textContent = keywordObj.cpc || '-';
-                listItem.appendChild(cpcDiv);
+                const cpcCell = document.createElement('td');
+                // Round CPC to 2 decimal places if it's a number
+                const cpcValue = parseFloat(keywordObj.cpc);
+                cpcCell.textContent = !isNaN(cpcValue) ? cpcValue.toFixed(2) : (keywordObj.cpc || '-');
+                row.appendChild(cpcCell);
 
                 // Checkbox column
-                const checkboxDiv = document.createElement('div');
-                checkboxDiv.classList.add('checkbox-column');
+                const checkboxCell = document.createElement('td');
+                checkboxCell.style.textAlign = 'center';
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.name = `chk${index + 1}`;
-                checkbox.id = `chk${index + 1}`;
                 checkbox.value = keywordObj.keyword;
                 checkbox.checked = false;
                 checkbox.addEventListener('change', updateKeywordsField);
-                checkboxDiv.appendChild(checkbox);
-                listItem.appendChild(checkboxDiv);
+                checkboxCell.appendChild(checkbox);
+                row.appendChild(checkboxCell);
 
-                keywordList.appendChild(listItem);
+                keywordList.appendChild(row);
 
                 keywordsCache[keywordObj.keyword] = {};
                 keywordsCache[keywordObj.keyword]['search_vol'] = keywordObj.search_volume != null ? keywordObj.search_volume.toLocaleString() : '-';
                 keywordsCache[keywordObj.keyword]['competition'] = keywordObj.competition;
-                keywordsCache[keywordObj.keyword]['cpc'] = keywordObj.cpc;
+                // Cache the rounded CPC as well for consistency if needed elsewhere
+                keywordsCache[keywordObj.keyword]['cpc'] = !isNaN(cpcValue) ? cpcValue.toFixed(2) : (keywordObj.cpc || '-');
             });
             document.getElementById('keywordSuggestionsExport').style.display = 'block';
         }
 
         function updateRankedKeywordsCount() {
             const rankedKeywordList = document.getElementById('rankedKeywordList');
-            const count = rankedKeywordList.querySelectorAll('li.keyword-row').length; // Count only the keyword rows (li elements)
+            const count = rankedKeywordList.querySelectorAll('tr').length; // Count table rows instead of li
             const heading = document.getElementById('rankedKeywordsCount');
             heading.textContent = `Ranked Keywords (${count}):`; // Update the heading text
         }
@@ -14891,69 +14967,58 @@ ${selectedText}
             }
         }
 
-        function sortKeywordSuggestions(column) {
+        const keywordSortDirection = { 0: 'asc', 1: 'asc', 2: 'asc', 3: 'asc' };
+
+        function sortKeywordSuggestions(columnIndex) {
             const keywordList = document.getElementById('keywordList');
-            const listItems = Array.from(keywordList.children);
+            const rows = Array.from(keywordList.querySelectorAll('tr'));
+            const isNumeric = columnIndex === 1 || columnIndex === 2 || columnIndex === 3;
 
-            if (column === currentKeywordSortColumn) {
-                keywordSortAscending = !keywordSortAscending;
-            } else {
-                keywordSortAscending = true;
-                currentKeywordSortColumn = column;
-            }
+            rows.sort((a, b) => {
+                let valA = a.cells[columnIndex].innerText.trim().replace(/,/g, '');
+                let valB = b.cells[columnIndex].innerText.trim().replace(/,/g, '');
 
-            listItems.sort((a, b) => {
-                const aValue = a.children[column].textContent;
-                const bValue = b.children[column].textContent;
-
-                // Convert to number for sorting if possible
-                const aNum = parseFloat(aValue.replace(/,/g, ''));
-                const bNum = parseFloat(bValue.replace(/,/g, ''));
-
-                if (!isNaN(aNum) && !isNaN(bNum)) {
-                    return keywordSortAscending ? aNum - bNum : bNum - aNum;
+                if (isNumeric) {
+                    valA = valA === '-' ? -1 : parseFloat(valA);
+                    valB = valB === '-' ? -1 : parseFloat(valB);
+                    return keywordSortDirection[columnIndex] === 'asc' ? valA - valB : valB - valA;
                 } else {
-                    return keywordSortAscending
-                        ? aValue.localeCompare(bValue)
-                        : bValue.localeCompare(aValue);
+                    return keywordSortDirection[columnIndex] === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
                 }
             });
 
-            listItems.forEach(item => keywordList.appendChild(item));
+            // Toggle direction
+            keywordSortDirection[columnIndex] = keywordSortDirection[columnIndex] === 'asc' ? 'desc' : 'asc';
+
+            // Re-append sorted rows
+            rows.forEach(row => keywordList.appendChild(row));
         }
 
-        function sortRankedKeywords(column) {
-            const keywordList = document.getElementById('rankedKeywordList');
-            const listItems = Array.from(keywordList.children);
+        const rankedKeywordSortDirection = { 0: 'asc', 1: 'asc', 2: 'asc', 3: 'asc' };
 
-            // Toggle sort direction if same column is clicked
-            if (column === currentRankedKeywordSortColumn) {
-                rankedKeywordSortAscending = !rankedKeywordSortAscending;
-            } else {
-                rankedKeywordSortAscending = true;
-                currentRankedKeywordSortColumn = column;
-            }
+        function sortRankedKeywords(columnIndex) {
+            const rankedKeywordList = document.getElementById('rankedKeywordList');
+            const rows = Array.from(rankedKeywordList.querySelectorAll('tr'));
+            const isNumeric = columnIndex === 1 || columnIndex === 2 || columnIndex === 3;
 
-            listItems.sort((a, b) => {
-                try {
-                    const aValue = a.children[column].textContent.trim();
-                    const bValue = b.children[column].textContent.trim();
+            rows.sort((a, b) => {
+                let valA = a.cells[columnIndex].innerText.trim().replace(/,/g, '');
+                let valB = b.cells[columnIndex].innerText.trim().replace(/,/g, '');
 
-                    const aNum = parseFloat(aValue.replace(/,/g, ''));
-                    const bNum = parseFloat(bValue.replace(/,/g, ''));
-
-                    if (!isNaN(aNum) && !isNaN(bNum)) {
-                        return rankedKeywordSortAscending ? aNum - bNum : bNum - aNum;
-                    } else {
-                        return rankedKeywordSortAscending
-                            ? aValue.localeCompare(bValue)
-                            : bValue.localeCompare(aValue);
-                    }
-                } catch (error) {
+                if (isNumeric) {
+                    valA = valA === '-' ? -1 : parseFloat(valA);
+                    valB = valB === '-' ? -1 : parseFloat(valB);
+                    return rankedKeywordSortDirection[columnIndex] === 'asc' ? valA - valB : valB - valA;
+                } else {
+                    return rankedKeywordSortDirection[columnIndex] === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
                 }
             });
 
-            listItems.forEach(item => keywordList.appendChild(item));
+            // Toggle direction
+            rankedKeywordSortDirection[columnIndex] = rankedKeywordSortDirection[columnIndex] === 'asc' ? 'desc' : 'asc';
+
+            // Re-append sorted rows
+            rows.forEach(row => rankedKeywordList.appendChild(row));
         }
 
         selectedItems = {};
@@ -16647,16 +16712,16 @@ ${selectedText}
             }
             //ADD A PARAGRAPH TO TRACK SELECTED KEYWORDS
             container.innerHTML = `
-            <div class="table-container" style="max-height:450px; overflow:auto; border: 1px solid #e0e6ed; border-radius: 8px;">
-              <table class="keywords-table">
+            <div class="table-container" style="max-height:250px; overflow-y: auto; overflow-x: hidden; border: 1px solid #e0e6ed; border-radius: 8px;">
+              <table class="uniform-kw-table fixed-layout">
                 <thead>
                     <tr>
-                        <th class="kw-col-keyword" onclick="sortSiteTable('keyword')">Keyword</th>
-                        <th class="kw-col-volume" onclick="sortSiteTable('search_volume')">Search Vol</th>
-                        <th class="kw-col-comp" onclick="sortSiteTable('competition')">Comp.</th>
-                        <th class="kw-col-intent" onclick="sortSiteTable('search_intent')">Intent</th>
-                        <th class="kw-col-reason" onclick="sortSiteTable('reason_for_choosing')">Reason</th>
-                        <th class="kw-col-choose">Choose</th>
+                        <th class="col-kw" onclick="sortSiteTable('keyword')">Keyword</th>
+                        <th class="col-vol" onclick="sortSiteTable('search_volume')">Search Vol</th>
+                        <th class="col-comp" onclick="sortSiteTable('competition')">Comp.</th>
+                        <th class="col-intent" onclick="sortSiteTable('search_intent')">Intent</th>
+                        <th class="col-reason" onclick="sortSiteTable('reason_for_choosing')">Reason</th>
+                        <th class="col-choose">Choose</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -16671,11 +16736,11 @@ ${selectedText}
                 const row = document.createElement('tr');
                 row.innerHTML = `
                         <td>${item.keyword}</td>
-                        <td>${item.search_volume}</td>
-                        <td>${item.competition}</td>
-                        <td>${item.search_intent}</td>
-                        <td>${item.reason_for_choosing}</td>
-                        <td><input type="checkbox" value="${item.keyword}" onchange="updateSiteKeywords(this)"></td>
+                        <td>${item.search_volume != null ? item.search_volume.toLocaleString() : '-'}</td>
+                        <td>${item.competition || '-'}</td>
+                        <td>${item.search_intent || '-'}</td>
+                        <td>${item.reason_for_choosing || '-'}</td>
+                        <td style="text-align: center;"><input type="checkbox" value="${item.keyword}" onchange="updateSiteKeywords(this)"></td>
                     `;
                 tbody.appendChild(row);
             });
