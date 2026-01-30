@@ -307,9 +307,26 @@
             border-top: 1px solid #eee;
         }
 
+        .keywords-tab {
+            max-height: 350px;
+            overflow-y: auto;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
         .keyword-density-table td {
             padding: 8px 6px !important;
             font-size: 0.9em;
+        }
+
+        .keyword-density-table th {
+            position: sticky;
+            top: 0;
+            background: #004c9d;
+            color: white;
+            z-index: 5;
+            padding: 8px 6px;
+            font-size: 0.8em;
+            text-transform: uppercase;
         }
 
         .keyword-density-table tr:hover {
@@ -10864,7 +10881,8 @@ seo agencies in singapore</textarea>
                 .sort((a, b) => b.avgQty - a.avgQty); // Sort by target frequency
 
             if (aggregated.length === 0) {
-                listContainer.innerHTML = '<p style="text-align: center; color: #999; font-style: italic; margin-top:20px;">No common keywords found across competitors yet.</p>';
+                listContainer.innerHTML = '<p style="text-align: center; color: #999; margin-top:20px; font-style: italic;">No common keywords found across competitors yet.</p>';
+                if (document.getElementById('kwsFound')) document.getElementById('kwsFound').innerText = "0";
                 return;
             }
 
@@ -11162,13 +11180,18 @@ seo agencies in singapore</textarea>
         OPTIMISER_ENDPOINTS.KEYWORD_FREQ = "https://de0bccf9w7.execute-api.ap-southeast-1.amazonaws.com/keywordDensity";
 
         async function analyzeKeywordFrequency() {
+            // Priority 1: If we have aggregated competitor data, use it
+            if (Object.keys(competitorKeywordsAggregator).length > 0) {
+                renderKeywordAggregation();
+                return;
+            }
+
             const content = document.getElementById('editorContent').innerHTML;
             const listContainer = document.getElementById('keywordFrequencyList');
             const btn = document.querySelector('.btn-keywords');
             const originalContent = btn.innerHTML;
 
             if (OPTIMISER_ENDPOINTS.KEYWORD_FREQ === 'YOUR_KEYWORD_FREQ_LAMBDA_URL') {
-                // Fallback to basic local analysis if no URL provided
                 runLocalKeywordAnalysis();
                 return;
             }
@@ -11185,8 +11208,6 @@ seo agencies in singapore</textarea>
                 const data = await response.json();
                 const result = parseLambdaResponse(data);
 
-                console.log("Keyword Freq Parsed Result:", result);
-
                 listContainer.innerHTML = "";
                 if (result.keywords && result.keywords.length > 0) {
                     result.keywords.forEach(kw => {
@@ -11201,13 +11222,14 @@ seo agencies in singapore</textarea>
                         `;
                         listContainer.appendChild(item);
                     });
-                    document.getElementById('kwsFound').innerText = result.keywords.length;
+                    if (document.getElementById('kwsFound')) document.getElementById('kwsFound').innerText = result.keywords.length;
                 } else {
-                    listContainer.innerHTML = '<p style="text-align: center; color: #999; margin-top:20px;">No keywords found.</p>';
+                    listContainer.innerHTML = '<p style="text-align: center; color: #999; margin-top:20px; font-style: italic;">No focus keywords found in editor.</p>';
+                    if (document.getElementById('kwsFound')) document.getElementById('kwsFound').innerText = "0";
                 }
             } catch (error) {
                 console.error("Keyword Freq Error:", error);
-                runLocalKeywordAnalysis(); // Final fallback
+                runLocalKeywordAnalysis();
             } finally {
                 btn.innerHTML = originalContent;
                 btn.disabled = false;
