@@ -296,6 +296,26 @@
             color: #888;
         }
 
+        .design-insights-table td span.status-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .keyword-density-table {
+            border-top: 1px solid #eee;
+        }
+
+        .keyword-density-table td {
+            padding: 8px 6px !important;
+            font-size: 0.9em;
+        }
+
+        .keyword-density-table tr:hover {
+            background: #f8fbff;
+        }
+
         .geo-tag {
             background: #eef1f5;
             color: #4b5563;
@@ -11052,6 +11072,8 @@ seo agencies in singapore</textarea>
                 btn.disabled = false;
             }
         }
+
+        OPTIMISER_ENDPOINTS.KEYWORD_FREQ = "https://de0bccf9w7.execute-api.ap-southeast-1.amazonaws.com/keywordDensity";
 
         async function analyzeKeywordFrequency() {
             const content = document.getElementById('editorContent').innerHTML;
@@ -22048,6 +22070,7 @@ INSTRUCTIONS:
                     <div class="competitor-card-toggle">
                         <button class="active" onclick="switchCompetitorCardTab('${cardId}', 'content')">Content</button>
                         <button onclick="switchCompetitorCardTab('${cardId}', 'design')">Design</button>
+                        <button onclick="switchCompetitorCardTab('${cardId}', 'keywords', '${url.replace(/'/g, "\\'")}')">Keywords</button>
                     </div>
 
                     <div class="tab-content content-tab">
@@ -22073,6 +22096,12 @@ INSTRUCTIONS:
                     <div class="tab-content design-tab" style="display: none;">
                         ${renderDesignInsightsHtml(designData)}
                     </div>
+
+                    <div class="tab-content keywords-tab" style="display: none;">
+                        <div class="keywords-loading" style="text-align: center; padding: 20px; color: #999; font-size: 0.85em;">
+                            <i class="fas fa-spinner fa-spin"></i> Analyzing keywords...
+                        </div>
+                    </div>
                 `;
             } else {
                 return `
@@ -22093,7 +22122,7 @@ INSTRUCTIONS:
             }
         }
 
-        function switchCompetitorCardTab(cardId, tabType) {
+        function switchCompetitorCardTab(cardId, tabType, url = null) {
             const card = document.getElementById(cardId);
             if (!card) return;
 
@@ -22102,13 +22131,71 @@ INSTRUCTIONS:
 
             const contentTab = card.querySelector('.content-tab');
             const designTab = card.querySelector('.design-tab');
+            const keywordsTab = card.querySelector('.keywords-tab');
 
-            if (tabType === 'content' && contentTab && designTab) {
-                contentTab.style.display = 'block';
-                designTab.style.display = 'none';
-            } else if (tabType === 'design' && contentTab && designTab) {
-                contentTab.style.display = 'none';
-                designTab.style.display = 'block';
+            if (tabType === 'content') {
+                if (contentTab) contentTab.style.display = 'block';
+                if (designTab) designTab.style.display = 'none';
+                if (keywordsTab) keywordsTab.style.display = 'none';
+            } else if (tabType === 'design') {
+                if (contentTab) contentTab.style.display = 'none';
+                if (designTab) designTab.style.display = 'block';
+                if (keywordsTab) keywordsTab.style.display = 'none';
+            } else if (tabType === 'keywords') {
+                if (contentTab) contentTab.style.display = 'none';
+                if (designTab) designTab.style.display = 'none';
+                if (keywordsTab) keywordsTab.style.display = 'block';
+
+                if (url && !keywordsTab.dataset.loaded) {
+                    fetchAndRenderKeywords(cardId, url);
+                }
+            }
+        }
+
+        async function fetchAndRenderKeywords(cardId, url) {
+            const card = document.getElementById(cardId);
+            const container = card.querySelector('.keywords-tab');
+            if (!container) return;
+
+            try {
+                const response = await fetch('https://de0bccf9w7.execute-api.ap-southeast-1.amazonaws.com/keywordDensity', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target: url })
+                });
+
+                const data = await response.json();
+                const keywords = parseLambdaResponse(data);
+
+                if (keywords && Array.isArray(keywords)) {
+                    let html = `
+                        <table class="competitor-table keyword-density-table">
+                            <thead>
+                                <tr>
+                                    <th>Keyword</th>
+                                    <th style="text-align: center;">Qty</th>
+                                    <th style="text-align: right;">%</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${keywords.slice(0, 50).map(item => `
+                                    <tr>
+                                        <td>${item.keyword}</td>
+                                        <td style="text-align: center;">${item.frequency}</td>
+                                        <td style="text-align: right;">${(item.density || 0).toFixed(1)}%</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                    container.innerHTML = html;
+                    container.dataset.loaded = "true";
+                } else {
+                    container.innerHTML = '<p style="text-align: center; padding: 10px; color: #999; font-size: 0.85em;">No keyword data found.</p>';
+                }
+            } catch (error) {
+                console.error("Keyword fetch error:", error);
+                container.innerHTML = '<p style="text-align: center; padding: 10px; color: #999; font-size: 0.85em;">Failed to load keywords.</p>';
             }
         }
 
