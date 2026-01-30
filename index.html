@@ -7777,6 +7777,14 @@
                         <label for="persona_manual">Any other information (optional):</label>
                         <textarea id="persona_manual" placeholder="Focus on this product."></textarea>
                     </div>
+                    <button id="researchPersonaBtn" class="btn-action" style="margin-top: 15px;"
+                        onclick="researchPersonaProducts()">Research Product Offerings</button>
+                    <div id="persona_products_container" class="sem-input-item"
+                        style="margin-top: 15px; display: none;">
+                        <label for="persona_products">Verified Product Offerings (Edit if needed):</label>
+                        <textarea id="persona_products" rows="6"
+                            placeholder="The AI will fill this, or you can type here..."></textarea>
+                    </div>
                     <button id="generatePersonaBtn" class="config-btn-highlight" style="margin-top: 25px;"
                         onclick="generatePersona()">Generate 10 Personas</button>
                 </div>
@@ -16295,6 +16303,50 @@ ${selectedText}
             return names;
         }
 
+        async function researchPersonaProducts() {
+            const btn = document.getElementById("researchPersonaBtn");
+            const webpagesInput = document.getElementById("persona_webpages").value;
+            const manualInput = document.getElementById("persona_manual").value;
+            const container = document.getElementById("persona_products_container");
+            const resultArea = document.getElementById("persona_products");
+
+            if (!webpagesInput && !manualInput) {
+                alert("Please provide at least a URL or some information to research.");
+                return;
+            }
+
+            btn.innerText = "Researching...";
+            document.getElementById("persona").style.backgroundColor = "#004c9d";
+            updateCollapsibleState('persona', 'running');
+
+            try {
+                const response = await fetch("https://tyqj3fni7h.execute-api.ap-southeast-1.amazonaws.com/personaGenerator", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        action: 'research',
+                        data: webpagesInput,
+                        manual: manualInput
+                    })
+                });
+
+                if (!response.ok) throw new Error("Research failed.");
+                const data = await response.json();
+
+                resultArea.value = data.body;
+                container.style.display = "block";
+                btn.innerText = "Re-research Products";
+                document.getElementById("persona").style.backgroundColor = "green";
+                updateCollapsibleState('persona', 'success');
+            } catch (error) {
+                console.error("Research failed:", error);
+                alert("Research failed: " + error.message);
+                btn.innerText = "Research Product Offerings";
+                document.getElementById("persona").style.backgroundColor = "red";
+                updateCollapsibleState('persona', 'error');
+            }
+        }
+
         async function generatePersona() {
             const btn = document.getElementById("generatePersonaBtn");
             const isMore = btn.innerText.includes("10 more") || btn.innerText.includes("5 more");
@@ -16303,39 +16355,33 @@ ${selectedText}
             updateCollapsibleState('persona', 'running');
             const webpagesInput = document.getElementById("persona_webpages").value;
             const manualInput = document.getElementById("persona_manual").value;
-            const webpages = webpagesInput.split(/[\s,]+/).filter(url => url.trim() !== "");
+            const verifiedProducts = document.getElementById("persona_products").value;
             const personaContentDiv = document.getElementById("persona-results");
-            let combinedResponses = "";
+            let combinedContext = verifiedProducts || webpagesInput;
+
+            // If we have verified products, we don't necessarily need to perform contentParsing again 
+            // unless the user wants to supplement it. For now, let's treat verifiedProducts as primary.
 
             try {
-                // Fetch data from all URLs concurrently using Promise.all
-                const responses = await Promise.all(
-                    webpages.map(async url => {
-                        try {
-                            const response = await fetch("https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing", {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json"
-                                },
-                                body: JSON.stringify({ url: url })
-                            });
+                let contextToSend = combinedContext;
 
-                            if (!response.ok) {
-                                throw new Error(`HTTP error! status: ${response.status} for URL: ${url}`);
-                            }
-
-                            return await response.json(); // Return the parsed JSON data
-                        } catch (error) {
-                            console.error(`Error fetching data from ${url}:`, error);
-                            return null; // Return null in case of an error
-                        }
-                    })
-                );
-
-                // Combine the responses
-                combinedResponses = responses.filter(response => response !== null).map(response => JSON.stringify(response)).join("\n");
-
-                console.log(combinedResponses);
+                // Only do URL scraping if verifiedProducts is empty and URLs exist
+                if (!verifiedProducts && webpagesInput.trim()) {
+                    const webpages = webpagesInput.split(/[\s,]+/).filter(url => url.trim() !== "");
+                    const responses = await Promise.all(
+                        webpages.map(async url => {
+                            try {
+                                const resp = await fetch("https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ url: url })
+                                });
+                                return resp.ok ? await resp.json() : null;
+                            } catch (e) { return null; }
+                        })
+                    );
+                    contextToSend = responses.filter(r => r !== null).map(r => JSON.stringify(r)).join("\n");
+                }
 
                 // Send combined responses to the second API
                 try {
@@ -16345,7 +16391,7 @@ ${selectedText}
                             "Content-Type": "application/json"
                         },
                         body: JSON.stringify({
-                            data: combinedResponses,
+                            data: contextToSend,
                             manual: manualInput,
                             existing_personas: getExistingPersonaNames()
                         })
