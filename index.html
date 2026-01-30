@@ -458,6 +458,7 @@
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 15px;
             margin-top: 20px;
+            margin-bottom: 20px;
         }
 
         .summary-card {
@@ -6472,6 +6473,13 @@
                             <div id="dataForSeoCost" style="display: none; width: 100%; margin-top: 15px;"></div>
                         </div>
 
+                        <div style="margin: 20px 0 10px 0;">
+                            <a href="https://docs.dataforseo.com/v3/on_page/pages/" target="_blank"
+                                style="color: #004c9d; text-decoration: underline; font-weight: 600; font-size: 0.9em;">
+                                <i class="fas fa-info-circle" style="margin-right: 5px;"></i> Click here to see what
+                                each card means in the report
+                            </a>
+                        </div>
                         <div id="auditSummary"></div>
 
                         <button class="collapsible" id="gtButton"><i class="fas fa-plus-square"></i>GTmetrix
@@ -12301,6 +12309,7 @@ ${selectedText}
                     console.log("Webpage Audit Raw:", webpage_audit_data_raw);
                     const webpage_audit_data = parseLambdaResponse(webpage_audit_data_raw);
                     console.log("Webpage Audit Parsed:", webpage_audit_data);
+                    globalWebpageAuditData = webpage_audit_data; // Fix: Add missing assignment
 
                     document.getElementById('malware').textContent = webpage_audit_data.malware || 'N/A';
                     document.getElementById('sitemap').innerHTML = webpage_audit_data.sitemap ? `<a href="${webpage_audit_data.sitemap}" target="_blank" style="color: #004c9d; text-decoration: underline;">${webpage_audit_data.sitemap}</a>` : 'N/A';
@@ -12324,6 +12333,9 @@ ${selectedText}
             // Trigger DataForSEO Crawler
             initiateDataForSEOCrawl();
         });
+
+        // Global state for initial audit
+        let globalWebpageAuditData = null;
 
         // DataForSEO Crawler State
         let dataForSeoTaskId = null;
@@ -16421,18 +16433,56 @@ ${selectedText}
         function downloadResultsAsXlsx() {
             const wb = XLSX.utils.book_new();
 
-            // Add auditSummary tab
-            const auditSummaryTables = document.getElementById('auditSummary').querySelectorAll('table');
+            // Rebuild auditSummary Data manually from current state
             let auditSummaryData = [];
+            auditSummaryData.push(["Technical SEO Audit Summary"]);
+            auditSummaryData.push([]); // Spacer
 
-            auditSummaryTables.forEach((table, tableIndex) => {
-                const tableData = extractTableData(table);
-
-                // Add a blank row between tables (if it's not the first table)
-                if (tableIndex > 0) {
-                    auditSummaryData.push([]);
+            // 1. High-Level Audit Results
+            if (globalWebpageAuditData) {
+                auditSummaryData.push(["High-Level Site Checks"]);
+                const malwareStatus = globalWebpageAuditData.malware || 'None Detected';
+                if (malwareStatus !== 'None Detected' && malwareStatus !== 'N/A') {
+                    auditSummaryData.push(["Malware Detected", malwareStatus]);
                 }
-                auditSummaryData = auditSummaryData.concat(tableData);
+
+                const psScore = parseFloat(globalWebpageAuditData.pagespeed);
+                if (!isNaN(psScore) && psScore < 50) {
+                    auditSummaryData.push(["Low PageSpeed (Mobile)", psScore + " / 100"]);
+                }
+
+                const robots = (globalWebpageAuditData.robots || '').toLowerCase();
+                const isBlocked = /user-agent:\s*\*[\s\S]*?disallow:\s*\/\s*($|\n)/i.test(robots) ||
+                    /user-agent:\s*googlebot[\s\S]*?disallow:\s*\/\s*($|\n)/i.test(robots);
+                if (isBlocked) {
+                    auditSummaryData.push(["Googlebot Status", "Blocked in robots.txt"]);
+                }
+                auditSummaryData.push([]); // Spacer
+            }
+
+            // 2. Technical Check Issues
+            auditSummaryData.push(["Technical Issues Found", "Affected Pages", "Total Pages"]);
+            const totalPages = dataForSeoCrawlItems.length || 0;
+            const counts = {};
+            DATA_FOR_SEO_CHECK_KEYS.forEach(key => counts[key] = 0);
+
+            dataForSeoCrawlItems.forEach(item => {
+                DATA_FOR_SEO_CHECK_KEYS.forEach(key => {
+                    if (item[key] === true || item[key] === "true") {
+                        counts[key]++;
+                    }
+                });
+            });
+
+            DATA_FOR_SEO_CHECK_KEYS.forEach(key => {
+                const count = counts[key];
+                const isPositive = DATA_FOR_SEO_POSITIVE_KEYS.includes(key);
+                const numIssues = isPositive ? (totalPages - count) : count;
+
+                if (numIssues > 0) {
+                    const displayTitle = key.replace('checks.', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    auditSummaryData.push([displayTitle, count, totalPages]);
+                }
             });
 
             const auditSummaryWS = XLSX.utils.aoa_to_sheet(auditSummaryData);
@@ -16449,9 +16499,21 @@ ${selectedText}
             XLSX.utils.book_append_sheet(wb, pageAnalysisWS, 'pageAnalysis');
 
 
-            // Add crawlerSection tab
-            const crawlerData = extractTableData(document.getElementById('crawlerReport').querySelector('table'));
-            const crawlerWS = XLSX.utils.aoa_to_sheet(crawlerData);
+            // Add crawlerSection tab - Export ALL columns
+            let fullCrawlerData = [dataForSeoDynamicHeaders];
+            dataForSeoCrawlItems.forEach((item, index) => {
+                let rowData = [];
+                dataForSeoDynamicHeaders.forEach(h => {
+                    if (h === "No.") {
+                        rowData.push(index + 1);
+                    } else {
+                        rowData.push(item[h] !== undefined ? item[h] : '');
+                    }
+                });
+                fullCrawlerData.push(rowData);
+            });
+
+            const crawlerWS = XLSX.utils.aoa_to_sheet(fullCrawlerData);
             XLSX.utils.book_append_sheet(wb, crawlerWS, 'crawlerSection');
 
             XLSX.writeFile(wb, 'technical_seo_results.xlsx');
