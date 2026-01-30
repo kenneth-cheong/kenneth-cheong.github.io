@@ -63,7 +63,7 @@ Output ONLY a JSON array of the cleaned keywords. No other text.
                 cleaned_keywords = json.loads(cleaned_text)
                 return {
                     'statusCode': 200,
-                    'body': json.dumps(cleaned_keywords)
+                    'body': cleaned_keywords
                 }
             except:
                 return {

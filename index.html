@@ -2324,7 +2324,7 @@
 
         /* Keyword List */
         .keyword-freq-list {
-            max-height: 300px;
+            max-height: 500px;
             overflow-y: auto;
             margin-top: 15px;
         }
@@ -10875,7 +10875,7 @@ seo agencies in singapore</textarea>
 
             // 2. Filter keywords that appear in at least 2 cards
             let aggregated = Object.entries(allKws)
-                .filter(([kw, data]) => data.cardCount >= 2)
+                .filter(([kw, data]) => data.cardCount >= 1)
                 .map(([kw, data]) => {
                     const avgQty = Math.ceil(data.countSum / data.cardCount);
 
@@ -10928,6 +10928,21 @@ seo agencies in singapore</textarea>
             }
         }
 
+        // Configuration for AI Content Optimiser Lambda Endpoints
+        const OPTIMISER_ENDPOINTS = {
+            SEO_ANALYSIS: 'https://diyjtwnt4l.execute-api.ap-southeast-1.amazonaws.com/seoContentAnalysisScore',
+            CONTENT_AI: 'https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser',
+            KEYWORD_FREQ: 'https://qtd6t9voui.execute-api.ap-southeast-1.amazonaws.com/keywordFrequency',
+            PLAGIARISM: 'https://tg6m9b7gsj.execute-api.ap-southeast-1.amazonaws.com/plagarismCheck',
+            IMAGE_ALT: 'https://ty3ndlwcnk.execute-api.ap-southeast-1.amazonaws.com/altTextGenerator',
+            GSC_INTEGRATION: 'https://v5gyq2sqdd.execute-api.ap-southeast-1.amazonaws.com/gscIntegration',
+            COMPLIANCE_RECOMMENDER: 'https://0jincjjy14.execute-api.ap-southeast-1.amazonaws.com/complianceRecommender',
+            DESIGN_ANALYSIS: 'https://bzedwsy4mb.execute-api.ap-southeast-1.amazonaws.com/pageDesignAnalysis',
+            AI_TOPIC_PICKER: 'https://mv0yv43k5d.execute-api.ap-southeast-1.amazonaws.com/aiTopicPicker',
+            KEYWORD_FILTER: 'https://4en3fo1fr0.execute-api.ap-southeast-1.amazonaws.com/keywordFilter'
+        };
+
+
         let isCleaningKws = false;
         async function cleanKeywordsWithAI() {
             if (isCleaningKws) return;
@@ -10962,21 +10977,10 @@ seo agencies in singapore</textarea>
                 }
 
                 const responseData = await response.json();
-                let cleanedKeywords = responseData.body !== undefined ? responseData.body : responseData;
 
-                if (typeof cleanedKeywords === 'string') {
-                    try {
-                        cleanedKeywords = JSON.parse(cleanedKeywords);
-                    } catch (e) {
-                        // Not critical if it's not a JSON string
-                    }
-                }
-
-                if (!Array.isArray(cleanedKeywords)) {
-                    console.warn("AI Filter received invalid format:", responseData);
-                    throw new Error("Invalid AI response format.");
-                }
-
+                console.log(responseData);
+                let cleanedKeywords = responseData.body
+                console.log(cleanedKeywords);
                 const keptSet = new Set(cleanedKeywords.map(k => k.toLowerCase()));
                 let removedCount = 0;
 
@@ -11002,19 +11006,6 @@ seo agencies in singapore</textarea>
             }
         }
 
-        // Configuration for AI Content Optimiser Lambda Endpoints
-        const OPTIMISER_ENDPOINTS = {
-            SEO_ANALYSIS: 'https://diyjtwnt4l.execute-api.ap-southeast-1.amazonaws.com/seoContentAnalysisScore',
-            CONTENT_AI: 'https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser',
-            KEYWORD_FREQ: 'https://qtd6t9voui.execute-api.ap-southeast-1.amazonaws.com/keywordFrequency',
-            PLAGIARISM: 'https://tg6m9b7gsj.execute-api.ap-southeast-1.amazonaws.com/plagarismCheck',
-            IMAGE_ALT: 'https://ty3ndlwcnk.execute-api.ap-southeast-1.amazonaws.com/altTextGenerator',
-            GSC_INTEGRATION: 'https://v5gyq2sqdd.execute-api.ap-southeast-1.amazonaws.com/gscIntegration',
-            COMPLIANCE_RECOMMENDER: 'https://0jincjjy14.execute-api.ap-southeast-1.amazonaws.com/complianceRecommender',
-            DESIGN_ANALYSIS: 'https://bzedwsy4mb.execute-api.ap-southeast-1.amazonaws.com/pageDesignAnalysis',
-            AI_TOPIC_PICKER: 'https://mv0yv43k5d.execute-api.ap-southeast-1.amazonaws.com/aiTopicPicker',
-            KEYWORD_FILTER: 'https://4en3fo1fr0.execute-api.ap-southeast-1.amazonaws.com/keywordFilter'
-        };
 
         const GSC_CLIENT_ID = '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com';
         let gscAccessToken = null;
@@ -11267,11 +11258,9 @@ seo agencies in singapore</textarea>
         OPTIMISER_ENDPOINTS.KEYWORD_FREQ = "https://de0bccf9w7.execute-api.ap-southeast-1.amazonaws.com/keywordDensity";
 
         async function analyzeKeywordFrequency() {
-            // Priority 1: If we have aggregated competitor data, use it
-            if (Object.keys(competitorKeywordsAggregator).length > 0) {
-                renderKeywordAggregation();
-                return;
-            }
+            cleanKeywordsWithAI();
+            renderKeywordAggregation();
+
 
             const content = document.getElementById('editorContent').innerHTML;
             const listContainer = document.getElementById('keywordFrequencyList');
@@ -22063,6 +22052,7 @@ ${selectedText}
 
                     if (cardElement) {
                         cardElement.innerHTML = getCompetitorCardInnerHtml(result, cardId, keyword);
+                        fetchAndRenderKeywords(cardId, url);
                     }
                     return result;
                 });
@@ -22156,6 +22146,7 @@ ${selectedText}
 
                     if (cardElement) {
                         cardElement.innerHTML = getCompetitorCardInnerHtml(result, cardId, keyword);
+                        fetchAndRenderKeywords(cardId, url);
                     }
                     return result;
                 });
@@ -22455,7 +22446,7 @@ INSTRUCTIONS:
                                 </tr>
                             </thead>
                             <tbody>
-                                ${keywords.slice(0, 50).map(item => `
+                                ${keywords.slice(0, 100).map(item => `
                                     <tr>
                                         <td>${item.keyword.toLowerCase()}</td>
                                         <td style="text-align: center;">${item.frequency}</td>
@@ -22789,6 +22780,8 @@ INSTRUCTIONS:
 
                 if (cardElement) {
                     cardElement.innerHTML = getCompetitorCardInnerHtml(result, cardId, keyword);
+                    // PRELOAD KEYWORDS IN BACKGROUND
+                    fetchAndRenderKeywords(cardId, url);
                 }
                 return result;
             });
@@ -22980,6 +22973,8 @@ INSTRUCTIONS:
                         url: url
                     };
                     cardElement.innerHTML = getCompetitorCardInnerHtml(result, cardElement.id, keyword);
+                    // PRELOAD KEYWORDS IN BACKGROUND
+                    fetchAndRenderKeywords(cardElement.id, url);
                 } else {
                     throw new Error("Failed to fetch data on retry");
                 }
