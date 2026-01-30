@@ -7778,7 +7778,7 @@
                         <textarea id="persona_manual" placeholder="Focus on this product."></textarea>
                     </div>
                     <button id="generatePersonaBtn" class="config-btn-highlight" style="margin-top: 25px;"
-                        onclick="generatePersona()">Generate Personas</button>
+                        onclick="generatePersona()">Generate 10 Personas</button>
                 </div>
                 <div id="undo-bar-persona" class="undo-bar" style="display: none;">
                     <button class="btn-undo" onclick="undoDeletion()">
@@ -16285,9 +16285,19 @@ ${selectedText}
             document.getElementById('competitorsRanking').style.display = 'block';
         }
 
+        function getExistingPersonaNames() {
+            const names = [];
+            // Scrape all persona cards in the DOM (visible or hidden/deleted)
+            document.querySelectorAll('.persona-card h3').forEach(h3 => {
+                const name = h3.innerText.trim();
+                if (name) names.push(name);
+            });
+            return names;
+        }
+
         async function generatePersona() {
             const btn = document.getElementById("generatePersonaBtn");
-            const isMore = btn.innerText.includes("5 more");
+            const isMore = btn.innerText.includes("10 more") || btn.innerText.includes("5 more");
             btn.innerText = "Generating...";
             document.getElementById("persona").style.backgroundColor = "#004c9d";
             updateCollapsibleState('persona', 'running');
@@ -16334,7 +16344,11 @@ ${selectedText}
                         headers: {
                             "Content-Type": "application/json"
                         },
-                        body: JSON.stringify({ data: combinedResponses, manual: manualInput })
+                        body: JSON.stringify({
+                            data: combinedResponses,
+                            manual: manualInput,
+                            existing_personas: getExistingPersonaNames()
+                        })
                     });
 
                     if (!personaResponse.ok) {
@@ -16382,18 +16396,18 @@ ${selectedText}
                 personaContentDiv.innerHTML = `<p style="color: red;">An error occurred: ${error.message}</p>`;
                 console.error("An error occurred:", error);
             } finally {
-                document.getElementById("generatePersonaBtn").innerText = "Generate 5 more personas";
+                document.getElementById("generatePersonaBtn").innerText = "Generate 10 more personas";
                 document.getElementById("persona").style.backgroundColor = "green";
                 updateCollapsibleState('persona', 'success');
                 document.getElementById("copy-persona-results-button").style.display = "block";
                 document.getElementById("persona-instruction").style.display = "block";
+            }
 
-                // Show return button if we came from a pathway
-                const returnBtn = document.getElementById("btnReturnToFlow");
-                if (personaOriginPathway && returnBtn) {
-                    returnBtn.style.display = "block";
-                    returnBtn.innerText = `Return to ${personaOriginPathway === 'createNewFlow' ? 'Develop' : 'Optimise'} Content`;
-                }
+            // Show return button if we came from a pathway
+            const returnBtn = document.getElementById("btnReturnToFlow");
+            if (personaOriginPathway && returnBtn) {
+                returnBtn.style.display = "block";
+                returnBtn.innerText = `Return to ${personaOriginPathway === 'createNewFlow' ? 'Develop' : 'Optimise'} Content`;
             }
         }
 
@@ -16539,7 +16553,11 @@ ${selectedText}
                         headers: {
                             "Content-Type": "application/json"
                         },
-                        body: JSON.stringify({ data: responses, manual: manualInput })
+                        body: JSON.stringify({
+                            data: responses,
+                            manual: manualInput,
+                            existing_personas: getExistingPersonaNames()
+                        })
                     });
 
                     if (!personaResponse.ok) {
@@ -18602,7 +18620,11 @@ ${selectedText}
             async function persona_generator_chat(d, man) {
                 const r = await fetch("https://tyqj3fni7h.execute-api.ap-southeast-1.amazonaws.com/personaGenerator", {
                     method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ data: d, manual: man })
+                    body: JSON.stringify({
+                        data: d,
+                        manual: man,
+                        existing_personas: getExistingPersonaNames()
+                    })
                 }); return await r.json();
             }
             async function media_plan_generator_chat(d) {
