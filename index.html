@@ -12337,7 +12337,8 @@ ${selectedText}
             "checks.is_https", "checks.has_micromarkup", "checks.has_html_doctype",
             "checks.canonical", "checks.seo_friendly_url",
             "checks.seo_friendly_url_characters_check", "checks.seo_friendly_url_dynamic_check",
-            "checks.seo_friendly_url_keywords_check", "checks.seo_friendly_url_relative_length_check"
+            "checks.seo_friendly_url_keywords_check", "checks.seo_friendly_url_relative_length_check",
+            "checks.meta_charset_consistency"
         ];
         const DATA_FOR_SEO_CHECK_KEYS = [
             "checks.no_content_encoding", "checks.high_loading_time", "checks.is_redirect",
@@ -12351,7 +12352,7 @@ ${selectedText}
             "checks.irrelevant_title", "checks.irrelevant_meta_keywords", "checks.title_too_long",
             "checks.title_too_short", "checks.deprecated_html_tags", "checks.duplicate_meta_tags", "checks.duplicate_title_tag",
             "checks.no_image_alt", "checks.no_image_title", "checks.no_description", "checks.no_title", "checks.no_favicon",
-            "checks.seo_friendly_url", "checks.flash", "checks.frame", "checks.lorem_ipsum", "checks.has_misspelling",
+            "checks.seo_friendly_url", "checks.flash", "checks.lorem_ipsum", "checks.has_misspelling",
             "checks.seo_friendly_url_characters_check", "checks.seo_friendly_url_dynamic_check", "checks.seo_friendly_url_keywords_check",
             "checks.seo_friendly_url_relative_length_check", "checks.recursive_canonical", "checks.canonical_chain",
             "checks.canonical_to_redirect", "checks.canonical_to_broken", "checks.has_links_to_redirects",
@@ -12595,6 +12596,11 @@ ${selectedText}
                 dataForSeoActiveFilter = null; // Toggle off
             } else {
                 dataForSeoActiveFilter = key;
+                // Automatically ensure the relevant column is visible
+                if (dataForSeoDynamicHeaders.includes(key)) {
+                    dataForSeoActiveColumns.add(key);
+                    updateColumnSelectorUI();
+                }
             }
             updateTechnicalSummaryUI();
             rebuildCrawlerTable();
