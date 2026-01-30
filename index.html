@@ -10962,9 +10962,18 @@ seo agencies in singapore</textarea>
                 }
 
                 const responseData = await response.json();
-                let cleanedKeywords = responseData.body ? JSON.parse(responseData.body) : responseData;
+                let cleanedKeywords = responseData.body !== undefined ? responseData.body : responseData;
+
+                if (typeof cleanedKeywords === 'string') {
+                    try {
+                        cleanedKeywords = JSON.parse(cleanedKeywords);
+                    } catch (e) {
+                        // Not critical if it's not a JSON string
+                    }
+                }
 
                 if (!Array.isArray(cleanedKeywords)) {
+                    console.warn("AI Filter received invalid format:", responseData);
                     throw new Error("Invalid AI response format.");
                 }
 
