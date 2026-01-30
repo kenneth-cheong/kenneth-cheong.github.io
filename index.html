@@ -8984,10 +8984,8 @@ seo agencies in singapore</textarea>
                                 onclick="analyzeKeywordFrequency()">
                                 <i class="fas fa-sync-alt"></i> Re-analyse Keywords
                             </button>
-                            <div
-                                style="font-size: 13px; color: #666; display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <div style="font-size: 13px; color: #666; margin-bottom: 10px;">
                                 <span>Keywords Found: <b id="kwsFound">0</b></span>
-                                <span>Total Words: <b id="totalWordsStat">0</b></span>
                             </div>
                             <div id="keywordFrequencyList" class="keyword-freq-list">
                                 <p style="text-align: center; color: #999; font-style: italic; margin-top:20px;">
@@ -10809,7 +10807,6 @@ seo agencies in singapore</textarea>
             if (document.getElementById('editorHeaderWordCount')) document.getElementById('editorHeaderWordCount').innerText = wordCount;
             document.getElementById('wordCount').innerText = wordCount;
             document.getElementById('tokenCount').innerText = tokenCount;
-            if (document.getElementById('totalWordsStat')) document.getElementById('totalWordsStat').innerText = wordCount;
 
             // Update keyword frequency list if we have aggregated data
             if (Object.keys(competitorKeywordsAggregator).length > 0) {
@@ -10886,7 +10883,7 @@ seo agencies in singapore</textarea>
 
                 div.innerHTML = `
                     <div class="keyword-freq-header">
-                        <span style="text-transform: capitalize;">${item.keyword}</span>
+                        <span style="border-bottom: none;">${item.keyword}</span>
                         <span><b>${item.editorCount}</b> / ${item.avgQty}</span>
                     </div>
                     <div class="progress-bar-bg">
@@ -11197,7 +11194,7 @@ seo agencies in singapore</textarea>
                         item.className = 'keyword-freq-item';
                         item.innerHTML = `
                             <div class="keyword-freq-header">
-                                <span>${kw.keyword}</span>
+                                <span>${kw.keyword.toLowerCase()}</span>
                                 <span><b>${kw.count}x</b></span>
                             </div>
                             <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: ${Math.min(kw.density * 10, 100)}%; background: #3b5bdb;"></div></div>
@@ -11205,10 +11202,8 @@ seo agencies in singapore</textarea>
                         listContainer.appendChild(item);
                     });
                     document.getElementById('kwsFound').innerText = result.keywords.length;
-                    document.getElementById('totalWordsStat').innerText = result.total_words || 0;
                 } else {
                     listContainer.innerHTML = '<p style="text-align: center; color: #999; margin-top:20px;">No keywords found.</p>';
-                    document.getElementById('totalWordsStat').innerText = result.total_words || 0;
                 }
             } catch (error) {
                 console.error("Keyword Freq Error:", error);
@@ -11253,7 +11248,7 @@ seo agencies in singapore</textarea>
                 item.className = 'keyword-freq-item';
                 item.innerHTML = `
                     <div class="keyword-freq-header">
-                        <span>${kw}</span>
+                        <span>${kw.toLowerCase()}</span>
                         <span><b>${count}x</b></span>
                     </div>
                     <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: ${Math.min(density * 10, 100)}%; background: #3b5bdb;"></div></div>
@@ -11262,7 +11257,6 @@ seo agencies in singapore</textarea>
             });
 
             document.getElementById('kwsFound').innerText = foundCount;
-            document.getElementById('totalWordsStat').innerText = totalWords;
         }
 
         function handleLocalImageUpload(input) {
@@ -22127,9 +22121,16 @@ INSTRUCTIONS:
                 analysisDataArray.forEach((item, index) => {
                     const card = document.createElement('div');
                     card.className = 'competitor-card';
-                    card.id = `comp-card-${gridId}-${displayedCount_Optimiser[gridId.includes('Optimise') ? 'optimise' : 'new'] + index}`;
+                    const cardIndex = displayedCount_Optimiser[gridId.includes('Optimise') ? 'optimise' : 'new'] + index;
+                    card.id = `comp-card-${gridId}-${cardIndex}`;
                     card.innerHTML = getCompetitorCardInnerHtml(item, card.id, keyword);
                     competitorGrid.appendChild(card);
+
+                    // TRIGGER CONCURRENT KEYWORD ANALYSIS
+                    // If card is fully loaded (not error), trigger the keyword fetch in the background
+                    if (item && !item.loading && !item.error && item.url) {
+                        fetchAndRenderKeywords(card.id, item.url);
+                    }
                 });
 
                 competitorWrapper.style.display = 'block';
@@ -22287,7 +22288,7 @@ INSTRUCTIONS:
                             <tbody>
                                 ${keywords.slice(0, 50).map(item => `
                                     <tr>
-                                        <td>${item.keyword}</td>
+                                        <td>${item.keyword.toLowerCase()}</td>
                                         <td style="text-align: center;">${item.frequency}</td>
                                     </tr>
                                 `).join('')}
