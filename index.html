@@ -124,6 +124,203 @@
 
 
     <style>
+        /* GEO Utilities Styles */
+        .geo-card {
+            border: 1px solid #eef0f2;
+            border-radius: 12px;
+            padding: 20px;
+            background: #fff;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .geo-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #f0f2f5;
+            padding-bottom: 10px;
+        }
+
+        .geo-card-title {
+            font-weight: 700;
+            color: #004c9d;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .geo-section-item {
+            background: #f8fbff;
+            border: 1px solid #e1e9f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .geo-link-item {
+            background: #fff;
+            border: 1px solid #eef0f2;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 10px;
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .geo-link-item input {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: 0.9em;
+            height: 38px;
+        }
+
+        .geo-link-item textarea {
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: 0.9em;
+            grid-column: span 2;
+            align-self: start;
+        }
+
+        .geo-link-desc {
+            grid-column: span 2;
+        }
+
+        .geo-btn-add {
+            background: #f0f7ff;
+            color: #004c9d;
+            border: 1px dashed #004c9d;
+            border-radius: 6px;
+            padding: 8px 15px;
+            font-size: 0.85em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            border-style: dashed !important;
+        }
+
+        .geo-btn-add:hover {
+            background: #e1f0ff;
+        }
+
+        .geo-btn-delete {
+            color: #dc3545;
+            background: none;
+            border: none;
+            cursor: pointer;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+            padding: 5px;
+        }
+
+        .geo-btn-delete:hover {
+            opacity: 1;
+        }
+
+        .geo-input-group {
+            display: grid;
+            gap: 12px;
+        }
+
+        .geo-input-item label {
+            display: block;
+            font-size: 0.8em;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .geo-preview-panel {
+            background: #fff;
+            border: 1px solid #eef0f2;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .geo-preview-tabs {
+            display: flex;
+            background: #f8fbff;
+            border-bottom: 1px solid #eef0f2;
+        }
+
+        .geo-tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9em;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .geo-tab.active {
+            color: #004c9d;
+            border-bottom-color: #004c9d;
+            background: #fff;
+        }
+
+        .geo-preview-body {
+            padding: 20px;
+            position: relative;
+        }
+
+        .geo-preview-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background: #fafafa;
+            border-top: 1px solid #eee;
+            font-size: 0.8em;
+            color: #888;
+        }
+
+        .geo-tag {
+            background: #eef1f5;
+            color: #4b5563;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.75em;
+        }
+
+        .geo-main-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        @media (min-width: 1200px) {
+            .geo-layout {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 25px;
+                align-items: start;
+            }
+        }
+
         #loginForm {
             display: flex;
             flex-direction: column;
@@ -7869,132 +8066,155 @@
             <button class="collapsible" id="geoUtilitiesBtn"><i class="fas fa-plus-square"></i><i
                     class="fas fa-globe"></i> GEO</button>
             <div class="content" id="geoUtilitiesSection">
-                <div class="sem-step-card">
-                    <div class="sem-card-title"><i class="fas fa-robot"></i> llms.txt Generator</div>
-                    <p style="margin-bottom: 15px; font-size: 0.9em; color: #666;">Create a standard file to guide
-                        LLMs
-                        on how to read and index your site logic.</p>
+                <div class="geo-layout">
+                    <!-- Left: Inputs -->
+                    <div class="geo-inputs">
+                        <!-- Project Information -->
+                        <div class="geo-card">
+                            <div class="geo-card-header">
+                                <div class="geo-card-title"><i class="fas fa-info-circle"></i> Project Information</div>
+                                <button class="geo-btn-add" onclick="fillLlmSampleData()"
+                                    style="border-style: solid !important;">
+                                    <i class="fas fa-magic"></i> Fill Sample Data
+                                </button>
+                            </div>
+                            <div class="geo-input-group">
+                                <div class="geo-input-item">
+                                    <label>Project Name *</label>
+                                    <input type="text" id="llmSiteTitle" placeholder="e.g., MediaOne Marketing">
+                                </div>
+                                <div class="geo-input-item">
+                                    <label>Summary (Blockquote)</label>
+                                    <textarea id="llmDescription" style="height: 80px"
+                                        placeholder="e.g., MediaOne is Singapore's leading digital marketing agency..."></textarea>
+                                </div>
+                                <div class="geo-input-item">
+                                    <label>Additional Details (GEO Highlights)</label>
+                                    <textarea id="llmHighlights" style="height: 100px"
+                                        placeholder="e.g., Key services and expertise:&#10;- SEO Services: Technical SEO..."></textarea>
+                                </div>
+                                <div class="geo-input-item">
+                                    <label>GEO Target Prompts (One per line)</label>
+                                    <textarea id="llmGeoPrompts" style="height: 100px"
+                                        placeholder="What makes MediaOne the best SEO agency?&#10;How does digital marketing help businesses grow?"></textarea>
+                                </div>
+                            </div>
+                        </div>
 
-                    <div class="sem-input-group">
-                        <div
-                            style="width: 100%; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
-                            <strong
-                                style="font-size: 0.85em; color: #004c9d; text-transform: uppercase; letter-spacing: 0.5px;">1.
-                                Basic Information</strong>
+                        <!-- Documentation Sections -->
+                        <div class="geo-card">
+                            <div class="geo-card-header">
+                                <div class="geo-card-title"><i class="fas fa-folder-open"></i> Documentation Sections
+                                </div>
+                                <button class="geo-btn-add" onclick="addNewGeoSection()">
+                                    <i class="fas fa-plus"></i> Add Section
+                                </button>
+                            </div>
+                            <div id="llmDynamicSections">
+                                <!-- Dynamic sections will be injected here -->
+                            </div>
                         </div>
-                        <div class="sem-input-item">
-                            <label>Site Title</label>
-                            <input type="text" id="llmSiteTitle" placeholder="e.g., DigiMetrics AI">
+
+                        <!-- Optional Section -->
+                        <div class="geo-card">
+                            <div class="geo-card-header">
+                                <div class="geo-card-title"><i class="fas fa-bookmark"></i> Optional Section</div>
+                                <button class="geo-btn-add" onclick="addNewGeoLink('llmOptionalList')">
+                                    <i class="fas fa-plus"></i> Add Link
+                                </button>
+                            </div>
+                            <div id="llmOptionalList">
+                                <!-- Optional links injected here -->
+                            </div>
                         </div>
-                        <div class="sem-input-item">
-                            <label>Short Description (Bio)</label>
-                            <textarea id="llmDescription" class="keyword-input-textarea" style="height: 80px"
-                                placeholder="e.g., DigiMetrics is a leading digital marketing agency specialized in SEO and GEO optimization..."></textarea>
+
+                        <div class="geo-main-actions">
+                            <button class="config-btn-highlight" onclick="generateLlmsTxt()"
+                                style="background: #004c9d; border: none; height: 45px; font-weight: 700;">
+                                <i class="fas fa-file-alt"></i> Generate llms.txt
+                            </button>
+                            <button class="config-btn-highlight" onclick="generateLlmsFullTxt()"
+                                style="background: #28a745; border: none; height: 45px; font-weight: 700;">
+                                <i class="fas fa-file-medical"></i> Generate llms-full.txt
+                            </button>
                         </div>
                     </div>
 
-                    <div class="sem-input-group">
-                        <div
-                            style="width: 100%; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
-                            <strong
-                                style="font-size: 0.85em; color: #004c9d; text-transform: uppercase; letter-spacing: 0.5px;">2.
-                                Brand Highlights</strong>
+                    <!-- Right: Preview Area -->
+                    <div class="geo-preview-panel" id="geoFilePreview" style="display: none;">
+                        <div class="geo-preview-tabs">
+                            <div class="geo-tab active" id="tab-llms" onclick="switchGeoTab('llms')">
+                                <i class="fas fa-file-alt"></i> llms.txt
+                            </div>
+                            <div class="geo-tab" id="tab-llms-full" onclick="switchGeoTab('llms-full')">
+                                <i class="fas fa-file-medical"></i> llms-full.txt
+                            </div>
                         </div>
-                        <div class="sem-input-item">
-                            <label>Highlights Heading</label>
-                            <input type="text" id="llmHighlightsHeading"
-                                placeholder="e.g., Why DigiMetrics is the best choice for your business:">
-                        </div>
-                        <div class="sem-input-item">
-                            <label>Highlights List (Bullet points)</label>
-                            <textarea id="llmHighlights" class="keyword-input-textarea" style="height: 120px"
-                                placeholder="- Proven Success: Over 500+ successful campaigns&#10;- Expert Team: Certified SEO & GEO specialists"></textarea>
-                            <div class="st-custom-label">Press 'Enter' for a new line between items</div>
-                        </div>
-                    </div>
+                        <div class="geo-preview-body">
+                            <div class="geo-preview-meta">
+                                <div id="previewTitle">Preview: llms.txt</div>
+                                <div id="previewStats">0 characters | 0 words | 0 lines</div>
+                            </div>
+                            <div class="geo-preview-actions" style="margin-top: 15px;">
+                                <button class="geo-btn-add" onclick="copyGeoPreview()"
+                                    style="border-style: solid !important;">
+                                    <i class="fas fa-copy"></i> Copy
+                                </button>
+                                <button class="geo-btn-add" onclick="downloadGeoPreview()"
+                                    style="border-style: solid !important;">
+                                    <i class="fas fa-download"></i> Download
+                                </button>
+                                <div style="margin-left: auto; display: flex; gap: 5px;">
+                                    <div class="geo-tag active" id="format-txt">.txt</div>
+                                    <div class="geo-tag" id="format-html">.html</div>
+                                </div>
+                            </div>
+                            <textarea id="geoPreviewText" class="keyword-input-textarea"
+                                style="height: 500px; font-family: 'Courier New', monospace; font-size: 0.9em; background: #fafafa;"
+                                readonly></textarea>
 
-                    <div class="sem-input-group">
-                        <div
-                            style="width: 100%; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
-                            <strong
-                                style="font-size: 0.85em; color: #004c9d; text-transform: uppercase; letter-spacing: 0.5px;">3.
-                                GEO Strategy</strong>
-                        </div>
-                        <div class="sem-input-item">
-                            <label>GEO Target Prompts (One per line)</label>
-                            <textarea id="llmGeoPrompts" class="keyword-input-textarea" style="height: 120px"
-                                placeholder="What makes DigiMetrics the best SEO agency?&#10;How does GEO optimization improve visibility?"></textarea>
-                            <div class="st-custom-label">Press 'Enter' for a new line between prompts</div>
-                        </div>
-                    </div>
-
-                    <div class="sem-input-group">
-                        <div
-                            style="width: 100%; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
-                            <strong
-                                style="font-size: 0.85em; color: #004c9d; text-transform: uppercase; letter-spacing: 0.5px;">4.
-                                Site Structure</strong>
-                        </div>
-                        <div class="sem-input-item">
-                            <label>Core Sections (Markdown format)</label>
-                            <textarea id="llmCoreSections" class="keyword-input-textarea" style="height: 200px"
-                                placeholder="## Services&#10;- [SEO Optimization](https://digimetrics.ai/seo): Description&#10;&#10;## Case Studies&#10;- [Retail Success](https://digimetrics.ai/case-studies/retail): Description"></textarea>
-                            <div class="st-custom-label">Use ## for section titles and - [Label](URL): Description
-                                for
-                                links</div>
-                        </div>
-                        <div class="sem-input-item">
-                            <label>Optional Section (Markdown format)</label>
-                            <textarea id="llmOptional" class="keyword-input-textarea" style="height: 100px"
-                                placeholder="## Optional&#10;- [Blog](https://digimetrics.ai/blog): Latest marketing insights"></textarea>
+                            <div style="margin-top: 20px; padding: 15px; background: #fdf8ff; border-radius: 8px;">
+                                <div style="font-weight: 700; color: #a155b9; margin-bottom: 10px; font-size: 0.9em;">
+                                    <i class="fas fa-lightbulb"></i> Best Practices
+                                </div>
+                                <ul
+                                    style="margin: 0; padding-left: 20px; font-size: 0.85em; color: #666; line-height: 1.6;">
+                                    <li>Use <strong style="color: #004c9d;">.md</strong> (markdown) URLs when available
+                                    </li>
+                                    <li>Keep summaries concise and informative</li>
+                                    <li>Use <strong style="color: #004c9d;">.html</strong> format for human-readable
+                                        pages</li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
-                    <button class="config-btn-highlight" onclick="generateLlmsTxt()"
-                        style="margin-top: 10px; padding: 6px 14px; min-width: auto; font-size: 13px; display: inline-flex; height: auto; min-height: 0; align-self: flex-start;">Generate
-                        llms.txt</button>
                 </div>
 
-                <div class="sem-step-card" style="margin-top: 20px;">
-                    <div class="sem-card-title"><i class="fas fa-cat"></i> cats.txt Generator</div>
-                    <p style="margin-bottom: 15px; font-size: 0.9em; color: #666;">Draft a 'cats.txt' (Community
-                        Agreed
+                <div class="geo-card" style="margin-top: 40px; max-width: 800px;">
+                    <div class="geo-card-header">
+                        <div class="geo-card-title"><i class="fas fa-cat"></i> cats.txt Generator</div>
+                    </div>
+                    <p style="margin-bottom: 15px; font-size: 0.9em; color: #666;">Draft a 'cats.txt' (Community Agreed
                         Traits Standard) to define your brand entity for AI personality alignment.</p>
 
-                    <div class="sem-input-group">
-                        <div
-                            style="width: 100%; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
-                            <strong
-                                style="font-size: 0.85em; color: #004c9d; text-transform: uppercase; letter-spacing: 0.5px;">1.
-                                Basic Information</strong>
-                        </div>
-                        <div class="sem-input-item">
+                    <div class="geo-input-group">
+                        <div class="geo-input-item">
                             <label>Entity Name</label>
                             <input type="text" id="catsEntityName" placeholder="e.g., DigiMetrics AI">
                         </div>
-                    </div>
-
-                    <div class="sem-input-group">
-                        <div
-                            style="width: 100%; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">
-                            <strong
-                                style="font-size: 0.85em; color: #004c9d; text-transform: uppercase; letter-spacing: 0.5px;">2.
-                                Brand Personality & Facts</strong>
-                        </div>
-                        <div class="sem-input-item">
+                        <div class="geo-input-item">
                             <label>Personality / Traits</label>
-                            <textarea id="catsTraits" class="keyword-input-textarea"
-                                placeholder="e.g., Professional, data-driven, authoritative, and helpful personality..."></textarea>
+                            <textarea id="catsTraits"
+                                placeholder="e.g., Professional, data-driven, authoritative..."></textarea>
                         </div>
-                        <div class="sem-input-item">
+                        <div class="geo-input-item">
                             <label>Key Facts / Values</label>
-                            <textarea id="catsValues" class="keyword-input-textarea"
-                                placeholder="- Founded in 2012&#10;- Expert in SEO & GEO strategy&#10;- Customer-centric approach"></textarea>
-                            <div class="st-custom-label">Press 'Enter' for a new line between points</div>
+                            <textarea id="catsValues"
+                                placeholder="- Founded in 2012&#10;- Expert in SEO & GEO strategy"></textarea>
                         </div>
                     </div>
                     <button class="config-btn-highlight" onclick="generateCatsTxt()"
-                        style="margin-top: 10px; padding: 6px 14px; min-width: auto; font-size: 13px; display: inline-flex; height: auto; min-height: 0; align-self: flex-start;">Generate
-                        cats.txt</button>
+                        style="margin-top: 20px; background: #6f42c1; border: none;">Generate cats.txt</button>
                 </div>
 
                 <!-- Preview Area -->
@@ -10245,23 +10465,81 @@ seo agencies in singapore</textarea>
             closeJourneyModal();
         }
 
+        let geoState = {
+            llms: '',
+            llmsFull: '',
+            currentTab: 'llms'
+        };
+
+        function addNewGeoSection(title = '') {
+            const container = document.getElementById('llmDynamicSections');
+            const sectionId = 'sec_' + Date.now();
+            const sectionHtml = `
+                <div class="geo-section-item" id="${sectionId}">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <input type="text" class="geo-section-title" style="font-weight: 700; border: none; background: transparent; color: #333; font-size: 1.05em; width: 100%;" placeholder="Section Title (e.g., Services)" value="${title}">
+                        <button class="geo-btn-delete" onclick="document.getElementById('${sectionId}').remove()" style="height: auto; width: auto; padding: 0 0 0 10px;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <div class="geo-links-container" id="links_${sectionId}"></div>
+                    <button class="geo-btn-add" style="margin-top: 15px;" onclick="addNewGeoLink('links_${sectionId}')">
+                        <i class="fas fa-plus"></i> Add Link
+                    </button>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', sectionHtml);
+            return 'links_' + sectionId;
+        }
+
+        function addNewGeoLink(containerId, data = { label: '', url: '', desc: '' }) {
+            const container = document.getElementById(containerId);
+            const linkId = 'link_' + Date.now() + Math.random().toString(36).substr(2, 5);
+            const linkHtml = `
+                <div class="geo-link-item" id="${linkId}">
+                    <input type="text" class="geo-link-label" placeholder="Link Label" value="${data.label}">
+                    <input type="text" class="geo-link-url" placeholder="https://" value="${data.url}">
+                    <button class="geo-btn-delete" onclick="document.getElementById('${linkId}').remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <textarea class="geo-link-desc" placeholder="Summary / Description" rows="2">${data.desc}</textarea>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', linkHtml);
+        }
+
+        function fillLlmSampleData() {
+            document.getElementById('llmSiteTitle').value = 'MediaOne Marketing';
+            document.getElementById('llmDescription').value = "MediaOne is Singapore's leading digital marketing agency specializing in SEO, SEM, social media marketing, and web development services to help businesses grow their online presence.";
+            document.getElementById('llmHighlights').value = "Key services and expertise:\n\n- SEO Services: Technical SEO, content optimization, link building, and local SEO for Singapore businesses\n- Google Ads & SEM: Pay-per-click advertising, campaign management, and conversion optimization\n- Social Media Marketing: Facebook, Instagram, LinkedIn, and TikTok marketing strategies\n- Web Design & Development: WordPress, e-commerce, and custom web solutions\n- Content Marketing: Blog writing, copywriting, and content strategy\n\nWe serve clients across various industries including healthcare, education, real estate, F&B, and e-commerce.";
+            document.getElementById('llmGeoPrompts').value = "What makes MediaOne the best SEO agency?\nHow does digital marketing help businesses grow?\nWhat are the benefits of SEO for Singapore SMEs?";
+
+            const sectionsContainer = document.getElementById('llmDynamicSections');
+            sectionsContainer.innerHTML = '';
+
+            const servicesId = addNewGeoSection('Services');
+            addNewGeoLink(servicesId, { label: 'SEO Services Singapore', url: 'https://mediaonemarketing.com.sg/seo-services-singapore/', desc: 'Comprehensive SEO services to improve search rankings and organic traffic' });
+            addNewGeoLink(servicesId, { label: 'Google Ads Management', url: 'https://mediaonemarketing.com.sg/google-ads-management-singapore/', desc: 'Expert Google Ads campaign management for maximum ROI' });
+
+            const resourcesId = addNewGeoSection('Resources');
+            addNewGeoLink(resourcesId, { label: 'Digital Marketing Blog', url: 'https://mediaonemarketing.com.sg/blog/', desc: 'Latest insights, tips, and trends in digital marketing' });
+
+            const optionalContainer = document.getElementById('llmOptionalList');
+            optionalContainer.innerHTML = '';
+            addNewGeoLink('llmOptionalList', { label: 'Industry Guides', url: 'https://mediaonemarketing.com.sg/guides/', desc: 'In-depth guides for specific industries and marketing topics' });
+        }
+
         function generateLlmsTxt() {
-            const title = document.getElementById('llmSiteTitle').value || 'My Website';
+            const title = document.getElementById('llmSiteTitle').value || 'Site Title';
             const desc = document.getElementById('llmDescription').value || '';
-            const highlightsHeading = document.getElementById('llmHighlightsHeading').value || '';
             const highlights = document.getElementById('llmHighlights').value || '';
             const geoPrompts = document.getElementById('llmGeoPrompts').value || '';
-            const coreSections = document.getElementById('llmCoreSections').value || '';
-            const optionalSection = document.getElementById('llmOptional').value || '';
 
             let content = `# ${title}\n\n`;
             if (desc) content += `> ${desc}\n\n`;
 
-            if (highlightsHeading) content += `${highlightsHeading}\n\n`;
-            if (highlights) content += `${highlights}\n\n`;
-
             if (geoPrompts) {
-                content += `GEO Target Prompts This Content Addresses:\n`;
+                content += `Target Prompts for GEO:\n\n`;
                 const promptList = geoPrompts.split('\n').filter(p => p.trim());
                 promptList.forEach((p, i) => {
                     content += `${i + 1}. ${p.trim()}\n`;
@@ -10269,15 +10547,155 @@ seo agencies in singapore</textarea>
                 content += `\n`;
             }
 
-            if (coreSections) {
-                content += `${coreSections}\n\n`;
+            if (highlights) content += `${highlights}\n\n`;
+
+            // Process Documentation Sections
+            const sections = document.querySelectorAll('.geo-section-item');
+            sections.forEach(sec => {
+                const secTitle = sec.querySelector('.geo-section-title').value;
+                if (secTitle) content += `## ${secTitle}\n\n`;
+
+                const links = sec.querySelectorAll('.geo-link-item');
+                links.forEach(link => {
+                    const label = link.querySelector('.geo-link-label').value;
+                    const url = link.querySelector('.geo-link-url').value;
+                    const lDesc = link.querySelector('.geo-link-desc').value;
+                    if (label && url) {
+                        content += `- [${label}](${url})${lDesc ? ': ' + lDesc : ''}\n`;
+                    }
+                });
+                content += `\n`;
+            });
+
+            // Process Optional
+            const optionalLinks = document.querySelectorAll('#llmOptionalList .geo-link-item');
+            if (optionalLinks.length > 0) {
+                content += `## Optional\n\n`;
+                optionalLinks.forEach(link => {
+                    const label = link.querySelector('.geo-link-label').value;
+                    const url = link.querySelector('.geo-link-url').value;
+                    const lDesc = link.querySelector('.geo-link-desc').value;
+                    if (label && url) {
+                        content += `- [${label}](${url})${lDesc ? ': ' + lDesc : ''}\n`;
+                    }
+                });
+                content += `\n`;
             }
 
-            if (optionalSection) {
-                content += `${optionalSection}\n\n`;
-            }
-
+            geoState.llms = content;
             showGeoPreview('llms.txt', content);
+            switchGeoTab('llms');
+        }
+
+        function generateLlmsFullTxt() {
+            const title = document.getElementById('llmSiteTitle').value || 'Site Title';
+            const desc = document.getElementById('llmDescription').value || '';
+            const highlights = document.getElementById('llmHighlights').value || '';
+            const geoPrompts = document.getElementById('llmGeoPrompts').value || '';
+
+            let content = `# ${title}\n\n`;
+            if (desc) content += `> ${desc}\n\n`;
+
+            if (geoPrompts) {
+                content += `Target Prompts for GEO:\n\n`;
+                const promptList = geoPrompts.split('\n').filter(p => p.trim());
+                promptList.forEach((p, i) => {
+                    content += `${i + 1}. ${p.trim()}\n`;
+                });
+                content += `\n`;
+            }
+
+            if (highlights) content += `${highlights}\n\n`;
+
+            // Process Sections
+            const sections = document.querySelectorAll('.geo-section-item');
+            sections.forEach(sec => {
+                const secTitle = sec.querySelector('.geo-section-title').value;
+                if (secTitle) {
+                    content += `---\n\n## ${secTitle}\n\n`;
+                    const links = sec.querySelectorAll('.geo-link-item');
+                    links.forEach(item => {
+                        const label = item.querySelector('.geo-link-label').value;
+                        const url = item.querySelector('.geo-link-url').value;
+                        const lDesc = item.querySelector('.geo-link-desc').value;
+                        if (label && url) {
+                            content += `### ${label}\n\n`;
+                            if (lDesc) content += `> ${lDesc}\n\n`;
+                            content += `**Source**: ${url}\n\n`;
+                            content += `[Content from ${url} will be included here]\n\n`;
+                            content += `To get the full content, you would:\n`;
+                            content += `1. Fetch the markdown content from the URL above\n`;
+                            content += `2. Or manually copy the relevant content from that page\n\n`;
+                            content += `---\n\n`;
+                        }
+                    });
+                }
+            });
+
+            // Optional
+            const optionalLinks = document.querySelectorAll('#llmOptionalList .geo-link-item');
+            if (optionalLinks.length > 0) {
+                content += `## Optional Resources\n\n`;
+                optionalLinks.forEach(item => {
+                    const label = item.querySelector('.geo-link-label').value;
+                    const url = item.querySelector('.geo-link-url').value;
+                    const lDesc = item.querySelector('.geo-link-desc').value;
+                    if (label && url) {
+                        content += `### ${label}\n\n`;
+                        if (lDesc) content += `> ${lDesc}\n\n`;
+                        content += `**Source**: ${url}\n\n`;
+                        content += `[Content from ${url} will be included here]\n\n`;
+                    }
+                });
+                content += `---\n\n`;
+            }
+
+            content += `\n*Note: This is a template for llms-full.txt. To create the complete file:*\n`;
+            content += `*1. Fetch the actual content from each URL listed above*\n`;
+            content += `*2. Replace the placeholder text with the fetched content*\n`;
+            content += `*3. Preferably use .md (markdown) versions of pages when available*\n\n`;
+            content += `*Generated by llms.txt Generator by MediaOne | Specification: https://llmstxt.org*\n`;
+
+            geoState.llmsFull = content;
+            showGeoPreview('llms-full.txt', content);
+            switchGeoTab('llms-full');
+        }
+
+        function switchGeoTab(type) {
+            geoState.currentTab = type;
+            document.getElementById('tab-llms').classList.toggle('active', type === 'llms');
+            document.getElementById('tab-llms-full').classList.toggle('active', type === 'llms-full');
+
+            const content = type === 'llms' ? geoState.llms : geoState.llmsFull;
+            document.getElementById('geoPreviewText').value = content;
+            document.getElementById('previewTitle').textContent = 'Preview: ' + (type === 'llms' ? 'llms.txt' : 'llms-full.txt');
+            updateGeoStats(content);
+        }
+
+        function updateGeoStats(content) {
+            const chars = content.length;
+            const words = content.trim().split(/\s+/).filter(w => w.length > 0).length;
+            const lines = content.split('\n').length;
+            document.getElementById('previewStats').textContent = `${chars.toLocaleString()} characters | ${words.toLocaleString()} words | ${lines.toLocaleString()} lines`;
+        }
+
+        function copyGeoPreview() {
+            const text = document.getElementById('geoPreviewText').value;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Copied to clipboard!');
+            });
+        }
+
+        function downloadGeoPreview() {
+            const text = document.getElementById('geoPreviewText').value;
+            const filename = geoState.currentTab === 'llms' ? 'llms.txt' : 'llms-full.txt';
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
         }
 
         function generateCatsTxt() {
@@ -10293,24 +10711,11 @@ seo agencies in singapore</textarea>
         function showGeoPreview(filename, content) {
             const preview = document.getElementById('geoFilePreview');
             preview.style.display = 'block';
-            document.getElementById('previewTitle').textContent = 'Preview: ' + filename;
             document.getElementById('geoPreviewText').value = content;
+            updateGeoStats(content);
 
             // Scroll to preview
             preview.scrollIntoView({ behavior: 'smooth', block: 'end' });
-
-            const dlBtn = document.getElementById('downloadGeoBtn');
-            // Clone to remove old listeners
-            const newBtn = dlBtn.cloneNode(true);
-            dlBtn.parentNode.replaceChild(newBtn, dlBtn);
-
-            newBtn.onclick = function () {
-                const blob = new Blob([content], { type: 'text/plain' });
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = filename;
-                a.click();
-            };
         }
 
         function execCmd(command, value = null) {
