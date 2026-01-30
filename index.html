@@ -9005,10 +9005,12 @@ seo agencies in singapore</textarea>
 
                         <!-- Keywords Tab -->
                         <div id="tab-keywords" class="tab-content active">
-                            <button class="btn-gradient btn-keywords" style="background: #004c9d;"
-                                onclick="analyzeKeywordFrequency()">
-                                <i class="fas fa-sync-alt"></i> Re-analyse Keywords
-                            </button>
+                            <div style="margin-bottom: 15px;">
+                                <button class="btn-gradient btn-keywords" style="background: #004c9d; width: 100%;"
+                                    onclick="analyzeKeywordFrequency()">
+                                    <i class="fas fa-sync-alt"></i> Re-analyse Keywords
+                                </button>
+                            </div>
                             <div style="font-size: 13px; color: #666; margin-bottom: 10px;">
                                 <span>Keywords Found: <b id="kwsFound">0</b></span>
                             </div>
@@ -10840,9 +10842,11 @@ seo agencies in singapore</textarea>
         }
 
         function updateKeywordFrequencyList() {
-            // This function triggers the rendering, but we'll also have a dedicated render function 
-            // that handles the editor content counting.
             renderKeywordAggregation();
+            // Automatically clean keywords with AI if aggregator has data
+            if (Object.keys(competitorKeywordsAggregator).length > 0) {
+                cleanKeywordsWithAI();
+            }
         }
 
         function renderKeywordAggregation() {
@@ -10924,6 +10928,71 @@ seo agencies in singapore</textarea>
             }
         }
 
+        let isCleaningKws = false;
+        async function cleanKeywordsWithAI() {
+            if (isCleaningKws) return;
+
+            // 1. Collect all unique keywords from aggregator
+            const kwSet = new Set();
+            Object.values(competitorKeywordsAggregator).forEach(keywords => {
+                keywords.forEach(kwObj => kwSet.add(kwObj.keyword.toLowerCase()));
+            });
+
+            const uniqueKeywords = Array.from(kwSet);
+            if (uniqueKeywords.length === 0) return;
+
+            // 2. Call AI Filter Lambda
+            const endpoint = OPTIMISER_ENDPOINTS.KEYWORD_FILTER;
+            if (!endpoint || endpoint === 'YOUR_LAMBDA_URL_HERE') {
+                console.log("AI Keyword Filter placeholder detected. Skipping automatic cleaning.");
+                return;
+            }
+
+            isCleaningKws = true;
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keywords: uniqueKeywords })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || errorData.body || "AI filtering failed or unreachable.");
+                }
+
+                const responseData = await response.json();
+                let cleanedKeywords = responseData.body ? JSON.parse(responseData.body) : responseData;
+
+                if (!Array.isArray(cleanedKeywords)) {
+                    throw new Error("Invalid AI response format.");
+                }
+
+                const keptSet = new Set(cleanedKeywords.map(k => k.toLowerCase()));
+                let removedCount = 0;
+
+                // 3. Update aggregator to only keep AI-approved keywords
+                Object.keys(competitorKeywordsAggregator).forEach(cardId => {
+                    const originalCount = competitorKeywordsAggregator[cardId].length;
+                    competitorKeywordsAggregator[cardId] = competitorKeywordsAggregator[cardId].filter(kwObj =>
+                        keptSet.has(kwObj.keyword.toLowerCase())
+                    );
+                    removedCount += (originalCount - competitorKeywordsAggregator[cardId].length);
+                });
+
+                // 4. Re-render if anything was removed
+                if (removedCount > 0) {
+                    renderKeywordAggregation();
+                    console.log(`AI Filter: Removed ${removedCount} irrelevant phrases.`);
+                }
+
+            } catch (error) {
+                console.warn("AI Keyword Filtering skipped:", error.message);
+            } finally {
+                isCleaningKws = false;
+            }
+        }
+
         // Configuration for AI Content Optimiser Lambda Endpoints
         const OPTIMISER_ENDPOINTS = {
             SEO_ANALYSIS: 'https://diyjtwnt4l.execute-api.ap-southeast-1.amazonaws.com/seoContentAnalysisScore',
@@ -10934,7 +11003,8 @@ seo agencies in singapore</textarea>
             GSC_INTEGRATION: 'https://v5gyq2sqdd.execute-api.ap-southeast-1.amazonaws.com/gscIntegration',
             COMPLIANCE_RECOMMENDER: 'https://0jincjjy14.execute-api.ap-southeast-1.amazonaws.com/complianceRecommender',
             DESIGN_ANALYSIS: 'https://bzedwsy4mb.execute-api.ap-southeast-1.amazonaws.com/pageDesignAnalysis',
-            AI_TOPIC_PICKER: 'https://mv0yv43k5d.execute-api.ap-southeast-1.amazonaws.com/aiTopicPicker'
+            AI_TOPIC_PICKER: 'https://mv0yv43k5d.execute-api.ap-southeast-1.amazonaws.com/aiTopicPicker',
+            KEYWORD_FILTER: 'https://4en3fo1fr0.execute-api.ap-southeast-1.amazonaws.com/keywordFilter'
         };
 
         const GSC_CLIENT_ID = '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com';
