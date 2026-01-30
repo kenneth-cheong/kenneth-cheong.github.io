@@ -10810,6 +10810,95 @@ seo agencies in singapore</textarea>
             document.getElementById('wordCount').innerText = wordCount;
             document.getElementById('tokenCount').innerText = tokenCount;
             if (document.getElementById('totalWordsStat')) document.getElementById('totalWordsStat').innerText = wordCount;
+
+            // Update keyword frequency list if we have aggregated data
+            if (Object.keys(competitorKeywordsAggregator).length > 0) {
+                renderKeywordAggregation();
+            }
+        }
+
+        function updateKeywordFrequencyList() {
+            // This function triggers the rendering, but we'll also have a dedicated render function 
+            // that handles the editor content counting.
+            renderKeywordAggregation();
+        }
+
+        function renderKeywordAggregation() {
+            const listContainer = document.getElementById('keywordFrequencyList');
+            if (!listContainer) return;
+
+            const editorText = (document.getElementById('editorContent').innerText || "").toLowerCase();
+
+            // 1. Aggregate all keywords from visible cards
+            let allKws = {}; // { keyword: { countSum: X, cardCount: Y } }
+
+            Object.keys(competitorKeywordsAggregator).forEach(cardId => {
+                const card = document.getElementById(cardId);
+                if (card && card.style.display !== 'none') {
+                    const cardKeywords = competitorKeywordsAggregator[cardId];
+                    cardKeywords.forEach(kwObj => {
+                        const kw = kwObj.keyword.toLowerCase();
+                        if (!allKws[kw]) {
+                            allKws[kw] = { countSum: 0, cardCount: 0 };
+                        }
+                        allKws[kw].countSum += kwObj.frequency || 0;
+                        allKws[kw].cardCount += 1;
+                    });
+                }
+            });
+
+            // 2. Filter keywords that appear in at least 2 cards
+            let aggregated = Object.entries(allKws)
+                .filter(([kw, data]) => data.cardCount >= 2)
+                .map(([kw, data]) => {
+                    const avgQty = Math.ceil(data.countSum / data.cardCount);
+
+                    // 3. Count in editor
+                    const regex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+                    const editorCount = (editorText.match(regex) || []).length;
+
+                    return {
+                        keyword: kw,
+                        avgQty: avgQty,
+                        editorCount: editorCount,
+                        ratio: editorCount / avgQty
+                    };
+                })
+                .sort((a, b) => b.avgQty - a.avgQty); // Sort by target frequency
+
+            if (aggregated.length === 0) {
+                listContainer.innerHTML = '<p style="text-align: center; color: #999; font-style: italic; margin-top:20px;">No common keywords found across competitors yet.</p>';
+                return;
+            }
+
+            listContainer.innerHTML = "";
+            aggregated.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'keyword-freq-item';
+
+                // Color coding based on ratio
+                let barColor = '#3b5bdb'; // Default blue
+                if (item.ratio > 1.2) barColor = '#f0a30a'; // Over-optimized yellow
+                if (item.ratio < 0.8) barColor = '#adb5bd'; // Under-optimized gray
+                if (item.ratio >= 0.8 && item.ratio <= 1.2) barColor = '#2b8a3e'; // Golden range green
+
+                const percentage = Math.min((item.editorCount / item.avgQty) * 100, 100);
+
+                div.innerHTML = `
+                    <div class="keyword-freq-header">
+                        <span style="text-transform: capitalize;">${item.keyword}</span>
+                        <span><b>${item.editorCount}</b> / ${item.avgQty}</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" style="width: ${percentage}%; background: ${barColor};"></div>
+                    </div>
+                `;
+                listContainer.appendChild(div);
+            });
+
+            if (document.getElementById('kwsFound')) {
+                document.getElementById('kwsFound').innerText = aggregated.length;
+            }
         }
 
         // Configuration for AI Content Optimiser Lambda Endpoints
@@ -11109,7 +11198,7 @@ seo agencies in singapore</textarea>
                         item.innerHTML = `
                             <div class="keyword-freq-header">
                                 <span>${kw.keyword}</span>
-                                <span>${kw.count}x (${kw.density}%)</span>
+                                <span><b>${kw.count}x</b></span>
                             </div>
                             <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: ${Math.min(kw.density * 10, 100)}%; background: #3b5bdb;"></div></div>
                         `;
@@ -11165,7 +11254,7 @@ seo agencies in singapore</textarea>
                 item.innerHTML = `
                     <div class="keyword-freq-header">
                         <span>${kw}</span>
-                        <span>${count}x (${density}%)</span>
+                        <span><b>${count}x</b></span>
                     </div>
                     <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: ${Math.min(density * 10, 100)}%; background: #3b5bdb;"></div></div>
                 `;
@@ -15844,6 +15933,12 @@ ${selectedText}
             element.style.display = 'none';
             deletedCardsStack.push(elementId);
             updateUndoButtonState();
+
+            // Update keyword list if it was a competitor card
+            if (elementId.startsWith('comp-card')) {
+                updateKeywordFrequencyList();
+            }
+
             if (elementId.startsWith('persona-card') || elementId.startsWith('comp-card')) {
                 updatePersonaButtonsState();
             }
@@ -15858,6 +15953,12 @@ ${selectedText}
                 element.style.display = '';
                 // Optional: Scroll back to the restored card
                 element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+                // Update keyword list if it was a competitor card
+                if (elementId.startsWith('comp-card')) {
+                    updateKeywordFrequencyList();
+                }
+
                 if (elementId.startsWith('persona-card') || elementId.startsWith('comp-card')) {
                     updatePersonaButtonsState();
                 }
@@ -16326,6 +16427,9 @@ ${selectedText}
                 element.scrollIntoView({ behavior: 'smooth' });
             }
         }
+
+        // Global storage for competitor keyword data for aggregation
+        let competitorKeywordsAggregator = {};
 
         function getPersonaData() {
             const cards = document.querySelectorAll('#persona-results .persona-card');
@@ -22168,13 +22272,16 @@ INSTRUCTIONS:
                 const keywords = parseLambdaResponse(data);
 
                 if (keywords && Array.isArray(keywords)) {
+                    // Store for aggregation - link cardId to keywords
+                    competitorKeywordsAggregator[cardId] = keywords;
+                    updateKeywordFrequencyList();
+
                     let html = `
                         <table class="competitor-table keyword-density-table">
                             <thead>
                                 <tr>
                                     <th>Keyword</th>
                                     <th style="text-align: center;">Qty</th>
-                                    <th style="text-align: right;">%</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -22182,7 +22289,6 @@ INSTRUCTIONS:
                                     <tr>
                                         <td>${item.keyword}</td>
                                         <td style="text-align: center;">${item.frequency}</td>
-                                        <td style="text-align: right;">${(item.density || 0).toFixed(1)}%</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
