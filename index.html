@@ -10873,9 +10873,17 @@ seo agencies in singapore</textarea>
                 }
             });
 
-            // 2. Filter keywords that appear in at least 2 cards
+            // 2. Filter keywords that appear in at least 1 card
             let aggregated = Object.entries(allKws)
-                .filter(([kw, data]) => data.cardCount >= 1)
+                .filter(([kw, data]) => {
+                    // Restore requirement: must appear in at least 2 competitors for consolidated view
+                    if (data.cardCount < 2) return false;
+                    // If AI has provided an approved list, ONLY show approved keywords in consolidated list
+                    if (globalApprovedKeywords) {
+                        return globalApprovedKeywords.has(kw.toLowerCase());
+                    }
+                    return true;
+                })
                 .map(([kw, data]) => {
                     const avgQty = Math.ceil(data.countSum / data.cardCount);
 
@@ -10924,7 +10932,9 @@ seo agencies in singapore</textarea>
             });
 
             if (document.getElementById('kwsFound')) {
-                document.getElementById('kwsFound').innerText = aggregated.length;
+                let text = aggregated.length;
+                if (isCleaningKws) text += " <small style='font-weight: normal; opacity: 0.6;'>(AI Filtering...)</small>";
+                document.getElementById('kwsFound').innerHTML = text;
             }
         }
 
@@ -10982,22 +10992,12 @@ seo agencies in singapore</textarea>
                 let cleanedKeywords = responseData.body
                 console.log(cleanedKeywords);
                 const keptSet = new Set(cleanedKeywords.map(k => k.toLowerCase()));
-                let removedCount = 0;
+                // 3. Update the global approved set
+                globalApprovedKeywords = keptSet;
 
-                // 3. Update aggregator to only keep AI-approved keywords
-                Object.keys(competitorKeywordsAggregator).forEach(cardId => {
-                    const originalCount = competitorKeywordsAggregator[cardId].length;
-                    competitorKeywordsAggregator[cardId] = competitorKeywordsAggregator[cardId].filter(kwObj =>
-                        keptSet.has(kwObj.keyword.toLowerCase())
-                    );
-                    removedCount += (originalCount - competitorKeywordsAggregator[cardId].length);
-                });
-
-                // 4. Re-render if anything was removed
-                if (removedCount > 0) {
-                    renderKeywordAggregation();
-                    console.log(`AI Filter: Removed ${removedCount} irrelevant phrases.`);
-                }
+                // 4. Re-render the consolidated list with filtering applied
+                renderKeywordAggregation();
+                console.log(`AI Filter: Filtered down to ${keptSet.size} high-value keywords. Aggregator preserved for raw card views.`);
 
             } catch (error) {
                 console.warn("AI Keyword Filtering skipped:", error.message);
@@ -16574,6 +16574,7 @@ ${selectedText}
 
         // Global storage for competitor keyword data for aggregation
         let competitorKeywordsAggregator = {};
+        let globalApprovedKeywords = null; // Set of keywords approved by AI
 
         function getPersonaData() {
             const cards = document.querySelectorAll('#persona-results .persona-card');
@@ -22012,6 +22013,7 @@ ${selectedText}
                 // Save for Load More
                 allCompetitorUrls_Optimiser.new = serpUrls;
                 displayedCount_Optimiser.new = 0;
+                globalApprovedKeywords = null; // Reset AI filter for new topic
 
                 // 2. Initialize first batch skeletons (up to 10)
                 const initialBatchSize = Math.min(10, serpUrls.length);
@@ -22106,6 +22108,7 @@ ${selectedText}
                 // Save for Load More
                 allCompetitorUrls_Optimiser.optimise = serpUrls;
                 displayedCount_Optimiser.optimise = 0;
+                globalApprovedKeywords = null; // Reset AI filter for new topic
 
                 // 2. Initialize first batch skeletons (up to 10)
                 const initialBatchSize = Math.min(10, serpUrls.length);
