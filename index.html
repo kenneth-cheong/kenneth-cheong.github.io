@@ -10987,22 +10987,23 @@ seo agencies in singapore</textarea>
                 }
 
                 const responseData = await response.json();
+                const cleanedKeywords = parseLambdaResponse(responseData);
 
-                console.log(responseData);
-                let cleanedKeywords = responseData.body
-                console.log(cleanedKeywords);
-                const keptSet = new Set(cleanedKeywords.map(k => k.toLowerCase()));
-                // 3. Update the global approved set
-                globalApprovedKeywords = keptSet;
-
-                // 4. Re-render the consolidated list with filtering applied
-                renderKeywordAggregation();
-                console.log(`AI Filter: Filtered down to ${keptSet.size} high-value keywords. Aggregator preserved for raw card views.`);
+                if (Array.isArray(cleanedKeywords)) {
+                    const keptSet = new Set(cleanedKeywords.map(k => k.toLowerCase()));
+                    // 3. Update the global approved set
+                    globalApprovedKeywords = keptSet;
+                    console.log(`AI Filter: Filtered down to ${keptSet.size} high-value keywords. Aggregator preserved for raw card views.`);
+                } else {
+                    console.warn("AI Filter returned non-array body:", cleanedKeywords);
+                }
 
             } catch (error) {
                 console.warn("AI Keyword Filtering skipped:", error.message);
             } finally {
                 isCleaningKws = false;
+                // 4. Re-render the consolidated list with filtering applied
+                renderKeywordAggregation();
             }
         }
 
