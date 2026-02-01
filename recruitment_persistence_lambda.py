@@ -47,7 +47,11 @@ def lambda_handler(event, context):
         elif action == 'restore_job':
             return handle_restore_job(db, data.get('id'), current_user, headers)
         elif action == 'get_candidates':
-            return handle_get_candidates(db, data.get('jobId'), headers)
+            return handle_get_candidates(db, data, headers)
+        elif action == 'get_candidate_details':
+            return handle_get_candidate_details(db, data.get('id'), headers)
+        elif action == 'get_candidates_summary':
+            return handle_get_candidates_summary(db, data, headers)
         elif action == 'add_candidate':
             return handle_add_candidate(db, data, current_user, headers)
         elif action == 'upsert_candidate':
@@ -100,12 +104,9 @@ def handle_get_jobs(db, headers):
     for job in jobs:
         jid = job.get('id')
         if jid:
-            # Count applicants (not deleted)
-            count = db.candidates.count_documents({"jobId": jid, "deleted": {"$ne": True}})
-            job['applicants'] = count
-            # Count shortlisted (not deleted)
-            shortlisted = db.candidates.count_documents({"jobId": jid, "status": "Shortlisted", "deleted": {"$ne": True}})
-            job['shortlisted'] = shortlisted
+            # Efficiently counting without loading documents
+            job['applicants'] = db.candidates.count_documents({"jobId": jid, "deleted": {"$ne": True}})
+            job['shortlisted'] = db.candidates.count_documents({"jobId": jid, "status": "Shortlisted", "deleted": {"$ne": True}})
     return response(200, jobs, headers)
 
 def handle_upsert_job(db, job_data, user, headers):
@@ -131,12 +132,50 @@ def handle_restore_job(db, job_id, user, headers):
     log_audit(db, "restore", "job", job_id, user, f"Job restored ID: {job_id}")
     return response(200, {"success": True}, headers)
 
-def handle_get_candidates(db, job_id, headers):
+def handle_get_candidates(db, data, headers):
+    job_id = data.get('jobId')
+    limit = int(data.get('limit', 0))
+    skip = int(data.get('skip', 0))
+    
     query = {"deleted": {"$ne": True}}
     if job_id:
         query["jobId"] = str(job_id)
-    candidates = list(db.candidates.find(query))
+    
+    # Projection: Exclude heavy fields for list views
+    projection = {
+        "cvDataBase64": 0,
+        "fullText": 0,
+        "cvTextContent": 0,
+        "interviewGuide": 0
+    }
+    
+    cursor = db.candidates.find(query, projection)
+    
+    if skip > 0:
+        cursor = cursor.skip(skip)
+    if limit > 0:
+        cursor = cursor.limit(limit)
+        
+    candidates = list(cursor)
     return response(200, candidates, headers)
+
+def handle_get_candidate_details(db, cand_id, headers):
+    if not cand_id:
+        return response(400, "Missing candidate ID", headers)
+    candidate = db.candidates.find_one({"id": str(cand_id)})
+    if not candidate:
+        return response(404, "Candidate not found", headers)
+    return response(200, candidate, headers)
+
+def handle_get_candidates_summary(db, data, headers):
+    # Overall counts for dashboard without fetching details
+    total_active = db.candidates.count_documents({"deleted": {"$ne": True}})
+    high_quality = db.candidates.count_documents({"deleted": {"$ne": True}, "aiScore": {"$gt": 80}})
+    
+    return response(200, {
+        "totalActive": total_active,
+        "highQuality": high_quality
+    }, headers)
 
 def handle_add_candidate(db, cand_data, user, headers):
     cand_id = str(datetime.utcnow().timestamp())

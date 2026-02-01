@@ -1357,12 +1357,17 @@
             jobs: [],
             activeJobId: null,
             candidates: [], // linked to jobId
+            repoCandidates: [], // Global repository candidates
             users: [],
             stagedFiles: [],
             currentUser: null,
             activeUserId: null,
             apiKey: localStorage.getItem('ai_recruitment_api_key') || '',
-            editingJobId: null
+            editingJobId: null,
+            stats: { totalActive: 0, highQuality: 0 },
+            repoPageSize: 50,
+            repoSkip: 0,
+            repoHasMore: true
         };
 
         async function handleCredentialResponse(response) {
@@ -1525,12 +1530,10 @@
                 state.jobs = [];
             }
 
-            // Load Candidates for accurate global stats
-            const candidates = await persistenceApiCall('get_candidates');
-            if (Array.isArray(candidates)) {
-                state.candidates = candidates;
-            } else {
-                state.candidates = [];
+            // Load Summary for stats (instead of all candidates)
+            const summary = await persistenceApiCall('get_candidates_summary');
+            if (summary) {
+                state.stats = summary;
             }
 
             // Load Users
@@ -1574,14 +1577,56 @@
             document.getElementById('candidatesSection').style.display = 'block';
             setActiveNavItem('nav-candidates');
 
-            // Fetch all candidates for the global repository
-            const candidates = await persistenceApiCall('get_candidates');
-            if (Array.isArray(candidates)) {
-                state.candidates = candidates;
-            }
+            // Reset pagination
+            state.repoSkip = 0;
+            state.repoCandidates = [];
+            state.repoHasMore = true;
+
+            await loadMoreCandidates();
 
             updatePositionFilter();
-            filterCandidatesRepo();
+        }
+
+        async function loadMoreCandidates() {
+            if (!state.repoHasMore) return;
+
+            const newCandidates = await persistenceApiCall('get_candidates', {
+                limit: state.repoPageSize,
+                skip: state.repoSkip
+            });
+
+            if (Array.isArray(newCandidates)) {
+                state.repoCandidates = [...state.repoCandidates, ...newCandidates];
+                state.repoSkip += state.repoPageSize;
+
+                if (newCandidates.length < state.repoPageSize) {
+                    state.repoHasMore = false;
+                }
+
+                state.candidates = state.repoCandidates; // For shared filtering logic
+                renderCandidatesRepo();
+                updateLoadMoreButton();
+            }
+        }
+
+        function updateLoadMoreButton() {
+            let btn = document.getElementById('loadMoreRepoBtn');
+            if (!btn) {
+                const container = document.querySelector('#candidatesSection .table-container');
+                btn = document.createElement('button');
+                btn.id = 'loadMoreRepoBtn';
+                btn.className = 'btn';
+                btn.style.width = '100%';
+                btn.style.marginTop = '20px';
+                btn.style.background = 'var(--glass)';
+                btn.style.color = 'white';
+                btn.onclick = loadMoreCandidates;
+                container.appendChild(btn);
+            }
+
+            btn.innerText = state.repoHasMore ? 'Load More Candidates' : 'All Candidates Loaded';
+            btn.disabled = !state.repoHasMore;
+            btn.style.display = state.repoCandidates.length > 0 ? 'block' : 'none';
         }
 
         function showUsers() {
@@ -1729,6 +1774,7 @@
             if (cand) {
                 cand.pendingBy = pendingBy;
                 await persistenceApiCall('upsert_candidate', { id: candId, pendingBy: pendingBy });
+                filterCandidatesRepo();
             }
         }
 
@@ -1791,10 +1837,8 @@
         }
 
         async function updateStats() {
-            const totalCand = state.candidates.length; // This reflects filtered/job-specific
-            // For dashboard, we want GLOBAL stats if possible, or total from jobs
-            const totalApplicants = state.jobs.reduce((sum, j) => sum + (parseInt(j.applicants) || 0), 0);
-            const highQuality = state.candidates.filter(c => c.aiScore > 80).length;
+            const totalApplicants = state.stats.totalActive || 0;
+            const highQuality = state.stats.highQuality || 0;
 
             if (document.getElementById('stat-jobs')) document.getElementById('stat-jobs').innerText = state.jobs.length;
             if (document.getElementById('stat-total')) document.getElementById('stat-total').innerText = totalApplicants;
@@ -1917,14 +1961,14 @@
         }
 
         function filterCandidatesRepo() {
-            const search = document.getElementById('searchCand').value.toLowerCase();
-            const pos = document.getElementById('filterPosition').value;
-            const status = document.getElementById('filterStatus').value;
-            const start = document.getElementById('dateStart').value;
-            const end = document.getElementById('dateEnd').value;
+            const search = document.getElementById('searchCand')?.value.toLowerCase() || "";
+            const pos = document.getElementById('filterPosition')?.value || "";
+            const status = document.getElementById('filterStatus')?.value || "";
+            const start = document.getElementById('dateStart')?.value || "";
+            const end = document.getElementById('dateEnd')?.value || "";
 
-            let filtered = state.candidates.map(c => {
-                const job = state.jobs.find(j => j.id === c.jobId);
+            let filtered = state.repoCandidates.map(c => {
+                const job = state.jobs.find(j => j.id.toString() === c.jobId?.toString());
                 return { ...c, jobTitle: job ? job.title : 'Unknown' };
             });
 
@@ -1948,22 +1992,23 @@
                 return 0;
             });
 
-            renderRepoTable(filtered);
+            renderCandidatesRepo(filtered);
         }
 
-        function sortRepoTable(field) {
-            if (repoSort.field === field) {
-                repoSort.direction = repoSort.direction === 'asc' ? 'desc' : 'asc';
-            } else {
-                repoSort.field = field;
-                repoSort.direction = 'asc';
-            }
-            filterCandidatesRepo();
-        }
-
-        function renderRepoTable(data) {
+        function renderCandidatesRepo(data = null) {
+            const displayData = data || state.repoCandidates.map(c => {
+                const job = state.jobs.find(j => j.id.toString() === c.jobId?.toString());
+                return { ...c, jobTitle: job ? job.title : 'Unknown' };
+            });
             const body = document.getElementById('repoBody');
-            body.innerHTML = data.map(c => `
+            if (!body) return;
+
+            if (displayData.length === 0) {
+                body.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--text-dim);">No candidates found.</td></tr>';
+                return;
+            }
+
+            body.innerHTML = displayData.map(c => `
                 <tr style="animation: fadeIn 0.3s ease forwards;" onclick="toggleRowSelection(this)">
                     <td style="text-align: center;" onclick="event.stopPropagation()">
                         <input type="checkbox" class="repo-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('repoTable')">
@@ -2069,7 +2114,7 @@
                     </div>
                     <button onclick="removeStagedFile('${f.id}')" style="background: none; border: none; color: var(--accent); cursor: pointer; padding: 4px;">✕</button>
                 </div>
-            `).join('');
+                `).join('');
         }
 
         function removeStagedFile(id) {
@@ -2108,13 +2153,13 @@
 
             let completed = 0;
             const promises = list.map(async (item) => {
-                console.log(`[Batch] Starting processing for: ${item.name}`);
+                console.log(`[Batch] Starting processing for: ${item.name} `);
                 try {
                     const text = await extractText(item);
-                    console.log(`[Batch] Extracted text for ${item.name} (${text.length} chars)`);
+                    console.log(`[Batch] Extracted text for ${item.name}(${text.length} chars)`);
 
                     const analysis = await callAIAnalysis(item, text);
-                    console.log(`[Batch] Received AI Analysis for ${item.name}:`, analysis);
+                    console.log(`[Batch] Received AI Analysis for ${item.name}: `, analysis);
 
                     if (!analysis || typeof analysis !== 'object') {
                         throw new Error(`Invalid analysis result for ${item.name}`);
@@ -2122,10 +2167,10 @@
 
                     const cvDataBase64 = await toBase64(item.blob);
                     addCandidate(item.name, analysis, cvDataBase64, text);
-                    console.log(`[Batch] Successfully added candidate: ${item.name}`);
+                    console.log(`[Batch] Successfully added candidate: ${item.name} `);
                 } catch (err) {
-                    console.error(`[Batch] ERROR processing ${item.name}:`, err);
-                    alert(`Error processing ${item.name}: ${err.message}`);
+                    console.error(`[Batch] ERROR processing ${item.name}: `, err);
+                    alert(`Error processing ${item.name}: ${err.message} `);
                 } finally {
                     completed++;
                     const progress = (completed / list.length) * 100;
@@ -2451,13 +2496,27 @@
         // Candidate Detail Modal
         let currentChart = null;
 
-        function viewCandidate(id) {
+        async function viewCandidate(id) {
             console.log('Viewing candidate ID:', id);
-            const c = state.candidates.find(cand => cand.id.toString() === id.toString());
+
+            // Show loading state or modal immediately
+            document.getElementById('detailName').innerText = 'Loading...';
+            document.getElementById('detailModal').style.display = 'flex';
+
+            // Fetch FULL details from database (including CV text and base64)
+            const c = await persistenceApiCall('get_candidate_details', { id: id });
 
             if (!c) {
                 console.error('Candidate not found for ID:', id);
+                alert("Failed to load full candidate details.");
+                document.getElementById('detailModal').style.display = 'none';
                 return;
+            }
+
+            // Sync with local state if needed (optional, but keeps state consistent)
+            const localIdx = state.candidates.findIndex(cand => cand.id.toString() === id.toString());
+            if (localIdx !== -1) {
+                state.candidates[localIdx] = { ...state.candidates[localIdx], ...c };
             }
 
             document.getElementById('detailName').innerText = c.name;
