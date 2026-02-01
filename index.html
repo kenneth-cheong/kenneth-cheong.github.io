@@ -22433,6 +22433,17 @@ INSTRUCTIONS:
             });
         }
 
+        function switchAllCompetitorCardsToContent() {
+            const cards = document.querySelectorAll('.competitor-card');
+            cards.forEach(card => {
+                const contentButton = Array.from(card.querySelectorAll('.competitor-card-toggle button'))
+                    .find(btn => btn.innerText.trim().toLowerCase() === 'content');
+                if (contentButton && !contentButton.classList.contains('active')) {
+                    contentButton.click();
+                }
+            });
+        }
+
         async function fetchAndRenderKeywords(cardId, url) {
             const card = document.getElementById(cardId);
             const container = card.querySelector('.keywords-tab');
@@ -22621,6 +22632,7 @@ INSTRUCTIONS:
                 textArea.value = '';
             }
         } async function aiPickTopics(flow) {
+            switchAllCompetitorCardsToContent();
             const gridId = flow === 'optimise' ? 'competitorInsightsGrid-Optimise' : 'competitorInsightsGrid';
             const keywordId = flow === 'optimise' ? 'primaryKeyword' : 'primaryKeywordNew';
             const secondaryId = flow === 'optimise' ? 'secondaryKeywords' : 'secondaryKeywordsNew';
