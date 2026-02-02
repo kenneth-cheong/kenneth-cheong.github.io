@@ -26,7 +26,6 @@ def lambda_handler(event, context):
         if action == 'initiate':
             url = body.get('url')
             max_pages = int(body.get('max_pages', 5))
-            max_depth = int(body.get('max_depth', 1))
             
             if not url:
                 return {
@@ -46,7 +45,7 @@ def lambda_handler(event, context):
                 "check_spell": True,
                 "max_crawl_pages": max_pages,
                 "enable_javascript": True,
-                "max_crawl_depth": max_depth,
+                "max_crawl_depth": 1,
                 "validate_micromarkup": True
             }]
             
@@ -73,6 +72,28 @@ def lambda_handler(event, context):
             }]
             
             response = requests.post(pages_url, headers=headers, json=payload)
+            return {
+                'statusCode': 200,
+                'headers': {'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps(response.json())
+            }
+
+        elif action == 'get_microdata':
+            task_id = body.get('task_id')
+            if not task_id:
+                return {
+                    'statusCode': 400,
+                    'headers': {'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'task_id is required'})
+                }
+            
+            microdata_url = "https://api.dataforseo.com/v3/on_page/microdata"
+            payload = [{
+                "id": task_id,
+                "limit": 100
+            }]
+            
+            response = requests.post(microdata_url, headers=headers, json=payload)
             return {
                 'statusCode': 200,
                 'headers': {'Access-Control-Allow-Origin': '*'},

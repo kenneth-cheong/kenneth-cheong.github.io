@@ -11101,7 +11101,7 @@ seo agencies in singapore</textarea>
                         { label: 'Word Count', value: resultItem.meta?.content?.plain_text_word_count || 'N/A', icon: 'fa-font' },
                         { label: 'Internal Links', value: resultItem.meta?.internal_links_count || 0, icon: 'fa-link' },
                         { label: 'Load Time', value: (resultItem.page_timing?.duration_time ? (resultItem.page_timing.duration_time / 1000).toFixed(2) + 's' : 'N/A'), icon: 'fa-bolt' },
-                        { label: 'Readability (Flesch)', value: resultItem.meta?.content?.flesch_kincaid_readability_index || 'N/A', icon: 'fa-glasses' },
+                        { label: 'Readability (Flesch)', value: resultItem.meta?.content?.flesch_kincaid_readability_index ? Number(resultItem.meta.content.flesch_kincaid_readability_index).toFixed(2) : 'N/A', icon: 'fa-glasses' },
                         { label: 'HTTPS Secure', value: resultItem.checks.is_https ? 'Yes' : 'No', icon: 'fa-lock' },
                         { label: 'Render Blockers', value: resultItem.meta.render_blocking_scripts_count || 0, icon: 'fa-cubes' },
                         { label: 'Images (Total)', value: resultItem.meta?.images_count || 0, icon: 'fa-image' },
@@ -11124,27 +11124,100 @@ seo agencies in singapore</textarea>
                         grid.appendChild(card);
                     });
 
+                    // 4. Update Dynamic Score with Crawler Signals (Bonus Points)
+                    let crawlerBonus = 0;
+                    if (resultItem.checks?.is_https) crawlerBonus += 2;
+                    if (resultItem.page_timing?.duration_time && (resultItem.page_timing.duration_time < 2000)) crawlerBonus += 3;
+                    if (resultItem.meta?.content?.flesch_kincaid_readability_index && resultItem.meta.content.flesch_kincaid_readability_index > 50) crawlerBonus += 3;
+                    if (resultItem.checks?.has_micromarkup) crawlerBonus += 2;
+
+                    // Helper to update score gauge safely
+                    if (window.updateDiscoveryScoreBonus) {
+                        window.updateDiscoveryScoreBonus(crawlerBonus);
+                    }
+
+
+                    // 5. Fetch Detailed Microdata (Supplementary) - Nested here to access taskId
+                    try {
+                        const microResp = await fetch('https://ak9qsl9wgi.execute-api.ap-southeast-1.amazonaws.com/dataforseoCrawler', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'get_microdata',
+                                task_id: taskId
+                            })
+                        });
+                        const microData = await microResp.json();
+                        console.log(microData);
+                        const actualMicro = typeof microData.body === 'string' ? JSON.parse(microData.body) : (microData.body || microData);
+
+                        const items = actualMicro.tasks?.[0]?.result?.[0]?.items || [];
+                        const types = [...new Set(items.map(i => i.type))].filter(Boolean);
+
+                        if (types.length > 0) {
+                            const card = document.createElement('div');
+                            card.className = 'discovery-stat-card';
+                            card.style.textAlign = 'center';
+                            card.style.padding = '20px';
+                            card.innerHTML = `
+                                <div class="discovery-stat-value" style="font-size: 1.2em; color: #6366f1;">
+                                    <i class="fas fa-project-diagram" style="margin-bottom: 10px;"></i>
+                                </div>
+                                <div class="discovery-stat-label" style="margin-top: 5px; font-weight: bold;">Detected Schemas</div>
+                                <div style="font-size: 0.85em; color: #64748b; margin-top: 8px; line-height: 1.4;">
+                                    ${types.join(', ')}
+                                </div>
+                            `;
+                            grid.appendChild(card);
+                        }
+                    } catch (microErr) {
+                        console.error("Microdata fetch error:", microErr);
+                    }
+
                 } catch (err) {
                     console.error("Crawl error:", err);
                     grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: #ef4444; padding: 20px;">Error: ${err.message}</div>`;
                     badge.textContent = 'Error';
                 }
+
+
             }
 
             function animateGauge(target) {
                 const gauge = document.getElementById('discoveryMainGauge');
-                const scoreDisplay = document.getElementById('discoveryMainScore');
-                let current = 0;
-                const interval = setInterval(() => {
-                    if (current >= target) {
-                        clearInterval(interval);
-                        return;
-                    }
-                    current++;
+                const valueDisplay = document.getElementById('discoveryMainScore');
+                const start = parseInt(valueDisplay.innerText);
+                const duration = 1500;
+                const startTime = performance.now();
+
+                function update(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const ease = 1 - Math.pow(1 - progress, 3); // Cubic ease out
+
+                    const current = Math.floor(start + (target - start) * ease);
+                    valueDisplay.innerText = current;
                     gauge.style.setProperty('--p', current);
-                    scoreDisplay.textContent = current;
-                }, 20);
+
+                    if (progress < 1) requestAnimationFrame(update);
+                }
+                requestAnimationFrame(update);
             }
+
+            // Expose a global helper to update score additively
+            window.updateDiscoveryScoreBonus = function (bonus) {
+                const valueDisplay = document.getElementById('discoveryMainScore');
+                let currentScore = parseInt(valueDisplay.innerText);
+                let newScore = Math.min(currentScore + bonus, 100);
+
+                // Re-run animation to the new target
+                animateGauge(newScore);
+
+                // Update status text slightly if score bumped significantly
+                if (newScore > 80 && currentScore <= 80) {
+                    document.getElementById('discoveryStatusText').textContent = "Your brand is highly discoverable! Excellent technical foundations.";
+                }
+            };
 
             function updateDiscoveryStats(techData, score) {
                 document.getElementById('stat-citations').textContent = Math.floor(score * 0.4);
