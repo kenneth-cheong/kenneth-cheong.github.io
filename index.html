@@ -195,7 +195,7 @@
         /* Result Layout */
         .discovery-results-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 24px;
             margin-bottom: 40px;
         }
@@ -6055,6 +6055,29 @@
         .competitor-card-retry-btn i {
             font-size: 0.8em;
         }
+
+        .simulated-data {
+            opacity: 0.5;
+            filter: grayscale(100%);
+            position: relative;
+            cursor: help;
+        }
+
+        .simulated-data:hover::after {
+            content: "Simulated Data";
+            position: absolute;
+            bottom: 105%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 10;
+        }
     </style>
 </head>
 
@@ -8139,13 +8162,17 @@
 
                         <div id="discoveryResults" style="display: none;">
                             <div class="discovery-results-grid">
-                                <div class="discovery-stat-card">
+                                <div class="discovery-stat-card simulated-data">
                                     <div class="discovery-stat-value" id="stat-citations">0</div>
                                     <div class="discovery-stat-label">Citations Found</div>
                                 </div>
-                                <div class="discovery-stat-card">
+                                <div class="discovery-stat-card simulated-data">
                                     <div class="discovery-stat-value" id="stat-depth">0</div>
                                     <div class="discovery-stat-label">Source Depth</div>
+                                </div>
+                                <div class="discovery-stat-card">
+                                    <div class="discovery-stat-value" id="stat-ssl">N/A</div>
+                                    <div class="discovery-stat-label">SSL Security</div>
                                 </div>
                                 <div class="discovery-stat-card">
                                     <div class="discovery-stat-value" id="stat-quality">0%</div>
@@ -8172,7 +8199,7 @@
                                     <h3 style="margin-bottom: 20px;"><i class="fas fa-robot"></i> Platform
                                         Readiness
                                     </h3>
-                                    <div class="discovery-platform-list" id="platformList">
+                                    <div class="discovery-platform-list simulated-data" id="platformList">
                                         <!-- Platform cards injected here via JS -->
                                     </div>
                                 </div>
@@ -8180,6 +8207,44 @@
 
                             <div class="discovery-report-details" id="discoveryDetailSection">
                                 <!-- Detailed metrics for clicked platform -->
+                            </div>
+
+                            <!-- New Technical Discovery Details Section -->
+                            <div id="discoveryTechnicalReport" style="display: none; margin-top: 30px;">
+                                <div
+                                    style="background: #fff; padding: 30px; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                                    <h3
+                                        style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px; color: #1e293b;">
+                                        <i class="fas fa-file-code" style="color: #6366f1;"></i> Technical Discovery
+                                        Audit
+                                    </h3>
+                                    <div class="discovery-tech-grid" id="discoveryTechGrid"
+                                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                                        <!-- Tech items will be injected here -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- DataForSEO Crawler Insights Section -->
+                            <div id="discoveryCrawlerReport" style="display: none; margin-top: 30px;">
+                                <div
+                                    style="background: #fff; padding: 30px; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                                    <div
+                                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                                        <h3
+                                            style="margin: 0; display: flex; align-items: center; gap: 10px; color: #1e293b;">
+                                            <i class="fas fa-spider" style="color: #ec4899;"></i> Crawler Deep Insights
+                                        </h3>
+                                        <div id="crawlerStatusBadge"
+                                            style="font-size: 0.8em; padding: 4px 12px; border-radius: 20px; background: #f1f5f9; color: #64748b; font-weight: 600;">
+                                            Initializing...
+                                        </div>
+                                    </div>
+                                    <div class="discovery-tech-grid" id="discoveryCrawlerGrid"
+                                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                                        <!-- Crawler items will be injected here -->
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -8191,7 +8256,7 @@
         <div id="othersSection">
             <div class="page-break"></div>
             <button class="collapsible" id="othersMainBtn"><i class="fas fa-plus-square"></i><i
-                    class="fas fa-tools"></i>Others Utility Tools</button>
+                    class="fas fa-tools"></i>Others</button>
             <div class="content">
                 <div id="competitorsSection">
                     <div class="page-break"></div>
@@ -10817,6 +10882,9 @@ seo agencies in singapore</textarea>
                 document.getElementById('discoveryResults').style.display = 'block';
                 document.getElementById('discoveryResults').scrollIntoView({ behavior: 'smooth' });
 
+                // Fire Concurrent Crawler (Fire & Forget, handles its own UI)
+                runDataForSeoDiscoveryCrawl(url).catch(err => console.error("Concurrent Crawler Error:", err));
+
                 try {
                     // 1. Fetch real technical data using existing API
                     const auditResponse = await fetch("https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit", {
@@ -10827,19 +10895,117 @@ seo agencies in singapore</textarea>
 
                     const rawData = await auditResponse.json();
                     const techData = typeof rawData.body === 'string' ? JSON.parse(rawData.body) : rawData;
+                    const finalTechData = { ...techData };
 
-                    // 2. Calculate dynamic scores based on technical signals
-                    let baseScore = 65;
-                    if (techData.sitemap) baseScore += 10;
-                    if (techData.robots && techData.robots.includes('Allow: /')) baseScore += 5;
-                    if (techData.pagespeed && parseInt(techData.pagespeed) > 80) baseScore += 10;
+                    // 1.5 Fetch SSL Data
+                    let sslValid = false;
+                    try {
+                        const dnsDomain = url.replace('https://', '').replace('http://', '').split('/')[0];
+                        const sslResponse = await fetch("https://2kxt49bwp1.execute-api.ap-southeast-1.amazonaws.com/checkSsl", {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: dnsDomain })
+                        });
+                        const sslData = await sslResponse.json();
+                        console.log(sslData);
+                        sslValid = sslData.message && sslData.message.toLowerCase().includes('valid');
+                        finalTechData.sslStatus = sslValid ? 'Valid' : 'Issue';
+                    } catch (sslErr) {
+                        console.error("SSL Check Error:", sslErr);
+                        finalTechData.sslStatus = 'Error';
+                    }
 
-                    const finalScore = Math.min(baseScore + Math.floor(Math.random() * 10), 100);
+                    // 1.8 Expanded Technical Checks
+                    const techAuditResults = [];
+                    const domainForFetch = url.startsWith('http') ? url : 'https://' + url;
+                    const rootDomain = new URL(domainForFetch).origin;
 
-                    // 3. Update UI with animations
+                    try {
+                        // A. Call getHtml for page-level tags
+                        const htmlResponse = await fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: domainForFetch })
+                        });
+                        const htmlData = await htmlResponse.json();
+                        const doc = new DOMParser().parseFromString(htmlData.body, 'text/html');
+
+                        // Canonical
+                        const canonical = doc.querySelector('link[rel="canonical"]')?.href || 'None';
+                        techAuditResults.push({ label: 'Canonical Tag', value: canonical, status: canonical !== 'None' ? 'pass' : 'fail' });
+
+                        // Meta Title
+                        const title = doc.querySelector('title')?.innerText || doc.querySelector('meta[name="title"]')?.content || 'None';
+                        techAuditResults.push({ label: 'Meta Title', value: title, status: title !== 'None' ? 'pass' : 'fail' });
+
+                        // Meta Description
+                        const desc = doc.querySelector('meta[name="description"]')?.content || 'None';
+                        techAuditResults.push({ label: 'Meta Description', value: desc, status: desc !== 'None' ? 'pass' : 'fail' });
+
+                        // Hreflang
+                        const hreflangEls = Array.from(doc.querySelectorAll('link[rel="alternate"][hreflang]'));
+                        const hreflangs = hreflangEls.map(el => `${el.hreflang}: ${el.href}`).join(', ') || 'None';
+                        techAuditResults.push({ label: 'Hreflang Tags', value: hreflangs, status: hreflangs !== 'None' ? 'pass' : 'warn' });
+
+                        // B. Check robots.txt
+                        const robotsResponse = await fetch('https://1pfsx12au9.execute-api.ap-southeast-1.amazonaws.com/url_lib_lite', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: rootDomain + "/robots.txt" })
+                        });
+                        const robotsData = await robotsResponse.json();
+                        const robotsText = robotsData.body?.visible_text || 'Not Found';
+                        techAuditResults.push({ label: 'robots.txt', value: robotsText.substring(0, 150) + (robotsText.length > 150 ? '...' : ''), status: (robotsText !== 'Not Found' && !robotsText.includes('Error')) ? 'pass' : 'fail' });
+
+                        // C. Check Sitemap
+                        let sitemapVal = 'Not Found';
+                        if (techData.sitemap) sitemapVal = techData.sitemap;
+                        else if (robotsText.toLowerCase().includes('sitemap:')) {
+                            const match = robotsText.match(/sitemap:\s*(https?:\/\/\S+)/i);
+                            sitemapVal = match ? match[1] : 'Linked in robots.txt';
+                        }
+                        techAuditResults.push({ label: 'XML Sitemap', value: sitemapVal, status: sitemapVal !== 'Not Found' ? 'pass' : 'fail' });
+
+                        // D. Check llms.txt & llms-full.txt
+                        const checkLlmFile = async (fileName) => {
+                            try {
+                                const resp = await fetch('https://1pfsx12au9.execute-api.ap-southeast-1.amazonaws.com/url_lib_lite', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ url: rootDomain + "/" + fileName })
+                                });
+                                const d = await resp.json();
+                                return (d.body && d.body.visible_text && !d.body.visible_text.includes('Error')) ? 'Found' : 'Not Found';
+                            } catch (e) { return 'Not Found'; }
+                        };
+
+                        const llmsVal = await checkLlmFile('llms.txt');
+                        const llmsFullVal = await checkLlmFile('llms-full.txt');
+                        techAuditResults.push({ label: 'llms.txt', value: llmsVal, status: llmsVal === 'Found' ? 'pass' : 'warn' });
+                        techAuditResults.push({ label: 'llms-full.txt', value: llmsFullVal, status: llmsFullVal === 'Found' ? 'pass' : 'warn' });
+
+                        finalTechData.techAudit = techAuditResults;
+
+                    } catch (techErr) {
+                        console.error("Expanded Tech Audit Error:", techErr);
+                    }
+
+                    // 2. Calculate dynamic scores
+                    let baseScoreCalc = 60;
+                    if (finalTechData.sitemap || techAuditResults.find(r => r.label === 'XML Sitemap')?.status === 'pass') baseScoreCalc += 10;
+                    if (finalTechData.robots && finalTechData.robots.includes('Allow: /')) baseScoreCalc += 5;
+                    if (finalTechData.pagespeed && parseInt(finalTechData.pagespeed) > 80) baseScoreCalc += 10;
+                    if (sslValid) baseScoreCalc += 5;
+                    if (techAuditResults.find(r => r.label === 'llms.txt')?.status === 'pass') baseScoreCalc += 10;
+                    if (techAuditResults.find(r => r.label === 'Canonical Tag')?.status === 'pass') baseScoreCalc += 5;
+
+                    const finalScore = Math.min(baseScoreCalc + Math.floor(Math.random() * 5), 100);
+
+                    // 3. Update UI
                     animateGauge(finalScore);
-                    updateDiscoveryStats(techData, finalScore);
+                    updateDiscoveryStats(finalTechData, finalScore);
                     renderDiscoveryPlatforms(finalScore);
+                    renderTechnicalAudit(finalTechData.techAudit);
 
                     document.getElementById('discoveryStatusText').textContent =
                         finalScore > 80 ? "Your brand is highly discoverable! Excellent technical foundations." :
@@ -10855,6 +11021,113 @@ seo agencies in singapore</textarea>
                 } finally {
                     btn.textContent = originalText;
                     btn.disabled = false;
+                }
+
+            }
+
+            async function runDataForSeoDiscoveryCrawl(url) {
+                const reportDiv = document.getElementById('discoveryCrawlerReport');
+                const grid = document.getElementById('discoveryCrawlerGrid');
+                const badge = document.getElementById('crawlerStatusBadge');
+
+                reportDiv.style.display = 'block';
+                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 20px;">Initializing deep page crawl...</div>';
+                badge.textContent = 'Initializing...';
+                badge.style.background = '#f1f5f9';
+
+                try {
+                    // 1. Initiate Task
+                    const initiateResp = await fetch('https://ak9qsl9wgi.execute-api.ap-southeast-1.amazonaws.com/dataforseoCrawler', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'initiate',
+                            url: url,
+                            max_pages: 1,
+                            max_depth: 0
+                        })
+                    });
+                    const initData = await initiateResp.json();
+                    const actualInit = typeof initData.body === 'string' ? JSON.parse(initData.body) : (initData.body || initData);
+                    const taskId = actualInit.tasks && actualInit.tasks[0]?.id;
+
+                    if (!taskId) throw new Error("No Task ID returned from Crawler");
+
+                    badge.textContent = 'Crawling...';
+                    badge.style.background = '#dcfce7';
+                    badge.style.color = '#166534';
+
+                    // 2. Poll for Results
+                    let attempts = 0;
+                    const maxAttempts = 15; // 30 seconds total
+                    let resultItem = null;
+
+                    while (attempts < maxAttempts) {
+                        await new Promise(r => setTimeout(r, 2000));
+                        const pollResp = await fetch('https://ak9qsl9wgi.execute-api.ap-southeast-1.amazonaws.com/dataforseoCrawler', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'get_results', task_id: taskId })
+                        });
+                        const pollData = await pollResp.json();
+                        const actualPoll = typeof pollData.body === 'string' ? JSON.parse(pollData.body) : (pollData.body || pollData);
+                        const task = actualPoll.tasks && actualPoll.tasks[0];
+
+                        if (task?.result?.[0]?.items?.[0]) {
+                            resultItem = task.result[0].items[0];
+                            break;
+                        }
+
+                        if (task?.result?.[0]?.crawl_progress === 'finished' && !task.result[0].items?.length) {
+                            break; // Finished but no items?
+                        }
+                        attempts++;
+                        badge.textContent = `Crawling (${attempts * 2}s)...`;
+                    }
+
+                    if (!resultItem) {
+                        grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #ef4444; padding: 20px;">Crawl timed out or no data found.</div>';
+                        badge.textContent = 'Timed Out';
+                        badge.style.background = '#fee2e2';
+                        return;
+                    }
+
+                    // 3. Extract and Render Metrics
+                    badge.textContent = 'Completed';
+                    badge.style.background = '#6366f1';
+                    badge.style.color = '#fff';
+
+                    const metrics = [
+                        { label: 'Word Count', value: resultItem.meta?.content?.plain_text_word_count || 'N/A', icon: 'fa-font' },
+                        { label: 'Internal Links', value: resultItem.meta?.internal_links_count || 0, icon: 'fa-link' },
+                        { label: 'Load Time', value: (resultItem.page_timing?.duration_time ? (resultItem.page_timing.duration_time / 1000).toFixed(2) + 's' : 'N/A'), icon: 'fa-bolt' },
+                        { label: 'Readability (Flesch)', value: resultItem.meta?.content?.flesch_kincaid_readability_index || 'N/A', icon: 'fa-glasses' },
+                        { label: 'HTTPS Secure', value: resultItem.checks.is_https ? 'Yes' : 'No', icon: 'fa-lock' },
+                        { label: 'Render Blockers', value: resultItem.meta.render_blocking_scripts_count || 0, icon: 'fa-cubes' },
+                        { label: 'Images (Total)', value: resultItem.meta?.images_count || 0, icon: 'fa-image' },
+                        { label: 'Missing Alt Tags', value: resultItem.checks?.no_image_alt || 0, icon: 'fa-exclamation-triangle', warn: (resultItem.checks?.no_image_alt > 0) },
+                        { label: 'Schema Markup', value: resultItem.checks?.has_micromarkup ? 'Present' : 'Missing', icon: 'fa-code', warn: !resultItem.checks?.has_micromarkup },
+                        { label: 'H1, H2, H3 Tags', value: `${resultItem.meta?.htags?.h1?.length || 0} / ${resultItem.meta?.htags?.h2?.length || 0} / ${resultItem.meta?.htags?.h3?.length || 0}`, icon: 'fa-heading' }
+                    ];
+
+                    grid.innerHTML = '';
+                    metrics.forEach(m => {
+                        const card = document.createElement('div');
+                        card.style.cssText = 'background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 8px;';
+                        card.innerHTML = `
+                            <div style="display: flex; align-items: center; gap: 8px; font-size: 0.85em; color: #64748b; font-weight: 500;">
+                                <i class="fas ${m.icon}" style="color: ${m.warn ? '#f59e0b' : '#6366f1'};"></i>
+                                ${m.label}
+                            </div>
+                            <div style="font-size: 1.1em; font-weight: 700; color: #1e293b;">${m.value}</div>
+                        `;
+                        grid.appendChild(card);
+                    });
+
+                } catch (err) {
+                    console.error("Crawl error:", err);
+                    grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: #ef4444; padding: 20px;">Error: ${err.message}</div>`;
+                    badge.textContent = 'Error';
                 }
             }
 
@@ -10876,7 +11149,38 @@ seo agencies in singapore</textarea>
             function updateDiscoveryStats(techData, score) {
                 document.getElementById('stat-citations').textContent = Math.floor(score * 0.4);
                 document.getElementById('stat-depth').textContent = techData.sitemap ? 'Deep' : 'Standard';
+                document.getElementById('stat-ssl').textContent = techData.sslStatus || 'N/A';
+                document.getElementById('stat-ssl').style.color = techData.sslStatus === 'Valid' ? '#10a37f' : techData.sslStatus === 'Issue' ? '#ef4444' : '#64748b';
                 document.getElementById('stat-quality').textContent = score + '%';
+            }
+
+            function renderTechnicalAudit(audit) {
+                const report = document.getElementById('discoveryTechnicalReport');
+                const grid = document.getElementById('discoveryTechGrid');
+                if (!audit || audit.length === 0) {
+                    report.style.display = 'none';
+                    return;
+                }
+                report.style.display = 'block';
+                grid.innerHTML = '';
+
+                audit.forEach(item => {
+                    const statusColor = item.status === 'pass' ? '#10a37f' : item.status === 'warn' ? '#f59e0b' : '#ef4444';
+                    const statusIcon = item.status === 'pass' ? 'fa-check-circle' : item.status === 'warn' ? 'fa-exclamation-triangle' : 'fa-times-circle';
+
+                    const card = `
+                    <div style="padding: 15px; background: #f8fafc; border-radius: 12px; border-left: 4px solid ${statusColor};">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                            <span style="font-weight: 700; font-size: 0.9em; color: #475569;">${item.label}</span>
+                            <i class="fas ${statusIcon}" style="color: ${statusColor};"></i>
+                        </div>
+                        <div style="font-size: 0.85em; color: #1e293b; word-break: break-all; font-family: 'Courier New', monospace; max-height: 100px; overflow-y: auto;">
+                            ${item.value}
+                        </div>
+                    </div>
+                `;
+                    grid.insertAdjacentHTML('beforeend', card);
+                });
             }
 
             function renderDiscoveryPlatforms(baseScore) {
