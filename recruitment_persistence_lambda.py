@@ -57,9 +57,9 @@ def lambda_handler(event, context):
             return handle_restore_job(db, data.get('id'), current_user, headers)
         elif action == 'get_candidates':
             return handle_get_candidates(db, data, headers)
-        elif action == 'get_candidate_detail' or action == 'get_candidate_details':
+        elif action == 'get_candidate_detail':
             return handle_get_candidate_detail(db, data.get('id'), headers)
-        elif action == 'get_dashboard_stats' or action == 'get_candidates_summary':
+        elif action == 'get_dashboard_stats':
             return handle_get_dashboard_stats(db, headers)
         elif action == 'add_candidate':
             return handle_add_candidate(db, data, current_user, headers)
@@ -121,9 +121,12 @@ def handle_get_jobs(db, headers):
     for job in jobs:
         jid = job.get('id')
         if jid:
-            # Efficiently counting without loading documents
-            job['applicants'] = db.candidates.count_documents({"jobId": jid, "deleted": {"$ne": True}})
-            job['shortlisted'] = db.candidates.count_documents({"jobId": jid, "status": "Shortlisted", "deleted": {"$ne": True}})
+            # Count applicants (not deleted)
+            count = db.candidates.count_documents({"jobId": jid, "deleted": {"$ne": True}})
+            job['applicants'] = count
+            # Count shortlisted (not deleted)
+            shortlisted = db.candidates.count_documents({"jobId": jid, "status": "Shortlisted", "deleted": {"$ne": True}})
+            job['shortlisted'] = shortlisted
     return response(200, jobs, headers)
 
 def handle_upsert_job(db, job_data, user, headers):
@@ -151,16 +154,10 @@ def handle_restore_job(db, job_id, user, headers):
 
 def handle_get_candidates(db, data, headers):
     job_id = data.get('jobId')
-    
-    # Support both page/limit and skip/limit
+    page = int(data.get('page', 1))
     limit = int(data.get('limit', 20))
-    if 'skip' in data:
-        skip = int(data.get('skip', 0))
-        page = (skip // limit) + 1 if limit > 0 else 1
-    else:
-        page = int(data.get('page', 1))
-        skip = (page - 1) * limit
-    
+    skip = (page - 1) * limit
+
     query = {"deleted": {"$ne": True}}
     if job_id:
         query["jobId"] = str(job_id)
@@ -170,8 +167,6 @@ def handle_get_candidates(db, data, headers):
         "fullText": 0,
         "cvData": 0,
         "cvBinary": 0,
-        "cvDataBase64": 0,
-        "cvTextContent": 0,
         "summary": 0,
         "reasons": 0,
         "interviewGuide": 0,
@@ -179,7 +174,6 @@ def handle_get_candidates(db, data, headers):
     }
     
     total = db.candidates.count_documents(query)
-    # Using allow_disk_use=True for large sorts
     candidates = list(db.candidates.find(query, projection, allow_disk_use=True).sort("createdAt", -1).skip(skip).limit(limit))
     
     return response(200, {
@@ -190,26 +184,30 @@ def handle_get_candidates(db, data, headers):
     }, headers)
 
 def handle_get_candidate_detail(db, cand_id, headers):
-    if not cand_id:
-        return response(400, "Missing candidate ID", headers)
-    candidate = db.candidates.find_one({"id": str(cand_id)})
+    candidate = db.candidates.find_one({"id": cand_id})
     if candidate:
         return response(200, candidate, headers)
     else:
         return response(404, {"error": "Candidate not found"}, headers)
 
 def handle_get_dashboard_stats(db, headers):
-    # Overall counts for dashboard without fetching details
-    total_active = db.candidates.count_documents({"deleted": {"$ne": True}})
-    high_quality = db.candidates.count_documents({"deleted": {"$ne": True}, "aiScore": {"$gt": 80}})
-    total_jobs = db.jobs.count_documents({"deleted": {"$ne": True}})
-    
+    total_applicants = db.jobs.aggregate([
+        {"$match": {"deleted": {"$ne": True}}},
+        {"$group": {"_id": None, "total": {"$sum": "$applicants"}}}
+    ])
+    total_applicants_val = 0
+    for res in total_applicants:
+        total_applicants_val = res['total']
+
+    high_quality_count = db.candidates.count_documents({
+        "deleted": {"$ne": True},
+        "aiScore": {"$gt": 80}
+    })
+
     return response(200, {
-        "totalActive": total_active,
-        "highQuality": high_quality,
-        "highQualityLeads": high_quality, # Alias for compatibility
-        "totalApplicants": total_active,  # Alias for compatibility
-        "totalJobs": total_jobs
+        "totalApplicants": total_applicants_val,
+        "highQualityLeads": high_quality_count,
+        "totalJobs": db.jobs.count_documents({"deleted": {"$ne": True}})
     }, headers)
 
 def handle_add_candidate(db, cand_data, user, headers):
@@ -220,6 +218,14 @@ def handle_add_candidate(db, cand_data, user, headers):
     db.candidates.insert_one(cand_data)
     log_audit(db, "add", "candidate", cand_id, user, f"Added candidate: {cand_data.get('name')}")
     return response(200, {"success": True, "candidate": cand_data}, headers)
+
+def handle_update_candidate(db, cand_data, user, headers):
+    cand_id = cand_data.get('id')
+    if '_id' in cand_data:
+        del cand_data['_id']
+    db.candidates.update_one({"id": cand_id}, {"$set": cand_data})
+    log_audit(db, "update", "candidate", cand_id, user, f"Updated candidate: {cand_data.get('name')}")
+    return response(200, {"success": True}, headers)
 
 def handle_delete_candidate(db, cand_id, user, headers):
     db.candidates.update_one({"id": cand_id}, {"$set": {"deleted": True}})
@@ -234,11 +240,17 @@ def handle_restore_candidate(db, cand_id, user, headers):
 def handle_upsert_candidate(db, cand_data, user, headers):
     cand_id = cand_data.get('id')
     if cand_id:
+        # Avoid overwriting deleted flag if not provided
         if '_id' in cand_data: del cand_data['_id']
         db.candidates.update_one({"id": cand_id}, {"$set": cand_data}, upsert=True)
         log_audit(db, "update", "candidate", cand_id, user, f"Updated candidate: {cand_data.get('name')}")
     else:
         return handle_add_candidate(db, cand_data, user, headers)
+    return response(200, {"success": True}, headers)
+
+def handle_restore_candidate(db, cand_id, user, headers):
+    db.candidates.update_one({"id": cand_id}, {"$set": {"deleted": False}})
+    log_audit(db, "restore", "candidate", cand_id, user, "Candidate restored")
     return response(200, {"success": True}, headers)
 
 def handle_get_users(db, headers):
