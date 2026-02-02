@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from pymongo import MongoClient
 import bson
+from bson import ObjectId
 
 # Environment Variables (Configure these in AWS Lambda)
 MONGODB_URI = os.environ.get('MONGODB_URI') # e.g. mongodb+srv://user:pass@cluster.mongodb.net/
@@ -29,12 +30,20 @@ def lambda_handler(event, context):
         return {'statusCode': 200, 'headers': headers}
 
     try:
-        action = event.get('action')
-        data = event.get('data', {})
-        current_user = event.get('currentUser', 'System')
+        # Support both Proxy and direct invocations
+        body = event
+        if 'body' in event and isinstance(event['body'], str):
+            try:
+                body = json.loads(event['body'])
+            except:
+                pass
+        
+        action = body.get('action')
+        data = body.get('data', {})
+        current_user = body.get('currentUser', 'System')
 
         if not action:
-            return response(400, "Missing action in request body", headers)
+            return response(400, f"Missing action in request body. Payload: {json.dumps(body)}", headers)
 
         db = get_db()
 
@@ -47,7 +56,11 @@ def lambda_handler(event, context):
         elif action == 'restore_job':
             return handle_restore_job(db, data.get('id'), current_user, headers)
         elif action == 'get_candidates':
-            return handle_get_candidates(db, data.get('jobId'), headers)
+            return handle_get_candidates(db, data, headers)
+        elif action == 'get_candidate_detail':
+            return handle_get_candidate_detail(db, data.get('id'), headers)
+        elif action == 'get_dashboard_stats':
+            return handle_get_dashboard_stats(db, headers)
         elif action == 'add_candidate':
             return handle_add_candidate(db, data, current_user, headers)
         elif action == 'upsert_candidate':
@@ -73,11 +86,19 @@ def lambda_handler(event, context):
 
 # --- Helper Functions ---
 
+class JSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, ObjectId):
+            return str(o)
+        if isinstance(o, datetime):
+            return o.isoformat()
+        return super(JSONEncoder, self).default(o)
+
 def response(status, body, headers):
     return {
         'statusCode': status,
-        'headers': headers,
-        'body': json.dumps(body, default=str) # Important: uses default=str for ObjectIds
+        'body': json.dumps(body, cls=JSONEncoder),
+        'headers': headers
     }
 
 def log_audit(db, action, target_type, target_id, user, details=""):
@@ -131,12 +152,63 @@ def handle_restore_job(db, job_id, user, headers):
     log_audit(db, "restore", "job", job_id, user, f"Job restored ID: {job_id}")
     return response(200, {"success": True}, headers)
 
-def handle_get_candidates(db, job_id, headers):
+def handle_get_candidates(db, data, headers):
+    job_id = data.get('jobId')
+    page = int(data.get('page', 1))
+    limit = int(data.get('limit', 20))
+    skip = (page - 1) * limit
+
     query = {"deleted": {"$ne": True}}
     if job_id:
         query["jobId"] = str(job_id)
-    candidates = list(db.candidates.find(query))
-    return response(200, candidates, headers)
+    
+    # Optimization: Exclude heavy fields from list view
+    projection = {
+        "fullText": 0,
+        "cvData": 0,
+        "cvBinary": 0,
+        "summary": 0,
+        "reasons": 0,
+        "interviewGuide": 0,
+        "hopperDetails": 0
+    }
+    
+    total = db.candidates.count_documents(query)
+    candidates = list(db.candidates.find(query, projection, allow_disk_use=True).sort("createdAt", -1).skip(skip).limit(limit))
+    
+    return response(200, {
+        "candidates": candidates,
+        "total": total,
+        "page": page,
+        "limit": limit
+    }, headers)
+
+def handle_get_candidate_detail(db, cand_id, headers):
+    candidate = db.candidates.find_one({"id": cand_id})
+    if candidate:
+        return response(200, candidate, headers)
+    else:
+        return response(404, {"error": "Candidate not found"}, headers)
+
+def handle_get_dashboard_stats(db, headers):
+    total_applicants = db.jobs.aggregate([
+        {"$match": {"deleted": {"$ne": True}}},
+        {"$group": {"_id": None, "total": {"$sum": "$applicants"}}}
+    ])
+    total_applicants_val = 0
+    for res in total_applicants:
+        total_applicants_val = res['total']
+
+    high_quality_count = db.candidates.count_documents({
+        "deleted": {"$ne": True},
+        "aiScore": {"$gt": 80}
+    })
+
+    return response(200, {
+        "totalApplicants": total_applicants_val,
+        "highQualityLeads": high_quality_count,
+        "totalJobs": db.jobs.count_documents({"deleted": {"$ne": True}})
+    }, headers)
 
 def handle_add_candidate(db, cand_data, user, headers):
     cand_id = str(datetime.utcnow().timestamp())

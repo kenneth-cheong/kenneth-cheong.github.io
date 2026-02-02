@@ -765,10 +765,47 @@
         #recruitmentApp.active {
             display: flex;
         }
+
+        /* Loading Spinner */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(4px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(99, 102, 241, 0.1);
+            border-top: 5px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
 
 <body>
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+    </div>
     <div id="loginScreen">
         <div class="login-card">
             <div class="login-logo">MediaOne Recruitment</div>
@@ -959,6 +996,7 @@
                         </tbody>
                     </table>
                 </div>
+                <div id="resultsPagination"></div>
             </section>
 
             <section id="candidatesSection" style="display: none;">
@@ -1029,6 +1067,7 @@
                         </tbody>
                     </table>
                 </div>
+                <div id="repoPagination"></div>
             </section>
 
             <section id="usersSection" style="display: none;">
@@ -1362,7 +1401,12 @@
             currentUser: null,
             activeUserId: null,
             apiKey: localStorage.getItem('ai_recruitment_api_key') || '',
-            editingJobId: null
+            editingJobId: null,
+            pagination: {
+                page: 1,
+                limit: 20,
+                total: 0
+            }
         };
 
         async function handleCredentialResponse(response) {
@@ -1484,6 +1528,14 @@
         const PERSISTENCE_LAMBDA_URL = 'https://hntb9oehu6.execute-api.ap-southeast-1.amazonaws.com/recruitementDatabase';
 
         async function persistenceApiCall(action, data = {}) {
+            toggleLoading(true);
+            console.log({
+                body: {
+                    action: action,
+                    data: data,
+                    currentUser: state.currentUser
+                }
+            })
             try {
                 const response = await fetch(PERSISTENCE_LAMBDA_URL, {
                     method: 'POST',
@@ -1497,6 +1549,7 @@
                 if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
 
                 let result = await response.json();
+                console.log(result)
 
                 // If the Lambda returns a structured response object (statusCode, body, headers),
                 // we need to extract and parse the nested body.
@@ -1509,10 +1562,17 @@
                 }
 
                 return result;
-            } catch (err) {
-                console.error(`Persistence API Error (${action}):`, err);
+            } catch (error) {
+                console.error(`Error in ${action}:`, error);
                 return null;
+            } finally {
+                toggleLoading(false);
             }
+        }
+
+        function toggleLoading(show) {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.style.display = show ? 'flex' : 'none';
         }
 
         async function initApp() {
@@ -1521,16 +1581,7 @@
             if (Array.isArray(jobs)) {
                 state.jobs = jobs;
             } else {
-                console.error("Failed to load jobs or response is not an array:", jobs);
                 state.jobs = [];
-            }
-
-            // Load Candidates for accurate global stats
-            const candidates = await persistenceApiCall('get_candidates');
-            if (Array.isArray(candidates)) {
-                state.candidates = candidates;
-            } else {
-                state.candidates = [];
             }
 
             // Load Users
@@ -1538,12 +1589,11 @@
             if (Array.isArray(users)) {
                 state.users = users;
             } else {
-                console.warn("Failed to load users or response is not an array:", users);
                 state.users = [];
             }
 
             renderJobs();
-            updateStats();
+            await updateStats();
         }
 
         // Initialize on load
@@ -1574,14 +1624,69 @@
             document.getElementById('candidatesSection').style.display = 'block';
             setActiveNavItem('nav-candidates');
 
-            // Fetch all candidates for the global repository
-            const candidates = await persistenceApiCall('get_candidates');
-            if (Array.isArray(candidates)) {
-                state.candidates = candidates;
-            }
+            // Reset job context and pagination when viewing global repository
+            state.activeJobId = null;
+            state.pagination.page = 1;
+
+            await loadCandidatesPage();
 
             updatePositionFilter();
-            filterCandidatesRepo();
+        }
+
+        async function loadCandidatesPage(jobId = null) {
+            const container = jobId ? document.getElementById('resultsSection') : document.getElementById('candidatesSection');
+            const data = await persistenceApiCall('get_candidates', {
+                jobId: jobId || state.activeJobId,
+                page: state.pagination.page,
+                limit: state.pagination.limit
+            });
+
+            if (data && Array.isArray(data.candidates)) {
+                state.candidates = data.candidates;
+                state.pagination.total = data.total;
+                state.pagination.page = data.page;
+
+                if (jobId || state.activeJobId) {
+                    renderCandidates();
+                } else {
+                    filterCandidatesRepo(); // This renders the repo table
+                }
+                renderPagination(jobId);
+            }
+        }
+
+        function renderPagination(jobId = null) {
+            const targetId = jobId || state.activeJobId ? 'resultsPagination' : 'repoPagination';
+            const container = document.getElementById(targetId);
+            if (!container) return;
+
+            const totalPages = Math.ceil(state.pagination.total / state.pagination.limit) || 1;
+            const currentPage = state.pagination.page;
+
+            container.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding: 10px; background: rgba(15, 23, 42, 0.4); border-radius: 12px; border: 1px solid var(--border);">
+                    <div style="color: var(--text-dim); font-size: 0.875rem;">
+                        Showing ${(currentPage - 1) * state.pagination.limit + 1} to ${Math.min(currentPage * state.pagination.limit, state.pagination.total)} of ${state.pagination.total} candidates
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="btn" style="padding: 6px 12px; background: var(--glass); color: white;" 
+                            onclick="changePage(-1, ${jobId ? `'${jobId}'` : 'null'})" ${currentPage === 1 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+                            <i class="fas fa-chevron-left"></i> Previous
+                        </button>
+                        <span style="color: white; font-weight: 600; min-width: 80px; text-align: center;">Page ${currentPage} of ${totalPages}</span>
+                        <button class="btn" style="padding: 6px 12px; background: var(--glass); color: white;" 
+                            onclick="changePage(1, ${jobId ? `'${jobId}'` : 'null'})" ${currentPage === totalPages ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+                            Next <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function changePage(delta, jobId = null) {
+            state.pagination.page += delta;
+            await loadCandidatesPage(jobId);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function showUsers() {
@@ -1791,14 +1896,12 @@
         }
 
         async function updateStats() {
-            const totalCand = state.candidates.length; // This reflects filtered/job-specific
-            // For dashboard, we want GLOBAL stats if possible, or total from jobs
-            const totalApplicants = state.jobs.reduce((sum, j) => sum + (parseInt(j.applicants) || 0), 0);
-            const highQuality = state.candidates.filter(c => c.aiScore > 80).length;
-
-            if (document.getElementById('stat-jobs')) document.getElementById('stat-jobs').innerText = state.jobs.length;
-            if (document.getElementById('stat-total')) document.getElementById('stat-total').innerText = totalApplicants;
-            if (document.getElementById('stat-leads')) document.getElementById('stat-leads').innerText = highQuality;
+            const stats = await persistenceApiCall('get_dashboard_stats');
+            if (stats) {
+                if (document.getElementById('stat-jobs')) document.getElementById('stat-jobs').innerText = stats.totalJobs || 0;
+                if (document.getElementById('stat-total')) document.getElementById('stat-total').innerText = stats.totalApplicants || 0;
+                if (document.getElementById('stat-leads')) document.getElementById('stat-leads').innerText = stats.highQualityLeads || 0;
+            }
         }
 
         async function openJobDetails(id) {
@@ -1808,19 +1911,14 @@
 
             document.getElementById('jobTitleDisplay').innerText = job.title;
 
-            // Fetch candidates for this job from DB
-            const candidates = await persistenceApiCall('get_candidates', { jobId: id });
-            if (Array.isArray(candidates)) {
-                state.candidates = candidates;
-            } else {
-                state.candidates = [];
-            }
+            // Reset pagination for new job context
+            state.pagination.page = 1;
 
             hideAllSections();
             document.getElementById('uploadPanel').style.display = 'block';
             document.getElementById('resultsSection').style.display = 'block';
 
-            renderCandidates();
+            await loadCandidatesPage(id);
         }
 
         // User Management Logic
@@ -2451,12 +2549,14 @@
         // Candidate Detail Modal
         let currentChart = null;
 
-        function viewCandidate(id) {
+        async function viewCandidate(id) {
             console.log('Viewing candidate ID:', id);
-            const c = state.candidates.find(cand => cand.id.toString() === id.toString());
+
+            // Show a loading state or just fetch immediately
+            const c = await persistenceApiCall('get_candidate_detail', { id: id });
 
             if (!c) {
-                console.error('Candidate not found for ID:', id);
+                alert('Failed to load candidate details.');
                 return;
             }
 
