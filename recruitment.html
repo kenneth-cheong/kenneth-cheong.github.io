@@ -1396,13 +1396,17 @@
             jobs: [],
             activeJobId: null,
             candidates: [], // linked to jobId
-            repoCandidates: [], // Global repository candidates
             users: [],
             stagedFiles: [],
             currentUser: null,
             activeUserId: null,
             apiKey: localStorage.getItem('ai_recruitment_api_key') || '',
-            editingJobId: null
+            editingJobId: null,
+            pagination: {
+                page: 1,
+                limit: 20,
+                total: 0
+            }
         };
 
         async function handleCredentialResponse(response) {
@@ -1623,19 +1627,96 @@
             renderJobs();
         }
 
+        async function loadCandidatesPage(jobId = null) {
+            console.log("loadCandidatesPage triggered. JobId:", jobId, "ActiveJobId:", state.activeJobId);
+            const container = jobId || state.activeJobId ? document.getElementById('resultsSection') : document.getElementById('candidatesSection');
+
+            const requestJobId = jobId || state.activeJobId;
+            const data = await persistenceApiCall('get_candidates', {
+                jobId: requestJobId,
+                page: state.pagination.page,
+                limit: state.pagination.limit
+            });
+
+            console.log("Persistence data received:", data);
+
+            if (data && Array.isArray(data.candidates)) {
+                state.candidates = data.candidates;
+                state.pagination.total = data.total;
+                state.pagination.page = data.page;
+
+                console.log(`Loaded ${state.candidates.length} candidates. Total: ${state.pagination.total}`);
+
+                if (requestJobId) {
+                    renderCandidates();
+                } else {
+                    filterCandidatesRepo(); // This renders the repo table
+                }
+                renderPagination(jobId);
+            } else {
+                console.warn("No candidates data returned or invalid format", data);
+                // Clear the table if no data
+                state.candidates = [];
+                if (requestJobId) renderCandidates();
+                else filterCandidatesRepo();
+            }
+        }
+
+        async function changePage(delta, jobId = null) {
+            state.pagination.page += delta;
+            await loadCandidatesPage(jobId);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function renderPagination(jobId = null) {
+            console.log("renderPagination triggered. JobId:", jobId, "ActiveJobId:", state.activeJobId, "Total:", state.pagination.total);
+            const totalPages = Math.ceil(state.pagination.total / state.pagination.limit);
+            const containerId = jobId || state.activeJobId ? 'resultsPagination' : 'repoPagination';
+            const container = document.getElementById(containerId);
+
+            console.log("Pagination container found:", containerId, !!container, "Total pages:", totalPages);
+
+            if (!container) {
+                console.error("Pagination container not found:", containerId);
+                return;
+            }
+
+            if (totalPages <= 1) {
+                console.log("Only one page or less, skipping pagination render");
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding: 15px; background: var(--glass); border-radius: 12px; border: 1px solid var(--border);">
+                    <div style="color: var(--text-dim); font-size: 0.85rem;">
+                        Showing page ${state.pagination.page} of ${totalPages} (${state.pagination.total} total)
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn" ${state.pagination.page === 1 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} 
+                            onclick="changePage(-1, ${jobId ? `'${jobId}'` : 'null'})">
+                            <i class="fas fa-chevron-left"></i> Previous
+                        </button>
+                        <button class="btn" ${state.pagination.page >= totalPages ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} 
+                            onclick="changePage(1, ${jobId ? `'${jobId}'` : 'null'})">
+                            Next <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
         async function showCandidates() {
             hideAllSections();
             document.getElementById('candidatesSection').style.display = 'block';
             setActiveNavItem('nav-candidates');
 
-            // Fetch all candidates for the global repository
-            const candidates = await persistenceApiCall('get_candidates');
-            if (Array.isArray(candidates)) {
-                state.candidates = candidates;
-            }
+            // Reset job context and pagination when viewing global repository
+            state.activeJobId = null;
+            state.pagination.page = 1;
+
+            await loadCandidatesPage();
 
             updatePositionFilter();
-            filterCandidatesRepo();
         }
 
         function showUsers() {
@@ -1677,7 +1758,7 @@
         }
 
         function openEditJobModal(id) {
-            const job = state.jobs.find(j => j.id.toString() === id.toString());
+            const job = state.jobs.find(j => String(j.id) === String(id));
             if (!job) {
                 console.error("Job not found for editing:", id);
                 return;
@@ -1765,12 +1846,12 @@
         }
 
         function updateJobStatus(jobId, newStatus) {
-            const job = state.jobs.find(j => j.id === jobId);
+            const job = state.jobs.find(j => String(j.id) === String(jobId));
             if (job) job.status = newStatus;
         }
 
         async function updateCandidateStatus(candId, newStatus) {
-            const cand = state.candidates.find(c => c.id.toString() === candId.toString());
+            const cand = state.candidates.find(c => String(c.id) === String(candId));
             if (cand) {
                 cand.status = newStatus;
                 await persistenceApiCall('upsert_candidate', { id: candId, status: newStatus });
@@ -1779,7 +1860,7 @@
         }
 
         async function updateCandidatePending(candId, pendingBy) {
-            const cand = state.candidates.find(c => c.id.toString() === candId.toString());
+            const cand = state.candidates.find(c => String(c.id) === String(candId));
             if (cand) {
                 cand.pendingBy = pendingBy;
                 await persistenceApiCall('upsert_candidate', { id: candId, pendingBy: pendingBy });
@@ -1817,7 +1898,7 @@
             if (!confirm("Are you sure you want to delete this job? You can undo this later from the Activity Log.")) return;
             const result = await persistenceApiCall('delete_job', { id: jobId });
             if (result && result.success) {
-                state.jobs = state.jobs.filter(j => j.id.toString() !== jobId.toString());
+                state.jobs = state.jobs.filter(j => String(j.id) !== String(jobId));
                 renderJobs();
             } else {
                 alert("Failed to delete job.");
@@ -1835,7 +1916,7 @@
         }
 
         async function toggleJobStatus(jobId) {
-            const job = state.jobs.find(j => j.id.toString() === jobId.toString());
+            const job = state.jobs.find(j => String(j.id) === String(jobId));
             if (!job) return;
             const newStatus = job.status === 'Open' ? 'Closed' : 'Open';
             const result = await persistenceApiCall('upsert_job', { ...job, status: newStatus });
@@ -1858,7 +1939,7 @@
 
         async function openJobDetails(id) {
             state.activeJobId = id;
-            const job = state.jobs.find(j => j.id.toString() === id.toString());
+            const job = state.jobs.find(j => String(j.id) === String(id));
             if (!job) return;
 
             document.getElementById('jobTitleDisplay').innerText = job.title;
@@ -1934,7 +2015,7 @@
         }
 
         function openEditUserModal(id) {
-            const user = state.users.find(u => u.id.toString() === id.toString());
+            const user = state.users.find(u => String(u.id) === String(id));
             if (!user) return;
 
             state.activeUserId = id; // Renamed to activeUserId for consistency
@@ -1950,7 +2031,7 @@
             if (confirm('Are you sure you want to delete this user?')) {
                 const result = await persistenceApiCall('delete_user', { id });
                 if (result && result.success) {
-                    state.users = state.users.filter(u => u.id.toString() !== id.toString());
+                    state.users = state.users.filter(u => String(u.id) !== String(id));
                     renderUsers();
                 } else {
                     alert("Failed to delete user.");
@@ -1973,8 +2054,8 @@
             const start = document.getElementById('dateStart')?.value || "";
             const end = document.getElementById('dateEnd')?.value || "";
 
-            let filtered = state.repoCandidates.map(c => {
-                const job = state.jobs.find(j => j.id.toString() === c.jobId?.toString());
+            let filtered = state.candidates.map(c => {
+                const job = state.jobs.find(j => String(j.id) == String(c.jobId));
                 return { ...c, jobTitle: job ? job.title : 'Unknown' };
             });
 
@@ -2398,7 +2479,13 @@
         }
 
         function renderCandidates() {
-            let filtered = state.candidates.filter(c => c.jobId === state.activeJobId);
+            console.log("renderCandidates called. ActiveJobId:", state.activeJobId, "Candidates count:", state.candidates.length);
+            // If we have an active job, filter by it. Otherwise show all in state.
+            let filtered = state.candidates;
+            if (state.activeJobId) {
+                filtered = state.candidates.filter(c => String(c.jobId) == String(state.activeJobId));
+            }
+            console.log("Filtered candidates count:", filtered.length);
             const body = document.getElementById('candidateBody');
 
             // Sorting
@@ -2504,15 +2591,18 @@
 
         async function viewCandidate(id) {
             console.log('Viewing candidate ID:', id);
-            const c = state.candidates.find(cand => cand.id.toString() === id.toString());
+
+            // Optimization: Fetch full details from the server to get excluded fields
+            const c = await persistenceApiCall('get_candidate_detail', { id: id });
 
             if (!c) {
                 console.error('Candidate not found for ID:', id);
+                alert("Failed to load candidate details. Please try again.");
                 return;
             }
 
             // Sync with local state if needed (optional, but keeps state consistent)
-            const localIdx = state.candidates.findIndex(cand => cand.id.toString() === id.toString());
+            const localIdx = state.candidates.findIndex(cand => String(cand.id) === String(id));
             if (localIdx !== -1) {
                 state.candidates[localIdx] = { ...state.candidates[localIdx], ...c };
             }
