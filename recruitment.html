@@ -379,7 +379,7 @@
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 24px;
-            overflow: hidden;
+            /* overflow: hidden; Removed as it breaks position: sticky */
         }
 
         table {
@@ -388,13 +388,17 @@
         }
 
         th {
-            background: rgba(15, 23, 42, 0.5);
+            position: sticky;
+            top: 0;
+            background: var(--bg-card);
+            /* Opaque background for sticky header */
             text-align: left;
             padding: 16px 24px;
             font-weight: 600;
             font-size: 0.875rem;
             color: var(--text-dim);
             border-bottom: 1px solid var(--border);
+            z-index: 10;
         }
 
         td {
@@ -981,13 +985,18 @@
                                     <input type="checkbox" id="selectAllCandidates"
                                         onclick="toggleSelectAll('candidateTable')">
                                 </th>
-                                <th onclick="sortJobCandidates('name')" style="cursor: pointer;">Candidate Name ↕️</th>
-                                <th onclick="sortJobCandidates('date')" style="cursor: pointer;">Upload Date ↕️</th>
-                                <th onclick="sortJobCandidates('score')" style="cursor: pointer;">AI Score ↕️</th>
+                                <th onclick="sortJobCandidates('name')" style="cursor: pointer;">Name <i
+                                        class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortJobCandidates('date')" style="cursor: pointer;">Date Applied <i
+                                        class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortJobCandidates('score')" style="cursor: pointer;">AI Score <i
+                                        class="fas fa-sort ms-1"></i></th>
                                 <th>Interviewer Score</th>
-                                <th onclick="sortJobCandidates('hopper')" style="cursor: pointer;">Job Hopper ↕️</th>
+                                <th onclick="sortJobCandidates('hopper')" style="cursor: pointer;">Job Hopper <i
+                                        class="fas fa-sort ms-1"></i></th>
                                 <th>Pending action by</th>
-                                <th onclick="sortJobCandidates('status')" style="cursor: pointer;">Status ↕️</th>
+                                <th onclick="sortJobCandidates('status')" style="cursor: pointer;">Status <i
+                                        class="fas fa-sort ms-1"></i></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -1052,13 +1061,18 @@
                                 <th style="width: 40px; text-align: center;">
                                     <input type="checkbox" id="selectAllRepo" onclick="toggleSelectAll('repoTable')">
                                 </th>
-                                <th onclick="sortRepoTable('name')" style="cursor: pointer;">Name ↕️</th>
-                                <th onclick="sortRepoTable('job')" style="cursor: pointer;">Position ↕️</th>
-                                <th onclick="sortRepoTable('date')" style="cursor: pointer;">Date Applied ↕️</th>
-                                <th onclick="sortRepoTable('score')" style="cursor: pointer;">AI Score ↕️</th>
+                                <th onclick="sortRepoTable('name')" style="cursor: pointer;">Name <i
+                                        class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortRepoTable('job')" style="cursor: pointer;">Position <i
+                                        class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortRepoTable('date')" style="cursor: pointer;">Date Applied <i
+                                        class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortRepoTable('score')" style="cursor: pointer;">AI Score <i
+                                        class="fas fa-sort ms-1"></i></th>
                                 <th>Interviewer Score</th>
                                 <th>Pending action by</th>
-                                <th onclick="sortRepoTable('status')" style="cursor: pointer;">Status ↕️</th>
+                                <th onclick="sortRepoTable('status')" style="cursor: pointer;">Status <i
+                                        class="fas fa-sort ms-1"></i></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -1404,7 +1418,7 @@
             editingJobId: null,
             pagination: {
                 page: 1,
-                limit: 20,
+                limit: 100,
                 total: 0
             }
         };
@@ -1627,44 +1641,118 @@
             renderJobs();
         }
 
+        let isFetchingBackground = false;
+
         async function loadCandidatesPage(jobId = null) {
             console.log("loadCandidatesPage triggered. JobId:", jobId, "ActiveJobId:", state.activeJobId);
-            const container = jobId || state.activeJobId ? document.getElementById('resultsSection') : document.getElementById('candidatesSection');
-
             const requestJobId = jobId || state.activeJobId;
+
+            // If it's a new view (page 1), clear current data
+            if (state.pagination.page === 1) {
+                state.candidates = [];
+            }
+
+            // Initial fetch (Page 1)
             const data = await persistenceApiCall('get_candidates', {
                 jobId: requestJobId,
                 page: state.pagination.page,
                 limit: state.pagination.limit
             });
 
-            console.log("Persistence data received:", data);
+            console.log("Initial page data received:", data);
 
             if (data && Array.isArray(data.candidates)) {
-                state.candidates = data.candidates;
+                // Merge into state, avoiding duplicates
+                data.candidates.forEach(cand => {
+                    if (!state.candidates.find(ex => String(ex.id) === String(cand.id))) {
+                        state.candidates.push(cand);
+                    }
+                });
                 state.pagination.total = data.total;
-                state.pagination.page = data.page;
 
-                console.log(`Loaded ${state.candidates.length} candidates. Total: ${state.pagination.total}`);
+                console.log(`Loaded ${state.candidates.length} candidates. Total possible: ${state.pagination.total}`);
 
                 if (requestJobId) {
                     renderCandidates();
                 } else {
-                    filterCandidatesRepo(); // This renders the repo table
+                    filterCandidatesRepo();
                 }
                 renderPagination(jobId);
+
+                // Start background fetch for the rest if needed
+                if (state.pagination.total > state.candidates.length) {
+                    backgroundFetchAll(requestJobId);
+                }
             } else {
                 console.warn("No candidates data returned or invalid format", data);
-                // Clear the table if no data
                 state.candidates = [];
                 if (requestJobId) renderCandidates();
                 else filterCandidatesRepo();
             }
         }
 
+        async function backgroundFetchAll(jobId) {
+            if (isFetchingBackground) return;
+            isFetchingBackground = true;
+
+            let currentPage = 2; // Start from page 2
+            const limit = state.pagination.limit;
+
+            while (state.candidates.length < state.pagination.total) {
+                // Check if the user has navigated away while fetching
+                if (String(jobId) !== String(state.activeJobId)) {
+                    console.log("Job context changed, stopping background fetch for:", jobId);
+                    break;
+                }
+
+                console.log(`Background fetching page ${currentPage} for ${jobId || 'Global Repo'}...`);
+                const data = await persistenceApiCall('get_candidates', {
+                    jobId: jobId,
+                    page: currentPage,
+                    limit: limit
+                });
+
+                if (data && Array.isArray(data.candidates)) {
+                    // Merge avoiding duplicates
+                    data.candidates.forEach(cand => {
+                        if (!state.candidates.find(ex => String(ex.id) === String(cand.id))) {
+                            state.candidates.push(cand);
+                        }
+                    });
+                    console.log(`Background progress: ${state.candidates.length}/${state.pagination.total}`);
+
+                    // Re-render current view to reflect new data (enables sorting on more data)
+                    if (jobId || state.activeJobId) {
+                        renderCandidates();
+                    } else {
+                        filterCandidatesRepo();
+                    }
+                    renderPagination(jobId);
+                    currentPage++;
+                } else {
+                    console.error("Background fetch failed for page:", currentPage);
+                    break;
+                }
+            }
+            isFetchingBackground = false;
+        }
+
         async function changePage(delta, jobId = null) {
-            state.pagination.page += delta;
-            await loadCandidatesPage(jobId);
+            const newPage = state.pagination.page + delta;
+            const requiredCount = newPage * state.pagination.limit;
+
+            state.pagination.page = newPage;
+
+            // If we already have the data in memory (from background fetch), just re-render
+            if (state.candidates.length >= requiredCount || state.candidates.length >= state.pagination.total) {
+                console.log("Page data already in memory, rendering locally.");
+                if (jobId || state.activeJobId) renderCandidates();
+                else filterCandidatesRepo();
+                renderPagination(jobId);
+            } else {
+                // Otherwise fetch explicitly
+                await loadCandidatesPage(jobId);
+            }
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -2051,8 +2139,8 @@
             const search = document.getElementById('searchCand')?.value.toLowerCase() || "";
             const pos = document.getElementById('filterPosition')?.value || "";
             const status = document.getElementById('filterStatus')?.value || "";
-            const start = document.getElementById('dateStart')?.value || "";
-            const end = document.getElementById('dateEnd')?.value || "";
+            const startStr = document.getElementById('dateStart')?.value || "";
+            const endStr = document.getElementById('dateEnd')?.value || "";
 
             let filtered = state.candidates.map(c => {
                 const job = state.jobs.find(j => String(j.id) == String(c.jobId));
@@ -2062,8 +2150,8 @@
             if (search) filtered = filtered.filter(c => c.name.toLowerCase().includes(search));
             if (pos) filtered = filtered.filter(c => c.jobTitle === pos);
             if (status) filtered = filtered.filter(c => c.status === status);
-            if (start) filtered = filtered.filter(c => new Date(c.date) >= new Date(start));
-            if (end) filtered = filtered.filter(c => new Date(c.date) <= new Date(end));
+            if (startStr) filtered = filtered.filter(c => new Date(c.date) >= new Date(startStr));
+            if (endStr) filtered = filtered.filter(c => new Date(c.date) <= new Date(endStr));
 
             // Sorting
             filtered.sort((a, b) => {
@@ -2079,7 +2167,11 @@
                 return 0;
             });
 
-            renderCandidatesRepo(filtered);
+            // Pagination Slicing
+            const start = (state.pagination.page - 1) * state.pagination.limit;
+            const sliced = filtered.slice(start, start + state.pagination.limit);
+
+            renderCandidatesRepoUI(sliced);
         }
 
         function sortRepoTable(field) {
@@ -2092,11 +2184,7 @@
             filterCandidatesRepo();
         }
 
-        function renderCandidatesRepo(data = null) {
-            const displayData = data || state.repoCandidates.map(c => {
-                const job = state.jobs.find(j => j.id.toString() === c.jobId?.toString());
-                return { ...c, jobTitle: job ? job.title : 'Unknown' };
-            });
+        function renderCandidatesRepoUI(displayData) {
             const body = document.getElementById('repoBody');
             if (!body) return;
 
@@ -2512,7 +2600,11 @@
                 return 0;
             });
 
-            body.innerHTML = filtered.map(c => `
+            // Pagination Slicing
+            const start = (state.pagination.page - 1) * state.pagination.limit;
+            const sliced = filtered.slice(start, start + state.pagination.limit);
+
+            body.innerHTML = sliced.map(c => `
                 <tr style="animation: fadeIn 0.3s ease forwards;" onclick="toggleRowSelection(this)">
                     <td style="text-align: center;" onclick="event.stopPropagation()">
                         <input type="checkbox" class="cand-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('candidateTable')">
