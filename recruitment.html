@@ -1413,7 +1413,8 @@
             users: [],
             stagedFiles: [],
             currentUser: null,
-            activeUserId: null,
+            loggedUserId: null,
+            editingUserId: null,
             apiKey: localStorage.getItem('ai_recruitment_api_key') || '',
             editingJobId: null,
             pagination: {
@@ -1462,7 +1463,7 @@
 
                 // 3. Success - Set Session
                 state.currentUser = matchedUser.name;
-                state.activeUserId = matchedUser.id;
+                state.loggedUserId = matchedUser.id;
                 state.users = registeredUsers;
 
                 localStorage.setItem('recruitment_user', JSON.stringify({
@@ -1486,7 +1487,7 @@
             if (stored) {
                 const user = JSON.parse(stored);
                 state.currentUser = user.name;
-                state.activeUserId = user.id;
+                state.loggedUserId = user.id;
                 completeLogin();
                 return true;
             }
@@ -2059,9 +2060,9 @@
             `).join('');
         }
 
-        let editingUserId = null;
+
         function openUserModal() {
-            editingUserId = null;
+            state.editingUserId = null;
             document.getElementById('userModalTitle').innerText = 'Add New User';
             document.getElementById('userName').value = '';
             document.getElementById('userEmail').value = '';
@@ -2081,7 +2082,7 @@
             if (!name || !email) return alert('Please fill in name and email');
 
             const userData = {
-                id: state.activeUserId || null,
+                id: state.editingUserId || null,
                 name,
                 email,
                 role,
@@ -2106,7 +2107,7 @@
             const user = state.users.find(u => String(u.id) === String(id));
             if (!user) return;
 
-            state.activeUserId = id; // Renamed to activeUserId for consistency
+            state.editingUserId = id;
             document.getElementById('userModalTitle').innerText = 'Edit User';
             document.getElementById('userName').value = user.name;
             document.getElementById('userEmail').value = user.email;
