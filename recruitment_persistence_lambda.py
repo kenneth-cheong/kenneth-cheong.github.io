@@ -174,7 +174,15 @@ def handle_get_candidates(db, data, headers):
     }
     
     total = db.candidates.count_documents(query)
-    candidates = list(db.candidates.find(query, projection, allow_disk_use=True).sort("createdAt", -1).skip(skip).limit(limit))
+    
+    pipeline = [
+        {"$match": query},
+        {"$skip": skip},
+        {"$limit": limit},
+        {"$project": projection}
+    ]
+    
+    candidates = list(db.candidates.aggregate(pipeline))
     
     return response(200, {
         "candidates": candidates,
