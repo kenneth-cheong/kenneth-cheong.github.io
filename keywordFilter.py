@@ -19,7 +19,8 @@ Your task is to filter out "non-relevant" or "generic" keywords that don't carry
 EXAMPLES TO REMOVE:
 - Generic calls to action: "view all", "click here", "read more", "sign up"
 - Common filler phrases: "increase in", "for your", "this is", "how to use"
-- Navigation items: "home", "contact us", "privacy policy"
+- Generic geographic locations: "united states", "new york", "london", "singapore" (unless specifically related to local SEO intent)
+- Navigation items: "home", "contact us", "privacy policy", "login"
 - Numbers or single generic letters/symbols
 - Very common verbs/prepositions without context
 

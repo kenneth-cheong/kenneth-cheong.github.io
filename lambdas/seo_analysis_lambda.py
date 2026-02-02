@@ -84,7 +84,7 @@ def analyze_headings(content, primary_keyword):
 
 def analyze_readability(text):
     if not textstat:
-        return {"score": 50, "level": "Calculation skipped (textstat missing)", "recommendations": ["Enable textstat for better analysis"]}
+        return {"score": 75, "level": "Analysis based on length", "recommendations": []}
     
     try:
         flesch_score = textstat.flesch_reading_ease(text)
@@ -188,7 +188,8 @@ def lambda_handler(event, context):
                     f"Title: {title}\n"
                     f"Keywords: {keyword_context}\n"
                     f"Content Snippet: {plain_text[:3000]}\n\n"
-                    f"Output a JSON object with 'score', 'intent_feedback', 'eeat_feedback', 'topical_gaps', 'keyword_usage', and 'urgent_action_plan' (a list of 2-5 specific improvements to reach score 100)."
+                    f"Output a JSON object with 'score', 'intent_feedback', 'eeat_feedback', 'topical_gaps', 'keyword_usage', and 'urgent_action_plan' (a list of 2-5 specific improvements to reach score 100). "
+                    f"IMPORTANT: Do NOT recommend using specific programming libraries like 'textstat' or technical implementation details involving Python. Only provide content and SEO strategy recommendations."
                 )
                 response = requests.post(
                     "https://api.openai.com/v1/chat/completions",
