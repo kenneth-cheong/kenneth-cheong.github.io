@@ -1172,11 +1172,44 @@
                         <input type="number" id="wKpi" value="20">
                     </div>
                 </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 32px 0 16px;">
+                    <h3 style="margin: 0;">Standard Interview Questions</h3>
+                    <button class="btn btn-primary" onclick="addJobQuestion()"
+                        style="padding: 8px 16px; font-size: 0.85rem;">
+                        <i class="fas fa-plus"></i> Add Question
+                    </button>
+                </div>
+                <div class="table-container" style="margin-bottom: 24px;">
+                    <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem;">
+                        <thead>
+                            <tr style="background: rgba(15, 23, 42, 0.3);">
+                                <th
+                                    style="text-align: left; padding: 12px 24px; color: var(--text-dim); border-bottom: 1px solid var(--border); width: 15%;">
+                                    Metric</th>
+                                <th
+                                    style="text-align: left; padding: 12px; color: var(--text-dim); border-bottom: 1px solid var(--border); width: 25%;">
+                                    Question</th>
+                                <th
+                                    style="text-align: left; padding: 12px; color: var(--secondary); border-bottom: 1px solid var(--border); width: 25%;">
+                                    Good Answer</th>
+                                <th
+                                    style="text-align: left; padding: 12px; color: var(--accent); border-bottom: 1px solid var(--border); width: 25%;">
+                                    Red Flags</th>
+                                <th
+                                    style="text-align: center; padding: 12px; color: var(--accent); border-bottom: 1px solid var(--border); width: 50px;">
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="jobQuestionsBody">
+                            <!-- Job questions will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
 
                 <div style="display: flex; justify-content: flex-end; gap: 16px; margin-top: 32px;">
                     <button class="btn" onclick="closeJobModal()"
                         style="background: var(--glass); color: white;">Cancel</button>
-                    <button class="btn btn-primary" onclick="saveJob()">Create Job</button>
+                    <button class="btn btn-primary" id="saveJobBtn" onclick="saveJob()">Create Job</button>
                 </div>
             </div>
         </div>
@@ -1832,7 +1865,7 @@
         function createNewJob() {
             state.editingJobId = null;
             document.getElementById('modalTitle').innerText = 'Create New Job Advertisement';
-            document.querySelector('#jobModal .btn-primary').innerText = 'Create Job';
+            document.getElementById('saveJobBtn').innerText = 'Create Job';
 
             // Reset fields
             document.getElementById('jobTitle').value = '';
@@ -1842,6 +1875,8 @@
             document.getElementById('wSkills').value = 30;
             document.getElementById('wResp').value = 20;
             document.getElementById('wKpi').value = 20;
+            state.jobQuestions = []; // Reset job questions state
+            renderJobQuestions();
 
             document.getElementById('jobModal').style.display = 'flex';
         }
@@ -1855,7 +1890,7 @@
 
             state.editingJobId = id;
             document.getElementById('modalTitle').innerText = 'Edit Job Advertisement';
-            document.querySelector('#jobModal .btn-primary').innerText = 'Update Job';
+            document.getElementById('saveJobBtn').innerText = 'Update Job';
 
             document.getElementById('jobTitle').value = job.title;
             document.getElementById('jobDesc').value = job.desc || '';
@@ -1864,6 +1899,8 @@
             document.getElementById('wSkills').value = (job.weights && job.weights.skills) || 30;
             document.getElementById('wResp').value = (job.weights && job.weights.resp) || 20;
             document.getElementById('wKpi').value = (job.weights && job.weights.kpi) || 20;
+            state.jobQuestions = job.interviewQuestions || [];
+            renderJobQuestions();
 
             document.getElementById('jobModal').style.display = 'flex';
         }
@@ -1892,6 +1929,7 @@
 
             const jobData = {
                 title, desc, kpi, weights,
+                interviewQuestions: state.jobQuestions,
                 status: 'Open',
                 applicants: 0,
                 shortlisted: 0
@@ -1918,6 +1956,74 @@
                 alert("Failed to save job to database. Check console for details.");
             }
         }
+        function addJobQuestion() {
+            if (!state.jobQuestions) state.jobQuestions = [];
+            state.jobQuestions.push({
+                id: 'q_' + Math.random().toString(36).substr(2, 9),
+                metric: "New Metric",
+                q: "New Question",
+                good: "Good answer indicators",
+                bad: "Red flag indicators"
+            });
+            renderJobQuestions();
+        }
+
+        function deleteJobQuestion(idx) {
+            state.jobQuestions.splice(idx, 1);
+            renderJobQuestions();
+        }
+
+        function updateJobQuestionContent(idx, field, value) {
+            if (state.jobQuestions[idx][field] === value) return;
+            state.jobQuestions[idx][field] = value;
+        }
+
+        function renderJobQuestions() {
+            const body = document.getElementById('jobQuestionsBody');
+            if (!body) return;
+            if (!state.jobQuestions || state.jobQuestions.length === 0) {
+                body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-dim);">No standard questions defined.</td></tr>';
+                return;
+            }
+            body.innerHTML = state.jobQuestions.map((row, idx) => `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                    <td style="padding: 12px 24px; vertical-align: top;">
+                        <div contenteditable="true" onblur="updateJobQuestionContent(${idx}, 'metric', this.innerText)"
+                             style="color: var(--text-main); font-weight: 600; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
+                             onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
+                             ${row.metric}
+                        </div>
+                    </td>
+                    <td style="padding: 12px; vertical-align: top;">
+                        <div contenteditable="true" onblur="updateJobQuestionContent(${idx}, 'q', this.innerText)"
+                             style="color: var(--text-main); outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
+                             onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
+                             ${row.q}
+                        </div>
+                    </td>
+                    <td style="padding: 12px; vertical-align: top;">
+                        <div contenteditable="true" onblur="updateJobQuestionContent(${idx}, 'good', this.innerText)"
+                             style="color: var(--text-dim); font-size: 0.8rem; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
+                             onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
+                             ${row.good}
+                        </div>
+                    </td>
+                    <td style="padding: 12px; vertical-align: top;">
+                        <div contenteditable="true" onblur="updateJobQuestionContent(${idx}, 'bad', this.innerText)"
+                             style="color: var(--text-dim); font-size: 0.8rem; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
+                             onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
+                             ${row.bad}
+                        </div>
+                    </td>
+                    <td style="padding: 12px; vertical-align: top; text-align: center;">
+                        <button class="btn" style="background: var(--accent); color: white; padding: 6px 12px; font-size: 0.9rem;" onclick="deleteJobQuestion(${idx})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
 
         function expandSidebar() {
             const sidebar = document.getElementById('sidebar');
@@ -2732,16 +2838,31 @@
 
             document.getElementById('detailReasons').innerHTML = (c.reasons || []).map(r => `<li>${r}</li>`).join('');
 
-            // Update interview Guide
-            if (!c.interviewGuide || c.interviewGuide.length === 0) {
-                c.interviewGuide = generateSuggestedQuestions(c.reasons);
-                // Persist the initialized guide immediately
+            // Render Interview Guide
+            const job = state.jobs.find(j => String(j.id) === String(c.jobId));
+
+            // Initialization for new candidates or migration logic
+            if (!c.jobRatings) c.jobRatings = {};
+            if (!c.customInterviewGuide) {
+                // Migrate old interviewGuide if it exists, otherwise generate fallback
+                if (c.interviewGuide && c.interviewGuide.length > 0) {
+                    c.customInterviewGuide = c.interviewGuide;
+                    c.interviewGuide = []; // Clear old field
+                } else if (!job || !job.interviewQuestions || job.interviewQuestions.length === 0) {
+                    c.customInterviewGuide = generateSuggestedQuestions(c.reasons);
+                } else {
+                    c.customInterviewGuide = [];
+                }
+
+                // Persist initialization
                 persistenceApiCall('upsert_candidate', {
                     id: c.id,
-                    interviewGuide: c.interviewGuide
+                    jobRatings: c.jobRatings,
+                    customInterviewGuide: c.customInterviewGuide
                 });
             }
-            document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(c.interviewGuide);
+
+            document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(job, c);
 
             const hopperBox = document.getElementById('hopperSection');
             if (c.isHopper) {
@@ -2902,74 +3023,118 @@
             return finalRows;
         }
 
-        function renderCheatSheet(guide) {
-            if (!guide) return '';
-            return guide.map((row, idx) => `
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
-                    <td style="padding: 12px 24px; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: top;">
-                        <div contenteditable="true" 
-                             onblur="updateGuideContent(${idx}, 'metric', this.innerText)"
-                             style="color: var(--text-main); font-weight: 600; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
-                             onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'"
-                             onmouseout="this.style.borderColor='transparent'">
-                             ${row.metric}
-                        </div>
-                    </td>
-                    <td style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: top;">
-                        <div contenteditable="true" 
-                             onblur="updateGuideContent(${idx}, 'q', this.innerText)"
-                             style="color: var(--text-main); outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
-                             onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'"
-                             onmouseout="this.style.borderColor='transparent'">
-                             ${row.q}
-                        </div>
-                    </td>
-                    <td style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: top;">
-                        <div contenteditable="true" 
-                             onblur="updateGuideContent(${idx}, 'good', this.innerText)"
-                             style="color: var(--text-dim); font-size: 0.8rem; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
-                             onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'"
-                             onmouseout="this.style.borderColor='transparent'">
-                             ${row.good}
-                        </div>
-                    </td>
-                    <td style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: top;">
-                        <div contenteditable="true" 
-                             onblur="updateGuideContent(${idx}, 'bad', this.innerText)"
-                             style="color: var(--text-dim); font-size: 0.8rem; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
-                             onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'"
-                             onmouseout="this.style.borderColor='transparent'">
-                             ${row.bad}
-                        </div>
-                    </td>
-                    <td style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: top; text-align: center;">
-                        <div class="rating-stars" style="justify-content: center;">
-                            ${[1, 2, 3, 4, 5].map(v => `
-                                <span class="star ${v <= row.rating ? 'active' : ''}" 
-                                      onclick="setGuideRating(${idx}, ${v})">★</span>
-                            `).join('')}
-                        </div>
-                    </td>
-                    <td style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: top; text-align: center;">
-                        <button class="btn" style="background: var(--accent); color: white; padding: 6px 12px; font-size: 0.9rem; border: none; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: transform 0.1s;" 
-                                onmousedown="this.style.transform='scale(0.95)'"
-                                onmouseup="this.style.transform='scale(1)'"
-                                onclick="deleteGuideQuestion(${idx})">
-                            <i class="fas fa-ban"></i>
-                        </button>
+        function renderCheatSheet(job, cand) {
+            let html = '';
+
+            // 1. Render Job-Level Questions (ReadOnly text)
+            if (job && job.interviewQuestions && job.interviewQuestions.length > 0) {
+                html += `
+                    <tr style="background: rgba(99, 102, 241, 0.15);">
+                        <td colspan="6" style="padding: 10px 24px; font-weight: 700; color: var(--primary-light); font-size: 0.8rem; letter-spacing: 0.05em;">
+                            <i class="fas fa-briefcase me-2"></i> JOB STANDARD QUESTIONS (Read-Only Templates)
+                        </td>
+                    </tr>
+                `;
+                html += job.interviewQuestions.map((row) => {
+                    const rating = (cand.jobRatings && cand.jobRatings[row.id]) || 0;
+                    return `
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); opacity: 0.9;">
+                        <td style="padding: 12px 24px; vertical-align: top;">
+                            <div style="color: var(--text-main); font-weight: 600; padding: 2px 4px;">${row.metric}</div>
+                        </td>
+                        <td style="padding: 12px; vertical-align: top;">
+                            <div style="color: var(--text-main); padding: 2px 4px;">${row.q}</div>
+                        </td>
+                        <td style="padding: 12px; vertical-align: top;">
+                            <div style="color: var(--text-dim); font-size: 0.8rem; padding: 2px 4px;">${row.good}</div>
+                        </td>
+                        <td style="padding: 12px; vertical-align: top;">
+                            <div style="color: var(--text-dim); font-size: 0.8rem; padding: 2px 4px;">${row.bad}</div>
+                        </td>
+                        <td style="padding: 12px; vertical-align: top; text-align: center;">
+                            <div class="rating-stars" style="justify-content: center;">
+                                ${[1, 2, 3, 4, 5].map(v => `
+                                    <span class="star ${v <= rating ? 'active' : ''}" 
+                                          onclick="setJobQuestionRating('${row.id}', ${v})">★</span>
+                                `).join('')}
+                            </div>
+                        </td>
+                        <td></td>
+                    </tr>
+                    `;
+                }).join('');
+            }
+
+            // 2. Render Custom Candidate Questions (Fully Editable)
+            html += `
+                <tr style="background: rgba(6, 182, 212, 0.15);">
+                    <td colspan="6" style="padding: 10px 24px; font-weight: 700; color: var(--secondary); font-size: 0.8rem; letter-spacing: 0.05em;">
+                        <i class="fas fa-user-edit me-2"></i> CUSTOM CANDIDATE QUESTIONS (Editable)
                     </td>
                 </tr>
-            `).join('');
+            `;
+
+            if (!cand.customInterviewGuide || cand.customInterviewGuide.length === 0) {
+                html += `<tr><td colspan="6" style="padding: 20px 24px; text-align: center; color: var(--text-dim);">No custom questions.</td></tr>`;
+            } else {
+                html += cand.customInterviewGuide.map((row, idx) => `
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                        <td style="padding: 12px 24px; vertical-align: top;">
+                            <div contenteditable="true" onblur="updateCustomGuideContent(${idx}, 'metric', this.innerText)"
+                                 style="color: var(--text-main); font-weight: 600; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
+                                 onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
+                                 ${row.metric}
+                            </div>
+                        </td>
+                        <td style="padding: 12px; vertical-align: top;">
+                            <div contenteditable="true" onblur="updateCustomGuideContent(${idx}, 'q', this.innerText)"
+                                 style="color: var(--text-main); outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
+                                 onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
+                                 ${row.q}
+                            </div>
+                        </td>
+                        <td style="padding: 12px; vertical-align: top;">
+                            <div contenteditable="true" onblur="updateCustomGuideContent(${idx}, 'good', this.innerText)"
+                                 style="color: var(--text-dim); font-size: 0.8rem; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
+                                 onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
+                                 ${row.good}
+                            </div>
+                        </td>
+                        <td style="padding: 12px; vertical-align: top;">
+                            <div contenteditable="true" onblur="updateCustomGuideContent(${idx}, 'bad', this.innerText)"
+                                 style="color: var(--text-dim); font-size: 0.8rem; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
+                                 onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
+                                 ${row.bad}
+                            </div>
+                        </td>
+                        <td style="padding: 12px; vertical-align: top; text-align: center;">
+                            <div class="rating-stars" style="justify-content: center;">
+                                ${[1, 2, 3, 4, 5].map(v => `
+                                    <span class="star ${v <= (row.rating || 0) ? 'active' : ''}" 
+                                          onclick="setCustomQuestionRating(${idx}, ${v})">★</span>
+                                `).join('')}
+                            </div>
+                        </td>
+                        <td style="padding: 12px; vertical-align: top; text-align: center;">
+                            <button class="btn" style="background: var(--accent); color: white; padding: 6px 12px; font-size: 0.9rem;" onclick="deleteCustomQuestion(${idx})">
+                                <i class="fas fa-ban"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            return html;
         }
 
         async function addGuideQuestion() {
             if (!editingCandId) return;
-            const cand = state.candidates.find(c => c.id.toString() === editingCandId.toString());
+            const cand = state.candidates.find(c => String(c.id) === String(editingCandId));
             if (!cand) return;
+            const job = state.jobs.find(j => String(j.id) === String(cand.jobId));
 
-            if (!cand.interviewGuide) cand.interviewGuide = [];
-
-            cand.interviewGuide.push({
+            if (!cand.customInterviewGuide) cand.customInterviewGuide = [];
+            cand.customInterviewGuide.push({
                 metric: "New Metric",
                 q: "New Question",
                 good: "Good answer indicators",
@@ -2977,59 +3142,49 @@
                 rating: 0
             });
 
-            document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(cand.interviewGuide);
-
-            await persistenceApiCall('upsert_candidate', {
-                id: cand.id,
-                interviewGuide: cand.interviewGuide
-            });
-            console.log(`[Guide] Added new question for candidate ${cand.id}`);
+            document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(job, cand);
+            await persistenceApiCall('upsert_candidate', { id: cand.id, customInterviewGuide: cand.customInterviewGuide });
         }
 
-        async function deleteGuideQuestion(idx) {
-            if (!editingCandId) return;
-            if (!confirm('Are you sure you want to delete this question?')) return;
+        async function deleteCustomQuestion(idx) {
+            if (!editingCandId || !confirm('Delete this custom question?')) return;
+            const cand = state.candidates.find(c => String(c.id) === String(editingCandId));
+            const job = state.jobs.find(j => String(j.id) === String(cand.jobId));
 
-            const cand = state.candidates.find(c => c.id.toString() === editingCandId.toString());
-            if (!cand || !cand.interviewGuide) return;
-
-            cand.interviewGuide.splice(idx, 1);
-            document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(cand.interviewGuide);
-
-            await persistenceApiCall('upsert_candidate', {
-                id: cand.id,
-                interviewGuide: cand.interviewGuide
-            });
-            console.log(`[Guide] Deleted question ${idx} for candidate ${cand.id}`);
+            cand.customInterviewGuide.splice(idx, 1);
+            document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(job, cand);
+            await persistenceApiCall('upsert_candidate', { id: cand.id, customInterviewGuide: cand.customInterviewGuide });
         }
 
-        async function updateGuideContent(idx, field, value) {
-            const cand = state.candidates.find(c => c.id.toString() === editingCandId.toString());
-            if (!cand || !cand.interviewGuide) return;
+        async function updateCustomGuideContent(idx, field, value) {
+            const cand = state.candidates.find(c => String(c.id) === String(editingCandId));
+            if (!cand || !cand.customInterviewGuide) return;
+            if (cand.customInterviewGuide[idx][field] === value) return;
 
-            if (cand.interviewGuide[idx][field] === value) return;
-
-            cand.interviewGuide[idx][field] = value;
-            console.log(`[Guide] Updated ${field} for question ${idx}`);
-
-            await persistenceApiCall('upsert_candidate', {
-                id: cand.id,
-                interviewGuide: cand.interviewGuide
-            });
+            cand.customInterviewGuide[idx][field] = value;
+            await persistenceApiCall('upsert_candidate', { id: cand.id, customInterviewGuide: cand.customInterviewGuide });
         }
 
-        async function setGuideRating(idx, value) {
-            const cand = state.candidates.find(c => c.id.toString() === editingCandId.toString());
-            if (!cand || !cand.interviewGuide) return;
+        async function setCustomQuestionRating(idx, value) {
+            const cand = state.candidates.find(c => String(c.id) === String(editingCandId));
+            const job = state.jobs.find(j => String(j.id) === String(cand.jobId));
+            if (!cand || !cand.customInterviewGuide) return;
 
-            cand.interviewGuide[idx].rating = value;
-            document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(cand.interviewGuide);
+            cand.customInterviewGuide[idx].rating = value;
+            document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(job, cand);
+            await persistenceApiCall('upsert_candidate', { id: cand.id, customInterviewGuide: cand.customInterviewGuide });
+        }
 
-            await persistenceApiCall('upsert_candidate', {
-                id: cand.id,
-                interviewGuide: cand.interviewGuide
-            });
-            console.log(`[Guide] Saved rating ${value} for question ${idx}`);
+        async function setJobQuestionRating(qId, value) {
+            const cand = state.candidates.find(c => String(c.id) === String(editingCandId));
+            const job = state.jobs.find(j => String(j.id) === String(cand.jobId));
+            if (!cand) return;
+
+            if (!cand.jobRatings) cand.jobRatings = {};
+            cand.jobRatings[qId] = value;
+
+            document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(job, cand);
+            await persistenceApiCall('upsert_candidate', { id: cand.id, jobRatings: cand.jobRatings });
         }
 
         async function updateInterviewerScore(candId, score) {
