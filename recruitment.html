@@ -969,9 +969,16 @@
             <section id="resultsSection" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                     <h2 style="margin: 0;">Top 5 Shortlist</h2>
-                    <button id="bulkDeleteBtn" class="btn"
-                        style="display: none; background: var(--accent); color: white;" onclick="bulkDelete()">Delete
-                        Selected</button>
+                    <div style="display: flex; gap: 12px;">
+                        <button id="bulkReEvaluateBtn" class="btn"
+                            style="display: none; background: var(--secondary); color: white;"
+                            onclick="bulkReEvaluate(event, 'candidateTable')">
+                            <i class="fas fa-sync-alt"></i> AI Re-evaluate Selected
+                        </button>
+                        <button id="bulkDeleteBtn" class="btn"
+                            style="display: none; background: var(--accent); color: white;"
+                            onclick="bulkDelete()">Delete Selected</button>
+                    </div>
                 </div>
                 <div class="top-shortlist" id="top5List">
                     <!-- Shortlist cards will be injected here -->
@@ -1011,10 +1018,16 @@
             <section id="candidatesSection" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                     <h2 style="margin: 0;">Candidates Repository</h2>
-                    <button id="bulkDeleteRepoBtn" class="btn"
-                        style="display: none; background: var(--accent); color: white;"
-                        onclick="bulkDeleteRepo()">Delete
-                        Selected</button>
+                    <div style="display: flex; gap: 12px;">
+                        <button id="bulkReEvaluateRepoBtn" class="btn"
+                            style="display: none; background: var(--secondary); color: white;"
+                            onclick="bulkReEvaluate(event, 'repoTable')">
+                            <i class="fas fa-sync-alt"></i> AI Re-evaluate Selected
+                        </button>
+                        <button id="bulkDeleteRepoBtn" class="btn"
+                            style="display: none; background: var(--accent); color: white;"
+                            onclick="bulkDeleteRepo()">Delete Selected</button>
+                    </div>
                 </div>
 
                 <div class="card" style="margin-bottom: 24px;">
@@ -1036,9 +1049,10 @@
                             <select id="filterStatus" onchange="filterCandidatesRepo()"
                                 style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: white; outline: none;">
                                 <option value="">All Statuses</option>
+                                <option value="Invited">Invited</option>
+                                <option value="Scheduled">Scheduled</option>
+                                <option value="Interviewed">Interviewed</option>
                                 <option value="Shortlisted">Shortlisted</option>
-                                <option value="Reviewed">Reviewed</option>
-                                <option value="Pending Interview">Pending Interview</option>
                                 <option value="Rejected">Rejected</option>
                             </select>
                         </div>
@@ -1153,24 +1167,41 @@
                     </div>
                 </div>
 
-                <h3 style="margin: 24px 0 16px;">Scoring Weights (%)</h3>
-                <div class="config-grid">
-                    <div class="form-group">
-                        <label>Experience Match</label>
-                        <input type="number" id="wExperience" value="30">
-                    </div>
-                    <div class="form-group">
-                        <label>Skills Match</label>
-                        <input type="number" id="wSkills" value="30">
-                    </div>
-                    <div class="form-group">
-                        <label>Responsibilities Alignment</label>
-                        <input type="number" id="wResp" value="20">
-                    </div>
-                    <div class="form-group">
-                        <label>KPI Evidence Match</label>
-                        <input type="number" id="wKpi" value="20">
-                    </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 24px 0 16px;">
+                    <h3 style="margin: 0;">Evaluation Criteria & Weights (%)</h3>
+                    <button class="btn btn-primary" onclick="addJobCriteria()"
+                        style="padding: 8px 16px; font-size: 0.85rem;">
+                        <i class="fas fa-plus"></i> Add Criteria
+                    </button>
+                </div>
+                <div class="table-container" style="margin-bottom: 24px;">
+                    <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem;">
+                        <thead>
+                            <tr style="background: rgba(15, 23, 42, 0.3);">
+                                <th
+                                    style="text-align: left; padding: 12px 24px; color: var(--text-dim); border-bottom: 1px solid var(--border); width: 70%;">
+                                    Criterion</th>
+                                <th
+                                    style="text-align: left; padding: 12px; color: var(--text-dim); border-bottom: 1px solid var(--border); width: 20%;">
+                                    Weight (%)</th>
+                                <th
+                                    style="text-align: center; padding: 12px; color: var(--accent); border-bottom: 1px solid var(--border); width: 50px;">
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="jobCriteriaBody">
+                            <!-- Job criteria will be injected here -->
+                        </tbody>
+                        <tfoot id="jobCriteriaFoot">
+                            <tr style="background: rgba(15, 23, 42, 0.5);">
+                                <td style="padding: 12px 24px; color: white; font-weight: 700; text-align: right;">Total
+                                    Weight</td>
+                                <td id="totalCriteriaWeight"
+                                    style="padding: 12px; color: var(--secondary); font-weight: 700;">0%</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin: 32px 0 16px;">
                     <h3 style="margin: 0;">Standard Interview Questions</h3>
@@ -1232,8 +1263,7 @@
                         <select id="userRole"
                             style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: white; outline: none;">
                             <option value="Admin">Admin</option>
-                            <option value="Editor">Editor</option>
-                            <option value="Viewer">Viewer</option>
+                            <option value="Team Lead">Team Lead</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -1262,6 +1292,11 @@
                         <h2 id="detailName">John Doe</h2>
                         <div style="display: flex; gap: 12px; align-items: center; margin-top: 8px;">
                             <span class="badge badge-success" id="detailScore">AI Score: 92/100</span>
+                            <button class="btn"
+                                style="background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary); padding: 4px 12px; font-size: 0.75rem; border-radius: 12px;"
+                                onclick="reEvaluateCurrentCandidate(event)">
+                                <i class="fas fa-sync-alt"></i> AI Re-evaluate Candidate
+                            </button>
                             <div
                                 style="display: flex; align-items: center; gap: 8px; background: var(--glass); padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border);">
                                 <label style="font-size: 0.75rem; color: var(--text-dim); font-weight: 600;">Interviewer
@@ -1442,6 +1477,7 @@
         let state = {
             jobs: [],
             activeJobId: null,
+            viewingCandidateId: null,
             candidates: [], // linked to jobId
             users: [],
             stagedFiles: [],
@@ -1871,12 +1907,14 @@
             document.getElementById('jobTitle').value = '';
             document.getElementById('jobDesc').value = '';
             document.getElementById('jobKpi').value = '';
-            document.getElementById('wExperience').value = 30;
-            document.getElementById('wSkills').value = 30;
-            document.getElementById('wResp').value = 20;
-            document.getElementById('wKpi').value = 20;
-            state.jobQuestions = []; // Reset job questions state
-            renderJobQuestions();
+            state.jobCriteria = [
+                { text: "Sales experience of at least 1 year", weight: 20 },
+                { text: "Sales experience in tech or digital marketing or media", weight: 20 },
+                { text: "Has worked in an agency or publishing company", weight: 20 },
+                { text: "Has done cold calls and cold outreach", weight: 20 },
+                { text: "Indicated has hit/exceeded sales targets consistently", weight: 20 }
+            ];
+            renderJobCriteria();
 
             document.getElementById('jobModal').style.display = 'flex';
         }
@@ -1895,10 +1933,17 @@
             document.getElementById('jobTitle').value = job.title;
             document.getElementById('jobDesc').value = job.desc || '';
             document.getElementById('jobKpi').value = job.kpi || '';
-            document.getElementById('wExperience').value = (job.weights && job.weights.exp) || 30;
-            document.getElementById('wSkills').value = (job.weights && job.weights.skills) || 30;
-            document.getElementById('wResp').value = (job.weights && job.weights.resp) || 20;
-            document.getElementById('wKpi').value = (job.weights && job.weights.kpi) || 20;
+            state.jobCriteria = job.evaluationCriteria || [];
+            if (state.jobCriteria.length === 0 && job.weights) {
+                // Fallback for old data
+                state.jobCriteria = [
+                    { text: "Experience Match", weight: job.weights.exp || 30 },
+                    { text: "Skills Match", weight: job.weights.skills || 30 },
+                    { text: "Responsibilities Alignment", weight: job.weights.resp || 20 },
+                    { text: "KPI Evidence Match", weight: job.weights.kpi || 20 }
+                ];
+            }
+            renderJobCriteria();
             state.jobQuestions = job.interviewQuestions || [];
             renderJobQuestions();
 
@@ -1920,15 +1965,20 @@
                 return;
             }
 
-            const weights = {
-                exp: parseInt(document.getElementById('wExperience').value),
-                skills: parseInt(document.getElementById('wSkills').value),
-                resp: parseInt(document.getElementById('wResp').value),
-                kpi: parseInt(document.getElementById('wKpi').value)
-            };
+            const totalWeight = state.jobCriteria.reduce((sum, c) => sum + (c.weight || 0), 0);
+            if (totalWeight > 100) {
+                alert(`Total weightage cannot exceed 100%. Current total: ${totalWeight}%`);
+                return;
+            }
+            if (totalWeight < 100) {
+                if (!confirm(`Total weightage is ${totalWeight}%, which is less than 100%. Are you sure you want to proceed?`)) {
+                    return;
+                }
+            }
 
             const jobData = {
-                title, desc, kpi, weights,
+                title, desc, kpi,
+                evaluationCriteria: state.jobCriteria,
                 interviewQuestions: state.jobQuestions,
                 status: 'Open',
                 applicants: 0,
@@ -2023,6 +2073,66 @@
                 </tr>
             `).join('');
         }
+        function addJobCriteria() {
+            if (!state.jobCriteria) state.jobCriteria = [];
+            state.jobCriteria.push({
+                text: "New Criterion",
+                weight: 0
+            });
+            renderJobCriteria();
+        }
+
+        function deleteJobCriteria(idx) {
+            state.jobCriteria.splice(idx, 1);
+            renderJobCriteria();
+        }
+
+        function updateJobCriteriaContent(idx, field, value) {
+            if (field === 'weight') value = parseInt(value) || 0;
+            if (state.jobCriteria[idx][field] === value) return;
+            state.jobCriteria[idx][field] = value;
+            if (field === 'weight') updateCriteriaTotal();
+        }
+
+        function updateCriteriaTotal() {
+            const total = state.jobCriteria.reduce((sum, c) => sum + (c.weight || 0), 0);
+            const display = document.getElementById('totalCriteriaWeight');
+            if (display) {
+                display.innerText = `${total}%`;
+                display.style.color = total > 100 ? 'var(--accent)' : 'var(--secondary)';
+            }
+        }
+
+        function renderJobCriteria() {
+            const body = document.getElementById('jobCriteriaBody');
+            if (!body) return;
+            if (!state.jobCriteria || state.jobCriteria.length === 0) {
+                body.innerHTML = '<tr><td colspan="3" style="text-align: center; padding: 20px; color: var(--text-dim);">No evaluation criteria defined.</td></tr>';
+                return;
+            }
+            body.innerHTML = state.jobCriteria.map((row, idx) => `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                    <td style="padding: 12px 24px; vertical-align: top;">
+                        <div contenteditable="true" onblur="updateJobCriteriaContent(${idx}, 'text', this.innerText)"
+                             style="color: var(--text-main); outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
+                             onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
+                             ${row.text}
+                        </div>
+                    </td>
+                    <td style="padding: 12px; vertical-align: top;">
+                        <input type="number" value="${row.weight}" onblur="updateJobCriteriaContent(${idx}, 'weight', this.value)"
+                               style="width: 100%; height: 32px; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 8px; color: white; padding: 0 8px; outline: none;">
+                    </td>
+                    <td style="padding: 12px; vertical-align: top; text-align: center;">
+                        <button class="btn" style="background: var(--accent); color: white; padding: 6px 12px; font-size: 0.9rem;" onclick="deleteJobCriteria(${idx})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            updateCriteriaTotal();
+        }
+
 
 
         function expandSidebar() {
@@ -2036,7 +2146,7 @@
         }
 
         function getStatusOptions(currentStatus) {
-            const statuses = ['Pending', 'AI Analysed', 'Shortlisted', 'Reviewed', 'Pending Interview', 'Rejected'];
+            const statuses = ['Invited', 'Scheduled', 'Interviewed', 'Shortlisted', 'Rejected'];
             return statuses.map(s => `<option value="${s}" ${s === currentStatus ? 'selected' : ''}>${s}</option>`).join('');
         }
 
@@ -2497,9 +2607,12 @@
 
         function updateBulkDeleteVisibility(tableId) {
             const selector = tableId === 'candidateTable' ? '.cand-checkbox:checked' : '.repo-checkbox:checked';
-            const btnId = tableId === 'candidateTable' ? 'bulkDeleteBtn' : 'bulkDeleteRepoBtn';
+            const deleteBtnId = tableId === 'candidateTable' ? 'bulkDeleteBtn' : 'bulkDeleteRepoBtn';
+            const reEvalBtnId = tableId === 'candidateTable' ? 'bulkReEvaluateBtn' : 'bulkReEvaluateRepoBtn';
+
             const checkedCount = document.querySelectorAll(selector).length;
-            document.getElementById(btnId).style.display = checkedCount > 0 ? 'block' : 'none';
+            document.getElementById(deleteBtnId).style.display = checkedCount > 0 ? 'block' : 'none';
+            document.getElementById(reEvalBtnId).style.display = checkedCount > 0 ? 'block' : 'none';
         }
 
         function toggleRowSelection(row) {
@@ -2606,7 +2719,7 @@
                 image_ext: ext,
                 job_desc: job.desc,
                 job_kpi: job.kpi,
-                weights: job.weights,
+                evaluation_criteria: job.evaluationCriteria || [],
                 api_key: state.apiKey // Pass API key to Lambda
             };
 
@@ -2624,6 +2737,145 @@
             }
 
             return await response.json();
+        }
+
+        async function runAIReEvaluation(candidate) {
+            const job = state.jobs.find(j => String(j.id) === String(candidate.jobId));
+            if (!job) throw new Error("Job not found for candidate: " + candidate.id);
+
+            const ext = candidate.fileName.split('.').pop().toLowerCase();
+            const isImage = ['jpg', 'png', 'jpeg'].includes(ext);
+
+            const lambdaUrl = 'https://1sv1emfmnl.execute-api.ap-southeast-1.amazonaws.com/recruitmentAnalysis';
+            const payload = {
+                cv_text: isImage ? '' : candidate.fullText,
+                image_base64: isImage ? candidate.cvData : '',
+                image_ext: ext,
+                job_desc: job.desc,
+                job_kpi: job.kpi,
+                evaluation_criteria: job.evaluationCriteria || [],
+                api_key: state.apiKey
+            };
+
+            const response = await fetch(lambdaUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'AI Analysis failed');
+            }
+
+            const analysis = await response.json();
+
+            // Update candidate object
+            candidate.aiScore = analysis.score;
+            candidate.breakdown = analysis.breakdown;
+            candidate.summary = analysis.summary;
+            candidate.reasons = analysis.reasons;
+            candidate.isHopper = analysis.job_hopper;
+            candidate.hopperDetails = analysis.hopper_details;
+
+            // Save to DB
+            await persistenceApiCall('upsert_candidate', candidate);
+
+            // Update local state
+            const localIdx = state.candidates.findIndex(c => String(c.id) === String(candidate.id));
+            if (localIdx !== -1) {
+                state.candidates[localIdx] = { ...state.candidates[localIdx], ...candidate };
+            }
+
+            return candidate;
+        }
+
+        async function reEvaluateCurrentCandidate(event) {
+            if (!state.viewingCandidateId) return;
+            const btn = event.currentTarget || event.target.closest('button');
+            const originalBtnText = btn.innerHTML;
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI Re-evaluating...';
+
+                // Fetch full detail if needed
+                const candidate = await persistenceApiCall('get_candidate_detail', { id: state.viewingCandidateId });
+                if (!candidate) throw new Error("Candidate not found");
+
+                await runAIReEvaluation(candidate);
+
+                // Refresh modal content
+                await viewCandidate(state.viewingCandidateId);
+                alert("Candidate re-evaluated successfully!");
+            } catch (err) {
+                console.error("Re-evaluation error:", err);
+                alert("Error during re-evaluation: " + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalBtnText;
+            }
+        }
+
+        async function bulkReEvaluate(event, tableId) {
+            const selector = tableId === 'candidateTable' ? '.cand-checkbox:checked' : '.repo-checkbox:checked';
+            const selectedBoxes = document.querySelectorAll(selector);
+            const ids = Array.from(selectedBoxes).map(cb => cb.closest('tr').dataset.id);
+
+            if (ids.length === 0) return;
+            if (!confirm(`Are you sure you want to re-evaluate ${ids.length} candidates using the latest job criteria? This may take some time.`)) return;
+
+            const statusPanel = document.getElementById('statusPanel');
+            const pgBar = document.getElementById('progressBar');
+            const pgText = document.getElementById('progressText');
+            const pgPercent = document.getElementById('progressPercent');
+
+            statusPanel.style.display = 'block';
+            pgText.innerText = 'Initializing bulk AI re-evaluation...';
+            pgBar.style.width = '0%';
+            pgPercent.innerText = '0%';
+
+            let completed = 0;
+            const errors = [];
+
+            for (const id of ids) {
+                try {
+                    pgText.innerText = `AI Re-evaluating candidate ${completed + 1} of ${ids.length}...`;
+
+                    // Fetch full detail for each
+                    const candidate = await persistenceApiCall('get_candidate_detail', { id: id });
+                    if (!candidate) throw new Error("Candidate not found: " + id);
+
+                    await runAIReEvaluation(candidate);
+                } catch (err) {
+                    console.error(`Error re-evaluating candidate ${id}:`, err);
+                    errors.push(id);
+                } finally {
+                    completed++;
+                    const progress = (completed / ids.length) * 100;
+                    pgBar.style.width = `${progress}%`;
+                    pgPercent.innerText = `${Math.round(progress)}%`;
+                }
+            }
+
+            pgText.innerText = 'Bulk re-evaluation complete!';
+            if (errors.length > 0) {
+                pgText.innerText += ` (${errors.length} errors)`;
+            }
+
+            renderCandidates();
+            updateStats();
+            renderJobs();
+            if (tableId === 'repoTable') filterCandidatesRepo();
+
+            setTimeout(() => {
+                statusPanel.style.display = 'none';
+                if (errors.length > 0) {
+                    alert(`Re-evaluation completed with ${errors.length} errors. Checks logs for details.`);
+                } else {
+                    alert(`Successfully re-evaluated ${ids.length} candidates.`);
+                }
+            }, 2000);
         }
 
         function toBase64(file) {
@@ -2647,7 +2899,7 @@
                 comments: [],
                 isHopper: analysis.job_hopper,
                 hopperDetails: analysis.hopper_details,
-                status: 'AI Analysed',
+                status: 'Invited',
                 pendingBy: '',
                 breakdown: analysis.breakdown,
                 summary: analysis.summary,
@@ -2800,6 +3052,7 @@
 
         async function viewCandidate(id) {
             console.log('Viewing candidate ID:', id);
+            state.viewingCandidateId = id;
 
             // Optimization: Fetch full details from the server to get excluded fields
             const c = await persistenceApiCall('get_candidate_detail', { id: id });
