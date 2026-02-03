@@ -2482,15 +2482,15 @@
             if (search) filtered = filtered.filter(c => c.name.toLowerCase().includes(search));
             if (pos) filtered = filtered.filter(c => c.jobTitle === pos);
             if (status) filtered = filtered.filter(c => c.status === status);
-            if (startStr) filtered = filtered.filter(c => new Date(c.date) >= new Date(startStr));
-            if (endStr) filtered = filtered.filter(c => new Date(c.date) <= new Date(endStr));
+            if (startStr) filtered = filtered.filter(c => new Date(ensureUTC(c.date)) >= new Date(startStr));
+            if (endStr) filtered = filtered.filter(c => new Date(ensureUTC(c.date)) <= new Date(endStr));
 
             // Sorting
             filtered.sort((a, b) => {
                 let valA, valB;
                 if (repoSort.field === 'name') { valA = a.name; valB = b.name; }
                 else if (repoSort.field === 'job') { valA = a.jobTitle; valB = b.jobTitle; }
-                else if (repoSort.field === 'date') { valA = new Date(a.date); valB = new Date(b.date); }
+                else if (repoSort.field === 'date') { valA = new Date(ensureUTC(a.date)); valB = new Date(ensureUTC(b.date)); }
                 else if (repoSort.field === 'score') { valA = a.aiScore; valB = b.aiScore; }
                 else if (repoSort.field === 'status') { valA = a.status; valB = b.status; }
 
@@ -2532,7 +2532,7 @@
                     </td>
                     <td style="font-weight: 600;">${c.name}</td>
                     <td>${c.jobTitle}</td>
-                    <td>${c.date}</td>
+                    <td>${formatDate8(c.date)}</td>
                     <td><span style="font-weight: 700; color: var(--secondary);">${c.aiScore}%</span></td>
                     <td>
                         <input type="number" value="${c.interviewerScore || 0}" min="0" max="100" 
@@ -3008,7 +3008,7 @@
                 jobId: state.activeJobId,
                 name: rawName.toUpperCase(),
                 fileName: fileName,
-                date: formatDate8(new Date()),
+                date: new Date().toISOString(),
                 aiScore: analysis.score,
                 interviewerScore: 0,
                 comments: [],
@@ -3064,7 +3064,7 @@
             filtered.sort((a, b) => {
                 let valA, valB;
                 if (jobDetailsSort.field === 'name') { valA = a.name; valB = b.name; }
-                else if (jobDetailsSort.field === 'date') { valA = new Date(a.date); valB = new Date(b.date); }
+                else if (jobDetailsSort.field === 'date') { valA = new Date(ensureUTC(a.date)); valB = new Date(ensureUTC(b.date)); }
                 else if (jobDetailsSort.field === 'score') { valA = a.aiScore; valB = b.aiScore; }
                 else if (jobDetailsSort.field === 'status') { valA = a.status; valB = b.status; }
                 else if (jobDetailsSort.field === 'hopper') { valA = a.isHopper; valB = b.isHopper; }
@@ -3087,7 +3087,7 @@
                         <div style="font-weight: 600;">${c.name}</div>
                         <div style="font-size: 0.7rem; color: var(--text-dim);">${c.fileName}</div>
                     </td>
-                    <td>${c.date}</td>
+                    <td>${formatDate8(c.date)}</td>
                     <td>
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span style="font-weight: 700; color: ${c.aiScore > 75 ? 'var(--secondary)' : 'white'}">${c.aiScore}</span>
