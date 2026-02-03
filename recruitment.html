@@ -893,13 +893,14 @@
                         <p style="color: var(--text-dim);">Create and manage your specific job descriptions and scoring
                             criteria.</p>
                     </div>
-                    <button class="btn btn-primary" onclick="createNewJob()">+ Create New Job</button>
+                    <button id="createJobBtn" class="btn btn-primary" onclick="createNewJob()">+ Create New Job</button>
                 </header>
                 <div class="table-container">
                     <table>
                         <thead>
                             <tr>
                                 <th>Job Title</th>
+                                <th>Created At</th>
                                 <th>Applicants</th>
                                 <th>Shortlisted</th>
                                 <th>Status</th>
@@ -1482,6 +1483,8 @@
             users: [],
             stagedFiles: [],
             currentUser: null,
+            currentUserRole: null, // 'Admin' or 'Team Lead'
+            effectiveRole: null,   // same as above, can be toggled by Kenneth
             loggedUserId: null,
             editingUserId: null,
             apiKey: localStorage.getItem('ai_recruitment_api_key') || '',
@@ -1532,6 +1535,8 @@
 
                 // 3. Success - Set Session
                 state.currentUser = matchedUser.name;
+                state.currentUserRole = matchedUser.role;
+                state.effectiveRole = matchedUser.role;
                 state.loggedUserId = matchedUser.id;
                 state.users = registeredUsers;
 
@@ -1556,6 +1561,8 @@
             if (stored) {
                 const user = JSON.parse(stored);
                 state.currentUser = user.name;
+                state.currentUserRole = user.role;
+                state.effectiveRole = user.role;
                 state.loggedUserId = user.id;
                 completeLogin();
                 return true;
@@ -1595,11 +1602,79 @@
 
             // Update Sidebar Profile
             const profileName = document.getElementById('sidebar-user-name');
-            if (profileName) profileName.textContent = state.currentUser;
+            if (profileName) {
+                profileName.textContent = state.currentUser;
+
+                // Kenneth's Dev Toggle
+                if (state.currentUser === 'Kenneth Cheong') {
+                    const toggleHtml = `
+                        <div style="font-size: 0.7rem; color: var(--secondary); margin-top: 4px; cursor: pointer; text-decoration: underline;" 
+                             onclick="toggleEffectiveRole()">
+                            Mode: ${state.effectiveRole} (Switch)
+                        </div>
+                    `;
+                    // Check if toggle already exists to avoid duplication
+                    if (!document.getElementById('kenneth-role-toggle')) {
+                        const toggleDiv = document.createElement('div');
+                        toggleDiv.id = 'kenneth-role-toggle';
+                        toggleDiv.innerHTML = toggleHtml;
+                        profileName.after(toggleDiv);
+                    } else {
+                        document.getElementById('kenneth-role-toggle').innerHTML = toggleHtml;
+                    }
+                } else {
+                    // Non-Kenneth: Show actual role but smaller
+                    const roleDisplay = document.getElementById('user-role-display');
+                    if (!roleDisplay) {
+                        const rDiv = document.createElement('div');
+                        rDiv.id = 'user-role-display';
+                        rDiv.style.fontSize = '0.7rem';
+                        rDiv.style.color = 'var(--text-dim)';
+                        rDiv.innerText = state.effectiveRole;
+                        profileName.after(rDiv);
+                    } else {
+                        roleDisplay.innerText = state.effectiveRole;
+                    }
+                }
+            }
 
             // Update Avatar (first initial)
             const avatar = document.getElementById('sidebar-avatar');
             if (avatar) avatar.textContent = state.currentUser.charAt(0).toUpperCase();
+
+            // Hide/Show navigation items based on role
+            const navUsers = document.getElementById('nav-users');
+            const navAudit = document.getElementById('nav-audit');
+            if (navUsers) navUsers.style.display = state.effectiveRole === 'Admin' ? 'flex' : 'none';
+            if (navAudit) navAudit.style.display = state.effectiveRole === 'Admin' ? 'flex' : 'none';
+
+            const createJobBtn = document.getElementById('createJobBtn');
+            if (createJobBtn) createJobBtn.style.display = state.effectiveRole === 'Admin' ? 'block' : 'none';
+        }
+
+        // --- Date & Time Helpers (UTC+8) ---
+        function ensureUTC(date) {
+            if (typeof date === 'string' && date.includes('T') && !date.includes('Z') && !date.includes('+')) {
+                return date + 'Z';
+            }
+            return date;
+        }
+
+        function formatDate8(date) {
+            if (!date) return '';
+            const d = new Date(ensureUTC(date));
+            return d.toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' });
+        }
+
+        function formatDateTime8(date) {
+            if (!date) return '';
+            const d = new Date(ensureUTC(date));
+            return d.toLocaleString('en-SG', {
+                timeZone: 'Asia/Singapore',
+                hour12: true,
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit'
+            });
         }
 
         window.addEventListener('load', () => {
@@ -1608,6 +1683,40 @@
 
         let jobDetailsSort = { field: 'score', direction: 'desc' };
         let repoSort = { field: 'date', direction: 'desc' };
+
+        // --- RBAC Helpers ---
+        function getAccessibleCandidates() {
+            if (state.effectiveRole === 'Admin') return state.candidates;
+            // Team Lead: only candidates assigned to them
+            return state.candidates.filter(c => c.pendingBy === state.currentUser);
+        }
+
+        function getAccessibleJobs() {
+            if (state.effectiveRole === 'Admin') return state.jobs;
+            // Team Lead: only jobs that have at least one candidate assigned to them
+            const assignedCandIds = getAccessibleCandidates().map(c => String(c.jobId));
+            return state.jobs.filter(j => assignedCandIds.includes(String(j.id)));
+        }
+
+        function toggleEffectiveRole() {
+            if (state.currentUser !== 'Kenneth Cheong') return;
+            state.effectiveRole = state.effectiveRole === 'Admin' ? 'Team Lead' : 'Admin';
+            updateUserUI();
+
+            // Re-render everything to apply filters
+            renderJobs();
+            renderCandidates();
+            filterCandidatesRepo();
+            updateStats();
+
+            // If in users section, go back to dashboard if no longer admin
+            if (state.effectiveRole !== 'Admin') {
+                const navUsers = document.getElementById('nav-users');
+                if (navUsers && navUsers.classList.contains('active')) {
+                    showDashboard();
+                }
+            }
+        }
 
         const PERSISTENCE_LAMBDA_URL = 'https://hntb9oehu6.execute-api.ap-southeast-1.amazonaws.com/recruitementDatabase';
 
@@ -2175,13 +2284,15 @@
 
         function renderJobs() {
             const container = document.getElementById('jobListBody');
-            if (!state.jobs || state.jobs.length === 0) {
-                container.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">No jobs found. Click "Create New Job" to start.</td></tr>';
+            const accessibleJobs = getAccessibleJobs();
+            if (!accessibleJobs || accessibleJobs.length === 0) {
+                container.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-dim);">No jobs found.</td></tr>';
                 return;
             }
-            container.innerHTML = state.jobs.map(job => `
+            container.innerHTML = accessibleJobs.map(job => `
                 <tr style="cursor: pointer; transition: background 0.2s ease;">
                     <td style="font-weight: 600;">${job.title}</td>
+                    <td style="font-size: 0.75rem; color: var(--text-dim);">${formatDateTime8(job.createdAt)}</td>
                     <td>${job.applicants || 0}</td>
                     <td>${job.shortlisted || 0}</td>
                     <td>
@@ -2232,12 +2343,13 @@
         }
 
         async function updateStats() {
-            const totalCand = state.candidates.length; // This reflects filtered/job-specific
-            // For dashboard, we want GLOBAL stats if possible, or total from jobs
-            const totalApplicants = state.jobs.reduce((sum, j) => sum + (parseInt(j.applicants) || 0), 0);
-            const highQuality = state.candidates.filter(c => c.aiScore > 80).length;
+            const accessibleJobs = getAccessibleJobs();
+            const accessibleCandidates = getAccessibleCandidates();
 
-            if (document.getElementById('stat-jobs')) document.getElementById('stat-jobs').innerText = state.jobs.length;
+            const totalApplicants = accessibleJobs.reduce((sum, j) => sum + (parseInt(j.applicants) || 0), 0);
+            const highQuality = accessibleCandidates.filter(c => c.aiScore > 80).length;
+
+            if (document.getElementById('stat-jobs')) document.getElementById('stat-jobs').innerText = accessibleJobs.length;
             if (document.getElementById('stat-total')) document.getElementById('stat-total').innerText = totalApplicants;
             if (document.getElementById('stat-leads')) document.getElementById('stat-leads').innerText = highQuality;
         }
@@ -2266,7 +2378,9 @@
                 <tr>
                     <td>${user.name}</td>
                     <td>${user.email}</td>
-                    <td><span class="badge ${user.role === 'Admin' ? 'badge-success' : 'badge-warning'}">${user.role}</span></td>
+                    <td><span class="badge ${user.role === 'Admin' ? 'badge-success' : 'badge-warning'}">
+                        ${user.name === 'Kenneth Cheong' ? 'Team Lead' : user.role}
+                    </span></td>
                     <td><span class="badge ${user.status === 'Active' ? 'badge-success' : 'badge-error'}">${user.status}</span></td>
                     <td>
                         <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white;" onclick="openEditUserModal('${user.id}')">Edit</button>
@@ -2359,7 +2473,8 @@
             const startStr = document.getElementById('dateStart')?.value || "";
             const endStr = document.getElementById('dateEnd')?.value || "";
 
-            let filtered = state.candidates.map(c => {
+            const accessibleCandidates = getAccessibleCandidates();
+            let filtered = accessibleCandidates.map(c => {
                 const job = state.jobs.find(j => String(j.id) == String(c.jobId));
                 return { ...c, jobTitle: job ? job.title : 'Unknown' };
             });
@@ -2893,7 +3008,7 @@
                 jobId: state.activeJobId,
                 name: rawName.toUpperCase(),
                 fileName: fileName,
-                date: new Date().toLocaleDateString(),
+                date: formatDate8(new Date()),
                 aiScore: analysis.score,
                 interviewerScore: 0,
                 comments: [],
@@ -2937,10 +3052,10 @@
 
         function renderCandidates() {
             console.log("renderCandidates called. ActiveJobId:", state.activeJobId, "Candidates count:", state.candidates.length);
-            // If we have an active job, filter by it. Otherwise show all in state.
-            let filtered = state.candidates;
+            // If we have an active job, filter by it. Otherwise show all accessible in state.
+            let filtered = getAccessibleCandidates();
             if (state.activeJobId) {
-                filtered = state.candidates.filter(c => String(c.jobId) == String(state.activeJobId));
+                filtered = filtered.filter(c => String(c.jobId) == String(state.activeJobId));
             }
             console.log("Filtered candidates count:", filtered.length);
             const body = document.getElementById('candidateBody');
@@ -3486,7 +3601,7 @@
                 const newComment = {
                     user: state.currentUser,
                     text: text,
-                    date: new Date().toLocaleString()
+                    date: formatDateTime8(new Date())
                 };
                 cand.comments.push(newComment);
                 input.value = '';
@@ -3521,7 +3636,7 @@
 
                     return `
                         <tr>
-                            <td style="color: var(--text-dim); font-size: 0.8rem;">${new Date(l.timestamp).toLocaleString()}</td>
+                            <td style="color: var(--text-dim); font-size: 0.8rem;">${formatDateTime8(l.timestamp)}</td>
                             <td style="font-weight: 600;">${l.user}</td>
                             <td><span class="badge" style="background: var(--glass);">${l.action}</span></td>
                             <td>${l.details}</td>

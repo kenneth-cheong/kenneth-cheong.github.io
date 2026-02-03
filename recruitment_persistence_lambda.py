@@ -138,6 +138,7 @@ def handle_upsert_job(db, job_data, user, headers):
         job_id = str(datetime.utcnow().timestamp())
         job_data['id'] = job_id
         job_data['deleted'] = False
+        job_data['createdAt'] = datetime.utcnow()
         db.jobs.insert_one(job_data)
         log_audit(db, "create", "job", job_id, user, f"Created job: {job_data.get('title')}")
     return response(200, {"success": True, "job": job_data}, headers)
