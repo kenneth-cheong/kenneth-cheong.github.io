@@ -11071,10 +11071,13 @@ seo agencies in singapore</textarea>
                     // G. Platform Readiness (Robots Parsing)
                     const platformReadiness = {};
                     const platformReasons = {};
+                    const platformMatches = {}; // Store indices of lines to highlight
+
                     if (robotsText === 'Not Found' || robotsText.includes('Error')) {
                         DISCOVERY_PLATFORMS.forEach(p => {
                             platformReadiness[p.name] = true;
                             platformReasons[p.name] = 'No robots.txt found. Site is fully accessible by default.';
+                            platformMatches[p.name] = [];
                         });
                     } else {
                         const robotsLines = robotsText.split('\n').map(l => l.trim());
@@ -11082,30 +11085,38 @@ seo agencies in singapore</textarea>
                             let isBlocked = false;
                             let currentUserAgent = null;
                             let matchReason = 'No specific rules found. Defaulting to Allowed.';
-                            for (const line of robotsLines) {
+                            let lastMatchedIndices = [];
+                            let currentUAIndex = -1;
+
+                            for (let i = 0; i < robotsLines.length; i++) {
+                                const line = robotsLines[i];
                                 const lowLine = line.toLowerCase();
-                                if (lowLine.startsWith('user-agent:')) currentUserAgent = lowLine.split(':')[1].trim();
-                                else if (lowLine.startsWith('disallow:') && currentUserAgent) {
+
+                                if (lowLine.startsWith('user-agent:')) {
+                                    currentUserAgent = lowLine.split(':')[1].trim();
+                                    currentUAIndex = i;
+                                }
+                                else if ((lowLine.startsWith('disallow:') || lowLine.startsWith('allow:')) && currentUserAgent) {
+                                    const isDisallow = lowLine.startsWith('disallow:');
                                     const path = lowLine.split(':')[1].trim();
+
+                                    // Basic matching: / or /* covers most cases user is looking for
                                     if ((path === '/' || path === '/*') && (currentUserAgent === '*' || currentUserAgent === p.userAgent.toLowerCase())) {
-                                        isBlocked = true;
+                                        isBlocked = isDisallow;
                                         matchReason = `Matched rule: "${line}" for User-agent: "${currentUserAgent}"`;
-                                    }
-                                } else if (lowLine.startsWith('allow:') && currentUserAgent) {
-                                    const path = lowLine.split(':')[1].trim();
-                                    if ((path === '/' || path === '/*') && (currentUserAgent === '*' || currentUserAgent === p.userAgent.toLowerCase())) {
-                                        isBlocked = false;
-                                        matchReason = `Matched rule: "${line}" for User-agent: "${currentUserAgent}"`;
+                                        lastMatchedIndices = [currentUAIndex, i];
                                     }
                                 }
                             }
                             platformReadiness[p.name] = !isBlocked;
                             platformReasons[p.name] = matchReason;
+                            platformMatches[p.name] = lastMatchedIndices;
                         });
                     }
 
                     finalTechData.platformReadiness = platformReadiness;
                     finalTechData.platformReasons = platformReasons;
+                    finalTechData.platformMatches = platformMatches;
                     finalTechData.fullRobotsText = robotsText;
                     finalTechData.techAudit = techAuditResults;
                     finalTechData.sslValid = sslValid; // Helper for scoring
@@ -11504,6 +11515,7 @@ seo agencies in singapore</textarea>
                 const techData = window.lastDiscoveryAudit || {};
                 const readinessMap = techData.platformReadiness || {};
                 const reasonsMap = techData.platformReasons || {};
+                const matchesMap = techData.platformMatches || {};
                 const fullRobots = techData.fullRobotsText || 'Not Found';
 
                 const detailSection = document.getElementById('discoveryDetailSection');
@@ -11511,10 +11523,19 @@ seo agencies in singapore</textarea>
 
                 const platform = DISCOVERY_PLATFORMS.find(p => p.name === name);
                 const isReady = readinessMap[name] !== false;
-                const score = isReady ? 100 : 0;
+                const matches = matchesMap[name] || [];
                 const reason = reasonsMap[name] || 'No specific rules found.';
                 const statusText = isReady ? 'READY' : 'BLOCKED';
                 const statusColor = isReady ? '#10a37f' : '#ef4444';
+
+                // Process robots text for highlighting
+                const robotsLines = fullRobots.split('\n');
+                const robotsHtml = robotsLines.map((line, idx) => {
+                    const isMatched = matches.includes(idx);
+                    const style = isMatched ? 'background-color: #fef9c3; font-weight: 600; display: block; padding: 2px 0;' : 'display: block;';
+                    const id = isMatched ? `id="robots-match-${idx}"` : '';
+                    return `<span ${id} style="${style}">${line || '&nbsp;'}</span>`;
+                }).join('');
 
                 detailSection.innerHTML = `
                 <div style="background: #fff; padding: 30px; border-radius: 20px; border: 1px solid ${platform.color}40; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
@@ -11553,12 +11574,23 @@ seo agencies in singapore</textarea>
                         </div>
                         <div style="background: #f8fbff; padding: 20px; border-radius: 12px; border: 1px solid #e1e9f0;">
                             <h4 style="margin-bottom: 15px; color: #0891b2;"><i class="fas fa-robot"></i> Robots.txt Content</h4>
-                            <pre style="font-size: 0.8em; color: #475569; overflow: auto; max-height: 250px; background: #fff; padding: 10px; border-radius: 6px; border: 1px solid #eef0f2; font-family: 'Courier New', monospace;">${fullRobots}</pre>
+                            <div id="robotsDisplayContainer" style="font-size: 0.8em; color: #475569; overflow: auto; max-height: 250px; background: #fff; padding: 10px; border-radius: 6px; border: 1px solid #eef0f2; font-family: 'Courier New', monospace; line-height: 1.5; white-space: pre;">${robotsHtml}</div>
                         </div>
                     </div>
                 </div>
             `;
                 detailSection.scrollIntoView({ behavior: 'smooth' });
+
+                // Scroll to the first match within the robots container
+                if (matches.length > 0) {
+                    setTimeout(() => {
+                        const firstMatch = document.getElementById(`robots-match-${matches[0]}`);
+                        const container = document.getElementById('robotsDisplayContainer');
+                        if (firstMatch && container) {
+                            container.scrollTop = firstMatch.offsetTop - container.offsetTop - 50;
+                        }
+                    }, 300);
+                }
             }
             let currentLlmPathway = 'llms';
 
