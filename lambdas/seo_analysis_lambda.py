@@ -196,7 +196,7 @@ def lambda_handler(event, context):
                     "https://api.openai.com/v1/chat/completions",
                     headers={"Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}", "Content-Type": "application/json"},
                     json={
-                        "model": "gpt-4o-mini",
+                        "model": "gpt-5-nano",
                         "messages": [
                             {"role": "system", "content": "You are a world-class SEO strategist trained on Digimetrics SEO standards. Evaluate content for deep alignment, trust signals, and user value, not just keyword density. Provide clear, actionable steps to reach 100% SEO score."},
                             {"role": "user", "content": prompt}
@@ -205,17 +205,31 @@ def lambda_handler(event, context):
                     },
                     timeout=25
                 )
-                ai_data_raw = response.json()['choices'][0]['message']['content']
+                
+                if response.status_code != 200:
+                    raise Exception(f"OpenAI API Error: {response.status_code} - {response.text}")
+                    
+                ai_data_raw = response.json().get('choices', [{}])[0].get('message', {}).get('content', '{}')
                 ai_feedback = json.loads(ai_data_raw)
                 
                 # Update overall score if AI found major flaws
-                ai_score = ai_feedback.get('score', overall_score)
+                ai_score_raw = ai_feedback.get('score', overall_score)
+                try:
+                    # Handle cases where AI returns score as string like "85%" or "85"
+                    if isinstance(ai_score_raw, str):
+                        ai_score = float(re.sub(r'[^0-9.]', '', ai_score_raw))
+                    else:
+                        ai_score = float(ai_score_raw)
+                except:
+                    ai_score = overall_score
+                    
                 result["overall_score"] = round((overall_score * 0.4) + (ai_score * 0.6), 2)
                 
                 # Merge AI action plan if present
-                if "urgent_action_plan" in ai_feedback:
+                ai_plan = ai_feedback.get("urgent_action_plan", [])
+                if isinstance(ai_plan, list):
                     # AI actions are prioritized
-                    result["action_plan"] = ai_feedback["urgent_action_plan"] + [item for item in result["action_plan"] if item not in ai_feedback["urgent_action_plan"]]
+                    result["action_plan"] = ai_plan + [item for item in result["action_plan"] if item not in ai_plan]
                 
                 result["ai_feedback"] = ai_feedback
                 result["is_ai"] = True

@@ -30,24 +30,7 @@ def lambda_handler(event, context):
         # Construct settings context
         settings_context = ""
         if settings:
-            target_locale = settings.get('locale', 'en-SG')
-            target_jurisdictions = settings.get('jurisdictions', 'Singapore')
-            
-            # Spelling Variety Detection
-            british_locales = ['en-SG', 'en-GB', 'en-AU', 'en-NZ', 'en-IE']
-            british_keywords = ['Singapore', 'UK', 'United Kingdom', 'Australia', 'New Zealand', 'Ireland']
-            
-            is_british = any(loc in target_locale for loc in british_locales) or \
-                         any(kw.lower() in target_jurisdictions.lower() for kw in british_keywords)
-            
-            spelling_instruction = "\nSPELLING: Use British English (e.g., -ise/-isation, -re, -our)." if is_british else "\nSPELLING: Use American English (e.g., -ize/-ization, -er, -or)."
-            
-            settings_context = f"""
-TARGET AUDIENCE: {settings.get('audience', 'General')}
-TONE: {settings.get('brandTone', 'Professional')}
-INDUSTRY: {settings.get('industry', 'General')}
-JURISDICTIONS: {target_jurisdictions}
-LOCALE: {target_locale}{spelling_instruction}"""
+            settings_context = f"\nTARGET AUDIENCE: {settings.get('audience', 'General')}\nTONE: {settings.get('brandTone', 'Professional')}"
 
         # External Linking Strategy
         linking_guidelines = ""
