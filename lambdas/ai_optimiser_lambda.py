@@ -64,19 +64,26 @@ CRITICAL CONTENT GUIDELINES:
 6. UNIQUENESS: 
     - Provide a unique point of view (POV) to satisfy Google's Diversity/Uniqueness requirement (source from trends, news, or 1st party perspectives).
     - Ensure content passes both human and AI plagiarism checks.
-7. FORMATTING: 
+7. STANDARDIZED SIGNALS:
+    - Use clear, recognized headings for signals. Prefer "About the Author" for bios and "Frequently Asked Questions" or "FAQ" for question sections.
+    - Use phrases like "In our tests" or "Based on our findings" for evidence of experience.
+8. FORMATTING: 
     - Use clear Header hierarchy (H2, H3).
     - Use bulleted lists for neat lists and ordered lists for listicles.
     - Use Markdown tables for comparisons.
     - SPACING: Use concise vertical spacing. Avoid multiple empty lines between sections.
-8. TOPIC DEPTH: Synthesize information commonly found in Top 10-20 search results while adding original insights.
+9. TOPIC DEPTH: Synthesize information commonly found in Top 10-20 search results while adding original insights.
 """
 
         system_msg = f"You are an expert SEO & content editor trained on the latest Search Quality Rater Guidelines (EEAT). Your goal is to create high-quality, targeted content that is both useful to readers and optimized for search engines. IMPORTANT: DO NOT wrap your entire response in markdown code blocks like ```markdown or ```. Return raw text/markdown content only.{seo_guidelines}{keyword_context}{settings_context}{linking_guidelines}"
         
         user_msg = ""
         if action == "generate":
-            user_msg = f"Generate comprehensive, structured SEO content following all the guidelines above based on this prompt: {prompt_override}"
+            if "CURRENT CONTENT:" in prompt_override:
+                # This is a targeted recommendation execution
+                user_msg = f"Task: Generate ONLY the specific additions required by the SEO recommendation: {prompt_override}\n\nRULES:\n1. Do NOT return the entire article.\n2. Do NOT duplicate existing content.\n3. Return ONLY the new HTML fragment (e.g., if adding a bio, return only the bio div/paragraphs).\n4. Ensure the style matches the provided context but acts as a standalone addition."
+            else:
+                user_msg = f"Generate comprehensive, structured SEO content following all the guidelines above based on this prompt: {prompt_override}"
         elif action == "rewrite":
             user_msg = f"Rewrite this content to strictly follow the EEAT and formatting guidelines above: {content}"
         elif action == "expand":
@@ -113,6 +120,21 @@ CRITICAL CONTENT GUIDELINES:
 
         resp_json = response.json()
         result_text = resp_json['choices'][0]['message']['content'] if 'choices' in resp_json else ""
+
+        # Post-processing: Remove everything that isn't the generated fragment if AI over-explains
+        if action == "generate" and "CURRENT CONTENT:" in prompt_override:
+            # Preserve placement tags if provided
+            placement_match = re.search(r'\[PLACEMENT:.*?\]', result_text, re.IGNORECASE)
+            placement_tag = placement_match.group(0) + "\n" if placement_match else ""
+            
+            # Simple heuristic to clean up any preamble/outro the AI might add
+            if "```" in result_text:
+                result_text = result_text.split("```html")[-1].split("```")[-1].split("```")[0].strip()
+            else:
+                # If no code blocks, just remove the tag from the text body to get clean content
+                result_text = re.sub(r'\[PLACEMENT:.*?\]', '', result_text, flags=re.IGNORECASE).strip()
+            
+            result_text = placement_tag + result_text
 
         return {
             'statusCode': 200,

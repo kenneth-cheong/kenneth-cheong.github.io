@@ -111,7 +111,8 @@ def analyze_intent_eeat(text, content_html):
         recommendations.append("Add evidence of first-hand experience (e.g., 'our tests showed')")
         
     # E-E-A-T: Author/Trust signals (7)
-    if "about the author" in text.lower() or "written by" in text.lower():
+    author_signals = ["about the author", "written by", "authored by", "author bio", "contributor", "credentials", "meet the team"]
+    if any(sig in text.lower() for sig in author_signals):
         score += 30
     else:
         recommendations.append("Include an author bio or credentials to build trust")

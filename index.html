@@ -2142,6 +2142,14 @@
             border-radius: 6px;
             border-left: 3px solid #1a73e8;
             line-height: 1.4;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-item:hover {
+            background: #f0f7ff;
+            border-left-width: 5px;
+            transform: translateX(3px);
         }
 
         .action-item i {
@@ -12724,6 +12732,11 @@ seo agencies in singapore</textarea>
                 const primaryKeyword = document.getElementById('primaryKeyword')?.value || "";
                 const secondaryKeywords = document.getElementById('secondaryKeywords')?.value || "";
 
+                const actionList = document.getElementById('seoActionList');
+                if (actionList && actionList.innerHTML !== "") {
+                    actionList.style.opacity = '0.6';
+                }
+
                 try {
                     const response = await fetch(OPTIMISER_ENDPOINTS.SEO_ANALYSIS, {
                         method: 'POST',
@@ -12774,12 +12787,15 @@ seo agencies in singapore</textarea>
                     // Populate Action Plan
                     const planContainer = document.getElementById('seoActionPlanContainer');
                     const actionList = document.getElementById('seoActionList');
+                    if (actionList) actionList.style.opacity = '1';
+
                     if (planContainer && actionList && result.action_plan && result.action_plan.length > 0) {
                         actionList.innerHTML = '';
                         result.action_plan.forEach(item => {
                             const div = document.createElement('div');
                             div.className = 'action-item';
                             div.innerHTML = `<i class="fas fa-arrow-right"></i> <span>${item}</span>`;
+                            div.onclick = () => showRecommendationConfirm(div, item);
                             actionList.appendChild(div);
                         });
                         planContainer.style.display = 'block';
@@ -12787,10 +12803,152 @@ seo agencies in singapore</textarea>
                         planContainer.style.display = 'none';
                     }
                 } catch (error) {
+                    const actionList = document.getElementById('seoActionList');
+                    if (actionList) actionList.style.opacity = '1';
                     console.error("SEO Analysis Error:", error);
                     alert("Failed to run SEO analysis. Check console for details.");
                 } finally {
                     btn.innerHTML = originalContent;
+                    btn.disabled = false;
+                }
+            }
+
+            function showRecommendationConfirm(container, recommendation) {
+                // Remove any existing confirm buttons first in all cards
+                const allConfirms = document.querySelectorAll('.recommendation-confirm-box');
+                allConfirms.forEach(box => {
+                    if (box.parentNode !== container) box.remove();
+                });
+
+                const existing = container.querySelector('.recommendation-confirm-box');
+                if (existing) {
+                    existing.remove();
+                    return;
+                }
+
+                const confirmDiv = document.createElement('div');
+                confirmDiv.className = 'recommendation-confirm-box';
+                confirmDiv.style.marginTop = '10px';
+                confirmDiv.style.padding = '10px';
+                confirmDiv.style.background = '#f0f9ff';
+                confirmDiv.style.borderRadius = '8px';
+                confirmDiv.style.border = '1px solid #bae6fd';
+                confirmDiv.onclick = (e) => e.stopPropagation();
+
+                confirmDiv.innerHTML = `
+                    <p style="font-size: 12px; color: #0369a1; margin-bottom: 8px; font-weight: 500;">Execute this recommendation using AI?</p>
+                    <button class="btn-gradient" style="background: #004c9d; font-size: 11px; padding: 6px 12px; height: auto;" 
+                        onclick="executeSeoRecommendation(this, '${recommendation.replace(/'/g, "\\'")}')">
+                        <i class="fas fa-magic"></i> Confirm to Execute
+                    </button>
+                `;
+                container.appendChild(confirmDiv);
+            }
+
+            async function executeSeoRecommendation(btn, recommendation) {
+                const editor = document.getElementById('editorContent');
+                const originalBtnContent = btn.innerHTML;
+
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Optimising Content...';
+                btn.disabled = true;
+
+                const primaryKeyword = document.getElementById('primaryKeyword')?.value || "";
+                const secondaryKeywords = document.getElementById('secondaryKeywords')?.value || "";
+                const currentContent = editor.innerHTML;
+
+                let specificHints = "";
+                if (recommendation.toLowerCase().includes("author") || recommendation.toLowerCase().includes("credentials")) {
+                    specificHints = "\nIMPORTANT: Ensure you use one of these specific phrases: 'About the Author' or 'Written by' so the analysis can track it.";
+                } else if (recommendation.toLowerCase().includes("faq") || recommendation.toLowerCase().includes("question")) {
+                    specificHints = "\nIMPORTANT: Include a clear 'Frequently Asked Questions' or 'FAQ' heading.";
+                } else if (recommendation.toLowerCase().includes("experience")) {
+                    specificHints = "\nIMPORTANT: Use phrases like 'In our tests' or 'We found' to signal first-hand experience.";
+                }
+
+                const prompt = `SEO RECOMMENDATION TO IMPLEMENT: "${recommendation}"${specificHints}\n\nTASK: Generate ONLY the new HTML fragment needed to fulfill this recommendation.\n\nPLACEMENT INSTRUCTION: Also determine the ideal placement for this new content. Prepend your response with a tag:\n- [PLACEMENT: TOP] for titles/intros.\n- [PLACEMENT: BOTTOM] for bios/FAQs.\n- [PLACEMENT: AFTER_H2: (exact text of heading)] for middle-section expansions.\n\nIMPORTANT: DO NOT return the original article headings or paragraphs. Return ONLY the tag and the new HTML fragment.\n\nCONTENT FOR CONTEXT:\n${currentContent}`;
+
+                try {
+                    const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'generate',
+                            prompt: prompt,
+                            primary_keyword: primaryKeyword,
+                            secondary_keywords: secondaryKeywords,
+                            settings: aiContentSettings
+                        })
+                    });
+                    const data = await response.json();
+                    const result = parseLambdaResponse(data);
+
+                    if (result.error) throw new Error(result.error);
+
+                    let finalResult = result.result;
+                    let placement = "BOTTOM";
+                    let targetH2 = "";
+
+                    // Extract placement tag
+                    const placementMatch = finalResult.match(/\[PLACEMENT:\s*(.*?)\]/i);
+                    if (placementMatch) {
+                        const tag = placementMatch[1].toUpperCase();
+                        if (tag === "TOP") placement = "TOP";
+                        else if (tag.startsWith("AFTER_H2:")) {
+                            placement = "AFTER_H2";
+                            targetH2 = tag.split(":")[1].trim();
+                        }
+                        // Remove the tag from the content and trim
+                        finalResult = finalResult.replace(/\[PLACEMENT:.*?\]/i, "").trim();
+                    }
+
+                    const blockId = "recommendation_" + Date.now();
+                    const formattedContent = finalResult.includes('<') ? finalResult : formatMarkdown(finalResult);
+
+                    const generatedHtml = `
+                    <div id="${blockId}" class="generated-content-block" contenteditable="false" style="border: 2px solid #0ea5e9; background: #f0f9ff; margin: 20px 0;">
+                        <div class="generated-badge" style="background: #0ea5e9; font-size: 10px;">seo recommendation applied</div>
+                        <div class="generated-text-body" style="color: #333;" contenteditable="true">
+                            ${formattedContent}
+                        </div>
+                        <div class="generated-actions">
+                            <button class="btn-accept-content" onclick="acceptGeneratedContent(this); event.stopPropagation();">
+                                <i class="fas fa-check"></i> Accept & Re-analyse
+                            </button>
+                            <button class="btn-remove-content" onclick="removeGeneratedContent(this); event.stopPropagation();">
+                                <i class="fas fa-trash"></i> Remove
+                            </button>
+                        </div>
+                    </div>
+                    <p>&nbsp;</p>
+                `;
+
+                    // Intelligent Placement Logic
+                    if (placement === "TOP") {
+                        editor.insertAdjacentHTML('afterbegin', generatedHtml);
+                    } else if (placement === "AFTER_H2" && targetH2) {
+                        const h2s = editor.querySelectorAll('h2');
+                        let found = false;
+                        for (let h of h2s) {
+                            if (h.innerText.toLowerCase().includes(targetH2.toLowerCase())) {
+                                h.insertAdjacentHTML('afterend', generatedHtml);
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) editor.insertAdjacentHTML('beforeend', generatedHtml);
+                    } else {
+                        editor.insertAdjacentHTML('beforeend', generatedHtml);
+                    }
+
+                    btn.closest('.recommendation-confirm-box').remove();
+
+                    const newBlock = document.getElementById(blockId);
+                    if (newBlock) newBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    updateEditorMetrics();
+                } catch (error) {
+                    console.error("Recommendation Execution Error:", error);
+                    alert("Failed to execute recommendation. Please try again.");
+                    btn.innerHTML = originalBtnContent;
                     btn.disabled = false;
                 }
             }
@@ -13156,6 +13314,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
                 block.parentNode.replaceChild(wrapper, block);
                 updateEditorMetrics();
+                runSeoAnalysis();
             }
 
 
