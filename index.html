@@ -157,6 +157,7 @@
 
         .discovery-input-bar {
             display: flex;
+            align-items: center;
             gap: 15px;
             max-width: 800px;
             margin: 30px auto;
@@ -6125,6 +6126,7 @@
             <a href="#" onclick="showGeoOnly(event)">GEO</a>
             <div class="dropdown-content">
                 <a href="#llmsTxtGenerator" onclick="openLlmsTxtGenerator(event)">llms.txt Generator</a>
+                <a href="#catsTxtGenerator" onclick="openCatsTxtGenerator(event)">cats.txt Generator</a>
                 <a href="#aiDiscoveryAudit" onclick="openAiDiscoveryAudit(event)">AI Discovery Audit</a>
             </div>
         </div>
@@ -7959,141 +7961,200 @@
 
         <div id="geoSection">
             <div class="page-break"></div>
-            <button class="collapsible" id="geoMainBtn"><i class="fas fa-plus-square"></i><i class="fas fa-globe"></i>
+            <button class="collapsible" id="geoMainBtn"><i class="fas fa-plus-square"></i><i class="fas fa-robot"></i>
                 Generative Engine Optimization (GEO)</button>
             <div class="content">
                 <button class="collapsible" id="geoUtilitiesBtn"><i class="fas fa-plus-square"></i><i
                         class="fas fa-file-alt"></i> llms.txt Generator</button>
                 <div class="content" id="geoUtilitiesSection">
-                    <div class="geo-layout">
-                        <!-- Left: Inputs -->
-                        <div class="geo-inputs">
-                            <!-- Project Information -->
-                            <div class="geo-card">
-                                <div class="geo-card-header">
-                                    <div class="geo-card-title"><i class="fas fa-info-circle"></i> Project
-                                        Information
-                                    </div>
-                                    <button class="geo-btn-add" onclick="fillLlmSampleData()"
-                                        style="border-style: solid !important;">
-                                        <i class="fas fa-magic"></i> Fill Sample Data
-                                    </button>
+                    <div class="optimiser-flow-container">
+                        <div id="llmDecisionPanel">
+                            <div class="decision-panel">
+                                <div class="big-decision-btn" onclick="switchLlmFlow('llms')">
+                                    <i class="fas fa-file-alt"></i>
+                                    <span>Standard llms.txt</span>
+                                    <p>Standard specification for discovery and summarization. Best for general website
+                                        overview.</p>
                                 </div>
-                                <div class="geo-input-group">
-                                    <div class="geo-input-item">
-                                        <label>Project Name *</label>
-                                        <input type="text" id="llmSiteTitle" placeholder="e.g., MediaOne Marketing">
-                                    </div>
-                                    <div class="geo-input-item">
-                                        <label>Summary (Blockquote)</label>
-                                        <textarea id="llmDescription" style="height: 80px"
-                                            placeholder="e.g., MediaOne is Singapore's leading digital marketing agency..."></textarea>
-                                    </div>
-                                    <div class="geo-input-item">
-                                        <label>Additional Details (GEO Highlights)</label>
-                                        <textarea id="llmHighlights" style="height: 100px"
-                                            placeholder="e.g., Key services and expertise:&#10;- SEO Services: Technical SEO..."></textarea>
-                                    </div>
-                                    <div class="geo-input-item">
-                                        <label>GEO Target Prompts (One per line)</label>
-                                        <textarea id="llmGeoPrompts" style="height: 100px"
-                                            placeholder="What makes MediaOne the best SEO agency?&#10;How does digital marketing help businesses grow?"></textarea>
-                                    </div>
+                                <div class="big-decision-btn" onclick="switchLlmFlow('llms-full')">
+                                    <i class="fas fa-file-medical"></i>
+                                    <span>Full llms-full.txt</span>
+                                    <p>Extended specification with in-depth documentation and deep context for LLMs.</p>
                                 </div>
                             </div>
 
-                            <!-- Documentation Sections -->
-                            <div class="geo-card">
+                            <div class="geo-card" style="margin-top: 20px;">
                                 <div class="geo-card-header">
-                                    <div class="geo-card-title"><i class="fas fa-folder-open"></i> Documentation
-                                        Sections
-                                    </div>
-                                    <button class="geo-btn-add" onclick="addNewGeoSection()">
-                                        <i class="fas fa-plus"></i> Add Section
-                                    </button>
+                                    <div class="geo-card-title"><i class="fas fa-info-circle"></i> What's the
+                                        difference?</div>
                                 </div>
-                                <div id="llmDynamicSections">
-                                    <!-- Dynamic sections will be injected here -->
+                                <div style="font-size: 0.9em; line-height: 1.6; color: #475569; padding: 15px;">
+                                    <p><strong>llms.txt:</strong> A brief, high-level summary of your website and its
+                                        core offerings. It acts as a concierge for LLMs, helping them quickly understand
+                                        what your site is about and where to find key information.</p>
+                                    <p style="margin-top: 10px;"><strong>llms-full.txt:</strong> A comprehensive
+                                        document that includes detailed descriptions of every service, product, and
+                                        company detail. It is designed to provide maximum context to LLMs for in-depth
+                                        analysis and specific queries.</p>
                                 </div>
-                            </div>
-
-                            <!-- Optional Section -->
-                            <div class="geo-card">
-                                <div class="geo-card-header">
-                                    <div class="geo-card-title"><i class="fas fa-bookmark"></i> Optional Section
-                                    </div>
-                                    <button class="geo-btn-add" onclick="addNewGeoLink('llmOptionalList')">
-                                        <i class="fas fa-plus"></i> Add Link
-                                    </button>
-                                </div>
-                                <div id="llmOptionalList">
-                                    <!-- Optional links injected here -->
-                                </div>
-                            </div>
-
-                            <div class="geo-main-actions">
-                                <button class="config-btn-highlight" onclick="generateLlmsTxt()"
-                                    style="background: #004c9d; border: none; height: 45px; font-weight: 700;">
-                                    <i class="fas fa-file-alt"></i> Generate llms.txt
-                                </button>
-                                <button class="config-btn-highlight" onclick="generateLlmsFullTxt()"
-                                    style="background: #28a745; border: none; height: 45px; font-weight: 700;">
-                                    <i class="fas fa-file-medical"></i> Generate llms-full.txt
-                                </button>
                             </div>
                         </div>
 
-                        <!-- Right: Preview Area -->
-                        <div class="geo-preview-panel" id="geoFilePreview" style="display: none;">
-                            <div class="geo-preview-tabs">
-                                <div class="geo-tab active" id="tab-llms" onclick="switchGeoTab('llms')">
-                                    <i class="fas fa-file-alt"></i> llms.txt
-                                </div>
-                                <div class="geo-tab" id="tab-llms-full" onclick="switchGeoTab('llms-full')">
-                                    <i class="fas fa-file-medical"></i> llms-full.txt
-                                </div>
-                            </div>
-                            <div class="geo-preview-body">
-                                <div class="geo-preview-meta">
-                                    <div id="previewTitle">Preview: llms.txt</div>
-                                    <div id="previewStats">0 characters | 0 words | 0 lines</div>
-                                </div>
-                                <div class="geo-preview-actions" style="margin-top: 15px;">
-                                    <button class="geo-btn-add" onclick="copyGeoPreview()"
-                                        style="border-style: solid !important;">
-                                        <i class="fas fa-copy"></i> Copy
-                                    </button>
-                                    <button class="geo-btn-add" onclick="downloadGeoPreview()"
-                                        style="border-style: solid !important;">
-                                        <i class="fas fa-download"></i> Download
-                                    </button>
-                                    <div style="margin-left: auto; display: flex; gap: 5px;">
-                                        <div class="geo-tag active" id="format-txt">.txt</div>
-                                    </div>
-                                </div>
-                                <textarea id="geoPreviewText" class="keyword-input-textarea"
-                                    style="height: 500px; font-family: 'Courier New', monospace; font-size: 0.9em; background: #fafafa;"
-                                    readonly></textarea>
+                        <div id="llmPathwayContainer" style="display: none;">
+                            <button id="backToLlmDecision" class="geo-btn-add" onclick="switchLlmFlow('reset')"
+                                style="margin-bottom: 20px; border-style: solid !important;">
+                                <i class="fas fa-arrow-left"></i> Change Pathway
+                            </button>
 
-                                <div style="margin-top: 20px; padding: 15px; background: #fdf8ff; border-radius: 8px;">
-                                    <div
-                                        style="font-weight: 700; color: #a155b9; margin-bottom: 10px; font-size: 0.9em;">
-                                        <i class="fas fa-lightbulb"></i> Best Practices
+                            <div class="geo-layout">
+                                <!-- Left: Inputs -->
+                                <div class="geo-inputs">
+                                    <!-- Project Information -->
+                                    <div class="geo-card">
+                                        <div class="geo-card-header">
+                                            <div class="geo-card-title"><i class="fas fa-info-circle"></i> Project
+                                                Information</div>
+                                            <button class="geo-btn-add" onclick="fillLlmSampleData()"
+                                                style="border-style: solid !important;">
+                                                <i class="fas fa-magic"></i> Fill Sample Data
+                                            </button>
+                                        </div>
+                                        <div class="geo-input-group">
+                                            <div class="geo-input-item">
+                                                <label>Project Name *</label>
+                                                <input type="text" id="llmSiteTitle"
+                                                    placeholder="e.g., MediaOne Marketing">
+                                            </div>
+                                            <div class="geo-input-item">
+                                                <label>Summary (Blockquote)</label>
+                                                <textarea id="llmDescription" style="height: 80px"
+                                                    placeholder="e.g., MediaOne is Singapore's leading digital marketing agency..."></textarea>
+                                            </div>
+                                            <div id="llmFullSpecificInfo" style="display: none;">
+                                                <div class="geo-input-item">
+                                                    <label>Additional Details (GEO Highlights)</label>
+                                                    <textarea id="llmHighlights" style="height: 100px"
+                                                        placeholder="e.g., Key services and expertise:&#10;- SEO Services: Technical SEO..."></textarea>
+                                                </div>
+                                                <div class="geo-input-item">
+                                                    <label>GEO Target Prompts (One per line)</label>
+                                                    <textarea id="llmGeoPrompts" style="height: 100px"
+                                                        placeholder="What makes MediaOne the best SEO agency?&#10;How does digital marketing help businesses grow?"></textarea>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <ul
-                                        style="margin: 0; padding-left: 20px; font-size: 0.85em; color: #666; line-height: 1.6;">
-                                        <li>Use <strong style="color: #004c9d;">.md</strong> (markdown) URLs
-                                            when
-                                            available
-                                        </li>
-                                        <li>Keep summaries concise and informative</li>
-                                    </ul>
+
+                                    <!-- Documentation Sections -->
+                                    <div class="geo-card">
+                                        <div class="geo-card-header">
+                                            <div class="geo-card-title"><i class="fas fa-folder-open"></i> Documentation
+                                                Sections</div>
+                                            <div style="display: flex; gap: 10px; align-items: center;">
+                                                <select id="llmSectionType" class="geo-section-title"
+                                                    style="width: auto; padding: 4px 8px; font-size: 0.9em; height: 35px; border-radius: 6px; border: 1px solid #ddd;">
+                                                    <option value="Services">Services</option>
+                                                    <option value="Products">Products</option>
+                                                    <option value="Resources">Resources</option>
+                                                    <option value="Company">Company</option>
+                                                </select>
+                                                <button class="geo-btn-add" onclick="addLlmPredefinedSection()"
+                                                    style="border-style: solid !important; height: 35px; padding: 0 12px;">
+                                                    <i class="fas fa-plus"></i> Add
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div id="llmDynamicSections">
+                                            <!-- Dynamic sections will be injected here -->
+                                        </div>
+                                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #eee;">
+                                            <button class="geo-btn-add" onclick="addNewGeoSection()"
+                                                style="width: 100%; border-style: dashed !important;">
+                                                <i class="fas fa-plus-circle"></i> Add Custom Section
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- External Resources (Standard Only) -->
+                                    <div id="llmExternalResourcesCard" class="geo-card" style="display: none;">
+                                        <div class="geo-card-header">
+                                            <div class="geo-card-title"><i class="fas fa-external-link-alt"></i>
+                                                Additional Resources (External)</div>
+                                            <button class="geo-btn-add" onclick="addNewGeoLink('llmExternalList')"
+                                                style="border-style: solid !important;">
+                                                <i class="fas fa-plus"></i> Add Link
+                                            </button>
+                                        </div>
+                                        <div id="llmExternalList">
+                                            <!-- External links injected here -->
+                                        </div>
+                                    </div>
+
+                                    <!-- Optional Section -->
+                                    <div class="geo-card">
+                                        <div class="geo-card-header">
+                                            <div class="geo-card-title"><i class="fas fa-bookmark"></i> Optional / USP
+                                                Section</div>
+                                            <button class="geo-btn-add" onclick="addNewGeoLink('llmOptionalList')"
+                                                style="border-style: solid !important;">
+                                                <i class="fas fa-plus"></i> Add Info link
+                                            </button>
+                                        </div>
+                                        <div id="llmOptionalList">
+                                            <!-- Optional links injected here -->
+                                        </div>
+                                    </div>
+
+                                    <div class="geo-main-actions">
+                                        <button class="config-btn-highlight" id="generateLlmBtn"
+                                            onclick="generateLlmsTxtByPathway()"
+                                            style="background: #004c9d; border: none; height: 45px; font-weight: 700; width: 100%;">
+                                            <i class="fas fa-file-alt"></i> Generate llms.txt
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Right: Preview Area -->
+                                <div class="geo-preview-panel" id="geoFilePreview" style="display: none;">
+                                    <div class="geo-preview-tabs">
+                                        <div class="geo-tab active" id="tab-llms" onclick="switchGeoTab('llms')">
+                                            <i class="fas fa-file-alt"></i> llms.txt
+                                        </div>
+                                        <div class="geo-tab" id="tab-llms-full" onclick="switchGeoTab('llms-full')"
+                                            style="display: none;">
+                                            <i class="fas fa-file-medical"></i> llms-full.txt
+                                        </div>
+                                    </div>
+                                    <div class="geo-preview-body">
+                                        <div class="geo-preview-meta">
+                                            <div id="previewTitle">Preview: llms.txt</div>
+                                            <div id="previewStats">0 characters | 0 words | 0 lines</div>
+                                        </div>
+                                        <div class="geo-preview-actions" style="margin-top: 15px;">
+                                            <button class="geo-btn-add" onclick="copyGeoPreview()"
+                                                style="border-style: solid !important;">
+                                                <i class="fas fa-copy"></i> Copy
+                                            </button>
+                                            <button class="geo-btn-add" onclick="downloadGeoPreview()"
+                                                style="border-style: solid !important;">
+                                                <i class="fas fa-download"></i> Download
+                                            </button>
+                                        </div>
+                                        <textarea id="geoPreviewText" class="keyword-input-textarea"
+                                            style="height: 500px; font-family: 'Courier New', monospace; font-size: 0.9em; background: #fafafa;"
+                                            readonly></textarea>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="geo-card" style="margin-top: 40px; max-width: 800px;">
+                <button class="collapsible" id="catsTxtBtn" onclick="toggleCollapsible(this)">
+                    <i class="fas fa-plus-square"></i><i class="fas fa-cat"></i> cats.txt Generator
+                </button>
+                <div class="content" id="catsTxtSection">
+                    <div class="geo-card" style="margin-top: 20px; max-width: 800px;">
                         <div class="geo-card-header">
                             <div class="geo-card-title"><i class="fas fa-cat"></i> cats.txt Generator</div>
                         </div>
@@ -8124,17 +8185,20 @@
                     </div>
 
                     <!-- Preview Area -->
-                    <div id="geoFilePreview"
+                    <div id="catsFilePreview"
                         style="display:none; margin-top: 25px; border-top: 1px solid #eee; padding-top: 20px;">
-                        <h3 id="previewTitle" style="color: #004c9d; margin-bottom: 10px;">Preview</h3>
-                        <textarea id="geoPreviewText" class="keyword-input-textarea"
+                        <h3 id="catsPreviewTitle" style="color: #004c9d; margin-bottom: 10px;">Preview</h3>
+                        <textarea id="catsPreviewText" class="keyword-input-textarea"
                             style="height: 300px; font-family: monospace;"></textarea>
                         <div style="margin-top: 10px; display: flex; gap: 10px; align-items: center;">
-                            <button class="config-btn-highlight" id="downloadGeoBtn"
+                            <button class="config-btn-highlight" onclick="copyCatsTxt()"
+                                style="background: #004c9d; padding: 6px 14px; min-width: auto; font-size: 13px; display: inline-flex; margin: 0; height: auto; min-height: 0; align-self: center;"><i
+                                    class="fas fa-copy"></i> Copy</button>
+                            <button class="config-btn-highlight" id="downloadCatsBtn" onclick="downloadCatsTxt()"
                                 style="background: #28a745; padding: 6px 14px; min-width: auto; font-size: 13px; display: inline-flex; margin: 0; height: auto; min-height: 0; align-self: center;"><i
                                     class="fas fa-download"></i> Download File</button>
                             <button class="config-btn-highlight"
-                                onclick="document.getElementById('geoFilePreview').style.display='none'"
+                                onclick="document.getElementById('catsFilePreview').style.display='none'"
                                 style="background: #6c757d; min-width: auto; padding: 6px 14px; font-size: 13px; display: inline-flex; margin: 0; height: auto; min-height: 0; align-self: center;">Close</button>
                         </div>
                     </div>
@@ -8152,7 +8216,7 @@
                             <p>Comprehensive GEO (Generative Engine Optimization) Audit for your domain</p>
 
                             <div class="discovery-input-bar">
-                                <i class="fas fa-globe" style="margin-left: 15px; color: #64748b;"></i>
+                                <i class="fas fa-robot" style="margin-left: 15px; color: #64748b;"></i>
                                 <input type="text" id="discoveryUrl"
                                     placeholder="Enter your domain (e.g. mediaonemarketing.com.sg)">
                                 <button class="discovery-btn-run" onclick="runDiscoveryAudit()">Run
@@ -8162,21 +8226,18 @@
 
                         <div id="discoveryResults" style="display: none;">
                             <div class="discovery-results-grid">
-                                <div class="discovery-stat-card simulated-data">
+                                <div class="discovery-stat-card">
                                     <div class="discovery-stat-value" id="stat-citations">0</div>
-                                    <div class="discovery-stat-label">Citations Found</div>
+                                    <div class="discovery-stat-label">LLMs Accessible</div>
                                 </div>
-                                <div class="discovery-stat-card simulated-data">
-                                    <div class="discovery-stat-value" id="stat-depth">0</div>
-                                    <div class="discovery-stat-label">Source Depth</div>
-                                </div>
+
                                 <div class="discovery-stat-card">
                                     <div class="discovery-stat-value" id="stat-ssl">N/A</div>
                                     <div class="discovery-stat-label">SSL Security</div>
                                 </div>
                                 <div class="discovery-stat-card">
                                     <div class="discovery-stat-value" id="stat-quality">0%</div>
-                                    <div class="discovery-stat-label">Brand Quality</div>
+                                    <div class="discovery-stat-label">GEO Score</div>
                                 </div>
                             </div>
 
@@ -8186,7 +8247,7 @@
                                         <div class="discovery-gauge-value" id="discoveryMainScore">0</div>
                                     </div>
                                     <div style="text-align: center;">
-                                        <h3 style="margin-bottom: 10px;">Discovery Score</h3>
+                                        <h3 style="margin-bottom: 10px;">GEO Score</h3>
                                         <p id="discoveryStatusText"
                                             style="color: #475569; font-size: 0.9em; line-height: 1.5;">
                                             Enter a URL to analyze your brand presence across generative
@@ -8199,7 +8260,7 @@
                                     <h3 style="margin-bottom: 20px;"><i class="fas fa-robot"></i> Platform
                                         Readiness
                                     </h3>
-                                    <div class="discovery-platform-list simulated-data" id="platformList">
+                                    <div class="discovery-platform-list" id="platformList">
                                         <!-- Platform cards injected here via JS -->
                                     </div>
                                 </div>
@@ -10864,12 +10925,12 @@ seo agencies in singapore</textarea>
 
             // GEO Utilities Logic
             const DISCOVERY_PLATFORMS = [
-                { name: 'Perplexity', icon: 'fa-brain', score: 82, color: '#3b82f6', description: 'Strong citation presence with deep source integration.' },
-                { name: 'Gemini', icon: 'fa-google', score: 78, color: '#4285f4', description: 'Excellent knowledge graph mapping and entity recognition.' },
-                { name: 'Claude', icon: 'fa-user-shield', score: 65, color: '#a155b9', description: 'Moderate presence; needs better structured technical docs.' },
-                { name: 'ChatGPT', icon: 'fa-comments', score: 88, color: '#10a37f', description: 'Top-tier brand recall in conversational benchmarks.' },
-                { name: 'Search AI', icon: 'fa-bolt', score: 92, color: '#f59e0b', description: 'High visibility in experimental search generative experiences.' },
-                { name: 'Emerging', icon: 'fa-rocket', score: 45, color: '#6366f1', description: 'Limited discovery; consider adding llms.txt and cats.txt.' }
+                { name: 'ChatGPT', icon: 'fas fa-comments', userAgent: 'GPTBot', color: '#10a37f', description: 'Top-tier brand recall in conversational benchmarks.' },
+                { name: 'Gemini', icon: 'fab fa-google', userAgent: 'Google-Extended', color: '#4285f4', description: 'Excellent knowledge graph mapping and entity recognition.' },
+                { name: 'Claude', icon: 'fas fa-user-shield', userAgent: 'Claude-Web', color: '#a155b9', description: 'Moderate presence; needs better structured technical docs.' },
+                { name: 'Perplexity', icon: 'fas fa-brain', userAgent: 'PerplexityBot', color: '#3b82f6', description: 'Strong citation presence with deep source integration.' },
+                { name: 'Meta', icon: 'fab fa-facebook-f', userAgent: 'Meta-ExternalAgent', color: '#0668E1', description: 'High visibility in social discovery and experimental AI search.' },
+                { name: 'Apple', icon: 'fab fa-apple', userAgent: 'Applebot-Extended', color: '#555555', description: 'Key for ecosystem-wide discovery on iOS and macOS Apple Intelligence.' }
             ];
 
             async function runDiscoveryAudit() {
@@ -10891,110 +10952,163 @@ seo agencies in singapore</textarea>
                 // Fire Concurrent Crawler (Fire & Forget, handles its own UI)
                 runDataForSeoDiscoveryCrawl(url).catch(err => console.error("Concurrent Crawler Error:", err));
 
+                const domainForFetch = url.startsWith('http') ? url : 'https://' + url;
+                const rootDomain = new URL(domainForFetch).origin;
+                const dnsDomain = url.replace('https://', '').replace('http://', '').split('/')[0];
+
                 try {
-                    // 1. Fetch real technical data using existing API
-                    const auditResponse = await fetch("https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit", {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url: url })
-                    });
-
-                    const rawData = await auditResponse.json();
-                    const techData = typeof rawData.body === 'string' ? JSON.parse(rawData.body) : rawData;
-                    const finalTechData = { ...techData };
-
-                    // 1.5 Fetch SSL Data
-                    let sslValid = false;
-                    try {
-                        const dnsDomain = url.replace('https://', '').replace('http://', '').split('/')[0];
-                        const sslResponse = await fetch("https://2kxt49bwp1.execute-api.ap-southeast-1.amazonaws.com/checkSsl", {
+                    // 1. Fire all Technical Requests Concurrently
+                    const [auditRes, sslRes, htmlRes, robotsRes, llmsRes, llmsFullRes] = await Promise.allSettled([
+                        fetch("https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit", {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: url })
+                        }),
+                        fetch("https://2kxt49bwp1.execute-api.ap-southeast-1.amazonaws.com/checkSsl", {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ url: dnsDomain })
-                        });
-                        const sslData = await sslResponse.json();
-                        console.log(sslData);
-                        sslValid = sslData.message && sslData.message.toLowerCase().includes('valid');
-                        finalTechData.sslStatus = sslValid ? 'Valid' : 'Issue';
-                    } catch (sslErr) {
-                        console.error("SSL Check Error:", sslErr);
-                        finalTechData.sslStatus = 'Error';
-                    }
-
-                    // 1.8 Expanded Technical Checks
-                    const techAuditResults = [];
-                    const domainForFetch = url.startsWith('http') ? url : 'https://' + url;
-                    const rootDomain = new URL(domainForFetch).origin;
-
-                    try {
-                        // A. Call getHtml for page-level tags
-                        const htmlResponse = await fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                        }),
+                        fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ url: domainForFetch })
-                        });
-                        const htmlData = await htmlResponse.json();
-                        const doc = new DOMParser().parseFromString(htmlData.body, 'text/html');
-
-                        // Canonical
-                        const canonical = doc.querySelector('link[rel="canonical"]')?.href || 'None';
-                        techAuditResults.push({ label: 'Canonical Tag', value: canonical, status: canonical !== 'None' ? 'pass' : 'fail' });
-
-                        // Meta Title
-                        const title = doc.querySelector('title')?.innerText || doc.querySelector('meta[name="title"]')?.content || 'None';
-                        techAuditResults.push({ label: 'Meta Title', value: title, status: title !== 'None' ? 'pass' : 'fail' });
-
-                        // Meta Description
-                        const desc = doc.querySelector('meta[name="description"]')?.content || 'None';
-                        techAuditResults.push({ label: 'Meta Description', value: desc, status: desc !== 'None' ? 'pass' : 'fail' });
-
-                        // Hreflang
-                        const hreflangEls = Array.from(doc.querySelectorAll('link[rel="alternate"][hreflang]'));
-                        const hreflangs = hreflangEls.map(el => `${el.hreflang}: ${el.href}`).join(', ') || 'None';
-                        techAuditResults.push({ label: 'Hreflang Tags', value: hreflangs, status: hreflangs !== 'None' ? 'pass' : 'warn' });
-
-                        // B. Check robots.txt
-                        const robotsResponse = await fetch('https://1pfsx12au9.execute-api.ap-southeast-1.amazonaws.com/url_lib_lite', {
+                        }),
+                        fetch('https://1pfsx12au9.execute-api.ap-southeast-1.amazonaws.com/url_lib_lite', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ url: rootDomain + "/robots.txt" })
-                        });
-                        const robotsData = await robotsResponse.json();
-                        const robotsText = robotsData.body?.visible_text || 'Not Found';
-                        techAuditResults.push({ label: 'robots.txt', value: robotsText.substring(0, 150) + (robotsText.length > 150 ? '...' : ''), status: (robotsText !== 'Not Found' && !robotsText.includes('Error')) ? 'pass' : 'fail' });
+                        }),
+                        fetch('https://1pfsx12au9.execute-api.ap-southeast-1.amazonaws.com/url_lib_lite', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: rootDomain + "/llms.txt" })
+                        }),
+                        fetch('https://1pfsx12au9.execute-api.ap-southeast-1.amazonaws.com/url_lib_lite', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: rootDomain + "/llms-full.txt" })
+                        })
+                    ]);
 
-                        // C. Check Sitemap
-                        let sitemapVal = 'Not Found';
-                        if (techData.sitemap) sitemapVal = techData.sitemap;
-                        else if (robotsText.toLowerCase().includes('sitemap:')) {
-                            const match = robotsText.match(/sitemap:\s*(https?:\/\/\S+)/i);
-                            sitemapVal = match ? match[1] : 'Linked in robots.txt';
-                        }
-                        techAuditResults.push({ label: 'XML Sitemap', value: sitemapVal, status: sitemapVal !== 'Not Found' ? 'pass' : 'fail' });
+                    // 2. Process Results
+                    const techAuditResults = [];
+                    const finalTechData = {};
 
-                        // D. Check llms.txt & llms-full.txt
-                        const checkLlmFile = async (fileName) => {
-                            try {
-                                const resp = await fetch('https://1pfsx12au9.execute-api.ap-southeast-1.amazonaws.com/url_lib_lite', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ url: rootDomain + "/" + fileName })
-                                });
-                                const d = await resp.json();
-                                return (d.body && d.body.visible_text && !d.body.visible_text.includes('Error')) ? 'Found' : 'Not Found';
-                            } catch (e) { return 'Not Found'; }
-                        };
-
-                        const llmsVal = await checkLlmFile('llms.txt');
-                        const llmsFullVal = await checkLlmFile('llms-full.txt');
-                        techAuditResults.push({ label: 'llms.txt', value: llmsVal, status: llmsVal === 'Found' ? 'pass' : 'warn' });
-                        techAuditResults.push({ label: 'llms-full.txt', value: llmsFullVal, status: llmsFullVal === 'Found' ? 'pass' : 'warn' });
-
-                        finalTechData.techAudit = techAuditResults;
-
-                    } catch (techErr) {
-                        console.error("Expanded Tech Audit Error:", techErr);
+                    // A. Technical SEO Base Data
+                    if (auditRes.status === 'fulfilled') {
+                        const rawData = await auditRes.value.json();
+                        const techData = typeof rawData.body === 'string' ? JSON.parse(rawData.body) : rawData;
+                        Object.assign(finalTechData, techData);
                     }
+
+                    // B. SSL Status
+                    let sslValid = false;
+                    if (sslRes.status === 'fulfilled') {
+                        const sslData = await sslRes.value.json();
+                        sslValid = sslData.message && sslData.message.toLowerCase().includes('valid');
+                        finalTechData.sslStatus = sslValid ? 'Valid' : 'Issue';
+                    } else {
+                        finalTechData.sslStatus = 'Error';
+                    }
+
+                    // C. HTML Parsing (Meta Tags)
+                    if (htmlRes.status === 'fulfilled') {
+                        const htmlData = await htmlRes.value.json();
+                        const doc = new DOMParser().parseFromString(htmlData.body, 'text/html');
+
+                        const canonical = doc.querySelector('link[rel="canonical"]')?.href || 'None';
+                        techAuditResults.push({ label: 'Canonical Tag', value: canonical, status: canonical !== 'None' ? 'pass' : 'fail' });
+
+                        const title = doc.querySelector('title')?.innerText || doc.querySelector('meta[name="title"]')?.content || 'None';
+                        const titleLen = title === 'None' ? 0 : title.length;
+                        let titleStatus = titleLen >= 30 && titleLen <= 65 ? 'pass' : (titleLen > 0 ? 'warn' : 'fail');
+                        techAuditResults.push({ label: 'Meta Title', value: title, status: titleStatus, charCount: titleLen });
+
+                        const desc = doc.querySelector('meta[name="description"]')?.content || 'None';
+                        const descLen = desc === 'None' ? 0 : desc.length;
+                        let descStatus = descLen >= 70 && descLen <= 160 ? 'pass' : (descLen > 0 ? 'warn' : 'fail');
+                        techAuditResults.push({ label: 'Meta Description', value: desc, status: descStatus, charCount: descLen });
+
+                        const hreflangEls = Array.from(doc.querySelectorAll('link[rel="alternate"][hreflang]'));
+                        const hreflangs = hreflangEls.map(el => `${el.hreflang}: ${el.href}`).join(', ') || 'None';
+                        techAuditResults.push({ label: 'Hreflang Tags', value: hreflangs, status: hreflangs !== 'None' ? 'pass' : 'warn' });
+                    }
+
+                    // D. Robots.txt Analysis
+                    let robotsText = 'Not Found';
+                    if (robotsRes.status === 'fulfilled') {
+                        const robotsData = await robotsRes.value.json();
+                        robotsText = robotsData.body?.visible_text || 'Not Found';
+                        techAuditResults.push({
+                            label: 'robots.txt',
+                            value: robotsText.substring(0, 150) + (robotsText.length > 150 ? '...' : ''),
+                            status: (robotsText !== 'Not Found' && !robotsText.includes('Error')) ? 'pass' : 'fail'
+                        });
+                    }
+
+                    // E. Sitemap Check
+                    let sitemapVal = finalTechData.sitemap || 'Not Found';
+                    if (sitemapVal === 'Not Found' && robotsText.toLowerCase().includes('sitemap:')) {
+                        const match = robotsText.match(/sitemap:\s*(https?:\/\/\S+)/i);
+                        sitemapVal = match ? match[1] : 'Linked in robots.txt';
+                    }
+                    techAuditResults.push({ label: 'XML Sitemap', value: sitemapVal, status: sitemapVal !== 'Not Found' ? 'pass' : 'fail' });
+
+                    // F. LLMs Files
+                    const checkFile = async (res) => {
+                        if (res.status === 'fulfilled') {
+                            const d = await res.value.json();
+                            return (d.body && d.body.visible_text && !d.body.visible_text.includes('Error')) ? 'Found' : 'Not Found';
+                        }
+                        return 'Not Found';
+                    };
+                    const llmsVal = await checkFile(llmsRes);
+                    const llmsFullVal = await checkFile(llmsFullRes);
+                    techAuditResults.push({ label: 'llms.txt', value: llmsVal, status: llmsVal === 'Found' ? 'pass' : 'warn' });
+                    techAuditResults.push({ label: 'llms-full.txt', value: llmsFullVal, status: llmsFullVal === 'Found' ? 'pass' : 'warn' });
+
+                    // G. Platform Readiness (Robots Parsing)
+                    const platformReadiness = {};
+                    const platformReasons = {};
+                    if (robotsText === 'Not Found' || robotsText.includes('Error')) {
+                        DISCOVERY_PLATFORMS.forEach(p => {
+                            platformReadiness[p.name] = true;
+                            platformReasons[p.name] = 'No robots.txt found. Site is fully accessible by default.';
+                        });
+                    } else {
+                        const robotsLines = robotsText.split('\n').map(l => l.trim());
+                        DISCOVERY_PLATFORMS.forEach(p => {
+                            let isBlocked = false;
+                            let currentUserAgent = null;
+                            let matchReason = 'No specific rules found. Defaulting to Allowed.';
+                            for (const line of robotsLines) {
+                                const lowLine = line.toLowerCase();
+                                if (lowLine.startsWith('user-agent:')) currentUserAgent = lowLine.split(':')[1].trim();
+                                else if (lowLine.startsWith('disallow:') && currentUserAgent) {
+                                    const path = lowLine.split(':')[1].trim();
+                                    if ((path === '/' || path === '/*') && (currentUserAgent === '*' || currentUserAgent === p.userAgent.toLowerCase())) {
+                                        isBlocked = true;
+                                        matchReason = `Matched rule: "${line}" for User-agent: "${currentUserAgent}"`;
+                                    }
+                                } else if (lowLine.startsWith('allow:') && currentUserAgent) {
+                                    const path = lowLine.split(':')[1].trim();
+                                    if ((path === '/' || path === '/*') && (currentUserAgent === '*' || currentUserAgent === p.userAgent.toLowerCase())) {
+                                        isBlocked = false;
+                                        matchReason = `Matched rule: "${line}" for User-agent: "${currentUserAgent}"`;
+                                    }
+                                }
+                            }
+                            platformReadiness[p.name] = !isBlocked;
+                            platformReasons[p.name] = matchReason;
+                        });
+                    }
+
+                    finalTechData.platformReadiness = platformReadiness;
+                    finalTechData.platformReasons = platformReasons;
+                    finalTechData.fullRobotsText = robotsText;
+                    finalTechData.techAudit = techAuditResults;
+                    finalTechData.sslValid = sslValid; // Helper for scoring
 
                     // 2. Calculate dynamic scores
                     let baseScoreCalc = 60;
@@ -11005,12 +11119,15 @@ seo agencies in singapore</textarea>
                     if (techAuditResults.find(r => r.label === 'llms.txt')?.status === 'pass') baseScoreCalc += 10;
                     if (techAuditResults.find(r => r.label === 'Canonical Tag')?.status === 'pass') baseScoreCalc += 5;
 
-                    const finalScore = Math.min(baseScoreCalc + Math.floor(Math.random() * 5), 100);
+                    const finalScore = Math.min(baseScoreCalc, 100);
 
-                    // 3. Update UI
+                    // 3. Update Audit State
+                    window.lastDiscoveryAudit = finalTechData;
+
+                    // 4. Update UI
                     animateGauge(finalScore);
                     updateDiscoveryStats(finalTechData, finalScore);
-                    renderDiscoveryPlatforms(finalScore);
+                    renderDiscoveryPlatforms();
                     renderTechnicalAudit(finalTechData.techAudit);
 
                     document.getElementById('discoveryStatusText').textContent =
@@ -11020,10 +11137,10 @@ seo agencies in singapore</textarea>
 
                 } catch (error) {
                     console.error("Discovery Audit Error:", error);
-                    // Fallback to simulated data if API fails
-                    const simScore = 72;
-                    animateGauge(simScore);
-                    renderDiscoveryPlatforms(simScore);
+                    document.getElementById('discoveryStatusText').textContent = "Audit failed. Please check your URL and try again.";
+                    animateGauge(0);
+                    const list = document.getElementById('platformList');
+                    if (list) list.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #ef4444; padding: 20px;">Unable to fetch discovery data.</div>';
                 } finally {
                     btn.textContent = originalText;
                     btn.disabled = false;
@@ -11103,29 +11220,91 @@ seo agencies in singapore</textarea>
                     badge.style.background = '#6366f1';
                     badge.style.color = '#fff';
 
+                    const loadTimeSec = resultItem.page_timing?.duration_time ? (resultItem.page_timing.duration_time / 1000) : null;
+                    const readabilityScore = resultItem.meta?.content?.flesch_kincaid_readability_index ? Number(resultItem.meta.content.flesch_kincaid_readability_index) : null;
+
                     const metrics = [
                         { label: 'Word Count', value: resultItem.meta?.content?.plain_text_word_count || 'N/A', icon: 'fa-font' },
                         { label: 'Internal Links', value: resultItem.meta?.internal_links_count || 0, icon: 'fa-link' },
-                        { label: 'Load Time', value: (resultItem.page_timing?.duration_time ? (resultItem.page_timing.duration_time / 1000).toFixed(2) + 's' : 'N/A'), icon: 'fa-bolt' },
-                        { label: 'Readability (Flesch)', value: resultItem.meta?.content?.flesch_kincaid_readability_index ? Number(resultItem.meta.content.flesch_kincaid_readability_index).toFixed(2) : 'N/A', icon: 'fa-glasses' },
-                        { label: 'HTTPS Secure', value: resultItem.checks.is_https ? 'Yes' : 'No', icon: 'fa-lock' },
-                        { label: 'Render Blockers', value: resultItem.meta.render_blocking_scripts_count || 0, icon: 'fa-cubes' },
+                        {
+                            label: 'Load Time',
+                            value: loadTimeSec ? loadTimeSec.toFixed(2) + 's' : 'N/A',
+                            icon: 'fa-bolt',
+                            status: loadTimeSec ? (loadTimeSec < 2 ? 'pass' : loadTimeSec < 5 ? 'warn' : 'fail') : 'fail'
+                        },
+                        {
+                            label: 'Readability (Flesch)',
+                            value: readabilityScore ? readabilityScore.toFixed(2) : 'N/A',
+                            icon: 'fa-glasses',
+                            status: readabilityScore ? (readabilityScore > 60 ? 'pass' : readabilityScore > 45 ? 'warn' : 'fail') : 'fail'
+                        },
+                        { label: 'HTTPS Secure', value: resultItem.checks?.is_https ? 'Yes' : 'No', icon: 'fa-lock', status: resultItem.checks?.is_https ? 'pass' : 'fail' },
+                        { label: 'Render Blockers', value: resultItem.meta?.render_blocking_scripts_count || 0, icon: 'fa-cubes' },
                         { label: 'Images (Total)', value: resultItem.meta?.images_count || 0, icon: 'fa-image' },
-                        { label: 'Missing Alt Tags', value: resultItem.checks?.no_image_alt || 0, icon: 'fa-exclamation-triangle', warn: (resultItem.checks?.no_image_alt > 0) },
-                        { label: 'Schema Markup', value: resultItem.checks?.has_micromarkup ? 'Present' : 'Missing', icon: 'fa-code', warn: !resultItem.checks?.has_micromarkup },
+                        { label: 'Missing Alt Tags', value: resultItem.checks?.no_image_alt || 0, icon: 'fa-exclamation-triangle', status: (resultItem.checks?.no_image_alt === 0) ? 'pass' : 'warn' },
+                        { label: 'Schema Markup', value: resultItem.checks?.has_micromarkup ? 'Present' : 'Missing', icon: 'fa-code', status: resultItem.checks?.has_micromarkup ? 'pass' : 'warn' },
                         { label: 'H1, H2, H3 Tags', value: `${resultItem.meta?.htags?.h1?.length || 0} / ${resultItem.meta?.htags?.h2?.length || 0} / ${resultItem.meta?.htags?.h3?.length || 0}`, icon: 'fa-heading' }
                     ];
 
                     grid.innerHTML = '';
                     metrics.forEach(m => {
+                        const statusColor = m.status === 'pass' ? '#10a37f' : m.status === 'warn' ? '#f59e0b' : m.status === 'fail' ? '#ef4444' : '#6366f1';
+
+                        let gaugeHtml = '';
+                        if (m.label === 'Readability (Flesch)' && m.value !== 'N/A') {
+                            const score = parseFloat(m.value);
+                            const percent = Math.min(Math.max(score, 0), 100);
+
+                            let level = "";
+                            let color = "#6366f1"; // Default Indigo
+
+                            if (score >= 90) { level = "Very easy (5th grade)"; color = "#6366f1"; }
+                            else if (score >= 80) { level = "Easy (6th grade)"; color = "#818cf8"; }
+                            else if (score >= 70) { level = "Fairly easy (7th grade)"; color = "#a5b4fc"; }
+                            else if (score >= 60) { level = "Plain English (8th-9th grade)"; color = "#c7d2fe"; }
+                            else if (score >= 50) { level = "Fairly difficult (10th-12th grade)"; color = "#94a3b8"; }
+                            else if (score >= 30) { level = "Difficult (College level)"; color = "#64748b"; }
+                            else { level = "Very difficult (University graduate)"; color = "#475569"; }
+
+                            const scaleTooltip = "90–100: Very easy (5th grade)\n80–90: Easy (6th grade)\n70–80: Fairly easy (7th grade)\n60–70: Plain English (8th-9th grade)\n50–60: Fairly difficult (10th-12th grade)\n30–50: Difficult (College level)\n0–30: Very difficult (University graduate)";
+
+                            gaugeHtml = `
+                                <div style="margin-top: 8px;">
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.72em; color: ${color}; margin-bottom: 4px; font-weight: 600;">
+                                        <span>${level}</span>
+                                        <span title="${scaleTooltip}" style="cursor: help; color: #94a3b8; display: flex; align-items: center; gap: 3px;">
+                                            Scale <i class="fas fa-info-circle"></i>
+                                        </span>
+                                    </div>
+                                    <div style="height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden;">
+                                        <div style="height: 100%; width: ${percent}%; background: ${color}; transition: width 0.5s;"></div>
+                                    </div>
+                                </div>
+                            `;
+                        } else if (m.label === 'Load Time' && m.value !== 'N/A') {
+                            const time = parseFloat(m.value);
+                            const percent = Math.min((time / 5) * 100, 100); // Scale 0-5s
+                            gaugeHtml = `
+                                <div style="margin-top: 8px;">
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.75em; color: #64748b; margin-bottom: 4px;">
+                                        <span>Target: < 2s</span>
+                                    </div>
+                                    <div style="height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden;">
+                                        <div style="height: 100%; width: ${percent}%; background: ${statusColor}; transition: width 0.5s;"></div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+
                         const card = document.createElement('div');
-                        card.style.cssText = 'background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 8px;';
+                        card.style.cssText = 'background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 4px;';
                         card.innerHTML = `
                             <div style="display: flex; align-items: center; gap: 8px; font-size: 0.85em; color: #64748b; font-weight: 500;">
-                                <i class="fas ${m.icon}" style="color: ${m.warn ? '#f59e0b' : '#6366f1'};"></i>
+                                <i class="fas ${m.icon}" style="color: ${statusColor};"></i>
                                 ${m.label}
                             </div>
                             <div style="font-size: 1.1em; font-weight: 700; color: #1e293b;">${m.value}</div>
+                            ${gaugeHtml}
                         `;
                         grid.appendChild(card);
                     });
@@ -11226,8 +11405,10 @@ seo agencies in singapore</textarea>
             };
 
             function updateDiscoveryStats(techData, score) {
-                document.getElementById('stat-citations').textContent = Math.floor(score * 0.4);
-                document.getElementById('stat-depth').textContent = techData.sitemap ? 'Deep' : 'Standard';
+                document.getElementById('stat-citations').textContent = techData.platformReadiness ?
+                    Object.values(techData.platformReadiness).filter(v => v).length + ' / ' + Object.keys(techData.platformReadiness).length :
+                    'N/A';
+
                 document.getElementById('stat-ssl').textContent = techData.sslStatus || 'N/A';
                 document.getElementById('stat-ssl').style.color = techData.sslStatus === 'Valid' ? '#10a37f' : techData.sslStatus === 'Issue' ? '#ef4444' : '#64748b';
                 document.getElementById('stat-quality').textContent = score + '%';
@@ -11247,44 +11428,71 @@ seo agencies in singapore</textarea>
                     const statusColor = item.status === 'pass' ? '#10a37f' : item.status === 'warn' ? '#f59e0b' : '#ef4444';
                     const statusIcon = item.status === 'pass' ? 'fa-check-circle' : item.status === 'warn' ? 'fa-exclamation-triangle' : 'fa-times-circle';
 
+                    let extraContent = '';
+                    if (item.label === 'Meta Title' || item.label === 'Meta Description') {
+                        const count = item.charCount || 0;
+                        const optimum = item.label === 'Meta Title' ? '30-65 chars' : '70-160 chars';
+                        const maxVal = item.label === 'Meta Title' ? 100 : 250;
+                        const percent = Math.min((count / maxVal) * 100, 100);
+
+                        extraContent = `
+                            <div style="margin-top: 10px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.8em; color: #64748b; margin-bottom: 4px;">
+                                    <span>Optimum: ${optimum}</span>
+                                    <span>Current: ${count}</span>
+                                </div>
+                                <div style="height: 6px; background: #e2e8f0; border-radius: 3px; position: relative; overflow: hidden;">
+                                    <div style="height: 100%; width: ${percent}%; background: ${statusColor}; transition: width 0.5s;"></div>
+                                </div>
+                            </div>
+                        `;
+                    }
+
                     const card = `
-                    <div style="padding: 15px; background: #f8fafc; border-radius: 12px; border-left: 4px solid ${statusColor};">
+                    <div style="padding: 15px; background: #fff; border-radius: 12px; border: 1px solid #eef0f2; border-left: 4px solid ${statusColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                            <span style="font-weight: 700; font-size: 0.9em; color: #475569;">${item.label}</span>
+                            <span style="font-weight: 700; font-size: 0.9em; color: #334155;">${item.label}</span>
                             <i class="fas ${statusIcon}" style="color: ${statusColor};"></i>
                         </div>
-                        <div style="font-size: 0.85em; color: #1e293b; word-break: break-all; font-family: 'Courier New', monospace; max-height: 100px; overflow-y: auto;">
+                        <div style="font-size: 0.85em; color: #1e293b; word-break: break-all; font-family: 'Courier New', monospace; max-height: 80px; overflow-y: auto;">
                             ${item.value}
                         </div>
+                        ${extraContent}
                     </div>
                 `;
                     grid.insertAdjacentHTML('beforeend', card);
                 });
             }
 
-            function renderDiscoveryPlatforms(baseScore) {
+            function renderDiscoveryPlatforms() {
                 const container = document.getElementById('platformList');
                 container.innerHTML = '';
 
+                const techData = window.lastDiscoveryAudit || {};
+                const readinessMap = techData.platformReadiness || {};
+
                 DISCOVERY_PLATFORMS.forEach(platform => {
-                    // Vary scores slightly around the base
-                    const pScore = Math.min(Math.max(platform.score + (baseScore - 70), 10), 100);
+                    const isReady = readinessMap[platform.name] !== false;
+                    const statusText = isReady ? 'Ready' : 'Blocked';
+                    const statusColor = isReady ? '#10a37f' : '#ef4444';
+                    const statusIcon = isReady ? 'fa-check-circle' : 'fa-times-circle';
+
                     const card = `
-                    <div class="platform-card" onclick="showPlatformDetail('${platform.name}', ${pScore})">
-                        <div class="platform-header">
-                            <div class="platform-icon" style="color: ${platform.color}; background: ${platform.color}20">
-                                <i class="fas ${platform.icon}"></i>
+                    <div class="platform-card" style="border-left: 4px solid ${platform.color}; background: #fff;" onclick="showPlatformDetail('${platform.name}')">
+                        <div class="platform-header" style="margin-bottom: 12px;">
+                            <div class="platform-icon" style="color: ${platform.color}; background: ${platform.color}15; width: 44px; height: 44px; border-radius: 12px;">
+                                <i class="${platform.icon}"></i>
                             </div>
-                            <div class="platform-name">${platform.name}</div>
-                            <div class="platform-score">${pScore}%</div>
-                        </div>
-                        <div class="platform-metrics">
-                            <div class="metric-row">
-                                <div class="metric-info"> Readiness Level </div>
-                                <div class="metric-bar-bg">
-                                    <div class="metric-bar-fill" style="width: ${pScore}%; background: ${platform.color}"></div>
+                            <div style="flex: 1;">
+                                <div class="platform-name" style="color: #1e293b; font-size: 1.1em;">${platform.name}</div>
+                                <div style="display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+                                    <i class="fas ${statusIcon}" style="color: ${statusColor}; font-size: 0.8em;"></i>
+                                    <span style="font-size: 0.8em; font-weight: 600; color: ${statusColor};">${statusText}</span>
                                 </div>
                             </div>
+                        </div>
+                        <div style="font-size: 0.8em; color: #64748b; line-height: 1.4;">
+                            ${platform.description}
                         </div>
                     </div>
                 `;
@@ -11292,56 +11500,140 @@ seo agencies in singapore</textarea>
                 });
             }
 
-            function showPlatformDetail(name, score) {
+            function showPlatformDetail(name) {
+                const techData = window.lastDiscoveryAudit || {};
+                const readinessMap = techData.platformReadiness || {};
+                const reasonsMap = techData.platformReasons || {};
+                const fullRobots = techData.fullRobotsText || 'Not Found';
+
                 const detailSection = document.getElementById('discoveryDetailSection');
                 detailSection.style.display = 'block';
 
                 const platform = DISCOVERY_PLATFORMS.find(p => p.name === name);
+                const isReady = readinessMap[name] !== false;
+                const score = isReady ? 100 : 0;
+                const reason = reasonsMap[name] || 'No specific rules found.';
+                const statusText = isReady ? 'READY' : 'BLOCKED';
+                const statusColor = isReady ? '#10a37f' : '#ef4444';
 
                 detailSection.innerHTML = `
                 <div style="background: #fff; padding: 30px; border-radius: 20px; border: 1px solid ${platform.color}40; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px;">
                         <div>
                             <h2 style="margin: 0; display: flex; align-items: center; gap: 15px; color: #1e293b;">
-                                <i class="fas ${platform.icon}" style="color: ${platform.color}"></i>
+                                <div style="color: ${platform.color}; background: ${platform.color}15; width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="${platform.icon}" style="font-size: 1.2em;"></i>
+                                </div>
                                 ${name} Audit Result
                             </h2>
-                            <p style="color: #64748b; margin-top: 5px;">${platform.description}</p>
+                            <p style="color: #64748b; margin-top: 5px; margin-left: 65px;">${platform.description}</p>
                         </div>
                         <div style="text-align: right;">
-                            <div style="font-size: 2.5em; font-weight: 800; color: ${platform.color}">${score}%</div>
-                            <div style="color: #64748b; font-size: 0.8em; font-weight: 700;">OVERALL CONFIDENCE</div>
+                            <div style="font-size: 2.5em; font-weight: 800; color: ${statusColor}">${statusText}</div>
+                            <div style="color: #64748b; font-size: 0.8em; font-weight: 700;">PLATFORM READINESS</div>
                         </div>
                     </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
                         <div>
                             <h4 style="margin-bottom: 20px; color: #2563eb;">Key GEO Metrics</h4>
-                            ${['Citations Found', 'Brand Presence', 'Content Relevance', 'Sentiment Analysis', 'Source Authority'].map(metric => `
-                                <div style="margin-bottom: 15px;">
-                                    <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 8px; color: #475569;">
-                                        <span>${metric}</span>
-                                        <span>${Math.min(score + Math.floor(Math.random() * 15 - 5), 100)}%</span>
-                                    </div>
-                                    <div style="height: 4px; background: #f1f5f9; border-radius: 2px;">
-                                        <div style="height: 100%; background: ${platform.color}; width: ${Math.min(score + Math.floor(Math.random() * 10), 100)}%; border-radius: 2px;"></div>
-                                    </div>
+                            <div style="margin-bottom: 20px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 8px; color: #475569;">
+                                    <span>Bot Accessibility</span>
+                                    <span style="font-weight: 700; color: ${statusColor}">${isReady ? 'PASS' : 'FAIL'}</span>
                                 </div>
-                            `).join('')}
+                                <div style="height: 4px; background: #f1f5f9; border-radius: 2px;">
+                                    <div style="height: 100%; background: ${statusColor}; width: ${isReady ? '100%' : '0%'}; border-radius: 2px;"></div>
+                                </div>
+                                <div style="font-size: 0.85em; color: #1e293b; margin-top: 15px; background: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #eef0f2;">
+                                    <strong style="color: #475569;">Accessibility Reason:</strong><br>
+                                    <code style="display: block; margin-top: 8px; color: #0366d6; font-family: 'Courier New', monospace; background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #e2e8f0;">${reason}</code>
+                                </div>
+                            </div>
                         </div>
                         <div style="background: #f8fbff; padding: 20px; border-radius: 12px; border: 1px solid #e1e9f0;">
-                            <h4 style="margin-bottom: 15px; color: #0891b2;"><i class="fas fa-lightbulb"></i> Optimization Strategy</h4>
-                            <ul style="color: #475569; font-size: 0.9em; line-height: 1.6; padding-left: 20px;">
-                                <li>Optimise headings to match common ${name} query patterns.</li>
-                                <li>Ensure brand entity is clearly defined in CATS-standard traits.</li>
-                                <li>Increase high-authority backlink references to key landing pages.</li>
-                                <li>Implement structured schema.org data for all core entities.</li>
-                            </ul>
+                            <h4 style="margin-bottom: 15px; color: #0891b2;"><i class="fas fa-robot"></i> Robots.txt Content</h4>
+                            <pre style="font-size: 0.8em; color: #475569; overflow: auto; max-height: 250px; background: #fff; padding: 10px; border-radius: 6px; border: 1px solid #eef0f2; font-family: 'Courier New', monospace;">${fullRobots}</pre>
                         </div>
                     </div>
                 </div>
             `;
                 detailSection.scrollIntoView({ behavior: 'smooth' });
+            }
+            let currentLlmPathway = 'llms';
+
+            function switchLlmFlow(type) {
+                if (type === 'reset') {
+                    document.getElementById('llmDecisionPanel').style.display = 'block';
+                    document.getElementById('llmPathwayContainer').style.display = 'none';
+                    return;
+                }
+
+                currentLlmPathway = type;
+                document.getElementById('llmDecisionPanel').style.display = 'none';
+                document.getElementById('llmPathwayContainer').style.display = 'block';
+
+                // Update UI based on pathway
+                const isFull = (type === 'llms-full');
+                const fullInfo = document.getElementById('llmFullSpecificInfo');
+                if (fullInfo) fullInfo.style.display = isFull ? 'block' : 'none';
+
+                const extCard = document.getElementById('llmExternalResourcesCard');
+                if (extCard) extCard.style.display = isFull ? 'none' : 'block';
+
+                const genBtn = document.getElementById('generateLlmBtn');
+                if (genBtn) genBtn.innerHTML = isFull ? '<i class="fas fa-file-medical"></i> Generate llms-full.txt' : '<i class="fas fa-file-alt"></i> Generate llms.txt';
+
+                // Update tabs in preview
+                const fullTab = document.getElementById('tab-llms-full');
+                if (fullTab) fullTab.style.display = isFull ? 'block' : 'none';
+
+                if (isFull) {
+                    switchGeoTab('llms-full');
+                } else {
+                    switchGeoTab('llms');
+                }
+            }
+
+            function addLlmPredefinedSection() {
+                const sectionType = document.getElementById('llmSectionType').value;
+                const containerId = addNewGeoSection(sectionType);
+
+                if (currentLlmPathway === 'llms') {
+                    if (sectionType === 'Services') {
+                        addNewGeoLink(containerId, { label: 'Types of service', url: '', desc: '1 sentence description of what that service is' });
+                    } else if (sectionType === 'Products') {
+                        addNewGeoLink(containerId, { label: 'Types of product', url: '', desc: '1 sentence description of what that product is' });
+                    } else if (sectionType === 'Company') {
+                        addNewGeoLink(containerId, { label: 'About us', url: '', desc: '' });
+                        addNewGeoLink(containerId, { label: 'Contact us page', url: '', desc: '' });
+                    }
+                } else {
+                    // llms-full
+                    if (sectionType === 'Services') {
+                        addNewGeoLink(containerId, { label: 'Types of service', url: '', desc: 'Describe services in-depth' });
+                    } else if (sectionType === 'Products') {
+                        addNewGeoLink(containerId, { label: 'Types of product', url: '', desc: '1 sentence description' });
+                    } else if (sectionType === 'Resources') {
+                        addNewGeoLink(containerId, { label: 'Blogs', url: '', desc: '' });
+                        addNewGeoLink(containerId, { label: 'Case Studies', url: '', desc: '' });
+                    } else if (sectionType === 'Company') {
+                        addNewGeoLink(containerId, { label: 'About us page', url: '', desc: '' });
+                        addNewGeoLink(containerId, { label: 'Mission', url: '', desc: '' });
+                        addNewGeoLink(containerId, { label: 'Why choose us', url: '', desc: '' });
+                        addNewGeoLink(containerId, { label: 'Contact us (Email, phone, country)', url: '', desc: '' });
+                        addNewGeoLink(containerId, { label: 'Opening hours', url: '', desc: '' });
+                        addNewGeoLink(containerId, { label: 'Location', url: '', desc: '' });
+                    }
+                }
+            }
+
+            function generateLlmsTxtByPathway() {
+                if (currentLlmPathway === 'llms-full') {
+                    generateLlmsFullTxt();
+                } else {
+                    generateLlmsTxt();
+                }
             }
 
             function openGeoUtilities(event) {
@@ -11367,6 +11659,21 @@ seo agencies in singapore</textarea>
                 deactivateAllButtons();
                 forceOpenCollapsible('geoMainBtn');
                 const btn = forceOpenCollapsible('geoUtilitiesBtn');
+                if (btn) {
+                    btn.scrollIntoView({ behavior: 'smooth' });
+                }
+                if (event && event.currentTarget) {
+                    event.currentTarget.classList.add('active-menu');
+                }
+                closeJourneyModal();
+            }
+
+            function openCatsTxtGenerator(event) {
+                if (event) event.preventDefault();
+                showGeoOnly(event);
+                deactivateAllButtons();
+                forceOpenCollapsible('geoMainBtn');
+                const btn = forceOpenCollapsible('catsTxtBtn');
                 if (btn) {
                     btn.scrollIntoView({ behavior: 'smooth' });
                 }
@@ -11493,6 +11800,21 @@ seo agencies in singapore</textarea>
                     content += `\n`;
                 });
 
+                // Process External
+                const externalLinks = document.querySelectorAll('#llmExternalList .geo-link-item');
+                if (externalLinks.length > 0) {
+                    content += `## Additional Resources (External)\n\n`;
+                    externalLinks.forEach(link => {
+                        const label = link.querySelector('.geo-link-label').value;
+                        const url = link.querySelector('.geo-link-url').value;
+                        const lDesc = link.querySelector('.geo-link-desc').value;
+                        if (label && url) {
+                            content += `- [${label}](${url})${lDesc ? ': ' + lDesc : ''}\n`;
+                        }
+                    });
+                    content += `\n`;
+                }
+
                 // Process Optional
                 const optionalLinks = document.querySelectorAll('#llmOptionalList .geo-link-item');
                 if (optionalLinks.length > 0) {
@@ -11548,10 +11870,6 @@ seo agencies in singapore</textarea>
                                 content += `### ${label}\n\n`;
                                 if (lDesc) content += `> ${lDesc}\n\n`;
                                 content += `**Source**: ${url}\n\n`;
-                                content += `[Content from ${url} will be included here]\n\n`;
-                                content += `To get the full content, you would:\n`;
-                                content += `1. Fetch the markdown content from the URL above\n`;
-                                content += `2. Or manually copy the relevant content from that page\n\n`;
                                 content += `---\n\n`;
                             }
                         });
@@ -11570,17 +11888,13 @@ seo agencies in singapore</textarea>
                             content += `### ${label}\n\n`;
                             if (lDesc) content += `> ${lDesc}\n\n`;
                             content += `**Source**: ${url}\n\n`;
-                            content += `[Content from ${url} will be included here]\n\n`;
+
                         }
                     });
                     content += `---\n\n`;
                 }
 
-                content += `\n*Note: This is a template for llms-full.txt. To create the complete file:*\n`;
-                content += `*1. Fetch the actual content from each URL listed above*\n`;
-                content += `*2. Replace the placeholder text with the fetched content*\n`;
-                content += `*3. Preferably use .md (markdown) versions of pages when available*\n\n`;
-                content += `*Generated by llms.txt Generator by MediaOne | Specification: https://llmstxt.org*\n`;
+
 
                 geoState.llmsFull = content;
                 showGeoPreview('llms-full.txt', content);
@@ -11631,7 +11945,11 @@ seo agencies in singapore</textarea>
 
                 let content = `# CATS.TXT for ${name}\n\n## Personality & Voice\n${traits}\n\n## Key Facts & Verification\n${values}`;
 
-                showGeoPreview('cats.txt', content);
+                const preview = document.getElementById('catsFilePreview');
+                preview.style.display = 'block';
+                document.getElementById('catsPreviewText').value = content;
+                // Scroll to preview
+                preview.scrollIntoView({ behavior: 'smooth', block: 'end' });
             }
 
             function showGeoPreview(filename, content) {
@@ -11642,6 +11960,24 @@ seo agencies in singapore</textarea>
 
                 // Scroll to preview
                 preview.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }
+
+            function copyCatsTxt() {
+                const text = document.getElementById('catsPreviewText');
+                text.select();
+                document.execCommand('copy');
+                alert('cats.txt content copied to clipboard!');
+            }
+
+            function downloadCatsTxt() {
+                const content = document.getElementById('catsPreviewText').value;
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'cats.txt';
+                a.click();
+                window.URL.revokeObjectURL(url);
             }
 
             function execCmd(command, value = null) {
