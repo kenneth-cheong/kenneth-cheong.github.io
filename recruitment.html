@@ -970,7 +970,15 @@
             <section id="resultsSection" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                     <h2 style="margin: 0;">Top 5 Shortlist</h2>
-                    <div style="display: flex; gap: 12px;">
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <div id="bulkAssignContainer" style="display: none; align-items: center; gap: 8px;">
+                            <select id="bulkAssignSelect"
+                                style="padding: 10px; font-size: 0.875rem; border-radius: 12px; background: var(--bg-card); color: white; border: 1px solid var(--border); outline: none;">
+                                <!-- Populate via JS -->
+                            </select>
+                            <button class="btn btn-primary" style="padding: 10px 16px; font-size: 0.875rem;"
+                                onclick="bulkAssign('candidateTable')">Assign Selected</button>
+                        </div>
                         <button id="bulkReEvaluateBtn" class="btn"
                             style="display: none; background: var(--secondary); color: white;"
                             onclick="bulkReEvaluate(event, 'candidateTable')">
@@ -1019,7 +1027,15 @@
             <section id="candidatesSection" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                     <h2 style="margin: 0;">Candidates Repository</h2>
-                    <div style="display: flex; gap: 12px;">
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <div id="bulkAssignRepoContainer" style="display: none; align-items: center; gap: 8px;">
+                            <select id="bulkAssignRepoSelect"
+                                style="padding: 10px; font-size: 0.875rem; border-radius: 12px; background: var(--bg-card); color: white; border: 1px solid var(--border); outline: none;">
+                                <!-- Populate via JS -->
+                            </select>
+                            <button class="btn btn-primary" style="padding: 10px 16px; font-size: 0.875rem;"
+                                onclick="bulkAssign('repoTable')">Assign Selected</button>
+                        </div>
                         <button id="bulkReEvaluateRepoBtn" class="btn"
                             style="display: none; background: var(--secondary); color: white;"
                             onclick="bulkReEvaluate(event, 'repoTable')">
@@ -2724,10 +2740,67 @@
             const selector = tableId === 'candidateTable' ? '.cand-checkbox:checked' : '.repo-checkbox:checked';
             const deleteBtnId = tableId === 'candidateTable' ? 'bulkDeleteBtn' : 'bulkDeleteRepoBtn';
             const reEvalBtnId = tableId === 'candidateTable' ? 'bulkReEvaluateBtn' : 'bulkReEvaluateRepoBtn';
+            const assignContainerId = tableId === 'candidateTable' ? 'bulkAssignContainer' : 'bulkAssignRepoContainer';
 
             const checkedCount = document.querySelectorAll(selector).length;
-            document.getElementById(deleteBtnId).style.display = checkedCount > 0 ? 'block' : 'none';
-            document.getElementById(reEvalBtnId).style.display = checkedCount > 0 ? 'block' : 'none';
+            const isAdmin = state.effectiveRole === 'Admin';
+
+            document.getElementById(deleteBtnId).style.display = (checkedCount > 0) ? 'block' : 'none';
+            document.getElementById(reEvalBtnId).style.display = (checkedCount > 0) ? 'block' : 'none';
+
+            const assignContainer = document.getElementById(assignContainerId);
+            if (assignContainer) {
+                assignContainer.style.display = (checkedCount > 0 && isAdmin) ? 'flex' : 'none';
+                if (checkedCount > 0 && isAdmin) {
+                    populateBulkAssignSelects();
+                }
+            }
+        }
+
+        function populateBulkAssignSelects() {
+            const options = getAssigneeOptions('');
+            const s1 = document.getElementById('bulkAssignSelect');
+            const s2 = document.getElementById('bulkAssignRepoSelect');
+            if (s1) s1.innerHTML = options;
+            if (s2) s2.innerHTML = options;
+        }
+
+        async function bulkAssign(tableId) {
+            const selector = tableId === 'candidateTable' ? '.cand-checkbox:checked' : '.repo-checkbox:checked';
+            const selectId = tableId === 'candidateTable' ? 'bulkAssignSelect' : 'bulkAssignRepoSelect';
+            const selectedIds = Array.from(document.querySelectorAll(selector)).map(cb => cb.value);
+            const assignee = document.getElementById(selectId).value;
+
+            if (selectedIds.length === 0) return;
+            if (!assignee) {
+                alert("Please select a user to assign to.");
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to assign ${selectedIds.length} candidates to ${assignee}?`)) return;
+
+            showLoading(true);
+            try {
+                // Batch updates
+                await Promise.all(selectedIds.map(id =>
+                    persistenceApiCall('update_candidate_assignee', { id: id, pendingBy: assignee })
+                ));
+
+                // Update local state
+                selectedIds.forEach(id => {
+                    const cand = state.candidates.find(c => c.id.toString() === id.toString());
+                    if (cand) cand.pendingBy = assignee;
+                });
+
+                alert(`Successfully assigned ${selectedIds.length} candidates to ${assignee}.`);
+                renderCandidates();
+                filterCandidatesRepo();
+            } catch (error) {
+                console.error("Bulk assign error:", error);
+                alert("An error occurred during bulk assignment. Some updates may not have completed.");
+            } finally {
+                showLoading(false);
+            }
         }
 
         function toggleRowSelection(row) {
