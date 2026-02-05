@@ -1,0 +1,1776 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backlinks Management | Digimetrics</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-light: #818cf8;
+            --secondary: #10b981;
+            --accent: #f43f5e;
+            --bg-dark: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --border: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass: rgba(15, 23, 42, 0.8);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background: radial-gradient(circle at top right, #1e1b4b, #0f172a);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        /* Loading Overlay */
+        #loadingOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 20px;
+            backdrop-filter: blur(8px);
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--border);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 80px;
+            /* Collapsed width */
+            background: var(--glass);
+            border-right: 1px solid var(--border);
+            backdrop-filter: blur(12px);
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            /* Fixed so it overlays if needed or stays put */
+            left: 0;
+            top: 0;
+            height: 100vh;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .sidebar:hover {
+            width: 280px;
+            /* Expanded width */
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 40px;
+            color: white;
+            text-decoration: none;
+            padding-left: 8px;
+        }
+
+        .logo span {
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .sidebar:hover .logo span {
+            opacity: 1;
+        }
+
+        .logo i {
+            color: var(--primary);
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: all 0.3s;
+            margin-bottom: 4px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .nav-item span {
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .sidebar:hover .nav-item span {
+            opacity: 1;
+        }
+
+        .nav-item:hover,
+        .nav-item.active {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary-light);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 40px;
+            max-width: 1400px;
+            margin: 0 auto 0 80px;
+            /* Offset for collapsed sidebar */
+            width: calc(100% - 80px);
+            transition: margin-left 0.3s, width 0.3s;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            overflow: auto;
+            max-height: 80vh;
+            /* Restrict viewport */
+            position: relative;
+        }
+
+        table {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: #1e293b;
+            /* Solid background for sticky headers */
+            border-bottom: 2px solid var(--border) !important;
+        }
+
+        /* Sticky First Column */
+        td:first-child,
+        th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 5;
+            background: #1e293b;
+            /* Solid background for sticky column */
+            border-right: 1px solid var(--border);
+        }
+
+        th:first-child {
+            z-index: 15;
+            /* Top-left corner priority */
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.8));
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 8px 0;
+        }
+
+        .stat-label {
+            color: var(--text-dim);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.875rem;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-light);
+            transform: translateY(-2px);
+        }
+
+        /* Login Screen */
+        #loginScreen {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-dark);
+            z-index: 10000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-card {
+            background: var(--card-bg);
+            padding: 48px;
+            border-radius: 32px;
+            border: 1px solid var(--border);
+            text-align: center;
+            width: 400px;
+            backdrop-filter: blur(20px);
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 32px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.875rem;
+            color: var(--text-dim);
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: white;
+            outline: none;
+        }
+
+        .form-group input:focus {
+            border-color: var(--primary);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Login UI -->
+    <div id="loginScreen">
+        <div class="login-card">
+            <div class="logo" style="justify-content: center; margin-bottom: 24px;">
+                <i class="fas fa-link fa-2x"></i>
+                <span style="font-size: 1.5rem">Digimetrics</span>
+            </div>
+            <h2 style="margin-bottom: 12px">Backlinks Manager</h2>
+            <p style="color: var(--text-dim); margin-bottom: 32px">Sign in to manage campaigns and orders</p>
+            <div id="googleBtnContainer"></div>
+            <p id="loginError" style="color: var(--accent); margin-top: 16px; display: none; font-size: 0.85rem;"></p>
+        </div>
+    </div>
+
+    <!-- Main App UI (hidden until login) -->
+    <div id="app" style="display: none; width: 100%;">
+        <nav class="sidebar">
+            <a href="index.html" class="logo">
+                <i class="fas fa-link"></i>
+                <span>Digimetrics</span>
+            </a>
+
+            <nav>
+                <div class="nav-item active" onclick="showTab('dashboard')">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Dashboard</span>
+                </div>
+                <div class="nav-item" onclick="showTab('campaigns')">
+                    <i class="fas fa-bullhorn"></i>
+                    <span>Campaigns</span>
+                </div>
+                <div class="nav-item" onclick="showTab('orders')">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>Orders</span>
+                </div>
+                <div class="nav-item" onclick="showTab('vendors')">
+                    <i class="fas fa-users"></i>
+                    <span>Users</span>
+                </div>
+                <div class="nav-item" onclick="showTab('rankings')">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Rankings</span>
+                </div>
+                <div class="nav-item" onclick="showTab('validator')">
+                    <i class="fas fa-check-double"></i>
+                    <span>Validator</span>
+                </div>
+            </nav>
+
+            <div style="margin-top: auto; padding-top: 24px; border-top: 1px solid var(--border);">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                    <div id="userAvatar"
+                        style="width: 40px; height: 40px; border-radius: 12px; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700;">
+                        ?</div>
+                    <div>
+                        <div id="userName" style="font-size: 0.875rem; font-weight: 600;">User Name</div>
+                        <div id="userRole" style="font-size: 0.75rem; color: var(--text-dim);">Administrator</div>
+                    </div>
+                </div>
+                <div class="nav-item" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </div>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <header class="page-header">
+                <h1 id="pageTitle">Dashboard</h1>
+                <div id="headerActions"></div>
+            </header>
+
+            <div id="dashboardTab" class="content-tab">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Backlinks</div>
+                        <div class="stat-value" id="val-total-links">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Avg Domain Authority</div>
+                        <div class="stat-value" id="val-avg-da">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Pending Delivery</div>
+                        <div class="stat-value" id="val-pending">0</div>
+                    </div>
+                </div>
+                <!-- Recent Orders and Activity will go here -->
+            </div>
+
+            <div id="campaignsTab" class="content-tab" style="display: none;">
+                <div class="card">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <h3>Active Campaigns</h3>
+                        <div style="display: flex; align-items: center; gap: 16px;">
+                            <span id="syncStatus"
+                                style="font-size: 0.85rem; color: var(--primary-light); display: none;">
+                                <i class="fas fa-spinner fa-spin"></i> Syncing...
+                            </span>
+                            <button class="btn btn-primary" onclick="openMondayModal()" id="importBtn">
+                                <i class="fas fa-plus"></i> Import from Monday
+                            </button>
+                        </div>
+                    </div>
+                    <table id="campaignsTable">
+                        <thead>
+                            <tr></tr>
+                        </thead>
+                        <tbody id="campaignsBody">
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">Click
+                                    "Import from Monday" to load board items.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="ordersTab" class="content-tab" style="display: none;">
+                <div class="card">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <h3>Backlink Orders</h3>
+                        <button class="btn btn-primary" onclick="createOrder()">
+                            <i class="fas fa-plus"></i> New Order
+                        </button>
+                    </div>
+                    <table id="ordersTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Campaign</th>
+                                <th>Vendor</th>
+                                <th>Quantity</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ordersBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="vendorsTab" class="content-tab" style="display: none;">
+                <div class="card">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <h3>Vendors & Personnel</h3>
+                        <button class="btn btn-primary" onclick="addUser()">
+                            <i class="fas fa-user-plus"></i> Add User
+                        </button>
+                    </div>
+                    <table id="usersTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="validatorTab" class="content-tab" style="display: none;">
+                <div class="card">
+                    <h3>Bulk Backlink Validator</h3>
+                    <p style="color: var(--text-dim); margin-bottom: 20px;">Enter list of URLs (one per line) to verify
+                        existence, HTTPS, and DA.</p>
+                    <textarea id="bulkUrls"
+                        placeholder="https://example.com/blog-post-1&#10;https://sample.net/article-2"
+                        style="width: 100%; height: 200px; padding: 16px; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; color: white; margin-bottom: 16px;"></textarea>
+                    <button class="btn btn-primary" onclick="startBulkValidation()">
+                        <i class="fas fa-play"></i> Run Validation
+                    </button>
+                </div>
+
+                <div id="validationResults" class="card" style="display: none;">
+                    <h3>Validation Results</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>URL</th>
+                                <th>Existence</th>
+                                <th>HTTPS</th>
+                                <th>Moz DA</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="validationBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="rankingsTab" class="content-tab" style="display: none;">
+                <div class="card">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <div>
+                            <h3>Keyword Rankings Overview</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-dim); margin-top: 4px;">Consolidated view of
+                                all SE Ranking campaigns and keyword performance.</p>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 16px;">
+                            <span id="rankingsSyncStatus"
+                                style="font-size: 0.85rem; color: var(--primary-light); display: none;">
+                                <i class="fas fa-spinner fa-spin"></i> Syncing all sites...
+                            </span>
+                            <button class="btn btn-primary" onclick="fetchFullSERankingData()" id="refreshRankingsBtn">
+                                <i class="fas fa-sync"></i> Refresh Data
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="rankingsTableControls" style="margin-bottom: 24px;"></div>
+
+                    <div id="rankingsTableContainer" style="overflow-x: auto; max-height: 70vh;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th onclick="sortRankings('siteName')" style="cursor: pointer;">Campaign <i
+                                            class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
+                                    <th onclick="sortRankings('keyword')" style="cursor: pointer;">Keyword <i
+                                            class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
+                                    <th onclick="sortRankings('group')" style="cursor: pointer;">Group <i
+                                            class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
+                                    <th onclick="sortRankings('searchEngine')" style="cursor: pointer;">Search Engine <i
+                                            class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
+                                    <th onclick="sortRankings('rank')" style="cursor: pointer;">Latest Rank <i
+                                            class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
+                                </tr>
+                            </thead>
+                            <tbody id="rankingsBody">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">
+                                        Click "Refresh Data" to load rankings.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Constants
+        const PERSISTENCE_URL = 'https://0ed5sd7nn5.execute-api.ap-southeast-1.amazonaws.com/backlinksDatabase';
+        const MONDAY_URL = 'https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday';
+        const SERANKING_URL = 'https://u2u2ptqaxd.execute-api.ap-southeast-1.amazonaws.com/seRanking';
+        const GOOGLE_CLIENT_ID = '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com';
+
+        let state = {
+            user: null,
+            campaigns: [],
+            mondayItems: [],
+            mondayFilters: [], // Rules: { colId, operator, value }
+            mondaySort: { colId: null, direction: 'asc' },
+            mondayVisibleCols: [],
+            colSelectorSearch: '',
+            cachedColumnMap: null,
+            seRankingSites: [],
+            rankings: [],
+            rankingsFilters: [],
+            rankingsSort: { colId: 'siteName', direction: 'asc' },
+            backlinks: [],
+            vendors: []
+        };
+
+        // Tab Management
+        function showTab(tabId) {
+            document.querySelectorAll('.content-tab').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+            const tab = document.getElementById(tabId + 'Tab');
+            if (tab) tab.style.display = 'block';
+            if (tabId === 'rankings' && state.seRankingSites.length === 0) {
+                fetchFullSERankingData();
+            }
+
+            document.getElementById('pageTitle').innerText = tabId.charAt(0).toUpperCase() + tabId.slice(1);
+            event.currentTarget.classList.add('active');
+        }
+
+        // Auth Logic (Placeholder - modeled after recruitment.html)
+        function initAuth() {
+            const stored = localStorage.getItem('googleUser');
+            if (stored) {
+                state.user = JSON.parse(stored);
+                completeLogin();
+            } else {
+                google.accounts.id.initialize({
+                    client_id: GOOGLE_CLIENT_ID,
+                    callback: handleCredentialResponse
+                });
+                google.accounts.id.renderButton(
+                    document.getElementById('googleBtnContainer'),
+                    { theme: "outline", size: "large", shape: "pill" }
+                );
+            }
+        }
+
+        function handleCredentialResponse(response) {
+            // In a real scenario, this would call the verification endpoint
+            // For now, parsing the JWT payload for demo
+            const payload = JSON.parse(atob(response.credential.split('.')[1]));
+            state.user = {
+                name: payload.name,
+                email: payload.email,
+                picture: payload.picture
+            };
+            localStorage.setItem('googleUser', JSON.stringify(state.user));
+            completeLogin();
+        }
+
+        // API Helpers
+        async function apiCall(url, action, data = {}) {
+            toggleLoading(true);
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, data, currentUser: state.user?.name })
+                });
+                if (!res.ok) {
+                    console.error(`HTTP Error (${action}): ${res.status}`);
+                    return null;
+                }
+                const result = await res.json();
+                if (!result) return null;
+                // Defensive check in case of nested body string (AWS Lambda Proxy)
+                if (result.body) {
+                    if (typeof result.body === 'string') {
+                        try { return JSON.parse(result.body); } catch (e) { return result.body; }
+                    }
+                    return result.body;
+                }
+                return result;
+            } catch (err) {
+                console.error(`API Error (${action}):`, err);
+                return null;
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        async function fetchCampaigns() {
+            const data = await apiCall(PERSISTENCE_URL, 'get_campaigns');
+            if (data) {
+                state.campaigns = data;
+                renderCampaigns();
+            }
+        }
+
+        async function fetchUsers() {
+            const data = await apiCall(PERSISTENCE_URL, 'get_users');
+            if (data) {
+                state.vendors = data;
+                renderUsers();
+            }
+        }
+
+        function renderCampaigns() {
+            const body = document.getElementById('campaignsBody');
+            body.innerHTML = state.campaigns.map(c => `
+                <tr>
+                    <td><strong>${c.name}</strong></td>
+                    <td>${c.boardName || 'Manual'}</td>
+                    <td>${c.linksCount || 0}</td>
+                    <td><span style="color: ${c.status === 'Active' ? 'var(--secondary)' : 'var(--text-dim)'}">${c.status}</span></td>
+                    <td>
+                        <button class="btn" style="padding: 4px 8px;" onclick="viewKeywords('${c.id}')"><i class="fas fa-key"></i></button>
+                        <button class="btn" style="padding: 4px 8px;" onclick="editCampaign('${c.id}')"><i class="fas fa-edit"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderUsers() {
+            const body = document.getElementById('usersBody');
+            body.innerHTML = state.vendors.map(u => `
+                <tr>
+                    <td>${u.name}</td>
+                    <td>${u.email}</td>
+                    <td>${u.role}</td>
+                    <td><span class="badge" style="background: ${u.status === 'Active' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)'}; color: ${u.status === 'Active' ? '#10b981' : '#f43f5e'}; padding: 4px 12px; border-radius: 20px;">${u.status}</span></td>
+                    <td>
+                        <button class="btn" style="padding: 4px 8px; background: transparent; border: 1px solid var(--border);" onclick="editUser('${u.id}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn" style="padding: 4px 8px; background: transparent; border: 1px solid var(--border); color: var(--accent);" onclick="deleteUser('${u.id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function createOrder() {
+            // Let the user select a campaign first
+            showTab('campaigns');
+            alert('Please select a campaign and click the Key icon to order backlinks for specific keywords.');
+        }
+
+        async function editCampaign(id) {
+            const campaign = state.campaigns.find(c => c.id === id);
+            if (!campaign) return;
+            const newName = prompt('Enter new campaign name:', campaign.name);
+            if (newName) {
+                const result = await apiCall(PERSISTENCE_URL, 'upsert_campaign', { id, name: newName });
+                if (result && result.success) fetchCampaigns();
+            }
+        }
+
+        async function deleteCampaign(id) {
+            if (!confirm('Are you sure you want to delete this campaign?')) return;
+            const result = await apiCall(PERSISTENCE_URL, 'upsert_campaign', { id, deleted: true });
+            if (result && result.success) fetchCampaigns();
+        }
+
+        async function fetchOrders() {
+            const data = await apiCall(PERSISTENCE_URL, 'get_backlinks');
+            if (data) {
+                state.backlinks = data;
+                renderOrders();
+                updateDashboard();
+            }
+        }
+
+        function renderOrders() {
+            const body = document.getElementById('ordersBody');
+            body.innerHTML = state.backlinks.map(b => `
+                <tr>
+                    <td>${new Date(b.createdAt).toLocaleDateString()}</td>
+                    <td>${b.campaignName || 'N/A'}</td>
+                    <td>${b.vendorName || 'N/A'}</td>
+                    <td>${b.quantity}</td>
+                    <td><span class="badge" style="background: ${b.status === 'Ordered' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)'}; color: ${b.status === 'Ordered' ? '#f59e0b' : '#10b981'}; padding: 4px 12px; border-radius: 20px;">${b.status || 'Pending'}</span> ${b.deliveredUrl ? `<br><a href="${b.deliveredUrl}" target="_blank" style="font-size: 0.7rem; color: var(--primary-light)">${b.deliveredUrl}</a>` : ''}</td>
+                    <td>
+                        <button class="btn" style="padding: 4px 8px; background: transparent; border: 1px solid var(--border);" onclick="deliverOrder('${b.id}')"><i class="fas fa-truck"></i></button>
+                        <button class="btn" style="padding: 4px 8px; background: transparent; border: 1px solid var(--border); color: var(--accent);" onclick="deleteOrder('${b.id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function deliverOrder(id) {
+            const url = prompt('Enter the delivered backlink URL:');
+            if (!url) return;
+
+            toggleLoading(true);
+            // Auto-validate on delivery
+            const [ssl, metrics, html] = await Promise.all([
+                fetchSsl(url),
+                fetchMozMetrics(url),
+                checkExistence(url)
+            ]);
+
+            const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', {
+                id: id,
+                deliveredUrl: url,
+                status: 'Delivered',
+                da: metrics.DA || 0,
+                ssl: ssl,
+                exists: html
+            });
+
+            if (result && result.success) {
+                fetchOrders();
+            } else {
+                alert('Failed to update order');
+            }
+            toggleLoading(false);
+        }
+
+        async function deleteOrder(id) {
+            if (!confirm('Are you sure you want to delete this order?')) return;
+            const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', { id, deleted: true });
+            if (result && result.success) fetchOrders();
+        }
+
+        function orderBacklink(keyword) {
+            document.getElementById('orderKeyword').value = keyword;
+            document.getElementById('orderKeywordDisplay').value = keyword;
+
+            const vendorSelect = document.getElementById('orderVendorSelect');
+            const vendors = state.vendors.filter(v => v.role === 'Vendor');
+            vendorSelect.innerHTML = vendors.map(v => `<option value="${v.id}">${v.name}</option>`).join('') || '<option value="">No Vendors Found</option>';
+
+            document.getElementById('orderModal').style.display = 'flex';
+        }
+
+        async function saveOrder() {
+            const vendorId = document.getElementById('orderVendorSelect').value;
+            const vendor = state.vendors.find(v => v.id === vendorId);
+            const campaign = state.campaigns.find(c => c.id === activeCampaignId);
+
+            const orderData = {
+                campaignId: activeCampaignId,
+                campaignName: campaign ? campaign.name : 'N/A',
+                keyword: document.getElementById('orderKeyword').value,
+                vendorId: vendorId,
+                vendorName: vendor ? vendor.name : 'N/A',
+                quantity: document.getElementById('orderQuantity').value,
+                status: 'Ordered',
+                type: 'Backlink'
+            };
+
+            const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', orderData);
+            if (result && result.success) {
+                closeOrderModal();
+                closeKeywordModal();
+                fetchOrders();
+            } else {
+                alert('Failed to place order');
+            }
+        }
+
+        function closeOrderModal() {
+            document.getElementById('orderModal').style.display = 'none';
+        }
+
+        function updateDashboard() {
+            document.getElementById('val-total-links').innerText = state.backlinks.length;
+            const validLinks = state.backlinks.filter(b => b.da > 0);
+            const avgDa = validLinks.length ? (validLinks.reduce((acc, b) => acc + (b.da || 0), 0) / validLinks.length).toFixed(1) : 0;
+            document.getElementById('val-avg-da').innerText = avgDa;
+            document.getElementById('val-pending').innerText = state.backlinks.filter(b => b.status === 'Ordered').length;
+        }
+
+        // SE Ranking Integration
+        let activeCampaignId = null;
+
+        async function viewKeywords(campaignId) {
+            activeCampaignId = campaignId;
+            const campaign = state.campaigns.find(c => c.id === campaignId);
+            document.getElementById('keywordModalTitle').innerText = `Keywords for ${campaign.name}`;
+            document.getElementById('keywordModal').style.display = 'flex';
+
+            if (campaign.seRankingSiteId) {
+                fetchKeywords(campaign.seRankingSiteId);
+            } else {
+                document.getElementById('keywordList').innerHTML = '<p style="color: var(--text-dim)">This campaign is not linked to an SE Ranking site. Click "Link SE Ranking Site" to connect.</p>';
+            }
+        }
+
+        async function linkSeRankingSite() {
+            const data = await apiCall(SERANKING_URL, 'get_sites');
+            const keywordList = document.getElementById('keywordList');
+
+            if (data && Array.isArray(data)) {
+                keywordList.innerHTML = data.map(s => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid var(--border);">
+                        <span>${s.name} (${s.url})</span>
+                        <button class="btn btn-primary" style="padding: 4px 12px; font-size: 0.8rem;" onclick="connectSiteToCampaign('${s.id}')">Connect</button>
+                    </div>
+                `).join('');
+            } else {
+                keywordList.innerHTML = '<p style="color: var(--accent)">Error loading sites.</p>';
+            }
+        }
+
+        async function connectSiteToCampaign(siteId) {
+            const result = await apiCall(PERSISTENCE_URL, 'upsert_campaign', {
+                id: activeCampaignId,
+                seRankingSiteId: siteId
+            });
+
+            if (result && result.success) {
+                // Update local state
+                const idx = state.campaigns.findIndex(c => c.id === activeCampaignId);
+                state.campaigns[idx].seRankingSiteId = siteId;
+                fetchKeywords(siteId);
+            }
+        }
+
+        async function fetchKeywords(siteId) {
+            const data = await apiCall(SERANKING_URL, 'get_keywords', { siteId });
+            const keywordList = document.getElementById('keywordList');
+
+            if (data && Array.isArray(data)) {
+                keywordList.innerHTML = `
+                    <table style="display: table">
+                        <thead>
+                            <tr>
+                                <th>Keyword</th>
+                                <th>Volume</th>
+                                <th>Difficulty</th>
+                                <th>Order</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.map(k => `
+                                <tr>
+                                    <td>${k.name}</td>
+                                    <td>${k.volume || '-'}</td>
+                                    <td>${k.difficulty || '-'}</td>
+                                    <td><button class="btn btn-primary" style="padding: 4px 12px;" onclick="orderBacklink('${k.name}')">Order Link</button></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } else {
+                keywordList.innerHTML = '<p style="color: var(--accent)">Error loading keywords.</p>';
+            }
+        }
+
+        function closeKeywordModal() {
+            document.getElementById('keywordModal').style.display = 'none';
+        }
+
+        // Monday.com Integration
+        async function openMondayModal() {
+            const syncStatus = document.getElementById('syncStatus');
+            const importBtn = document.getElementById('importBtn');
+
+            if (syncStatus) syncStatus.style.display = 'inline-block';
+            if (importBtn) importBtn.disabled = true;
+
+            state.mondayItems = []; // Reset current view
+            let cursor = null;
+            let page = 1;
+
+            try {
+                do {
+                    if (syncStatus) syncStatus.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Syncing Page ${page}...`;
+                    const data = await apiCall(MONDAY_URL, 'get_board_items', { cursor });
+
+                    if (!data) break;
+
+                    if (data.items) {
+                        state.mondayItems = state.mondayItems.concat(data.items);
+                        renderMondayItems();
+                    }
+                    cursor = data.cursor;
+                    page++;
+
+                } while (cursor && page <= 50);
+
+            } catch (err) {
+                console.error('Monday Import Error:', err);
+                alert('An error occurred during Monday.com import.');
+            } finally {
+                if (syncStatus) syncStatus.style.display = 'none';
+                if (importBtn) importBtn.disabled = false;
+            }
+        }
+
+        function renderMondayItems() {
+            const items = state.mondayItems || [];
+            if (items.length === 0) return;
+
+            // Extract all unique columns
+            const columnMap = {};
+            items.forEach(item => {
+                item.column_values.forEach(cv => {
+                    if (cv.column && cv.column.title) {
+                        columnMap[cv.column.id] = cv.column.title;
+                    }
+                });
+            });
+
+            const allColIds = Object.keys(columnMap);
+            if (state.mondayVisibleCols.length === 0) {
+                state.mondayVisibleCols = [...allColIds];
+            }
+
+            const visibleColIds = state.mondayVisibleCols;
+            const table = document.getElementById('campaignsTable');
+            const head = table.querySelector('thead tr');
+            const body = document.getElementById('campaignsBody');
+
+            // Render Header
+            head.innerHTML = `
+                <th onclick="sortMonday('name')" style="cursor: pointer;">Item Name ${getSortIcon('name')}</th>
+                ${visibleColIds.map(id => `
+                    <th onclick="sortMonday('${id}')" style="cursor: pointer;">${columnMap[id] || id} ${getSortIcon(id)}</th>
+                `).join('')}
+            `;
+
+            // Apply Advanced Filters
+            let filtered = items;
+            if (state.mondayFilters.length > 0) {
+                filtered = items.filter(item => {
+                    return state.mondayFilters.every(rule => {
+                        let itemVal = '';
+                        if (rule.colId === 'name') {
+                            itemVal = item.name;
+                        } else {
+                            const cv = item.column_values.find(v => v.id === rule.colId);
+                            itemVal = cv ? (cv.text || '') : '';
+                        }
+
+                        const val = (itemVal || '').toLowerCase();
+                        const filterVal = (rule.value || '').toLowerCase();
+
+                        switch (rule.operator) {
+                            case 'includes': return val.includes(filterVal);
+                            case 'excludes': return !val.includes(filterVal);
+                            case 'is_empty': return !val.trim();
+                            case 'not_empty': return !!val.trim();
+                            case 'equals': return val === filterVal;
+                            default: return true;
+                        }
+                    });
+                });
+            }
+
+            // Sort
+            const { colId, direction } = state.mondaySort;
+            if (colId) {
+                filtered.sort((a, b) => {
+                    let valA, valB;
+                    if (colId === 'name') {
+                        valA = a.name;
+                        valB = b.name;
+                    } else {
+                        const cvA = a.column_values.find(v => v.id === colId);
+                        const cvB = b.column_values.find(v => v.id === colId);
+                        valA = cvA ? cvA.text : '';
+                        valB = cvB ? cvB.text : '';
+                    }
+                    if (valA < valB) return direction === 'asc' ? -1 : 1;
+                    if (valA > valB) return direction === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+
+            // Render Body
+            body.innerHTML = filtered.map(item => {
+                const values = visibleColIds.map(id => {
+                    const cv = item.column_values.find(v => v.id === id);
+                    return `<td>${cv ? (cv.text || '') : ''}</td>`;
+                }).join('');
+                return `
+                    <tr>
+                        <td><strong>${item.name}</strong></td>
+                        ${values}
+                    </tr>
+                `;
+            }).join('');
+
+            updateTableControlsUI(columnMap);
+            document.querySelector('#campaignsTab h3').innerText = `Integrated Campaign Info Repository (${filtered.length} items)`;
+        }
+
+        function getSortIcon(colId) {
+            if (state.mondaySort.colId !== colId) return '<i class="fas fa-sort" style="opacity: 0.3"></i>';
+            return state.mondaySort.direction === 'asc' ? '<i class="fas fa-sort-up"></i>' : '<i class="fas fa-sort-down"></i>';
+        }
+
+        function sortMonday(colId) {
+            if (state.mondaySort.colId === colId) {
+                state.mondaySort.direction = state.mondaySort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                state.mondaySort.colId = colId;
+                state.mondaySort.direction = 'asc';
+            }
+            renderMondayItems();
+        }
+
+        function updateTableControlsUI(columnMap) {
+            let controls = document.getElementById('tableControls');
+            if (!controls) {
+                const parent = document.querySelector('#campaignsTab .card');
+                const titleBar = parent.querySelector('div');
+                controls = document.createElement('div');
+                controls.id = 'tableControls';
+                controls.style = 'margin-bottom: 24px; padding: 20px; background: rgba(15, 23, 42, 0.4); border-radius: 12px; border: 1px solid var(--border);';
+
+                controls.innerHTML = `
+                    <div style="margin-bottom: 24px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <label style="font-size: 0.85rem; font-weight: 600;">Table Filters</label>
+                            <button class="btn btn-primary" style="padding: 4px 12px; font-size: 0.75rem;" onclick="addFilterRule()">+ Add Filter</button>
+                        </div>
+                        <div id="filterList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                    </div>
+
+                    <div style="margin-bottom: 24px;">
+                        <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 8px;">Find Columns</label>
+                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 12px;">
+                            <input type="text" placeholder="Search columns..." style="flex: 1; padding: 10px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: white;" oninput="state.colSelectorSearch = this.value; renderColumnList()">
+                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem; background: rgba(99, 102, 241, 0.2); border: 1px solid var(--primary);" onclick="selectAllColumns()">Select All</button>
+                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem; background: rgba(244, 63, 94, 0.1); border: 1px solid var(--accent); color: var(--accent);" onclick="deselectAllColumns()">Deselect All</button>
+                        </div>
+                    </div>
+                    
+                    <div id="columnChecklist" style="display: flex; flex-wrap: wrap; gap: 10px; max-height: 120px; overflow-y: auto; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: rgba(0,0,0,0.2);">
+                    </div>
+                `;
+                titleBar.after(controls);
+            }
+
+            state.cachedColumnMap = columnMap;
+            renderColumnList();
+            renderFilterList();
+        }
+
+        function addFilterRule() {
+            const colId = Object.keys(state.cachedColumnMap)[0] || 'name';
+            state.mondayFilters.push({ colId, operator: 'includes', value: '' });
+            renderMondayItems();
+        }
+
+        function updateRule(idx, field, val) {
+            state.mondayFilters[idx][field] = val;
+            renderMondayItems();
+        }
+
+        function removeRule(idx) {
+            state.mondayFilters.splice(idx, 1);
+            renderMondayItems();
+        }
+
+        function renderFilterList() {
+            const container = document.getElementById('filterList');
+            if (!container) return;
+
+            if (state.mondayFilters.length === 0) {
+                container.innerHTML = '<p style="font-size: 0.8rem; color: var(--text-dim); text-align: center; padding: 10px; border: 1px dashed var(--border); border-radius: 8px;">No filters applied. Click "+ Add Filter" to begin.</p>';
+                return;
+            }
+
+            container.innerHTML = state.mondayFilters.map((rule, idx) => `
+                <div style="display: flex; gap: 10px; align-items: center; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--border);">
+                    <select style="flex: 1; padding: 6px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 4px;" onchange="updateRule(${idx}, 'colId', this.value)">
+                        <option value="name" ${rule.colId === 'name' ? 'selected' : ''}>Item Name</option>
+                        ${Object.keys(state.cachedColumnMap).map(id => `<option value="${id}" ${rule.colId === id ? 'selected' : ''}>${state.cachedColumnMap[id]}</option>`).join('')}
+                    </select>
+                    <select style="width: 120px; padding: 6px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 4px;" onchange="updateRule(${idx}, 'operator', this.value)">
+                        <option value="includes" ${rule.operator === 'includes' ? 'selected' : ''}>Includes</option>
+                        <option value="excludes" ${rule.operator === 'excludes' ? 'selected' : ''}>Excludes</option>
+                        <option value="equals" ${rule.operator === 'equals' ? 'selected' : ''}>Equals</option>
+                        <option value="is_empty" ${rule.operator === 'is_empty' ? 'selected' : ''}>Is Empty</option>
+                        <option value="not_empty" ${rule.operator === 'not_empty' ? 'selected' : ''}>Not Empty</option>
+                    </select>
+                    ${['is_empty', 'not_empty'].includes(rule.operator) ? '' : `
+                        <input type="text" value="${rule.value}" placeholder="Value..." style="flex: 2; padding: 6px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 4px;" oninput="updateRule(${idx}, 'value', this.value)">
+                    `}
+                    <button style="background: none; border: none; color: var(--accent); cursor: pointer; padding: 0 4px;" onclick="removeRule(${idx})"><i class="fas fa-times"></i></button>
+                </div>
+            `).join('');
+        }
+
+        function renderColumnList() {
+            const container = document.getElementById('columnChecklist');
+            if (!container || !state.cachedColumnMap) return;
+
+            const search = (state.colSelectorSearch || '').toLowerCase();
+            const cols = Object.keys(state.cachedColumnMap).filter(id => state.cachedColumnMap[id].toLowerCase().includes(search));
+
+            container.innerHTML = cols.map(id => `
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; background: ${state.mondayVisibleCols.includes(id) ? 'rgba(99, 102, 241, 0.2)' : 'transparent'}; padding: 6px 12px; border-radius: 20px; border: 1px solid ${state.mondayVisibleCols.includes(id) ? 'var(--primary)' : 'var(--border)'}; cursor: pointer; white-space: nowrap;">
+                    <input type="checkbox" ${state.mondayVisibleCols.includes(id) ? 'checked' : ''} onchange="toggleCol('${id}')" style="accent-color: var(--primary)">
+                    ${state.cachedColumnMap[id]}
+                </label>
+            `).join('');
+
+            if (cols.length === 0) container.innerHTML = '<p style="font-size: 0.8rem; color: var(--text-dim)">No columns match search.</p>';
+        }
+
+        function toggleCol(id) {
+            const idx = state.mondayVisibleCols.indexOf(id);
+            if (idx > -1) {
+                state.mondayVisibleCols.splice(idx, 1);
+            } else {
+                state.mondayVisibleCols.push(id);
+            }
+            renderMondayItems();
+        }
+
+        function closeMondayModal() {
+            document.getElementById('mondayModal').style.display = 'none';
+        }
+
+        // User CRUD Logic
+        function addUser() {
+            document.getElementById('userModalTitle').innerText = 'Add New User';
+            document.getElementById('userId').value = '';
+            document.getElementById('userForm').reset();
+            document.getElementById('userModal').style.display = 'flex';
+        }
+
+        function editUser(id) {
+            const user = state.vendors.find(u => u.id === id);
+            if (!user) return;
+
+            document.getElementById('userModalTitle').innerText = 'Edit User';
+            document.getElementById('userId').value = user.id;
+            document.getElementById('userNameInput').value = user.name;
+            document.getElementById('userEmailInput').value = user.email;
+            document.getElementById('userRoleSelect').value = user.role;
+            document.getElementById('userStatusSelect').value = user.status;
+            document.getElementById('userModal').style.display = 'flex';
+        }
+
+        function closeUserModal() {
+            document.getElementById('userModal').style.display = 'none';
+        }
+
+        async function saveUser() {
+            const userData = {
+                id: document.getElementById('userId').value,
+                name: document.getElementById('userNameInput').value,
+                email: document.getElementById('userEmailInput').value,
+                role: document.getElementById('userRoleSelect').value,
+                status: document.getElementById('userStatusSelect').value
+            };
+
+            const result = await apiCall(PERSISTENCE_URL, 'upsert_user', userData);
+            if (result && result.success) {
+                closeUserModal();
+                fetchUsers();
+            } else {
+                alert('Failed to save user');
+            }
+        }
+
+        async function deleteUser(id) {
+            if (!confirm('Are you sure you want to delete this user?')) return;
+            const result = await apiCall(PERSISTENCE_URL, 'delete_user', { id });
+            if (result && result.success) {
+                fetchUsers();
+            } else {
+                alert('Failed to delete user');
+            }
+        }
+
+        // Validation Logic
+        async function startBulkValidation() {
+            const urls = document.getElementById('bulkUrls').value.split('\n').filter(u => u.trim());
+            if (!urls.length) return;
+
+            const resultsContainer = document.getElementById('validationResults');
+            const body = document.getElementById('validationBody');
+            resultsContainer.style.display = 'block';
+            body.innerHTML = '';
+
+            for (const url of urls) {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td colspan="5">Checking ${url}...</td>`;
+                body.appendChild(row);
+
+                // Sequence: HTTPS -> Moz DA -> Existence
+                const [ssl, metrics, html] = await Promise.all([
+                    fetchSsl(url),
+                    fetchMozMetrics(url),
+                    checkExistence(url)
+                ]);
+
+                row.innerHTML = `
+                    <td>${url}</td>
+                    <td><i class="fas ${html ? 'fa-check-circle' : 'fa-times-circle'}" style="color: ${html ? 'var(--secondary)' : 'var(--accent)'}"></i></td>
+                    <td><i class="fas ${ssl ? 'fa-lock' : 'fa-unlock'}" style="color: ${ssl ? 'var(--secondary)' : 'var(--accent)'}"></i></td>
+                    <td>${metrics.DA || 'N/A'}</td>
+                    <td><span class="badge" style="background: ${html ? 'var(--secondary)' : 'var(--accent)'}">${html ? 'PASS' : 'FAIL'}</span></td>
+                `;
+            }
+        }
+
+        async function fetchSsl(url) {
+            const domain = url.replace('https://', '').replace('http://', '').split('/')[0];
+            const res = await fetch("https://2kxt49bwp1.execute-api.ap-southeast-1.amazonaws.com/checkSsl", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: domain })
+            });
+            const data = await res.json();
+            return data.status === 'valid' || data.is_valid === true;
+        }
+
+        async function fetchMozMetrics(domain) {
+            const res = await fetch("https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ domain: domain.replace('https://', '').replace('http://', '').split('/')[0] })
+            });
+            const data = await res.json();
+            return { DA: data.domain_authority };
+        }
+
+        async function checkExistence(url) {
+            const res = await fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            });
+            return res.ok;
+        }
+
+        function toggleLoading(show) {
+            // Overlay removed as per user request
+            // const overlay = document.getElementById('loadingOverlay');
+            // if (overlay) overlay.style.display = show ? 'flex' : 'none';
+        }
+
+        function completeLogin() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('app').style.display = 'flex';
+            document.getElementById('userName').innerText = state.user.name;
+            document.getElementById('userAvatar').innerText = state.user.name[0];
+
+            fetchCampaigns();
+            fetchUsers();
+            fetchOrders();
+        }
+
+        function logout() {
+            localStorage.removeItem('googleUser');
+            location.reload();
+        }
+
+        window.onload = initAuth;
+
+        // SE Ranking Integration (Consolidated)
+        async function fetchFullSERankingData() {
+            const syncStatus = document.getElementById('rankingsSyncStatus');
+            const refreshBtn = document.getElementById('refreshRankingsBtn');
+            const body = document.getElementById('rankingsBody');
+
+            if (syncStatus) syncStatus.style.display = 'inline-block';
+            if (refreshBtn) refreshBtn.disabled = true;
+            if (body) body.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin"></i> Initializing data sync...</td></tr>';
+
+            try {
+                if (syncStatus) syncStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching site list...';
+                const [sites, systemEnginesRes] = await Promise.all([
+                    apiCall(SERANKING_URL, 'get_sites'),
+                    apiCall(SERANKING_URL, 'get_system_search_engines')
+                ]);
+
+                if (!sites || !Array.isArray(sites) || sites.length === 0) {
+                    throw new Error('No campaigns found or site list is empty.');
+                }
+
+                const systemEngineMap = {};
+                const systemEngines = (systemEnginesRes && systemEnginesRes.data) ? systemEnginesRes.data : systemEnginesRes;
+                if (Array.isArray(systemEngines)) {
+                    systemEngines.forEach(eng => {
+                        systemEngineMap[String(eng.id)] = eng.name || 'Unknown';
+                    });
+                }
+
+                state.seRankingSites = sites;
+                state.rankings = []; // Clear current rankings
+                let completedSites = 0;
+
+                const fetchPromises = sites.map(async (site) => {
+                    try {
+                        const [kwRes, posRes, grpRes, engRes] = await Promise.all([
+                            apiCall(SERANKING_URL, 'get_keywords', { siteId: site.id }),
+                            apiCall(SERANKING_URL, 'get_positions', { siteId: site.id }),
+                            apiCall(SERANKING_URL, 'get_groups', { siteId: site.id }),
+                            apiCall(SERANKING_URL, 'get_search_engines', { siteId: site.id })
+                        ]);
+
+                        const keywords = (kwRes && kwRes.data) ? kwRes.data : kwRes;
+                        const positions = (posRes && posRes.data) ? posRes.data : posRes;
+                        const groups = (grpRes && grpRes.data) ? grpRes.data : grpRes;
+                        const searchEngines = (engRes && engRes.data) ? engRes.data : engRes;
+
+                        // Create Mappings
+                        const groupMap = {};
+                        if (groups && Array.isArray(groups)) {
+                            groups.forEach(g => {
+                                if (g.id !== undefined) groupMap[String(g.id)] = g.name || 'Unnamed Group';
+                            });
+                        }
+
+                        const projectEngineMap = {};
+                        if (searchEngines && Array.isArray(searchEngines)) {
+                            searchEngines.forEach(eng => {
+                                const siteEngId = eng.site_engine_id || eng.id;
+                                if (siteEngId !== undefined) {
+                                    const engineBaseName = systemEngineMap[String(eng.search_engine_id)] || 'Engine';
+                                    const region = eng.region_name || '';
+                                    const fullDescriptor = region ? `${engineBaseName} (${region})` : engineBaseName;
+                                    projectEngineMap[String(siteEngId)] = fullDescriptor;
+                                }
+                            });
+                        }
+
+                        let latestPositionsMap = {};
+                        // Robust handling for positions response (can be {} keyed by date or [{keywords: []}])
+                        if (positions && typeof positions === 'object') {
+                            if (Array.isArray(positions)) {
+                                // Array format: [ { date: '...', keywords: [...] } ]
+                                const firstEntry = positions[0];
+                                if (firstEntry && Array.isArray(firstEntry.keywords)) {
+                                    firstEntry.keywords.forEach(kwPos => {
+                                        latestPositionsMap[String(kwPos.id)] = kwPos;
+                                    });
+                                }
+                            } else {
+                                // Object format: { "YYYY-MM-DD": { "kw_id": { pos: 5 } } }
+                                const dates = Object.keys(positions).sort().reverse();
+                                if (dates.length > 0) {
+                                    latestPositionsMap = positions[dates[0]];
+                                }
+                            }
+                        }
+
+                        if (keywords && Array.isArray(keywords)) {
+                            keywords.forEach(kw => {
+                                const posData = latestPositionsMap[String(kw.id)];
+                                // Get rank from pos/rank fields
+                                let rank = '-';
+                                if (posData) {
+                                    if (posData.pos !== undefined) rank = posData.pos;
+                                    else if (posData.rank !== undefined) rank = posData.rank;
+                                    else if (Array.isArray(posData.positions) && posData.positions[0]) {
+                                        rank = posData.positions[0].pos || posData.positions[0].rank || '-';
+                                    }
+                                }
+
+                                // Map Search Engine
+                                let searchEngine = '-';
+                                if (Array.isArray(kw.site_engine_ids) && kw.site_engine_ids.length > 0) {
+                                    searchEngine = projectEngineMap[String(kw.site_engine_ids[0])] || '-';
+                                } else if (kw.region_name) {
+                                    searchEngine = kw.region_name;
+                                }
+
+                                state.rankings.push({
+                                    siteName: site.name || site.url || 'Unknown',
+                                    keyword: kw.name || kw.keyword || '-',
+                                    group: kw.group_id ? (groupMap[String(kw.group_id)] || 'Default') : 'Default',
+                                    searchEngine: searchEngine,
+                                    rank: rank
+                                });
+                            });
+                        }
+                    } catch (siteErr) {
+                        console.error(`[SE Ranking] Error fetching details for site ${site.name}:`, siteErr);
+                    } finally {
+                        completedSites++;
+                        if (syncStatus) syncStatus.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Syncing... (${completedSites}/${sites.length})`;
+                        renderRankingsTable();
+                    }
+                });
+
+                await Promise.all(fetchPromises);
+
+                if (state.rankings.length === 0) {
+                    body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">No keywords found in any of the processed campaigns. Please check SE Ranking settings for these sites.</td></tr>';
+                }
+
+            } catch (err) {
+                console.error('SE Ranking Global Import Error:', err);
+                alert('An error occurred during SE Ranking data sync: ' + err.message);
+                if (body && state.rankings.length === 0) {
+                    body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--accent);">Failed to load data: ' + err.message + '</td></tr>';
+                }
+            } finally {
+                if (syncStatus) syncStatus.style.display = 'none';
+                if (refreshBtn) refreshBtn.disabled = false;
+            }
+        }
+
+        function sortRankings(colId) {
+            if (state.rankingsSort.colId === colId) {
+                state.rankingsSort.direction = state.rankingsSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                state.rankingsSort.colId = colId;
+                state.rankingsSort.direction = 'asc';
+            }
+            renderRankingsTable();
+        }
+
+        function updateRankingsHeaderUI() {
+            const headers = document.querySelectorAll('#rankingsTab th');
+            // Mapping is now done inside the loop to avoid stale map references if necessary
+            // (but keeping it here for clarity)
+
+            headers.forEach(th => {
+                const text = th.innerText.trim();
+                const colMap = {
+                    'Campaign': 'siteName',
+                    'Keyword': 'keyword',
+                    'Group': 'group',
+                    'Search Engine': 'searchEngine',
+                    'Latest Rank': 'rank'
+                };
+                const colId = colMap[text];
+                if (!colId) return;
+
+                const icon = th.querySelector('i');
+                if (!icon) return;
+
+                if (state.rankingsSort.colId === colId) {
+                    icon.style.opacity = '1';
+                    icon.className = state.rankingsSort.direction === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+                } else {
+                    icon.style.opacity = '0.3';
+                    icon.className = 'fas fa-sort';
+                }
+            });
+        }
+
+        function renderRankingsControls() {
+            const container = document.getElementById('rankingsTableControls');
+            if (!container) return;
+
+            // Only render if empty or if we want to refresh (here we just refresh for simplicity)
+            container.innerHTML = `
+                <div style="padding: 20px; background: rgba(15, 23, 42, 0.4); border-radius: 12px; border: 1px solid var(--border);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <label style="font-size: 0.85rem; font-weight: 600;">Rankings Filters</label>
+                        <button class="btn btn-primary" style="padding: 4px 12px; font-size: 0.75rem;" onclick="addRankingsFilter()">+ Add Filter</button>
+                    </div>
+                    <div id="rankingsFilterList" style="display: flex; flex-direction: column; gap: 8px;">
+                        ${state.rankingsFilters.length === 0 ?
+                    '<p style="font-size: 0.8rem; color: var(--text-dim); text-align: center; padding: 10px; border: 1px dashed var(--border); border-radius: 8px;">No filters applied.</p>' :
+                    state.rankingsFilters.map((rule, idx) => `
+                            <div style="display: flex; gap: 10px; align-items: center; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--border);">
+                                <select style="flex: 1; padding: 6px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 4px;" onchange="updateRankingsFilter(${idx}, 'colId', this.value)">
+                                    <option value="siteName" ${rule.colId === 'siteName' ? 'selected' : ''}>Campaign</option>
+                                    <option value="keyword" ${rule.colId === 'keyword' ? 'selected' : ''}>Keyword</option>
+                                    <option value="group" ${rule.colId === 'group' ? 'selected' : ''}>Group</option>
+                                    <option value="searchEngine" ${rule.colId === 'searchEngine' ? 'selected' : ''}>Search Engine</option>
+                                    <option value="rank" ${rule.colId === 'rank' ? 'selected' : ''}>Rank</option>
+                                </select>
+                                <select style="width: 120px; padding: 6px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 4px;" onchange="updateRankingsFilter(${idx}, 'operator', this.value)">
+                                    <option value="includes" ${rule.operator === 'includes' ? 'selected' : ''}>Includes</option>
+                                    <option value="excludes" ${rule.operator === 'excludes' ? 'selected' : ''}>Excludes</option>
+                                    <option value="equals" ${rule.operator === 'equals' ? 'selected' : ''}>Equals</option>
+                                    <option value="greater_than" ${rule.operator === 'greater_than' ? 'selected' : ''}>Greater Than</option>
+                                    <option value="less_than" ${rule.operator === 'less_than' ? 'selected' : ''}>Less Than</option>
+                                    <option value="is_empty" ${rule.operator === 'is_empty' ? 'selected' : ''}>Is Empty / -</option>
+                                </select>
+                                ${['is_empty'].includes(rule.operator) ? '' : `
+                                    <input type="text" value="${rule.value}" placeholder="Value..." style="flex: 2; padding: 6px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 4px;" oninput="updateRankingsFilter(${idx}, 'value', this.value)">
+                                `}
+                                <button style="background: none; border: none; color: var(--accent); cursor: pointer; padding: 0 4px;" onclick="removeRankingsFilter(${idx})"><i class="fas fa-times"></i></button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function addRankingsFilter() {
+            state.rankingsFilters.push({ colId: 'keyword', operator: 'includes', value: '' });
+            renderRankingsTable();
+        }
+
+        function updateRankingsFilter(idx, field, val) {
+            state.rankingsFilters[idx][field] = val;
+            renderRankingsTable();
+        }
+
+        function removeRankingsFilter(idx) {
+            state.rankingsFilters.splice(idx, 1);
+            renderRankingsTable();
+        }
+
+        function renderRankingsTable() {
+            const body = document.getElementById('rankingsBody');
+            if (!body) return;
+
+            if (state.rankings.length === 0) {
+                body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">No data available. Click "Refresh Data" to sync.</td></tr>';
+                renderRankingsControls();
+                return;
+            }
+
+            // Apply Filters
+            let filtered = state.rankings;
+            if (state.rankingsFilters.length > 0) {
+                filtered = state.rankings.filter(item => {
+                    return state.rankingsFilters.every(rule => {
+                        const val = String(item[rule.colId] || '');
+                        const valLower = val.toLowerCase();
+                        const filterVal = (rule.value || '').toLowerCase();
+
+                        switch (rule.operator) {
+                            case 'includes': return valLower.includes(filterVal);
+                            case 'excludes': return !valLower.includes(filterVal);
+                            case 'equals': return valLower === filterVal;
+                            case 'is_empty': return !val.trim() || val === '-';
+                            case 'greater_than': return parseFloat(val) > parseFloat(filterVal);
+                            case 'less_than': return parseFloat(val) < parseFloat(filterVal);
+                            default: return true;
+                        }
+                    });
+                });
+            }
+
+            // Apply Sorting
+            const { colId, direction } = state.rankingsSort;
+            if (colId) {
+                filtered.sort((a, b) => {
+                    let valA = a[colId];
+                    let valB = b[colId];
+
+                    if (colId === 'rank') {
+                        const parseRank = (v) => v === '-' ? 999 : (parseInt(v) || 999);
+                        valA = parseRank(valA);
+                        valB = parseRank(valB);
+                    } else {
+                        valA = String(valA || '').toLowerCase();
+                        valB = String(valB || '').toLowerCase();
+                    }
+
+                    if (valA < valB) return direction === 'asc' ? -1 : 1;
+                    if (valA > valB) return direction === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+
+            body.innerHTML = filtered.map(item => `
+                <tr>
+                    <td><span style="color: var(--primary-light); font-weight: 500;">${item.siteName}</span></td>
+                    <td><strong>${item.keyword}</strong></td>
+                    <td><span class="badge" style="background: rgba(99, 102, 241, 0.2)">${item.group}</span></td>
+                    <td style="font-size: 0.8rem; color: var(--text-dim);">${item.searchEngine}</td>
+                    <td style="font-weight: 600;">${item.rank}</td>
+                </tr>
+            `).join('');
+
+            updateRankingsHeaderUI();
+            renderRankingsControls();
+        }
+    </script>
+    <!-- User Modal -->
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <h3 id="userModalTitle" style="margin-bottom: 24px;">Add New User</h3>
+            <form id="userForm" onsubmit="event.preventDefault(); saveUser();">
+                <input type="hidden" id="userId">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="userNameInput" required>
+                </div>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="userEmailInput" required>
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <select id="userRoleSelect">
+                        <option value="Staff">Staff</option>
+                        <option value="Vendor">Vendor</option>
+                        <option value="Admin">Administrator</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="userStatusSelect">
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 12px; margin-top: 32px;">
+                    <button type="button" class="btn" style="flex: 1; justify-content: center;"
+                        onclick="closeUserModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="flex: 1; justify-content: center;">Save
+                        User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- Monday Modal -->
+    <div id="mondayModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <h3 style="margin-bottom: 24px;">Import from Monday.com</h3>
+            <div id="mondayBoardList" style="max-height: 400px; overflow-y: auto; margin-bottom: 24px;">
+                <p style="color: var(--text-dim)">Loading boards...</p>
+            </div>
+            <div style="display: flex; gap: 12px;">
+                <button type="button" class="btn" style="flex: 1; justify-content: center;"
+                    onclick="closeMondayModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+    <!-- Keyword Modal -->
+    <div id="keywordModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h3 id="keywordModalTitle">Keywords from SE Ranking</h3>
+                <button class="btn btn-primary" onclick="linkSeRankingSite()" id="linkSiteBtn">Link SE Ranking
+                    Site</button>
+            </div>
+            <div id="keywordList" style="max-height: 500px; overflow-y: auto; margin-bottom: 24px;">
+                <p style="color: var(--text-dim)">Select a campaign to see its keywords.</p>
+            </div>
+            <div style="display: flex; gap: 12px;">
+                <button type="button" class="btn" style="flex: 1; justify-content: center;"
+                    onclick="closeKeywordModal()">Close</button>
+            </div>
+        </div>
+    </div>
+    <!-- Order Modal -->
+    <div id="orderModal" class="modal">
+        <div class="modal-content">
+            <h3 style="margin-bottom: 24px;">New Backlink Order</h3>
+            <form id="orderForm" onsubmit="event.preventDefault(); saveOrder();">
+                <input type="hidden" id="orderKeyword">
+                <div class="form-group">
+                    <label>Keyword</label>
+                    <input type="text" id="orderKeywordDisplay" disabled>
+                </div>
+                <div class="form-group">
+                    <label>Vendor</label>
+                    <select id="orderVendorSelect" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Quantity</label>
+                    <input type="number" id="orderQuantity" value="1" min="1" required>
+                </div>
+                <div style="display: flex; gap: 12px; margin-top: 32px;">
+                    <button type="button" class="btn" style="flex: 1; justify-content: center;"
+                        onclick="closeOrderModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="flex: 1; justify-content: center;">Place
+                        Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+
+</html>
