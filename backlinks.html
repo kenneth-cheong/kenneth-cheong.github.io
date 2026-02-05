@@ -139,6 +139,16 @@
             opacity: 1;
         }
 
+        .user-details {
+            opacity: 0;
+            transition: opacity 0.2s;
+            white-space: nowrap;
+        }
+
+        .sidebar:hover .user-details {
+            opacity: 1;
+        }
+
         .nav-item:hover,
         .nav-item.active {
             background: rgba(99, 102, 241, 0.1);
@@ -402,15 +412,15 @@
             <div style="margin-top: auto; padding-top: 24px; border-top: 1px solid var(--border);">
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
                     <div id="userAvatar"
-                        style="width: 40px; height: 40px; border-radius: 12px; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700;">
+                        style="width: 40px; height: 40px; min-width: 40px; flex-shrink: 0; border-radius: 12px; background: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700;">
                         ?</div>
-                    <div>
+                    <div class="user-details">
                         <div id="userName" style="font-size: 0.875rem; font-weight: 600;">User Name</div>
                         <div id="userRole" style="font-size: 0.75rem; color: var(--text-dim);">Administrator</div>
                     </div>
                 </div>
                 <div class="nav-item" onclick="logout()">
-                    <i class="fas fa-sign-out-alt"></i> Logout
+                    <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
                 </div>
             </div>
         </nav>
@@ -465,6 +475,8 @@
                             </tr>
                         </tbody>
                     </table>
+                    <div id="campaignsPagination"
+                        style="margin-top: 24px; display: flex; justify-content: center; gap: 8px;"></div>
                 </div>
             </div>
 
@@ -594,6 +606,8 @@
                             </tbody>
                         </table>
                     </div>
+                    <div id="rankingsPagination"
+                        style="margin-top: 24px; display: flex; justify-content: center; gap: 8px;"></div>
                 </div>
             </div>
         </main>
@@ -620,7 +634,12 @@
             rankingsFilters: [],
             rankingsSort: { colId: 'siteName', direction: 'asc' },
             backlinks: [],
-            vendors: []
+            vendors: [],
+            // Pagination
+            mondayPage: 1,
+            mondayPageSize: 50,
+            rankingsPage: 1,
+            rankingsPageSize: 50
         };
 
         // Tab Management
@@ -1014,8 +1033,34 @@
             });
 
             const allColIds = Object.keys(columnMap);
+
+            // Default visibility: exclude SEM, PMD, MB, SUBITEMS
             if (state.mondayVisibleCols.length === 0) {
-                state.mondayVisibleCols = [...allColIds];
+                state.mondayVisibleCols = allColIds.filter(id => {
+                    const title = (columnMap[id] || '').toUpperCase();
+                    return !['SEM', 'PMD', 'MB', 'SUBITEMS'].some(term => title.includes(term));
+                });
+            }
+
+            // Ensure default filters are present if not already modified by user
+            const projectTypeColId = allColIds.find(id => {
+                const title = (columnMap[id] || '').toUpperCase();
+                return title.includes('PROJECT') && title.includes('TYPE');
+            });
+            const statusColId = allColIds.find(id => {
+                const title = (columnMap[id] || '').toUpperCase();
+                return title.includes('CAMPAIGN') && title.includes('STATUS');
+            });
+
+            if (projectTypeColId && !state.mondayFilters.some(f => f.colId === projectTypeColId)) {
+                state.mondayFilters.push({ colId: projectTypeColId, operator: 'includes', value: 'seo' });
+            }
+            if (statusColId) {
+                ['Expired', 'Terminated', 'Abandoned'].forEach(val => {
+                    if (!state.mondayFilters.some(f => f.colId === statusColId && f.value === val)) {
+                        state.mondayFilters.push({ colId: statusColId, operator: 'excludes', value: val });
+                    }
+                });
             }
 
             const visibleColIds = state.mondayVisibleCols;
@@ -1059,7 +1104,7 @@
                 });
             }
 
-            // Sort
+            // Apply Sorting
             const { colId, direction } = state.mondaySort;
             if (colId) {
                 filtered.sort((a, b) => {
@@ -1079,8 +1124,16 @@
                 });
             }
 
+            // Pagination
+            const totalItems = filtered.length;
+            const totalPages = Math.ceil(totalItems / state.mondayPageSize);
+            if (state.mondayPage > totalPages) state.mondayPage = Math.max(1, totalPages);
+
+            const startIdx = (state.mondayPage - 1) * state.mondayPageSize;
+            const paginated = filtered.slice(startIdx, startIdx + state.mondayPageSize);
+
             // Render Body
-            body.innerHTML = filtered.map(item => {
+            body.innerHTML = paginated.map(item => {
                 const values = visibleColIds.map(id => {
                     const cv = item.column_values.find(v => v.id === id);
                     return `<td>${cv ? (cv.text || '') : ''}</td>`;
@@ -1093,8 +1146,56 @@
                 `;
             }).join('');
 
+            renderPagination('campaignsPagination', state.mondayPage, totalPages, (p) => {
+                state.mondayPage = p;
+                renderMondayItems();
+            });
+
             updateTableControlsUI(columnMap);
-            document.querySelector('#campaignsTab h3').innerText = `Integrated Campaign Info Repository (${filtered.length} items)`;
+            document.querySelector('#campaignsTab h3').innerText = `Integrated Campaign Info Repository (${totalItems} items)`;
+        }
+
+        function renderPagination(containerId, currentPage, totalPages, onPageChange) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
+            let html = `
+                <button class="btn" style="padding: 6px 12px; background: ${currentPage === 1 ? 'rgba(255,255,255,0.05)' : 'rgba(99,102,241,0.1)'}; color: ${currentPage === 1 ? 'var(--text-dim)' : 'white'};" ${currentPage === 1 ? 'disabled' : `onclick="(${onPageChange})(1)"`}>
+                    <i class="fas fa-angle-double-left"></i>
+                </button>
+                <button class="btn" style="padding: 6px 12px; background: ${currentPage === 1 ? 'rgba(255,255,255,0.05)' : 'rgba(99,102,241,0.1)'}; color: ${currentPage === 1 ? 'var(--text-dim)' : 'white'};" ${currentPage === 1 ? 'disabled' : `onclick="(${onPageChange})(${currentPage - 1})"`}>
+                    <i class="fas fa-angle-left"></i>
+                </button>
+            `;
+
+            // Max 5 page buttons
+            let startPage = Math.max(1, currentPage - 2);
+            let endPage = Math.min(totalPages, startPage + 4);
+            if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+
+            for (let i = startPage; i <= endPage; i++) {
+                html += `
+                    <button class="btn" style="padding: 6px 12px; background: ${i === currentPage ? 'var(--primary)' : 'rgba(99,102,241,0.1)'}; color: white;" onclick="(${onPageChange})(${i})">
+                        ${i}
+                    </button>
+                `;
+            }
+
+            html += `
+                <button class="btn" style="padding: 6px 12px; background: ${currentPage === totalPages ? 'rgba(255,255,255,0.05)' : 'rgba(99,102,241,0.1)'}; color: ${currentPage === totalPages ? 'var(--text-dim)' : 'white'};" ${currentPage === totalPages ? 'disabled' : `onclick="(${onPageChange})(${currentPage + 1})"`}>
+                    <i class="fas fa-angle-right"></i>
+                </button>
+                <button class="btn" style="padding: 6px 12px; background: ${currentPage === totalPages ? 'rgba(255,255,255,0.05)' : 'rgba(99,102,241,0.1)'}; color: ${currentPage === totalPages ? 'var(--text-dim)' : 'white'};" ${currentPage === totalPages ? 'disabled' : `onclick="(${onPageChange})(${totalPages})"`}>
+                    <i class="fas fa-angle-double-right"></i>
+                </button>
+            `;
+
+            container.innerHTML = html;
         }
 
         function getSortIcon(colId) {
@@ -1103,6 +1204,7 @@
         }
 
         function sortMonday(colId) {
+            state.mondayPage = 1; // Reset to page 1 on sort
             if (state.mondaySort.colId === colId) {
                 state.mondaySort.direction = state.mondaySort.direction === 'asc' ? 'desc' : 'asc';
             } else {
@@ -1151,17 +1253,20 @@
         }
 
         function addFilterRule() {
+            state.mondayPage = 1; // Reset to page 1 on filter add
             const colId = Object.keys(state.cachedColumnMap)[0] || 'name';
             state.mondayFilters.push({ colId, operator: 'includes', value: '' });
             renderMondayItems();
         }
 
         function updateRule(idx, field, val) {
+            state.mondayPage = 1; // Reset to page 1 on filter update
             state.mondayFilters[idx][field] = val;
             renderMondayItems();
         }
 
         function removeRule(idx) {
+            state.mondayPage = 1; // Reset to page 1 on filter remove
             state.mondayFilters.splice(idx, 1);
             renderMondayItems();
         }
@@ -1512,6 +1617,7 @@
         }
 
         function sortRankings(colId) {
+            state.rankingsPage = 1; // Reset to page 1 on sort
             if (state.rankingsSort.colId === colId) {
                 state.rankingsSort.direction = state.rankingsSort.direction === 'asc' ? 'desc' : 'asc';
             } else {
@@ -1594,16 +1700,19 @@
         }
 
         function addRankingsFilter() {
+            state.rankingsPage = 1; // Reset to page 1
             state.rankingsFilters.push({ colId: 'keyword', operator: 'includes', value: '' });
             renderRankingsTable();
         }
 
         function updateRankingsFilter(idx, field, val) {
+            state.rankingsPage = 1; // Reset to page 1
             state.rankingsFilters[idx][field] = val;
             renderRankingsTable();
         }
 
         function removeRankingsFilter(idx) {
+            state.rankingsPage = 1; // Reset to page 1
             state.rankingsFilters.splice(idx, 1);
             renderRankingsTable();
         }
@@ -1662,7 +1771,15 @@
                 });
             }
 
-            body.innerHTML = filtered.map(item => `
+            // Pagination
+            const totalItems = filtered.length;
+            const totalPages = Math.ceil(totalItems / state.rankingsPageSize);
+            if (state.rankingsPage > totalPages) state.rankingsPage = Math.max(1, totalPages);
+
+            const startIdx = (state.rankingsPage - 1) * state.rankingsPageSize;
+            const paginated = filtered.slice(startIdx, startIdx + state.rankingsPageSize);
+
+            body.innerHTML = paginated.map(item => `
                 <tr>
                     <td><span style="color: var(--primary-light); font-weight: 500;">${item.siteName}</span></td>
                     <td><strong>${item.keyword}</strong></td>
@@ -1671,6 +1788,11 @@
                     <td style="font-weight: 600;">${item.rank}</td>
                 </tr>
             `).join('');
+
+            renderPagination('rankingsPagination', state.rankingsPage, totalPages, (p) => {
+                state.rankingsPage = p;
+                renderRankingsTable();
+            });
 
             updateRankingsHeaderUI();
             renderRankingsControls();
