@@ -763,6 +763,7 @@
             user: null,
             campaigns: [],
             mondayItems: [],
+            mondayColsInitialized: false,
             mondayFilters: [], // Rules: { colId, operator, value }
             mondaySort: { colId: null, direction: 'asc' },
             mondayVisibleCols: [],
@@ -785,16 +786,32 @@
         // Tab Management
         function showTab(tabId) {
             document.querySelectorAll('.content-tab').forEach(t => t.style.display = 'none');
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(tabId + 'Tab').style.display = 'block';
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            const nav = Array.from(document.querySelectorAll('.nav-item')).find(i => i.onclick.toString().includes(tabId));
+            if (nav) nav.classList.add('active');
 
-            const tab = document.getElementById(tabId + 'Tab');
-            if (tab) tab.style.display = 'block';
+            const titleMap = {
+                'dashboard': 'Dashboard',
+                'campaigns': 'Campaign Info Repository',
+                'orders': 'Backlink Orders',
+                'vendors': 'User Management',
+                'validator': 'Bulk Backlink Validator',
+                'rankings': 'Keyword Rankings Overview'
+            };
+            document.getElementById('pageTitle').innerText = titleMap[tabId] || 'Dashboard';
+
             if (tabId === 'rankings' && state.seRankingSites.length === 0) {
                 fetchFullSERankingData();
             }
+        }
 
-            document.getElementById('pageTitle').innerText = tabId.charAt(0).toUpperCase() + tabId.slice(1);
-            event.currentTarget.classList.add('active');
+        function navigateToRankings(projectName) {
+            state.rankingsSearch = projectName;
+            state.rankingsPage = 1;
+            showTab('rankings'); // Use 'rankings' as the tabId
+            renderRankingsTable();
+            renderRankingsControls();
         }
 
         // Auth Logic (Placeholder - modeled after recruitment.html)
@@ -1130,6 +1147,7 @@
             if (importBtn) importBtn.disabled = true;
 
             state.mondayItems = []; // Reset current view
+            state.mondayColsInitialized = false; // Allow defaults to re-apply
             let cursor = null;
             let page = 1;
 
@@ -1174,12 +1192,13 @@
 
             const allColIds = Object.keys(columnMap);
 
-            // Default visibility: exclude SEM, PMD, MB, SUBITEMS
-            if (state.mondayVisibleCols.length === 0) {
+            // Default visibility: exclude SEM, PMD, MB, SUBITEMS, SMM
+            if (!state.mondayColsInitialized && state.mondayVisibleCols.length === 0) {
                 state.mondayVisibleCols = allColIds.filter(id => {
                     const title = (columnMap[id] || '').toUpperCase();
                     return !['SEM', 'PMD', 'MB', 'SUBITEMS', 'SMM'].some(term => title.includes(term));
                 });
+                state.mondayColsInitialized = true;
             }
 
             // Ensure default filters are present if not already modified by user
@@ -1202,6 +1221,12 @@
                     }
                 });
             }
+
+            // Identify SE Ranking Project Name column for linking
+            const seRankingColId = allColIds.find(id => {
+                const title = (columnMap[id] || '').toUpperCase();
+                return title.includes('SE RANKING') && title.includes('PROJECT') && title.includes('NAME');
+            });
 
             const visibleColIds = state.mondayVisibleCols;
             const table = document.getElementById('campaignsTable');
@@ -1276,11 +1301,18 @@
             body.innerHTML = paginated.map(item => {
                 const values = visibleColIds.map(id => {
                     const cv = item.column_values.find(v => v.id === id);
-                    return `<td>${cv ? (cv.text || '') : ''}</td>`;
+                    const text = cv ? (cv.text || '') : '';
+                    if (id === seRankingColId && text) {
+                        return `<td><a href="javascript:void(0)" onclick="navigateToRankings('${text}')" style="color: var(--secondary); font-weight: 500; text-decoration: underline;">${text}</a></td>`;
+                    }
+                    return `<td>${text}</td>`;
                 }).join('');
+                const seRankingText = seRankingColId ? (item.column_values.find(v => v.id === seRankingColId)?.text || '') : '';
+                const displayName = seRankingText ? `<a href="javascript:void(0)" onclick="navigateToRankings('${seRankingText}')" style="color: white; text-decoration: none; border-bottom: 1px dashed var(--text-dim);">${item.name}</a>` : item.name;
+
                 return `
                     <tr>
-                        <td><strong>${item.name}</strong></td>
+                        <td><strong>${displayName}</strong></td>
                         ${values}
                     </tr>
                 `;
@@ -1466,6 +1498,21 @@
                 state.mondayVisibleCols.push(id);
             }
             renderMondayItems();
+            renderColumnList();
+        }
+
+        function selectAllColumns() {
+            if (!state.cachedColumnMap) return;
+            state.mondayVisibleCols = Object.keys(state.cachedColumnMap);
+            renderMondayItems();
+            renderColumnList();
+        }
+
+        function deselectAllColumns() {
+            state.mondayVisibleCols = [];
+            state.mondayColsInitialized = true; // Mark as initialized so defaults don't kick in
+            renderMondayItems();
+            renderColumnList();
         }
 
         function closeMondayModal() {
@@ -1721,7 +1768,8 @@
                                 }
 
                                 state.rankings.push({
-                                    siteName: site.name || site.url || 'Unknown',
+                                    siteName: site.title || site.name || 'Unknown',
+                                    siteUrl: site.url || '',
                                     keyword: kw.name || kw.keyword || '-',
                                     group: kw.group_id ? (groupMap[String(kw.group_id)] || 'Default') : 'Default',
                                     searchEngine: searchEngine,
@@ -1918,7 +1966,8 @@
                 const search = state.rankingsSearch.toLowerCase();
                 filtered = filtered.filter(item =>
                     String(item.keyword || '').toLowerCase().includes(search) ||
-                    String(item.siteName || '').toLowerCase().includes(search)
+                    String(item.siteName || '').toLowerCase().includes(search) ||
+                    String(item.siteUrl || '').toLowerCase().includes(search)
                 );
             }
 
