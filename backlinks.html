@@ -715,6 +715,8 @@
                                             class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
                                     <th onclick="sortRankings('keyword')" style="cursor: pointer;">Keyword <i
                                             class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
+                                    <th onclick="sortRankings('landingPage')" style="cursor: pointer;">Landing Page <i
+                                            class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
                                     <th onclick="sortRankings('group')" style="cursor: pointer;">Group <i
                                             class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
                                     <th onclick="sortRankings('searchEngine')" style="cursor: pointer;">Search Engine <i
@@ -725,7 +727,7 @@
                             </thead>
                             <tbody id="rankingsBody">
                                 <tr>
-                                    <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">
+                                    <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-dim);">
                                         Click "Refresh Data" to load rankings.
                                     </td>
                                 </tr>
@@ -1705,6 +1707,7 @@
                         const groups = (grpRes && grpRes.data) ? grpRes.data : grpRes;
                         const searchEngines = (engRes && engRes.data) ? engRes.data : engRes;
 
+
                         // Create Mappings
                         const groupMap = {};
                         if (groups && Array.isArray(groups)) {
@@ -1730,13 +1733,15 @@
                         // Robust handling for positions response (can be {} keyed by date or [{keywords: []}])
                         if (positions && typeof positions === 'object') {
                             if (Array.isArray(positions)) {
-                                // Array format: [ { date: '...', keywords: [...] } ]
-                                const firstEntry = positions[0];
-                                if (firstEntry && Array.isArray(firstEntry.keywords)) {
-                                    firstEntry.keywords.forEach(kwPos => {
-                                        latestPositionsMap[String(kwPos.id)] = kwPos;
-                                    });
-                                }
+                                // Array format: [ { site_engine_id: 1, keywords: [...] }, ... ]
+                                positions.forEach(engineEntry => {
+                                    if (Array.isArray(engineEntry.keywords)) {
+                                        engineEntry.keywords.forEach(kwPos => {
+                                            // Store by kw_id. If multiple engines, last one wins for this site's summary
+                                            latestPositionsMap[String(kwPos.id)] = kwPos;
+                                        });
+                                    }
+                                });
                             } else {
                                 // Object format: { "YYYY-MM-DD": { "kw_id": { pos: 5 } } }
                                 const dates = Object.keys(positions).sort().reverse();
@@ -1771,6 +1776,20 @@
                                     siteName: site.title || site.name || 'Unknown',
                                     siteUrl: site.url || '',
                                     keyword: kw.name || kw.keyword || '-',
+                                    landingPage: (() => {
+                                        const lp = (posData && posData.landing_pages) ? posData.landing_pages : (kw.landing_pages || null);
+                                        if (lp) {
+                                            // Handle Object Keyed by Site Engine ID
+                                            if (typeof lp === 'object' && !Array.isArray(lp)) {
+                                                const engId = (kw.site_engine_ids && kw.site_engine_ids[0]) ? String(kw.site_engine_ids[0]) : Object.keys(lp)[0];
+                                                if (engId && lp[engId] && lp[engId].url) return lp[engId].url;
+                                                if (lp.url) return lp.url;
+                                            }
+                                            // Handle Array Format (User Example)
+                                            if (Array.isArray(lp) && lp[0] && lp[0].url) return lp[0].url;
+                                        }
+                                        return kw.target_url || '-';
+                                    })(),
                                     group: kw.group_id ? (groupMap[String(kw.group_id)] || 'Default') : 'Default',
                                     searchEngine: searchEngine,
                                     rank: rank
@@ -1826,6 +1845,7 @@
                 const colMap = {
                     'Campaign': 'siteName',
                     'Keyword': 'keyword',
+                    'Landing Page': 'landingPage',
                     'Group': 'group',
                     'Search Engine': 'searchEngine',
                     'Latest Rank': 'rank'
@@ -1934,7 +1954,7 @@
             if (!body) return;
 
             if (state.rankings.length === 0) {
-                body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">No data available. Click "Refresh Data" to sync.</td></tr>';
+                body.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-dim);">No data available. Click "Refresh Data" to sync.</td></tr>';
                 renderRankingsControls();
                 return;
             }
@@ -1967,7 +1987,8 @@
                 filtered = filtered.filter(item =>
                     String(item.keyword || '').toLowerCase().includes(search) ||
                     String(item.siteName || '').toLowerCase().includes(search) ||
-                    String(item.siteUrl || '').toLowerCase().includes(search)
+                    String(item.siteUrl || '').toLowerCase().includes(search) ||
+                    String(item.landingPage || '').toLowerCase().includes(search)
                 );
             }
 
@@ -2011,6 +2032,15 @@
                 <tr>
                     <td><span style="color: var(--primary-light); font-weight: 500;">${item.siteName}</span></td>
                     <td><strong>${item.keyword}</strong></td>
+                    <td>
+                        ${item.landingPage && item.landingPage !== '-' ?
+                    `<a href="${item.landingPage}" target="_blank" style="font-size: 0.75rem; color: var(--secondary); text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                             <i class="fas fa-external-link-alt" style="font-size: 0.7rem;"></i> 
+                             ${item.landingPage.length > 30 ? item.landingPage.substring(0, 30) + '...' : item.landingPage}
+                           </a>` :
+                    `<span style="font-size: 0.75rem; color: var(--text-dim);">-</span>`
+                }
+                    </td>
                     <td><span class="badge" style="background: rgba(99, 102, 241, 0.2)">${item.group}</span></td>
                     <td style="font-size: 0.8rem; color: var(--text-dim);">${item.searchEngine}</td>
                     <td style="font-weight: 600;">${item.rank}</td>

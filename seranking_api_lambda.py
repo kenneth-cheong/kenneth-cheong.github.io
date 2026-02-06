@@ -40,8 +40,8 @@ def lambda_handler(event, context):
         elif action == 'get_positions':
             if not site_id:
                 return response(400, {"error": "Missing siteId"})
-            # Fetching latest positions
-            url = f"{SERANKING_API_URL}/sites/{site_id}/positions"
+            # Fetching latest positions with landing pages
+            url = f"{SERANKING_API_URL}/sites/{site_id}/positions?with_landing_pages=1"
             res = requests.get(url, headers=headers)
         elif action == 'get_search_engines':
             if not site_id:
