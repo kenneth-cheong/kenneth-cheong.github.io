@@ -620,6 +620,19 @@
         const SERANKING_URL = 'https://u2u2ptqaxd.execute-api.ap-southeast-1.amazonaws.com/seRanking';
         const GOOGLE_CLIENT_ID = '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com';
 
+        // Helpers
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
         let state = {
             user: null,
             campaigns: [],
@@ -632,6 +645,7 @@
             seRankingSites: [],
             rankings: [],
             rankingsFilters: [],
+            rankingsSearch: '',
             rankingsSort: { colId: 'siteName', direction: 'asc' },
             backlinks: [],
             vendors: [],
@@ -1599,6 +1613,7 @@
                 });
 
                 await Promise.all(fetchPromises);
+                renderRankingsControls();
 
                 if (state.rankings.length === 0) {
                     body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">No keywords found in any of the processed campaigns. Please check SE Ranking settings for these sites.</td></tr>';
@@ -1663,6 +1678,14 @@
 
             // Only render if empty or if we want to refresh (here we just refresh for simplicity)
             container.innerHTML = `
+                <div style="margin-bottom: 16px;">
+                    <div style="position: relative;">
+                        <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 0.9rem;"></i>
+                        <input type="text" id="rankingsKeywordSearch" placeholder="Search by keyword..." 
+                            style="width: 100%; padding: 12px 12px 12px 40px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border); border-radius: 12px; color: white; outline: none;"
+                            oninput="handleRankingsSearch(this.value)" value="${state.rankingsSearch || ''}">
+                    </div>
+                </div>
                 <div style="padding: 20px; background: rgba(15, 23, 42, 0.4); border-radius: 12px; border: 1px solid var(--border);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                         <label style="font-size: 0.85rem; font-weight: 600;">Rankings Filters</label>
@@ -1699,22 +1722,37 @@
             `;
         }
 
+        const debouncedRenderRankingsTable = debounce(() => renderRankingsTable(), 300);
+
+        function handleRankingsSearch(val) {
+            state.rankingsSearch = val;
+            state.rankingsPage = 1;
+            debouncedRenderRankingsTable();
+        }
+
         function addRankingsFilter() {
             state.rankingsPage = 1; // Reset to page 1
             state.rankingsFilters.push({ colId: 'keyword', operator: 'includes', value: '' });
             renderRankingsTable();
+            renderRankingsControls();
         }
 
         function updateRankingsFilter(idx, field, val) {
             state.rankingsPage = 1; // Reset to page 1
             state.rankingsFilters[idx][field] = val;
-            renderRankingsTable();
+            if (field === 'value') {
+                debouncedRenderRankingsTable();
+            } else {
+                renderRankingsTable();
+                renderRankingsControls();
+            }
         }
 
         function removeRankingsFilter(idx) {
             state.rankingsPage = 1; // Reset to page 1
             state.rankingsFilters.splice(idx, 1);
             renderRankingsTable();
+            renderRankingsControls();
         }
 
         function renderRankingsTable() {
@@ -1747,6 +1785,14 @@
                         }
                     });
                 });
+            }
+
+            // Apply Global Search (Keyword)
+            if (state.rankingsSearch) {
+                const search = state.rankingsSearch.toLowerCase();
+                filtered = filtered.filter(item =>
+                    String(item.keyword || '').toLowerCase().includes(search)
+                );
             }
 
             // Apply Sorting
@@ -1795,7 +1841,6 @@
             });
 
             updateRankingsHeaderUI();
-            renderRankingsControls();
         }
     </script>
     <!-- User Modal -->
