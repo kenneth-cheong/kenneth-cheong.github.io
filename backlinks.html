@@ -159,11 +159,15 @@
         .main-content {
             flex: 1;
             padding: 40px;
-            max-width: 1400px;
-            margin: 0 auto 0 80px;
+            margin-left: 80px;
             /* Offset for collapsed sidebar */
             width: calc(100% - 80px);
             transition: margin-left 0.3s, width 0.3s;
+        }
+
+        .sidebar:hover~.main-content {
+            margin-left: 280px;
+            width: calc(100% - 280px);
         }
 
         .page-header {
@@ -354,7 +358,123 @@
         }
 
         .form-group input:focus {
-            border-color: var(--primary);
+            border: 1px solid var(--border);
+        }
+
+        .flex-resp {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .flex-resp {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        @media (max-width: 768px) {
+            .filter-row>* {
+                flex: 1 1 100% !important;
+                width: 100% !important;
+            }
+
+            .filter-row button {
+                flex: 0 0 auto !important;
+                width: auto !important;
+                margin-left: auto;
+            }
+        }
+
+        /* Responsive Styles */
+        .mobile-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            z-index: 1001;
+        }
+
+        @media (max-width: 1024px) {
+            .sidebar {
+                transform: translateX(-100%);
+                width: 280px !important;
+            }
+
+            .sidebar.active {
+                transform: translateX(0);
+            }
+
+            .sidebar.active span,
+            .sidebar.active .user-details {
+                opacity: 1 !important;
+            }
+
+            .main-content {
+                margin-left: 0;
+                width: 100%;
+                padding: 24px;
+            }
+
+            .mobile-toggle {
+                display: block;
+            }
+
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.5);
+                backdrop-filter: blur(4px);
+                z-index: 999;
+            }
+
+            .sidebar-overlay.active {
+                display: block;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                padding: 16px;
+            }
+
+            .login-card {
+                width: 90%;
+                padding: 32px;
+            }
+
+            #rankingsPagination,
+            #campaignsPagination,
+            #ordersPagination {
+                flex-wrap: wrap;
+                gap: 4px;
+            }
         }
     </style>
 </head>
@@ -375,6 +495,7 @@
     </div>
 
     <!-- Main App UI (hidden until login) -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileSidebar()"></div>
     <div id="app" style="display: none; width: 100%;">
         <nav class="sidebar">
             <a href="index.html" class="logo">
@@ -427,7 +548,12 @@
 
         <main class="main-content">
             <header class="page-header">
-                <h1 id="pageTitle">Dashboard</h1>
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <button class="mobile-toggle" onclick="toggleMobileSidebar()">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 id="pageTitle">Dashboard</h1>
+                </div>
                 <div id="headerActions"></div>
             </header>
 
@@ -451,8 +577,7 @@
 
             <div id="campaignsTab" class="content-tab" style="display: none;">
                 <div class="card">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <div class="flex-resp" style="margin-bottom: 24px;">
                         <h3>Active Campaigns</h3>
                         <div style="display: flex; align-items: center; gap: 16px;">
                             <span id="syncStatus"
@@ -460,7 +585,7 @@
                                 <i class="fas fa-spinner fa-spin"></i> Syncing...
                             </span>
                             <button class="btn btn-primary" onclick="openMondayModal()" id="importBtn">
-                                <i class="fas fa-plus"></i> Import from Monday
+                                <i class="fas fa-download"></i> Get From Monday
                             </button>
                         </div>
                     </div>
@@ -482,8 +607,8 @@
 
             <div id="ordersTab" class="content-tab" style="display: none;">
                 <div class="card">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <div class="flex-resp" style="margin-bottom: 24px;">
+
                         <h3>Backlink Orders</h3>
                         <button class="btn btn-primary" onclick="createOrder()">
                             <i class="fas fa-plus"></i> New Order
@@ -561,8 +686,7 @@
 
             <div id="rankingsTab" class="content-tab" style="display: none;">
                 <div class="card">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <div class="flex-resp" style="margin-bottom: 24px;">
                         <div>
                             <h3>Keyword Rankings Overview <span id="rankingsResultsCount"
                                     style="font-size: 0.85rem; font-weight: 500; color: var(--primary-light); margin-left: 10px; background: rgba(99, 102, 241, 0.1); padding: 2px 10px; border-radius: 20px;"></span>
@@ -1054,7 +1178,7 @@
             if (state.mondayVisibleCols.length === 0) {
                 state.mondayVisibleCols = allColIds.filter(id => {
                     const title = (columnMap[id] || '').toUpperCase();
-                    return !['SEM', 'PMD', 'MB', 'SUBITEMS'].some(term => title.includes(term));
+                    return !['SEM', 'PMD', 'MB', 'SUBITEMS', 'SMM'].some(term => title.includes(term));
                 });
             }
 
@@ -1297,7 +1421,7 @@
             }
 
             container.innerHTML = state.mondayFilters.map((rule, idx) => `
-                <div style="display: flex; gap: 10px; align-items: center; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--border);">
+                <div class="filter-row">
                     <select style="flex: 1; padding: 6px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 4px;" onchange="updateRule(${idx}, 'colId', this.value)">
                         <option value="name" ${rule.colId === 'name' ? 'selected' : ''}>Item Name</option>
                         ${Object.keys(state.cachedColumnMap).map(id => `<option value="${id}" ${rule.colId === id ? 'selected' : ''}>${state.cachedColumnMap[id]}</option>`).join('')}
@@ -1689,7 +1813,7 @@
                     </div>
                 </div>
                 <div style="padding: 20px; background: rgba(15, 23, 42, 0.4); border-radius: 12px; border: 1px solid var(--border);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <div class="flex-resp" style="margin-bottom: 12px;">
                         <label style="font-size: 0.85rem; font-weight: 600;">Rankings Filters</label>
                         <button class="btn btn-primary" style="padding: 4px 12px; font-size: 0.75rem;" onclick="addRankingsFilter()">+ Add Filter</button>
                     </div>
@@ -1697,7 +1821,7 @@
                         ${state.rankingsFilters.length === 0 ?
                     '<p style="font-size: 0.8rem; color: var(--text-dim); text-align: center; padding: 10px; border: 1px dashed var(--border); border-radius: 8px;">No filters applied.</p>' :
                     state.rankingsFilters.map((rule, idx) => `
-                            <div style="display: flex; gap: 10px; align-items: center; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--border);">
+                            <div class="filter-row">
                                 <select style="flex: 1; padding: 6px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 4px;" onchange="updateRankingsFilter(${idx}, 'colId', this.value)">
                                     <option value="siteName" ${rule.colId === 'siteName' ? 'selected' : ''}>Campaign</option>
                                     <option value="keyword" ${rule.colId === 'keyword' ? 'selected' : ''}>Keyword</option>
