@@ -564,7 +564,9 @@
                     <div
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <div>
-                            <h3>Keyword Rankings Overview</h3>
+                            <h3>Keyword Rankings Overview <span id="rankingsResultsCount"
+                                    style="font-size: 0.85rem; font-weight: 500; color: var(--primary-light); margin-left: 10px; background: rgba(99, 102, 241, 0.1); padding: 2px 10px; border-radius: 20px;"></span>
+                            </h3>
                             <p style="font-size: 0.85rem; color: var(--text-dim); margin-top: 4px;">Consolidated view of
                                 all SE Ranking campaigns and keyword performance.</p>
                         </div>
@@ -1681,7 +1683,7 @@
                 <div style="margin-bottom: 16px;">
                     <div style="position: relative;">
                         <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 0.9rem;"></i>
-                        <input type="text" id="rankingsKeywordSearch" placeholder="Search by keyword..." 
+                        <input type="text" id="rankingsKeywordSearch" placeholder="Search by keyword or campaign..." 
                             style="width: 100%; padding: 12px 12px 12px 40px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border); border-radius: 12px; color: white; outline: none;"
                             oninput="handleRankingsSearch(this.value)" value="${state.rankingsSearch || ''}">
                     </div>
@@ -1787,12 +1789,19 @@
                 });
             }
 
-            // Apply Global Search (Keyword)
+            // Apply Global Search (Keyword & Campaign)
             if (state.rankingsSearch) {
                 const search = state.rankingsSearch.toLowerCase();
                 filtered = filtered.filter(item =>
-                    String(item.keyword || '').toLowerCase().includes(search)
+                    String(item.keyword || '').toLowerCase().includes(search) ||
+                    String(item.siteName || '').toLowerCase().includes(search)
                 );
+            }
+
+            // Update Count
+            const countEl = document.getElementById('rankingsResultsCount');
+            if (countEl) {
+                countEl.innerText = `${filtered.length} results`;
             }
 
             // Apply Sorting
