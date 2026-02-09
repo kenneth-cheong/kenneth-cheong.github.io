@@ -1568,7 +1568,7 @@
                     </td>
                     <td>
                         <div style="color: var(--primary-light); font-weight: 500; cursor: pointer; border-bottom: 1px dashed var(--primary); display: inline-block;" 
-                             onclick="showKeywordTrend('${b.keyword}', '${b.campaignName}', '${b.targetUrl}')">
+                             onclick="showKeywordTrend('${b.keyword}', '${b.campaignName}', '${b.targetUrl}', '')">
                             ${b.keyword || 'No Keyword'}
                         </div>
                         <a href="${b.targetUrl}" target="_blank" style="font-size: 0.75rem; color: var(--text-dim); text-decoration: none; display: block; margin-top: 4px;">
@@ -2790,7 +2790,7 @@
                     <td><span style="color: var(--primary-light); font-weight: 500;">${item.siteName}</span></td>
                     <td>
                         <strong style="cursor: pointer; color: var(--primary-light); border-bottom: 1px dashed var(--primary);" 
-                                onclick="showKeywordTrend('${item.keyword}', '${item.siteName}', '${item.siteUrl}')">
+                                onclick="showKeywordTrend('${item.keyword}', '${item.siteName}', '${item.siteUrl}', '${item.searchEngine}')">
                             ${item.keyword}
                         </strong>
                     </td>
@@ -2819,39 +2819,60 @@
         }
 
         let trendChart = null;
-        function showKeywordTrend(keyword, siteName, siteUrl = '') {
+        function showKeywordTrend(keyword, siteName, siteUrl = '', searchEngine = '') {
             const modal = document.getElementById('trendModal');
-            document.getElementById('trendTitle').innerText = `${keyword} | ${siteName}`;
+            document.getElementById('trendTitle').innerText = `${keyword} | ${siteName} ${searchEngine ? `(${searchEngine})` : ''}`;
             modal.style.display = 'flex';
 
-            const normKeyword = String(keyword || '').toLowerCase().trim();
-            const normSiteInput = String(siteName || '').toLowerCase().trim();
-            const normUrlInput = (siteUrl || '').toLowerCase().replace(/https?:\/\//, '').replace('www.', '').split('/')[0];
+            // Helper to normalize strings for robust matching
+            const norm = (s) => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+            const getDomain = (url) => String(url || '').toLowerCase().replace(/https?:\/\//, '').replace('www.', '').split(/[/?#]/)[0];
 
-            // Filter historical data for this keyword + site (Omit rank 0 as it usually means unranked/invalid)
+            const targetKw = norm(keyword);
+            const targetSite = norm(siteName);
+            const targetDomain = getDomain(siteUrl);
+            const targetEngine = norm(searchEngine);
+
+            // Filter historical data for this keyword + site + engine
             const history = state.rankings
                 .filter(r => {
-                    const rKeyword = String(r.keyword || '').toLowerCase().trim();
-                    const rSiteName = String(r.siteName || '').toLowerCase().trim();
-                    const rSiteBaseUrl = String(r.siteUrl || '').toLowerCase().replace(/https?:\/\//, '').replace('www.', '').split('/')[0];
+                    const rKw = norm(r.keyword);
+                    const rSite = norm(r.siteName);
+                    const rDomain = getDomain(r.siteUrl);
+                    const rEngine = norm(r.searchEngine);
 
-                    if (rKeyword !== normKeyword) return false;
+                    // 1. Keyword MUST match
+                    if (rKw !== targetKw) return false;
+
+                    // 2. Rank/Date validity
                     if (r.date === '-' || r.rank == 0 || r.rank === '-') return false;
 
-                    // Matching Logic
-                    // 1. Exact Name match
-                    if (rSiteName === normSiteInput) return true;
-                    // 2. URL Match (if we have a URL)
-                    if (normUrlInput && rSiteBaseUrl && (rSiteBaseUrl.includes(normUrlInput) || normUrlInput.includes(rSiteBaseUrl))) return true;
-                    // 3. Name containment (e.g. "Insofresh" vs "Insofresh (Siji Trading)")
-                    if (normSiteInput.includes(rSiteName) || rSiteName.includes(normSiteInput)) return true;
+                    // 3. Search Engine match (if provided, otherwise group all)
+                    if (targetEngine && rEngine && rEngine !== targetEngine) return false;
 
-                    return false;
+                    // 4. Site Identity matching (Name, Domain, or Containment)
+                    const nameMatch = (rSite === targetSite || rSite.includes(targetSite) || targetSite.includes(rSite));
+                    const domainMatch = (targetDomain && rDomain && (rDomain.includes(targetDomain) || targetDomain.includes(rDomain)));
+
+                    return nameMatch || domainMatch;
                 })
                 .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-            if (history.length === 0) {
-                document.getElementById('chartContainer').innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-dim);">No historical data points found for this keyword.</div>';
+            // Deduplicate by date (if multiple engines matched, take best rank for that date)
+            const dailyData = {};
+            history.forEach(item => {
+                const date = item.date;
+                const rank = parseInt(item.rank);
+                if (!dailyData[date] || rank < dailyData[date]) {
+                    dailyData[date] = rank;
+                }
+            });
+
+            const sortedDates = Object.keys(dailyData).sort((a, b) => new Date(a) - new Date(b));
+            const chartData = sortedDates.map(d => dailyData[d]);
+
+            if (sortedDates.length === 0) {
+                document.getElementById('chartContainer').innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-dim);">No historical data points found for this keyword selection.</div>';
                 return;
             }
 
@@ -2865,10 +2886,10 @@
             trendChart = new Chart(newCtx, {
                 type: 'line',
                 data: {
-                    labels: history.map(h => h.date),
+                    labels: sortedDates,
                     datasets: [{
                         label: 'Ranking',
-                        data: history.map(h => h.rank === '-' ? null : parseInt(h.rank)),
+                        data: chartData,
                         borderColor: '#6366f1',
                         backgroundColor: 'rgba(99, 102, 241, 0.1)',
                         borderWidth: 1.5,
