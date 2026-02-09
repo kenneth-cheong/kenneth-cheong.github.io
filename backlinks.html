@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root {
             --primary: #6366f1;
@@ -488,7 +489,7 @@
                 <span style="font-size: 1.5rem">Digimetrics</span>
             </div>
             <h2 style="margin-bottom: 12px">Backlinks Manager</h2>
-            <p style="color: var(--text-dim); margin-bottom: 32px">Sign in to manage campaigns and orders</p>
+            <p style="color: var(--text-dim); margin-bottom: 32px">Sign in to manage campaigns and backlink data</p>
             <div id="googleBtnContainer"></div>
             <p id="loginError" style="color: var(--accent); margin-top: 16px; display: none; font-size: 0.85rem;"></p>
         </div>
@@ -514,7 +515,7 @@
                 </div>
                 <div class="nav-item" onclick="showTab('orders')">
                     <i class="fas fa-shopping-cart"></i>
-                    <span>Orders</span>
+                    <span>Delivered Backlinks</span>
                 </div>
                 <div class="nav-item" onclick="showTab('vendors')">
                     <i class="fas fa-users"></i>
@@ -608,25 +609,101 @@
             <div id="ordersTab" class="content-tab" style="display: none;">
                 <div class="card">
                     <div class="flex-resp" style="margin-bottom: 24px;">
+                        <h3>Delivered Backlinks</h3>
+                        <div style="display: flex; gap: 12px;">
+                            <input type="file" id="excelUpload" style="display: none;" accept=".csv, .xlsx, .xls"
+                                onchange="handleFileUpload(this)">
+                            <button class="btn btn-primary" onclick="importFromSheet()" id="importBtn">
+                                <i class="fas fa-file-csv"></i> Import CSV / Sheet
+                            </button>
+                            <button class="btn btn-primary" onclick="bulkValidateOrders()" id="bulkValidateBtn"
+                                style="display: none;">
+                                <i class="fas fa-check-double"></i> Validate Selected
+                            </button>
+                            <button class="btn" onclick="bulkDeleteOrders()" id="bulkDeleteBtn"
+                                style="display: none; background: var(--accent); color: white;">
+                                <i class="fas fa-trash-alt"></i> Delete Selected
+                            </button>
+                            <button class="btn btn-primary" onclick="createOrder()">
+                                <i class="fas fa-plus"></i> New Request
+                            </button>
+                        </div>
+                    </div>
 
-                        <h3>Backlink Orders</h3>
-                        <button class="btn btn-primary" onclick="createOrder()">
-                            <i class="fas fa-plus"></i> New Order
+                    <div class="filter-row" style="margin-bottom: 20px;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <input type="text" id="orderSearch"
+                                placeholder="Search backlinks (Campaign, Keyword, URL)..."
+                                onkeyup="debounce(filterOrders, 300)()"
+                                style="width: 100%; padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                        </div>
+                        <select id="statusFilter" onchange="filterOrders()"
+                            style="padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white; width: 140px;">
+                            <option value="all">All Status</option>
+                            <option value="Ordered">Ordered</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="Validated">Validated</option>
+                        </select>
+                        <input type="text" id="bdFilter" placeholder="Filter by BD..." onkeyup="filterOrders()"
+                            style="padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white; width: 140px;">
+                        <input type="date" id="dateFilter" onchange="filterOrders()"
+                            style="padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white; width: 140px;">
+                    </div>
+
+                    <div id="orderStats" style="margin-bottom: 12px; font-size: 0.9rem; color: var(--text-dim);">
+                        Showing 0 of 0 links
+                    </div>
+
+                    <div style="overflow-x: auto;">
+                        <table id="ordersTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;"><input type="checkbox" id="selectAllOrders"
+                                            onclick="toggleAllOrders(this)"></th>
+                                    <th>Backlink Info</th>
+                                    <th>Keyword / Target</th>
+                                    <th>Quantity</th>
+                                    <th>Delivery URL</th>
+                                    <th>DA (Ven/Ver)</th>
+                                    <th>Status / History</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ordersBody"></tbody>
+                        </table>
+                    </div>
+                    <div id="ordersPagination"
+                        style="margin-top: 24px; display: flex; justify-content: center; gap: 8px;"></div>
+                </div>
+
+                <div class="card" style="margin-top: 24px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3>Import History</h3>
+                        <button class="btn" style="padding: 6px 12px; font-size: 0.8rem;"
+                            onclick="fetchImportHistory()">
+                            <i class="fas fa-sync"></i> Refresh
                         </button>
                     </div>
-                    <table id="ordersTable">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Campaign</th>
-                                <th>Vendor</th>
-                                <th>Quantity</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ordersBody"></tbody>
-                    </table>
+                    <div style="overflow-x: auto;">
+                        <table style="font-size: 0.85rem;">
+                            <thead>
+                                <tr>
+                                    <th>Source / Filename</th>
+                                    <th>Imported By</th>
+                                    <th>Timestamp</th>
+                                    <th>Links</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="importHistoryBody">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; padding: 20px; color: var(--text-dim);">
+                                        No import history found.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -781,11 +858,36 @@
             // Pagination
             mondayPage: 1,
             mondayPageSize: 50,
-            rankingsPage: 1,
-            rankingsPageSize: 50
+            rankingsPageSize: 50,
+            selectedOrders: [],
+            orderFilters: { search: '', status: 'all', bd: '', date: '' },
+            googleToken: null,
+            ordersPage: 1,
+            ordersPageSize: 20,
+            importHistory: []
         };
 
-        // Tab Management
+        function completeLogin() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('app').style.display = 'flex';
+            document.getElementById('userName').innerText = state.user.name;
+            document.getElementById('userAvatar').innerText = state.user.name.charAt(0);
+
+            // Staff vs Vendor Role Check
+            state.role = state.user.email.toLowerCase().includes('mediaone') ? 'Staff' : 'Vendor';
+            document.getElementById('userRole').innerText = state.role;
+
+            if (state.role === 'Vendor') {
+                // Hide staff-only tabs if necessary, or just restrict actions
+                document.getElementById('importBtn').style.display = 'none';
+            }
+
+            fetchCampaigns();
+            fetchOrders();
+            fetchUsers();
+            fetchImportHistory();
+        }
+
         function showTab(tabId) {
             document.querySelectorAll('.content-tab').forEach(t => t.style.display = 'none');
             document.getElementById(tabId + 'Tab').style.display = 'block';
@@ -796,7 +898,7 @@
             const titleMap = {
                 'dashboard': 'Dashboard',
                 'campaigns': 'Campaign Info Repository',
-                'orders': 'Backlink Orders',
+                'orders': 'Delivered Backlinks',
                 'vendors': 'User Management',
                 'validator': 'Bulk Backlink Validator',
                 'rankings': 'Keyword Rankings Overview'
@@ -816,27 +918,37 @@
             renderRankingsControls();
         }
 
-        // Auth Logic (Placeholder - modeled after recruitment.html)
+        let tokenClient;
+
         function initAuth() {
             const stored = localStorage.getItem('googleUser');
             if (stored) {
                 state.user = JSON.parse(stored);
                 completeLogin();
-            } else {
-                google.accounts.id.initialize({
-                    client_id: GOOGLE_CLIENT_ID,
-                    callback: handleCredentialResponse
-                });
+            }
+
+            // GSI Login Client
+            google.accounts.id.initialize({
+                client_id: GOOGLE_CLIENT_ID,
+                callback: handleCredentialResponse
+            });
+
+            if (!stored) {
                 google.accounts.id.renderButton(
                     document.getElementById('googleBtnContainer'),
                     { theme: "outline", size: "large", shape: "pill" }
                 );
             }
+
+            // OAuth2 Token Client for Sheets API
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_CLIENT_ID,
+                scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+                callback: '', // defined at call time
+            });
         }
 
         function handleCredentialResponse(response) {
-            // In a real scenario, this would call the verification endpoint
-            // For now, parsing the JWT payload for demo
             const payload = JSON.parse(atob(response.credential.split('.')[1]));
             state.user = {
                 name: payload.name,
@@ -845,6 +957,240 @@
             };
             localStorage.setItem('googleUser', JSON.stringify(state.user));
             completeLogin();
+        }
+
+        async function getToken(callback) {
+            tokenClient.callback = async (resp) => {
+                if (resp.error !== undefined) throw (resp);
+                state.googleToken = resp.access_token;
+                await callback(resp.access_token);
+            };
+
+            if (!state.googleToken) {
+                tokenClient.requestAccessToken({ prompt: 'consent' });
+            } else {
+                tokenClient.requestAccessToken({ prompt: '' });
+            }
+        }
+
+        async function syncWithSheet(spreadsheetId) {
+            getToken(async (accessToken) => {
+                const range = encodeURIComponent('Backlink Building!A3:N');
+                const url = `https://sheets.googleapis.com/v1/spreadsheets/${spreadsheetId}/values/${range}`;
+                toggleLoading(true);
+                try {
+                    // Fetch metadata for title
+                    const metaUrl = `https://sheets.googleapis.com/v1/spreadsheets/${spreadsheetId}?fields=properties.title`;
+                    const metaRes = await fetch(metaUrl, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+                    const metaData = await metaRes.json();
+                    const sheetTitle = metaData.properties?.title || 'Google Sheet';
+
+                    const res = await fetch(url, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` }
+                    });
+                    const data = await res.json();
+                    if (data.values && data.values.length > 1) {
+                        const headers = data.values[0];
+                        const rows = data.values.slice(1);
+                        await processSheetData(rows, headers, sheetTitle);
+                    }
+                } catch (err) {
+                    console.error("Sheet Sync Error:", err);
+                    alert("Failed to sync with Google Sheet. Ensure the sheet name is 'Backlink Building' and data starts from A4.");
+                } finally {
+                    toggleLoading(false);
+                }
+            });
+        }
+
+        async function importFromSheet() {
+            // Directly trigger file upload as requested
+            document.getElementById('excelUpload').click();
+        }
+
+        async function handleFileUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            // Show loading placeholder in table
+            const body = document.getElementById('ordersBody');
+            if (body) {
+                body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">
+                    <i class="fas fa-spinner fa-spin"></i> Processing file... Building backlink records.
+                </td></tr>`;
+            }
+
+            toggleLoading(true);
+            const reader = new FileReader();
+
+            reader.onload = async (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames.find(n => n.includes('Backlink Building')) || workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const allRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    // The data starts from row 4 usually, but let's find the header row first
+                    // We look for a row containing "Order No." or "Keyword"
+                    let headerIndex = -1;
+                    for (let i = 0; i < Math.min(15, allRows.length); i++) {
+                        if (allRows[i] && allRows[i].some(cell => {
+                            const val = String(cell).toLowerCase();
+                            return val.includes('order no') || val.includes('keyword') || val.includes('campaign');
+                        })) {
+                            headerIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (headerIndex === -1) headerIndex = 3; // Fallback to 4th row (index 3) for standard reports
+
+                    const headers = allRows[headerIndex].map(h => String(h).trim());
+                    const rows = allRows.slice(headerIndex + 1);
+
+                    if (rows.length > 0) {
+                        await processSheetData(rows, headers, file.name);
+                    }
+                } catch (err) {
+                    console.error("Excel Processing Error:", err);
+                    alert("Failed to process Excel file. Please ensure it matches the backlink sheet format.");
+                    fetchOrders(); // Reload to clear placeholder
+                } finally {
+                    toggleLoading(false);
+                    input.value = '';
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        function extractDateFromSource(source) {
+            const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+            // Match "[Sept 2025]" or "Sept 2025"
+            const regex = /\[?\s*([A-Za-z]+)\s*(\d{4})\s*\]?/;
+            const match = source.match(regex);
+            if (match) {
+                const monthStr = match[1].toLowerCase().substring(0, 3);
+                const year = match[2];
+                const monthIdx = months.indexOf(monthStr);
+                if (monthIdx !== -1) {
+                    return new Date(year, monthIdx, 1).toISOString();
+                }
+            }
+            return new Date().toISOString();
+        }
+
+        async function processSheetData(rows, headers, sourceName) {
+            const orderedDate = extractDateFromSource(sourceName);
+            // Find indices of relevant columns based on headers
+            // Find indices of relevant columns based on headers - more robust version
+            const findIdx = (names) => {
+                for (const name of names) {
+                    const i = headers.findIndex(h => {
+                        const val = String(h || '').toLowerCase().trim();
+                        // Try exact match first
+                        if (val === name.toLowerCase()) return true;
+                        // Then check if it contains the name
+                        return val.includes(name.toLowerCase());
+                    });
+                    if (i !== -1) return i;
+                }
+                return -1;
+            };
+
+            const idx = {
+                orderNo: findIdx(['Order No.']),
+                campaign: findIdx(['Campaign Name', 'Campaign', 'Client']),
+                bd: findIdx(['BD']),
+                keyword: findIdx(['Keyword']),
+                target: findIdx(['Target URL']),
+                quantity: findIdx(['No. of Links', 'Quantity']),
+                backlink: findIdx(['Backlinks', 'URL']),
+                da: findIdx(['DA'])
+            };
+
+            // Collect all possible backlink and DA indices in case there are multiple
+            const allBacklinkIdx = headers.map((h, i) => i).filter(i => ['backlink', 'url'].some(n => headers[i].toLowerCase().includes(n)));
+            const allDaIdx = headers.map((h, i) => i).filter(i => headers[i].toLowerCase().includes('da'));
+
+            const importId = 'import_' + Date.now();
+            const newBacklinks = rows.flatMap((row, index) => {
+                if (!row[idx.keyword] && !row[idx.campaign] && !row[idx.orderNo]) return [];
+
+                const baseId = `sheet_${sourceName}_row_${index + 4}`;
+
+                // Find all valid links in the multiple possible backlink columns
+                const foundLinks = [];
+                for (const i of allBacklinkIdx) {
+                    if (row[i] && String(row[i]).includes('http')) {
+                        const url = String(row[i]).trim();
+                        // Find matching DA (usually next column or corresponding index in allDaIdx)
+                        const daVal = allDaIdx.find(d => d > i);
+                        const da = (daVal !== undefined && daVal < (allBacklinkIdx[allBacklinkIdx.indexOf(i) + 1] || 999))
+                            ? (parseInt(row[daVal]) || 0) : 0;
+                        foundLinks.push({ url, da });
+                    }
+                }
+
+                if (foundLinks.length === 0) {
+                    // No links built yet, just an order
+                    return [{
+                        id: baseId,
+                        importId: importId,
+                        orderNo: row[idx.orderNo] || 'N/A',
+                        campaignName: row[idx.campaign] || 'N/A',
+                        bd: row[idx.bd] || 'Unknown',
+                        keyword: row[idx.keyword] || '-',
+                        targetUrl: row[idx.target] || '-',
+                        quantity: row[idx.quantity] || 1,
+                        deliveredUrl: '',
+                        vendorDa: row[idx.da] || 0,
+                        status: 'Ordered',
+                        createdAt: orderedDate,
+                        deleted: false
+                    }];
+                }
+
+                // If multiple links exist, split them into separate records
+                return foundLinks.map((link, lIdx) => ({
+                    id: `${baseId}_link_${lIdx}`,
+                    importId: importId,
+                    orderNo: row[idx.orderNo] || 'N/A',
+                    campaignName: row[idx.campaign] || 'N/A',
+                    bd: row[idx.bd] || 'Unknown',
+                    keyword: row[idx.keyword] || '-',
+                    targetUrl: row[idx.target] || '-',
+                    quantity: 1, // Individual link constitutes 1 unit
+                    deliveredUrl: link.url,
+                    vendorDa: link.da || row[idx.da] || 0,
+                    status: 'Delivered',
+                    createdAt: orderedDate,
+                    deleted: false
+                }));
+            });
+
+            // Parallelize to speed up (chunked to avoid hitting limits)
+            const chunks = [];
+            for (let i = 0; i < newBacklinks.length; i += 5) {
+                chunks.push(newBacklinks.slice(i, i + 5));
+            }
+
+            for (const chunk of chunks) {
+                await Promise.all(chunk.map(bl => apiCall(PERSISTENCE_URL, 'upsert_backlink', bl)));
+            }
+
+            // Log import event
+            await apiCall(PERSISTENCE_URL, 'upsert_import_history', {
+                id: importId,
+                source: sourceName,
+                user: state.user?.name || 'Unknown',
+                timestamp: new Date().toISOString(),
+                count: newBacklinks.length
+            });
+
+            fetchOrders();
+            fetchImportHistory();
         }
 
         // API Helpers
@@ -880,16 +1226,24 @@
 
         async function fetchCampaigns() {
             const data = await apiCall(PERSISTENCE_URL, 'get_campaigns');
-            if (data) {
+            if (data && Array.isArray(data)) {
                 state.campaigns = data;
+                renderCampaigns();
+            } else if (data) {
+                const list = data.campaigns || data.items || [];
+                state.campaigns = Array.isArray(list) ? list : [];
                 renderCampaigns();
             }
         }
 
         async function fetchUsers() {
             const data = await apiCall(PERSISTENCE_URL, 'get_users');
-            if (data) {
+            if (data && Array.isArray(data)) {
                 state.vendors = data;
+                renderUsers();
+            } else if (data) {
+                const list = data.users || data.items || [];
+                state.vendors = Array.isArray(list) ? list : [];
                 renderUsers();
             }
         }
@@ -948,30 +1302,348 @@
             if (result && result.success) fetchCampaigns();
         }
 
+        async function fetchImportHistory() {
+            const data = await apiCall(PERSISTENCE_URL, 'get_import_history');
+            if (data && Array.isArray(data)) {
+                state.importHistory = data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                renderImportHistory();
+            } else if (data) {
+                // If data is an object but not an array, check if it contains a list
+                const list = data.history || data.items || [];
+                state.importHistory = Array.isArray(list) ? list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)) : [];
+                renderImportHistory();
+            }
+        }
+
+        function renderImportHistory() {
+            const body = document.getElementById('importHistoryBody');
+            if (!body) return;
+
+            if (state.importHistory.length === 0) {
+                body.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--text-dim);">No import history found.</td></tr>';
+                return;
+            }
+
+            body.innerHTML = state.importHistory.map(h => `
+                <tr>
+                    <td><i class="fas fa-file-excel" style="color: #10b981; margin-right: 8px;"></i> ${h.source}</td>
+                    <td>${h.user}</td>
+                    <td>${new Date(h.timestamp).toLocaleString()}</td>
+                    <td><span class="badge" style="background: rgba(99, 102, 241, 0.1); color: var(--primary-light);">${h.count} links</span></td>
+                    <td>
+                        ${state.role === 'Staff' ? `
+                            <button class="btn" style="padding: 4px 8px; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);" 
+                                onclick="deleteImport('${h.id}')">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        ` : '-'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function deleteImport(importId) {
+            console.log("Requesting deletion of import:", importId);
+            if (!confirm("Are you sure you want to delete this import? This will also remove all backlinks associated with it.")) return;
+
+            toggleLoading(true);
+            try {
+                const res = await apiCall(PERSISTENCE_URL, 'delete_import', { id: importId });
+                console.log("Delete Import Response:", res);
+
+                if (res && (res.success || res.id)) {
+                    alert("Import and associated backlinks successfully deleted.");
+                    await fetchImportHistory();
+                    await fetchOrders();
+                } else {
+                    const msg = res?.error || res?.message || "Unknown error";
+                    alert("Failed to delete: " + msg);
+                    // Still refresh just in case
+                    await fetchImportHistory();
+                    await fetchOrders();
+                }
+            } catch (err) {
+                console.error("Delete import error:", err);
+                alert("Failed to delete import history.");
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
         async function fetchOrders() {
             const data = await apiCall(PERSISTENCE_URL, 'get_backlinks');
-            if (data) {
+            if (data && Array.isArray(data)) {
                 state.backlinks = data;
+                renderOrders();
+                updateDashboard();
+            } else if (data) {
+                const list = data.backlinks || data.items || [];
+                state.backlinks = Array.isArray(list) ? list : [];
                 renderOrders();
                 updateDashboard();
             }
         }
 
+        function filterOrders() {
+            state.orderFilters.search = document.getElementById('orderSearch').value.toLowerCase();
+            state.orderFilters.status = document.getElementById('statusFilter').value;
+            state.orderFilters.bd = document.getElementById('bdFilter').value.toLowerCase();
+            state.orderFilters.date = document.getElementById('dateFilter').value;
+            state.ordersPage = 1; // Reset to first page
+            renderOrders();
+        }
+
+        async function bulkDeleteOrders() {
+            const ids = state.selectedOrders;
+            if (ids.length === 0) return;
+            if (!confirm(`Are you sure you want to permanently delete ${ids.length} selected records?`)) return;
+
+            const body = document.getElementById('ordersBody');
+            if (body) {
+                body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">
+                    <i class="fas fa-spinner fa-spin"></i> Deleting selected backlinks... Please wait.
+                </td></tr>`;
+            }
+
+            toggleLoading(true);
+            for (const id of ids) {
+                await apiCall(PERSISTENCE_URL, 'upsert_backlink', { id, deleted: true });
+            }
+            alert("Bulk deletion complete.");
+            state.selectedOrders = [];
+            fetchOrders();
+            fetchImportHistory();
+        }
+
+        function toggleOrderSelection(id) {
+            const index = state.selectedOrders.indexOf(id);
+            if (index === -1) {
+                state.selectedOrders.push(id);
+            } else {
+                state.selectedOrders.splice(index, 1);
+            }
+            updateBulkActionVisibility();
+            updateSelectionStats();
+        }
+
+        function toggleAllOrders(checkbox) {
+            let filtered = state.backlinks.filter(b => {
+                const matchesSearch = !state.orderFilters.search ||
+                    (b.campaignName || '').toLowerCase().includes(state.orderFilters.search) ||
+                    (b.keyword || '').toLowerCase().includes(state.orderFilters.search) ||
+                    (b.deliveredUrl || '').toLowerCase().includes(state.orderFilters.search);
+                const matchesStatus = state.orderFilters.status === 'all' || b.status === state.orderFilters.status;
+                const matchesBD = !state.orderFilters.bd || (b.bd || '').toLowerCase().includes(state.orderFilters.bd);
+                const matchesDate = !state.orderFilters.date || (b.createdAt || '').includes(state.orderFilters.date);
+                return matchesSearch && matchesStatus && matchesBD && matchesDate;
+            });
+
+            if (checkbox.checked) {
+                filtered.forEach(b => {
+                    if (!state.selectedOrders.includes(b.id)) state.selectedOrders.push(b.id);
+                });
+            } else {
+                filtered.forEach(b => {
+                    const idx = state.selectedOrders.indexOf(b.id);
+                    if (idx !== -1) state.selectedOrders.splice(idx, 1);
+                });
+            }
+            renderOrders();
+            updateBulkActionVisibility();
+            updateSelectionStats();
+        }
+
+        function updateSelectionStats(count) {
+            const stats = document.getElementById('orderStats');
+            if (!stats) return;
+
+            if (count !== undefined) {
+                state.lastFilteredCount = count;
+            }
+
+            const total = state.backlinks.length;
+            const filtered = state.lastFilteredCount !== undefined ? state.lastFilteredCount : total;
+            const selected = state.selectedOrders.length;
+
+            let text = `Showing ${filtered} of ${total} links`;
+            if (selected > 0) {
+                text += ` | <span style="color: var(--primary-light); font-weight: 600;">${selected} selected</span>`;
+                text += ` <a href="javascript:void(0)" onclick="clearOrdersSelection()" style="color: var(--accent); font-size: 0.8rem; margin-left: 8px; text-decoration: none;">(Clear)</a>`;
+            }
+            stats.innerHTML = text;
+        }
+
+        function clearOrdersSelection() {
+            state.selectedOrders = [];
+            document.getElementById('selectAllOrders').checked = false;
+            renderOrders();
+            updateBulkActionVisibility();
+            updateSelectionStats();
+        }
+
+        function updateBulkActionVisibility() {
+            const selected = state.selectedOrders.length;
+            const valBtn = document.getElementById('bulkValidateBtn');
+            const delBtn = document.getElementById('bulkDeleteBtn');
+
+            if (valBtn) valBtn.style.display = (selected > 0 && state.role === 'Staff') ? 'inline-block' : 'none';
+            if (delBtn) delBtn.style.display = (selected > 0 && state.role === 'Staff') ? 'inline-block' : 'none';
+        }
+
         function renderOrders() {
             const body = document.getElementById('ordersBody');
-            body.innerHTML = state.backlinks.map(b => `
+
+            let filtered = state.backlinks.filter(b => {
+                const matchesSearch = !state.orderFilters.search ||
+                    (b.campaignName || '').toLowerCase().includes(state.orderFilters.search) ||
+                    (b.keyword || '').toLowerCase().includes(state.orderFilters.search) ||
+                    (b.deliveredUrl || '').toLowerCase().includes(state.orderFilters.search);
+                const matchesStatus = state.orderFilters.status === 'all' || b.status === state.orderFilters.status;
+                const matchesBD = !state.orderFilters.bd || (b.bd || '').toLowerCase().includes(state.orderFilters.bd);
+                const matchesDate = !state.orderFilters.date || (b.createdAt || '').includes(state.orderFilters.date);
+
+                return matchesSearch && matchesStatus && matchesBD && matchesDate;
+            });
+
+            // Update Counter
+            updateSelectionStats(filtered.length);
+
+            if (filtered.length === 0) {
+                body.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-dim);">No orders found.</td></tr>';
+                document.getElementById('ordersPagination').innerHTML = '';
+                return;
+            }
+
+            // Pagination Logic
+            const totalItems = filtered.length;
+            const totalPages = Math.ceil(totalItems / state.ordersPageSize);
+            const startIdx = (state.ordersPage - 1) * state.ordersPageSize;
+            const paginated = filtered.slice(startIdx, startIdx + state.ordersPageSize);
+
+            renderPagination('ordersPagination', state.ordersPage, totalPages, (p) => {
+                state.ordersPage = p;
+                renderOrders();
+            });
+
+            body.innerHTML = paginated.map(b => {
+                const date = new Date(b.createdAt).toLocaleDateString();
+                const lastValidated = b.lastValidatedAt ? new Date(b.lastValidatedAt).toLocaleDateString() : 'Never';
+
+                const isSelected = state.selectedOrders.includes(b.id);
+                return `
                 <tr>
-                    <td>${new Date(b.createdAt).toLocaleDateString()}</td>
-                    <td>${b.campaignName || 'N/A'}</td>
-                    <td>${b.vendorName || 'N/A'}</td>
-                    <td>${b.quantity}</td>
-                    <td><span class="badge" style="background: ${b.status === 'Ordered' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)'}; color: ${b.status === 'Ordered' ? '#f59e0b' : '#10b981'}; padding: 4px 12px; border-radius: 20px;">${b.status || 'Pending'}</span> ${b.deliveredUrl ? `<br><a href="${b.deliveredUrl}" target="_blank" style="font-size: 0.7rem; color: var(--primary-light)">${b.deliveredUrl}</a>` : ''}</td>
+                    <td><input type="checkbox" class="order-checkbox" value="${b.id}" onchange="toggleOrderSelection('${b.id}')" ${isSelected ? 'checked' : ''}></td>
                     <td>
-                        <button class="btn" style="padding: 4px 8px; background: transparent; border: 1px solid var(--border);" onclick="deliverOrder('${b.id}')"><i class="fas fa-truck"></i></button>
-                        <button class="btn" style="padding: 4px 8px; background: transparent; border: 1px solid var(--border); color: var(--accent);" onclick="deleteOrder('${b.id}')"><i class="fas fa-trash"></i></button>
+                        <div style="font-weight: 600;">${b.campaignName || 'Unnamed Campaign'}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-dim);">Ordered: ${date}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-dim);">BY: ${b.bd || 'N/A'}</div>
+                    </td>
+                    <td>
+                        <div style="color: var(--primary-light); font-weight: 500;">${b.keyword || 'No Keyword'}</div>
+                        <a href="${b.targetUrl}" target="_blank" style="font-size: 0.75rem; color: var(--text-dim); text-decoration: none;">
+                            <i class="fas fa-external-link-alt" style="font-size: 0.6rem;"></i> ${b.targetUrl || 'No Target URL'}
+                        </a>
+                    </td>
+                    <td>${b.quantity || 1}</td>
+                    <td>
+                        ${b.deliveredUrl ? `
+                            <a href="${b.deliveredUrl}" target="_blank" style="color: var(--secondary); text-decoration: none; word-break: break-all;">
+                                ${b.deliveredUrl.length > 40 ? b.deliveredUrl.substring(0, 40) + '...' : b.deliveredUrl}
+                            </a>
+                        ` : '<span style="color: var(--text-dim); font-style: italic;">Pending...</span>'}
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <span title="Vendor DA" style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">${b.vendorDa || b.da || '-'}</span>
+                            <i class="fas fa-arrow-right" style="font-size: 0.6rem; opacity: 0.3;"></i>
+                            <span title="Validated DA" style="background: rgba(16, 185, 129, 0.1); color: var(--secondary); padding: 2px 6px; border-radius: 4px; font-weight: 600;">${b.validatedDa || '-'}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge" style="background: ${getStatusColor(b.status)}; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.7rem;">${b.status || 'Ordered'}</span>
+                        <div style="font-size: 0.7rem; color: var(--text-dim); margin-top: 4px;">Validated: ${lastValidated}</div>
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 4px;">
+                            ${(state.role === 'Vendor' || state.role === 'Staff') && !b.deliveredUrl ? `
+                                <button class="btn" style="padding: 4px 8px; font-size: 0.8rem;" onclick="deliverOrder('${b.id}')" title="Deliver Link">
+                                    <i class="fas fa-upload"></i>
+                                </button>` : ''}
+                            
+                            ${state.role === 'Staff' && b.deliveredUrl ? `
+                                <button class="btn" style="padding: 4px 8px; font-size: 0.8rem; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--secondary);" 
+                                        onclick="validateBacklink('${b.id}')" title="Validate Now">
+                                    <i class="fas fa-search"></i>
+                                </button>` : ''}
+
+                            <button class="btn" style="padding: 4px 8px; font-size: 0.8rem; background: transparent; border: 1px solid var(--border); color: var(--accent);" 
+                                    onclick="deleteOrder('${b.id}')" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     </td>
                 </tr>
-            `).join('');
+                `;
+            }).join('');
+        }
+
+        async function validateBacklink(id) {
+            const b = state.backlinks.find(x => x.id === id);
+            if (!b || !b.deliveredUrl) return;
+
+            toggleLoading(true);
+            try {
+                // In a real app, this would be a Lambda call to check the URL
+                // For now, we simulate the validation and DA check
+                const ssl = await fetchSsl(b.deliveredUrl);
+                const metrics = await fetchMozMetrics(b.deliveredUrl);
+
+                const update = {
+                    id: id,
+                    validatedDa: metrics.DA || 25, // Mocked DA if API fails
+                    lastValidatedAt: new Date().toISOString(),
+                    status: 'Validated',
+                    ssl: ssl
+                };
+
+                const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', update);
+                if (result && result.success) fetchOrders();
+            } catch (err) {
+                console.error("Validation Error:", err);
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        async function bulkValidateOrders() {
+            const ids = state.selectedOrders;
+
+            if (ids.length === 0) return;
+            if (!confirm(`Validate ${ids.length} selected backlinks?`)) return;
+
+            const body = document.getElementById('ordersBody');
+            if (body) {
+                body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">
+                    <i class="fas fa-spinner fa-spin"></i> Validating selected backlinks... This may take a moment.
+                </td></tr>`;
+            }
+
+            toggleLoading(true);
+            for (const id of ids) {
+                await validateBacklink(id);
+            }
+            alert("Bulk validation completed.");
+            state.selectedOrders = [];
+            fetchOrders();
+        }
+
+        function getStatusColor(status) {
+            switch (status) {
+                case 'Ordered': return 'rgba(245, 158, 11, 0.4)';
+                case 'Delivered': return 'rgba(99, 102, 241, 0.4)';
+                case 'Validated': return 'rgba(16, 185, 129, 0.4)';
+                default: return 'rgba(148, 163, 184, 0.4)';
+            }
         }
 
         async function deliverOrder(id) {
@@ -998,15 +1670,30 @@
             if (result && result.success) {
                 fetchOrders();
             } else {
-                alert('Failed to update order');
+                alert('Failed to update backlink');
             }
             toggleLoading(false);
         }
 
         async function deleteOrder(id) {
-            if (!confirm('Are you sure you want to delete this order?')) return;
+            if (!confirm('Are you sure you want to delete this backlink?')) return;
+
+            const body = document.getElementById('ordersBody');
+            if (body) {
+                body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">
+                    <i class="fas fa-spinner fa-spin"></i> Deleting record...
+                </td></tr>`;
+            }
+
+            toggleLoading(true);
             const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', { id, deleted: true });
-            if (result && result.success) fetchOrders();
+            if (result && result.success) {
+                fetchOrders();
+                fetchImportHistory();
+            } else {
+                fetchOrders();
+                fetchImportHistory();
+            }
         }
 
         function orderBacklink(keyword) {
@@ -1628,18 +2315,21 @@
         }
 
         async function checkExistence(url) {
-            const res = await fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
-            });
-            return res.ok;
+            try {
+                const res = await fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                return res.ok;
+            } catch (e) {
+                return false;
+            }
         }
 
         function toggleLoading(show) {
-            // Overlay removed as per user request
-            // const overlay = document.getElementById('loadingOverlay');
-            // if (overlay) overlay.style.display = show ? 'flex' : 'none';
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.style.display = show ? 'flex' : 'none';
         }
 
         function completeLogin() {
@@ -1647,6 +2337,15 @@
             document.getElementById('app').style.display = 'flex';
             document.getElementById('userName').innerText = state.user.name;
             document.getElementById('userAvatar').innerText = state.user.name[0];
+
+            // Role assignment purely based on email domain for this portal
+            state.role = (state.user.email || "").toLowerCase().includes('mediaone') ? 'Staff' : 'Vendor';
+            document.getElementById('userRole').innerText = state.role;
+
+            if (state.role === 'Vendor') {
+                const importBtn = document.getElementById('importBtn');
+                if (importBtn) importBtn.style.display = 'none';
+            }
 
             fetchCampaigns();
             fetchUsers();

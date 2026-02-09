@@ -62,6 +62,12 @@ def lambda_handler(event, context):
             return handle_delete_user(db, data, current_user, headers)
         elif action == 'get_audit_logs':
             return handle_get_audit_logs(db, headers)
+        elif action == 'get_import_history':
+            return handle_get_import_history(db, headers)
+        elif action == 'upsert_import_history':
+            return handle_upsert_import_history(db, data, current_user, headers)
+        elif action == 'delete_import':
+            return handle_delete_import(db, data, current_user, headers)
         else:
             return response(400, f"Unknown action: {action}", headers)
 
@@ -99,7 +105,20 @@ def handle_get_backlinks(db, data, headers):
 def handle_upsert_backlink(db, data, user, headers):
     bid = data.get('id')
     if bid:
+        # Get importId before update if not provided
+        import_id = data.get('importId')
+        if not import_id:
+            existing = db.backlinks.find_one({"id": bid})
+            if existing:
+                import_id = existing.get('importId')
+
         db.backlinks.update_one({"id": bid}, {"$set": data}, upsert=True)
+
+        # Cleanup import history if all links are deleted
+        if data.get('deleted') and import_id:
+            active_count = db.backlinks.count_documents({"importId": import_id, "deleted": {"$ne": True}})
+            if active_count == 0:
+                db.import_history.delete_one({"id": import_id})
     else:
         bid = str(datetime.utcnow().timestamp())
         data['id'] = bid
@@ -129,6 +148,28 @@ def handle_delete_user(db, data, current_user, headers):
 def handle_get_audit_logs(db, headers):
     logs = list(db.audit_logs.find({}).sort("timestamp", -1).limit(100))
     return response(200, logs, headers)
+
+def handle_get_import_history(db, headers):
+    history = list(db.import_history.find({}).sort("timestamp", -1))
+    return response(200, history, headers)
+
+def handle_upsert_import_history(db, data, user, headers):
+    hid = data.get('id')
+    if hid:
+        db.import_history.update_one({"id": hid}, {"$set": data}, upsert=True)
+    else:
+        data['id'] = str(datetime.utcnow().timestamp())
+        data['timestamp'] = datetime.utcnow()
+        db.import_history.insert_one(data)
+    return response(200, {"success": True}, headers)
+
+def handle_delete_import(db, data, user, headers):
+    import_id = data.get('id')
+    if not import_id:
+        return response(400, "Missing import id", headers)
+    db.import_history.delete_one({"id": import_id})
+    db.backlinks.update_many({"importId": import_id}, {"$set": {"deleted": True}})
+    return response(200, {"success": True}, headers)
 
 # --- Helpers ---
 
