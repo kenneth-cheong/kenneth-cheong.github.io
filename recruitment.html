@@ -2813,8 +2813,6 @@
         }
 
         async function deleteCandidate(id) {
-            if (!confirm('Are you sure you want to delete this candidate? You can undo this later from the Activity Log.')) return;
-
             const result = await persistenceApiCall('delete_candidate', { id });
             if (result && result.success) {
                 const cand = state.candidates.find(c => c.id.toString() === id.toString());
@@ -2851,7 +2849,6 @@
         async function bulkDelete() {
             const checked = document.querySelectorAll('.cand-checkbox:checked');
             if (checked.length === 0) return;
-            if (!confirm(`Are you sure you want to delete ${checked.length} selected candidates?`)) return;
 
             // Use Promise.all to delete all selected in parallel using the now-persistent deleteCandidate
             const deletePromises = Array.from(checked).map(cb => deleteCandidate(cb.value));
@@ -2864,7 +2861,6 @@
         async function bulkDeleteRepo() {
             const checked = document.querySelectorAll('.repo-checkbox:checked');
             if (checked.length === 0) return;
-            if (!confirm(`Are you sure you want to delete ${checked.length} selected candidates?`)) return;
 
             const deletePromises = Array.from(checked).map(cb => deleteCandidate(cb.value));
             await Promise.all(deletePromises);
