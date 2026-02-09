@@ -965,6 +965,21 @@
                         </div>
                     </div>
                 </div>
+
+                <div id="statusPanel" style="margin-top: 24px; display: none;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span id="progressText"
+                            style="color: var(--text-dim); font-size: 0.875rem;">Initializing...</span>
+                        <span id="progressPercent"
+                            style="color: var(--accent); font-weight: 600; font-size: 0.875rem;">0%</span>
+                    </div>
+                    <div style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
+                        <div id="progressBar"
+                            style="width: 0%; height: 100%; background: var(--gradient); transition: width 0.3s ease;">
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <section id="resultsSection" style="display: none;">
@@ -1318,10 +1333,9 @@
                                 style="display: flex; align-items: center; gap: 8px; background: var(--glass); padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border);">
                                 <label style="font-size: 0.75rem; color: var(--text-dim); font-weight: 600;">Interviewer
                                     Score:</label>
-                                <input type="number" id="detailInterviewerScore" min="0" max="100"
-                                    style="width: 60px; background: transparent; border: none; color: white; font-weight: 800; font-size: 1rem; outline: none; padding: 0;"
-                                    onchange="updateInterviewerScoreFromModal(this.value)">
-                                <span style="font-weight: 800; color: var(--text-dim); margin-left: -5px;">/100</span>
+                                <input type="number" id="detailInterviewerScore" min="0" max="100" readonly
+                                    style="width: 60px; background: transparent; border: none; color: var(--secondary); font-weight: 800; font-size: 1.2rem; outline: none; padding: 0;">
+                                <span style="font-weight: 800; color: var(--text-dim); margin-left: -5px;">%</span>
                             </div>
                         </div>
                     </div>
@@ -1356,8 +1370,10 @@
                 </div>
 
                 <div style="margin-top: 32px;">
-                    <h4 style="margin-bottom: 16px;">Detailed Score Breakdown</h4>
-                    <canvas id="scoreChart" height="100"></canvas>
+                    <h4 style="margin-bottom: 16px;">Detailed AI Score Breakdown</h4>
+                    <div style="height: 250px; position: relative;">
+                        <canvas id="scoreChart"></canvas>
+                    </div>
                 </div>
 
                 <div id="hopperSection"
@@ -1509,7 +1525,8 @@
                 page: 1,
                 limit: 100,
                 total: 0
-            }
+            },
+            isFetchingCandidates: false
         };
 
         async function handleCredentialResponse(response) {
@@ -1736,8 +1753,8 @@
 
         const PERSISTENCE_LAMBDA_URL = 'https://hntb9oehu6.execute-api.ap-southeast-1.amazonaws.com/recruitementDatabase';
 
-        async function persistenceApiCall(action, data = {}) {
-            toggleLoading(true);
+        async function persistenceApiCall(action, data = {}, skipOverlay = false) {
+            if (!skipOverlay) toggleLoading(true);
             console.log({
                 body: {
                     action: action,
@@ -1775,7 +1792,7 @@
                 console.error(`Error in ${action}:`, error);
                 return null;
             } finally {
-                toggleLoading(false);
+                if (!skipOverlay) toggleLoading(false);
             }
         }
 
@@ -1785,32 +1802,26 @@
         }
 
         async function initApp() {
-            // Load Jobs
-            const jobs = await persistenceApiCall('get_jobs');
-            if (Array.isArray(jobs)) {
-                state.jobs = jobs;
-            } else {
-                state.jobs = [];
-            }
+            toggleLoading(true);
+            try {
+                // Fetch basic data in parallel
+                const [jobs, candidates, users] = await Promise.all([
+                    persistenceApiCall('get_jobs', {}, true),
+                    persistenceApiCall('get_candidates', {}, true),
+                    persistenceApiCall('get_users', {}, true)
+                ]);
 
-            // Load Candidates for accurate global stats
-            const candidates = await persistenceApiCall('get_candidates');
-            if (Array.isArray(candidates)) {
-                state.candidates = candidates;
-            } else {
-                state.candidates = [];
-            }
+                if (Array.isArray(jobs)) state.jobs = jobs;
+                if (Array.isArray(candidates)) state.candidates = candidates;
+                if (Array.isArray(users)) state.users = users;
 
-            // Load Users
-            const users = await persistenceApiCall('get_users');
-            if (Array.isArray(users)) {
-                state.users = users;
-            } else {
-                state.users = [];
+                renderJobs();
+                await updateStats();
+            } catch (err) {
+                console.error("Initialization error:", err);
+            } finally {
+                toggleLoading(false);
             }
-
-            renderJobs();
-            await updateStats();
         }
 
         // Initialize on load
@@ -1848,11 +1859,16 @@
             }
 
             // Initial fetch (Page 1)
+            state.isFetchingCandidates = true;
+            if (requestJobId) renderCandidates();
+            else filterCandidatesRepo();
+
             const data = await persistenceApiCall('get_candidates', {
                 jobId: requestJobId,
                 page: state.pagination.page,
                 limit: state.pagination.limit
-            });
+            }, true);
+            state.isFetchingCandidates = false;
 
             console.log("Initial page data received:", data);
 
@@ -1905,7 +1921,7 @@
                     jobId: jobId,
                     page: currentPage,
                     limit: limit
-                });
+                }, true);
 
                 if (data && Array.isArray(data.candidates)) {
                     // Merge avoiding duplicates
@@ -2536,25 +2552,33 @@
             const body = document.getElementById('repoBody');
             if (!body) return;
 
+            if (state.isFetchingCandidates && displayData.length === 0) {
+                body.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--text-dim);"><i class="fas fa-spinner fa-spin me-2"></i> Loading candidates...</td></tr>';
+                return;
+            }
+
             if (displayData.length === 0) {
                 body.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--text-dim);">No candidates found.</td></tr>';
                 return;
             }
 
             body.innerHTML = displayData.map(c => `
-                <tr style="animation: fadeIn 0.3s ease forwards;" onclick="toggleRowSelection(this)">
+                <tr data-id="${c.id}" style="animation: fadeIn 0.3s ease forwards; ${c.isReEvaluating ? 'opacity: 0.7; pointer-events: none;' : ''}" onclick="toggleRowSelection(this)">
                     <td style="text-align: center;" onclick="event.stopPropagation()">
                         <input type="checkbox" class="repo-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('repoTable')">
                     </td>
                     <td style="font-weight: 600;">${c.name}</td>
                     <td>${c.jobTitle}</td>
                     <td>${formatDate8(c.date)}</td>
-                    <td><span style="font-weight: 700; color: var(--secondary);">${c.aiScore}%</span></td>
                     <td>
-                        <input type="number" value="${c.interviewerScore || 0}" min="0" max="100" 
-                            style="width: 60px; padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px;"
-                            onclick="event.stopPropagation()" onchange="updateInterviewerScore('${c.id}', this.value)">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            ${c.isReEvaluating ?
+                    `<span style="font-size: 0.8rem; color: var(--accent);"><i class="fas fa-spinner fa-spin me-1"></i> Analyzing...</span>` :
+                    `<span style="font-weight: 700; color: var(--secondary);">${c.aiScore}%</span>`
+                }
+                        </div>
                     </td>
+                    <td><span style="font-weight: 700; color: var(--secondary);">${c.interviewerScore || 0}%</span></td>
                     <td>
                         <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%; max-width: 140px;" 
                             onclick="event.stopPropagation()" onchange="updateCandidatePending('${c.id}', this.value)">
@@ -3058,7 +3082,7 @@
         async function bulkReEvaluate(event, tableId) {
             const selector = tableId === 'candidateTable' ? '.cand-checkbox:checked' : '.repo-checkbox:checked';
             const selectedBoxes = document.querySelectorAll(selector);
-            const ids = Array.from(selectedBoxes).map(cb => cb.closest('tr').dataset.id);
+            const ids = Array.from(selectedBoxes).map(cb => cb.value);
 
             if (ids.length === 0) return;
             if (!confirm(`Are you sure you want to re-evaluate ${ids.length} candidates using the latest job criteria? This may take some time.`)) return;
@@ -3076,38 +3100,52 @@
             let completed = 0;
             const errors = [];
 
-            for (const id of ids) {
+            // Process all selected candidates in parallel
+            const tasks = ids.map(async (id) => {
+                const candidate = state.candidates.find(c => String(c.id) === String(id));
+                if (candidate) {
+                    candidate.isReEvaluating = true;
+                    if (tableId === 'candidateTable') renderCandidates();
+                    else filterCandidatesRepo();
+                }
+
                 try {
-                    pgText.innerText = `AI Re-evaluating candidate ${completed + 1} of ${ids.length}...`;
+                    pgText.innerText = `Busy analyzing candidates...`;
 
                     // Fetch full detail for each
-                    const candidate = await persistenceApiCall('get_candidate_detail', { id: id });
-                    if (!candidate) throw new Error("Candidate not found: " + id);
+                    const fullCandidate = await persistenceApiCall('get_candidate_detail', { id: id }, true);
+                    if (!fullCandidate) throw new Error("Candidate not found: " + id);
 
-                    await runAIReEvaluation(candidate);
+                    await runAIReEvaluation(fullCandidate);
                 } catch (err) {
                     console.error(`Error re-evaluating candidate ${id}:`, err);
                     errors.push(id);
                 } finally {
+                    const finalCand = state.candidates.find(c => String(c.id) === String(id));
+                    if (finalCand) finalCand.isReEvaluating = false;
                     completed++;
                     const progress = (completed / ids.length) * 100;
                     pgBar.style.width = `${progress}%`;
                     pgPercent.innerText = `${Math.round(progress)}%`;
+
+                    if (tableId === 'candidateTable') renderCandidates();
+                    else filterCandidatesRepo();
                 }
-            }
+            });
+
+            await Promise.all(tasks);
 
             pgText.innerText = 'Bulk re-evaluation complete!';
             if (errors.length > 0) {
                 pgText.innerText += ` (${errors.length} errors)`;
             }
 
-            renderCandidates();
             updateStats();
             renderJobs();
-            if (tableId === 'repoTable') filterCandidatesRepo();
 
             setTimeout(() => {
-                statusPanel.style.display = 'none';
+                const sp = document.getElementById('statusPanel');
+                if (sp) sp.style.display = 'none';
                 if (errors.length > 0) {
                     alert(`Re-evaluation completed with ${errors.length} errors. Checks logs for details.`);
                 } else {
@@ -3201,8 +3239,13 @@
             const start = (state.pagination.page - 1) * state.pagination.limit;
             const sliced = filtered.slice(start, start + state.pagination.limit);
 
+            if (state.isFetchingCandidates && sliced.length === 0) {
+                body.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--text-dim);"><i class="fas fa-spinner fa-spin me-2"></i> Loading candidates...</td></tr>';
+                return;
+            }
+
             body.innerHTML = sliced.map(c => `
-                <tr style="animation: fadeIn 0.3s ease forwards;" onclick="toggleRowSelection(this)">
+                <tr data-id="${c.id}" style="animation: fadeIn 0.3s ease forwards; ${c.isReEvaluating ? 'opacity: 0.7; pointer-events: none;' : ''}" onclick="toggleRowSelection(this)">
                     <td style="text-align: center;" onclick="event.stopPropagation()">
                         <input type="checkbox" class="cand-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('candidateTable')">
                     </td>
@@ -3213,17 +3256,18 @@
                     <td>${formatDate8(c.date)}</td>
                     <td>
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="font-weight: 700; color: ${c.aiScore > 75 ? 'var(--secondary)' : 'white'}">${c.aiScore}</span>
-                            <div style="width: 60px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;">
-                                <div style="width: ${c.aiScore}%; height: 100%; background: var(--gradient);"></div>
-                            </div>
+                            ${c.isReEvaluating ?
+                    `<span style="font-size: 0.8rem; color: var(--accent);"><i class="fas fa-spinner fa-spin me-1"></i> Analyzing...</span>` :
+                    `
+                                <span style="font-weight: 700; color: ${c.aiScore > 75 ? 'var(--secondary)' : 'white'}">${c.aiScore}</span>
+                                <div style="width: 60px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;">
+                                    <div style="width: ${c.aiScore}%; height: 100%; background: var(--gradient);"></div>
+                                </div>
+                                `
+                }
                         </div>
                     </td>
-                    <td>
-                        <input type="number" value="${c.interviewerScore || 0}" min="0" max="100" 
-                            style="width: 60px; padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px;"
-                            onclick="event.stopPropagation()" onchange="updateInterviewerScore('${c.id}', this.value)">
-                    </td>
+                    <td><span style="font-weight: 700; color: var(--secondary);">${c.interviewerScore || 0}%</span></td>
                     <td>
                         <span class="badge ${c.isHopper ? 'badge-error' : 'badge-success'}">
                             ${c.isHopper ? 'Yes' : 'No'}
@@ -3292,12 +3336,19 @@
             console.log('Viewing candidate ID:', id);
             state.viewingCandidateId = id;
 
+            document.getElementById('detailName').innerText = 'Loading...';
+            document.getElementById('detailSummary').innerText = 'Loading summary...';
+            document.getElementById('detailReasons').innerHTML = '<li>Loading...</li>';
+            document.getElementById('cheatSheetBody').innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading interview guide...</td></tr>';
+            document.getElementById('detailModal').style.display = 'flex';
+
             // Optimization: Fetch full details from the server to get excluded fields
-            const c = await persistenceApiCall('get_candidate_detail', { id: id });
+            const c = await persistenceApiCall('get_candidate_detail', { id: id }, true);
 
             if (!c) {
                 console.error('Candidate not found for ID:', id);
                 alert("Failed to load candidate details. Please try again.");
+                document.getElementById('detailModal').style.display = 'none';
                 return;
             }
 
@@ -3358,12 +3409,10 @@
             const hopperBox = document.getElementById('hopperSection');
             if (c.isHopper) {
                 hopperBox.style.display = 'block';
-                document.getElementById('hopperDetail').innerText = c.hopperDetails;
+                document.getElementById('hopperDetail').innerText = c.hopperDetails || 'AI detected frequent job changes.';
             } else {
                 hopperBox.style.display = 'none';
             }
-
-            document.getElementById('detailModal').style.display = 'flex';
 
             // Chart
             const canvas = document.getElementById('scoreChart');
@@ -3371,23 +3420,46 @@
             const ctx = canvas.getContext('2d');
             if (currentChart) currentChart.destroy();
 
+            // Dynamic Chart based on AI breakdown keys
+            const labels = Object.keys(c.breakdown || {});
+            const data = Object.values(c.breakdown || {});
+
+            // Pool of colors to cycle through
+            const colors = ['#6366f1', '#06b6d4', '#818cf8', '#22c55e', '#a855f7', '#f59e0b', '#ec4899'];
+            const bgColors = labels.map((_, i) => colors[i % colors.length]);
+
             currentChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: ['Experience', 'Skills', 'Responsibilities', 'KPI Fit'],
+                    labels: labels.length > 0 ? labels : ['Experience', 'Skills', 'Responsibilities', 'KPI Fit'],
                     datasets: [{
-                        label: 'Candidate Score',
-                        data: [c.breakdown.experience, c.breakdown.skills, c.breakdown.responsibilities, c.breakdown.kpi],
-                        backgroundColor: ['#6366f1', '#06b6d4', '#818cf8', '#22c55e'],
-                        borderRadius: 8
+                        label: 'Match Score',
+                        data: data.length > 0 ? data : [0, 0, 0, 0],
+                        backgroundColor: bgColors,
+                        borderRadius: 8,
+                        barThickness: labels.length > 5 ? 12 : 20
                     }]
                 },
                 options: {
                     indexAxis: 'y',
                     plugins: { legend: { display: false } },
+                    maintainAspectRatio: false,
                     scales: {
-                        x: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.05)' }, border: { display: false }, ticks: { color: '#94a3b8' } },
-                        y: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                        x: {
+                            min: 0,
+                            max: 100,
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            border: { display: false },
+                            ticks: { color: '#94a3b8', font: { size: 10 } }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: {
+                                color: '#e2e8f0',
+                                font: { weight: '600', size: 11 },
+                                autoSkip: false
+                            }
+                        }
                     },
                     animation: { duration: 1000 }
                 }
@@ -3647,6 +3719,25 @@
             await persistenceApiCall('upsert_candidate', { id: cand.id, customInterviewGuide: cand.customInterviewGuide });
         }
 
+        function calculateTallyScore(cand, job) {
+            let totalStars = 0;
+            let totalMax = 0;
+
+            if (job && job.interviewQuestions) {
+                job.interviewQuestions.forEach(q => {
+                    totalStars += (cand.jobRatings && cand.jobRatings[q.id]) || 0;
+                    totalMax += 5;
+                });
+            }
+            if (cand.customInterviewGuide) {
+                cand.customInterviewGuide.forEach(q => {
+                    totalStars += (q.rating || 0);
+                    totalMax += 5;
+                });
+            }
+            return totalMax > 0 ? Math.round((totalStars / totalMax) * 100) : 0;
+        }
+
         async function updateCustomGuideContent(idx, field, value) {
             const cand = state.candidates.find(c => String(c.id) === String(editingCandId));
             if (!cand || !cand.customInterviewGuide) return;
@@ -3662,8 +3753,20 @@
             if (!cand || !cand.customInterviewGuide) return;
 
             cand.customInterviewGuide[idx].rating = value;
+
+            const newScore = calculateTallyScore(cand, job);
+            cand.interviewerScore = newScore;
+            const scoreDisplay = document.getElementById('detailInterviewerScore');
+            if (scoreDisplay) scoreDisplay.value = newScore;
+
             document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(job, cand);
-            await persistenceApiCall('upsert_candidate', { id: cand.id, customInterviewGuide: cand.customInterviewGuide });
+            await persistenceApiCall('upsert_candidate', {
+                id: cand.id,
+                customInterviewGuide: cand.customInterviewGuide,
+                interviewerScore: newScore
+            });
+            renderCandidates();
+            filterCandidatesRepo();
         }
 
         async function setJobQuestionRating(qId, value) {
@@ -3674,8 +3777,19 @@
             if (!cand.jobRatings) cand.jobRatings = {};
             cand.jobRatings[qId] = value;
 
+            const newScore = calculateTallyScore(cand, job);
+            cand.interviewerScore = newScore;
+            const scoreDisplay = document.getElementById('detailInterviewerScore');
+            if (scoreDisplay) scoreDisplay.value = newScore;
+
             document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(job, cand);
-            await persistenceApiCall('upsert_candidate', { id: cand.id, jobRatings: cand.jobRatings });
+            await persistenceApiCall('upsert_candidate', {
+                id: cand.id,
+                jobRatings: cand.jobRatings,
+                interviewerScore: newScore
+            });
+            renderCandidates();
+            filterCandidatesRepo();
         }
 
         async function updateInterviewerScore(candId, score) {
