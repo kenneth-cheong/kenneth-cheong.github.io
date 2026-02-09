@@ -1567,8 +1567,11 @@
                         <div style="font-size: 0.75rem; color: var(--text-dim);">BY: ${b.bd || 'N/A'}</div>
                     </td>
                     <td>
-                        <div style="color: var(--primary-light); font-weight: 500;">${b.keyword || 'No Keyword'}</div>
-                        <a href="${b.targetUrl}" target="_blank" style="font-size: 0.75rem; color: var(--text-dim); text-decoration: none;">
+                        <div style="color: var(--primary-light); font-weight: 500; cursor: pointer; border-bottom: 1px dashed var(--primary); display: inline-block;" 
+                             onclick="showKeywordTrend('${b.keyword}', '${b.campaignName}', '${b.targetUrl}')">
+                            ${b.keyword || 'No Keyword'}
+                        </div>
+                        <a href="${b.targetUrl}" target="_blank" style="font-size: 0.75rem; color: var(--text-dim); text-decoration: none; display: block; margin-top: 4px;">
                             <i class="fas fa-external-link-alt" style="font-size: 0.6rem;"></i> ${b.targetUrl || 'No Target URL'}
                         </a>
                     </td>
@@ -2787,7 +2790,7 @@
                     <td><span style="color: var(--primary-light); font-weight: 500;">${item.siteName}</span></td>
                     <td>
                         <strong style="cursor: pointer; color: var(--primary-light); border-bottom: 1px dashed var(--primary);" 
-                                onclick="showKeywordTrend('${item.keyword}', '${item.siteName}')">
+                                onclick="showKeywordTrend('${item.keyword}', '${item.siteName}', '${item.siteUrl}')">
                             ${item.keyword}
                         </strong>
                     </td>
@@ -2816,14 +2819,35 @@
         }
 
         let trendChart = null;
-        function showKeywordTrend(keyword, siteName) {
+        function showKeywordTrend(keyword, siteName, siteUrl = '') {
             const modal = document.getElementById('trendModal');
             document.getElementById('trendTitle').innerText = `${keyword} | ${siteName}`;
             modal.style.display = 'flex';
 
+            const normKeyword = String(keyword || '').toLowerCase().trim();
+            const normSiteInput = String(siteName || '').toLowerCase().trim();
+            const normUrlInput = (siteUrl || '').toLowerCase().replace(/https?:\/\//, '').replace('www.', '').split('/')[0];
+
             // Filter historical data for this keyword + site (Omit rank 0 as it usually means unranked/invalid)
             const history = state.rankings
-                .filter(r => r.keyword === keyword && r.siteName === siteName && r.date !== '-' && r.rank != 0 && r.rank !== '-')
+                .filter(r => {
+                    const rKeyword = String(r.keyword || '').toLowerCase().trim();
+                    const rSiteName = String(r.siteName || '').toLowerCase().trim();
+                    const rSiteBaseUrl = String(r.siteUrl || '').toLowerCase().replace(/https?:\/\//, '').replace('www.', '').split('/')[0];
+
+                    if (rKeyword !== normKeyword) return false;
+                    if (r.date === '-' || r.rank == 0 || r.rank === '-') return false;
+
+                    // Matching Logic
+                    // 1. Exact Name match
+                    if (rSiteName === normSiteInput) return true;
+                    // 2. URL Match (if we have a URL)
+                    if (normUrlInput && rSiteBaseUrl && (rSiteBaseUrl.includes(normUrlInput) || normUrlInput.includes(rSiteBaseUrl))) return true;
+                    // 3. Name containment (e.g. "Insofresh" vs "Insofresh (Siji Trading)")
+                    if (normSiteInput.includes(rSiteName) || rSiteName.includes(normSiteInput)) return true;
+
+                    return false;
+                })
                 .sort((a, b) => new Date(a.date) - new Date(b.date));
 
             if (history.length === 0) {

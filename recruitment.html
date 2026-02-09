@@ -2850,23 +2850,77 @@
             const checked = document.querySelectorAll('.cand-checkbox:checked');
             if (checked.length === 0) return;
 
-            // Use Promise.all to delete all selected in parallel using the now-persistent deleteCandidate
-            const deletePromises = Array.from(checked).map(cb => deleteCandidate(cb.value));
-            await Promise.all(deletePromises);
+            if (!confirm(`Are you sure you want to delete ${checked.length} candidates?`)) return;
 
-            document.getElementById('selectAllCandidates').checked = false;
-            updateBulkDeleteVisibility('candidateTable');
+            const ids = Array.from(checked).map(cb => cb.value);
+
+            // Single API call handles loading state automatically
+            const result = await persistenceApiCall('bulk_delete_candidates', { ids });
+
+            if (result && result.success) {
+                // Update local stats first
+                ids.forEach(id => {
+                    const cand = state.candidates.find(c => String(c.id) === String(id));
+                    if (cand) {
+                        const job = state.jobs.find(j => String(j.id) === String(cand.jobId));
+                        if (job) {
+                            if (job.applicants > 0) job.applicants--;
+                            if (cand.status === 'Shortlisted' && job.shortlisted > 0) job.shortlisted--;
+                        }
+                    }
+                });
+
+                // Remove from state
+                const idsSet = new Set(ids.map(String));
+                state.candidates = state.candidates.filter(c => !idsSet.has(String(c.id)));
+
+                renderCandidates();
+                updateStats(); // Update dashboard/sidebar stats
+                renderJobs();  // Update job list counts
+
+                document.getElementById('selectAllCandidates').checked = false;
+                updateBulkDeleteVisibility('candidateTable');
+            } else {
+                alert("Failed to delete candidates.");
+            }
         }
 
         async function bulkDeleteRepo() {
             const checked = document.querySelectorAll('.repo-checkbox:checked');
             if (checked.length === 0) return;
 
-            const deletePromises = Array.from(checked).map(cb => deleteCandidate(cb.value));
-            await Promise.all(deletePromises);
+            if (!confirm(`Are you sure you want to delete ${checked.length} candidates from the repository?`)) return;
 
-            document.getElementById('selectAllRepo').checked = false;
-            updateBulkDeleteVisibility('repoTable');
+            const ids = Array.from(checked).map(cb => cb.value);
+
+            const result = await persistenceApiCall('bulk_delete_candidates', { ids });
+
+            if (result && result.success) {
+                // Update local stats
+                ids.forEach(id => {
+                    const cand = state.candidates.find(c => String(c.id) === String(id));
+                    if (cand) {
+                        const job = state.jobs.find(j => String(j.id) === String(cand.jobId));
+                        if (job) {
+                            if (job.applicants > 0) job.applicants--;
+                            if (cand.status === 'Shortlisted' && job.shortlisted > 0) job.shortlisted--;
+                        }
+                    }
+                });
+
+                // Remove from state
+                const idsSet = new Set(ids.map(String));
+                state.candidates = state.candidates.filter(c => !idsSet.has(String(c.id)));
+
+                filterCandidatesRepo();
+                updateStats();
+                renderJobs();
+
+                document.getElementById('selectAllRepo').checked = false;
+                updateBulkDeleteVisibility('repoTable');
+            } else {
+                alert("Failed to delete candidates.");
+            }
         }
 
         async function extractText(item) {

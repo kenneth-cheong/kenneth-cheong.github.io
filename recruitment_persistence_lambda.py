@@ -77,6 +77,8 @@ def lambda_handler(event, context):
             return handle_delete_user(db, data, current_user, headers)
         elif action == 'get_audit_logs':
             return handle_get_audit_logs(db, headers)
+        elif action == 'bulk_delete_candidates':
+            return handle_bulk_delete_candidates(db, data.get('ids'), current_user, headers)
         else:
             return response(400, f"Unknown action: {action}", headers)
 
@@ -240,6 +242,18 @@ def handle_delete_candidate(db, cand_id, user, headers):
     db.candidates.update_one({"id": cand_id}, {"$set": {"deleted": True}})
     log_audit(db, "soft_delete", "candidate", cand_id, user, f"Candidate soft-deleted ID: {cand_id}")
     return response(200, {"success": True}, headers)
+
+def handle_bulk_delete_candidates(db, ids, user, headers):
+    if not ids or not isinstance(ids, list):
+        return response(400, "Invalid IDs format. Must be a list.", headers)
+    
+    result = db.candidates.update_many(
+        {"id": {"$in": ids}},
+        {"$set": {"deleted": True}}
+    )
+    
+    log_audit(db, "bulk_soft_delete", "candidate", "batch", user, f"Batch soft-deleted {result.modified_count} candidates")
+    return response(200, {"success": True, "count": result.modified_count}, headers)
 
 def handle_restore_candidate(db, cand_id, user, headers):
     db.candidates.update_one({"id": cand_id}, {"$set": {"deleted": False}})
