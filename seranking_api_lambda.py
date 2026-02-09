@@ -40,8 +40,16 @@ def lambda_handler(event, context):
         elif action == 'get_positions':
             if not site_id:
                 return response(400, {"error": "Missing siteId"})
-            # Fetching latest positions with landing pages
-            url = f"{SERANKING_API_URL}/sites/{site_id}/positions?with_landing_pages=1"
+            
+            # Extract optional filters
+            date_from = data.get('date_from') or body.get('date_from')
+            date_to = data.get('date_to') or body.get('date_to')
+            with_lp = str(data.get('with_landing_pages') or body.get('with_landing_pages') or "1")
+            
+            url = f"{SERANKING_API_URL}/sites/{site_id}/positions?with_landing_pages={with_lp}"
+            if date_from: url += f"&date_from={date_from}"
+            if date_to: url += f"&date_to={date_to}"
+            
             res = requests.get(url, headers=headers)
         elif action == 'get_search_engines':
             if not site_id:

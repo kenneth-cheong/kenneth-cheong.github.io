@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary: #6366f1;
@@ -798,13 +799,15 @@
                                             class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
                                     <th onclick="sortRankings('searchEngine')" style="cursor: pointer;">Search Engine <i
                                             class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
-                                    <th onclick="sortRankings('rank')" style="cursor: pointer;">Latest Rank <i
+                                    <th onclick="sortRankings('date')" style="cursor: pointer;">Date <i
+                                            class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
+                                    <th onclick="sortRankings('rank')" style="cursor: pointer;">Rank <i
                                             class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
                                 </tr>
                             </thead>
                             <tbody id="rankingsBody">
                                 <tr>
-                                    <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-dim);">
+                                    <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-dim);">
                                         Click "Refresh Data" to load rankings.
                                     </td>
                                 </tr>
@@ -858,6 +861,7 @@
             // Pagination
             mondayPage: 1,
             mondayPageSize: 50,
+            rankingsPage: 1,
             rankingsPageSize: 50,
             selectedOrders: [],
             orderFilters: { search: '', status: 'all', bd: '', date: '' },
@@ -1225,6 +1229,12 @@
         }
 
         async function fetchCampaigns() {
+            const body = document.getElementById('campaignsBody');
+            if (body) {
+                body.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">
+                    <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Loading campaigns...
+                </td></tr>`;
+            }
             const data = await apiCall(PERSISTENCE_URL, 'get_campaigns');
             if (data && Array.isArray(data)) {
                 state.campaigns = data;
@@ -1303,12 +1313,17 @@
         }
 
         async function fetchImportHistory() {
+            const body = document.getElementById('importHistoryBody');
+            if (body) {
+                body.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-dim);">
+                    <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Loading history...
+                </td></tr>`;
+            }
             const data = await apiCall(PERSISTENCE_URL, 'get_import_history');
             if (data && Array.isArray(data)) {
                 state.importHistory = data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                 renderImportHistory();
             } else if (data) {
-                // If data is an object but not an array, check if it contains a list
                 const list = data.history || data.items || [];
                 state.importHistory = Array.isArray(list) ? list.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)) : [];
                 renderImportHistory();
@@ -1371,6 +1386,19 @@
         }
 
         async function fetchOrders() {
+            const body = document.getElementById('ordersBody');
+            if (body) {
+                body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-dim);">
+                    <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Loading backlinks...
+                </td></tr>`;
+            }
+
+            // Show loading in dashboard counts
+            ['val-total-links', 'val-avg-da', 'val-pending'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size: 1rem; opacity: 0.5;"></i>';
+            });
+
             const data = await apiCall(PERSISTENCE_URL, 'get_backlinks');
             if (data && Array.isArray(data)) {
                 state.backlinks = data;
@@ -2367,7 +2395,7 @@
 
             if (syncStatus) syncStatus.style.display = 'inline-block';
             if (refreshBtn) refreshBtn.disabled = true;
-            if (body) body.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin"></i> Initializing data sync...</td></tr>';
+            if (body) body.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin"></i> Initializing data sync...</td></tr>';
 
             try {
                 if (syncStatus) syncStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching site list...';
@@ -2394,9 +2422,17 @@
 
                 const fetchPromises = sites.map(async (site) => {
                     try {
+                        const dateTo = new Date().toISOString().split('T')[0];
+                        const dateFrom = new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString().split('T')[0];
+
                         const [kwRes, posRes, grpRes, engRes] = await Promise.all([
                             apiCall(SERANKING_URL, 'get_keywords', { siteId: site.id }),
-                            apiCall(SERANKING_URL, 'get_positions', { siteId: site.id }),
+                            apiCall(SERANKING_URL, 'get_positions', {
+                                siteId: site.id,
+                                date_from: dateFrom,
+                                date_to: dateTo,
+                                with_landing_pages: 1
+                            }),
                             apiCall(SERANKING_URL, 'get_groups', { siteId: site.id }),
                             apiCall(SERANKING_URL, 'get_search_engines', { siteId: site.id })
                         ]);
@@ -2405,7 +2441,6 @@
                         const positions = (posRes && posRes.data) ? posRes.data : posRes;
                         const groups = (grpRes && grpRes.data) ? grpRes.data : grpRes;
                         const searchEngines = (engRes && engRes.data) ? engRes.data : engRes;
-
 
                         // Create Mappings
                         const groupMap = {};
@@ -2428,72 +2463,88 @@
                             });
                         }
 
-                        let latestPositionsMap = {};
-                        // Robust handling for positions response (can be {} keyed by date or [{keywords: []}])
+                        const kwMap = {};
+                        if (keywords && Array.isArray(keywords)) {
+                            keywords.forEach(kw => kwMap[String(kw.id)] = kw);
+                        }
+
+                        // Flatten positions into entries
                         if (positions && typeof positions === 'object') {
                             if (Array.isArray(positions)) {
-                                // Array format: [ { site_engine_id: 1, keywords: [...] }, ... ]
+                                // Array format: [ { site_engine_id: 1, keywords: [ { id: 12, positions: [...], landing_pages: [...] } ] }, ... ]
                                 positions.forEach(engineEntry => {
+                                    const searchEngine = projectEngineMap[String(engineEntry.site_engine_id)] || 'Unknown';
                                     if (Array.isArray(engineEntry.keywords)) {
                                         engineEntry.keywords.forEach(kwPos => {
-                                            // Store by kw_id. If multiple engines, last one wins for this site's summary
-                                            latestPositionsMap[String(kwPos.id)] = kwPos;
+                                            const kw = kwMap[String(kwPos.id)];
+                                            if (!kw) return;
+
+                                            const group = kw.group_id ? (groupMap[String(kw.group_id)] || 'Default') : 'Default';
+
+                                            // Iterate over all dates in the positions array
+                                            if (Array.isArray(kwPos.positions)) {
+                                                kwPos.positions.forEach(p => {
+                                                    state.rankings.push({
+                                                        siteName: site.title || site.name || 'Unknown',
+                                                        siteUrl: site.url || '',
+                                                        keyword: kw.name || kw.keyword || '-',
+                                                        rankingUrl: (() => {
+                                                            const lp = kwPos.landing_pages;
+                                                            if (Array.isArray(lp)) {
+                                                                // Find landing page closest to this position's date
+                                                                const bestLp = lp.find(l => l.date === p.date) || lp[0];
+                                                                return bestLp ? bestLp.url : (kw.target_url || '-');
+                                                            }
+                                                            return kw.target_url || '-';
+                                                        })(),
+                                                        group: group,
+                                                        searchEngine: searchEngine,
+                                                        date: p.date,
+                                                        rank: p.pos !== undefined ? p.pos : (p.rank !== undefined ? p.rank : '-')
+                                                    });
+                                                });
+                                            }
                                         });
                                     }
                                 });
                             } else {
-                                // Object format: { "YYYY-MM-DD": { "kw_id": { pos: 5 } } }
-                                const dates = Object.keys(positions).sort().reverse();
-                                if (dates.length > 0) {
-                                    latestPositionsMap = positions[dates[0]];
-                                }
-                            }
-                        }
+                                // Object format: { "YYYY-MM-DD": { "kw_id": { pos: 5, landing_pages: {} } } }
+                                Object.keys(positions).forEach(date => {
+                                    const dateKwMap = positions[date];
+                                    Object.keys(dateKwMap).forEach(kwId => {
+                                        const kw = kwMap[kwId];
+                                        if (!kw) return;
 
-                        if (keywords && Array.isArray(keywords)) {
-                            keywords.forEach(kw => {
-                                const posData = latestPositionsMap[String(kw.id)];
-                                // Get rank from pos/rank fields
-                                let rank = '-';
-                                if (posData) {
-                                    if (posData.pos !== undefined) rank = posData.pos;
-                                    else if (posData.rank !== undefined) rank = posData.rank;
-                                    else if (Array.isArray(posData.positions) && posData.positions[0]) {
-                                        rank = posData.positions[0].pos || posData.positions[0].rank || '-';
-                                    }
-                                }
+                                        const posData = dateKwMap[kwId];
+                                        const group = kw.group_id ? (groupMap[String(kw.group_id)] || 'Default') : 'Default';
 
-                                // Map Search Engine
-                                let searchEngine = '-';
-                                if (Array.isArray(kw.site_engine_ids) && kw.site_engine_ids.length > 0) {
-                                    searchEngine = projectEngineMap[String(kw.site_engine_ids[0])] || '-';
-                                } else if (kw.region_name) {
-                                    searchEngine = kw.region_name;
-                                }
-
-                                state.rankings.push({
-                                    siteName: site.title || site.name || 'Unknown',
-                                    siteUrl: site.url || '',
-                                    keyword: kw.name || kw.keyword || '-',
-                                    rankingUrl: (() => {
-                                        const lp = (posData && posData.landing_pages) ? posData.landing_pages : (kw.landing_pages || null);
-                                        if (lp) {
-                                            // Handle Object Keyed by Site Engine ID
-                                            if (typeof lp === 'object' && !Array.isArray(lp)) {
-                                                const engId = (kw.site_engine_ids && kw.site_engine_ids[0]) ? String(kw.site_engine_ids[0]) : Object.keys(lp)[0];
-                                                if (engId && lp[engId] && lp[engId].url) return lp[engId].url;
-                                                if (lp.url) return lp.url;
-                                            }
-                                            // Handle Array Format (User Example)
-                                            if (Array.isArray(lp) && lp[0] && lp[0].url) return lp[0].url;
+                                        // Since object format is usually per keyword-engine, let's try to map engine
+                                        let searchEngine = '-';
+                                        if (Array.isArray(kw.site_engine_ids) && kw.site_engine_ids.length > 0) {
+                                            searchEngine = projectEngineMap[String(kw.site_engine_ids[0])] || '-';
                                         }
-                                        return kw.target_url || '-';
-                                    })(),
-                                    group: kw.group_id ? (groupMap[String(kw.group_id)] || 'Default') : 'Default',
-                                    searchEngine: searchEngine,
-                                    rank: rank
+
+                                        state.rankings.push({
+                                            siteName: site.title || site.name || 'Unknown',
+                                            siteUrl: site.url || '',
+                                            keyword: kw.name || kw.keyword || '-',
+                                            rankingUrl: (() => {
+                                                const lp = posData.landing_pages || kw.landing_pages;
+                                                if (lp && typeof lp === 'object' && !Array.isArray(lp)) {
+                                                    const engId = (kw.site_engine_ids && kw.site_engine_ids[0]) ? String(kw.site_engine_ids[0]) : Object.keys(lp)[0];
+                                                    if (engId && lp[engId] && lp[engId].url) return lp[engId].url;
+                                                    if (lp.url) return lp.url;
+                                                }
+                                                return kw.target_url || '-';
+                                            })(),
+                                            group: group,
+                                            searchEngine: searchEngine,
+                                            date: date,
+                                            rank: posData.pos !== undefined ? posData.pos : (posData.rank !== undefined ? posData.rank : '-')
+                                        });
+                                    });
                                 });
-                            });
+                            }
                         }
                     } catch (siteErr) {
                         console.error(`[SE Ranking] Error fetching details for site ${site.name}:`, siteErr);
@@ -2508,14 +2559,14 @@
                 renderRankingsControls();
 
                 if (state.rankings.length === 0) {
-                    body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">No keywords found in any of the processed campaigns. Please check SE Ranking settings for these sites.</td></tr>';
+                    body.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-dim);">No keywords found in any of the processed campaigns. Please check SE Ranking settings for these sites.</td></tr>';
                 }
 
             } catch (err) {
                 console.error('SE Ranking Global Import Error:', err);
                 alert('An error occurred during SE Ranking data sync: ' + err.message);
                 if (body && state.rankings.length === 0) {
-                    body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--accent);">Failed to load data: ' + err.message + '</td></tr>';
+                    body.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--accent);">Failed to load data: ' + err.message + '</td></tr>';
                 }
             } finally {
                 if (syncStatus) syncStatus.style.display = 'none';
@@ -2547,7 +2598,8 @@
                     'Ranking URL': 'rankingUrl',
                     'Group': 'group',
                     'Search Engine': 'searchEngine',
-                    'Latest Rank': 'rank'
+                    'Date': 'date',
+                    'Rank': 'rank'
                 };
                 const colId = colMap[text];
                 if (!colId) return;
@@ -2708,6 +2760,9 @@
                         const parseRank = (v) => v === '-' ? 999 : (parseInt(v) || 999);
                         valA = parseRank(valA);
                         valB = parseRank(valB);
+                    } else if (colId === 'date') {
+                        valA = new Date(valA || 0);
+                        valB = new Date(valB || 0);
                     } else {
                         valA = String(valA || '').toLowerCase();
                         valB = String(valB || '').toLowerCase();
@@ -2730,7 +2785,12 @@
             body.innerHTML = paginated.map(item => `
                 <tr>
                     <td><span style="color: var(--primary-light); font-weight: 500;">${item.siteName}</span></td>
-                    <td><strong>${item.keyword}</strong></td>
+                    <td>
+                        <strong style="cursor: pointer; color: var(--primary-light); border-bottom: 1px dashed var(--primary);" 
+                                onclick="showKeywordTrend('${item.keyword}', '${item.siteName}')">
+                            ${item.keyword}
+                        </strong>
+                    </td>
                     <td>
                         ${item.rankingUrl && item.rankingUrl !== '-' ?
                     `<a href="${item.rankingUrl}" target="_blank" style="font-size: 0.75rem; color: var(--secondary); text-decoration: none; display: flex; align-items: center; gap: 4px;">
@@ -2742,6 +2802,7 @@
                     </td>
                     <td><span class="badge" style="background: rgba(99, 102, 241, 0.2)">${item.group}</span></td>
                     <td style="font-size: 0.8rem; color: var(--text-dim);">${item.searchEngine}</td>
+                    <td style="font-size: 0.8rem; color: var(--text-dim);">${item.date}</td>
                     <td style="font-weight: 600;">${item.rank}</td>
                 </tr>
             `).join('');
@@ -2752,6 +2813,83 @@
             });
 
             updateRankingsHeaderUI();
+        }
+
+        let trendChart = null;
+        function showKeywordTrend(keyword, siteName) {
+            const modal = document.getElementById('trendModal');
+            document.getElementById('trendTitle').innerText = `${keyword} | ${siteName}`;
+            modal.style.display = 'flex';
+
+            // Filter historical data for this keyword + site (Omit rank 0 as it usually means unranked/invalid)
+            const history = state.rankings
+                .filter(r => r.keyword === keyword && r.siteName === siteName && r.date !== '-' && r.rank != 0 && r.rank !== '-')
+                .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            if (history.length === 0) {
+                document.getElementById('chartContainer').innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-dim);">No historical data points found for this keyword.</div>';
+                return;
+            }
+
+            // Prepare Chart.js
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            if (trendChart) trendChart.destroy();
+
+            document.getElementById('chartContainer').innerHTML = '<canvas id="trendChart"></canvas>';
+            const newCtx = document.getElementById('trendChart').getContext('2d');
+
+            trendChart = new Chart(newCtx, {
+                type: 'line',
+                data: {
+                    labels: history.map(h => h.date),
+                    datasets: [{
+                        label: 'Ranking',
+                        data: history.map(h => h.rank === '-' ? null : parseInt(h.rank)),
+                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderWidth: 1.5,
+                        tension: 0.3,
+                        fill: true,
+                        pointRadius: 2,
+                        pointBackgroundColor: '#6366f1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            reverse: true, // Rank 1 at top
+                            beginAtZero: false,
+                            min: 1,
+                            ticks: { color: 'rgba(255,255,255,0.6)' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        x: {
+                            ticks: { color: 'rgba(255,255,255,0.6)' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1
+                        }
+                    }
+                }
+            });
+        }
+
+        function closeTrendModal() {
+            document.getElementById('trendModal').style.display = 'none';
+            if (trendChart) {
+                trendChart.destroy();
+                trendChart = null;
+            }
         }
     </script>
     <!-- User Modal -->
@@ -2847,6 +2985,31 @@
                         Order</button>
                 </div>
             </form>
+        </div>
+    </div>
+    <!-- Trend Modal -->
+    <div id="trendModal" class="modal">
+        <div class="modal-content"
+            style="max-width: 1800px; width: 90%; height: 80vh; resize: both; overflow: auto; min-width: 400px; min-height: 400px; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
+                <div>
+                    <h3 id="trendTitle" style="margin: 0;">Keyword Trend</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-dim); margin: 4px 0 0 0;">6-Month Ranking History
+                    </p>
+                </div>
+                <button class="btn" onclick="closeTrendModal()" style="padding: 4px 8px; background: transparent;">
+                    <i class="fas fa-times" style="font-size: 1.2rem;"></i>
+                </button>
+            </div>
+
+            <div id="chartContainer"
+                style="flex: 1; position: relative; background: rgba(0,0,0,0.2); border-radius: 16px; padding: 20px; min-height: 200px;">
+                <canvas id="trendChart"></canvas>
+            </div>
+
+            <div style="margin-top: 24px; text-align: right;">
+                <button class="btn btn-primary" onclick="closeTrendModal()">Close</button>
+            </div>
         </div>
     </div>
 </body>
