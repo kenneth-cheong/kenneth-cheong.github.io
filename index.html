@@ -16036,49 +16036,51 @@ ${selectedText}
                 const schemaOutputDiv = document.getElementById('schema-output');
 
                 const templates = {
-                    "LocalBusiness": Handlebars.compile(document.getElementById('local-business-template').innerHTML),
-                    "Product": Handlebars.compile(document.getElementById('product-template').innerHTML),
-                    "Event": Handlebars.compile(document.getElementById('event-template').innerHTML),
-                    "Article": Handlebars.compile(document.getElementById('article-template').innerHTML),
-                    "BreadcrumbList": Handlebars.compile(document.getElementById('breadcrumblist-template').innerHTML),
-                    "FAQPage": Handlebars.compile(document.getElementById('faqpage-template').innerHTML),
-                    "HowTo": Handlebars.compile(document.getElementById('howto-template').innerHTML),
-                    "JobPosting": Handlebars.compile(document.getElementById('jobposting-template').innerHTML),
-                    "Organization": Handlebars.compile(document.getElementById('organization-template').innerHTML),
-                    "Person": Handlebars.compile(document.getElementById('person-template').innerHTML),
-                    "VideoObject": Handlebars.compile(document.getElementById('video-object-template').innerHTML),
-                    "Website": Handlebars.compile(document.getElementById('website-template').innerHTML),
-                    "Review": Handlebars.compile(document.getElementById('review-template').innerHTML),
-                    "SoftwareApplication": Handlebars.compile(document.getElementById('software-application-template').innerHTML),
-                    "Recipe": Handlebars.compile(document.getElementById('recipe-template').innerHTML),
-                    "Course": Handlebars.compile(document.getElementById('course-template').innerHTML),
-                    "Service": Handlebars.compile(document.getElementById('service-template').innerHTML),
-                    "ProfessionalService": Handlebars.compile(document.getElementById('local-business-template').innerHTML),
+                    "LocalBusiness": (document.getElementById('local-business-template') ? Handlebars.compile(document.getElementById('local-business-template').innerHTML) : null),
+                    "Product": (document.getElementById('product-template') ? Handlebars.compile(document.getElementById('product-template').innerHTML) : null),
+                    "Event": (document.getElementById('event-template') ? Handlebars.compile(document.getElementById('event-template').innerHTML) : null),
+                    "Article": (document.getElementById('article-template') ? Handlebars.compile(document.getElementById('article-template').innerHTML) : null),
+                    "BreadcrumbList": (document.getElementById('breadcrumblist-template') ? Handlebars.compile(document.getElementById('breadcrumblist-template').innerHTML) : null),
+                    "FAQPage": (document.getElementById('faqpage-template') ? Handlebars.compile(document.getElementById('faqpage-template').innerHTML) : null),
+                    "HowTo": (document.getElementById('howto-template') ? Handlebars.compile(document.getElementById('howto-template').innerHTML) : null),
+                    "JobPosting": (document.getElementById('jobposting-template') ? Handlebars.compile(document.getElementById('jobposting-template').innerHTML) : null),
+                    "Organization": (document.getElementById('organization-template') ? Handlebars.compile(document.getElementById('organization-template').innerHTML) : null),
+                    "Person": (document.getElementById('person-template') ? Handlebars.compile(document.getElementById('person-template').innerHTML) : null),
+                    "VideoObject": (document.getElementById('video-object-template') ? Handlebars.compile(document.getElementById('video-object-template').innerHTML) : null),
+                    "Website": (document.getElementById('website-template') ? Handlebars.compile(document.getElementById('website-template').innerHTML) : null),
+                    "Review": (document.getElementById('review-template') ? Handlebars.compile(document.getElementById('review-template').innerHTML) : null),
+                    "SoftwareApplication": (document.getElementById('software-application-template') ? Handlebars.compile(document.getElementById('software-application-template').innerHTML) : null),
+                    "Recipe": (document.getElementById('recipe-template') ? Handlebars.compile(document.getElementById('recipe-template').innerHTML) : null),
+                    "Course": (document.getElementById('course-template') ? Handlebars.compile(document.getElementById('course-template').innerHTML) : null),
+                    "Service": (document.getElementById('service-template') ? Handlebars.compile(document.getElementById('service-template').innerHTML) : null),
+                    "ProfessionalService": (document.getElementById('local-business-template') ? Handlebars.compile(document.getElementById('local-business-template').innerHTML) : null),
                 }
 
                 let faqItemCount = 1;
 
-                schemaTypeSelect.addEventListener('change', () => {
-                    const selectedType = schemaTypeSelect.value;
-                    const template = templates[selectedType];
+                if (schemaTypeSelect) {
+                    schemaTypeSelect.addEventListener('change', () => {
+                        const selectedType = schemaTypeSelect.value;
+                        const template = templates[selectedType];
 
-                    if (template) {
-                        inputFieldsDiv.innerHTML = template();
-                        updateSchema(); // Initial update after template render
-                    } else {
-                        inputFieldsDiv.innerHTML = ''; // Clear if no template exists
-                        schemaOutputDiv.textContent = '';
-                    }
+                        if (template) {
+                            inputFieldsDiv.innerHTML = template();
+                            updateSchema(); // Initial update after template render
+                        } else {
+                            inputFieldsDiv.innerHTML = ''; // Clear if no template exists
+                            schemaOutputDiv.textContent = '';
+                        }
 
 
-                    // Add event listeners after rendering the template
-                    inputFieldsDiv.querySelectorAll('input').forEach(input => {
-                        input.addEventListener('input', updateSchema);
+                        // Add event listeners after rendering the template
+                        inputFieldsDiv.querySelectorAll('input').forEach(input => {
+                            input.addEventListener('input', updateSchema);
+                        });
                     });
-                });
 
-                // Initial setup (trigger the change event once to populate fields for default type)
-                schemaTypeSelect.dispatchEvent(new Event('change'));
+                    // Initial setup (trigger the change event once to populate fields for default type)
+                    schemaTypeSelect.dispatchEvent(new Event('change'));
+                }
 
                 function updateSchema() {
                     const selectedType = schemaTypeSelect.value;
@@ -16206,10 +16208,14 @@ ${selectedText}
                             schema.itemReviewed["@type"] = "Thing"; // Generic fallback
                         }
 
-                        schemaOutputDiv.textContent = '<script type="application/ld+json">\n' + JSON.stringify(schema, null, 2) + '\n<\/script>';
+                        if (schemaOutputDiv) {
+                            schemaOutputDiv.textContent = '<script type="application/ld+json">\n' + JSON.stringify(schema, null, 2) + '\n<\/script>';
+                        }
 
                     } catch (error) {
-                        schemaOutputDiv.textContent = "Error generating schema. Check console.";
+                        if (schemaOutputDiv) {
+                            schemaOutputDiv.textContent = "Error generating schema. Check console.";
+                        }
                         console.error("Schema Generation Error:", error);
                     }
                 }
