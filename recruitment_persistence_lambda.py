@@ -79,6 +79,8 @@ def lambda_handler(event, context):
             return handle_get_audit_logs(db, headers)
         elif action == 'bulk_delete_candidates':
             return handle_bulk_delete_candidates(db, data.get('ids'), current_user, headers)
+        elif action == 'bulk_restore_candidates':
+            return handle_bulk_restore_candidates(db, data.get('ids'), current_user, headers)
         else:
             return response(400, f"Unknown action: {action}", headers)
 
@@ -161,7 +163,10 @@ def handle_get_candidates(db, data, headers):
     limit = int(data.get('limit', 20))
     skip = (page - 1) * limit
 
-    query = {"deleted": {"$ne": True}}
+    query = {}
+    if not data.get('includeDeleted'):
+        query["deleted"] = {"$ne": True}
+    
     if job_id:
         query["jobId"] = str(job_id)
     
@@ -247,18 +252,48 @@ def handle_bulk_delete_candidates(db, ids, user, headers):
     if not ids or not isinstance(ids, list):
         return response(400, "Invalid IDs format. Must be a list.", headers)
     
+    # Try to match both string and float versions of IDs
+    typed_ids = []
+    for id_val in ids:
+        typed_ids.append(str(id_val))
+        try:
+            typed_ids.append(float(id_val))
+        except:
+            pass
+
     result = db.candidates.update_many(
-        {"id": {"$in": ids}},
+        {"id": {"$in": typed_ids}},
         {"$set": {"deleted": True}}
     )
     
-    log_audit(db, "bulk_soft_delete", "candidate", "batch", user, f"Batch soft-deleted {result.modified_count} candidates")
+    log_audit(db, "bulk_soft_delete", "candidate", ",".join(map(str, ids)), user, f"Batch soft-deleted {result.modified_count} candidates")
     return response(200, {"success": True, "count": result.modified_count}, headers)
 
 def handle_restore_candidate(db, cand_id, user, headers):
     db.candidates.update_one({"id": cand_id}, {"$set": {"deleted": False}})
     log_audit(db, "restore", "candidate", cand_id, user, f"Candidate restored ID: {cand_id}")
     return response(200, {"success": True}, headers)
+
+def handle_bulk_restore_candidates(db, ids, user, headers):
+    if not ids or not isinstance(ids, list):
+        return response(400, "Invalid IDs format. Must be a list.", headers)
+    
+    # Try to match both string and float versions of IDs to be safe
+    typed_ids = []
+    for id_val in ids:
+        typed_ids.append(str(id_val))
+        try:
+            typed_ids.append(float(id_val))
+        except:
+            pass
+
+    result = db.candidates.update_many(
+        {"id": {"$in": typed_ids}},
+        {"$set": {"deleted": False}}
+    )
+    
+    log_audit(db, "bulk_restore", "candidate", "batch", user, f"Batch restored {result.modified_count} candidates (matched {result.matched_count})")
+    return response(200, {"success": True, "count": result.modified_count, "matched": result.matched_count}, headers)
 
 def handle_upsert_candidate(db, cand_data, user, headers):
     cand_id = cand_data.get('id')
@@ -271,10 +306,6 @@ def handle_upsert_candidate(db, cand_data, user, headers):
         return handle_add_candidate(db, cand_data, user, headers)
     return response(200, {"success": True}, headers)
 
-def handle_restore_candidate(db, cand_id, user, headers):
-    db.candidates.update_one({"id": cand_id}, {"$set": {"deleted": False}})
-    log_audit(db, "restore", "candidate", cand_id, user, "Candidate restored")
-    return response(200, {"success": True}, headers)
 
 def handle_get_users(db, headers):
     users = list(db.users.find({}))

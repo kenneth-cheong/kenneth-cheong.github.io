@@ -10,12 +10,13 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <style>
         :root {
             --primary: #6366f1;
@@ -1059,6 +1060,14 @@
                         <button id="bulkDeleteRepoBtn" class="btn"
                             style="display: none; background: var(--accent); color: white;"
                             onclick="bulkDeleteRepo()">Delete Selected</button>
+                        <button id="bulkRestoreRepoBtn" class="btn"
+                            style="display: none; background: var(--secondary); color: white;"
+                            onclick="bulkRestoreRepo()">Restore Selected</button>
+                        <div class="form-group" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="showDeletedRepo" onchange="filterCandidatesRepo()"
+                                style="width: 20px; height: 20px;">
+                            <label style="margin: 0; white-space: nowrap;">View Trash</label>
+                        </div>
                     </div>
                 </div>
 
@@ -1081,6 +1090,7 @@
                             <select id="filterStatus" onchange="filterCandidatesRepo()"
                                 style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: white; outline: none;">
                                 <option value="">All Statuses</option>
+                                <option value="No Action">No Action</option>
                                 <option value="Invited">Invited</option>
                                 <option value="Scheduled">Scheduled</option>
                                 <option value="Interviewed">Interviewed</option>
@@ -1411,6 +1421,9 @@
                                     style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem;">
                                     <thead>
                                         <tr style="background: rgba(15, 23, 42, 0.3);">
+                                            <th
+                                                style="text-align: center; padding: 12px; color: var(--accent); border-bottom: 1px solid var(--border); width: 30px;">
+                                            </th>
                                             <th
                                                 style="text-align: left; padding: 12px 24px; color: var(--text-dim); border-bottom: 1px solid var(--border); width: 15%;">
                                                 Metric</th>
@@ -1863,10 +1876,12 @@
             if (requestJobId) renderCandidates();
             else filterCandidatesRepo();
 
+            const includeDeleted = document.getElementById('showDeletedRepo')?.checked || false;
             const data = await persistenceApiCall('get_candidates', {
                 jobId: requestJobId,
                 page: state.pagination.page,
-                limit: state.pagination.limit
+                limit: state.pagination.limit,
+                includeDeleted: includeDeleted
             }, true);
             state.isFetchingCandidates = false;
 
@@ -1917,10 +1932,12 @@
                 }
 
                 console.log(`Background fetching page ${currentPage} for ${jobId || 'Global Repo'}...`);
+                const includeDeleted = document.getElementById('showDeletedRepo')?.checked || false;
                 const data = await persistenceApiCall('get_candidates', {
                     jobId: jobId,
                     page: currentPage,
-                    limit: limit
+                    limit: limit,
+                    includeDeleted: includeDeleted
                 }, true);
 
                 if (data && Array.isArray(data.candidates)) {
@@ -2287,7 +2304,7 @@
         }
 
         function getStatusOptions(currentStatus) {
-            const statuses = ['Invited', 'Scheduled', 'Interviewed', 'Shortlisted', 'Rejected'];
+            const statuses = ['No Action', 'Invited', 'Scheduled', 'Interviewed', 'Shortlisted', 'Rejected'];
             return statuses.map(s => `<option value="${s}" ${s === currentStatus ? 'selected' : ''}>${s}</option>`).join('');
         }
 
@@ -2499,6 +2516,12 @@
         }
 
         function filterCandidatesRepo() {
+            const showDeleted = document.getElementById('showDeletedRepo')?.checked || false;
+
+            // Show/Hide bulk action buttons based on mode
+            document.getElementById('bulkRestoreRepoBtn').style.display = showDeleted ? 'inline-flex' : 'none';
+            document.getElementById('bulkDeleteRepoBtn').style.display = showDeleted ? 'none' : 'inline-flex';
+
             const search = document.getElementById('searchCand')?.value.toLowerCase() || "";
             const pos = document.getElementById('filterPosition')?.value || "";
             const status = document.getElementById('filterStatus')?.value || "";
@@ -2514,6 +2537,13 @@
             if (search) filtered = filtered.filter(c => c.name.toLowerCase().includes(search));
             if (pos) filtered = filtered.filter(c => c.jobTitle === pos);
             if (status) filtered = filtered.filter(c => c.status === status);
+
+            // Handle Deleted Logic
+            if (showDeleted) {
+                filtered = filtered.filter(c => c.deleted === true);
+            } else {
+                filtered = filtered.filter(c => !c.deleted);
+            }
             if (startStr) filtered = filtered.filter(c => new Date(ensureUTC(c.date)) >= new Date(startStr));
             if (endStr) filtered = filtered.filter(c => new Date(ensureUTC(c.date)) <= new Date(endStr));
 
@@ -2750,6 +2780,66 @@
         }
 
         // Selection and Deletion Helpers
+        async function bulkRestoreRepo() {
+            const checked = document.querySelectorAll('.repo-checkbox:checked');
+            if (checked.length === 0) {
+                alert("Please select candidates to restore.");
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to restore ${checked.length} candidates?`)) return;
+
+            const ids = Array.from(checked).map(cb => cb.value);
+            const result = await persistenceApiCall('bulk_restore_candidates', { ids });
+
+            if (result && result.success) {
+                // Update local stats
+                ids.forEach(id => {
+                    const cand = state.candidates.find(c => String(c.id) === String(id));
+                    if (cand) {
+                        cand.deleted = false;
+                        const job = state.jobs.find(j => String(j.id) === String(cand.jobId));
+                        if (job) {
+                            job.applicants++;
+                            if (cand.status === 'Shortlisted') job.shortlisted++;
+                        }
+                    }
+                });
+
+                // Full re-fetch to ensure consistency (handles items not currently in state)
+                const includeDeleted = document.getElementById('showDeletedRepo')?.checked || false;
+                const data = await persistenceApiCall('get_candidates', {
+                    includeDeleted: includeDeleted
+                }, true);
+                if (data && Array.isArray(data.candidates)) {
+                    // Update state with new data
+                    data.candidates.forEach(cand => {
+                        const idx = state.candidates.findIndex(ex => String(ex.id) === String(cand.id));
+                        if (idx !== -1) state.candidates[idx] = cand;
+                        else state.candidates.push(cand);
+                    });
+                }
+
+                filterCandidatesRepo();
+                updateStats();
+                renderJobs();
+
+                const selectAll = document.getElementById('selectAllRepo');
+                if (selectAll) selectAll.checked = false;
+                updateBulkDeleteVisibility('repoTable');
+
+                if (result.count > 0) {
+                    alert(`Successfully restored ${result.count} candidates.`);
+                } else if (result.matched > 0) {
+                    alert(`Selected candidate(s) were already active (already restored).`);
+                } else {
+                    alert("No candidates were found matching the selection. They may have been permanently deleted or moved.");
+                }
+            } else {
+                alert("Failed to restore candidates.");
+            }
+        }
+
         function toggleSelectAll(tableId) {
             const isChecked = tableId === 'candidateTable' ?
                 document.getElementById('selectAllCandidates').checked :
@@ -2869,6 +2959,65 @@
                 alert("Candidate restored successfully!");
             }
         }
+        async function restoreBulkCandidates(idsString) {
+            if (idsString === 'batch') {
+                alert("This is an older log entry that does not contain specific candidate IDs. Please go to the 'Candidates Repository' section and use the 'View Trash' checkbox to restore these candidates manually.");
+                return;
+            }
+
+            const ids = idsString.split(',').filter(id => id.trim() !== '');
+            if (ids.length === 0) {
+                alert("No IDs found for restoration.");
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to restore these ${ids.length} candidates?`)) return;
+
+            const res = await persistenceApiCall('bulk_restore_candidates', { ids });
+            if (res && res.success) {
+                // Update local state for immediate feedback
+                ids.forEach(id => {
+                    const cand = state.candidates.find(c => String(c.id) === String(id));
+                    if (cand) {
+                        cand.deleted = false;
+                        const job = state.jobs.find(j => String(j.id) === String(cand.jobId));
+                        if (job) {
+                            job.applicants++;
+                            if (cand.status === 'Shortlisted') job.shortlisted++;
+                        }
+                    }
+                });
+
+                // Full re-fetch to ensure consistency (handles items not currently in state)
+                const fetchParams = state.activeJobId ? { jobId: state.activeJobId } : {};
+                const includeDeleted = document.getElementById('showDeletedRepo')?.checked || false;
+                if (includeDeleted) fetchParams.includeDeleted = true;
+
+                const data = await persistenceApiCall('get_candidates', fetchParams, true);
+                if (data && Array.isArray(data.candidates)) {
+                    // Update state with new data
+                    data.candidates.forEach(cand => {
+                        const idx = state.candidates.findIndex(ex => String(ex.id) === String(cand.id));
+                        if (idx !== -1) state.candidates[idx] = cand;
+                        else state.candidates.push(cand);
+                    });
+                }
+
+                showAuditLogs(); // Refresh log view
+                renderCandidates();
+                filterCandidatesRepo();
+                updateStats();
+                renderJobs();
+
+                if (res.count > 0) {
+                    alert(`Successfully restored ${res.count} candidates.`);
+                } else if (res.matched > 0) {
+                    alert(`Candidate(s) were already active (already restored).`);
+                } else {
+                    alert("No candidates were found matching the log entry IDs. They may have been permanently deleted or moved.");
+                }
+            }
+        }
 
         async function bulkDelete() {
             const checked = document.querySelectorAll('.cand-checkbox:checked');
@@ -2896,7 +3045,9 @@
 
                 // Remove from state
                 const idsSet = new Set(ids.map(String));
-                state.candidates = state.candidates.filter(c => !idsSet.has(String(c.id)));
+                state.candidates.forEach(c => {
+                    if (idsSet.has(String(c.id))) c.deleted = true;
+                });
 
                 renderCandidates();
                 updateStats(); // Update dashboard/sidebar stats
@@ -2933,8 +3084,9 @@
                 });
 
                 // Remove from state
-                const idsSet = new Set(ids.map(String));
-                state.candidates = state.candidates.filter(c => !idsSet.has(String(c.id)));
+                state.candidates.forEach(c => {
+                    if (idsSet.has(String(c.id))) c.deleted = true;
+                });
 
                 filterCandidatesRepo();
                 updateStats();
@@ -3175,7 +3327,7 @@
                 comments: [],
                 isHopper: analysis.job_hopper,
                 hopperDetails: analysis.hopper_details,
-                status: 'Invited',
+                status: 'No Action',
                 pendingBy: '',
                 breakdown: analysis.breakdown,
                 summary: analysis.summary,
@@ -3405,6 +3557,7 @@
             }
 
             document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(job, c);
+            initCheatSheetSortable(c);
 
             const hopperBox = document.getElementById('hopperSection');
             if (c.isHopper) {
@@ -3602,6 +3755,9 @@
                     const rating = (cand.jobRatings && cand.jobRatings[row.id]) || 0;
                     return `
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); opacity: 0.9;">
+                        <td style="padding: 12px; vertical-align: top; text-align: center; color: var(--text-dim);">
+                            <i class="fas fa-lock" style="font-size: 0.7rem;"></i>
+                        </td>
                         <td style="padding: 12px 24px; vertical-align: top;">
                             <div style="color: var(--text-main); font-weight: 600; padding: 2px 4px;">${row.metric}</div>
                         </td>
@@ -3641,7 +3797,10 @@
                 html += `<tr><td colspan="6" style="padding: 20px 24px; text-align: center; color: var(--text-dim);">No custom questions.</td></tr>`;
             } else {
                 html += cand.customInterviewGuide.map((row, idx) => `
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);" data-id="${idx}">
+                        <td style="padding: 12px; vertical-align: top; text-align: center; color: var(--primary-light); cursor: grab;" class="drag-handle">
+                            <i class="fas fa-grip-vertical"></i>
+                        </td>
                         <td style="padding: 12px 24px; vertical-align: top;">
                             <div contenteditable="true" onblur="updateCustomGuideContent(${idx}, 'metric', this.innerText)"
                                  style="color: var(--text-main); font-weight: 600; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
@@ -3688,6 +3847,42 @@
             }
 
             return html;
+        }
+
+        let cheatSheetSortable = null;
+        function initCheatSheetSortable(cand) {
+            const el = document.getElementById('cheatSheetBody');
+            if (!el) return;
+
+            if (cheatSheetSortable) {
+                cheatSheetSortable.destroy();
+            }
+
+            cheatSheetSortable = new Sortable(el, {
+                handle: '.drag-handle',
+                animation: 150,
+                onEnd: async function () {
+                    const rows = Array.from(el.querySelectorAll('tr[data-id]'));
+                    const newGuide = rows.map(row => {
+                        const originalIdx = parseInt(row.getAttribute('data-id'));
+                        return cand.customInterviewGuide[originalIdx];
+                    });
+
+                    cand.customInterviewGuide = newGuide;
+                    console.log('New order saved locally');
+
+                    // Persist the new order
+                    await persistenceApiCall('upsert_candidate', {
+                        id: cand.id,
+                        customInterviewGuide: cand.customInterviewGuide
+                    });
+
+                    // Re-render to refresh data-id attributes
+                    const job = state.jobs.find(j => String(j.id) === String(cand.jobId));
+                    el.innerHTML = renderCheatSheet(job, cand);
+                    initCheatSheetSortable(cand);
+                }
+            });
         }
 
         async function addGuideQuestion() {
@@ -3869,6 +4064,8 @@
                         } else if (l.targetType === 'candidate') {
                             undoBtn = `<button class="btn" style="padding: 4px 8px; font-size: 0.7rem; background: var(--primary); color: white;" onclick="restoreCandidate('${l.targetId}')">Restore</button>`;
                         }
+                    } else if (l.action === 'bulk_soft_delete') {
+                        undoBtn = `<button class="btn" style="padding: 4px 8px; font-size: 0.7rem; background: var(--primary); color: white;" onclick="restoreBulkCandidates('${l.targetId}')">Restore</button>`;
                     }
 
                     return `
