@@ -3751,12 +3751,12 @@
                         </td>
                     </tr>
                 `;
-                html += job.interviewQuestions.map((row) => {
+                html += job.interviewQuestions.map((row, jIdx) => {
                     const rating = (cand.jobRatings && cand.jobRatings[row.id]) || 0;
                     return `
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); opacity: 0.9;">
-                        <td style="padding: 12px; vertical-align: top; text-align: center; color: var(--text-dim);">
-                            <i class="fas fa-lock" style="font-size: 0.7rem;"></i>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); opacity: 0.9;" data-type="job" data-id="${jIdx}">
+                        <td style="padding: 12px; vertical-align: top; text-align: center; color: var(--primary-light); cursor: grab;" class="drag-handle">
+                            <i class="fas fa-grip-vertical"></i>
                         </td>
                         <td style="padding: 12px 24px; vertical-align: top;">
                             <div style="color: var(--text-main); font-weight: 600; padding: 2px 4px;">${row.metric}</div>
@@ -3797,7 +3797,7 @@
                 html += `<tr><td colspan="6" style="padding: 20px 24px; text-align: center; color: var(--text-dim);">No custom questions.</td></tr>`;
             } else {
                 html += cand.customInterviewGuide.map((row, idx) => `
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);" data-id="${idx}">
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);" data-type="custom" data-id="${idx}">
                         <td style="padding: 12px; vertical-align: top; text-align: center; color: var(--primary-light); cursor: grab;" class="drag-handle">
                             <i class="fas fa-grip-vertical"></i>
                         </td>
@@ -3861,24 +3861,43 @@
             cheatSheetSortable = new Sortable(el, {
                 handle: '.drag-handle',
                 animation: 150,
+                filter: 'tr[style*="background: rgba"]', // Exclude section header rows
                 onEnd: async function () {
-                    const rows = Array.from(el.querySelectorAll('tr[data-id]'));
-                    const newGuide = rows.map(row => {
-                        const originalIdx = parseInt(row.getAttribute('data-id'));
-                        return cand.customInterviewGuide[originalIdx];
-                    });
+                    const job = state.jobs.find(j => String(j.id) === String(cand.jobId));
 
-                    cand.customInterviewGuide = newGuide;
-                    console.log('New order saved locally');
+                    // Rebuild job questions order
+                    const jobRows = Array.from(el.querySelectorAll('tr[data-type="job"]'));
+                    if (job && job.interviewQuestions && jobRows.length > 0) {
+                        const newJobQuestions = jobRows.map(row => {
+                            const origIdx = parseInt(row.getAttribute('data-id'));
+                            return job.interviewQuestions[origIdx];
+                        });
+                        job.interviewQuestions = newJobQuestions;
 
-                    // Persist the new order
-                    await persistenceApiCall('upsert_candidate', {
-                        id: cand.id,
-                        customInterviewGuide: cand.customInterviewGuide
-                    });
+                        // Persist job question order
+                        await persistenceApiCall('upsert_job', {
+                            id: job.id,
+                            interviewQuestions: job.interviewQuestions
+                        });
+                    }
+
+                    // Rebuild custom questions order
+                    const customRows = Array.from(el.querySelectorAll('tr[data-type="custom"]'));
+                    if (cand.customInterviewGuide && customRows.length > 0) {
+                        const newGuide = customRows.map(row => {
+                            const origIdx = parseInt(row.getAttribute('data-id'));
+                            return cand.customInterviewGuide[origIdx];
+                        });
+                        cand.customInterviewGuide = newGuide;
+
+                        // Persist custom question order
+                        await persistenceApiCall('upsert_candidate', {
+                            id: cand.id,
+                            customInterviewGuide: cand.customInterviewGuide
+                        });
+                    }
 
                     // Re-render to refresh data-id attributes
-                    const job = state.jobs.find(j => String(j.id) === String(cand.jobId));
                     el.innerHTML = renderCheatSheet(job, cand);
                     initCheatSheetSortable(cand);
                 }
