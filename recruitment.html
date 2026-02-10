@@ -1257,6 +1257,9 @@
                         <thead>
                             <tr style="background: rgba(15, 23, 42, 0.3);">
                                 <th
+                                    style="text-align: center; padding: 12px; color: var(--accent); border-bottom: 1px solid var(--border); width: 30px;">
+                                </th>
+                                <th
                                     style="text-align: left; padding: 12px 24px; color: var(--text-dim); border-bottom: 1px solid var(--border); width: 15%;">
                                     Metric</th>
                                 <th
@@ -2072,6 +2075,8 @@
                 { text: "Has done cold calls and cold outreach", weight: 20 },
                 { text: "Indicated has hit/exceeded sales targets consistently", weight: 20 }
             ];
+            state.jobQuestions = [];
+            renderJobQuestions();
             renderJobCriteria();
 
             document.getElementById('jobModal').style.display = 'flex';
@@ -2190,11 +2195,14 @@
             const body = document.getElementById('jobQuestionsBody');
             if (!body) return;
             if (!state.jobQuestions || state.jobQuestions.length === 0) {
-                body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-dim);">No standard questions defined.</td></tr>';
+                body.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-dim);">No standard questions defined.</td></tr>';
                 return;
             }
             body.innerHTML = state.jobQuestions.map((row, idx) => `
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);" data-id="${idx}">
+                    <td style="padding: 12px; vertical-align: top; text-align: center; color: var(--primary-light); cursor: grab;" class="drag-handle">
+                        <i class="fas fa-grip-vertical"></i>
+                    </td>
                     <td style="padding: 12px 24px; vertical-align: top;">
                         <div contenteditable="true" onblur="updateJobQuestionContent(${idx}, 'metric', this.innerText)"
                              style="color: var(--text-main); font-weight: 600; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
@@ -2230,6 +2238,27 @@
                     </td>
                 </tr>
             `).join('');
+            initJobQuestionsSortable();
+        }
+
+        let jobQuestionsSortable = null;
+        function initJobQuestionsSortable() {
+            const el = document.getElementById('jobQuestionsBody');
+            if (!el) return;
+            if (jobQuestionsSortable) jobQuestionsSortable.destroy();
+            jobQuestionsSortable = new Sortable(el, {
+                handle: '.drag-handle',
+                animation: 150,
+                onEnd: function () {
+                    const rows = Array.from(el.querySelectorAll('tr[data-id]'));
+                    const newQuestions = rows.map(row => {
+                        const originalIdx = parseInt(row.getAttribute('data-id'));
+                        return state.jobQuestions[originalIdx];
+                    });
+                    state.jobQuestions = newQuestions;
+                    renderJobQuestions();
+                }
+            });
         }
         function addJobCriteria() {
             if (!state.jobCriteria) state.jobCriteria = [];
@@ -3751,10 +3780,26 @@
                         </td>
                     </tr>
                 `;
-                html += job.interviewQuestions.map((row, jIdx) => {
+                // Determine display order: candidate override > job default
+                let orderedQuestions = job.interviewQuestions;
+                if (cand.jobQuestionOrder && Array.isArray(cand.jobQuestionOrder) && cand.jobQuestionOrder.length > 0) {
+                    // Reorder based on candidate's saved order (by question ID)
+                    const ordered = [];
+                    cand.jobQuestionOrder.forEach(qId => {
+                        const found = job.interviewQuestions.find(q => String(q.id) === String(qId));
+                        if (found) ordered.push(found);
+                    });
+                    // Append any new questions not in the saved order
+                    job.interviewQuestions.forEach(q => {
+                        if (!ordered.find(o => String(o.id) === String(q.id))) ordered.push(q);
+                    });
+                    orderedQuestions = ordered;
+                }
+
+                html += orderedQuestions.map((row, jIdx) => {
                     const rating = (cand.jobRatings && cand.jobRatings[row.id]) || 0;
                     return `
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); opacity: 0.9;" data-type="job" data-id="${jIdx}">
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); opacity: 0.9;" data-type="job" data-id="${jIdx}" data-qid="${row.id}">
                         <td style="padding: 12px; vertical-align: top; text-align: center; color: var(--primary-light); cursor: grab;" class="drag-handle">
                             <i class="fas fa-grip-vertical"></i>
                         </td>
@@ -3868,16 +3913,26 @@
                     // Rebuild job questions order
                     const jobRows = Array.from(el.querySelectorAll('tr[data-type="job"]'));
                     if (job && job.interviewQuestions && jobRows.length > 0) {
-                        const newJobQuestions = jobRows.map(row => {
-                            const origIdx = parseInt(row.getAttribute('data-id'));
-                            return job.interviewQuestions[origIdx];
-                        });
+                        // Get the new order by question ID
+                        const newJobQuestionOrder = jobRows.map(row => row.getAttribute('data-qid'));
+
+                        // Update the job's default order
+                        const newJobQuestions = newJobQuestionOrder.map(qid =>
+                            job.interviewQuestions.find(q => String(q.id) === String(qid))
+                        ).filter(Boolean);
                         job.interviewQuestions = newJobQuestions;
 
-                        // Persist job question order
+                        // Save candidate-level override
+                        cand.jobQuestionOrder = newJobQuestionOrder;
+
+                        // Persist both
                         await persistenceApiCall('upsert_job', {
                             id: job.id,
                             interviewQuestions: job.interviewQuestions
+                        });
+                        await persistenceApiCall('upsert_candidate', {
+                            id: cand.id,
+                            jobQuestionOrder: cand.jobQuestionOrder
                         });
                     }
 
