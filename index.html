@@ -11548,7 +11548,7 @@ seo agencies in singapore</textarea>
                         label: 'Semantic Structure',
                         value: foundCount > 0 ? semanticDetails.filter(d => d.present).map(d => d.tag).join(', ') : 'Basic (div-based)',
                         status: foundCount >= 4 ? 'pass' : (foundCount > 0 ? 'warn' : 'fail'),
-                        geoDescription: 'Use of tags like "<article>"" and "<nav>"". It helps AI agents "see" the relative importance of different content blocks.',
+                        geoDescription: 'Use of tags like nav, header, footer and main. It helps AI agents "see" the relative importance of different content blocks.',
                         semanticDetails: semanticDetails
                     });
 
@@ -11845,27 +11845,78 @@ seo agencies in singapore</textarea>
                 const readabilityScore = resultItem.meta?.content?.flesch_kincaid_readability_index ? Number(resultItem.meta.content.flesch_kincaid_readability_index) : null;
 
                 const metrics = [
-                    { label: 'Word Count', value: resultItem.meta?.content?.plain_text_word_count || 'N/A', icon: 'fa-font' },
-                    { label: 'Internal Links', value: resultItem.meta?.internal_links_count || 0, icon: 'fa-link' },
+                    {
+                        label: 'Word Count',
+                        value: resultItem.meta?.content?.plain_text_word_count || 'N/A',
+                        icon: 'fa-font',
+                        geoDescription: 'Total content length. Generative engines prioritize comprehensive, in-depth content that answers user intent thoroughly.'
+                    },
+                    {
+                        label: 'Internal Links',
+                        value: resultItem.meta?.internal_links_count || 0,
+                        icon: 'fa-link',
+                        geoDescription: 'Connects related topics. A strong internal structure helps AI models understand the topical relevance and hierarchy of your domain.'
+                    },
                     {
                         label: 'Load Time',
                         value: loadTimeSec ? loadTimeSec.toFixed(2) + 's' : 'N/A',
                         icon: 'fa-bolt',
-                        status: loadTimeSec ? (loadTimeSec < 2 ? 'pass' : loadTimeSec < 5 ? 'warn' : 'fail') : 'fail'
+                        status: loadTimeSec ? (loadTimeSec < 2 ? 'pass' : loadTimeSec < 5 ? 'warn' : 'fail') : 'fail',
+                        geoDescription: 'Impacts crawl efficiency. Faster pages allow AI agents to parse and index your information more reliably and frequently.'
                     },
                     {
                         label: 'Readability (Flesch)',
                         value: readabilityScore ? readabilityScore.toFixed(2) : 'N/A',
                         icon: 'fa-glasses',
-                        status: readabilityScore ? (readabilityScore > 60 ? 'pass' : readabilityScore > 45 ? 'warn' : 'fail') : 'fail'
+                        status: readabilityScore ? (readabilityScore > 60 ? 'pass' : readabilityScore > 45 ? 'warn' : 'fail') : 'fail',
+                        geoDescription: 'Content clarity. AI search models favor content that is easy to parse, well-structured, and written for human clarity.'
                     },
-                    { label: 'HTTPS Secure', value: resultItem.checks?.is_https ? 'Yes' : 'No', icon: 'fa-lock', status: resultItem.checks?.is_https ? 'pass' : 'fail' },
-                    { label: 'Render Blockers', value: resultItem.meta?.render_blocking_scripts_count || 0, icon: 'fa-cubes' },
-                    { label: 'Images (Total)', value: resultItem.meta?.images_count || 0, icon: 'fa-image' },
-                    { label: 'Missing Alt Tags', value: resultItem.checks?.no_image_alt || 0, icon: 'fa-exclamation-triangle', status: (resultItem.checks?.no_image_alt === 0) ? 'pass' : 'warn' },
-                    { label: 'Schema Markup', value: resultItem.checks?.has_micromarkup ? 'Present' : 'Missing', icon: 'fa-code', status: resultItem.checks?.has_micromarkup ? 'pass' : 'warn' },
-                    { label: 'H1, H2, H3 Tags', value: `${resultItem.meta?.htags?.h1?.length || 0} / ${resultItem.meta?.htags?.h2?.length || 0} / ${resultItem.meta?.htags?.h3?.length || 0}`, icon: 'fa-heading' },
-                    { label: 'CDN / Server', value: resultItem.server || 'None detected', icon: 'fa-server', status: resultItem.server ? 'pass' : 'warn' }
+                    {
+                        label: 'HTTPS Secure',
+                        value: resultItem.checks?.is_https ? 'Yes' : 'No',
+                        icon: 'fa-lock',
+                        status: resultItem.checks?.is_https ? 'pass' : 'fail',
+                        geoDescription: 'Trust signal. A secure connection is a fundamental requirement for authoritative ranking in generative answers.'
+                    },
+                    {
+                        label: 'Render Blockers',
+                        value: resultItem.meta?.render_blocking_scripts_count || 0,
+                        icon: 'fa-cubes',
+                        geoDescription: 'Crawl obstacles. Scripts that block rendering can prevent AI bots from accurately "seeing" the final content of your page.'
+                    },
+                    {
+                        label: 'Images (Total)',
+                        value: resultItem.meta?.images_count || 0,
+                        icon: 'fa-image',
+                        geoDescription: 'Visual context. Multi-modal AI models use images to better understand the subject matter and provide visual answers.'
+                    },
+                    {
+                        label: 'Missing Alt Tags',
+                        value: resultItem.checks?.no_image_alt || 0,
+                        icon: 'fa-exclamation-triangle',
+                        status: (resultItem.checks?.no_image_alt === 0) ? 'pass' : 'warn',
+                        geoDescription: 'Accessibility & context. Alt tags provide crucial text descriptions for images, allowing AI to include your visuals in search results.'
+                    },
+                    {
+                        label: 'Schema Markup',
+                        value: resultItem.checks?.has_micromarkup ? 'Present' : 'Missing',
+                        icon: 'fa-code',
+                        status: resultItem.checks?.has_micromarkup ? 'pass' : 'warn',
+                        geoDescription: 'Granular data. Structured data helps AI models identify specific entities like Products, Services, and Organizations with 100% accuracy.'
+                    },
+                    {
+                        label: 'H1, H2, H3 Tags',
+                        value: `${resultItem.meta?.htags?.h1?.length || 0} / ${resultItem.meta?.htags?.h2?.length || 0} / ${resultItem.meta?.htags?.h3?.length || 0}`,
+                        icon: 'fa-heading',
+                        geoDescription: 'Content structure. Proper heading hierarchy allows AI to segment your page and extract specific answers for user queries.'
+                    },
+                    {
+                        label: 'CDN / Server',
+                        value: resultItem.server || 'None detected',
+                        icon: 'fa-server',
+                        status: resultItem.server ? 'pass' : 'warn',
+                        geoDescription: 'Performance & global delivery. Using a CDN ensures AI crawlers can access your site quickly from any global node.'
+                    }
                 ];
 
                 grid.innerHTML = '';
@@ -27399,4 +27450,4 @@ CRITICAL CONTENT GUIDELINES (EEAT):
     </div>
 </body>
 
-</html>
+</html
