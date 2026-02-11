@@ -11863,12 +11863,15 @@ seo agencies in singapore</textarea>
 
                     const card = document.createElement('div');
                     card.style.cssText = 'background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 4px;';
+
+                    const valId = m.label === 'Schema Markup' ? 'id="discovery-schema-markup-val"' : '';
+
                     card.innerHTML = `
                             <div style="display: flex; align-items: center; gap: 8px; font-size: 0.85em; color: #64748b; font-weight: 500;">
                                 <i class="fas ${m.icon}" style="color: ${statusColor};"></i>
                                 ${m.label}
                             </div>
-                            <div style="font-size: 1.1em; font-weight: 700; color: #1e293b;">${m.value}</div>
+                            <div ${valId} style="font-size: 1.1em; font-weight: 700; color: #1e293b;">${m.value}</div>
                             ${gaugeHtml}
                         `;
                     grid.appendChild(card);
@@ -11903,37 +11906,44 @@ seo agencies in singapore</textarea>
 
                 // 5. Fetch Detailed Microdata (Supplementary) - Nested here to access taskId
                 try {
+                    const schemaValDiv = document.getElementById('discovery-schema-markup-val');
+                    if (schemaValDiv) {
+                        schemaValDiv.innerHTML = '<span style="font-size: 0.8em; color: #6366f1; font-weight: 400;"><i class="fas fa-spinner fa-spin"></i> Identifying types...</span>';
+                    }
+
                     const microResp = await fetch('https://ak9qsl9wgi.execute-api.ap-southeast-1.amazonaws.com/dataforseoCrawler', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             action: 'get_microdata',
-                            task_id: taskId
+                            task_id: taskId,
+                            id: taskId,
+                            url: resultItem.url // Use exact crawled URL to satisfy API match requirement
                         })
                     });
                     const microData = await microResp.json();
-                    console.log(microData);
                     const actualMicro = typeof microData.body === 'string' ? JSON.parse(microData.body) : (microData.body || microData);
 
-                    const items = actualMicro.tasks?.[0]?.result?.[0]?.items || [];
-                    // Extract detailed Schema types from inspection_info.types
-                    const types = [...new Set(items.flatMap(i => i.inspection_info?.types || []))].filter(Boolean);
+                    // Robust extraction from various common DataForSEO response structures
+                    const task = actualMicro.tasks?.[0];
+                    const items = (task?.result?.[0]?.items) ||
+                        (task?.data?.result?.items) ||
+                        (actualMicro.result?.[0]?.items) || [];
 
-                    if (types.length > 0) {
-                        const card = document.createElement('div');
-                        card.className = 'discovery-stat-card';
-                        card.style.textAlign = 'center';
-                        card.style.padding = '20px';
-                        card.innerHTML = `
-                                <div class="discovery-stat-value" style="font-size: 1.2em; color: #6366f1;">
-                                    <i class="fas fa-project-diagram" style="margin-bottom: 10px;"></i>
-                                </div>
-                                <div class="discovery-stat-label" style="margin-top: 5px; font-weight: bold;">Detected Schemas</div>
-                                <div style="font-size: 0.85em; color: #64748b; margin-top: 8px; line-height: 1.4;">
-                                    ${types.join(', ')}
-                                </div>
-                            `;
-                        grid.appendChild(card);
+                    // Extract detailed Schema types if task was successful
+                    const types = task?.status_code === 20000
+                        ? [...new Set(items.flatMap(i => i.inspection_info?.types || []))].filter(Boolean)
+                        : [];
+
+                    if (schemaValDiv) {
+                        if (types.length > 0) {
+                            schemaValDiv.style.fontSize = '0.85em';
+                            schemaValDiv.style.lineHeight = '1.4';
+                            schemaValDiv.style.color = '#6366f1';
+                            schemaValDiv.textContent = types.join(', ');
+                        } else {
+                            schemaValDiv.textContent = 'Present (Basic)';
+                        }
                     }
                 } catch (microErr) {
                     console.error("Microdata fetch error:", microErr);

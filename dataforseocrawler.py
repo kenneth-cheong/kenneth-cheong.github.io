@@ -86,17 +86,24 @@ def lambda_handler(event, context):
 
         elif action == 'get_microdata':
             task_id = body.get('task_id')
+            url = body.get('url')
             if not task_id:
                 return {
                     'statusCode': 400,
                     'headers': {'Access-Control-Allow-Origin': '*'},
                     'body': json.dumps({'error': 'task_id is required'})
                 }
+            if not url:
+                return {
+                    'statusCode': 400,
+                    'headers': {'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'url is required'})
+                }
             
             microdata_url = "https://api.dataforseo.com/v3/on_page/microdata"
             payload = [{
                 "id": task_id,
-                "limit": 100
+                "url": url
             }]
             
             print(f"Fetching microdata for Task ID: {task_id}")
