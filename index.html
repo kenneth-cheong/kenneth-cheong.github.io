@@ -8841,6 +8841,95 @@
                     </div>
 
                 </div>
+
+                <!-- [NEW] Discovery Keyword Research & AI Mentions -->
+                <button class="collapsible" id="discoveryKeywordsBtn" onclick="toggleCollapsible(this)">
+                    <i class="fas fa-plus-square"></i><i class="fas fa-search-dollar"></i> Discovery Keyword Research &
+                    AI Mentions
+                </button>
+                <div class="content" id="discoveryKeywordsSection">
+                    <div class="geo-card" style="margin-top: 10px;">
+                        <div class="geo-input-group">
+                            <div class="geo-input-item">
+                                <label>Target URL</label>
+                                <input type="text" id="discKeywordUrl" placeholder="e.g. mediaonemarketing.com.sg">
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div class="geo-input-item">
+                                    <label>Location</label>
+                                    <select id="discKeywordLocation">
+                                        <option value="Singapore">Singapore</option>
+                                        <option value="None">Global</option>
+                                        <option value="Australia">Australia</option>
+                                        <option value="Canada">Canada</option>
+                                        <option value="United Kingdom">United Kingdom</option>
+                                        <option value="United States">United States</option>
+                                    </select>
+                                </div>
+                                <div class="geo-input-item">
+                                    <label>Language</label>
+                                    <select id="discKeywordLanguage">
+                                        <option value="English">English</option>
+                                        <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+                                        <option value="Chinese (Traditional)">Chinese (Traditional)</option>
+                                        <option value="Malay">Malay</option>
+                                        <option value="Tamil">Tamil</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button class="discovery-btn-run" style="width: 100%; margin-top: 10px;"
+                                onclick="fetchDiscoveryKeywords()">
+                                <i class="fas fa-satellite-dish"></i> Fetch Site Keywords
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Keyword Selection -->
+                    <div id="discKeywordListArea" style="display: none; margin-top: 20px;">
+                        <div class="geo-card">
+                            <div class="geo-card-header">
+                                <div class="geo-card-title"><i class="fas fa-list-check"></i> Select Keywords for
+                                    Strategy</div>
+                            </div>
+                            <div id="discKeywordsChecklist"
+                                style="max-height: 250px; overflow-y: auto; padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;">
+                                <!-- Checkboxes injected here -->
+                            </div>
+                            <div style="padding: 15px; border-top: 1px solid #f1f5f9;">
+                                <button class="geo-btn-add" style="width: 100%; border-style: solid !important;"
+                                    onclick="generateDiscoveryPrompts()">
+                                    <i class="fas fa-lightbulb"></i> Generate Intelligence Prompts
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Prompt Selection & Verification -->
+                    <div id="discPromptArea" style="display: none; margin-top: 20px;">
+                        <div class="geo-card">
+                            <div class="geo-card-header">
+                                <div class="geo-card-title"><i class="fas fa-robot"></i> Strategy Prompts</div>
+                            </div>
+                            <div id="discPromptsChecklist"
+                                style="padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                                <!-- Prompts injected here -->
+                            </div>
+                            <div style="padding: 15px; border-top: 1px solid #f1f5f9;">
+                                <button class="discovery-btn-run" style="width: 100%; background: #6366f1;"
+                                    onclick="verifyDiscoveryMentions()">
+                                    <i class="fas fa-vial"></i> Verify AI Mentions
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Final: Verification Results -->
+                    <div id="discVerificationResults" style="display: none; margin-top: 20px;">
+                        <!-- Results injected here -->
+                    </div>
+                </div>
+
+                <div class="page-break"></div>
             </div>
             <hr>
         </div>
@@ -11371,6 +11460,12 @@ seo agencies in singapore</textarea>
                 return;
             }
 
+            // Sync with Discovery Keyword tool if empty
+            const keywordUrlField = document.getElementById('discKeywordUrl');
+            if (keywordUrlField && !keywordUrlField.value) {
+                keywordUrlField.value = url;
+            }
+
             const btn = document.querySelector('.discovery-btn-run');
             const originalText = btn.textContent;
             btn.textContent = 'Analysing...';
@@ -12168,7 +12263,196 @@ seo agencies in singapore</textarea>
                 badge.style.color = '#991b1b';
                 grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: #ef4444; padding: 20px;">Error: ${error.message}</div>`;
             }
+        }
 
+        async function fetchDiscoveryKeywords() {
+            const target = document.getElementById('discKeywordUrl').value;
+            const location = document.getElementById('discKeywordLocation').value;
+            const language = document.getElementById('discKeywordLanguage').value;
+            const btn = document.querySelector('#discoveryKeywordsBtn + .content .discovery-btn-run');
+            const checklist = document.getElementById('discKeywordsChecklist');
+            const listArea = document.getElementById('discKeywordListArea');
+
+            if (!target) return alert("Please enter a target URL.");
+
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching Keywords...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target, location, language })
+                });
+
+                if (!response.ok) throw new Error("Failed to fetch keywords.");
+
+                const data = await response.json();
+                checklist.innerHTML = '';
+
+                const keywords = Object.keys(data);
+                if (keywords.length === 0) {
+                    checklist.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 20px;">No keywords found for this domain.</div>';
+                } else {
+                    keywords.forEach(kw => {
+                        const volume = data[kw].search_volume || 0;
+                        const item = document.createElement('label');
+                        item.className = "disc-kw-label";
+                        item.style.cssText = "display: flex; align-items: center; gap: 8px; padding: 10px; background: #f8fafc; border-radius: 8px; cursor: pointer; border: 1px solid #e2e8f0; font-size: 0.9em; transition: all 0.2s;";
+                        item.innerHTML = `
+                            <input type="checkbox" value="${kw}" style="width: 17px; height: 17px; border-style: solid !important;">
+                            <div style="display: flex; flex-direction: column;">
+                                <span style="font-weight: 600; color: #1e293b;">${kw}</span>
+                                <span style="font-size: 0.8em; color: #64748b;">Vol: ${volume.toLocaleString()}</span>
+                            </div>
+                        `;
+                        checklist.appendChild(item);
+                    });
+                }
+
+                listArea.style.display = 'block';
+                listArea.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (error) {
+                console.error("Keyword Fetch Error:", error);
+                alert("Error fetching keywords. Please try again.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function generateDiscoveryPrompts() {
+            const selectedKeywords = Array.from(document.querySelectorAll('#discKeywordsChecklist input:checked')).map(cb => cb.value);
+            const btn = document.querySelector('#discKeywordListArea button');
+            const promptArea = document.getElementById('discPromptArea');
+            const promptList = document.getElementById('discPromptsChecklist');
+
+            if (selectedKeywords.length === 0) return alert("Please select at least one keyword.");
+
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating Strategy...';
+            btn.disabled = true;
+
+            try {
+                const aiPrompt = `Based on these keywords: ${selectedKeywords.join(', ')}, generate 3 realistic user-intent questions or prompts that someone might ask a Generative AI engine (like ChatGPT or Perplexity) to search for services/products related to these keywords.
+                Format: Return ONLY a JSON array of strings. Do not include any explanation or markdown formatting.`;
+
+                const response = await fetch('https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'generate',
+                        prompt: aiPrompt,
+                        settings: { temperature: 0.7 }
+                    })
+                });
+
+                const data = await response.json();
+                const body = typeof data.body === 'string' ? JSON.parse(data.body) : data.body;
+                const content = body.result || body.text || "";
+
+                let prompts = [];
+                try {
+                    const jsonMatch = content.match(/\[.*\]/s);
+                    prompts = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+                } catch (e) {
+                    prompts = content.split('\n').filter(l => l.trim() && l.length > 5).slice(0, 3);
+                }
+
+                promptList.innerHTML = '';
+                prompts.forEach((p, idx) => {
+                    const item = document.createElement('label');
+                    item.style.cssText = "display: flex; align-items: flex-start; gap: 12px; padding: 15px; background: #f8fafc; border-radius: 12px; cursor: pointer; border: 1px solid #e2e8f0; line-height: 1.5; font-size: 0.95em; transition: all 0.2s;";
+                    item.className = "disc-prompt-item";
+                    item.innerHTML = `
+                        <input type="radio" name="selectedDiscoveryPrompt" value="${p.replace(/"/g, '&quot;')}" style="margin-top: 4px; border-style: solid !important;">
+                        <span style="color: #1e293b;">${p}</span>
+                    `;
+                    promptList.appendChild(item);
+                });
+
+                promptArea.style.display = 'block';
+                promptArea.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (error) {
+                console.error("Prompt Generation Error:", error);
+                alert("Error generating prompts. Please try again.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function verifyDiscoveryMentions() {
+            const selectedPrompt = document.querySelector('input[name="selectedDiscoveryPrompt"]:checked')?.value;
+            const targetUrl = document.getElementById('discKeywordUrl').value;
+            const btn = document.querySelector('#discPromptArea button');
+            const resultsArea = document.getElementById('discVerificationResults');
+
+            if (!selectedPrompt) return alert("Please select a prompt to verify.");
+
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying AI Mention...';
+            btn.disabled = true;
+
+            try {
+                const checkPrompt = `You are a helpful AI assistant. Answer the following user query: "${selectedPrompt}"\n\nProvide a concise recommendation or list of candidates if asked.`;
+
+                const response = await fetch('https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'generate',
+                        prompt: checkPrompt,
+                        settings: { temperature: 0.5 }
+                    })
+                });
+
+                const data = await response.json();
+                const body = typeof data.body === 'string' ? JSON.parse(data.body) : data.body;
+                const aiResponse = body.result || body.text || "";
+
+                const brand = targetUrl.includes('.') ? targetUrl.split('.')[0] : targetUrl;
+                const isMentioned = aiResponse.toLowerCase().includes(targetUrl.toLowerCase()) ||
+                    aiResponse.toLowerCase().includes(brand.toLowerCase());
+
+                resultsArea.innerHTML = `
+                    <div class="geo-card" style="border-left: 5px solid ${isMentioned ? '#10b981' : '#f59e0b'};">
+                        <div class="geo-card-header">
+                            <div class="geo-card-title"><i class="fas fa-microchip"></i> AI Baseline Response</div>
+                            <span style="font-size: 0.75em; padding: 4px 12px; border-radius: 20px; background: ${isMentioned ? '#dcfce7' : '#fef9c3'}; color: ${isMentioned ? '#166534' : '#854d0e'}; font-weight: 700; text-transform: uppercase;">
+                                ${isMentioned ? 'Brand Mentioned' : 'Not Mentioned'}
+                            </span>
+                        </div>
+                        <div style="padding: 20px;">
+                            <p style="font-size: 0.9em; color: #64748b; margin-bottom: 12px; font-style: italic;">How an AI agent currently responds to this intent:</p>
+                            <div style="background: #f8fafc; padding: 20px; border-radius: 12px; font-size: 0.95em; line-height: 1.6; color: #1e293b; border: 1px solid #e2e8f0; max-height: 300px; overflow-y: auto;">
+                                ${aiResponse.replace(/\n/g, '<br>')}
+                            </div>
+                            <div style="margin-top: 20px; padding: 15px; border-radius: 10px; background: ${isMentioned ? '#f0fdf4' : '#fffbeb'}; border: 1px solid ${isMentioned ? '#bbf7d0' : '#fef3c7'}; display: flex; align-items: flex-start; gap: 12px;">
+                                <i class="fas ${isMentioned ? 'fa-check-circle' : 'fa-exclamation-triangle'}" style="color: ${isMentioned ? '#166534' : '#b45309'}; margin-top: 2px;"></i>
+                                <div style="font-size: 0.9em; line-height: 1.5; color: ${isMentioned ? '#166534' : '#854d0e'};">
+                                    ${isMentioned
+                        ? `<strong>Success!</strong> Your brand "${brand}" or URL was mentioned in the response. This indicates good baseline visibility for this query.`
+                        : `<strong>Growth Area:</strong> Your brand was not mentioned. Use GEO strategies (like llms.txt or structured data) to help AI models index and recommend you for this intent.`}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                resultsArea.style.display = 'block';
+                resultsArea.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (error) {
+                console.error("Verification Error:", error);
+                alert("Error during verification. Please try again.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
         }
 
         async function animateGauge(target) {
@@ -27575,4 +27859,4 @@ CRITICAL CONTENT GUIDELINES (EEAT):
     </div>
 </body>
 
-</html
+</html>
