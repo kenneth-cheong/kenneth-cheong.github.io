@@ -11382,6 +11382,15 @@ seo agencies in singapore</textarea>
 
             const domainForFetch = url.startsWith('http') ? url : 'https://' + url;
 
+            // 0. Initialize Shared State (to support concurrent crawler merge)
+            const techAuditResults = []; // Shared array
+            const platformReadiness = {}; // Shared object
+
+            window.lastDiscoveryAudit = {
+                techAudit: techAuditResults,
+                platformReadiness: platformReadiness
+            };
+
             // Fire Concurrent Crawler (Fire & Forget, handles its own UI)
             runDataForSeoDiscoveryCrawl(domainForFetch).catch(err => console.error("Concurrent Crawler Error:", err));
 
@@ -11424,8 +11433,7 @@ seo agencies in singapore</textarea>
                 ]);
 
                 // 2. Process Results
-                const techAuditResults = [];
-                const finalTechData = {};
+                const finalTechData = window.lastDiscoveryAudit; // Use the shared object
 
                 // A. Technical SEO Base Data
                 if (auditRes.status === 'fulfilled') {
@@ -11547,7 +11555,7 @@ seo agencies in singapore</textarea>
                     techAuditResults.push({
                         label: 'Semantic Structure',
                         value: foundCount > 0 ? semanticDetails.filter(d => d.present).map(d => d.tag).join(', ') : 'Basic (div-based)',
-                        status: foundCount >= 4 ? 'pass' : (foundCount > 0 ? 'warn' : 'fail'),
+                        status: foundCount >= 3 ? 'pass' : (foundCount > 0 ? 'warn' : 'fail'),
                         geoDescription: 'Use of tags like nav, header, footer and main. It helps AI agents "see" the relative importance of different content blocks.',
                         semanticDetails: semanticDetails
                     });
@@ -11578,6 +11586,8 @@ seo agencies in singapore</textarea>
                 }
 
                 // E. Sitemap Check
+                let sitemapUrl = 'Not Found';
+                // ... rest of sitemap logic needs no change as it pushes to techAuditResults
                 let sitemapVal = finalTechData.sitemap || 'Not Found';
                 if (sitemapVal === 'Not Found' && robotsText.toLowerCase().includes('sitemap:')) {
                     const match = robotsText.match(/sitemap:\s*(https?:\/\/\S+)/i);
@@ -11618,7 +11628,6 @@ seo agencies in singapore</textarea>
                 });
 
                 // G. Platform Readiness (Robots Parsing)
-                const platformReadiness = {};
                 const platformReasons = {};
                 const platformMatches = {}; // Store indices of lines to highlight
 
@@ -11682,7 +11691,7 @@ seo agencies in singapore</textarea>
                 }
 
                 finalTechData.fullRobotsText = robotsText;
-                finalTechData.techAudit = techAuditResults;
+                // finalTechData.techAudit = techAuditResults; // Already referenced
                 finalTechData.sslValid = sslValid; // Helper for scoring
 
                 // 2. Calculate Categorical GEO Score (Weighted Model - Refined)
@@ -11863,26 +11872,28 @@ seo agencies in singapore</textarea>
                         label: 'Word Count',
                         value: resultItem.meta?.content?.plain_text_word_count || 'N/A',
                         icon: 'fa-font',
+                        status: (resultItem.meta?.content?.plain_text_word_count || 0) >= 1000 ? 'pass' : (resultItem.meta?.content?.plain_text_word_count || 0) >= 500 ? 'warn' : 'fail',
                         geoDescription: 'Total content length. Generative engines prioritize comprehensive, in-depth content that answers user intent thoroughly.'
                     },
                     {
                         label: 'Internal Links',
                         value: resultItem.meta?.internal_links_count || 0,
                         icon: 'fa-link',
+                        status: (resultItem.meta?.internal_links_count || 0) >= 10 ? 'pass' : (resultItem.meta?.internal_links_count || 0) >= 3 ? 'warn' : 'fail',
                         geoDescription: 'Connects related topics. A strong internal structure helps AI models understand the topical relevance and hierarchy of your domain.'
                     },
                     {
                         label: 'Load Time',
                         value: loadTimeSec ? loadTimeSec.toFixed(2) + 's' : 'N/A',
                         icon: 'fa-bolt',
-                        status: loadTimeSec ? (loadTimeSec < 2 ? 'pass' : loadTimeSec < 5 ? 'warn' : 'fail') : 'fail',
+                        status: loadTimeSec ? (loadTimeSec < 2 ? 'pass' : loadTimeSec < 4 ? 'warn' : 'fail') : 'fail',
                         geoDescription: 'Impacts crawl efficiency. Faster pages allow AI agents to parse and index your information more reliably and frequently.'
                     },
                     {
                         label: 'Readability (Flesch)',
                         value: readabilityScore ? readabilityScore.toFixed(2) : 'N/A',
                         icon: 'fa-glasses',
-                        status: readabilityScore ? (readabilityScore > 60 ? 'pass' : readabilityScore > 45 ? 'warn' : 'fail') : 'fail',
+                        status: readabilityScore ? (readabilityScore >= 60 ? 'pass' : readabilityScore >= 45 ? 'warn' : 'fail') : 'fail',
                         geoDescription: 'Content clarity. AI search models favor content that is easy to parse, well-structured, and written for human clarity.'
                     },
                     {
@@ -12072,6 +12083,13 @@ seo agencies in singapore</textarea>
 
                             // Grant precision schema bonus now that entities are confirmed
                             window.updateDiscoveryScoreBonus(12);
+
+                            // Update corresponding metric for merge
+                            const schemaMetric = metrics.find(m => m.label === 'Schema Markup');
+                            if (schemaMetric) {
+                                schemaMetric.value = types.join(', ');
+                                schemaMetric.status = 'pass';
+                            }
                         } else {
                             // Insist on Schema.org entities: Revert to Not Present if none found
                             schemaValDiv.textContent = 'Not Present';
@@ -12079,6 +12097,13 @@ seo agencies in singapore</textarea>
 
                             const icon = document.getElementById('discovery-schema-markup-icon');
                             if (icon) icon.style.color = '#ef4444';
+
+                            // Update corresponding metric for merge - Force Fail
+                            const schemaMetric = metrics.find(m => m.label === 'Schema Markup');
+                            if (schemaMetric) {
+                                schemaMetric.value = 'Not Present';
+                                schemaMetric.status = 'fail';
+                            }
                         }
                     }
                 } catch (microErr) {
@@ -12087,6 +12112,55 @@ seo agencies in singapore</textarea>
 
 
 
+                // 6. Merge Crawler Metrics into Priority Recommendations
+                // This ensures that insights like Page Speed and Content Depth drive action items
+                if (window.lastDiscoveryAudit && window.lastDiscoveryAudit.techAudit) {
+                    const techAudit = window.lastDiscoveryAudit.techAudit;
+
+                    // Helper to prevent duplicates
+                    const addOrUpdate = (metric) => {
+                        const existingIndex = techAudit.findIndex(r => r.label === metric.label);
+                        if (existingIndex >= 0) {
+                            techAudit[existingIndex] = metric;
+                        } else {
+                            techAudit.push(metric);
+                        }
+                    };
+
+                    metrics.forEach(m => {
+                        // Only add metrics that have actionable recommendations
+                        // Word Count, Load Time, HTTPS, Readability, Internal Links, Alt Tags
+                        const actionable = [
+                            'Word Count', 'Internal Links', 'Load Time',
+                            'Readability (Flesch)', 'HTTPS Secure', 'Missing Alt Tags', 'Schema Markup'
+                        ];
+
+                        if (actionable.includes(m.label)) {
+                            // Re-evaluate status based on strict analyzer.ts thresholds
+                            // (Though metrics array already did pass/warn/fail logic above, let's ensure consistency)
+                            // Word Count: < 500 = Warn, < 300 = Fail
+                            // Internal Links: < 10 = Warn, < 3 = Fail
+                            // Load Time: > 2s = Warn, > 4s = Fail
+                            // Readability: < 60 = Warn, < 45 = Fail
+
+                            // Note: 'metrics' array construction defined simpler logic; we trust it or refine it?
+                            // Let's refine the status in the pushed item if needed, but metrics construction 
+                            // earlier in this function is the source of truth for the UI grid.
+                            // We should use the same status to avoid confusion.
+
+                            addOrUpdate({
+                                label: m.label,
+                                value: m.value,
+                                status: m.status || 'pass', // Default to pass if undefined
+                                geoDescription: m.geoDescription
+                            });
+                        }
+                    });
+
+                    // Re-render recommendations with the new data
+                    renderPriorityRecommendations(techAudit, window.lastDiscoveryAudit.platformReadiness);
+                }
+
             } catch (error) {
                 console.error("Discovery Crawler Error:", error);
                 badge.textContent = 'Error';
@@ -12094,9 +12168,10 @@ seo agencies in singapore</textarea>
                 badge.style.color = '#991b1b';
                 grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: #ef4444; padding: 20px;">Error: ${error.message}</div>`;
             }
+
         }
 
-        function animateGauge(target) {
+        async function animateGauge(target) {
             const gauge = document.getElementById('discoveryMainGauge');
             const valueDisplay = document.getElementById('discoveryMainScore');
             const start = parseInt(valueDisplay.innerText);
@@ -12162,7 +12237,14 @@ seo agencies in singapore</textarea>
                 'robots.txt': isBlocked ? 100 : 20, // Critical boost if blocked
                 'XML Sitemap': 10,
                 'llms.txt': 15,
-                'llms-full.txt': 15
+                'llms-full.txt': 15,
+                'HTTPS Secure': 15,
+                'Word Count': 15,
+                'Internal Links': 12,
+                'Load Time': 15,
+                'Readability (Flesch)': 20,
+                'Missing Alt Tags': 10,
+                'Schema Markup': 18
             };
 
             // Recommendation templates
@@ -12174,14 +12256,21 @@ seo agencies in singapore</textarea>
                 'E-E-A-T-A Pages': 'Critical: Add Author, About Us, and Contact pages to build trust and authority for AI.',
                 'Discovery Tracking': 'Implement GA4 or GTM to signals professional site maintenance to AI crawlers.',
                 'URL Structure': 'Clean up URL query parameters to ensure AI models can crawl your site hierarchy easily.',
-                'Semantic Structure': 'Use semantic HTML5 tags (main, article, nav) to help AI "see" your content hierarchy.',
+                'Semantic Structure': 'Use semantic HTML5 tags (main, header, footer, nav) to help AI "see" your content hierarchy.',
                 'Security Headers': 'Implement security headers to signal a secure, authoritative site to indexing systems.',
                 'robots.txt': isBlocked
                     ? 'Urgent: Your site is actively BLOCKING AI agents. Update robots.txt to allow GPTBot, PerplexityBot, and others.'
                     : 'Essential: Configure robots.txt to properly allow AI agents like GPTBot or Perplexity.',
                 'XML Sitemap': 'Ensure an XML sitemap exists to help AI discovery agents find all your content pages.',
                 'llms.txt': 'High Priority: Create an llms.txt file to provide a concise, AI-friendly summary of your site.',
-                'llms-full.txt': 'Provide an llms-full.txt file for deep AI context and more accurate generative answers.'
+                'llms-full.txt': 'Provide an llms-full.txt file for deep AI context and more accurate generative answers.',
+                'HTTPS Secure': 'Enable SSL certificate and switch to HTTPS for security and SEO benefits.',
+                'Word Count': 'Expand content to at least 800-1500 words with proper heading structure.',
+                'Internal Links': 'Add more internal links to improve site structure and user navigation.',
+                'Load Time': 'Implement a CDN (like Cloudflare) for faster global page loads.',
+                'Readability (Flesch)': 'Improve content readability with shorter sentences and clear formatting.',
+                'Missing Alt Tags': 'Add descriptive alt text to images for accessibility and AI context.',
+                'Schema Markup': 'Add JSON-LD structured data markup (FAQ, Article, Organization) to help AI understand your content context.'
             };
 
             // Filter for failures/warnings
@@ -12203,22 +12292,28 @@ seo agencies in singapore</textarea>
             const topIssues = issues.slice(0, 10);
 
             if (topIssues.length > 0) {
-                list.innerHTML = topIssues.map(issue => `
-                    <div style="display: flex; gap: 15px; padding: 15px; background: ${issue.status === 'fail' ? '#fff1f2' : '#fefce8'}; border-radius: 12px; border: 1px solid ${issue.status === 'fail' ? '#fecaca' : '#fef08a'};">
+                list.innerHTML = topIssues.map(issue => {
+                    const isCritical = issue.label === 'robots.txt' ? issue.weight >= 100 : issue.weight >= 15;
+                    const color = isCritical ? '#ef4444' : '#f59e0b';
+                    const bg = isCritical ? '#fff1f2' : '#fefce8';
+                    const border = isCritical ? '#fecaca' : '#fef08a';
+
+                    return `
+                    <div style="display: flex; gap: 15px; padding: 15px; background: ${bg}; border-radius: 12px; border: 1px solid ${border};">
                         <div style="flex-shrink: 0; margin-top: 2px;">
-                            <i class="fas ${issue.status === 'fail' ? 'fa-times-circle' : 'fa-exclamation-circle'}" style="color: ${issue.status === 'fail' ? '#ef4444' : '#eab308'}; font-size: 1.1em;"></i>
+                            <i class="fas ${issue.status === 'fail' ? 'fa-times-circle' : 'fa-exclamation-circle'}" style="color: ${color}; font-size: 1.1em;"></i>
                         </div>
                         <div>
                             <div style="font-weight: 700; color: #1e293b; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
                                 ${issue.label}
-                                <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 10px; background: ${issue.weight >= 15 ? '#f87171' : '#fb923c'}; color: white; text-transform: uppercase;">
-                                    ${issue.weight >= 15 ? 'Critical' : 'High Impact'}
+                                <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 10px; background: ${color}; color: white; text-transform: uppercase;">
+                                    ${isCritical ? 'Critical' : 'High Impact'}
                                 </span>
                             </div>
                             <div style="font-size: 0.9em; color: #475569; line-height: 1.5;">${issue.recommendation}</div>
                         </div>
-                    </div>
-                `).join('');
+                    </div>`;
+                }).join('');
                 container.style.display = 'block';
             } else {
                 container.style.display = 'none';
