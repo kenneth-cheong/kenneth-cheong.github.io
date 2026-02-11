@@ -11667,6 +11667,20 @@ seo agencies in singapore</textarea>
                 finalTechData.platformReadiness = platformReadiness;
                 finalTechData.platformReasons = platformReasons;
                 finalTechData.platformMatches = platformMatches;
+
+                // Update robots.txt status in the audit if any platform is blocked by robots rules
+                const isAnyPlatformBlocked = Object.values(platformReadiness).some(v => v === false);
+                if (isAnyPlatformBlocked) {
+                    const robotsItem = techAuditResults.find(r => r.label === 'robots.txt');
+                    if (robotsItem) {
+                        robotsItem.status = 'fail';
+                        // Prefix value to make it obvious why it failed in the grid too
+                        if (!robotsItem.value.startsWith('(Blocking)')) {
+                            robotsItem.value = '(Blocking) ' + robotsItem.value;
+                        }
+                    }
+                }
+
                 finalTechData.fullRobotsText = robotsText;
                 finalTechData.techAudit = techAuditResults;
                 finalTechData.sslValid = sslValid; // Helper for scoring
@@ -11721,7 +11735,7 @@ seo agencies in singapore</textarea>
                 animateGauge(finalScore);
                 updateDiscoveryStats(finalTechData, finalScore);
                 renderDiscoveryPlatforms();
-                renderPriorityRecommendations(finalTechData.techAudit);
+                renderPriorityRecommendations(finalTechData.techAudit, finalTechData.platformReadiness);
                 renderTechnicalAudit(finalTechData.techAudit);
 
                 document.getElementById('discoveryStatusText').textContent =
@@ -11899,7 +11913,7 @@ seo agencies in singapore</textarea>
                     },
                     {
                         label: 'Schema Markup',
-                        value: resultItem.checks?.has_micromarkup ? 'Present' : 'Missing',
+                        value: resultItem.checks?.has_micromarkup ? 'Analysing...' : 'Missing',
                         icon: 'fa-code',
                         status: resultItem.checks?.has_micromarkup ? 'pass' : 'warn',
                         geoDescription: 'Granular data. Structured data helps AI models identify specific entities like Products, Services, and Organizations with 100% accuracy.'
@@ -11973,10 +11987,12 @@ seo agencies in singapore</textarea>
                     card.style.cssText = 'background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 4px;';
 
                     const valId = m.label === 'Schema Markup' ? 'id="discovery-schema-markup-val"' : '';
+                    const iconId = m.label === 'Schema Markup' ? 'id="discovery-schema-markup-icon"' : '';
+                    const cardId = m.label === 'Schema Markup' ? 'id="discovery-schema-card"' : '';
 
                     card.innerHTML = `
                             <div style="display: flex; align-items: center; gap: 8px; font-size: 0.85em; color: #64748b; font-weight: 500;">
-                                <i class="fas ${m.icon}" style="color: ${statusColor};"></i>
+                                <i ${iconId} class="fas ${m.icon}" style="color: ${statusColor};"></i>
                                 ${m.label}
                             </div>
                             <div ${valId} style="font-size: 1.1em; font-weight: 700; color: #1e293b;">${m.value}</div>
@@ -11985,6 +12001,7 @@ seo agencies in singapore</textarea>
                                 ${m.geoDescription || ''}
                             </div>
                         `;
+                    if (cardId) card.id = cardId;
                     grid.appendChild(card);
                 });
 
@@ -11997,7 +12014,7 @@ seo agencies in singapore</textarea>
 
                 let crawlerRefinedSecurity = (resultItem.checks?.is_https ? 15 : securityTrust);
                 let crawlerRefinedContent = contentQuality;
-                if (resultItem.checks?.has_micromarkup) crawlerRefinedContent = 22; // Boost to max if precision schema found
+                // Bonus for Schema is now strictly granted only if deep entities are found (see Fetch Detailed Microdata below)
 
                 let crawlerRefinedUX = 0;
                 const durationTime = resultItem.page_timing?.duration_time || 5000;
@@ -12052,8 +12069,16 @@ seo agencies in singapore</textarea>
                             schemaValDiv.style.lineHeight = '1.4';
                             schemaValDiv.style.color = '#6366f1';
                             schemaValDiv.textContent = types.join(', ');
+
+                            // Grant precision schema bonus now that entities are confirmed
+                            window.updateDiscoveryScoreBonus(12);
                         } else {
-                            schemaValDiv.textContent = 'Present (Basic)';
+                            // Insist on Schema.org entities: Revert to Not Present if none found
+                            schemaValDiv.textContent = 'Not Present';
+                            schemaValDiv.style.color = '#ef4444';
+
+                            const icon = document.getElementById('discovery-schema-markup-icon');
+                            if (icon) icon.style.color = '#ef4444';
                         }
                     }
                 } catch (microErr) {
@@ -12115,10 +12140,13 @@ seo agencies in singapore</textarea>
             document.getElementById('stat-ssl').textContent = techData.sslStatus || 'N/A';
             document.getElementById('stat-ssl').style.color = techData.sslStatus === 'Valid' ? '#10a37f' : techData.sslStatus === 'Issue' ? '#ef4444' : '#64748b';
         }
-        function renderPriorityRecommendations(audit) {
+        function renderPriorityRecommendations(audit, platformReadiness = {}) {
             const container = document.getElementById('discoveryPriorityRecommendations');
             const list = document.getElementById('priorityRecommendationsList');
             if (!container || !list) return;
+
+            // Check if any platform is blocked
+            const isBlocked = Object.values(platformReadiness).some(v => v === false);
 
             // Weight mapping based on analyzer.ts logic
             const weights = {
@@ -12131,7 +12159,7 @@ seo agencies in singapore</textarea>
                 'URL Structure': 5,
                 'Semantic Structure': 15,
                 'Security Headers': 5,
-                'robots.txt': 20,
+                'robots.txt': isBlocked ? 100 : 20, // Critical boost if blocked
                 'XML Sitemap': 10,
                 'llms.txt': 15,
                 'llms-full.txt': 15
@@ -12148,7 +12176,9 @@ seo agencies in singapore</textarea>
                 'URL Structure': 'Clean up URL query parameters to ensure AI models can crawl your site hierarchy easily.',
                 'Semantic Structure': 'Use semantic HTML5 tags (main, article, nav) to help AI "see" your content hierarchy.',
                 'Security Headers': 'Implement security headers to signal a secure, authoritative site to indexing systems.',
-                'robots.txt': 'Essential: Configure robots.txt to properly allow AI agents like GPTBot or Perplexity.',
+                'robots.txt': isBlocked
+                    ? 'Urgent: Your site is actively BLOCKING AI agents. Update robots.txt to allow GPTBot, PerplexityBot, and others.'
+                    : 'Essential: Configure robots.txt to properly allow AI agents like GPTBot or Perplexity.',
                 'XML Sitemap': 'Ensure an XML sitemap exists to help AI discovery agents find all your content pages.',
                 'llms.txt': 'High Priority: Create an llms.txt file to provide a concise, AI-friendly summary of your site.',
                 'llms-full.txt': 'Provide an llms-full.txt file for deep AI context and more accurate generative answers.'
