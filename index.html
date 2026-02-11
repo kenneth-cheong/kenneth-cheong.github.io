@@ -26367,46 +26367,16 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         allowClose: true,
                         steps: [
                             {
-                                element: '#domain',
+                                element: '#seoForm',
                                 popover: {
-                                    title: 'Step 1: Target Website',
-                                    description: 'Enter the domain or specific URL you want to analyze. <br>Ex: <strong>www.extraspaceasia.com.sg</strong>',
+                                    title: 'Step 1: Target Website, Location, Language & Keywords',
+                                    description: 'Enter the the target variables for analysis.',
                                     side: "left", align: 'start'
                                 },
                                 onHighlighted: () => {
                                     document.getElementById('domain').value = 'www.extraspaceasia.com.sg';
-                                }
-                            },
-                            {
-                                element: '#location',
-                                popover: {
-                                    title: 'Step 2: Target Location',
-                                    description: 'Select the geographic region. <br>Auto-set to <strong>Singapore</strong>.',
-                                    side: "bottom", align: 'start'
-                                },
-                                onHighlighted: () => {
                                     document.getElementById('location').value = 'Singapore';
-                                }
-                            },
-                            {
-                                element: '#language',
-                                popover: {
-                                    title: 'Step 3: Search Language',
-                                    description: 'Choose the search language. <br>Auto-set to <strong>English</strong>.',
-                                    side: "bottom", align: 'start'
-                                },
-                                onHighlighted: () => {
                                     document.getElementById('language').value = 'English';
-                                }
-                            },
-                            {
-                                element: '#keywords',
-                                popover: {
-                                    title: 'Step 4: Topics of Interest',
-                                    description: 'Enter your target keywords. <br>We\'ve added some <strong>self-storage</strong> examples.',
-                                    side: "left", align: 'start'
-                                },
-                                onHighlighted: () => {
                                     document.getElementById('keywords').value = 'self storage singapore\nstorage space rental\ncheap storage unit\nclimate controlled storage';
                                     if (typeof updateKeywordCount === 'function') updateKeywordCount();
                                 }
@@ -26414,7 +26384,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                             {
                                 element: '#keywordSuggestions',
                                 popover: {
-                                    title: 'Step 5: Similar Keywords',
+                                    title: 'Step 2: Similar Keywords',
                                     description: 'Discover related search terms and current SERP rankings to identify new opportunities.',
                                     side: "top", align: "center"
                                 },
@@ -26438,7 +26408,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                             {
                                 element: '#rankingKeywords',
                                 popover: {
-                                    title: 'Step 6: Ranking Keywords',
+                                    title: 'Step 3: Ranking Keywords',
                                     description: 'See which keywords your domain (or competitor) is already ranking for in the top 100.',
                                     side: "top", align: "center"
                                 },
@@ -26465,7 +26435,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                             {
                                 element: '#siteKeywords',
                                 popover: {
-                                    title: 'Step 7: Page Content Keywords',
+                                    title: 'Step 4: Page Content Keywords',
                                     description: 'Keywords extracted directly from the webpage content to check for topical relevance.',
                                     side: "top", align: "center"
                                 },
@@ -26502,7 +26472,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                             {
                                 element: '#serp-section',
                                 popover: {
-                                    title: 'Step 8: Keyword Deep-Dives',
+                                    title: 'Step 5: SERPs for Keywords',
                                     description: 'Detailed reports showing top 10 SERP results and specific site metrics are generated here.',
                                     side: "top", align: 'center'
                                 },
@@ -26544,11 +26514,593 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                             {
                                 element: '#keyword-research-analysis-button',
                                 popover: {
-                                    title: 'Step 9: Run Analysis',
-                                    description: 'Click this button to start the actual analysis. It triggers SERP lookups and all the metrics you see above.',
+                                    title: 'Step 6: Run Analysis',
+                                    description: 'Click this button to run a deep dive on the selected keywords.',
                                     side: "top", align: 'center'
                                 }
                             },
+                            {
+
+                                element: '#keywordAnalysis',
+                                popover: {
+                                    title: 'Step 7: In-depth Keyword Analysis',
+                                    description: 'The analysis here will give you a concise summary of the competitiveness of the keyword and what it takes to rank for it.',
+                                    side: "top", align: 'center'
+                                },
+                                onHighlightStarted: (el) => {
+                                    if (!el) el = document.getElementById('keywordAnalysis');
+                                    el.style.display = 'block';
+                                    document.getElementById('keywordAnalysis').innerHTML = `
+                        <div id="overall-summary" style="display: block;" class="">
+                            <h2>Overall Keyword Summary</h2>
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>No.</th>
+                                            <th onclick="sortSummaryTable(&#39;keyword&#39;)">Keyword</th>
+                                            <th onclick="sortSummaryTable(&#39;search_volume&#39;)">Search Volume</th>
+                                            <th onclick="sortSummaryTable(&#39;cpc&#39;)">CPC</th>
+                                            <th onclick="sortSummaryTable(&#39;timeToRank&#39;)">Time to Rank</th>
+                                            <th>Reason</th>
+
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+
+                                        <tr>
+                                            <td>1</td>
+                                            <td>rental storage units</td>
+                                            <td>N/A</td>
+                                            <td>N/A</td>
+                                            <td class="">N/A</td>
+                                            <td><textarea class="multiline-input" id="reason-0"
+                                                    onchange="updateReason(0, this.value)">High demand for rental storage options in Singapore creates opportunities to attract local customers seeking convenient storage solutions.</textarea>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td>2</td>
+                                            <td>storage solutions</td>
+                                            <td>N/A</td>
+                                            <td>N/A</td>
+                                            <td class="time-to-rank-3-6">3-6 months</td>
+                                            <td><textarea class="multiline-input" id="reason-1"
+                                                    onchange="updateReason(1, this.value)">High demand for effective space management in urban Singapore creates opportunities to attract local customers seeking reliable storage options.</textarea>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td>3</td>
+                                            <td>personal self storage</td>
+                                            <td>N/A</td>
+                                            <td>N/A</td>
+                                            <td class="">N/A</td>
+                                            <td><textarea class="multiline-input" id="reason-2"
+                                                    onchange="updateReason(2, this.value)">High demand for convenient storage solutions in urban Singapore enhances visibility and potential traffic for local self-storage services.</textarea>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td>4</td>
+                                            <td>storage pod rental</td>
+                                            <td>N/A</td>
+                                            <td>N/A</td>
+                                            <td class="">N/A</td>
+                                            <td><textarea class="multiline-input" id="reason-3"
+                                                    onchange="updateReason(3, this.value)">High demand for flexible storage solutions in Singapore makes this keyword crucial for attracting local customers seeking convenient rental options.</textarea>
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <td>5</td>
+                                            <td>portable storage containers for rent</td>
+                                            <td>N/A</td>
+                                            <td>N/A</td>
+                                            <td class="">N/A</td>
+                                            <td><textarea class="multiline-input" id="reason-4"
+                                                    onchange="updateReason(4, this.value)">High demand for rental solutions in Singapore's urban environment can drive traffic and increase conversions for portable storage containers.</textarea>
+                                            </td>
+                                        </tr>
+
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button id="downloadCsvBtn" onclick="downloadOverallSummaryTableAsCSV()"
+                                style="display: block;">Download Keyword Summary as CSV</button><br><br>
+                        </div>
+                        <div id="keyword-analysis-results" class="">
+                            <div id="keyword-container-storage-solutions">
+                                <button type="button" class="keywords-collapsible">storage solutions</button>
+                                <div class="keywords-content" id="keyword-content-storage-solutions">
+                                    <div id="target-content-table-container-storage-solutions">
+                                        <h2>Possible URLs for KW Mapping</h2>
+                                        <div class="table-container">
+                                            <table class="wide-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Rank</th>
+                                                        <th>URL</th>
+                                                        <th>Title</th>
+                                                        <th>Description</th>
+                                                        <th>Domain Rank</th>
+                                                        <th>Backlinks</th>
+                                                        <th>Referring Domains</th>
+                                                        <th>Internal Links Count</th>
+                                                        <th>External Links Count</th>
+                                                        <th>Image Count</th>
+                                                        <th>CLS</th>
+                                                        <th>LCP</th>
+                                                        <th>FID</th>
+                                                        <th>Schema</th>
+                                                        <th>Readability</th>
+                                                        <th>Word Count</th>
+                                                        <th>Keyword in URL</th>
+                                                        <th>Keyword in Title</th>
+                                                        <th>Keyword in Description</th>
+                                                        <th>Keyword in H1</th>
+                                                        <th>Keyword in H2</th>
+                                                        <th>Keyword in Alt</th>
+                                                        <th>Keyword in Text</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+
+                                                    <tr>
+                                                        <td>2</td>
+                                                        <td><a href="https://www.extraspaceasia.com.sg/"
+                                                                target="_blank">https://www.extraspaceasia.com.sg/</a>
+                                                        </td>
+                                                        <td>Self Storage Space for Rent in Singapore | Extra Space</td>
+                                                        <td>Extra Space Asia is the region's dominant operator in
+                                                            self-storage solutions. · Today, Extra Space has over 100
+                                                            facilities with over 31,000 storage units across&nbsp;...
+                                                            Read more</td>
+                                                        <td>202</td>
+                                                        <td>305</td>
+                                                        <td>122</td>
+                                                        <td>47</td>
+                                                        <td>19</td>
+                                                        <td>47</td>
+                                                        <td>N/A</td>
+                                                        <td>3196</td>
+                                                        <td>115.83</td>
+                                                        <td>true</td>
+                                                        <td>50.49</td>
+                                                        <td>1815</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                    </tr>
+
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    <div id="results-container-storage-solutions">
+                                        <h2>SERP Results</h2>
+                                        <div class="table-container">
+                                            <table class="wide-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Rank</th>
+                                                        <th>URL</th>
+                                                        <th>Title</th>
+                                                        <th>Description</th>
+                                                        <th>DA</th>
+                                                        <th>Domain Rank</th>
+                                                        <th>Backlinks</th>
+                                                        <th>Backlinks Spam Score</th>
+                                                        <th>Referring Domains</th>
+                                                        <th>Internal Links Count</th>
+                                                        <th>External Links Count</th>
+                                                        <th>Image Count</th>
+                                                        <th>CLS</th>
+                                                        <th>LCP</th>
+                                                        <th>FID</th>
+                                                        <th>Schema</th>
+                                                        <th>Readability</th>
+                                                        <th>Word Count</th>
+                                                        <th>Keyword in URL</th>
+                                                        <th>Keyword in Title</th>
+                                                        <th>Keyword in Description</th>
+                                                        <th>Keyword in H1</th>
+                                                        <th>Keyword in H2</th>
+                                                        <th>Keyword in Alt</th>
+                                                        <th>Keyword in Text</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+
+                                                    <tr>
+                                                        <td>1</td>
+                                                        <td><a href="https://www.ikea.com/sg/en/cat/storage-organisation-st001/"
+                                                                target="_blank">https://www.ikea.com/sg/en/cat/storage-organisation-st001/</a>
+                                                        </td>
+                                                        <td>Storage &amp; Organisation Solutions</td>
+                                                        <td>Find smart storage &amp; organisation solutions for every
+                                                            room. Shop wardrobes to storage boxes, cabinets &amp; racks.
+                                                            Keep your home tidy with ease.</td>
+                                                        <td>undefined</td>
+                                                        <td>69</td>
+                                                        <td>9</td>
+                                                        <td>12</td>
+                                                        <td>5</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>-</td>
+                                                        <td>-</td>
+                                                        <td>-</td>
+                                                        <td>-</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td>2</td>
+                                                        <td><a href="https://www.extraspaceasia.com.sg/"
+                                                                target="_blank">https://www.extraspaceasia.com.sg/</a>
+                                                        </td>
+                                                        <td>Self Storage Space for Rent in Singapore | Extra Space</td>
+                                                        <td>Extra Space Asia is the region's dominant operator in
+                                                            self-storage solutions. · Today, Extra Space has over 100
+                                                            facilities with over 31,000 storage units across&nbsp;...
+                                                            Read more</td>
+                                                        <td>undefined</td>
+                                                        <td>202</td>
+                                                        <td>305</td>
+                                                        <td>13</td>
+                                                        <td>122</td>
+                                                        <td>47</td>
+                                                        <td>19</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>2748</td>
+                                                        <td>186.51</td>
+                                                        <td>true</td>
+                                                        <td>50.49</td>
+                                                        <td>1815</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td>3</td>
+                                                        <td><a href="https://storefriendly.com.sg/"
+                                                                target="_blank">https://storefriendly.com.sg/</a></td>
+                                                        <td>Storefriendly | Affordable Self Storage Space in Singapore
+                                                        </td>
+                                                        <td>Whether for short-term or long-term needs, our flexible,
+                                                            hassle-free storage solutions include air-conditioned units,
+                                                            lockers, and various sizes. Join&nbsp;... Read more</td>
+                                                        <td>34</td>
+                                                        <td>194</td>
+                                                        <td>509</td>
+                                                        <td>22</td>
+                                                        <td>293</td>
+                                                        <td>68</td>
+                                                        <td>12</td>
+                                                        <td>N/A</td>
+                                                        <td>-</td>
+                                                        <td>-</td>
+                                                        <td>-</td>
+                                                        <td>-</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td>4</td>
+                                                        <td><a href="https://thesmartlocal.com/read/storage-spaces-singapore/"
+                                                                target="_blank">https://thesmartlocal.com/read/storage-spaces-singapore/</a>
+                                                        </td>
+                                                        <td>13 Storage Spaces in Singapore To Put All Your Extra ...
+                                                        </td>
+                                                        <td>31 Oct 2025 — Here are some storage spaces in Singapore to
+                                                            consider. These out-of-home storage options come in various
+                                                            sizes, high security and even valet services. Read more</td>
+                                                        <td>undefined</td>
+                                                        <td>137</td>
+                                                        <td>42</td>
+                                                        <td>1</td>
+                                                        <td>7</td>
+                                                        <td>92</td>
+                                                        <td>42</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>2624</td>
+                                                        <td>48.34</td>
+                                                        <td>true</td>
+                                                        <td>51.78</td>
+                                                        <td>3330</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td>5</td>
+                                                        <td><a href="https://www.realsimple.com/interior-designer-approved-amazon-storage-solutions-february-2026-11901202"
+                                                                target="_blank">https://www.realsimple.com/interior-designer-approved-amazon-storage-solutions-february-2026-11901202</a>
+                                                        </td>
+                                                        <td>10 Pretty Storage Solutions From Amazon to Hide Clutter</td>
+                                                        <td>2 days ago — Stylish Storage Solutions at Amazon · Fabrok
+                                                            Fluted Cable Management Box, $20 · Songmics Hidden Storage
+                                                            Mirror, $90 (was $110) · Storagebud&nbsp;... Read more</td>
+                                                        <td>undefined</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>0.01</td>
+                                                        <td>2240</td>
+                                                        <td>2.6</td>
+                                                        <td>true</td>
+                                                        <td>51.93</td>
+                                                        <td>920</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td>6</td>
+                                                        <td><a href="https://jiji.sg/storage-organisation"
+                                                                target="_blank">https://jiji.sg/storage-organisation</a>
+                                                        </td>
+                                                        <td>Storage &amp; Organisation - Home Furniture Solutions</td>
+                                                        <td>Utilise limited spaces with unlimited storage and
+                                                            organisation solutions from JIJI.SG. Explore a huge range of
+                                                            storage solutions,&nbsp;...</td>
+                                                        <td>undefined</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>1812</td>
+                                                        <td>228.22</td>
+                                                        <td>true</td>
+                                                        <td>59.14</td>
+                                                        <td>967</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td>7</td>
+                                                        <td><a href="https://www.ikea.com/sg/en/cat/drawer-units-for-home-47081/"
+                                                                target="_blank">https://www.ikea.com/sg/en/cat/drawer-units-for-home-47081/</a>
+                                                        </td>
+                                                        <td>Drawer Units - Storage Solutions</td>
+                                                        <td>Drawer units to organise everything from smart devices to
+                                                            documents. Choose from metal, wooden or plastic drawer units
+                                                            for any room. Shop now!</td>
+                                                        <td>undefined</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>-</td>
+                                                        <td>-</td>
+                                                        <td>-</td>
+                                                        <td>-</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td>8</td>
+                                                        <td><a href="https://www.pinterest.com/remodelaholic/storage-solutions/"
+                                                                target="_blank">https://www.pinterest.com/remodelaholic/storage-solutions/</a>
+                                                        </td>
+                                                        <td>400 Best Storage Solutions ideas</td>
+                                                        <td>Organize your home with these storage tips, tricks, and
+                                                            hacks! Find the best solutions for the problem areas in your
+                                                            home like closets, entryways, kitchen. Read more</td>
+                                                        <td>undefined</td>
+                                                        <td>N/A</td>
+                                                        <td>1</td>
+                                                        <td>5</td>
+                                                        <td>1</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>1760</td>
+                                                        <td>9.47</td>
+                                                        <td>true</td>
+                                                        <td>44.94</td>
+                                                        <td>1362</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                    </tr>
+
+                                                    <tr>
+                                                        <td>9</td>
+                                                        <td><a href="https://www.ikea.com/sg/en/ideas/storage/"
+                                                                target="_blank">https://www.ikea.com/sg/en/ideas/storage/</a>
+                                                        </td>
+                                                        <td>Ways to maximise your storage space - Singapore</td>
+                                                        <td>We've got all the storage tips and ideas just for you.
+                                                            Ranging from small storage boxes to toy storage, clothes
+                                                            organisers, shoe racks and wardrobe systems. Read more</td>
+                                                        <td>undefined</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>-</td>
+                                                        <td>-</td>
+                                                        <td>-</td>
+                                                        <td>-</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                        <td>N/A</td>
+                                                    </tr>
+
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    <div id="recommendations-container-storage-solutions">
+                                        <h1>SEO Recommendations for Target Page: https://www.extraspaceasia.com.sg/</h1>
+                                        <h2>Current Overview</h2>
+                                        <p>Target URL: <strong>https://www.extraspaceasia.com.sg/</strong></p>
+                                        <p>Current Rank for Keyword: <strong>2</strong></p>
+                                        <p>Domain Rank: <strong>202</strong></p>
+                                        <p>Backlinks: <strong>305</strong> | Spam Score: <strong>13</strong> | Referring
+                                            Domains: <strong>122</strong> | Internal Links: <strong>47</strong> |
+                                            External Links: <strong>19</strong></p>
+                                        <p>Word Count: <strong>1815</strong> | Readability Score: <strong>50.49</strong>
+                                        </p>
+                                        <p>Schema: <strong>Yes</strong></p>
+                                        <h2>Keyword Focus: Storage Solutions</h2>
+                                        <h2>Content Evaluation</h2>
+                                        <p>The page currently has relevant content but lacks depth in several crucial
+                                            areas that can help rank for the keyword “storage solutions.” Below are the
+                                            key recommendations along with SERP comparisons and word count goals.</p>
+                                        <h3>1. Comprehensive Solutions Overview</h3>
+                                        <p><strong>Recommendation:</strong> Expand the section detailing various types
+                                            of storage solutions available, such as short-term and long-term options,
+                                            special features (like climate control), and various unit sizes. This should
+                                            be a detailed comparison guide.</p>
+                                        <p>Current Content Word Count: <strong>N/A</strong></p>
+                                        <p>Overall Recommended Word Count: <strong>800-1000</strong></p>
+                                        <p>SERP Comparisons: <br>- https://storefriendly.com.sg/: <strong>350</strong>
+                                            words (Product page)<br>-
+                                            https://thesmartlocal.com/read/storage-spaces-singapore/:
+                                            <strong>500</strong> words (Blog post)<br></p>
+                                        <h3>2. User Testimonials and Case Studies</h3>
+                                        <p><strong>Recommendation:</strong> Add detailed user testimonials and case
+                                            studies that showcase real-life applications of your storage solutions. This
+                                            builds trust and relevance.</p>
+                                        <p>Current Content Word Count: <strong>200</strong></p>
+                                        <p>Overall Recommended Word Count: <strong>300-500</strong></p>
+                                        <p>SERP Comparisons: <br>- https://storefriendly.com.sg/: <strong>250</strong>
+                                            words (Product page)<br>- https://www.extraspaceasia.com.sg/:
+                                            <strong>200</strong> words (Existing target URL)<br></p>
+                                        <h3>3. SEO Optimization for Keywords</h3>
+                                        <p><strong>Recommendation:</strong> Better integrate the target keywords
+                                            “storage solutions” in the URL, meta title, meta description, headers, and
+                                            image alt text. Ensure the keyword appears more frequently in H2 and H3
+                                            headings to enhance SEO.</p>
+                                        <p>Keyword in URL: <strong>No</strong> | Suggested URL:
+                                            <strong>https://www.extraspaceasia.com.sg/storage-solutions</strong><br>Keyword
+                                            in Title: <strong>Yes</strong> | H1: <strong>Yes</strong> | H2:
+                                            <strong>Partial</strong> | H3: <strong>No</strong><br></p>
+                                        <h3>4. Image Optimization</h3>
+                                        <p><strong>Recommendation:</strong> Enhance image alt text to include targeted
+                                            keywords. Ensure all 47 images are optimized with descriptive alt
+                                            attributes.</p>
+                                        <p>Current Image Count: <strong>47</strong></p>
+                                        <p>Overall Recommended Word Count: <strong>N/A</strong></p>
+                                        <p></p>
+                                        <h3>5. Internal Linking</h3>
+                                        <p><strong>Recommendation:</strong> Strengthen internal linking by linking to
+                                            related articles and service pages, thereby improving navigation and SEO.
+                                            Incorporate relevant anchor texts that include “storage solutions.”</p>
+                                        <p>Current Internal Links Count: <strong>47</strong></p>
+                                        <p>Overall Recommended Linking Strategy: <strong>4-6 internal links to relevant
+                                                pages</strong></p>
+                                        <h2>Relevance and Effort to Rank</h2>
+                                        <p>Based on the evaluations and recommendations above, the estimated time
+                                            required to rank in the top 10 on Google SERPs with moderate effort is
+                                            <strong>3-6 months</strong>.</p>
+                                        <p>Weightage Summary:<br>- Relevance of Content: <strong>0.1</strong><br>-
+                                            Current Rank: <strong>0.05</strong><br>- Domain Rank:
+                                            <strong>0.05</strong><br>- Backlinks: <strong>0.02</strong><br>- Backlinks
+                                            Spam Score: <strong>0.05</strong><br>- Referring Domains:
+                                            <strong>0.05</strong><br>- Mobile Score: <strong>0.05</strong><br>- Desktop
+                                            Score: <strong>0.03</strong><br>- Word Count: <strong>0.01</strong><br>-
+                                            Internal Links: <strong>0.01</strong><br>- External Links:
+                                            <strong>0.01</strong><br>- KW in URL: <strong>0.08</strong><br>- KW in
+                                            Title: <strong>0.05</strong><br>- KW in Desc: <strong>0.05</strong><br>- KW
+                                            in H1: <strong>0.05</strong><br>- KW in H2: <strong>0.02</strong><br>- KW in
+                                            H3: <strong>0.01</strong><br>- Lists: <strong>0.03</strong><br>- Tables:
+                                            <strong>0.02</strong><br>- Videos: <strong>0.02</strong><br>- Images:
+                                            <strong>0.03</strong><br>- KW in Alt Text: <strong>0.05</strong><br>- Flesch
+                                            Score: <strong>0.03</strong><br>- &lt;p&gt; Tags: <strong>0.06</strong><br>-
+                                            Schema: <strong>0.03</strong><br>- Targeted KW Frequency:
+                                            <strong>0.04</strong></p>
+                                        <p>By implementing these recommendations, the targeted URL can improve its
+                                            chances of ranking higher for the keyword “storage solutions” and drive more
+                                            relevant traffic.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                                    `;
+                                }
+                            },
+
                             {
                                 element: '#overall-summary',
                                 popover: {
@@ -26560,16 +27112,6 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                                     if (!el) el = document.getElementById('overall-summary');
                                     el.style.display = 'block';
                                     el.style.minHeight = '150px';
-                                    el.innerHTML = `
-                                    <table class="uniform-kw-table">
-                                        <thead><tr><th>Keyword</th><th>Search Vol</th><th>Difficulty</th><th>Time to Rank</th></tr></thead>
-                                        <tbody>
-                                            <tr><td>storage solutions</td><td>130</td><td>18</td><td class="time-to-rank-3-6">2-4 Months</td></tr>
-                                            <tr><td>self storage singapore</td><td>6,600</td><td>45</td><td class="time-to-rank-6-9">6-9 Months</td></tr>
-                                            <tr><td>storage space rental</td><td>1,100</td><td>32</td><td class="time-to-rank-3-6">4-7 Months</td></tr>
-                                        </tbody>
-                                    </table>
-                                `;
                                     void el.offsetHeight; // Force reflow
                                 }
                             }
@@ -26580,51 +27122,80 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                     });
 
                     function clearKeywordDemoData() {
-                        document.getElementById('domain').value = '';
-                        document.getElementById('keywords').value = '';
-                        document.getElementById('location').value = 'Singapore';
-                        document.getElementById('language').value = 'English';
+                        // Reset inputs to original state
+                        const domainInput = document.getElementById('domain');
+                        if (domainInput) domainInput.value = '';
 
-                        document.getElementById('overall-summary').innerHTML = '';
-                        document.getElementById('overall-summary').style.display = 'none';
-                        document.getElementById('overall-summary').style.minHeight = '';
-                        document.getElementById('serp-section').innerHTML = '';
-                        document.getElementById('serp-section').style.display = 'none';
-                        document.getElementById('serp-section').style.minHeight = '';
+                        const keywordsInput = document.getElementById('keywords');
+                        if (keywordsInput) keywordsInput.value = '';
 
-                        const kwList = document.getElementById('keywordList');
-                        if (kwList) kwList.innerHTML = '';
-                        const kwSuggestions = document.getElementById('keywordSuggestions');
-                        if (kwSuggestions) kwSuggestions.style.minHeight = '';
+                        const locationInput = document.getElementById('location');
+                        if (locationInput) locationInput.value = 'Singapore';
 
-                        const rankedKwList = document.getElementById('rankedKeywordList');
-                        if (rankedKwList) rankedKwList.innerHTML = '';
-                        const rankingKeywords = document.getElementById('rankingKeywords');
-                        if (rankingKeywords) rankingKeywords.style.minHeight = '';
+                        const languageInput = document.getElementById('language');
+                        if (languageInput) languageInput.value = 'English';
 
-                        const rankedCount = document.getElementById('rankedKeywordsCount');
-                        if (rankedCount) rankedCount.innerHTML = '';
-
-                        const siteKeywords = document.getElementById('siteKeywords');
-                        if (siteKeywords) {
-                            siteKeywords.innerHTML = '';
-                            siteKeywords.style.minHeight = '';
+                        // Clear specific data containers
+                        const serpSection = document.getElementById('serp-section');
+                        if (serpSection) {
+                            serpSection.innerHTML = '';
+                            serpSection.style.display = 'none';
+                            serpSection.style.minHeight = '';
                         }
 
-                        // Reset collapsible colors to original blue
-                        ['keyword_suggestions', 'ranking_keywords', 'keywords_for_site'].forEach(id => {
+                        const keywordAnalysis = document.getElementById('keywordAnalysis');
+                        if (keywordAnalysis) {
+                            // Restore original structure
+                            keywordAnalysis.innerHTML = `
+                                <div id="overall-summary" style="display:none;"></div>
+                                <div id="keyword-analysis-results"></div>
+                            `;
+                            keywordAnalysis.style.display = 'none';
+                        }
+
+                        const containers = [
+                            'keywordList', 'rankedKeywordList', 'rankedKeywordsCount', 'siteKeywords'
+                        ];
+                        containers.forEach(id => {
+                            const el = document.getElementById(id);
+                            if (el) el.innerHTML = '';
+                        });
+
+                        // Reset styles and hide contents
+                        const contentIds = ['keywordSuggestions', 'rankingKeywords', 'siteKeywords'];
+                        contentIds.forEach(id => {
+                            const el = document.getElementById(id);
+                            if (el) {
+                                el.style.minHeight = '';
+                                el.style.display = 'none';
+                            }
+                        });
+
+                        // Reset buttons (colors, icons, and active state)
+                        const buttonIds = [
+                            'keyword_suggestions', 'ranking_keywords', 'keywords_for_site',
+                            'expandSimilarKeywords', 'expandRankingKeywords', 'expandWebpageKeywords',
+                            'keywordAnalysisBtn'
+                        ];
+                        buttonIds.forEach(id => {
                             const btn = document.getElementById(id);
                             if (btn) {
                                 btn.style.backgroundColor = '#004c9d';
-                                btn.innerText = btn.innerText.replace('Generating Similar Keywords..', 'Keyword Suggestions (Similar Keywords / SERPs)');
-                                btn.innerText = btn.innerText.replace('Ranking Keywords', 'Ranking Keywords'); // Just in case
+                                btn.classList.remove('active');
+                                const icon = btn.querySelector('i');
+                                if (icon) {
+                                    icon.classList.remove('fa-minus-square');
+                                    icon.classList.add('fa-plus-square');
+                                }
+
+                                // Restore original innerText if it was modified
+                                if (id === 'keyword_suggestions') btn.innerText = 'Keyword Suggestions (Similar Keywords / SERPs)';
+                                if (id === 'ranking_keywords') btn.innerText = 'Ranking Keywords';
+                                if (id === 'keywords_for_site') btn.innerText = 'Keywords Based on Webpage Content';
                             }
                         });
-                        ['expandSimilarKeywords', 'expandRankingKeywords', 'expandWebpageKeywords'].forEach(id => {
-                            const btn = document.getElementById(id);
-                            if (btn) btn.style.backgroundColor = '#004c9d';
-                        });
 
+                        // Update keyword count (should be 0 now)
                         if (typeof updateKeywordCount === 'function') updateKeywordCount();
                     }
 
