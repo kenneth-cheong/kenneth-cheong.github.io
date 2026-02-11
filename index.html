@@ -219,6 +219,46 @@
             margin-bottom: 5px;
         }
 
+        /* Priority Recommendations */
+        .priority-recs-container {
+            background: linear-gradient(135deg, #fff 0%, #f8fafc 100%);
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        .rec-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            padding: 15px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .rec-item:last-child {
+            border-bottom: none;
+        }
+
+        .rec-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .rec-badge.high {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .rec-badge.med {
+            background: #ffedd5;
+            color: #c2410c;
+        }
+
         .discovery-stat-label {
             color: #475569;
             font-size: 0.9em;
@@ -8744,6 +8784,22 @@
                                 <!-- Detailed metrics for clicked platform -->
                             </div>
 
+                            <!-- Priority Recommendations Section -->
+                            <div id="discoveryPriorityRecommendations" style="display: none; margin-top: 30px;">
+                                <div
+                                    style="background: #fff; padding: 30px; border-radius: 20px; border: 1px solid #fee2e2; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.08);">
+                                    <h3
+                                        style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px; color: #991b1b;">
+                                        <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i> Priority
+                                        Recommendations
+                                    </h3>
+                                    <div id="priorityRecommendationsList"
+                                        style="display: flex; flex-direction: column; gap: 12px;">
+                                        <!-- Recommendations injected here -->
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- New Technical Discovery Details Section -->
                             <div id="discoveryTechnicalReport" style="display: none; margin-top: 30px;">
                                 <div
@@ -11481,7 +11537,7 @@ seo agencies in singapore</textarea>
                     });
 
                     // J. [NEW] Semantic HTML Depth
-                    const semanticTags = ['header', 'footer', 'main', 'article', 'section', 'nav', 'aside', 'figure', 'figcaption'];
+                    const semanticTags = ['header', 'footer', 'main', 'nav'];
                     const semanticDetails = semanticTags.map(tag => ({
                         tag: tag,
                         present: !!doc.querySelector(tag)
@@ -11492,7 +11548,7 @@ seo agencies in singapore</textarea>
                         label: 'Semantic Structure',
                         value: foundCount > 0 ? semanticDetails.filter(d => d.present).map(d => d.tag).join(', ') : 'Basic (div-based)',
                         status: foundCount >= 4 ? 'pass' : (foundCount > 0 ? 'warn' : 'fail'),
-                        geoDescription: 'Use of tags like <article> and <nav>. It helps AI agents "see" the relative importance of different content blocks.',
+                        geoDescription: 'Use of tags like "<article>"" and "<nav>"". It helps AI agents "see" the relative importance of different content blocks.',
                         semanticDetails: semanticDetails
                     });
 
@@ -11665,6 +11721,7 @@ seo agencies in singapore</textarea>
                 animateGauge(finalScore);
                 updateDiscoveryStats(finalTechData, finalScore);
                 renderDiscoveryPlatforms();
+                renderPriorityRecommendations(finalTechData.techAudit);
                 renderTechnicalAudit(finalTechData.techAudit);
 
                 document.getElementById('discoveryStatusText').textContent =
@@ -11873,6 +11930,9 @@ seo agencies in singapore</textarea>
                             </div>
                             <div ${valId} style="font-size: 1.1em; font-weight: 700; color: #1e293b;">${m.value}</div>
                             ${gaugeHtml}
+                            <div style="margin-top: 10px; font-size: 0.72em; color: #64748b; line-height: 1.4; border-top: 1px solid #f1f5f9; padding-top: 8px; font-style: italic;">
+                                ${m.geoDescription || ''}
+                            </div>
                         `;
                     grid.appendChild(card);
                 });
@@ -12004,6 +12064,86 @@ seo agencies in singapore</textarea>
             document.getElementById('stat-ssl').textContent = techData.sslStatus || 'N/A';
             document.getElementById('stat-ssl').style.color = techData.sslStatus === 'Valid' ? '#10a37f' : techData.sslStatus === 'Issue' ? '#ef4444' : '#64748b';
         }
+        function renderPriorityRecommendations(audit) {
+            const container = document.getElementById('discoveryPriorityRecommendations');
+            const list = document.getElementById('priorityRecommendationsList');
+            if (!container || !list) return;
+
+            // Weight mapping based on analyzer.ts logic
+            const weights = {
+                'Canonical Tag': 12,
+                'Meta Title': 12,
+                'Meta Description': 12,
+                'Hreflang Tags': 8,
+                'E-E-A-T-A Pages': 20,
+                'Discovery Tracking': 5,
+                'URL Structure': 5,
+                'Semantic Structure': 15,
+                'Security Headers': 5,
+                'robots.txt': 20,
+                'XML Sitemap': 10,
+                'llms.txt': 15,
+                'llms-full.txt': 15
+            };
+
+            // Recommendation templates
+            const templates = {
+                'Canonical Tag': 'Add canonical tags to prevent duplicate content issues and guide AI context.',
+                'Meta Title': 'Optimize meta title (30-60 chars) with primary keywords for better AI identification.',
+                'Meta Description': 'Write compelling meta descriptions (120-160 chars) to entice both users and AI agents.',
+                'Hreflang Tags': 'Add hreflang tags to help AI models understand your target geography and language.',
+                'E-E-A-T-A Pages': 'Critical: Add Author, About Us, and Contact pages to build trust and authority for AI.',
+                'Discovery Tracking': 'Implement GA4 or GTM to signals professional site maintenance to AI crawlers.',
+                'URL Structure': 'Clean up URL query parameters to ensure AI models can crawl your site hierarchy easily.',
+                'Semantic Structure': 'Use semantic HTML5 tags (main, article, nav) to help AI "see" your content hierarchy.',
+                'Security Headers': 'Implement security headers to signal a secure, authoritative site to indexing systems.',
+                'robots.txt': 'Essential: Configure robots.txt to properly allow AI agents like GPTBot or Perplexity.',
+                'XML Sitemap': 'Ensure an XML sitemap exists to help AI discovery agents find all your content pages.',
+                'llms.txt': 'High Priority: Create an llms.txt file to provide a concise, AI-friendly summary of your site.',
+                'llms-full.txt': 'Provide an llms-full.txt file for deep AI context and more accurate generative answers.'
+            };
+
+            // Filter for failures/warnings
+            const issues = audit.filter(item => item.status === 'fail' || item.status === 'warn')
+                .map(item => ({
+                    ...item,
+                    weight: weights[item.label] || 0,
+                    recommendation: templates[item.label] || `Improve ${item.label}: ${item.geoDescription}`
+                }));
+
+            // Sort by status (fail first) then by weight
+            issues.sort((a, b) => {
+                if (a.status === 'fail' && b.status !== 'fail') return -1;
+                if (a.status !== 'fail' && b.status === 'fail') return 1;
+                return b.weight - a.weight;
+            });
+
+            // Limit to top 10 as per user request
+            const topIssues = issues.slice(0, 10);
+
+            if (topIssues.length > 0) {
+                list.innerHTML = topIssues.map(issue => `
+                    <div style="display: flex; gap: 15px; padding: 15px; background: ${issue.status === 'fail' ? '#fff1f2' : '#fefce8'}; border-radius: 12px; border: 1px solid ${issue.status === 'fail' ? '#fecaca' : '#fef08a'};">
+                        <div style="flex-shrink: 0; margin-top: 2px;">
+                            <i class="fas ${issue.status === 'fail' ? 'fa-times-circle' : 'fa-exclamation-circle'}" style="color: ${issue.status === 'fail' ? '#ef4444' : '#eab308'}; font-size: 1.1em;"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 700; color: #1e293b; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+                                ${issue.label}
+                                <span style="font-size: 0.7em; padding: 2px 8px; border-radius: 10px; background: ${issue.weight >= 15 ? '#f87171' : '#fb923c'}; color: white; text-transform: uppercase;">
+                                    ${issue.weight >= 15 ? 'Critical' : 'High Impact'}
+                                </span>
+                            </div>
+                            <div style="font-size: 0.9em; color: #475569; line-height: 1.5;">${issue.recommendation}</div>
+                        </div>
+                    </div>
+                `).join('');
+                container.style.display = 'block';
+            } else {
+                container.style.display = 'none';
+            }
+        }
+
 
         function renderTechnicalAudit(audit) {
             const report = document.getElementById('discoveryTechnicalReport');
