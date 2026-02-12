@@ -1395,7 +1395,10 @@
                 <div
                     style="position: sticky; top: -40px; background: var(--bg-card); z-index: 100; margin: -40px -40px 32px -40px; padding: 40px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start;">
                     <div id="detailNameSection">
-                        <h2 id="detailName">John Doe</h2>
+                        <h2 id="detailName" contenteditable="true" onblur="updateCandidateName(this.innerText)"
+                            style="outline: none; border-radius: 8px; padding: 4px 8px; transition: background 0.2s;"
+                            onmouseover="this.style.background='rgba(255,255,255,0.05)'"
+                            onmouseout="this.style.background='transparent'">John Doe</h2>
                         <div style="display: flex; gap: 12px; align-items: center; margin-top: 8px;">
                             <span class="badge badge-success" id="detailScore">AI Score: 92/100</span>
                             <button class="btn"
@@ -3810,6 +3813,33 @@
 
         function closeDetailModal() {
             document.getElementById('detailModal').style.display = 'none';
+        }
+
+        async function updateCandidateName(newName) {
+            if (!state.viewingCandidateId || !newName) return;
+            newName = newName.trim().toUpperCase();
+
+            const cand = state.candidates.find(c => String(c.id) === String(state.viewingCandidateId));
+            if (!cand || cand.name === newName) return;
+
+            console.log(`Updating candidate ${state.viewingCandidateId} name to: ${newName}`);
+
+            // Update local state and UI
+            cand.name = newName;
+
+            // Save to backend
+            const result = await persistenceApiCall('upsert_candidate', {
+                id: state.viewingCandidateId,
+                name: newName
+            });
+
+            if (result && result.success) {
+                showToast("Candidate name updated successfully!");
+                renderCandidates();
+                filterCandidatesRepo();
+            } else {
+                showToast("Failed to update candidate name", "error");
+            }
         }
 
         function rejectCurrentCandidate() {

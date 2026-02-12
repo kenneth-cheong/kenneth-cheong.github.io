@@ -376,9 +376,10 @@ function addUser() {
   var spaceItems = spaces.map(function (space) {
     const spaceType = space.spaceType || "SPACE";
     const threading = (space.spaceThreadingState && space.spaceThreadingState !== 'THREADING_STATE_UNSPECIFIED') ? space.spaceThreadingState : "NONE";
+    const externalAllowed = space.externalUserAllowed ? "YES" : "NO";
     return {
       text: space.displayName, // The name of the space
-      value: space.name + "|" + space.displayName + "|" + spaceType + "|" + threading, 
+      value: space.name + "|" + space.displayName + "|" + spaceType + "|" + threading + "|" + externalAllowed, 
       selected: false
     };
   });
@@ -474,13 +475,14 @@ function onAddToSpaces(email_address, selected_spaces) {
     if (spaces.length > 0) {
       let results = [];
       spaces.forEach(function (spaceData) {
-        // spaceData is "id|displayName|type|threading"
+        // spaceData is "id|displayName|type|threading|externalAllowed"
         const parts = spaceData.split('|');
         const spaceId = parts[0];
         const spaceName = parts[1] || spaceId;
         const metadata = {
           type: parts[2] || "N/A",
-          threading: parts[3] || "N/A"
+          threading: parts[3] || "N/A",
+          externalAllowed: parts[4] || "N/A"
         };
         let result = addUserToSpace(trimmedEmail, spaceId, spaceName, metadata);
         results.push(result);
@@ -495,27 +497,46 @@ function onAddToSpaces(email_address, selected_spaces) {
 function addUserToSpace(email, spaceId, spaceName, metadata) {
   const trimmedEmail = email.trim();
   const displayName = spaceName || spaceId;
-  const metaStr = metadata ? ` [Type: ${metadata.type}, Threading: ${metadata.threading}]` : "";
-  Logger.log("Adding " + trimmedEmail + " to " + displayName + " (" + spaceId + ")" + metaStr);
+  const extAllowed = metadata ? metadata.externalAllowed : "N/A";
+  Logger.log("Adding " + trimmedEmail + " to " + displayName + " (" + spaceId + "), extAllowed=" + extAllowed);
+
+  // Pre-check: is the user already a member?
+  try {
+    var existingMember = Chat.Spaces.Members.get(spaceId + "/members/" + trimmedEmail);
+    if (existingMember && existingMember.state === "JOINED") {
+      Logger.log("User " + trimmedEmail + " is already JOINED in " + displayName);
+      return "⏭️ Already in " + displayName;
+    }
+    // Membership exists but not JOINED — likely external user blocked
+    var memberState = existingMember ? existingMember.state : "unknown";
+    Logger.log("Pre-check: membership state is '" + memberState + "' in " + displayName);
+    if (memberState === "NOT_A_MEMBER" && extAllowed === "false") {
+      return "⚠️ " + displayName + ": External users not allowed in this space. Enable it in Space Settings → 'Allow people outside your organization'.";
+    }
+  } catch (checkErr) {
+    // 404 = user is NOT a member at all — proceed to add
+    Logger.log("Pre-check: user not found in " + displayName + " — proceeding to add");
+  }
 
   try {
     var membership = {
       "member": {
         "name": "users/" + trimmedEmail,
         "type": "HUMAN"
-      },
-      "role": "ROLE_MEMBER"
+      }
     };
     Logger.log("Membership payload: " + JSON.stringify(membership));
     Chat.Spaces.Members.create(membership, spaceId);
     Logger.log('User added to space: ' + displayName);
     return "✅ Added to " + displayName;
   } catch (e) {
-    let detail = e.details ? "\nDetails: " + JSON.stringify(e.details) : "";
-    let errorMsg = '❌ Failed for ' + displayName + ': ' + e.message + detail;
-    Logger.log(errorMsg);
+    Logger.log("addUserToSpace error: " + e.message);
     Logger.log("Full error: " + JSON.stringify(e));
-    return errorMsg;
+    // Provide actionable feedback for common failures
+    if (e.message && e.message.indexOf("Internal error") !== -1) {
+      return '❌ ' + displayName + ': Could not add user. This may be because external users are not allowed in this space. Check Space Settings → "Allow people outside your organization".';
+    }
+    return '❌ Failed for ' + displayName + ': ' + e.message;
   }
 }
 
@@ -543,9 +564,10 @@ function removeUser() {
   var spaceItems = spaces.map(function (space) {
     const spaceType = space.spaceType || "SPACE";
     const threading = (space.spaceThreadingState && space.spaceThreadingState !== 'THREADING_STATE_UNSPECIFIED') ? space.spaceThreadingState : "NONE";
+    const externalAllowed = space.externalUserAllowed ? "YES" : "NO";
     return {
       text: space.displayName, // The name of the space
-      value: space.name + "|" + space.displayName + "|" + spaceType + "|" + threading,
+      value: space.name + "|" + space.displayName + "|" + spaceType + "|" + threading + "|" + externalAllowed,
       selected: true
     };
   });
@@ -658,13 +680,14 @@ function onRemoveFromSpaces(email_address, selected_spaces) {
     if (spaces.length > 0) {
       let results = [];
       spaces.forEach(function (spaceData) {
-        // spaceData is "id|displayName|type|threading"
+        // spaceData is "id|displayName|type|threading|externalAllowed"
         const parts = spaceData.split('|');
         const spaceId = parts[0];
         const spaceName = parts[1] || spaceId;
         const metadata = {
           type: parts[2] || "N/A",
-          threading: parts[3] || "N/A"
+          threading: parts[3] || "N/A",
+          externalAllowed: parts[4] || "N/A"
         };
         let result = removeUserFromSpace(trimmedEmail, spaceId, spaceName, metadata);
         results.push(result);
@@ -677,20 +700,17 @@ function onRemoveFromSpaces(email_address, selected_spaces) {
 
 function removeUserFromSpace(email, spaceId, spaceName, metadata) {
   const displayName = spaceName || spaceId;
-  const metaStr = metadata ? ` [Type: ${metadata.type}, Threading: ${metadata.threading}]` : "";
   try {
     const trimmedEmail = email.trim();
     const resourceName = spaceId + "/members/" + trimmedEmail;
-    Logger.log("Removing member from " + displayName + ": " + resourceName + metaStr);
+    Logger.log("Removing member from " + displayName + ": " + resourceName);
     Chat.Spaces.Members.remove(resourceName);
     Logger.log('User removed from ' + displayName);
     return "✅ Removed from " + displayName;
   } catch (e) {
-    let detail = e.details ? "\nDetails: " + JSON.stringify(e.details) : "";
-    let errorMsg = '❌ Failed for ' + displayName + ': ' + e.message + detail;
-    Logger.log(errorMsg);
+    Logger.log("removeUserFromSpace error: " + e.message);
     Logger.log("Full error: " + JSON.stringify(e));
-    return errorMsg;
+    return '❌ Failed for ' + displayName + ': ' + e.message;
   }
 }
 
