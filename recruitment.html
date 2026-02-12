@@ -796,13 +796,62 @@
         }
 
         @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
+            to {
                 transform: rotate(360deg);
             }
+        }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 32px;
+            right: 32px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid var(--border);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            pointer-events: auto;
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast i {
+            font-size: 1.1rem;
+        }
+
+        .toast-success i {
+            color: #10b981;
+        }
+
+        .toast-error i {
+            color: #f43f5e;
+        }
+
+        .toast-info i {
+            color: #818cf8;
         }
     </style>
 </head>
@@ -811,6 +860,8 @@
     <div id="loadingOverlay" class="loading-overlay">
         <div class="spinner"></div>
     </div>
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
     <div id="loginScreen">
         <div class="login-card">
             <div class="login-logo">MediaOne Recruitment</div>
@@ -1000,6 +1051,11 @@
                             onclick="bulkReEvaluate(event, 'candidateTable')">
                             <i class="fas fa-sync-alt"></i> AI Re-evaluate Selected
                         </button>
+                        <button id="bulkCopyBtn" class="btn"
+                            style="display: none; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
+                            onclick="bulkCopyUrls('candidateTable')">
+                            <i class="fas fa-copy"></i> Copy Links
+                        </button>
                         <button id="bulkDeleteBtn" class="btn"
                             style="display: none; background: var(--accent); color: white;"
                             onclick="bulkDelete()">Delete Selected</button>
@@ -1056,6 +1112,11 @@
                             style="display: none; background: var(--secondary); color: white;"
                             onclick="bulkReEvaluate(event, 'repoTable')">
                             <i class="fas fa-sync-alt"></i> AI Re-evaluate Selected
+                        </button>
+                        <button id="bulkCopyRepoBtn" class="btn"
+                            style="display: none; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
+                            onclick="bulkCopyUrls('repoTable')">
+                            <i class="fas fa-copy"></i> Copy Links
                         </button>
                         <button id="bulkDeleteRepoBtn" class="btn"
                             style="display: none; background: var(--accent); color: white;"
@@ -1353,8 +1414,15 @@
                         </div>
                     </div>
                     <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 12px;">
-                        <button class="btn" style="background: var(--glass); color: white;"
-                            onclick="closeDetailModal()">Close</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn"
+                                style="background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
+                                onclick="copyShareLink(editingCandId)">
+                                <i class="fas fa-share-alt"></i> Share
+                            </button>
+                            <button class="btn" style="background: var(--glass); color: white;"
+                                onclick="closeDetailModal()">Close</button>
+                        </div>
                         <div
                             style="display: flex; align-items: center; gap: 8px; background: var(--glass); padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border);">
                             <label style="font-size: 0.75rem; color: var(--text-dim); font-weight: 600;">Assign
@@ -1817,6 +1885,32 @@
             if (overlay) overlay.style.display = show ? 'flex' : 'none';
         }
 
+        function bulkCopyUrls(tableId) {
+            const selector = tableId === 'candidateTable' ? '.cand-checkbox:checked' : '.repo-checkbox:checked';
+            const checked = document.querySelectorAll(selector);
+            if (checked.length === 0) return;
+
+            const url = new URL(window.location.href);
+            const urls = Array.from(checked).map(cb => {
+                const candUrl = new URL(url);
+                candUrl.searchParams.set('candidateId', cb.value);
+                return candUrl.toString();
+            }).join('\n');
+
+            navigator.clipboard.writeText(urls).then(() => {
+                showToast(`${checked.length} links copied to clipboard!`);
+            }).catch(err => {
+                console.error('Failed to copy links: ', err);
+                const input = document.createElement('textarea');
+                input.value = urls;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                showToast(`${checked.length} links copied to clipboard!`);
+            });
+        }
+
         async function initApp() {
             toggleLoading(true);
             try {
@@ -1833,11 +1927,66 @@
 
                 renderJobs();
                 await updateStats();
+
+                // Check for shared candidate link
+                const urlParams = new URLSearchParams(window.location.search);
+                const sharedCandId = urlParams.get('candidateId');
+                if (sharedCandId) {
+                    console.log("Shared candidate ID found in URL:", sharedCandId);
+                    // Slight delay to ensure UI is ready
+                    setTimeout(() => viewCandidate(sharedCandId), 500);
+                }
             } catch (err) {
                 console.error("Initialization error:", err);
+                showToast("Error during initialization", "error");
             } finally {
                 toggleLoading(false);
             }
+        }
+
+        function showToast(message, type = 'success', duration = 3000) {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const icon = type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<i class="fas ${icon}"></i><span>${message}</span>`;
+
+            container.appendChild(toast);
+
+            // Trigger animation
+            setTimeout(() => toast.classList.add('show'), 10);
+
+            // Auto-hide
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+
+            toast.onclick = () => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            };
+        }
+
+        function copyShareLink(id) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('candidateId', id);
+            const shareUrl = url.toString();
+
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                showToast("Share link copied to clipboard!");
+            }).catch(err => {
+                console.error('Failed to copy link: ', err);
+                const input = document.createElement('input');
+                input.value = shareUrl;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                showToast("Share link copied to clipboard!");
+            });
         }
 
         // Initialize on load
@@ -2653,6 +2802,10 @@
                     <td>
                         <div style="display: flex; gap: 8px;">
                             <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white;" onclick="event.stopPropagation(); viewCandidate('${c.id}')">Review</button>
+                            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);" 
+                                onclick="event.stopPropagation(); copyShareLink('${c.id}')">
+                                <i class="fas fa-share-alt"></i>
+                            </button>
                             <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--accent); color: white;" onclick="event.stopPropagation(); deleteCandidate('${c.id}')">🗑️</button>
                         </div>
                     </td>
@@ -2882,6 +3035,7 @@
         function updateBulkDeleteVisibility(tableId) {
             const selector = tableId === 'candidateTable' ? '.cand-checkbox:checked' : '.repo-checkbox:checked';
             const deleteBtnId = tableId === 'candidateTable' ? 'bulkDeleteBtn' : 'bulkDeleteRepoBtn';
+            const copyBtnId = tableId === 'candidateTable' ? 'bulkCopyBtn' : 'bulkCopyRepoBtn';
             const reEvalBtnId = tableId === 'candidateTable' ? 'bulkReEvaluateBtn' : 'bulkReEvaluateRepoBtn';
             const assignContainerId = tableId === 'candidateTable' ? 'bulkAssignContainer' : 'bulkAssignRepoContainer';
 
@@ -2889,6 +3043,7 @@
             const isAdmin = state.effectiveRole === 'Admin';
 
             document.getElementById(deleteBtnId).style.display = (checkedCount > 0) ? 'block' : 'none';
+            document.getElementById(copyBtnId).style.display = (checkedCount > 0) ? 'block' : 'none';
             document.getElementById(reEvalBtnId).style.display = (checkedCount > 0) ? 'block' : 'none';
 
             const assignContainer = document.getElementById(assignContainerId);
@@ -3469,6 +3624,10 @@
                     <td>
                         <div style="display: flex; gap: 8px;">
                             <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem;" onclick="event.stopPropagation(); viewCandidate('${c.id}')">Details</button>
+                            <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);" 
+                                onclick="event.stopPropagation(); copyShareLink('${c.id}')">
+                                <i class="fas fa-share-alt"></i>
+                            </button>
                             <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: var(--accent); color: white;" onclick="event.stopPropagation(); deleteCandidate('${c.id}')">🗑️</button>
                         </div>
                     </td>

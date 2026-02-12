@@ -467,20 +467,24 @@ function getSpacesForAll() {
 
 // Function triggered when the button is clicked
 function onAddToSpaces(email_address, selected_spaces) {
-  if (email_address && selected_spaces.length > 0) {
-    selectedSpaces.forEach(function (spaceId) {
-      addUserToSpace(email_address, spaceId); // Add the user to each selected space
-    });
-    return buildResponseCard("User added to selected spaces.");
-  } else {
-    return buildResponseCard("Please enter an email and select at least one space.");
+  if (email_address && selected_spaces) {
+    const spaces = Array.isArray(selected_spaces) ? selected_spaces : [selected_spaces];
+    
+    if (spaces.length > 0) {
+      let results = [];
+      spaces.forEach(function (spaceId) {
+        let result = addUserToSpace(email_address, spaceId);
+        results.push(result);
+      });
+      return buildResponseCard("Process completed:\n" + results.join("\n"));
+    }
   }
+  return buildResponseCard("Please enter an email and select at least one space.");
 }
 
 // Function to add a user to a specific space
 function addUserToSpace(email, spaceId) {
-  Logger.log(email);
-  Logger.log(spaceId);
+  Logger.log("Adding " + email + " to " + spaceId);
 
   try {
     var membership = {
@@ -491,8 +495,11 @@ function addUserToSpace(email, spaceId) {
     };
     Chat.Spaces.Members.create(membership, spaceId);
     Logger.log('User added to space: ' + spaceId);
+    return "✅ Added to " + spaceId;
   } catch (e) {
-    Logger.log('Error adding user to space ' + spaceId + ': ' + e.message);
+    let errorMsg = '❌ Failed for ' + spaceId + ': ' + e.message;
+    Logger.log(errorMsg);
+    return errorMsg;
   }
 }
 
@@ -626,22 +633,30 @@ function getSpacesForUser() {
 
 
 function onRemoveFromSpaces(email_address, selected_spaces) {
-  if (email_address && selected_spaces.length > 0) {
-    selectedSpaces.forEach(function (spaceId) {
-      removeUserFromSpace(email_address, spaceId); // Add the user to each selected space
-    });
-    return buildResponseCard("User added to selected spaces.");
-  } else {
-    return buildResponseCard("Please enter an email and select at least one space.");
+  if (email_address && selected_spaces) {
+    const spaces = Array.isArray(selected_spaces) ? selected_spaces : [selected_spaces];
+
+    if (spaces.length > 0) {
+      let results = [];
+      spaces.forEach(function (spaceId) {
+        let result = removeUserFromSpace(email_address, spaceId);
+        results.push(result);
+      });
+      return buildResponseCard("Process completed:\n" + results.join("\n"));
+    }
   }
+  return buildResponseCard("Please enter an email and select at least one space.");
 }
 
 function removeUserFromSpace(email, spaceId) {
   try {
     Chat.Spaces.Members.remove(spaceId + "/members/" + email);
     Logger.log('User removed from ' + spaceId);
+    return "✅ Removed from " + spaceId;
   } catch (e) {
-    Logger.log('Failed to remove from ' + spaceID + ': ' + e);
+    let errorMsg = '❌ Failed for ' + spaceId + ': ' + e.message;
+    Logger.log(errorMsg);
+    return errorMsg;
   }
 }
 
@@ -965,7 +980,10 @@ function fetchFormValue(event, widgetName) {
     
     const val = input[""];
     if (val.stringInputs && val.stringInputs.value) {
-      return val.stringInputs.value[0];
+      const values = val.stringInputs.value;
+      // If it's a multi-selection (checkbox), return the whole array.
+      // If it's a single selection or text input, return the first string.
+      return values.length > 1 ? values : values[0];
     }
     if (val.dateTimeInput) {
       return val.dateTimeInput.msSinceEpoch;
