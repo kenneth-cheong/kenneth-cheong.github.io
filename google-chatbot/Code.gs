@@ -374,10 +374,9 @@ function addUser() {
   var spaces = getSpacesForAll(); // Fetch the spaces dynamically
 
   var spaceItems = spaces.map(function (space) {
-    Logger.log(space.displayName);
     return {
       text: space.displayName, // The name of the space
-      value: space.name, // The space ID
+      value: space.name + "|" + space.displayName, // Encoded ID and Name
       selected: false
     };
   });
@@ -468,12 +467,17 @@ function getSpacesForAll() {
 // Function triggered when the button is clicked
 function onAddToSpaces(email_address, selected_spaces) {
   if (email_address && selected_spaces) {
+    const trimmedEmail = email_address.trim();
     const spaces = Array.isArray(selected_spaces) ? selected_spaces : [selected_spaces];
     
     if (spaces.length > 0) {
       let results = [];
-      spaces.forEach(function (spaceId) {
-        let result = addUserToSpace(email_address, spaceId);
+      spaces.forEach(function (spaceData) {
+        // spaceData is "id|displayName"
+        const parts = spaceData.split('|');
+        const spaceId = parts[0];
+        const spaceName = parts[1] || spaceId;
+        let result = addUserToSpace(trimmedEmail, spaceId, spaceName);
         results.push(result);
       });
       return buildResponseCard("Process completed:\n" + results.join("\n"));
@@ -483,21 +487,24 @@ function onAddToSpaces(email_address, selected_spaces) {
 }
 
 // Function to add a user to a specific space
-function addUserToSpace(email, spaceId) {
-  Logger.log("Adding " + email + " to " + spaceId);
+function addUserToSpace(email, spaceId, spaceName) {
+  const trimmedEmail = email.trim();
+  const displayName = spaceName || spaceId;
+  Logger.log("Adding " + trimmedEmail + " to " + displayName + " (" + spaceId + ")");
 
   try {
     var membership = {
       "member": {
-        "name": "users/" + email,
+        "name": "users/" + trimmedEmail,
         "type": "HUMAN"
       }
     };
+    Logger.log("Membership payload: " + JSON.stringify(membership));
     Chat.Spaces.Members.create(membership, spaceId);
-    Logger.log('User added to space: ' + spaceId);
-    return "✅ Added to " + spaceId;
+    Logger.log('User added to space: ' + displayName);
+    return "✅ Added to " + displayName;
   } catch (e) {
-    let errorMsg = '❌ Failed for ' + spaceId + ': ' + e.message;
+    let errorMsg = '❌ Failed for ' + displayName + ': ' + e.message;
     Logger.log(errorMsg);
     return errorMsg;
   }
@@ -527,7 +534,7 @@ function removeUser() {
   var spaceItems = spaces.map(function (space) {
     return {
       text: space.displayName, // The name of the space
-      value: space.name, // The space ID
+      value: space.name + "|" + space.displayName, // Encoded ID and Name
       selected: true
     };
   });
@@ -634,12 +641,17 @@ function getSpacesForUser() {
 
 function onRemoveFromSpaces(email_address, selected_spaces) {
   if (email_address && selected_spaces) {
+    const trimmedEmail = email_address.trim();
     const spaces = Array.isArray(selected_spaces) ? selected_spaces : [selected_spaces];
 
     if (spaces.length > 0) {
       let results = [];
-      spaces.forEach(function (spaceId) {
-        let result = removeUserFromSpace(email_address, spaceId);
+      spaces.forEach(function (spaceData) {
+        // spaceData is "id|displayName"
+        const parts = spaceData.split('|');
+        const spaceId = parts[0];
+        const spaceName = parts[1] || spaceId;
+        let result = removeUserFromSpace(trimmedEmail, spaceId, spaceName);
         results.push(result);
       });
       return buildResponseCard("Process completed:\n" + results.join("\n"));
@@ -648,13 +660,17 @@ function onRemoveFromSpaces(email_address, selected_spaces) {
   return buildResponseCard("Please enter an email and select at least one space.");
 }
 
-function removeUserFromSpace(email, spaceId) {
+function removeUserFromSpace(email, spaceId, spaceName) {
+  const displayName = spaceName || spaceId;
   try {
-    Chat.Spaces.Members.remove(spaceId + "/members/" + email);
-    Logger.log('User removed from ' + spaceId);
-    return "✅ Removed from " + spaceId;
+    const trimmedEmail = email.trim();
+    const resourceName = spaceId + "/members/" + trimmedEmail;
+    Logger.log("Removing member from " + displayName + ": " + resourceName);
+    Chat.Spaces.Members.remove(resourceName);
+    Logger.log('User removed from ' + displayName);
+    return "✅ Removed from " + displayName;
   } catch (e) {
-    let errorMsg = '❌ Failed for ' + spaceId + ': ' + e.message;
+    let errorMsg = '❌ Failed for ' + displayName + ': ' + e.message;
     Logger.log(errorMsg);
     return errorMsg;
   }
