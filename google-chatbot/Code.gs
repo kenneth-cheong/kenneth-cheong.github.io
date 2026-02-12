@@ -374,9 +374,11 @@ function addUser() {
   var spaces = getSpacesForAll(); // Fetch the spaces dynamically
 
   var spaceItems = spaces.map(function (space) {
+    const spaceType = space.spaceType || "SPACE";
+    const threading = (space.spaceThreadingState && space.spaceThreadingState !== 'THREADING_STATE_UNSPECIFIED') ? space.spaceThreadingState : "NONE";
     return {
       text: space.displayName, // The name of the space
-      value: space.name + "|" + space.displayName, // Encoded ID and Name
+      value: space.name + "|" + space.displayName + "|" + spaceType + "|" + threading, 
       selected: false
     };
   });
@@ -445,7 +447,6 @@ function addUser() {
   }
 }
 
-// Function to get the current user's Google Chat spaces
 function getSpacesForAll() {
   var spaces = [];
   try {
@@ -473,11 +474,15 @@ function onAddToSpaces(email_address, selected_spaces) {
     if (spaces.length > 0) {
       let results = [];
       spaces.forEach(function (spaceData) {
-        // spaceData is "id|displayName"
+        // spaceData is "id|displayName|type|threading"
         const parts = spaceData.split('|');
         const spaceId = parts[0];
         const spaceName = parts[1] || spaceId;
-        let result = addUserToSpace(trimmedEmail, spaceId, spaceName);
+        const metadata = {
+          type: parts[2] || "N/A",
+          threading: parts[3] || "N/A"
+        };
+        let result = addUserToSpace(trimmedEmail, spaceId, spaceName, metadata);
         results.push(result);
       });
       return buildResponseCard("Process completed:\n" + results.join("\n"));
@@ -487,25 +492,29 @@ function onAddToSpaces(email_address, selected_spaces) {
 }
 
 // Function to add a user to a specific space
-function addUserToSpace(email, spaceId, spaceName) {
+function addUserToSpace(email, spaceId, spaceName, metadata) {
   const trimmedEmail = email.trim();
   const displayName = spaceName || spaceId;
-  Logger.log("Adding " + trimmedEmail + " to " + displayName + " (" + spaceId + ")");
+  const metaStr = metadata ? ` [Type: ${metadata.type}, Threading: ${metadata.threading}]` : "";
+  Logger.log("Adding " + trimmedEmail + " to " + displayName + " (" + spaceId + ")" + metaStr);
 
   try {
     var membership = {
       "member": {
         "name": "users/" + trimmedEmail,
         "type": "HUMAN"
-      }
+      },
+      "role": "ROLE_MEMBER"
     };
     Logger.log("Membership payload: " + JSON.stringify(membership));
     Chat.Spaces.Members.create(membership, spaceId);
     Logger.log('User added to space: ' + displayName);
     return "✅ Added to " + displayName;
   } catch (e) {
-    let errorMsg = '❌ Failed for ' + displayName + ': ' + e.message;
+    let detail = e.details ? "\nDetails: " + JSON.stringify(e.details) : "";
+    let errorMsg = '❌ Failed for ' + displayName + ': ' + e.message + detail;
     Logger.log(errorMsg);
+    Logger.log("Full error: " + JSON.stringify(e));
     return errorMsg;
   }
 }
@@ -532,9 +541,11 @@ function removeUser() {
   var spaces = getSpacesForAll(); // Fetch the spaces dynamically
 
   var spaceItems = spaces.map(function (space) {
+    const spaceType = space.spaceType || "SPACE";
+    const threading = (space.spaceThreadingState && space.spaceThreadingState !== 'THREADING_STATE_UNSPECIFIED') ? space.spaceThreadingState : "NONE";
     return {
       text: space.displayName, // The name of the space
-      value: space.name + "|" + space.displayName, // Encoded ID and Name
+      value: space.name + "|" + space.displayName + "|" + spaceType + "|" + threading,
       selected: true
     };
   });
@@ -647,11 +658,15 @@ function onRemoveFromSpaces(email_address, selected_spaces) {
     if (spaces.length > 0) {
       let results = [];
       spaces.forEach(function (spaceData) {
-        // spaceData is "id|displayName"
+        // spaceData is "id|displayName|type|threading"
         const parts = spaceData.split('|');
         const spaceId = parts[0];
         const spaceName = parts[1] || spaceId;
-        let result = removeUserFromSpace(trimmedEmail, spaceId, spaceName);
+        const metadata = {
+          type: parts[2] || "N/A",
+          threading: parts[3] || "N/A"
+        };
+        let result = removeUserFromSpace(trimmedEmail, spaceId, spaceName, metadata);
         results.push(result);
       });
       return buildResponseCard("Process completed:\n" + results.join("\n"));
@@ -660,18 +675,21 @@ function onRemoveFromSpaces(email_address, selected_spaces) {
   return buildResponseCard("Please enter an email and select at least one space.");
 }
 
-function removeUserFromSpace(email, spaceId, spaceName) {
+function removeUserFromSpace(email, spaceId, spaceName, metadata) {
   const displayName = spaceName || spaceId;
+  const metaStr = metadata ? ` [Type: ${metadata.type}, Threading: ${metadata.threading}]` : "";
   try {
     const trimmedEmail = email.trim();
     const resourceName = spaceId + "/members/" + trimmedEmail;
-    Logger.log("Removing member from " + displayName + ": " + resourceName);
+    Logger.log("Removing member from " + displayName + ": " + resourceName + metaStr);
     Chat.Spaces.Members.remove(resourceName);
     Logger.log('User removed from ' + displayName);
     return "✅ Removed from " + displayName;
   } catch (e) {
-    let errorMsg = '❌ Failed for ' + displayName + ': ' + e.message;
+    let detail = e.details ? "\nDetails: " + JSON.stringify(e.details) : "";
+    let errorMsg = '❌ Failed for ' + displayName + ': ' + e.message + detail;
     Logger.log(errorMsg);
+    Logger.log("Full error: " + JSON.stringify(e));
     return errorMsg;
   }
 }

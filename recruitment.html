@@ -1545,21 +1545,14 @@
                                 <h4 style="margin-bottom: 12px; font-size: 0.875rem; color: var(--text-dim);">Actions
                                 </h4>
                                 <button class="btn btn-primary" style="width: 100%; justify-content: center;"
-                                    onclick="downloadOriginalCV()">
-                                    <i class="fas fa-download"></i> Download CV
+                                    onclick="viewCV()">
+                                    <i class="fas fa-eye"></i> View CV
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div style="margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px;">
-                    <h4 style="margin-bottom: 16px;">Extracted CV Text Content</h4>
-                    <div id="cvTextContent"
-                        style="padding: 16px; background: rgba(15, 23, 42, 0.4); border-radius: 12px; border: 1px solid var(--border); color: var(--text-dim); font-size: 0.85rem; line-height: 1.6; max-height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace;">
-                        <!-- Raw text content will be injected here -->
-                    </div>
-                </div>
 
                 <div style="margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px;">
                     <h4 style="margin-bottom: 16px;">Comments</h4>
@@ -1575,14 +1568,26 @@
                 </div>
 
                 <div style="margin-top: 32px; display: flex; gap: 16px;">
-                    <button class="btn btn-primary" onclick="downloadOriginalCV()">Download Original CV</button>
+                    <button class="btn btn-primary" onclick="viewCV()">View Original CV</button>
                     <button class="btn" style="background: rgba(244, 63, 94, 0.1); color: var(--accent);"
                         onclick="rejectCurrentCandidate()">Reject Candidate</button>
                 </div>
             </div>
         </div>
 
-        <!-- CV Viewer Modal is removed as per user request to favor download -->
+        <!-- CV Viewer Modal -->
+        <div id="cvViewerModal">
+            <div class="cv-viewer-container">
+                <div class="cv-viewer-header">
+                    <h3 id="cvViewerTitle">CV Viewer</h3>
+                    <button class="btn" style="background: var(--glass); color: white;"
+                        onclick="closeCVViewer()">Close</button>
+                </div>
+                <div class="cv-viewer-content" id="cvViewerContent">
+                    <!-- Content injected by JS -->
+                </div>
+            </div>
+        </div>
 
     </div> <!-- End recruitmentApp -->
 
@@ -3703,10 +3708,6 @@
             document.getElementById('detailInterviewerScore').value = c.interviewerScore || 0;
             document.getElementById('detailSummary').innerText = c.summary;
 
-            const cvTextContent = document.getElementById('cvTextContent');
-            if (cvTextContent) {
-                cvTextContent.innerText = c.fullText || 'No extracted text available.';
-            }
 
             // Populating Assignee options in Modal
             const assigneeSelect = document.getElementById('modalAssignee');
@@ -3818,6 +3819,78 @@
                 renderCandidates();
                 filterCandidatesRepo();
             }
+        }
+
+        function viewCV() {
+            const cand = state.candidates.find(c => c.id.toString() === editingCandId.toString());
+            if (!cand || !cand.cvData) return alert('No file data available to view.');
+
+            const ext = cand.fileName.split('.').pop().toLowerCase();
+            const viewerModal = document.getElementById('cvViewerModal');
+            const viewerContent = document.getElementById('cvViewerContent');
+            const viewerTitle = document.getElementById('cvViewerTitle');
+
+            viewerTitle.innerText = `Viewing: ${cand.fileName}`;
+            viewerModal.style.display = 'flex';
+            viewerContent.innerHTML = ''; // Clear previous content
+
+            // Use Blob for better PDF rendering/stability
+            try {
+                const byteCharacters = atob(cand.cvData);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+
+                let mimeType = 'application/octet-stream';
+                if (ext === 'pdf') mimeType = 'application/pdf';
+                else if (['jpg', 'jpeg', 'png'].includes(ext)) mimeType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+
+                const blob = new Blob([byteArray], { type: mimeType });
+                const url = URL.createObjectURL(blob);
+
+                // Store URL for cleanup
+                viewerModal.dataset.blobUrl = url;
+
+                if (ext === 'pdf' || ['jpg', 'jpeg', 'png'].includes(ext)) {
+                    if (ext === 'pdf') {
+                        const iframe = document.createElement('iframe');
+                        iframe.src = url;
+                        viewerContent.appendChild(iframe);
+                    } else {
+                        const img = document.createElement('img');
+                        img.src = url;
+                        viewerContent.appendChild(img);
+                    }
+                } else {
+                    // Fallback for docx or other formats
+                    viewerContent.innerHTML = `
+                        <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--bg-dark); padding: 20px; text-align: center;">
+                            <i class="fas fa-file-word" style="font-size: 4rem; color: #2b579a; margin-bottom: 20px;"></i>
+                            <h3>Viewing not supported for .${ext} files</h3>
+                            <p style="margin-top: 10px;">Please download the file to view it.</p>
+                            <button class="btn btn-primary" style="margin-top: 20px;" onclick="downloadOriginalCV()">
+                                <i class="fas fa-download"></i> Download ${cand.fileName}
+                            </button>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                console.error("Error creating viewer blob:", e);
+                alert("Error processing file data for viewing.");
+            }
+        }
+
+        function closeCVViewer() {
+            const viewerModal = document.getElementById('cvViewerModal');
+            const url = viewerModal.dataset.blobUrl;
+            if (url) {
+                URL.revokeObjectURL(url);
+                delete viewerModal.dataset.blobUrl;
+            }
+            viewerModal.style.display = 'none';
+            document.getElementById('cvViewerContent').innerHTML = '';
         }
 
         function downloadOriginalCV() {
