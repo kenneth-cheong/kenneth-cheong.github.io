@@ -45,25 +45,25 @@ export interface AuditChecks {
   hreflang: CheckResult;
   httpRedirect: CheckResult;
   cdnDetected: CheckResult;
-  
+
   // Meta & SEO
   metaTitle: CheckResult;
   metaDescription: CheckResult;
   structuredData: CheckResult;
   semanticHtml: CheckResult;
-  
+
   // AI/LLM Readiness
   llmBotBlocked: CheckResult;
   llmsTxt: CheckResult;
   llmsFullTxt: CheckResult;
   aiContentReady: CheckResult;
   jsBlocksAI: CheckResult;
-  
+
   // Content & Quality
   internalLinking: CheckResult;
   multipleSlashes: CheckResult;
   eeata: CheckResult;
-  
+
   // Analytics & Tools
   ga4Detected: CheckResult;
   rankMathDetected: CheckResult;
@@ -190,7 +190,7 @@ const CDN_SIGNATURES = {
 // Fetch website with error handling
 export async function fetchWebsite(url: string): Promise<{ html: string; loadTime: number; finalUrl: string; headers: Headers }> {
   const startTime = Date.now();
-  
+
   try {
     const response = await fetch(url, {
       headers: {
@@ -207,9 +207,9 @@ export async function fetchWebsite(url: string): Promise<{ html: string; loadTim
 
     const html = await response.text();
     const loadTime = Date.now() - startTime;
-    
-    return { 
-      html, 
+
+    return {
+      html,
       loadTime,
       finalUrl: response.url,
       headers: response.headers
@@ -225,11 +225,11 @@ async function fetchRobotsTxt(domain: string): Promise<{ content: string | null;
     const response = await fetch(`https://${domain}/robots.txt`, {
       headers: { 'User-Agent': 'MediaOneGEOBot/1.0' }
     });
-    
+
     if (response.ok) {
       const content = await response.text();
       const blockedBots: string[] = [];
-      
+
       // Check for LLM bots being blocked
       LLM_BOTS.forEach(bot => {
         const regex = new RegExp(`User-agent:\\s*${bot}[\\s\\S]*?Disallow:\\s*/`, 'i');
@@ -237,12 +237,12 @@ async function fetchRobotsTxt(domain: string): Promise<{ content: string | null;
           blockedBots.push(bot);
         }
       });
-      
+
       // Also check for wildcard blocks that might affect AI bots
       if (/User-agent:\s*\*[\s\S]*?Disallow:\s*\/\s*$/m.test(content)) {
         blockedBots.push('All bots (wildcard)');
       }
-      
+
       return { content, exists: true, llmBotsBlocked: blockedBots };
     }
     return { content: null, exists: false, llmBotsBlocked: [] };
@@ -251,15 +251,30 @@ async function fetchRobotsTxt(domain: string): Promise<{ content: string | null;
   }
 }
 
-// Fetch llms.txt
+// Fetch llms.txt - STRICT CHECK
 async function fetchLlmsTxt(domain: string): Promise<{ exists: boolean; content: string | null }> {
   try {
     const response = await fetch(`https://${domain}/llms.txt`, {
-      headers: { 'User-Agent': 'MediaOneGEOBot/1.0' }
+      headers: { 'User-Agent': 'MediaOneGEOBot/1.0' },
+      redirect: 'follow'
     });
+
     if (response.ok) {
       const content = await response.text();
-      return { exists: true, content };
+
+      // Validation Check: Prevent False Positives from Redirects to HTML pages
+      const contentType = response.headers.get('content-type') || '';
+      const isHtml = contentType.includes('text/html') ||
+        content.trim().toLowerCase().startsWith('<!doctype html') ||
+        content.trim().toLowerCase().startsWith('<html');
+
+      const redirectedToRoot = new URL(response.url).pathname === '/';
+
+      if (isHtml || redirectedToRoot) {
+        return { exists: false, content: null };
+      }
+
+      return { exists: true, content: content.substring(0, 5000) }; // Cap size
     }
     return { exists: false, content: null };
   } catch {
@@ -267,15 +282,30 @@ async function fetchLlmsTxt(domain: string): Promise<{ exists: boolean; content:
   }
 }
 
-// Fetch llms-full.txt
+// Fetch llms-full.txt - STRICT CHECK
 async function fetchLlmsFullTxt(domain: string): Promise<{ exists: boolean; content: string | null }> {
   try {
     const response = await fetch(`https://${domain}/llms-full.txt`, {
-      headers: { 'User-Agent': 'MediaOneGEOBot/1.0' }
+      headers: { 'User-Agent': 'MediaOneGEOBot/1.0' },
+      redirect: 'follow'
     });
+
     if (response.ok) {
       const content = await response.text();
-      return { exists: true, content };
+
+      // Validation Check
+      const contentType = response.headers.get('content-type') || '';
+      const isHtml = contentType.includes('text/html') ||
+        content.trim().toLowerCase().startsWith('<!doctype html') ||
+        content.trim().toLowerCase().startsWith('<html');
+
+      const redirectedToRoot = new URL(response.url).pathname === '/';
+
+      if (isHtml || redirectedToRoot) {
+        return { exists: false, content: null };
+      }
+
+      return { exists: true, content: content.substring(0, 5000) };
     }
     return { exists: false, content: null };
   } catch {
@@ -291,7 +321,7 @@ async function fetchSitemap(domain: string): Promise<{ exists: boolean; url: str
     `https://${domain}/sitemap/sitemap.xml`,
     `https://${domain}/wp-sitemap.xml`
   ];
-  
+
   for (const url of sitemapUrls) {
     try {
       const response = await fetch(url, {
@@ -310,7 +340,7 @@ async function fetchSitemap(domain: string): Promise<{ exists: boolean; url: str
 // Detect CDN from headers
 function detectCDN(headers: Headers, html: string): { detected: boolean; provider: string } {
   const headerEntries = Array.from(headers.entries());
-  
+
   for (const [provider, signatures] of Object.entries(CDN_SIGNATURES)) {
     for (const sig of signatures) {
       // Check headers
@@ -325,7 +355,7 @@ function detectCDN(headers: Headers, html: string): { detected: boolean; provide
       }
     }
   }
-  
+
   return { detected: false, provider: '' };
 }
 
@@ -348,7 +378,7 @@ export function parseHTML(html: string, url: string, headers: Headers): RawAnaly
 
   // Meta description
   const metaDescMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
-                        html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i);
+    html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i);
   const metaDescription = metaDescMatch ? metaDescMatch[1].trim() : '';
 
   // Heading counts
@@ -370,13 +400,13 @@ export function parseHTML(html: string, url: string, headers: Headers): RawAnaly
   // Link analysis
   const links = html.match(/<a[^>]*href=["']([^"']+)["'][^>]*>/gi) || [];
   const linkCount = links.length;
-  
+
   const urlObj = new URL(url);
   const domain = urlObj.hostname;
-  
+
   let externalLinks = 0;
   let internalLinks = 0;
-  
+
   links.forEach(link => {
     const hrefMatch = link.match(/href=["']([^"']+)["']/i);
     if (hrefMatch) {
@@ -392,7 +422,7 @@ export function parseHTML(html: string, url: string, headers: Headers): RawAnaly
   // Schema markup analysis
   const schemaMatches = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || [];
   const hasSchema = schemaMatches.length > 0;
-  
+
   const schemaTypes: string[] = [];
   let hasFAQSchema = false;
   let hasHowToSchema = false;
@@ -466,16 +496,16 @@ export function parseHTML(html: string, url: string, headers: Headers): RawAnaly
   const formCount = (html.match(/<form[^>]*>/gi) || []).length;
 
   // Videos
-  const videoCount = (html.match(/<video[^>]*>/gi) || []).length + 
-                     (html.match(/youtube\.com\/embed/gi) || []).length +
-                     (html.match(/vimeo\.com/gi) || []).length;
+  const videoCount = (html.match(/<video[^>]*>/gi) || []).length +
+    (html.match(/youtube\.com\/embed/gi) || []).length +
+    (html.match(/vimeo\.com/gi) || []).length;
 
   // Iframes
   const iframeCount = (html.match(/<iframe[^>]*>/gi) || []).length;
 
   // Code blocks
-  const codeBlockCount = (html.match(/<pre[^>]*>/gi) || []).length + 
-                         (html.match(/<code[^>]*>/gi) || []).length;
+  const codeBlockCount = (html.match(/<pre[^>]*>/gi) || []).length +
+    (html.match(/<code[^>]*>/gi) || []).length;
 
   // Blockquotes
   const blockquoteCount = (html.match(/<blockquote[^>]*>/gi) || []).length;
@@ -490,10 +520,10 @@ export function parseHTML(html: string, url: string, headers: Headers): RawAnaly
   const hasNavigation = /<nav[^>]*>/i.test(html);
 
   // Author info
-  const hasAuthorInfo = /author/i.test(html) && 
-    (/<[^>]*class=["'][^"']*author[^"']*["']/i.test(html) || 
-     /<meta[^>]*name=["']author["']/i.test(html) ||
-     /"author"/i.test(html));
+  const hasAuthorInfo = /author/i.test(html) &&
+    (/<[^>]*class=["'][^"']*author[^"']*["']/i.test(html) ||
+      /<meta[^>]*name=["']author["']/i.test(html) ||
+      /"author"/i.test(html));
 
   // Date published/modified
   const hasDatePublished = /datePublished/i.test(html) || /<time[^>]*datetime=/i.test(html);
@@ -528,9 +558,9 @@ export function parseHTML(html: string, url: string, headers: Headers): RawAnaly
   const contentToHtmlRatio = (textContent.length / html.length) * 100;
 
   // Google Analytics 4
-  const hasGA4 = /gtag\s*\(\s*['"]config['"]\s*,\s*['"]G-/i.test(html) || 
-                 /googletagmanager\.com\/gtag/i.test(html) ||
-                 /GA4/i.test(html);
+  const hasGA4 = /gtag\s*\(\s*['"]config['"]\s*,\s*['"]G-/i.test(html) ||
+    /googletagmanager\.com\/gtag/i.test(html) ||
+    /GA4/i.test(html);
 
   // Rank Math SEO
   const hasRankMath = /rank-math/i.test(html) || /rankmath/i.test(html);
@@ -548,7 +578,7 @@ export function parseHTML(html: string, url: string, headers: Headers): RawAnaly
   // Enhanced JS Frameworks detection with AI accessibility analysis
   const jsFrameworks: string[] = [];
   const jsFrameworkDetails: { name: string; hasSSR: boolean; hasHydration: boolean; renderingMethod: string; }[] = [];
-  
+
   // React/Next.js detection
   const hasReact = /react/i.test(html) || /data-reactroot/i.test(html) || /data-reactid/i.test(html);
   const hasNextJs = /__NEXT_DATA__/i.test(html) || /_next\/static/i.test(html);
@@ -562,7 +592,7 @@ export function parseHTML(html: string, url: string, headers: Headers): RawAnaly
       renderingMethod: hasNextJs ? 'SSR/SSG' : (isSSR ? 'SSR' : 'CSR')
     });
   }
-  
+
   // Vue/Nuxt detection
   const hasVue = /vue/i.test(html) || /__VUE__/i.test(html) || /data-v-/i.test(html);
   const hasNuxt = /__NUXT__/i.test(html) || /nuxt/i.test(html);
@@ -576,7 +606,7 @@ export function parseHTML(html: string, url: string, headers: Headers): RawAnaly
       renderingMethod: hasNuxt ? 'SSR/SSG' : (isSSR ? 'SSR' : 'CSR')
     });
   }
-  
+
   // Angular detection
   const hasAngular = /angular/i.test(html) || /ng-version/i.test(html) || /ng-app/i.test(html);
   if (hasAngular) {
@@ -589,7 +619,7 @@ export function parseHTML(html: string, url: string, headers: Headers): RawAnaly
       renderingMethod: isUniversal ? 'Angular Universal (SSR)' : 'CSR'
     });
   }
-  
+
   // Gatsby detection (always SSG)
   if (/gatsby/i.test(html) || /___gatsby/i.test(html)) {
     jsFrameworks.push('Gatsby');
@@ -600,7 +630,7 @@ export function parseHTML(html: string, url: string, headers: Headers): RawAnaly
       renderingMethod: 'SSG (Static)'
     });
   }
-  
+
   // Svelte/SvelteKit detection
   if (/svelte/i.test(html) || /__SVELTEKIT/i.test(html)) {
     const isSvelteKit = /__SVELTEKIT/i.test(html);
@@ -612,7 +642,7 @@ export function parseHTML(html: string, url: string, headers: Headers): RawAnaly
       renderingMethod: isSvelteKit ? 'SSR/SSG' : 'CSR'
     });
   }
-  
+
   // Additional framework detection
   if (/astro/i.test(html)) {
     jsFrameworks.push('Astro');
@@ -622,7 +652,7 @@ export function parseHTML(html: string, url: string, headers: Headers): RawAnaly
     jsFrameworks.push('Remix');
     jsFrameworkDetails.push({ name: 'Remix', hasSSR: true, hasHydration: true, renderingMethod: 'SSR' });
   }
-  
+
   // Determine JS rendering type
   let jsRenderingType: 'static' | 'ssr' | 'csr' | 'hybrid' = 'static';
   if (jsFrameworks.length > 0) {
@@ -636,43 +666,43 @@ export function parseHTML(html: string, url: string, headers: Headers): RawAnaly
       jsRenderingType = 'csr';
     }
   }
-  
+
   // Check for noscript content
   const noscriptMatches = html.match(/<noscript[^>]*>([\s\S]*?)<\/noscript>/gi) || [];
   const hasNoscriptContent = noscriptMatches.some(ns => {
     const content = ns.replace(/<[^>]+>/g, '').trim();
     return content.length > 50; // Meaningful noscript content
   });
-  
+
   // Count scripts
   const inlineScriptCount = (html.match(/<script[^>]*>(?!\s*<\/script>)[\s\S]*?<\/script>/gi) || []).length;
   const externalScriptCount = (html.match(/<script[^>]*src=["'][^"']+["'][^>]*>/gi) || []).length;
-  
+
   // Detect dynamic content indicators
   const hasDynamicContent = /data-loading|skeleton|placeholder|lazy/i.test(html) ||
-                            /\{\{.*\}\}|\{%.*%\}/i.test(html) ||
-                            /v-if|v-for|ng-repeat|\*ngFor/i.test(html);
-  
+    /\{\{.*\}\}|\{%.*%\}/i.test(html) ||
+    /v-if|v-for|ng-repeat|\*ngFor/i.test(html);
+
   // Lazy loading detection
   const hasLazyLoading = /loading=["']lazy["']|data-src|lazyload/i.test(html);
-  
+
   // Calculate JS blocking score (0 = fully accessible, 100 = completely blocked)
   let jsBlockingScore = 0;
   if (jsFrameworks.length > 0) {
     // Base penalty for using JS frameworks
     jsBlockingScore += 20;
-    
+
     // CSR penalty
     if (jsRenderingType === 'csr') jsBlockingScore += 40;
     else if (jsRenderingType === 'hybrid') jsBlockingScore += 15;
-    
+
     // Low content ratio indicates JS-dependent content
     if (contentToHtmlRatio < 10) jsBlockingScore += 25;
     else if (contentToHtmlRatio < 20) jsBlockingScore += 10;
-    
+
     // No noscript fallback
     if (!hasNoscriptContent) jsBlockingScore += 10;
-    
+
     // Heavy script usage
     if (externalScriptCount > 15) jsBlockingScore += 10;
     else if (externalScriptCount > 10) jsBlockingScore += 5;
@@ -774,11 +804,11 @@ function generateJsAccessibilityMessage(data: RawAnalysisData): string {
   if (data.jsFrameworks.length === 0) {
     return '✅ No JavaScript frameworks detected - content is fully accessible to AI crawlers (GPTBot, ClaudeBot, PerplexityBot)';
   }
-  
+
   const frameworks = data.jsFrameworks.join(', ');
   const renderingType = data.jsRenderingType.toUpperCase();
   const accessibilityScore = 100 - data.jsBlockingScore;
-  
+
   if (data.jsBlockingScore <= 10) {
     return `✅ ${frameworks} with ${renderingType} - Excellent AI accessibility (${accessibilityScore}/100)`;
   } else if (data.jsBlockingScore <= 25) {
@@ -795,14 +825,14 @@ function generateJsAccessibilityMessage(data: RawAnalysisData): string {
 // Generate detailed JS accessibility details - COMPREHENSIVE GEO ANALYSIS
 function generateJsAccessibilityDetails(data: RawAnalysisData): string {
   const details: string[] = [];
-  
+
   if (data.jsFrameworks.length === 0) {
     details.push('✅ OPTIMAL: Static HTML content - fully accessible to GPTBot, ClaudeBot, PerplexityBot');
     details.push(`✅ Content-to-HTML ratio: ${Math.round(data.contentToHtmlRatio)}% (AI can read all content)`);
     details.push('✅ No JavaScript execution required');
     return details.join(' || ');
   }
-  
+
   // Rendering analysis - CRITICAL FOR GEO
   details.push('🔍 RENDERING ANALYSIS:');
   if (data.jsRenderingType === 'static') {
@@ -814,7 +844,7 @@ function generateJsAccessibilityDetails(data: RawAnalysisData): string {
   } else {
     details.push('⚠️ Hybrid rendering - Some content may be invisible to AI');
   }
-  
+
   // Framework-specific analysis
   details.push('');
   details.push('🛠️ FRAMEWORK ANALYSIS:');
@@ -825,7 +855,7 @@ function generateJsAccessibilityDetails(data: RawAnalysisData): string {
       details.push(`❌ ${f.name}: ${f.renderingMethod} - GEO PROBLEM: Not accessible to AI crawlers`);
     }
   });
-  
+
   // Noscript fallback - IMPORTANT FOR GEO
   details.push('');
   details.push('📝 FALLBACK CONTENT:');
@@ -834,7 +864,7 @@ function generateJsAccessibilityDetails(data: RawAnalysisData): string {
   } else if (data.jsFrameworks.length > 0) {
     details.push('❌ NO noscript fallback - AI crawlers see nothing if JS fails');
   }
-  
+
   // Content ratio - KEY GEO METRIC
   details.push('');
   details.push('📊 CONTENT VISIBILITY:');
@@ -847,7 +877,7 @@ function generateJsAccessibilityDetails(data: RawAnalysisData): string {
   } else {
     details.push(`🚨 CRITICAL: Very low content ratio: ${Math.round(data.contentToHtmlRatio)}% - Almost all content requires JS execution`);
   }
-  
+
   // Script analysis
   details.push('');
   details.push('💻 SCRIPT LOAD:');
@@ -858,23 +888,23 @@ function generateJsAccessibilityDetails(data: RawAnalysisData): string {
   } else {
     details.push(`❌ Heavy script load: ${data.externalScriptCount} external, ${data.inlineScriptCount} inline - May slow AI crawling`);
   }
-  
+
   // Dynamic content warnings
   if (data.hasDynamicContent) {
     details.push('');
     details.push('⚠️ Dynamic content indicators detected - Some content loaded via JavaScript');
   }
-  
+
   if (data.hasLazyLoading) {
     details.push('⚠️ Lazy loading detected - Below-fold content may not be indexed by AI');
   }
-  
+
   return details.join(' || ');
 }
 
 // Generate audit checks
 function generateAuditChecks(
-  data: RawAnalysisData, 
+  data: RawAnalysisData,
   robotsTxt: { content: string | null; exists: boolean; llmBotsBlocked: string[] },
   sitemap: { exists: boolean; url: string | null },
   llmsTxt: { exists: boolean; content: string | null },
@@ -887,28 +917,28 @@ function generateAuditChecks(
       message: data.hasSSL ? 'SSL Certificate is active (HTTPS)' : 'No SSL Certificate detected',
       details: data.hasSSL ? 'Site is secure with HTTPS' : 'Site is using HTTP - security risk'
     },
-    
+
     // robots.txt
     robotsTxt: {
       status: robotsTxt.exists ? 'pass' : 'fail',
       message: robotsTxt.exists ? 'robots.txt file found' : 'robots.txt file not found',
       details: robotsTxt.exists ? 'Robots.txt is properly configured' : 'Create a robots.txt file to control crawler access'
     },
-    
+
     // Sitemap
     sitemap: {
       status: sitemap.exists ? 'pass' : 'fail',
       message: sitemap.exists ? `Sitemap found: ${sitemap.url}` : 'No sitemap found',
       details: sitemap.exists ? 'XML sitemap helps search engines discover content' : 'Create an XML sitemap for better indexing'
     },
-    
+
     // Canonical Tag
     canonical: {
       status: data.hasCanonical ? 'pass' : 'warning',
       message: data.hasCanonical ? `Canonical tag present: ${data.canonicalUrl}` : 'No canonical tag found',
       details: data.hasCanonical ? 'Canonical URL helps prevent duplicate content issues' : 'Add canonical tags to prevent duplicate content'
     },
-    
+
     // Hreflang
     hreflang: {
       status: data.hasHreflang ? 'pass' : 'info',
@@ -916,52 +946,52 @@ function generateAuditChecks(
       details: data.hasHreflang ? 'Multi-language/region targeting is configured' : 'Add hreflang tags if targeting multiple countries/languages (e.g., en-sg)',
       value: data.hreflangTags.join(', ')
     },
-    
+
     // HTTP to HTTPS Redirect
     httpRedirect: {
       status: data.hasSSL ? 'pass' : 'fail',
       message: data.hasSSL ? 'HTTPS is enabled' : 'HTTP to HTTPS redirect needed',
       details: 'Ensure all HTTP requests redirect to HTTPS'
     },
-    
+
     // CDN
     cdnDetected: {
       status: data.hasCDN ? 'pass' : 'warning',
       message: data.hasCDN ? `CDN detected: ${data.cdnProvider}` : 'No CDN detected',
       details: data.hasCDN ? 'Content Delivery Network improves load times' : 'Consider using a CDN for better performance'
     },
-    
+
     // Meta Title
     metaTitle: {
       status: data.titleLength >= 30 && data.titleLength <= 60 ? 'pass' : data.titleLength > 0 ? 'warning' : 'fail',
       message: data.titleLength > 0 ? `Title: "${data.title.substring(0, 50)}${data.title.length > 50 ? '...' : ''}" (${data.titleLength} chars)` : 'No meta title found',
-      details: data.titleLength >= 30 && data.titleLength <= 60 ? 'Title length is optimal (30-60 chars)' : 
-               data.titleLength < 30 ? 'Title is too short (aim for 30-60 chars)' : 
-               data.titleLength > 60 ? 'Title is too long (aim for 30-60 chars)' : 'Add a meta title',
+      details: data.titleLength >= 30 && data.titleLength <= 60 ? 'Title length is optimal (30-60 chars)' :
+        data.titleLength < 30 ? 'Title is too short (aim for 30-60 chars)' :
+          data.titleLength > 60 ? 'Title is too long (aim for 30-60 chars)' : 'Add a meta title',
       value: data.titleLength
     },
-    
+
     // Meta Description
     metaDescription: {
       status: data.metaDescriptionLength >= 120 && data.metaDescriptionLength <= 160 ? 'pass' : data.metaDescriptionLength > 0 ? 'warning' : 'fail',
       message: data.metaDescriptionLength > 0 ? `Description: ${data.metaDescriptionLength} chars` : 'No meta description found',
       details: data.metaDescriptionLength >= 120 && data.metaDescriptionLength <= 160 ? 'Description length is optimal (120-160 chars)' :
-               data.metaDescriptionLength < 120 ? 'Description is too short (aim for 120-160 chars)' :
-               data.metaDescriptionLength > 160 ? 'Description is too long (aim for 120-160 chars)' : 'Add a meta description',
+        data.metaDescriptionLength < 120 ? 'Description is too short (aim for 120-160 chars)' :
+          data.metaDescriptionLength > 160 ? 'Description is too long (aim for 120-160 chars)' : 'Add a meta description',
       value: data.metaDescriptionLength
     },
-    
+
     // Structured Data
     structuredData: {
       status: data.hasSchema ? 'pass' : 'fail',
       message: data.hasSchema ? `Structured data found: ${data.schemaTypes.join(', ')}` : 'No structured data markup found',
       details: data.hasSchema ? 'JSON-LD structured data helps AI understand content' : 'Add Schema.org markup (FAQ, Article, Organization, etc.)'
     },
-    
+
     // Semantic HTML
     semanticHtml: {
-      status: (data.hasHeader && data.hasMain && data.hasFooter) ? 'pass' : 
-              (data.hasHeader || data.hasMain || data.hasFooter || data.hasArticle || data.hasSection) ? 'warning' : 'fail',
+      status: (data.hasHeader && data.hasMain && data.hasFooter) ? 'pass' :
+        (data.hasHeader || data.hasMain || data.hasFooter || data.hasArticle || data.hasSection) ? 'warning' : 'fail',
       message: `Semantic elements: ${[
         data.hasHeader ? 'header' : '',
         data.hasMain ? 'main' : '',
@@ -973,45 +1003,45 @@ function generateAuditChecks(
       ].filter(Boolean).join(', ') || 'None found'}`,
       details: 'Semantic HTML helps AI understand page structure'
     },
-    
+
     // LLM Bots Blocked
     llmBotBlocked: {
       status: robotsTxt.llmBotsBlocked.length === 0 ? 'pass' : 'warning',
       message: robotsTxt.llmBotsBlocked.length === 0 ? 'No LLM bots are blocked' : `LLM bots blocked: ${robotsTxt.llmBotsBlocked.join(', ')}`,
       details: robotsTxt.llmBotsBlocked.length === 0 ? 'AI crawlers can access your content' : 'Consider allowing AI bots for GEO visibility'
     },
-    
+
     // llms.txt
     llmsTxt: {
       status: llmsTxt.exists ? 'pass' : 'info',
       message: llmsTxt.exists ? 'llms.txt file found' : 'No llms.txt file found',
       details: llmsTxt.exists ? 'LLM-specific instructions are provided' : 'Consider adding llms.txt for AI crawler guidance'
     },
-    
+
     // llms-full.txt
     llmsFullTxt: {
       status: llmsFullTxt.exists ? 'pass' : 'info',
       message: llmsFullTxt.exists ? 'llms-full.txt file found' : 'No llms-full.txt file found',
       details: llmsFullTxt.exists ? 'Full LLM context is available' : 'Consider adding llms-full.txt for comprehensive AI context'
     },
-    
+
     // AI Content Ready (E-E-A-T-A)
     aiContentReady: {
       status: (data.hasAuthorInfo && data.hasDatePublished && data.wordCount >= 500) ? 'pass' :
-              (data.hasAuthorInfo || data.hasDatePublished || data.wordCount >= 300) ? 'warning' : 'fail',
+        (data.hasAuthorInfo || data.hasDatePublished || data.wordCount >= 300) ? 'warning' : 'fail',
       message: `E-E-A-T-A signals: Author: ${data.hasAuthorInfo ? '✓' : '✗'}, Date: ${data.hasDatePublished ? '✓' : '✗'}, Content depth: ${data.wordCount} words`,
       details: 'Experience, Expertise, Authoritativeness, Trustworthiness, AI-readiness'
     },
-    
+
     // JS Blocks AI Crawl - ULTRA-STRICT GEO Check
     jsBlocksAI: {
-      status: data.jsBlockingScore <= 10 ? 'pass' : 
-              data.jsBlockingScore <= 30 ? 'warning' : 'fail',
+      status: data.jsBlockingScore <= 10 ? 'pass' :
+        data.jsBlockingScore <= 30 ? 'warning' : 'fail',
       message: generateJsAccessibilityMessage(data),
       details: generateJsAccessibilityDetails(data),
       value: data.jsBlockingScore
     },
-    
+
     // Internal Linking
     internalLinking: {
       status: data.internalLinks >= 10 ? 'pass' : data.internalLinks >= 3 ? 'warning' : 'fail',
@@ -1019,14 +1049,14 @@ function generateAuditChecks(
       details: data.internalLinks >= 10 ? 'Good internal linking structure' : 'Add more internal links to improve site structure',
       value: data.internalLinks
     },
-    
+
     // Multiple Slashes in URL
     multipleSlashes: {
       status: data.urlsWithMultipleSlashes === 0 ? 'pass' : 'warning',
       message: data.urlsWithMultipleSlashes === 0 ? 'No URLs with multiple slashes' : `${data.urlsWithMultipleSlashes} URLs with multiple slashes found`,
       details: 'Multiple slashes in URLs can cause crawling issues'
     },
-    
+
     // E-E-A-T-A (comprehensive)
     eeata: {
       status: calculateEEATAScore(data) >= 70 ? 'pass' : calculateEEATAScore(data) >= 40 ? 'warning' : 'fail',
@@ -1034,21 +1064,21 @@ function generateAuditChecks(
       details: 'Experience, Expertise, Authoritativeness, Trustworthiness, AI-driven content',
       value: calculateEEATAScore(data)
     },
-    
+
     // Google Analytics 4
     ga4Detected: {
       status: data.hasGA4 ? 'pass' : 'warning',
       message: data.hasGA4 ? 'Google Analytics 4 detected' : 'Google Analytics 4 not detected',
       details: data.hasGA4 ? 'GA4 is properly installed' : 'Consider installing Google Analytics 4 for tracking'
     },
-    
+
     // Rank Math
     rankMathDetected: {
       status: data.hasRankMath ? 'pass' : 'info',
       message: data.hasRankMath ? 'Rank Math SEO detected' : 'Rank Math SEO not detected',
       details: data.hasRankMath ? 'Rank Math is installed' : 'Consider installing Rank Math for better SEO management'
     },
-    
+
     // Wordfence
     wordfenceDetected: {
       status: data.hasWordfence ? 'pass' : 'info',
@@ -1061,34 +1091,34 @@ function generateAuditChecks(
 // Calculate E-E-A-T-A Score
 function calculateEEATAScore(data: RawAnalysisData): number {
   let score = 0;
-  
+
   // Experience (20 points)
   if (data.hasAuthorInfo) score += 10;
   if (data.hasDatePublished) score += 5;
   if (data.hasDateModified) score += 5;
-  
+
   // Expertise (20 points)
   if (data.wordCount >= 1000) score += 10;
   else if (data.wordCount >= 500) score += 5;
   if (data.h2Count >= 3) score += 5;
   if (data.externalLinks >= 3) score += 5;
-  
+
   // Authoritativeness (20 points)
   if (data.hasSchema) score += 10;
   if (data.hasOrganizationSchema || data.hasLocalBusinessSchema) score += 5;
   if (data.hasBreadcrumbSchema) score += 5;
-  
+
   // Trustworthiness (20 points)
   if (data.hasSSL) score += 10;
   if (data.hasCanonical) score += 5;
   if (data.hasSocialLinks) score += 5;
-  
+
   // AI-driven content (20 points)
   if (data.hasFAQSchema) score += 5;
   if (data.hasHowToSchema) score += 5;
   if (data.questionCount >= 5) score += 5;
   if (data.listCount >= 2) score += 5;
-  
+
   return score;
 }
 
@@ -1424,12 +1454,12 @@ export function calculateScores(data: RawAnalysisData, checks: AuditChecks): Cat
     const cat = categories[key];
     let totalWeight = 0;
     let weightedScore = 0;
-    
+
     cat.criteria.forEach(criterion => {
       totalWeight += criterion.weight;
       weightedScore += criterion.score * criterion.weight;
     });
-    
+
     cat.score = totalWeight > 0 ? Math.round(weightedScore / totalWeight) : 0;
   });
 
@@ -1439,7 +1469,7 @@ export function calculateScores(data: RawAnalysisData, checks: AuditChecks): Cat
 // Generate recommendations
 export function generateRecommendations(categories: CategoryResults, checks: AuditChecks): Recommendation[] {
   const recommendations: Recommendation[] = [];
-  
+
   const categoryNames: Record<string, string> = {
     technical_seo: 'Technical SEO',
     content_quality: 'Content Quality',
@@ -1479,7 +1509,7 @@ export function generateRecommendations(categories: CategoryResults, checks: Aud
         };
 
         const text = templates[criterion.id] || `Improve ${criterion.name}: ${criterion.details}`;
-        
+
         recommendations.push({
           text,
           priority: criterion.status === 'fail' ? 'high' : 'medium',
@@ -1504,11 +1534,11 @@ export function generateRecommendations(categories: CategoryResults, checks: Aud
 export async function analyzeWebsite(url: string): Promise<AnalysisResult> {
   // Fetch website
   const { html, loadTime, finalUrl, headers } = await fetchWebsite(url);
-  
+
   // Get domain
   const urlObj = new URL(finalUrl);
   const domain = urlObj.hostname;
-  
+
   // Fetch additional resources in parallel
   const [robotsTxt, sitemap, llmsTxt, llmsFullTxt] = await Promise.all([
     fetchRobotsTxt(domain),
@@ -1516,17 +1546,17 @@ export async function analyzeWebsite(url: string): Promise<AnalysisResult> {
     fetchLlmsTxt(domain),
     fetchLlmsFullTxt(domain)
   ]);
-  
+
   // Parse HTML
   const rawData = parseHTML(html, finalUrl, headers);
   rawData.loadTime = loadTime;
-  
+
   // Generate audit checks
   const checks = generateAuditChecks(rawData, robotsTxt, sitemap, llmsTxt, llmsFullTxt);
-  
+
   // Calculate scores
   const categories = calculateScores(rawData, checks);
-  
+
   // Calculate overall score - WEIGHTED for GEO/AISEO priority
   // AI Readiness is weighted MORE heavily for GEO audit
   const categoryWeights: Record<string, number> = {
@@ -1536,7 +1566,7 @@ export async function analyzeWebsite(url: string): Promise<AnalysisResult> {
     security_trust: 15,
     user_experience: 15
   };
-  
+
   let weightedTotal = 0;
   let totalWeight = 0;
   Object.entries(categories).forEach(([key, cat]) => {
@@ -1545,10 +1575,10 @@ export async function analyzeWebsite(url: string): Promise<AnalysisResult> {
     totalWeight += weight;
   });
   const overallScore = Math.round(weightedTotal / totalWeight);
-  
+
   // Generate recommendations
   const recommendations = generateRecommendations(categories, checks);
-  
+
   return {
     url: finalUrl,
     domain,

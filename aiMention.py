@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 BRIGHTDATA_TOKEN = os.environ.get('BRIGHTDATA_TOKEN')
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 
 def lambda_handler(event, context):
     """
@@ -147,6 +148,8 @@ def query_model(model_name, prompt, location):
         return {"error": "Google API Key not configured in environment"}
     if ('perplexity' in m_lower or 'copilot' in m_lower or 'search' in m_lower) and not BRIGHTDATA_TOKEN:
         return {"error": "Search Engine API Token not configured in environment"}
+    if ('claude' in m_lower or 'anthropic' in m_lower) and not ANTHROPIC_API_KEY:
+        return {"error": "Anthropic API Key not configured in environment"}
 
     if m_lower.startswith('gpt'):
         return query_openai(model_name, prompt, location)
@@ -156,6 +159,8 @@ def query_model(model_name, prompt, location):
         return query_perplexity(prompt, location)
     elif 'copilot' in m_lower:
         return query_copilot(prompt, location)
+    elif 'claude' in m_lower or 'anthropic' in m_lower:
+        return query_claude(model_name, prompt, location)
     else:
         return {"error": f"Model {model_name} not supported"}
 
@@ -212,6 +217,58 @@ def query_gemini(model, prompt, location):
         return {"error": f"Gemini returned an empty result. Response: {json.dumps(data)}"}
     except requests.exceptions.RequestException as e:
         return {"error": f"Gemini API Error: {str(e)}"}
+
+def query_claude(model, prompt, location):
+    """Anthropic Claude API handler."""
+    # Ensure model is valid for Claude, default to claude-haiku-4-5 as requested
+    m_target = model if ("claude-" in model.lower()) else "claude-haiku-4-5"
+    
+    url = "https://api.anthropic.com/v1/messages"
+    headers = {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json"
+    }
+    
+    # Enhanced prompt for citations
+    system_prompt = f"You are a market research assistant. User Location: {location}. Provide detailed answers with real-world citations and URLs where possible."
+    
+    payload = {
+        "model": m_target,
+        "max_tokens": 1025,
+        "thinking": {
+            "type": "enabled",
+            "budget_tokens": 1024
+        },
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "system": system_prompt
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Extract content - skip 'thinking' type blocks for primary text
+        text_parts = []
+        for content in data.get('content', []):
+            if content.get('type') == 'text':
+                text_parts.append(content.get('text', ''))
+        
+        if text_parts:
+            return {"text": "\n".join(text_parts)}
+        return {"error": f"Claude returned an empty result. Response: {json.dumps(data)}"}
+    except requests.exceptions.RequestException as e:
+        # Check if we can extract error from response body
+        if hasattr(e, 'response') and e.response is not None:
+            try:
+                err_data = e.response.json()
+                if 'error' in err_data:
+                    return {"error": f"Claude API Error: {err_data['error'].get('message', str(e))}"}
+            except: pass
+        return {"error": f"Claude API Connection Error: {str(e)}"}
 
 def query_perplexity(prompt, location):
     """Perplexity via Search Dataset API."""

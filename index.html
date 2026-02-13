@@ -6521,7 +6521,8 @@
             <div class="dropdown-content">
                 <a href="#llmsTxtGenerator" onclick="openLlmsTxtGenerator(event)">llms.txt Generator</a>
                 <a href="#catsTxtGenerator" onclick="openCatsTxtGenerator(event)">cats.txt Generator</a>
-                <a href="#aiDiscoveryAudit" onclick="openAiDiscoveryAudit(event)">AI Discovery Audit</a>
+                <a href="#aiDiscoveryAudit" onclick="openAiDiscoveryAudit(event)">Ai Discovery</a>
+                <a href="#discoveryKeywordsSection" onclick="openAiMentions(event)">AI Mentions</a>
                 <a href="#" onclick="triggerSchemaFromGeo()">Schema Generator</a>
             </div>
         </div>
@@ -7070,6 +7071,12 @@
                                 <button type="button" class="config-btn-highlight" style="background: #666; margin: 0;"
                                     onclick="openTimeToRankQueriesModal()" id="loadTimeToRankQueriesBtn">Load
                                     Previous</button>
+                                <button type="button" onclick="initKeywordAnalysisTour()" class="config-btn-highlight"
+                                    style="background: transparent; border: 2px solid #34a853; color: #34a853; margin: 0; box-shadow: none; padding: 11px 22px; cursor: pointer; transition: all 0.2s ease-in-out;"
+                                    onmouseover="this.style.background='#34a853'; this.style.color='white'; this.style.boxShadow='0 4px 12px rgba(52, 168, 83, 0.3)';"
+                                    onmouseout="this.style.background='transparent'; this.style.color='#34a853'; this.style.boxShadow='none';">
+                                    <i class="fas fa-question-circle"></i> Help
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -7650,6 +7657,38 @@
                                 </div>
                             </div>
 
+                            <div class="sem-input-group" style="margin-top: 15px;">
+                                <div class="sem-input-item">
+                                    <label for="on-page-location">Targeted Location:</label>
+                                    <select id="on-page-location">
+                                        <option value="Singapore" selected>Singapore</option>
+                                        <option value="Australia">Australia</option>
+                                        <option value="Canada">Canada</option>
+                                        <option value="Hong Kong">Hong Kong</option>
+                                        <option value="India">India</option>
+                                        <option value="Indonesia">Indonesia</option>
+                                        <option value="Malaysia">Malaysia</option>
+                                        <option value="Philippines">Philippines</option>
+                                        <option value="Thailand">Thailand</option>
+                                        <option value="United Kingdom">United Kingdom</option>
+                                        <option value="United States">United States</option>
+                                        <option value="Vietnam">Vietnam</option>
+                                    </select>
+                                </div>
+                                <div class="sem-input-item">
+                                    <label for="on-page-language">Language:</label>
+                                    <select id="on-page-language">
+                                        <option value="English" selected>English</option>
+                                        <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+                                        <option value="Chinese (Traditional)">Chinese (Traditional)</option>
+                                        <option value="Indonesian">Indonesian</option>
+                                        <option value="Malay">Malay</option>
+                                        <option value="Thai">Thai</option>
+                                        <option value="Vietnamese">Vietnamese</option>
+                                    </select>
+                                </div>
+                            </div>
+
                             <div class="sem-input-item" style="margin-top: 15px;">
                                 <label for="on-page-keywords">Enter Keywords (comma or newline separated):</label>
                                 <textarea id="on-page-keywords" rows="4"
@@ -7657,7 +7696,7 @@
                             </div>
 
                             <div style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
-                                <button onclick="getImages()" id="getImagesBtn" class="config-btn-highlight"
+                                <button onclick="runOnPageAuditRoot()" id="getImagesBtn" class="config-btn-highlight"
                                     style="margin: 0;">Extract & Recommend</button>
                                 <button type="button" onclick="openQueriesModal()" id="loadQueriesBtn"
                                     class="config-btn-highlight" style="background: #666; margin: 0;">Load
@@ -7666,6 +7705,82 @@
                                     style="background: #dc3545; margin: 0;">Clear Data</button>
                             </div>
                         </div>
+
+                        <button class="collapsible" id="onPageSerpCollapsible" style="display: none;">SERP (Competitor)
+                            Insights</button>
+                        <div class="content" id="onPageSerpResults"></div>
+
+                        <button class="collapsible" id="onPageAuditCollapsible" style="display: none;">Technical & AI
+                            Discovery Audit</button>
+                        <div class="content" id="onPageAuditResults">
+                            <div id="onPageAuditGrid"
+                                style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding: 20px;">
+                            </div>
+
+                            <!-- Detailed Crawler Section (Replicated from Technical Audit) -->
+                            <div id="onPageCrawlerSection"
+                                style="display: none; border-top: 2px dashed #eee; padding: 20px; margin-top: 20px;">
+                                <div class="sem-card-title" style="margin-bottom: 20px;">
+                                    <i class="fas fa-spider"></i> Page-Level Crawl Results
+                                </div>
+
+                                <!-- Column Chooser -->
+                                <div class="column-chooser-container"
+                                    style="background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #f1f5f9; margin-bottom: 20px;">
+                                    <div
+                                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                        <b style="font-size: 0.9em; color: #1e293b;"><i class="fas fa-columns"></i>
+                                            Customise View</b>
+                                        <div style="display: flex; gap: 8px;">
+                                            <input type="text" class="column-search-input"
+                                                placeholder="Search columns..."
+                                                style="font-size: 0.8em; padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd;"
+                                                onkeyup="filterOnPageColumns(this.value)">
+                                            <button class="config-btn-highlight"
+                                                style="margin: 0; padding: 4px 8px; font-size: 0.75em;"
+                                                onclick="toggleAllOnPageColumns(true)">Select All</button>
+                                            <button class="config-btn-highlight"
+                                                style="margin: 0; padding: 4px 8px; font-size: 0.75em; background: #666;"
+                                                onclick="toggleAllOnPageColumns(false)">Clear</button>
+                                        </div>
+                                    </div>
+                                    <div id="onPageColumnCheckboxList" class="column-checkbox-grid"
+                                        style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-height: 120px; overflow-y: auto; padding: 5px;">
+                                        <!-- Columns will be injected here -->
+                                    </div>
+                                </div>
+
+                                <!-- Summary Filters (Issue Cards) -->
+                                <div id="onPageCrawlerSummary"
+                                    style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px;">
+                                    <!-- Issue cards will be injected here -->
+                                </div>
+
+                                <!-- Results Table -->
+                                <div class="table-container"
+                                    style="background: white; border-radius: 12px; border: 1px solid #eee; overflow: hidden;">
+                                    <table id="onPageCrawlerTable" class="wide-table" style="font-size: 0.85em;">
+                                        <thead>
+                                            <!-- Headers will be injected here -->
+                                        </thead>
+                                        <tbody>
+                                            <!-- Data will be injected here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+                                    <div id="onPageCrawlerPagination" style="font-size: 0.85em; color: #666;"></div>
+                                    <button class="config-btn-highlight" id="onPageDownloadResultsBtn"
+                                        style="display: none; background: #34a853; margin: 0;"
+                                        onclick="downloadOnPageCrawlResults()">
+                                        <i class="fas fa-download"></i> Download Results (.csv)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <button class="collapsible" id="onPageResultsCollapsible" style="display: none;">Meta Data and
                             Headings</button>
                         <div class="content" id="onPageResults"></div>
@@ -11450,6 +11565,32 @@ seo agencies in singapore</textarea>
         }
 
         // GEO Utilities Logic
+        // Shared GEO Utilities
+        window.discoveryHelpers = {
+            isValidTextFile: (text) => {
+                if (!text || text.length < 10) return false;
+                const lower = text.toLowerCase().trim();
+                const looksLikeRobots = lower.includes('user-agent:') || lower.includes('disallow:');
+                const looksLikeLlms = text.trim().startsWith('# ') || text.trim().startsWith('## ');
+                if (looksLikeRobots || looksLikeLlms) return true;
+                if (lower.startsWith('error:') || lower === 'error' || lower === 'internal server error' || lower.includes('access denied')) return false;
+                if (lower.includes('<!doctype html') || lower.includes('<html') || lower.includes('<body')) return false;
+                const junkCount = (text.match(/[^\x20-\x7E\s\xA0-\xFF]/g) || []).length;
+                if (junkCount > text.length * 0.05) return false;
+                const homeSigs = ['copyright', 'all rights reserved', 'privacy policy', 'terms of use', 'terms & conditions', 'navigation', 'login', 'register', 'sign in', 'sign up'];
+                if (text.length > 500 && homeSigs.some(kw => lower.includes(kw))) return false;
+                return true;
+            },
+            checkFile: async (res) => {
+                if (res.status === 'fulfilled') {
+                    const d = await res.value.json();
+                    const text = (d.body || "").trim();
+                    return window.discoveryHelpers.isValidTextFile(text) ? text : 'Not Found';
+                }
+                return 'Not Found';
+            }
+        };
+
         const DISCOVERY_PLATFORMS = [
             { name: 'ChatGPT', icon: 'fas fa-comments', userAgent: 'GPTBot', color: '#10a37f', description: 'Top-tier brand recall in conversational benchmarks.' },
             { name: 'Gemini', icon: 'fab fa-google', userAgent: 'Google-Extended', color: '#4285f4', description: 'Excellent knowledge graph mapping and entity recognition.' },
@@ -11484,6 +11625,9 @@ seo agencies in singapore</textarea>
             const domainForFetch = url.startsWith('http') ? url : 'https://' + url;
 
             // 0. Initialize Shared State (to support concurrent crawler merge)
+            // 0. Initialize Shared State & Helpers
+            const isValidTextFile = window.discoveryHelpers.isValidTextFile;
+
             const techAuditResults = []; // Shared array
             const platformReadiness = {}; // Shared object
 
@@ -11516,17 +11660,17 @@ seo agencies in singapore</textarea>
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url: domainForFetch })
                     }),
-                    fetch('https://1pfsx12au9.execute-api.ap-southeast-1.amazonaws.com/url_lib_lite', {
+                    fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url: rootDomain + "/robots.txt" })
                     }),
-                    fetch('https://1pfsx12au9.execute-api.ap-southeast-1.amazonaws.com/url_lib_lite', {
+                    fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url: rootDomain + "/llms.txt" })
                     }),
-                    fetch('https://1pfsx12au9.execute-api.ap-southeast-1.amazonaws.com/url_lib_lite', {
+                    fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url: rootDomain + "/llms-full.txt" })
@@ -11661,6 +11805,16 @@ seo agencies in singapore</textarea>
                         semanticDetails: semanticDetails
                     });
 
+                    // [NEW] H1 Header check
+                    const h1Tags = Array.from(doc.querySelectorAll('h1'));
+                    const h1Count = h1Tags.length;
+                    techAuditResults.push({
+                        label: 'H1 Header',
+                        value: h1Count === 0 ? 'Missing' : `Found (${h1Count})`,
+                        status: h1Count === 1 ? 'pass' : 'fail',
+                        geoDescription: 'The primary heading of your page. A single H1 tag is critical for AI agents to identify the core subject of your content.'
+                    });
+
                     // K. [PLACEHOLDERS] Advanced Signals (API Needed)
                     techAuditResults.push({
                         label: 'Security Headers',
@@ -11676,11 +11830,15 @@ seo agencies in singapore</textarea>
                 let robotsText = 'Not Found';
                 if (robotsRes.status === 'fulfilled') {
                     const robotsData = await robotsRes.value.json();
-                    robotsText = robotsData.body?.visible_text || 'Not Found';
+                    const rawRobots = (robotsData.body || "").trim();
+
+                    // Use shared validation logic
+                    robotsText = isValidTextFile(rawRobots) ? rawRobots : 'Not Found';
+
                     const isRobotsError = robotsText.toLowerCase().startsWith('error:') || robotsText === 'Error' || robotsText === 'Internal Server Error';
                     techAuditResults.push({
                         label: 'robots.txt',
-                        value: robotsText.substring(0, 150) + (robotsText.length > 150 ? '...' : ''),
+                        value: robotsText.substring(0, 500),
                         status: (robotsText !== 'Not Found' && !isRobotsError) ? 'pass' : 'fail',
                         geoDescription: 'Instructions for crawlers on what to index. AI agents follow these rules to respect your site\'s privacy and crawl efficiency.'
                     });
@@ -11705,26 +11863,25 @@ seo agencies in singapore</textarea>
                 const checkFile = async (res) => {
                     if (res.status === 'fulfilled') {
                         const d = await res.value.json();
-                        // Only flag as Not Found if body is missing, invisible_text is empty, 
-                        // or it explicitly starts with a raw Lambda/Proxy error message.
-                        const text = d.body?.visible_text || "";
-                        const isActualError = text.toLowerCase().startsWith('error:') || text === 'Error' || text === 'Internal Server Error';
-                        return (d.body && text.length > 5 && !isActualError) ? 'Found' : 'Not Found';
+                        const text = (d.body || "").trim();
+                        return isValidTextFile(text) ? text : 'Not Found';
                     }
                     return 'Not Found';
                 };
-                const llmsVal = await checkFile(llmsRes);
-                const llmsFullVal = await checkFile(llmsFullRes);
+
+                const llmsText = await checkFile(llmsRes);
+                const llmsFullText = await checkFile(llmsFullRes);
+
                 techAuditResults.push({
                     label: 'llms.txt',
-                    value: llmsVal,
-                    status: llmsVal === 'Found' ? 'pass' : 'warn',
+                    value: llmsText === 'Not Found' ? 'Not Found' : llmsText.substring(0, 100) + (llmsText.length > 100 ? '...' : ''),
+                    status: llmsText !== 'Not Found' ? 'pass' : 'warn',
                     geoDescription: 'A new standard for providing concise context to AI agents. It communicates your site\'s key info in an AI-friendly format.'
                 });
                 techAuditResults.push({
                     label: 'llms-full.txt',
-                    value: llmsFullVal,
-                    status: llmsFullVal === 'Found' ? 'pass' : 'warn',
+                    value: llmsFullText === 'Not Found' ? 'Not Found' : llmsFullText.substring(0, 100) + (llmsFullText.length > 100 ? '...' : ''),
+                    status: llmsFullText !== 'Not Found' ? 'pass' : 'warn',
                     geoDescription: 'A comprehensive version of llms.txt. It gives AI models the deep data they need to provide highly accurate answers.'
                 });
 
@@ -11805,7 +11962,7 @@ seo agencies in singapore</textarea>
                 // AI Readiness (Max 30)
                 const readyPlatforms = Object.values(platformReadiness).filter(v => v === true).length;
                 aiReadinessScore += (readyPlatforms / DISCOVERY_PLATFORMS.length) * 20;
-                if (llmsVal === 'Found' || llmsFullVal === 'Found') aiReadinessScore += 10;
+                if (llmsText !== 'Not Found' || llmsFullText !== 'Not Found') aiReadinessScore += 10;
 
                 // Technical SEO (Max 20)
                 const getStatus = (lbl) => techAuditResults.find(r => r.label === lbl)?.status;
@@ -12389,7 +12546,7 @@ seo agencies in singapore</textarea>
                     item.className = "disc-prompt-item";
                     item.innerHTML = `
                         <input type="radio" name="selectedDiscoveryPrompt" value="${p.replace(/"/g, '&quot;')}" style="width: 18px !important; height: 18px !important; flex-shrink: 0; margin-top: 4px; border-style: solid !important;">
-                        <span style="color: #1e293b; flex: 1; text-align: left; word-break: break-word;">${p}</span>
+                        <div contenteditable="true" class="editable-prompt-text" style="color: #1e293b; flex: 1; text-align: left; word-break: break-word; outline: none; padding: 2px 5px; border-radius: 4px; transition: background 0.2s;" onfocus="this.style.background='#fff'; this.style.boxShadow='0 0 0 2px #e2e8f0';" onblur="this.style.background='transparent'; this.style.boxShadow='none';">${p}</div>
                         <button onclick="deleteDiscoveryPrompt(this)" style="background: none; border: none; color: #ef4444; cursor: pointer; opacity: 0.6; transition: opacity 0.2s; padding: 5px; flex-shrink: 0; margin-left: auto;">
                             <i class="fas fa-trash-alt"></i>
                         </button>
@@ -12420,7 +12577,8 @@ seo agencies in singapore</textarea>
         }
 
         async function verifyDiscoveryMentions() {
-            const selectedPrompt = document.querySelector('input[name="selectedDiscoveryPrompt"]:checked')?.value;
+            const selectedRadio = document.querySelector('input[name="selectedDiscoveryPrompt"]:checked');
+            const selectedPrompt = selectedRadio?.closest('.disc-prompt-item')?.querySelector('.editable-prompt-text')?.innerText.trim();
             const targetUrl = document.getElementById('discKeywordUrl').value;
             const brand = targetUrl.includes('.') ? targetUrl.split('.')[0] : targetUrl;
             const location = document.getElementById('discKeywordLocation').value;
@@ -12434,13 +12592,13 @@ seo agencies in singapore</textarea>
             btn.disabled = true;
 
             // 1. Prepare the results grid with loading placeholders
-            const models = ["gpt-4o-mini", "gemini-3-flash-preview", "perplexity", "copilot"];
+            const models = ["gpt-4o-mini", "claude-haiku-4-5", "gemini-3-flash-preview", "perplexity", "copilot"];
             resultsArea.innerHTML = `
                 <div id="discResultsGrid" style="display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); margin-top: 20px;">
                     ${models.map(m => `
                         <div id="resCard_${m}" class="geo-card" style="border-left: 5px solid #e2e8f0; min-height: 250px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #fff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border-radius: 15px; position: relative; overflow: hidden;">
                             <div style="position: absolute; top: 15px; left: 20px; font-weight: 700; font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">
-                                <i class="fas fa-robot"></i> ${m.toUpperCase().replace('-MINI', '').replace('-FLASH', '')}
+                                <i class="fas fa-robot"></i> ${m.toUpperCase().replace('-MINI', '').replace('-FLASH', '').replace('-HAIKU-4-5', '')}
                             </div>
                             <div class="loader-content" style="text-align: center; padding: 20px;">
                                 <i class="fas fa-circle-notch fa-spin" style="font-size: 2em; color: #6366f1; margin-bottom: 12px;"></i>
@@ -12687,6 +12845,7 @@ seo agencies in singapore</textarea>
                 'Security Headers': 5,
                 'robots.txt': isBlocked ? 100 : 20, // Critical boost if blocked
                 'XML Sitemap': 10,
+                'H1 Header': 18,
                 'llms.txt': 15,
                 'llms-full.txt': 15,
                 'HTTPS Secure': 15,
@@ -12713,6 +12872,7 @@ seo agencies in singapore</textarea>
                     ? 'Urgent: Your site is actively BLOCKING AI agents. Update robots.txt to allow GPTBot, PerplexityBot, and others.'
                     : 'Essential: Configure robots.txt to properly allow AI agents like GPTBot or Perplexity.',
                 'XML Sitemap': 'Ensure an XML sitemap exists to help AI discovery agents find all your content pages.',
+                'H1 Header': 'Essential: Add a single H1 tag to your page. It is the primary signal for AI models to understand the main topic of your content.',
                 'llms.txt': 'High Priority: Create an llms.txt file to provide a concise, AI-friendly summary of your site.',
                 'llms-full.txt': 'Provide an llms-full.txt file for deep AI context and more accurate generative answers.',
                 'HTTPS Secure': 'Enable SSL certificate and switch to HTTPS for security and SEO benefits.',
@@ -13106,6 +13266,21 @@ seo agencies in singapore</textarea>
             deactivateAllButtons();
             forceOpenCollapsible('geoMainBtn');
             const btn = forceOpenCollapsible('discoveryAuditBtn');
+            if (btn) {
+                btn.scrollIntoView({ behavior: 'smooth' });
+            }
+            if (event && event.currentTarget) {
+                event.currentTarget.classList.add('active-menu');
+            }
+            closeJourneyModal();
+        }
+
+        function openAiMentions(event) {
+            if (event) event.preventDefault();
+            showGeoOnly(event);
+            deactivateAllButtons();
+            forceOpenCollapsible('geoMainBtn');
+            const btn = forceOpenCollapsible('discoveryKeywordsBtn');
             if (btn) {
                 btn.scrollIntoView({ behavior: 'smooth' });
             }
@@ -19022,7 +19197,12 @@ ${selectedText}
         // --- Card Deletion & Undo Logic ---
         let deletedCardsStack = [];
         let allCompetitorUrls_Optimiser = { new: [], optimise: [] };
-        let displayedCount_Optimiser = { new: 0, optimise: 0 };
+        let displayedCount_Optimiser = { new: 0, optimise: 0, onpage: 0 };
+        let onPageCrawlerItems = [];
+        let onPageCrawlerActiveColumns = new Set(["No.", "url", "status_code", "title", "description"]);
+        let onPageCrawlerDynamicHeaders = [];
+        let onPageCrawlerActiveFilter = null;
+        let onPageCrawlerPollingInterval = null;
         let selectedTopics_Optimiser = { new: new Set(), optimise: new Set() };
 
         function deleteCard(elementId) {
@@ -21884,9 +22064,9 @@ ${selectedText}
 
             document.getElementById("on-page-url").value = '';
             document.getElementById("on-page-keywords").value = '';
-            document.getElementById("onPageResults").innerHTML = '';
-            document.getElementById("imageRecommendations").innerHTML = '';
-            document.getElementById("contentRecommendations").innerHTML = '';
+            // Increment counter for onpage
+            displayedCount_Optimiser.onpage = 0;
+            onPageCrawlerItems = []; // Reset crawler items
 
 
             //Clear technical seo output section and buttons
@@ -22029,7 +22209,7 @@ ${selectedText}
             tableBody.innerHTML = ""; // Clear existing rows
 
             queries.forEach((query, index) => {
-                const row = tableBody.insertRow();
+                const row = tableBody.insertCell();
                 row.insertCell(0).textContent = index + 1;
                 row.insertCell(1).textContent = formatDate(query.date);
                 row.insertCell(2).textContent = query.comparison_urls;
@@ -22167,74 +22347,421 @@ ${selectedText}
             closeContentComparisonQueriesModal(); // Close modal after loading
         }
 
-        // On Page
-        async function getImages() {
-            document.getElementById('contentCollapsible').style.backgroundColor = "#004c9d";
-            document.getElementById('imageCollapsible').style.backgroundColor = "#004c9d";
-            document.getElementById('onPageResultsCollapsible').style.backgroundColor = "#004c9d";
-
-            document.getElementById('onPageResults').innerHTML = ""; // Clear previous results
-            document.getElementById('imageRecommendations').innerHTML = ""; // Clear previous results
-            document.getElementById('contentRecommendations').innerHTML = ""; // Clear previous results
-
-            document.getElementById('onPageResultsCollapsible').style.display = "none";
-            document.getElementById('imageCollapsible').style.display = "none";
-            document.getElementById('contentCollapsible').style.display = "none";
+        // Expanded On-Page Audit Root
+        async function runOnPageAuditRoot() {
             const url = document.getElementById('on-page-url').value;
-            const keywords = document.getElementById('on-page-keywords').value; // Get keywords
-            document.getElementById("getImagesBtn").innerText = "Extracting elements..."; // Change button text
-            document.getElementById("getImagesBtn").innerHTML += '<img src="https://usagif.com/wp-content/uploads/loading-73.gif" width="50">';
-            updateCollapsibleState('onPageButton', 'running');
+            const keywords = document.getElementById('on-page-keywords').value;
+            const location = document.getElementById('on-page-location').value;
+            const language = document.getElementById('on-page-language').value;
 
             if (!url) {
-                document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations"; //Revert button text
+                alert("Please enter a URL to audit.");
                 return;
             }
 
-            // Process keywords (split by commas or newlines)
-            const keywordArray = keywords.split(/[,\n]+/).map(keyword => keyword.trim()).filter(keyword => keyword !== "");
+            // Clear previous results and show items
+            const containers = ['onPageSerpResults', 'onPageAuditResults', 'onPageResults', 'imageRecommendations', 'contentRecommendations'];
+            containers.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = `
+                    <div style="padding: 40px; text-align: center; color: #64748b;">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 2em; margin-bottom: 15px; color: #34a853;"></i>
+                        <p>Gathering fresh data for your audit... please wait.</p>
+                    </div>
+                `;
+            });
 
-            const endpoint = 'https://udjdc333m9.execute-api.ap-southeast-1.amazonaws.com/getImages';
+            // Show collapsibles and content containers
+            ['onPageSerpCollapsible', 'onPageAuditCollapsible', 'onPageResultsCollapsible', 'imageCollapsible', 'contentCollapsible'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.display = "block";
+                    el.style.backgroundColor = "#004c9d";
+                    el.classList.add('active');
+                    // Force the content div to show
+                    if (el.nextElementSibling && el.nextElementSibling.classList.contains('content')) {
+                        el.nextElementSibling.style.display = "block";
+                    }
+                }
+            });
+
+            const btn = document.getElementById("getImagesBtn");
+            const originalText = btn.innerText;
+            btn.innerText = "Auditing...";
+            btn.disabled = true;
+
+            const keywordArray = keywords.split(/[,\n]+/).map(k => k.trim()).filter(Boolean);
+            const domainForFetch = url.startsWith('http') ? url : 'https://' + url;
+            const rootDomain = new URL(domainForFetch).origin;
+            const dnsDomain = url.replace('https://', '').replace('http://', '').split('/')[0];
+
+            // Trigger Concurrent Audits
+            updateCollapsibleState('onPageButton', 'running');
 
             try {
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        url: url,
-                        keywords: keywordArray // Send keywords to the backend
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data = await response.json();
-
-                // Call the second API and then display the data
-                displayInitialData(data);
-
-
-                if (!keywords) {
-                    alert("No content recommendations will be given as no keywords were entered.")
-                    document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations"
-                    return;
+                // 1. SERP Pull (Competitors)
+                if (keywordArray.length > 0) {
+                    fetchSERPForOnPage(keywordArray[0], location, language);
                 } else {
-                    getOnPageRecommendations(data, keywordArray);
-                    getContentRecommendations(url, keywordArray);
-                    document.getElementById("getImagesBtn").innerText = "Generating Recommendations...";
-                    document.getElementById("getImagesBtn").innerHTML += '<img src="https://usagif.com/wp-content/uploads/loading-73.gif" width="50">';
-                    updateCollapsibleState('onPageButton', 'success');
+                    document.getElementById('onPageSerpResults').innerHTML = "<p style='padding: 20px;'>No keywords provided. Skipping SERP analysis.</p>";
                 }
 
-            } catch (error) {
-                document.getElementById('onPageResults').innerHTML = `<p>Error: ${error}</p>`;
-                document.getElementById("getImagesBtn").innerText = "Extract Elements & Generate Recommendations";
+                // 2. Technical & AI Discovery Audit
+                runOnPageTechnicalAudit(url, dnsDomain, rootDomain);
+
+                // 3. Page Element Extraction & Recommendations
+                const extractionPromise = fetch('https://udjdc333m9.execute-api.ap-southeast-1.amazonaws.com/getImages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url, keywords: keywordArray })
+                }).then(res => res.json());
+
+                let extractionData = await extractionPromise;
+                // Handle case where Lambda returns { body: "..." }
+                if (extractionData && extractionData.body && typeof extractionData.body === 'string') {
+                    try {
+                        extractionData = JSON.parse(extractionData.body);
+                    } catch (e) {
+                        console.warn("Failed to parse extractionData body", e);
+                    }
+                }
+
+                if (extractionData) {
+                    displayInitialData(extractionData);
+                }
+
+                if (keywordArray.length > 0) {
+                    getOnPageRecommendations(extractionData, keywordArray);
+                    getContentRecommendations(url, keywordArray);
+                }
+
+                btn.innerText = "Audit Complete";
+                btn.classList.add('success');
+                updateCollapsibleState('onPageButton', 'success');
+            } catch (err) {
+                console.error("On-Page Audit Error:", err);
+                btn.innerText = "Audit Failed";
                 updateCollapsibleState('onPageButton', 'error');
+            } finally {
+                btn.disabled = false;
+                setTimeout(() => { btn.innerText = "Extract & Recommend"; }, 3000);
             }
+        }
+
+        async function fetchSERPForOnPage(keyword, location, language) {
+            const container = document.getElementById('onPageSerpResults');
+            container.innerHTML = `
+        <div id="onPageSerpGrid" class="competitor-insights-grid" style="padding: 20px;">
+            <div style="grid-column: 1/-1; text-align: center; padding: 40px;">
+                <i class="fas fa-spinner fa-spin fa-3x" style="color: #004c9d;"></i>
+                <p style="margin-top: 15px; color: #666;">Analysing top 10 competitors...</p>
+            </div>
+        </div>
+        <div id="onPageLoadMoreWrapper" style="display: none; text-align: center; margin-bottom: 20px;">
+            <button class="btn-action" style="min-width: 200px;" onclick="loadMoreCompetitors('onpage')">
+                <i class="fas fa-plus"></i> Load More Competitors
+            </button>
+        </div>
+    `;
+
+            try {
+                const user = JSON.parse(localStorage.getItem('googleUser'))?.email || 'anonymous';
+                // For On-Page, we want the premium experience: Fetch 10 and render tabbed cards
+                const response = await fetch('https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keyword, location, language, user, limit: 10 })
+                });
+                const data = await response.json();
+                // The moreSerps API returns an object of results
+                const serpArray = Object.values(data);
+
+                const grid = document.getElementById('onPageSerpGrid');
+                grid.innerHTML = '';
+                allCompetitorUrls_Optimiser.onpage = serpArray.map(s => s.url);
+                displayedCount_Optimiser.onpage = Math.min(10, serpArray.length);
+                renderCompetitorCards(serpArray.slice(0, 10), 'onPageSerpGrid', keyword);
+                document.getElementById('onPageLoadMoreWrapper').style.display = serpArray.length > 10 ? 'block' : 'none';
+
+            } catch (err) {
+                container.innerHTML = `<p style="padding: 20px; color: #ef4444;">Failed to load SERP data: ${err.message}</p>`;
+            }
+        }
+
+        async function runOnPageTechnicalAudit(url, dnsDomain, rootDomain) {
+            const grid = document.getElementById('onPageAuditGrid');
+            const onPageAuditResultsContent = document.getElementById('onPageAuditResults');
+            const crawlerSection = document.getElementById('onPageCrawlerSection');
+
+            // Initial loading state
+            grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Performing deep technical & AI discovery audit...</p></div>`;
+
+            const techAuditResults = [];
+            const isValidTextFile = window.discoveryHelpers.isValidTextFile;
+            const checkFile = window.discoveryHelpers.checkFile;
+
+            try {
+                const domainForFetch = url.startsWith('http') ? url : 'https://' + url;
+                const [auditRes, sslRes, htmlRes, robotsRes, llmsRes, llmsFullRes] = await Promise.allSettled([
+                    fetch("https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit", {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: url })
+                    }),
+                    fetch("https://2kxt49bwp1.execute-api.ap-southeast-1.amazonaws.com/checkSsl", {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: dnsDomain })
+                    }),
+                    fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: domainForFetch })
+                    }),
+                    fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: rootDomain + "/robots.txt" })
+                    }),
+                    fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: rootDomain + "/llms.txt" })
+                    }),
+                    fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: rootDomain + "/llms-full.txt" })
+                    })
+                ]);
+
+                // Process SSL
+                let sslStatus = 'Error';
+                if (sslRes.status === 'fulfilled') {
+                    const d = await sslRes.value.json();
+                    sslStatus = d.message?.toLowerCase().includes('valid') ? 'Valid' : 'Issue';
+                }
+                techAuditResults.push({ label: 'HTTPS Secure', value: sslStatus, icon: 'fa-lock', status: sslStatus === 'Valid' ? 'pass' : 'fail', geoDescription: 'A secure connection is a fundamental requirement for authoritative ranking in generative answers.' });
+
+                // Process Audit Data (Internal/External links, word count, etc.)
+                if (auditRes.status === 'fulfilled') {
+                    const rawData = await auditRes.value.json();
+                    const techData = typeof rawData.body === 'string' ? JSON.parse(rawData.body) : rawData;
+
+                    techAuditResults.push({ label: 'Word Count', value: techData.word_count || 'N/A', icon: 'fa-file-alt', status: (techData.word_count > 500) ? 'pass' : 'warn', geoDescription: 'Total content length. Generative engines prioritize comprehensive, in-depth content that answers user intent thoroughly.' });
+                    techAuditResults.push({ label: 'Internal Links', value: techData.internal_links_count || '0', icon: 'fa-link', status: 'pass', geoDescription: 'Connects related topics. A strong internal structure helps AI models understand the topical relevance and hierarchy of your domain.' });
+                    techAuditResults.push({ label: 'External Links', value: techData.external_links_count || '0', icon: 'fa-external-link-alt', status: 'pass', geoDescription: 'Outbound authority links help AI models verify your facts against known entities.' });
+                    techAuditResults.push({ label: 'Image Count', value: techData.image || '0', icon: 'fa-image', status: 'pass', geoDescription: 'Multi-modal AI models use images to better understand the subject matter and provide visual answers.' });
+                }
+
+                // Process HTML Parsing (Meta Tags, Semantic, E-E-A-T-A)
+                if (htmlRes.status === 'fulfilled') {
+                    const htmlData = await htmlRes.value.json();
+                    const doc = new DOMParser().parseFromString(htmlData.body, 'text/html');
+
+                    const canonical = doc.querySelector('link[rel="canonical"]')?.href || 'None';
+                    techAuditResults.push({ label: 'Canonical Tag', value: canonical, icon: 'fa-link', status: canonical !== 'None' ? 'pass' : 'fail', geoDescription: 'Prevents content duplication. For GEO, it ensures AI models attribute content to the correct source.' });
+
+                    const title = doc.querySelector('title')?.innerText || 'Missing';
+                    techAuditResults.push({ label: 'Meta Title', value: title, icon: 'fa-tag', status: title.length >= 30 ? 'pass' : 'fail', geoDescription: 'The primary headline for your page in AI citations.' });
+
+                    const desc = doc.querySelector('meta[name="description"]')?.content || 'Missing';
+                    techAuditResults.push({ label: 'Meta Description', value: desc, icon: 'fa-align-left', status: desc.length >= 50 ? 'pass' : 'warn', geoDescription: 'AI search engines use this to understand context and generate snippet answers.' });
+
+                    const h1Count = doc.querySelectorAll('h1').length;
+                    techAuditResults.push({ label: 'H1 Header', value: h1Count === 0 ? 'Missing' : `Found (${h1Count})`, icon: 'fa-heading', status: h1Count === 1 ? 'pass' : 'fail', geoDescription: 'A single H1 tag is critical for AI agents to identify the core subject.' });
+
+                    // Semantic Depth
+                    const semanticTags = ['header', 'footer', 'main', 'nav'];
+                    const foundCount = semanticTags.filter(tag => !!doc.querySelector(tag)).length;
+                    techAuditResults.push({ label: 'Semantic Structure', value: foundCount >= 3 ? 'Advanced' : 'Basic', icon: 'fa-sitemap', status: foundCount >= 3 ? 'pass' : 'warn', geoDescription: 'Helps AI agents "see" the relative importance of different content blocks.' });
+
+                    // Tracking
+                    const scriptSrc = Array.from(doc.querySelectorAll('script')).map(s => s.src).join(' ');
+                    const hasGTM = scriptSrc.includes('gtm.js') || scriptSrc.includes('googletagmanager');
+                    techAuditResults.push({ label: 'Tracking Detection', value: hasGTM ? 'GA4/GTM Detected' : 'None detected', icon: 'fa-chart-line', status: hasGTM ? 'pass' : 'warn', geoDescription: 'Signals a professional, well-maintained site to advanced AI crawlers.' });
+                }
+
+                // Process AI Files
+                const robotsText = await checkFile(robotsRes);
+                techAuditResults.push({ label: 'robots.txt', value: robotsText === 'Not Found' ? 'Missing' : 'Found', icon: 'fa-robot', status: robotsText !== 'Not Found' ? 'pass' : 'fail', geoDescription: 'Instructions for AI crawlers on what to index.' });
+
+                const llmsText = await checkFile(llmsRes);
+                techAuditResults.push({ label: 'llms.txt', value: llmsText === 'Not Found' ? 'Missing' : 'Found', icon: 'fa-brain', status: llmsText !== 'Not Found' ? 'pass' : 'warn', geoDescription: 'The new standard for providing concise context to AI agents.' });
+
+                const llmsFullText = await checkFile(llmsFullRes);
+                techAuditResults.push({ label: 'llms-full.txt', value: llmsFullText === 'Not Found' ? 'Missing' : 'Found', icon: 'fa-microchip', status: llmsFullText !== 'Not Found' ? 'pass' : 'warn', geoDescription: 'A comprehensive version of llms.txt for deep AI data extraction.' });
+
+                // Render Comprehensive Grid
+                grid.innerHTML = techAuditResults.map(m => {
+                    const statusColor = m.status === 'pass' ? '#10a37f' : m.status === 'warn' ? '#f59e0b' : '#ef4444';
+                    return `
+                <div style="background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: transform 0.2s;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div style="display: flex; align-items: center; gap: 10px; font-size: 0.9em; color: #64748b; font-weight: 600;">
+                            <i class="fas ${m.icon}" style="color: ${statusColor}; font-size: 1.2em;"></i>
+                            ${m.label}
+                        </div>
+                        <div style="width: 8px; height: 8px; border-radius: 50%; background: ${statusColor};"></div>
+                    </div>
+                    <div style="font-size: 1.15em; font-weight: 700; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${m.value}">${m.value}</div>
+                    <div style="font-size: 0.75em; color: #64748b; line-height: 1.4; margin-top: 4px; border-top: 1px solid #f1f5f9; padding-top: 8px;">
+                        <b>GEO Rationale:</b> ${m.geoDescription}
+                    </div>
+                </div>
+            `;
+                }).join('');
+
+                // 4. Trigger Crawler Integration (Replicated)
+                crawlerSection.style.display = 'block';
+                startOnPageCrawl(url);
+
+            } catch (err) {
+                grid.innerHTML = `<p style="padding: 20px; color: #ef4444;">Deep audit failed: ${err.message}</p>`;
+            }
+        }
+
+        // --- On-Page Crawler Logic (Scoped Helpers) ---
+        async function startOnPageCrawl(url) {
+            const table = document.getElementById('onPageCrawlerTable');
+            table.innerHTML = `<thead><tr><th colspan="100%" style="text-align:center; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Initialising crawler for ${url}...</p></th></tr></thead>`;
+
+            try {
+                const response = await fetch("https://34208dks88.execute-api.ap-southeast-1.amazonaws.com/submitDiscoveryCrawl", {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url, user: JSON.parse(localStorage.getItem('googleUser'))?.email || 'anonymous' })
+                });
+                const d = await response.json();
+                const taskId = d.task_id;
+
+                // Setup polling
+                if (onPageCrawlerPollingInterval) clearInterval(onPageCrawlerPollingInterval);
+                onPageCrawlerPollingInterval = setInterval(() => pollOnPageCrawl(taskId), 5000);
+            } catch (err) {
+                console.error("Crawl submission failed", err);
+            }
+        }
+
+        async function pollOnPageCrawl(taskId) {
+            try {
+                const response = await fetch("https://34208dks88.execute-api.ap-southeast-1.amazonaws.com/getDiscoveryCrawlResults", {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task_id: taskId })
+                });
+                const d = await response.json();
+
+                onPageCrawlerItems = d.items || [];
+                if (onPageCrawlerItems.length > 0) {
+                    // Find unique headers
+                    onPageCrawlerItems.forEach(item => {
+                        Object.keys(item).forEach(key => {
+                            if (!onPageCrawlerDynamicHeaders.includes(key)) onPageCrawlerDynamicHeaders.push(key);
+                        });
+                    });
+                    updateOnPageColumnSelectorUI();
+                    rebuildOnPageCrawlerTable();
+                    updateOnPageTechnicalSummaryUI();
+                }
+
+                if (d.status === 'finished') {
+                    clearInterval(onPageCrawlerPollingInterval);
+                    document.getElementById('onPageDownloadResultsBtn').style.display = 'block';
+                }
+            } catch (err) {
+                console.error("Polling failed", err);
+            }
+        }
+
+        function rebuildOnPageCrawlerTable() {
+            const table = document.getElementById('onPageCrawlerTable');
+            const filteredItems = onPageCrawlerActiveFilter ? onPageCrawlerItems.filter(v => v[onPageCrawlerActiveFilter]) : onPageCrawlerItems;
+
+            // Header
+            let head = '<tr>';
+            const activeHeaders = onPageCrawlerDynamicHeaders.filter(h => onPageCrawlerActiveColumns.has(h));
+            activeHeaders.forEach(h => head += `<th>${h.replace(/_/g, ' ')}</th>`);
+            head += '</tr>';
+
+            // Body
+            let body = filteredItems.map((item, idx) => {
+                let row = '<tr>';
+                activeHeaders.forEach(h => {
+                    let val = item[h] || '-';
+                    if (h === 'No.') val = idx + 1;
+                    row += `<td>${val.length > 100 ? `<span title="${val}">${val.substring(0, 100)}...</span>` : val}</td>`;
+                });
+                row += '</tr>';
+                return row;
+            }).join('');
+
+            table.innerHTML = `<thead>${head}</thead><tbody>${body}</tbody>`;
+        }
+
+        function updateOnPageColumnSelectorUI() {
+            const container = document.getElementById('onPageColumnCheckboxList');
+            container.innerHTML = onPageCrawlerDynamicHeaders.map(h => `
+        <label class="column-checkbox-item" style="display:flex; align-items:center; gap:5px; font-size:0.8em; cursor:pointer;">
+            <input type="checkbox" ${onPageCrawlerActiveColumns.has(h) ? 'checked' : ''} onchange="toggleOnPageColumn('${h}', this.checked)"> ${h}
+        </label>
+    `).join('');
+        }
+
+        function toggleOnPageColumn(key, isActive) {
+            if (isActive) onPageCrawlerActiveColumns.add(key); else onPageCrawlerActiveColumns.delete(key);
+            rebuildOnPageCrawlerTable();
+        }
+
+        function toggleAllOnPageColumns(isActive) {
+            if (isActive) onPageCrawlerDynamicHeaders.forEach(h => onPageCrawlerActiveColumns.add(h));
+            else {
+                onPageCrawlerActiveColumns.clear();
+                onPageCrawlerActiveColumns.add("No."); onPageCrawlerActiveColumns.add("url");
+            }
+            updateOnPageColumnSelectorUI();
+            rebuildOnPageCrawlerTable();
+        }
+
+        function filterOnPageColumns(val) {
+            const items = document.querySelectorAll('#onPageColumnCheckboxList label');
+            items.forEach(it => {
+                it.style.display = it.innerText.toLowerCase().includes(val.toLowerCase()) ? 'flex' : 'none';
+            });
+        }
+
+        function updateOnPageTechnicalSummaryUI() {
+            // Replicate issue cards from main technical audit
+            const summary = document.getElementById('onPageCrawlerSummary');
+            const issues = [
+                { key: 'is_broken', label: 'Broken Links', icon: 'fa-unlink', color: '#ef4444' },
+                { key: 'is_redirect', label: 'Redirects', icon: 'fa-exchange-alt', color: '#f59e0b' },
+                { key: 'duplicate_title', label: 'Dup Titles', icon: 'fa-copy', color: '#3b82f6' }
+            ];
+
+            summary.innerHTML = issues.map(iss => {
+                const count = onPageCrawlerItems.filter(v => v[iss.key]).length;
+                const active = onPageCrawlerActiveFilter === iss.key;
+                return `
+            <div class="summary-card ${active ? 'active' : ''}" style="cursor:pointer; padding:12px; background:white; border:1px solid ${active ? iss.color : '#eee'}; border-radius:8px;" onclick="setOnPageCrawlerFilter('${iss.key}')">
+                <div style="font-size:0.75em; color:#666;">${iss.label}</div>
+                <div style="font-size:1.2em; font-weight:700; color:${iss.color};">${count}</div>
+            </div>
+        `;
+            }).join('');
+        }
+
+        function setOnPageCrawlerFilter(key) {
+            onPageCrawlerActiveFilter = onPageCrawlerActiveFilter === key ? null : key;
+            updateOnPageTechnicalSummaryUI();
+            rebuildOnPageCrawlerTable();
+        }
+
+        function copyToContentOptimiser(url) {
+            alert('Loading competitor content into Optimiser...');
+            // Logic to switch to Optimiser and set URL
+            openAiContentOptimiser();
+            const optimiserUrlField = document.getElementById('optimiser-url');
+            if (optimiserUrlField) {
+                optimiserUrlField.value = url;
+            }
+        }
+
+        async function getImages() {
+            // Deprecated in favor of runOnPageAuditRoot, but kept for legacy calls
+            runOnPageAuditRoot();
         }
 
         // On Page
@@ -22286,11 +22813,10 @@ ${selectedText}
                     i++;
                 }
 
-
                 contentTableHTML += `
-                </tbody>
-            </table>
-            `;
+                        </tbody>
+                    </table>
+                `;
 
                 document.getElementById('contentRecommendations').innerHTML = contentTableHTML + '<div style="text-align: center;"><button class="export-button" onclick="exportOnPageToCSV()">Export to CSV</button></div>';
                 document.getElementById('contentCollapsible').style.display = "block";
@@ -22298,8 +22824,29 @@ ${selectedText}
 
             } catch (error) {
                 console.error("Error fetching recommendations:", error);
-                document.getElementById('contentRecommendations').innerHTML = `<p>Error fetching recommendations: ${error}</p>`;
+                document.getElementById('contentRecommendations').innerHTML = `< p > Error fetching recommendations: ${error}</p > `;
             }
+        }
+
+        function downloadOnPageCrawlResults() {
+            if (!onPageCrawlerItems.length) return;
+            const headers = onPageCrawlerDynamicHeaders.filter(h => onPageCrawlerActiveColumns.has(h));
+            let csv = headers.join(',') + '\n';
+
+            onPageCrawlerItems.forEach(item => {
+                const row = headers.map(h => {
+                    let val = String(item[h] || '');
+                    return `"${val.replace(/"/g, '""')}"`;
+                });
+                csv += row.join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `onpage_crawl_results_${new Date().getTime()}.csv`;
+            a.click();
         }
 
         async function getOnPageRecommendations(firstApiResponse, keywordArray) {
@@ -22318,7 +22865,7 @@ ${selectedText}
                 });
 
                 if (!recommendationResponse.ok) {
-                    throw new Error(`HTTP error! status: ${recommendationResponse.status}`);
+                    throw new Error(`HTTP error! status: ${recommendationResponse.status} `);
                 }
 
                 const recommendationData = await recommendationResponse.json();
@@ -22330,7 +22877,7 @@ ${selectedText}
             } catch (error) {
                 console.error("Error fetching recommendations:", error);
                 updateCollapsibleState('onPageButton', 'error');
-                document.getElementById('onPageResults').innerHTML = `<p>Error fetching recommendations: ${error}</p>`;
+                document.getElementById('onPageResults').innerHTML = `< p > Error fetching recommendations: ${error}</p > `;
             }
         }
 
@@ -22340,7 +22887,7 @@ ${selectedText}
             let resultsHTML = '';
 
             let metaTableHTML = `
-            <table id="metaTable">
+                    <table id="metaTable">
                 <thead>
                     <tr>
                         <th>Item</th>
@@ -22350,15 +22897,15 @@ ${selectedText}
                 <tbody>
                     <tr>
                         <td>Meta Title</td>
-                        <td>${data.meta_title}</td>
+                        <td>${data?.meta_title || 'N/A'}</td>
                     </tr>
                     <tr>
                         <td>Meta Description</td>
-                        <td>${data.meta_description}</td>
+                        <td>${data?.meta_description || 'N/A'}</td>
                     </tr>
                     <tr>
                         <td>Canonical URL</td>
-                        <td>${data.canonical_url}</td>
+                        <td>${data?.canonical_url || 'N/A'}</td>
                     </tr>`;
 
             // Function to add heading rows
@@ -22373,16 +22920,16 @@ ${selectedText}
                 });
             }
 
-            addHeadingRows("H1 Heading", data.headings.h1);
-            addHeadingRows("H2 Heading", data.headings.h2);
-            addHeadingRows("H3 Heading", data.headings.h3);
-            addHeadingRows("H4 Heading", data.headings.h4);
+            addHeadingRows("H1 Heading", data?.headings?.h1 || []);
+            addHeadingRows("H2 Heading", data?.headings?.h2 || []);
+            addHeadingRows("H3 Heading", data?.headings?.h3 || []);
+            addHeadingRows("H4 Heading", data?.headings?.h4 || []);
 
             metaTableHTML += `
 
                     </tbody>
                 </table>
-            `;
+                    `;
 
             let imageTableHTML = `
                     <table id="imageTable">
@@ -22397,8 +22944,9 @@ ${selectedText}
                         <tbody>
                 `;
 
-            for (let i = 0; i < data.image_data.length; i++) {
-                const item = data.image_data[i];
+            const image_data = data?.image_data || [];
+            for (let i = 0; i < image_data.length; i++) {
+                const item = image_data[i];
                 const imageUrl = Object.keys(item)[0];
                 const altText = item[imageUrl] || ''; // Handle cases where alt text is empty
 
@@ -22414,10 +22962,10 @@ ${selectedText}
 
             imageTableHTML += `
             </tbody>
-        
-         `;
 
-            resultsHTML += metaTableHTML
+                `;
+
+            resultsHTML += metaTableHTML;
 
             document.getElementById('imageRecommendations').innerHTML = imageTableHTML;
 
@@ -22441,7 +22989,7 @@ ${selectedText}
             let resultsHTML = '';
 
             let metaTableHTML = `
-        <table id="metaTable">
+                    <table id="metaTable">
             <thead>
                 <tr>
                     <th>Item</th>
@@ -22493,10 +23041,10 @@ ${selectedText}
 
             </tbody>
         </table>
-    `;
+                    `;
 
             let imageTableHTML = `
-            <table id="imageTable">
+                    <table id="imageTable">
                 <thead>
                     <tr>
                         <th>No.</th>
@@ -22531,8 +23079,8 @@ ${selectedText}
 
             imageTableHTML += `
                 </tbody>
-            </table>
-        `;
+            </table >
+                    `;
 
             resultsHTML += metaTableHTML;
 
@@ -22800,7 +23348,7 @@ ${selectedText}
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP error ${response.status}`);
+                    throw new Error(`HTTP error ${response.status} `);
                 }
 
                 const responseData = await response.json();
@@ -22844,7 +23392,7 @@ ${selectedText}
                             }
                         }
                     } catch (error) {
-                        console.error(`Error loading or parsing value for ${key}:`, error);
+                        console.error(`Error loading or parsing value for ${key}: `, error);
                     }
                 }
             });
@@ -22976,7 +23524,7 @@ ${selectedText}
                 const percentage = (completedSteps / totalSteps) * 100;
 
                 const progressBar = coll[i].querySelector('.progress-bar');
-                progressBar.style.width = `${percentage}%`;
+                progressBar.style.width = `${percentage}% `;
 
                 coll[i].addEventListener("click", function () {
                     this.classList.toggle("active");
@@ -23058,7 +23606,7 @@ ${selectedText}
                 const percentage = (completedSteps / totalSteps) * 100;
 
                 const progressBar = coll[i].querySelector('.progress-bar');
-                progressBar.style.width = `${percentage}%`;
+                progressBar.style.width = `${percentage}% `;
             }
 
         }
@@ -23086,7 +23634,7 @@ ${selectedText}
                 if (!response.ok) {
                     // Handle HTTP errors (e.g., 404, 500)
                     const errorMessage = await response.text(); // Or response.json() if the API returns a JSON error
-                    throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorMessage}`);
+                    throw new Error(`HTTP error! Status: ${response.status}, Message: ${errorMessage} `);
                 }
 
                 const data = await response.json();
@@ -23099,9 +23647,9 @@ ${selectedText}
                 // Assuming 'urls' and 'responses' are defined elsewhere, and are related to multiple URLs.  Since we are only processing ONE URL at a time here, these need to be adjusted or removed.  For this example, I'm assuming it should use the current URL.  If not, you need to define/get the correct 'urls' array.
                 const urls = [url]; // Use the current URL in an array for consistency with the original logic
                 urls.forEach(url => {
-                    tableHTML += `<th onclick="sortDensityTable('${url}')">${url}</th>`;
+                    tableHTML += `< th onclick = "sortDensityTable('${url}')" > ${url}</th > `;
                 });
-                tableHTML += `<th>Add to Keyword Analysis</th></tr></thead><tbody>`; // Added the header for the new column.
+                tableHTML += `< th > Add to Keyword Analysis</th ></tr ></thead > <tbody>`; // Added the header for the new column.
 
                 // Extract all unique keywords
                 let allKeywords = new Set();
@@ -23134,7 +23682,7 @@ ${selectedText}
                     tableHTML += `<td><a href="#" class="add-keyword-button" data-keyword="${keyword}" onclick="addKeywordToAnalysis(event, this)"><i class="fas fa-plus-circle"></i></a></td></tr>`;
                 });
 
-                tableHTML += '</tbody></table></div>';
+                tableHTML += '</tbody></table ></div > ';
                 keywordDensityDiv.innerHTML = tableHTML;
 
 
@@ -25832,12 +26380,28 @@ INSTRUCTIONS:
             let allUrls = allCompetitorUrls_Optimiser[flow];
             let nextBatch = allUrls.slice(start, start + batchSize);
 
-            const gridId = flow === 'optimise' ? 'competitorInsightsGrid-Optimise' : 'competitorInsightsGrid';
-            const wrapperId = flow === 'optimise' ? 'competitorAnalysisWrapper-Optimise' : 'competitorAnalysisWrapper';
-            const loadMoreBtnId = flow === 'optimise' ? 'btnLoadMoreCompetitors-Optimise' : 'btnLoadMoreCompetitors';
-            const keywordId = flow === 'optimise' ? 'primaryKeyword' : 'primaryKeywordNew';
+            let gridId, wrapperId, loadMoreBtnId, keywordId, locationId;
+            if (flow === 'onpage') {
+                gridId = 'onPageSerpGrid';
+                wrapperId = 'onPageSerpResults';
+                loadMoreBtnId = 'onPageLoadMoreWrapper'; // Actually the button inside is what we'll disable
+                keywordId = 'on-page-keywords'; // Or on-page-url? For topics, keyword is usually better
+                locationId = 'on-page-location';
+            } else if (flow === 'optimise') {
+                gridId = 'competitorInsightsGrid-Optimise';
+                wrapperId = 'competitorAnalysisWrapper-Optimise';
+                loadMoreBtnId = 'btnLoadMoreCompetitors-Optimise';
+                keywordId = 'primaryKeyword';
+                locationId = 'locationOptimiserOptimise';
+            } else {
+                gridId = 'competitorInsightsGrid';
+                wrapperId = 'competitorAnalysisWrapper';
+                loadMoreBtnId = 'btnLoadMoreCompetitors';
+                keywordId = 'primaryKeywordNew';
+                locationId = 'locationOptimiserNew';
+            }
             const keyword = document.getElementById(keywordId).value.trim();
-            const location = document.getElementById(flow === 'optimise' ? 'locationOptimiserOptimise' : 'locationOptimiserNew').value;
+            const location = document.getElementById(locationId).value;
 
             const btn = document.getElementById(loadMoreBtnId);
             if (btn) btn.disabled = true;
