@@ -11225,6 +11225,8 @@ seo agencies in singapore</textarea>
             navbarLinks.forEach(link => link.classList.remove('active-menu'));
         }
 
+
+
         function forceOpenCollapsible(btnId) {
             const btn = document.getElementById(btnId);
             if (!btn) return null;
@@ -19197,7 +19199,10 @@ ${selectedText}
         // --- Card Deletion & Undo Logic ---
         let deletedCardsStack = [];
         let allCompetitorUrls_Optimiser = { new: [], optimise: [] };
-        let displayedCount_Optimiser = { new: 0, optimise: 0, onpage: 0 };
+        let displayedCount_Optimiser = { new: 0, optimise: 0 };
+        // Initialise onpage keys
+        allCompetitorUrls_Optimiser.onpage = [];
+        displayedCount_Optimiser.onpage = 0;
         let onPageCrawlerItems = [];
         let onPageCrawlerActiveColumns = new Set(["No.", "url", "status_code", "title", "description"]);
         let onPageCrawlerDynamicHeaders = [];
@@ -22349,10 +22354,12 @@ ${selectedText}
 
         // Expanded On-Page Audit Root
         async function runOnPageAuditRoot() {
-            const url = document.getElementById('on-page-url').value;
-            const keywords = document.getElementById('on-page-keywords').value;
+            const url = document.getElementById('on-page-url').value.trim();
+            const keywords = document.getElementById('on-page-keywords').value.trim();
             const location = document.getElementById('on-page-location').value;
             const language = document.getElementById('on-page-language').value;
+
+            console.log("Starting On-Page Audit for:", url);
 
             if (!url) {
                 alert("Please enter a URL to audit.");
@@ -22400,13 +22407,16 @@ ${selectedText}
 
             try {
                 // 1. SERP Pull (Competitors)
+                console.log("Triggering SERP pull...");
                 if (keywordArray.length > 0) {
                     fetchSERPForOnPage(keywordArray[0], location, language);
                 } else {
-                    document.getElementById('onPageSerpResults').innerHTML = "<p style='padding: 20px;'>No keywords provided. Skipping SERP analysis.</p>";
+                    const serpEl = document.getElementById('onPageSerpResults');
+                    if (serpEl) serpEl.innerHTML = "<p style='padding: 20px;'>No keywords provided. Skipping SERP analysis.</p>";
                 }
 
                 // 2. Technical & AI Discovery Audit
+                console.log("Triggering Technical Audit...");
                 runOnPageTechnicalAudit(url, dnsDomain, rootDomain);
 
                 // 3. Page Element Extraction & Recommendations
@@ -22480,7 +22490,7 @@ ${selectedText}
                 grid.innerHTML = '';
                 allCompetitorUrls_Optimiser.onpage = serpArray.map(s => s.url);
                 displayedCount_Optimiser.onpage = Math.min(10, serpArray.length);
-                renderCompetitorCards(serpArray.slice(0, 10), 'onPageSerpGrid', keyword);
+                renderCompetitorCards(serpArray.slice(0, 10), 'onPageSerpGrid', 'onPageSerpResults', keyword);
                 document.getElementById('onPageLoadMoreWrapper').style.display = serpArray.length > 10 ? 'block' : 'none';
 
             } catch (err) {
@@ -22489,12 +22499,25 @@ ${selectedText}
         }
 
         async function runOnPageTechnicalAudit(url, dnsDomain, rootDomain) {
-            const grid = document.getElementById('onPageAuditGrid');
+            console.log("runOnPageTechnicalAudit started for:", url);
             const onPageAuditResultsContent = document.getElementById('onPageAuditResults');
-            const crawlerSection = document.getElementById('onPageCrawlerSection');
+            let grid = document.getElementById('onPageAuditGrid');
+
+            // If grid was wiped by runOnPageAuditRoot's general cleanup, restore it
+            if (!grid && onPageAuditResultsContent) {
+                console.log("Restoring onPageAuditGrid because it was cleared...");
+                onPageAuditResultsContent.innerHTML = `<div id="onPageAuditGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding: 20px;"></div>`;
+                grid = document.getElementById('onPageAuditGrid');
+            }
+
+            if (!grid) {
+                console.error("Could not find or restore onPageAuditGrid!");
+                return;
+            }
 
             // Initial loading state
             grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Performing deep technical & AI discovery audit...</p></div>`;
+            console.log("UI updated to technical audit loading state.");
 
             const techAuditResults = [];
             const isValidTextFile = window.discoveryHelpers.isValidTextFile;
