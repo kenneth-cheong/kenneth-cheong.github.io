@@ -62,8 +62,12 @@ def lambda_handler(event, context):
             'competition': (result.get('competition_index', 0) or 0) / 100.0 if result.get('competition_index') else 0
         }
 
+    skip_ai = event.get('skip_ai', False)
+    if skip_ai:
+        return keyword_data
+
     # 3. Call OpenAI Responses API (Faster & more consistent)
-    gpt_key = os.environ.get('GPT_KEY')
+    gpt_key = os.environ.get('GPT_KEY') or os.environ.get('OPENAI_API_KEY')
     url = "https://api.openai.com/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {gpt_key}",
@@ -82,28 +86,28 @@ def lambda_handler(event, context):
         "6. Do not include markdown formatting or backticks. Return ONLY the JSON object."
     )
 
-    prompt = f"Target Site: {target}\nLocation: {location}\nLanguage: {language}\n\nKeyword Data: {json.dumps(keyword_data)}"
+    # Filter to top 50 for the AI step to stay safe and fast
+    top_50_data = {k: v for i, (k, v) in enumerate(keyword_data.items()) if i < 50}
+    prompt = f"Target Site: {target}\nLocation: {location}\nLanguage: {language}\n\nKeyword Data: {json.dumps(top_50_data)}"
 
     payload = {
         "model": "gpt-4o-mini",
         "messages": [
             {"role": "system", "content": instructions},
             {"role": "user", "content": prompt}
-        ]
+        ],
+        "response_format": { "type": "json_object" }
     }
 
     try:
         res = requests.post(url, headers=headers, json=payload)
         res_data = res.json()
-        print(json.dumps(res_data)[:2000])
         
         if 'choices' not in res_data:
             return {"error": f"AI Error: {res_data.get('error', 'Unknown error')}"}
             
         raw_content = res_data['choices'][0]['message']['content']
-        # Clean up any potential markdown remains
-        clean_json = raw_content.strip().replace('```json', '').replace('```', '')
-        return json.loads(clean_json)
+        return json.loads(raw_content)
     except Exception as e:
         print(f"Error in AI generation: {str(e)}")
         return {"error": "Failed to generate optimized keyword list"}

@@ -1,6 +1,8 @@
 import json
 import os
-import urllib.request
+import requests
+import time
+import re
 from concurrent.futures import ThreadPoolExecutor
 
 # Note: In a real AWS Lambda environment, these would be in environment variables
@@ -18,6 +20,46 @@ def lambda_handler(event, context):
             body = json.loads(body)
             
         action = body.get('action')
+        if action == 'poll_snapshot':
+            snapshot_id = body.get('snapshot_id')
+            brand = body.get('brand')
+            url = body.get('url')
+            model = body.get('model')
+            if not snapshot_id:
+                return error_response("Missing snapshot_id")
+            
+            check = check_brightdata_snapshot(snapshot_id)
+            if "error" in check:
+                return error_response(check["error"])
+            
+            if check["status"] == "running":
+                return success_response({"status": "running", "message": "Snapshot still processing"})
+            
+            # Finished! Process and Grade
+            data = check["data"]
+            results = data if isinstance(data, list) else [data]
+            text = ""
+            if results and len(results) > 0:
+                res = results[0]
+                if model == 'perplexity':
+                    text = res.get('answer_html') or res.get('answer') or res.get('answer_text') or res.get('Response')
+                else: # copilot
+                    text = res.get('answer_text') or res.get('answer_html') or res.get('answer') or res.get('Response')
+            
+            if not text:
+                return error_response("Snapshot finished but no content extracted")
+            
+            text = strip_html(text)
+            grading = grade_response(text, brand, url)
+            grading_data = json.loads(grading)
+            
+            return success_response({
+                "status": "success",
+                "model": model,
+                "response": text,
+                "analysis": grading_data
+            })
+
         if action != 'verify_mentions':
             return error_response("Invalid action")
             
@@ -56,6 +98,10 @@ def lambda_handler(event, context):
                 raw_text = res.get('text', '')
                 if not raw_text:
                     raise ValueError("Empty response text")
+                
+                # Strip HTML before returning to UI
+                raw_text = strip_html(raw_text)
+                
                 grading = grade_response(raw_text, brand, url)
                 # Attempt to parse it locally to ensure it's valid JSON
                 grading_data = json.loads(grading) 
@@ -67,11 +113,16 @@ def lambda_handler(event, context):
                     "analysis": grading_data
                 })
             except Exception as grade_err:
+                # Handle pending snapshots separately in the UI
+                if isinstance(res, dict) and res.get('status') == 'snapshot_pending':
+                    verified_results.append(res) # Pass through the pending status
+                    continue
+
                 verified_results.append({
                     "model": model_name,
                     "status": "error",
                     "error": f"Grading failed: {str(grade_err)}",
-                    "response": res.get('text', '')
+                    "response": res.get('text', '') if isinstance(res, dict) else str(res)
                 })
 
         return success_response({
@@ -129,10 +180,10 @@ Provide a detailed, modern, and helpful response with active links."""
         "temperature": 0.7
     }
     
-    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
-    with urllib.request.urlopen(req) as response:
-        data = json.loads(response.read().decode('utf-8'))
-        return {"text": data['choices'][0]['message']['content']}
+    response = requests.post(url, json=payload, headers=headers)
+    response.raise_for_status()
+    data = response.json()
+    return {"text": data['choices'][0]['message']['content']}
 
 def query_gemini(model, prompt, location):
     """Google Gemini API handler."""
@@ -152,18 +203,15 @@ def query_gemini(model, prompt, location):
         }]
     }
     
-    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
     try:
-        with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode('utf-8'))
-            if 'candidates' in data and len(data['candidates']) > 0:
-                return {"text": data['candidates'][0]['content']['parts'][0]['text']}
-            return {"error": f"Gemini returned an empty result. Response: {json.dumps(data)}"}
-    except urllib.error.HTTPError as he:
-        err_body = he.read().decode('utf-8')
-        return {"error": f"Gemini API Error ({he.code}): {err_body}"}
-    except Exception as e:
-        return {"error": f"Gemini Connection Error: {str(e)}"}
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        if 'candidates' in data and len(data['candidates']) > 0:
+            return {"text": data['candidates'][0]['content']['parts'][0]['text']}
+        return {"error": f"Gemini returned an empty result. Response: {json.dumps(data)}"}
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Gemini API Error: {str(e)}"}
 
 def query_perplexity(prompt, location):
     """Perplexity via Search Dataset API."""
@@ -193,18 +241,27 @@ def query_perplexity(prompt, location):
         }]
     }
     
-    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
     try:
-        with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode('utf-8'))
-            print(data)
-            results = data if isinstance(data, list) else [data]
-            if results and len(results) > 0:
-                res = results[0]
-                text = res.get('answer_html') or res.get('answer') or res.get('answer_text') or res.get('Response')
-                if text:
-                    return {"text": text}
-            return {"error": "Wait, the search engine responded but no content was extracted. Please try again."}
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Handle snapshot in progress
+        if isinstance(data, dict) and 'snapshot_id' in data:
+            return {
+                "model": "perplexity",
+                "status": "snapshot_pending",
+                "snapshot_id": data['snapshot_id']
+            }
+
+        print(data)
+        results = data if isinstance(data, list) else [data]
+        if results and len(results) > 0:
+            res = results[0]
+            text = res.get('answer_html') or res.get('answer') or res.get('answer_text') or res.get('Response')
+            if text:
+                return {"text": text}
+        return {"error": "Wait, the search engine responded but no content was extracted. Please try again."}
     except Exception as e:
         return {"error": f"Search Connection Error: {str(e)}"}
 
@@ -236,23 +293,70 @@ def query_copilot(prompt, location):
         }]
     }
     
-    req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers=headers)
     try:
-        with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode('utf-8'))
-            print(data)
-            results = data if isinstance(data, list) else [data]
-            if results and len(results) > 0:
-                res = results[0]
-                text = res.get('answer_text') or res.get('answer_html') or res.get('answer') or res.get('Response')
-                if text:
-                    return {"text": text}
-            return {"error": "Wait, the search engine responded (Copilot) but no content was extracted. Please try again."}
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+
+        # Handle snapshot in progress
+        if isinstance(data, dict) and 'snapshot_id' in data:
+            return {
+                "model": "copilot",
+                "status": "snapshot_pending",
+                "snapshot_id": data['snapshot_id']
+            }
+
+        print(data)
+        results = data if isinstance(data, list) else [data]
+        if results and len(results) > 0:
+            res = results[0]
+            text = res.get('answer_text') or res.get('answer_html') or res.get('answer') or res.get('Response')
+            if text:
+                return {"text": text}
+        return {"error": "Wait, the search engine responded (Copilot) but no content was extracted. Please try again."}
     except Exception as e:
         return {"error": f"Search Connection Error (Copilot): {str(e)}"}
 
+def strip_html(text):
+    """Helper to remove HTML tags while preserving line breaks."""
+    if not text:
+        return ""
+    # Replace common block-level element endings with newlines
+    text = re.sub(r'<(p|br|div|li|h[1-6])[^>]*>', '\n', text, flags=re.I)
+    # Remove all remaining tags
+    text = re.sub(r'<[^>]+>', '', text)
+    # Collapse multiple newlines and trim
+    text = re.sub(r'\n\s*\n', '\n\n', text)
+    return text.strip()
+
+def check_brightdata_snapshot(snapshot_id):
+    """Checks Bright Data Snapshot endpoint once."""
+    url = f"https://api.brightdata.com/datasets/v3/snapshot/{snapshot_id}"
+    headers = {
+        "Authorization": f"Bearer {BRIGHTDATA_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Bright Data returns status: 'running' or a dict with 'message' if still in progress
+        is_running = isinstance(data, dict) and (data.get('status') == 'running' or 'message' in data)
+        
+        if is_running:
+            return {"status": "running"}
+        
+        return {"status": "finished", "data": data}
+    except Exception as e:
+        return {"error": f"Snapshot Check Error: {str(e)}"}
+
 def grade_response(ai_text, brand, url):
     """Uses a Grader LLM (GPT-4o-mini) to extract structured metrics."""
+    # Strip HTML to prevent UI breakage and improve grading accuracy
+    clean_text = strip_html(ai_text)
+    
     grader_prompt = f"""
 Analyze the following AI response for a specific brand mention.
 BRAND TO TRACK: {brand}
@@ -260,7 +364,7 @@ TARGET URL: {url}
 
 AI RESPONSE:
 ---
-{ai_text}
+{clean_text[:10000]}
 ---
 
 Output your analysis in strictly JSON format:
@@ -285,10 +389,10 @@ Output your analysis in strictly JSON format:
         "response_format": { "type": "json_object" }
     }
     
-    req = urllib.request.Request(api_url, data=json.dumps(payload).encode('utf-8'), headers=headers)
-    with urllib.request.urlopen(req) as response:
-        result = json.loads(response.read().decode('utf-8'))
-        return result['choices'][0]['message']['content']
+    response = requests.post(api_url, json=payload, headers=headers)
+    response.raise_for_status()
+    result = response.json()
+    return result['choices'][0]['message']['content']
 
 def success_response(data):
     return {

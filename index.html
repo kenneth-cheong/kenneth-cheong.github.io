@@ -12289,7 +12289,7 @@ seo agencies in singapore</textarea>
                 const response = await fetch('https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ target, location, language })
+                    body: JSON.stringify({ target, location, language, skip_ai: true })
                 });
 
                 if (!response.ok) throw new Error("Failed to fetch keywords.");
@@ -12486,7 +12486,63 @@ seo agencies in singapore</textarea>
                     const data = (rawData && rawData.body) ? (typeof rawData.body === 'string' ? JSON.parse(rawData.body) : rawData.body) : rawData;
 
                     // The backend returns an array of verification objects
-                    const result = data.verification ? data.verification[0] : null;
+                    let result = data.verification ? data.verification[0] : null;
+
+                    if (result && result.status === 'snapshot_pending') {
+                        const sid = result.snapshot_id;
+                        card.innerHTML = `
+                            <div style="position: absolute; top: 15px; left: 20px; font-weight: 700; font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">
+                                <i class="fas fa-robot"></i> ${model.toUpperCase()}
+                            </div>
+                            <div class="loader-content" style="text-align: center; padding: 20px;">
+                                <i class="fas fa-spinner fa-spin" style="font-size: 2em; color: #6366f1; margin-bottom: 12px;"></i>
+                                <div style="font-size: 0.85em; color: #64748b; font-weight: 600;">Snapshot Queued...</div>
+                                <div style="font-size: 0.7em; color: #94a3b8; margin-top: 4px;">Bright Data is processing the request.</div>
+                            </div>
+                        `;
+
+                        // Start client-side polling
+                        let pollAttempts = 0;
+                        const maxPolls = 30; // 30 * 10s = 5 mins
+                        while (pollAttempts < maxPolls) {
+                            await new Promise(r => setTimeout(r, 10000));
+                            pollAttempts++;
+
+                            const pollResp = await fetch('https://y0ypcivaz1.execute-api.ap-southeast-1.amazonaws.com/aiMentions', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    action: 'poll_snapshot',
+                                    snapshot_id: sid,
+                                    brand: brand,
+                                    url: targetUrl,
+                                    model: model
+                                })
+                            });
+
+                            const pollDataRaw = await pollResp.json();
+                            const pollData = (pollDataRaw && pollDataRaw.body) ? (typeof pollDataRaw.body === 'string' ? JSON.parse(pollDataRaw.body) : pollDataRaw.body) : pollDataRaw;
+
+                            if (pollData.status === 'running') {
+                                const statusDiv = card.querySelector('.loader-content div:last-child');
+                                if (statusDiv) statusDiv.innerText = `Polling attempt ${pollAttempts}...`;
+                                continue;
+                            }
+
+                            if (pollData.status === 'success') {
+                                result = pollData;
+                                break;
+                            }
+
+                            if (pollData.error) {
+                                throw new Error(pollData.error);
+                            }
+                        }
+
+                        if (pollAttempts >= maxPolls) {
+                            throw new Error("Snapshot polling timed out after 5 minutes.");
+                        }
+                    }
 
                     if (!result || result.status === 'error') {
                         throw new Error(result?.error || "No valid data returned");
@@ -17426,7 +17482,8 @@ ${selectedText}
             const requestBody = {
                 location: location,
                 language: language,
-                target: target
+                target: target,
+                skip_ai: false
             };
 
             try {
@@ -20474,7 +20531,8 @@ ${selectedText}
                     body: JSON.stringify({
                         location: location,
                         language: language,
-                        target: target
+                        target: target,
+                        skip_ai: false
                     })
                 });
 
@@ -21673,7 +21731,7 @@ ${selectedText}
             async function keywords_for_site_chat(t, l, loc) {
                 const r = await fetch("https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite", {
                     method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ target: t, language: l, location: loc })
+                    body: JSON.stringify({ target: t, language: l, location: loc, skip_ai: false })
                 }); return await r.json();
             }
             async function crawler_chat(u, m) {
