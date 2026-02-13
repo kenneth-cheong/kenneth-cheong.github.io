@@ -635,7 +635,7 @@
                         <div style="flex: 1; min-width: 200px;">
                             <input type="text" id="orderSearch"
                                 placeholder="Search backlinks (Campaign, Keyword, URL)..."
-                                onkeyup="debounce(filterOrders, 300)()"
+                                onkeyup="filterOrdersDebounced()"
                                 style="width: 100%; padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white;">
                         </div>
                         <select id="statusFilter" onchange="filterOrders()"
@@ -831,15 +831,15 @@
         // Helpers
         function debounce(func, wait) {
             let timeout;
-            return function executedFunction(...args) {
-                const later = () => {
-                    clearTimeout(timeout);
-                    func(...args);
-                };
+            return function (...args) {
                 clearTimeout(timeout);
-                timeout = setTimeout(later, wait);
+                timeout = setTimeout(() => func.apply(this, args), wait);
             };
         }
+
+        // Search Filter functions with fixed debounce
+        const filterOrdersDebounced = debounce(filterOrders, 300);
+        const filterRankingsDebounced = debounce(renderRankingsTable, 300);
 
         let state = {
             user: null,
@@ -868,8 +868,37 @@
             googleToken: null,
             ordersPage: 1,
             ordersPageSize: 20,
-            importHistory: []
+            importHistory: [],
+            loadingCount: 0,
+            isFetchingOrders: false
         };
+
+        function toggleLoading(show) {
+            if (show) {
+                state.loadingCount++;
+            } else {
+                state.loadingCount = Math.max(0, state.loadingCount - 1);
+            }
+
+            const overlay = document.getElementById('loadingOverlay') || createLoadingOverlay();
+            overlay.style.display = state.loadingCount > 0 ? 'flex' : 'none';
+        }
+
+        function createLoadingOverlay() {
+            let overlay = document.getElementById('loadingOverlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'loadingOverlay';
+                overlay.style.cssText = `
+                    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                    background: rgba(0,0,0,0.5); display: flex; align-items: center;
+                    justify-content: center; z-index: 9999; display: none;
+                `;
+                overlay.innerHTML = '<i class="fas fa-spinner fa-spin fa-3x" style="color: var(--primary-light);"></i>';
+                document.body.appendChild(overlay);
+            }
+            return overlay;
+        }
 
         function completeLogin() {
             document.getElementById('loginScreen').style.display = 'none';
@@ -1193,8 +1222,8 @@
                 count: newBacklinks.length
             });
 
-            fetchOrders();
-            fetchImportHistory();
+            await fetchOrders();
+            await fetchImportHistory();
         }
 
         // API Helpers
@@ -1213,13 +1242,15 @@
                 const result = await res.json();
                 if (!result) return null;
                 // Defensive check in case of nested body string (AWS Lambda Proxy)
+                let finalData = result;
                 if (result.body) {
                     if (typeof result.body === 'string') {
-                        try { return JSON.parse(result.body); } catch (e) { return result.body; }
+                        try { finalData = JSON.parse(result.body); } catch (e) { finalData = result.body; }
+                    } else {
+                        finalData = result.body;
                     }
-                    return result.body;
                 }
-                return result;
+                return finalData;
             } catch (err) {
                 console.error(`API Error (${action}):`, err);
                 return null;
@@ -1386,29 +1417,83 @@
         }
 
         async function fetchOrders() {
+            if (state.isFetchingOrders) return;
+            state.isFetchingOrders = true;
+
             const body = document.getElementById('ordersBody');
-            if (body) {
-                body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-dim);">
-                    <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Loading backlinks...
-                </td></tr>`;
+            const updateProgress = (count) => {
+                if (body) {
+                    body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-dim);">
+                        <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Loading backlinks... (${count.toLocaleString()} loaded)
+                    </td></tr>`;
+                }
+            };
+
+            if (body && !state.backlinks.length) {
+                updateProgress(0);
             }
 
             // Show loading in dashboard counts
             ['val-total-links', 'val-avg-da', 'val-pending'].forEach(id => {
                 const el = document.getElementById(id);
-                if (el) el.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size: 1rem; opacity: 0.5;"></i>';
+                if (el && !el.textContent.trim()) el.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size: 1rem; opacity: 0.5;"></i>';
             });
 
-            const data = await apiCall(PERSISTENCE_URL, 'get_backlinks');
-            if (data && Array.isArray(data)) {
-                state.backlinks = data;
+            let allBacklinks = [];
+            let skip = 0;
+            const limit = 2000;
+            let hasMore = true;
+            let batchCount = 0;
+            let retryCount = 0;
+
+            try {
+                while (hasMore) {
+                    const data = await apiCall(PERSISTENCE_URL, 'get_backlinks', { limit, skip });
+
+                    if (data === null) {
+                        if (retryCount < 3) {
+                            console.warn(`Fetch failed at skip ${skip}, retrying (${retryCount + 1}/3)...`);
+                            retryCount++;
+                            await new Promise(r => setTimeout(r, 1000));
+                            continue;
+                        } else {
+                            console.error(`Max retries reached at skip ${skip}. Stopping fetch.`);
+                            hasMore = false;
+                            break;
+                        }
+                    }
+
+                    const batch = Array.isArray(data) ? data : (data?.backlinks || data?.items || []);
+                    retryCount = 0; // Reset retry on success
+
+                    if (batch.length > 0) {
+                        allBacklinks = allBacklinks.concat(batch);
+                        skip += limit;
+                        batchCount++;
+
+                        // Progressive update every 5 batches (10k links) or if it's the first batch
+                        if (batchCount === 1 || batchCount % 5 === 0) {
+                            state.backlinks = allBacklinks;
+                            updateProgress(allBacklinks.length);
+                            updateDashboard();
+                            // Don't full renderOrders() every time for performance, just update stats
+                            updateSelectionStats(allBacklinks.length);
+                        }
+                    }
+
+                    if (batch.length < limit) {
+                        hasMore = false;
+                    }
+                }
+
+                // Final state sync and render
+                state.backlinks = allBacklinks;
                 renderOrders();
                 updateDashboard();
-            } else if (data) {
-                const list = data.backlinks || data.items || [];
-                state.backlinks = Array.isArray(list) ? list : [];
-                renderOrders();
-                updateDashboard();
+            } catch (err) {
+                console.error("Batch Fetching Error:", err);
+            } finally {
+                state.isFetchingOrders = false;
             }
         }
 

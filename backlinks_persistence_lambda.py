@@ -99,7 +99,9 @@ def handle_get_backlinks(db, data, headers):
     if data.get('vendorId'):
         query['vendorId'] = data['vendorId']
     
-    backlinks = list(db.backlinks.find(query).sort("createdAt", -1))
+    limit = int(data.get('limit', 1000))
+    skip = int(data.get('skip', 0))
+    backlinks = list(db.backlinks.find(query).sort("createdAt", -1).skip(skip).limit(limit))
     return response(200, backlinks, headers)
 
 def handle_upsert_backlink(db, data, user, headers):
