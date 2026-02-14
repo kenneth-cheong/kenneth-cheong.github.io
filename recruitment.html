@@ -1411,6 +1411,14 @@
                                 onclick="reEvaluateCurrentCandidate(event)">
                                 <i class="fas fa-sync-alt"></i> AI Re-evaluate Candidate
                             </button>
+                            <div id="detailContactInfo"
+                                style="display: flex; gap: 12px; align-items: center; color: var(--text-dim); font-size: 0.8rem;">
+                                <span id="detailEmail" contenteditable="true"
+                                    onblur="updateCandidateEmail(this.innerText)"
+                                    style="outline: none; border-radius: 4px; padding: 2px 4px; border: 1px solid transparent;"
+                                    onmouseover="this.style.borderColor='var(--border)'"
+                                    onmouseout="this.style.borderColor='transparent'">candidate@email.com</span>
+                            </div>
                             <div
                                 style="display: flex; align-items: center; gap: 8px; background: var(--glass); padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border);">
                                 <label style="font-size: 0.75rem; color: var(--text-dim); font-weight: 600;">Interviewer
@@ -1423,6 +1431,11 @@
                     </div>
                     <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 12px;">
                         <div style="display: flex; gap: 8px;">
+                            <button class="btn"
+                                style="background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
+                                onclick="sendCandidateEmail()">
+                                <i class="fas fa-envelope"></i> Email
+                            </button>
                             <button class="btn"
                                 style="background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
                                 onclick="copyShareLink(editingCandId)">
@@ -3426,6 +3439,8 @@
 
             // Update candidate object
             candidate.aiScore = analysis.score;
+            candidate.email = analysis.email || candidate.email;
+            candidate.phone = analysis.phone || candidate.phone;
             candidate.breakdown = analysis.breakdown;
             candidate.summary = analysis.summary;
             candidate.reasons = analysis.reasons;
@@ -3757,6 +3772,8 @@
             }
 
             document.getElementById('detailName').innerText = c.name;
+            document.getElementById('detailEmail').innerText = c.email || 'Click to add email';
+            document.getElementById('detailEmail').style.color = c.email ? 'var(--text-main)' : 'var(--text-dim)';
             document.getElementById('detailScore').innerText = `AI Score: ${c.aiScore}/100`;
             document.getElementById('detailInterviewerScore').value = c.interviewerScore || 0;
             document.getElementById('detailSummary').innerText = c.summary;
@@ -3866,22 +3883,14 @@
         }
 
         async function updateCandidateName(newName) {
-            if (!state.viewingCandidateId || !newName) return;
+            if (!editingCandId || !newName) return;
             newName = newName.trim().toUpperCase();
 
-            const cand = state.candidates.find(c => String(c.id) === String(state.viewingCandidateId));
+            const cand = state.candidates.find(c => String(c.id) === String(editingCandId));
             if (!cand || cand.name === newName) return;
 
-            console.log(`Updating candidate ${state.viewingCandidateId} name to: ${newName}`);
-
-            // Update local state and UI
             cand.name = newName;
-
-            // Save to backend
-            const result = await persistenceApiCall('upsert_candidate', {
-                id: state.viewingCandidateId,
-                name: newName
-            });
+            const result = await persistenceApiCall('upsert_candidate', { id: editingCandId, name: newName });
 
             if (result && result.success) {
                 showToast("Candidate name updated successfully!");
@@ -3889,7 +3898,41 @@
                 filterCandidatesRepo();
             } else {
                 showToast("Failed to update candidate name", "error");
+                renderCandidates(); // Reset UI
             }
+        }
+
+        async function updateCandidateEmail(newEmail) {
+            if (!editingCandId) return;
+            const emailValue = (newEmail === 'Click to add email') ? '' : newEmail.trim();
+
+            const cand = state.candidates.find(c => String(c.id) === String(editingCandId));
+            if (!cand || cand.email === emailValue) return;
+
+            cand.email = emailValue;
+            const result = await persistenceApiCall('upsert_candidate', { id: editingCandId, email: emailValue });
+
+            if (result && result.success) {
+                showToast("Email updated successfully!");
+                document.getElementById('detailEmail').style.color = emailValue ? 'var(--text-main)' : 'var(--text-dim)';
+                renderCandidates();
+                filterCandidatesRepo();
+            } else {
+                showToast("Failed to update email", "error");
+            }
+        }
+
+        function sendCandidateEmail() {
+            const c = state.candidates.find(cand => String(cand.id) === String(editingCandId));
+            if (!c || !c.email) {
+                alert("No email address found for this candidate. Please add one first.");
+                return;
+            }
+            const job = state.jobs.find(j => String(j.id) === String(c.jobId));
+            const subject = encodeURIComponent(`Application Update: ${job ? job.title : 'Position'} - ${c.name}`);
+            const body = encodeURIComponent(`Hi ${c.name},\n\nI hope this email finds you well.\n\n[Add your message here regarding their application for ${job ? job.title : 'the position'}]\n\nBest regards,\n${state.currentUser}`);
+
+            window.location.href = `mailto:${c.email}?subject=${subject}&body=${body}`;
         }
 
         function rejectCurrentCandidate() {
