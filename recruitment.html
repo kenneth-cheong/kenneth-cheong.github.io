@@ -1079,10 +1079,13 @@
                                         class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortJobCandidates('score')" style="cursor: pointer;">AI Score <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th>Interviewer Score</th>
+                                <th onclick="sortJobCandidates('interviewerScore')" style="cursor: pointer;">Interviewer
+                                    Score <i class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortJobCandidates('hopper')" style="cursor: pointer;">Job Hopper <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th>Pending action by</th>
+                                <th onclick="sortJobCandidates('pendingBy')" style="cursor: pointer;">Pending action by
+                                    <i class="fas fa-sort ms-1"></i>
+                                </th>
                                 <th onclick="sortJobCandidates('status')" style="cursor: pointer;">Status <i
                                         class="fas fa-sort ms-1"></i></th>
                                 <th>Actions</th>
@@ -1186,8 +1189,10 @@
                                         class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortRepoTable('score')" style="cursor: pointer;">AI Score <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th>Interviewer Score</th>
-                                <th>Pending action by</th>
+                                <th onclick="sortRepoTable('interviewerScore')" style="cursor: pointer;">Interviewer
+                                    Score <i class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortRepoTable('pendingBy')" style="cursor: pointer;">Pending action by <i
+                                        class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortRepoTable('status')" style="cursor: pointer;">Status <i
                                         class="fas fa-sort ms-1"></i></th>
                                 <th>Actions</th>
@@ -2537,6 +2542,7 @@
                     <td style="display: flex; gap: 8px;">
                         <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem;" onclick="openJobDetails('${job.id}')">Manage</button>
                         <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border);" onclick="openEditJobModal('${job.id}')">Edit</button>
+                        <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);" onclick="confirmDuplicateJob('${job.id}')"><i class="fas fa-clone"></i> Clone</button>
                         <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: rgba(244, 63, 94, 0.1); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.2);" onclick="deleteJob('${job.id}')">🗑️</button>
                     </td>
                 </tr>
@@ -2563,6 +2569,46 @@
                 if (Array.isArray(jobs)) state.jobs = jobs;
                 showAuditLogs(); // Refresh log view
                 alert("Job restored successfully!");
+            } else {
+                alert("Failed to restore job.");
+            }
+        }
+
+        function confirmDuplicateJob(jobId) {
+            const job = state.jobs.find(j => String(j.id) === String(jobId));
+            if (!job) return;
+
+            const newTitle = prompt("Duplicate job: " + job.title + "\nEnter new job title:", job.title + " (Copy)");
+            if (newTitle === null || newTitle.trim() === "") return;
+
+            duplicateJob(jobId, newTitle.trim());
+        }
+
+        async function duplicateJob(jobId, newTitle) {
+            const originalJob = state.jobs.find(j => String(j.id) === String(jobId));
+            if (!originalJob) return;
+
+            // Clone job data but reset ID and candidate related fields
+            const newJobData = {
+                title: newTitle,
+                desc: originalJob.desc || '',
+                kpi: originalJob.kpi || '',
+                evaluationCriteria: JSON.parse(JSON.stringify(originalJob.evaluationCriteria || [])),
+                interviewQuestions: JSON.parse(JSON.stringify(originalJob.interviewQuestions || [])),
+                status: 'Open',
+                applicants: 0,
+                shortlisted: 0
+            };
+
+            const result = await persistenceApiCall('upsert_job', newJobData);
+            if (result && result.success) {
+                // Refresh local jobs list
+                const jobs = await persistenceApiCall('get_jobs');
+                if (Array.isArray(jobs)) state.jobs = jobs;
+                renderJobs();
+                alert("Job duplicated successfully!");
+            } else {
+                alert("Failed to duplicate job.");
             }
         }
 
@@ -2740,6 +2786,8 @@
                 else if (repoSort.field === 'job') { valA = a.jobTitle; valB = b.jobTitle; }
                 else if (repoSort.field === 'date') { valA = new Date(ensureUTC(a.date)); valB = new Date(ensureUTC(b.date)); }
                 else if (repoSort.field === 'score') { valA = a.aiScore; valB = b.aiScore; }
+                else if (repoSort.field === 'interviewerScore') { valA = a.interviewerScore || 0; valB = b.interviewerScore || 0; }
+                else if (repoSort.field === 'pendingBy') { valA = a.pendingBy; valB = b.pendingBy; }
                 else if (repoSort.field === 'status') { valA = a.status; valB = b.status; }
 
                 if (valA < valB) return repoSort.direction === 'asc' ? -1 : 1;
@@ -3571,8 +3619,10 @@
                 if (jobDetailsSort.field === 'name') { valA = a.name; valB = b.name; }
                 else if (jobDetailsSort.field === 'date') { valA = new Date(ensureUTC(a.date)); valB = new Date(ensureUTC(b.date)); }
                 else if (jobDetailsSort.field === 'score') { valA = a.aiScore; valB = b.aiScore; }
+                else if (jobDetailsSort.field === 'interviewerScore') { valA = a.interviewerScore || 0; valB = b.interviewerScore || 0; }
                 else if (jobDetailsSort.field === 'status') { valA = a.status; valB = b.status; }
                 else if (jobDetailsSort.field === 'hopper') { valA = a.isHopper; valB = b.isHopper; }
+                else if (jobDetailsSort.field === 'pendingBy') { valA = a.pendingBy; valB = b.pendingBy; }
 
                 if (valA < valB) return jobDetailsSort.direction === 'asc' ? -1 : 1;
                 if (valA > valB) return jobDetailsSort.direction === 'asc' ? 1 : -1;
