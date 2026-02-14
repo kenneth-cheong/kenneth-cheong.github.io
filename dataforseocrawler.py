@@ -117,6 +117,83 @@ def lambda_handler(event, context):
                 'body': json.dumps(res_json)
             }
 
+        elif action == 'pull_content':
+            target_url = body.get('url')
+            if not target_url:
+                return {'statusCode': 400, 'headers': {'Access-Control-Allow-Origin': '*'}, 'body': json.dumps({'error': 'URL is required'})}
+
+            parsing_url = "https://api.dataforseo.com/v3/on_page/content_parsing/live"
+            payload = [{"url": target_url, "enable_javascript": True, "enable_browser_rendering": True}]
+            
+            print(f"Pulling content for: {target_url}")
+            response = requests.post(parsing_url, headers=headers, json=payload)
+            res_json = response.json()
+            
+            # Reconstruct HTML from content parsing
+            html_content = ""
+            page_title = ""
+            first_h1 = ""
+            
+            try:
+                for task in res_json.get('tasks', []):
+                    for result in task.get('result', []):
+                        for item in result.get('items', []):
+                            if item.get('type') == 'content_parsing_element':
+                                page_content = item.get('page_content', {})
+                                
+                                # Process title if available
+                                if not page_title:
+                                    page_title = item.get('meta', {}).get('title', '')
+
+                                def process_topic(topic):
+                                    nonlocal first_h1
+                                    topic_html = ""
+                                    level = topic.get('level', 2)
+                                    # Fallback if level is weird
+                                    if not isinstance(level, int) or level < 1 or level > 6:
+                                        level = 2
+                                    
+                                    h_tag = f"h{level}"
+                                    title = topic.get('h_title', '')
+                                    if title:
+                                        topic_html += f"<{h_tag}>{title}</{h_tag}>\n"
+                                        if level == 1 and not first_h1:
+                                            first_h1 = title
+                                    
+                                    for content_key in ['primary_content', 'secondary_content']:
+                                        content_list = topic.get(content_key, [])
+                                        if content_list:
+                                            for content_item in content_list:
+                                                text = content_item.get('text', '')
+                                                if text:
+                                                    topic_html += f"<p>{text}</p>\n"
+                                    
+                                    return topic_html
+
+                                # Process main topics
+                                main_topics = page_content.get('main_topic', [])
+                                if main_topics:
+                                    for topic in main_topics:
+                                        html_content += process_topic(topic)
+                                
+                                # Process secondary topics
+                                secondary_topics = page_content.get('secondary_topic', [])
+                                if secondary_topics:
+                                    for topic in secondary_topics:
+                                        html_content += process_topic(topic)
+            except Exception as e:
+                print(f"Error parsing content: {str(e)}")
+            
+            return {
+                'statusCode': 200,
+                'headers': {'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({
+                    'html': html_content,
+                    'title': page_title,
+                    'raw_response': res_json # for debugging
+                })
+            }
+
         return {
             'statusCode': 400,
             'headers': {'Access-Control-Allow-Origin': '*'},
