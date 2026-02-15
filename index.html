@@ -1050,21 +1050,31 @@
             border-radius: 10px;
         }
 
-        #analysisTable td:first-child {
-            left: 0;
-            position: sticky;
-            background-color: #4c82bc;
-            color: white;
-            border: 1px solid white;
-        }
-
         #analysisTable th:first-child {
             left: 0;
             background-color: #004c9d;
             position: sticky;
             color: white;
             border: 1px solid white;
-            z-index: 1;
+            z-index: 10 !important;
+            /* Top-left corner needs to be above everything */
+        }
+
+        #analysisTable thead th {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background-color: #004c9d;
+            color: white;
+        }
+
+        #analysisTable td:first-child {
+            left: 0;
+            position: sticky;
+            background-color: #4c82bc;
+            color: white;
+            border: 1px solid white;
+            z-index: 4;
         }
 
         thead th,
@@ -3907,14 +3917,29 @@
 
         #analysisTable {
             width: 100%;
-            border-collapse: collapse;
+            border-collapse: separate;
+            /* Required for sticky borders */
+            border-spacing: 0;
             margin-top: 20px;
-            max-height: 700px;
-            overflow: auto;
+            table-layout: fixed;
+            /* Better for resizing */
+        }
+
+        #analysisTable th {
+            position: relative;
+            /* For resizer positioning */
+            min-width: 150px;
+        }
+
+        #analysisTable th:first-child {
+            width: 200px;
+            /* Fixed width for topic column */
         }
 
         #analysisTable a {
             color: white;
+            word-break: break-all;
+            display: block;
         }
 
         #analysisTable th,
@@ -3924,11 +3949,33 @@
             text-align: left;
             word-wrap: break-word;
             vertical-align: top;
+            box-sizing: border-box;
+        }
+
+        .resizer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 5px;
+            cursor: col-resize;
+            user-select: none;
+            height: 100%;
+            background: transparent;
+            z-index: 15;
+        }
+
+        .resizer:hover,
+        .resizing {
+            background: #4c82bc;
+            width: 5px;
         }
 
         #tableContainer {
             width: 100%;
-            overflow-x: auto;
+            overflow: auto;
+            max-height: 800px;
+            border: 1px solid #ddd;
+            position: relative;
         }
 
         @keyframes spin {
@@ -7567,7 +7614,7 @@
                     <button class="collapsible" id="technicalButton"><i class="fas fa-plus-square"></i>Technical
                         SEO</button>
                     <div class="content" id="technicalSeo">
-                        <div class="sem-step-card">
+                        <div class="sem-step-card id" id="technicalSeoForm">
                             <div class="sem-card-title"><i class="fas fa-tools"></i> Technical Audit Configuration</div>
                             <div class="sem-input-group">
                                 <div class="sem-input-item">
@@ -17070,6 +17117,7 @@ ${selectedText}
                 // 3. Create and display the table (modified createAnalysisTable function below)
                 comparisonTableHTML = createAnalysisTable(analysisData, keyword, urls);  // Pass keyword and target URLs
                 document.getElementById('initial-table').innerHTML = `<div id="tableContainer">${comparisonTableHTML}</div>`;
+                makeTableResizable('analysisTable');
 
                 // 4. Apply gradients (no change needed)
                 applyGradientsToRows();
@@ -17092,6 +17140,7 @@ ${selectedText}
                     const outputTableHTML = createAnalysisTable(comparisonData.body.output, keyword, urls)
                     document.getElementById('initial-table').innerHTML = "";
                     document.getElementById('initial-table').innerHTML = `<div id="tableContainer">${outputTableHTML}</div>`;
+                    makeTableResizable('analysisTable');
                     resultsDiv.innerHTML += `<pre>${recommendation}</pre>`;
                     console.log('refresh succesful');
 
@@ -17253,14 +17302,15 @@ ${selectedText}
         // Function to create the HTML table from the analysis data
         function createAnalysisTable(data, keyword, targetUrls) {
             let tableHTML = '<table id="analysisTable">';
-            tableHTML += '<tr><th>URL</th>';
+            tableHTML += '<thead><tr><th>URL<div class="resizer"></div></th>';
 
             const urls = Object.keys(data);
             urls.forEach(url => {
                 tableHTML += `<th ${targetUrls.includes(url) && keyword ? 'class="targetUrl"' : ''}>
+                        <div class="resizer"></div>
                         <a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></th>`;
             });
-            tableHTML += '</tr>';
+            tableHTML += '</tr></thead><tbody>';
 
 
             // Add Word Count row
@@ -17335,7 +17385,7 @@ ${selectedText}
                 tableHTML += '</tr>';
             });
 
-            tableHTML += '</table>';
+            tableHTML += '</tbody></table>';
             return tableHTML;
         }
 
@@ -17365,6 +17415,43 @@ ${selectedText}
                     const green = Math.round(255 * percent);
                     cell.style.backgroundColor = `rgb(${red}, ${green}, 0)`;
                 }
+            });
+        }
+
+        function makeTableResizable(tableId) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+
+            const cols = table.querySelectorAll('th');
+            cols.forEach(col => {
+                const resizer = col.querySelector('.resizer');
+                if (!resizer) return;
+
+                let x = 0;
+                let w = 0;
+
+                const mouseDownHandler = function (e) {
+                    x = e.clientX;
+                    const styles = window.getComputedStyle(col);
+                    w = parseInt(styles.width, 10);
+
+                    document.addEventListener('mousemove', mouseMoveHandler);
+                    document.addEventListener('mouseup', mouseUpHandler);
+                    resizer.classList.add('resizing');
+                };
+
+                const mouseMoveHandler = function (e) {
+                    const dx = e.clientX - x;
+                    col.style.width = `${w + dx}px`;
+                };
+
+                const mouseUpHandler = function () {
+                    document.removeEventListener('mousemove', mouseMoveHandler);
+                    document.removeEventListener('mouseup', mouseUpHandler);
+                    resizer.classList.remove('resizing');
+                };
+
+                resizer.addEventListener('mousedown', mouseDownHandler);
             });
         }
 
@@ -28249,10 +28336,10 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                 allowClose: true,
                 steps: [
                     {
-                        element: '#urlInput',
+                        element: '#technicalSeoForm',
                         popover: {
                             title: 'Step 1: Technical Audit Configuration',
-                            description: 'Enter the target domain or specific URL and configure crawl parameters to begin your technical audit.',
+                            description: 'Enter the target domain or specific URL and configure crawl parameters and submit to begin your technical audit.',
                             side: "bottom", align: 'start'
                         },
                         onHighlighted: () => {
@@ -28260,22 +28347,6 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                             if (urlInp) urlInp.value = 'https://www.extraspaceasia.com.sg';
                             const maxPages = document.getElementById('maxPagesInput');
                             if (maxPages) maxPages.value = '10';
-                        }
-                    },
-                    {
-                        element: '#maxPagesInput',
-                        popover: {
-                            title: 'Crawl Limits',
-                            description: 'Define how many pages the crawler should explore.',
-                            side: "top", align: "center"
-                        }
-                    },
-                    {
-                        element: '#submitBtn',
-                        popover: {
-                            title: 'Start Audit',
-                            description: 'Click here to initiate the technical crawl and analysis.',
-                            side: "top", align: "center"
                         }
                     },
                     {
@@ -28289,33 +28360,140 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                             if (!el) el = document.getElementById('auditSummary');
                             el.style.minHeight = '100px';
                             el.innerHTML = `
-                                <div class="summary-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:10px; margin-bottom:15px;">
-                                    <div class="summary-card has-issues" style="background:#fff3f3; border:1px solid #f5c6cb; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">High Loading Time</div><div><span style="font-size:1.4em; font-weight:700; color:#dc3545;">3</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
-                                    <div class="summary-card has-issues" style="background:#fff3f3; border:1px solid #f5c6cb; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">Is Www</div><div><span style="font-size:1.4em; font-weight:700; color:#dc3545;">10</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
-                                    <div class="summary-card has-issues" style="background:#fff3f3; border:1px solid #f5c6cb; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">Micromarkup Errors</div><div><span style="font-size:1.4em; font-weight:700; color:#dc3545;">10</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
-                                    <div class="summary-card has-issues" style="background:#fff8e6; border:1px solid #ffeeba; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">Canonical</div><div><span style="font-size:1.4em; font-weight:700; color:#e8a317;">1</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
-                                    <div class="summary-card has-issues" style="background:#fff8e6; border:1px solid #ffeeba; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">No Encoding Meta Tag</div><div><span style="font-size:1.4em; font-weight:700; color:#e8a317;">1</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
-                                    <div class="summary-card has-issues" style="background:#fff8e6; border:1px solid #ffeeba; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">Duplicate Meta Tags</div><div><span style="font-size:1.4em; font-weight:700; color:#e8a317;">1</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
-                                    <div class="summary-card has-issues" style="background:#fff8e6; border:1px solid #ffeeba; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">No Image Alt</div><div><span style="font-size:1.4em; font-weight:700; color:#e8a317;">1</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
-                                    <div class="summary-card has-issues" style="background:#fff3f3; border:1px solid #f5c6cb; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">Has Misspelling</div><div><span style="font-size:1.4em; font-weight:700; color:#dc3545;">10</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
-                                </div>
-                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                                    <div style="padding:12px; background:#f8fbff; border:1px solid #e1e9f0; border-radius:8px;">
-                                        <h4 style="margin:0 0 8px 0; color:#004c9d; font-size:0.9em;">GTmetrix Results</h4>
-                                        <p style="margin:2px 0; font-size:0.85em;">Grade: <strong style="color:#dc3545;">D</strong> | Performance: <strong>48/100</strong></p>
-                                        <p style="margin:2px 0; font-size:0.85em;">LCP: <strong>27,972ms</strong> | TBT: <strong>373ms</strong></p>
-                                    </div>
-                                    <div style="padding:12px; background:#f8fbff; border:1px solid #e1e9f0; border-radius:8px;">
-                                        <h4 style="margin:0 0 8px 0; color:#004c9d; font-size:0.9em;">Page Analysis</h4>
-                                        <p style="margin:2px 0; font-size:0.85em;">PageSpeed (Mobile): <strong style="color:#dc3545;">34/100</strong></p>
-                                        <p style="margin:2px 0; font-size:0.85em;">Malware: <strong style="color:#28a745;">None Detected</strong></p>
-                                    </div>
-                                </div>
+                                <div class="summary-grid">
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.high_loading_time&#39;)">
+                            <div class="summary-card-title">High Loading Time</div>
+                            <div>
+                                <span class="summary-card-value">3</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.is_www&#39;)">
+                            <div class="summary-card-title">Is Www</div>
+                            <div>
+                                <span class="summary-card-value">10</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.has_micromarkup_errors&#39;)">
+                            <div class="summary-card-title">Has Micromarkup Errors</div>
+                            <div>
+                                <span class="summary-card-value">10</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.canonical&#39;)">
+                            <div class="summary-card-title">Canonical</div>
+                            <div>
+                                <span class="summary-card-value">1</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.no_encoding_meta_tag&#39;)">
+                            <div class="summary-card-title">No Encoding Meta Tag</div>
+                            <div>
+                                <span class="summary-card-value">1</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.meta_charset_consistency&#39;)">
+                            <div class="summary-card-title">Meta Charset Consistency</div>
+                            <div>
+                                <span class="summary-card-value">1</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.low_content_rate&#39;)">
+                            <div class="summary-card-title">Low Content Rate</div>
+                            <div>
+                                <span class="summary-card-value">1</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.duplicate_meta_tags&#39;)">
+                            <div class="summary-card-title">Duplicate Meta Tags</div>
+                            <div>
+                                <span class="summary-card-value">1</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.no_image_alt&#39;)">
+                            <div class="summary-card-title">No Image Alt</div>
+                            <div>
+                                <span class="summary-card-value">1</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.no_image_title&#39;)">
+                            <div class="summary-card-title">No Image Title</div>
+                            <div>
+                                <span class="summary-card-value">1</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.seo_friendly_url&#39;)">
+                            <div class="summary-card-title">Seo Friendly Url</div>
+                            <div>
+                                <span class="summary-card-value">1</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.has_misspelling&#39;)">
+                            <div class="summary-card-title">Has Misspelling</div>
+                            <div>
+                                <span class="summary-card-value">10</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.seo_friendly_url_characters_check&#39;)">
+                            <div class="summary-card-title">Seo Friendly Url Characters Check</div>
+                            <div>
+                                <span class="summary-card-value">1</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.seo_friendly_url_dynamic_check&#39;)">
+                            <div class="summary-card-title">Seo Friendly Url Dynamic Check</div>
+                            <div>
+                                <span class="summary-card-value">1</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.seo_friendly_url_keywords_check&#39;)">
+                            <div class="summary-card-title">Seo Friendly Url Keywords Check</div>
+                            <div>
+                                <span class="summary-card-value">1</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    
+                        <div class="summary-card has-issues " onclick="setCrawlerFilter(&#39;checks.seo_friendly_url_relative_length_check&#39;)">
+                            <div class="summary-card-title">Seo Friendly Url Relative Length Check</div>
+                            <div>
+                                <span class="summary-card-value">1</span>
+                                <span class="summary-card-total"> out of 10</span>
+                            </div>
+                        </div>
+                    </div></div>
                             `;
                         }
                     },
                     {
-                        element: '#gtButton',
+                        element: '#gtMetrix',
                         popover: {
                             title: 'GTmetrix Results',
                             description: 'Performance scores and Core Web Vitals from GTmetrix. Click to expand and review detailed metrics.',
@@ -28346,7 +28524,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         }
                     },
                     {
-                        element: '#pageButton',
+                        element: '#pageAuditReport',
                         popover: {
                             title: 'Page Analysis Results',
                             description: 'PageSpeed scores, malware check, robots.txt and sitemap verification results.',
@@ -28373,11 +28551,88 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         }
                     },
                     {
-                        element: '#crawlerButton',
+                        element: '#crawlerSection',
                         popover: {
                             title: 'Crawler Report',
                             description: 'Full page-by-page breakdown of all crawled URLs with on-page scores, headings, meta data and more.',
                             side: "top", align: 'center'
+                        },
+                        onHighlightStarted: (el) => {
+                            if (!el) el = document.getElementById('crawlerSection');
+                            el.style.display = "block";
+                            el.innerHTML = `
+                            <div id="columnSelector" class="column-selector-container" style="display: block;">
+                                <div class="column-selector-header">
+                                    <strong><i class="fas fa-columns"></i> Display Columns</strong>
+                                </div>
+                                <div class="column-selector-actions">
+                                    <input type="text" class="column-search-input" placeholder="Search columns... (spaces and _ are interchangeable)" onkeyup="filterColumnList(this.value)">
+                                    <button class="config-btn-highlight column-selector-btn" onclick="toggleAllColumns(true)">Select All</button>
+                                    <button class="config-btn-highlight column-selector-btn" style="background: #666;" onclick="toggleAllColumns(false)">Deselect All</button>
+                                </div>
+                                <div id="columnCheckboxList" class="column-checkbox-list"><label class="column-checkbox-item"><input type="checkbox" checked="" onchange="toggleColumn(&#39;No.&#39;, this.checked)"> No.</label><label class="column-checkbox-item"><input type="checkbox" checked="" onchange="toggleColumn(&#39;url&#39;, this.checked)"> url</label><label class="column-checkbox-item"><input type="checkbox" checked="" onchange="toggleColumn(&#39;resource_type&#39;, this.checked)"> resource_type</label><label class="column-checkbox-item"><input type="checkbox" checked="" onchange="toggleColumn(&#39;status_code&#39;, this.checked)"> status_code</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;location&#39;, this.checked)"> location</label><label class="column-checkbox-item"><input type="checkbox" checked="" onchange="toggleColumn(&#39;meta.title&#39;, this.checked)"> meta.title</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.charset&#39;, this.checked)"> meta.charset</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.follow&#39;, this.checked)"> meta.follow</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.generator&#39;, this.checked)"> meta.generator</label><label class="column-checkbox-item"><input type="checkbox" checked="" onchange="toggleColumn(&#39;meta.htags.h1&#39;, this.checked)"> meta.htags.h1</label><label class="column-checkbox-item"><input type="checkbox" checked="" onchange="toggleColumn(&#39;meta.htags.h2&#39;, this.checked)"> meta.htags.h2</label><label class="column-checkbox-item"><input type="checkbox" checked="" onchange="toggleColumn(&#39;meta.htags.h3&#39;, this.checked)"> meta.htags.h3</label><label class="column-checkbox-item"><input type="checkbox" checked="" onchange="toggleColumn(&#39;meta.description&#39;, this.checked)"> meta.description</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.favicon&#39;, this.checked)"> meta.favicon</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.meta_keywords&#39;, this.checked)"> meta.meta_keywords</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.canonical&#39;, this.checked)"> meta.canonical</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.internal_links_count&#39;, this.checked)"> meta.internal_links_count</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.external_links_count&#39;, this.checked)"> meta.external_links_count</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.inbound_links_count&#39;, this.checked)"> meta.inbound_links_count</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.images_count&#39;, this.checked)"> meta.images_count</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.images_size&#39;, this.checked)"> meta.images_size</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.scripts_count&#39;, this.checked)"> meta.scripts_count</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.scripts_size&#39;, this.checked)"> meta.scripts_size</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.stylesheets_count&#39;, this.checked)"> meta.stylesheets_count</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.stylesheets_size&#39;, this.checked)"> meta.stylesheets_size</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.title_length&#39;, this.checked)"> meta.title_length</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.description_length&#39;, this.checked)"> meta.description_length</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.render_blocking_scripts_count&#39;, this.checked)"> meta.render_blocking_scripts_count</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.render_blocking_stylesheets_count&#39;, this.checked)"> meta.render_blocking_stylesheets_count</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.cumulative_layout_shift&#39;, this.checked)"> meta.cumulative_layout_shift</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.meta_title&#39;, this.checked)"> meta.meta_title</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.content.plain_text_size&#39;, this.checked)"> meta.content.plain_text_size</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.content.plain_text_rate&#39;, this.checked)"> meta.content.plain_text_rate</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.content.plain_text_word_count&#39;, this.checked)"> meta.content.plain_text_word_count</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.content.automated_readability_index&#39;, this.checked)"> meta.content.automated_readability_index</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.content.coleman_liau_readability_index&#39;, this.checked)"> meta.content.coleman_liau_readability_index</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.content.dale_chall_readability_index&#39;, this.checked)"> meta.content.dale_chall_readability_index</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.content.flesch_kincaid_readability_index&#39;, this.checked)"> meta.content.flesch_kincaid_readability_index</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.content.smog_readability_index&#39;, this.checked)"> meta.content.smog_readability_index</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.content.description_to_content_consistency&#39;, this.checked)"> meta.content.description_to_content_consistency</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.content.title_to_content_consistency&#39;, this.checked)"> meta.content.title_to_content_consistency</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.content.meta_keywords_to_content_consistency&#39;, this.checked)"> meta.content.meta_keywords_to_content_consistency</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.deprecated_tags&#39;, this.checked)"> meta.deprecated_tags</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.duplicate_meta_tags&#39;, this.checked)"> meta.duplicate_meta_tags</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.spell.hunspell_language_code&#39;, this.checked)"> meta.spell.hunspell_language_code</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.spell.misspelled&#39;, this.checked)"> meta.spell.misspelled</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.social_media_tags.og:locale&#39;, this.checked)"> meta.social_media_tags.og:locale</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.social_media_tags.og:type&#39;, this.checked)"> meta.social_media_tags.og:type</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.social_media_tags.og:title&#39;, this.checked)"> meta.social_media_tags.og:title</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.social_media_tags.og:description&#39;, this.checked)"> meta.social_media_tags.og:description</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.social_media_tags.og:url&#39;, this.checked)"> meta.social_media_tags.og:url</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.social_media_tags.og:site_name&#39;, this.checked)"> meta.social_media_tags.og:site_name</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.social_media_tags.article:modified_time&#39;, this.checked)"> meta.social_media_tags.article:modified_time</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;page_timing.time_to_interactive&#39;, this.checked)"> page_timing.time_to_interactive</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;page_timing.dom_complete&#39;, this.checked)"> page_timing.dom_complete</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;page_timing.largest_contentful_paint&#39;, this.checked)"> page_timing.largest_contentful_paint</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;page_timing.first_input_delay&#39;, this.checked)"> page_timing.first_input_delay</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;page_timing.connection_time&#39;, this.checked)"> page_timing.connection_time</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;page_timing.time_to_secure_connection&#39;, this.checked)"> page_timing.time_to_secure_connection</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;page_timing.request_sent_time&#39;, this.checked)"> page_timing.request_sent_time</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;page_timing.waiting_time&#39;, this.checked)"> page_timing.waiting_time</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;page_timing.download_time&#39;, this.checked)"> page_timing.download_time</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;page_timing.duration_time&#39;, this.checked)"> page_timing.duration_time</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;page_timing.fetch_start&#39;, this.checked)"> page_timing.fetch_start</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;page_timing.fetch_end&#39;, this.checked)"> page_timing.fetch_end</label><label class="column-checkbox-item"><input type="checkbox" checked="" onchange="toggleColumn(&#39;onpage_score&#39;, this.checked)"> onpage_score</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;total_dom_size&#39;, this.checked)"> total_dom_size</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;custom_js_response&#39;, this.checked)"> custom_js_response</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;custom_js_client_exception&#39;, this.checked)"> custom_js_client_exception</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;resource_errors.errors&#39;, this.checked)"> resource_errors.errors</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;resource_errors.warnings&#39;, this.checked)"> resource_errors.warnings</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;broken_resources&#39;, this.checked)"> broken_resources</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;broken_links&#39;, this.checked)"> broken_links</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;duplicate_title&#39;, this.checked)"> duplicate_title</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;duplicate_description&#39;, this.checked)"> duplicate_description</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;duplicate_content&#39;, this.checked)"> duplicate_content</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;click_depth&#39;, this.checked)"> click_depth</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;size&#39;, this.checked)"> size</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;encoded_size&#39;, this.checked)"> encoded_size</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;total_transfer_size&#39;, this.checked)"> total_transfer_size</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;fetch_time&#39;, this.checked)"> fetch_time</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;cache_control.cachable&#39;, this.checked)"> cache_control.cachable</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;cache_control.ttl&#39;, this.checked)"> cache_control.ttl</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.no_content_encoding&#39;, this.checked)"> checks.no_content_encoding</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.high_loading_time&#39;, this.checked)"> checks.high_loading_time</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.from_sitemap&#39;, this.checked)"> checks.from_sitemap</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.is_redirect&#39;, this.checked)"> checks.is_redirect</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.is_4xx_code&#39;, this.checked)"> checks.is_4xx_code</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.is_5xx_code&#39;, this.checked)"> checks.is_5xx_code</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.is_broken&#39;, this.checked)"> checks.is_broken</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.is_www&#39;, this.checked)"> checks.is_www</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.is_https&#39;, this.checked)"> checks.is_https</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.is_http&#39;, this.checked)"> checks.is_http</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.high_waiting_time&#39;, this.checked)"> checks.high_waiting_time</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.has_micromarkup&#39;, this.checked)"> checks.has_micromarkup</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.has_micromarkup_errors&#39;, this.checked)"> checks.has_micromarkup_errors</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.no_doctype&#39;, this.checked)"> checks.no_doctype</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.has_html_doctype&#39;, this.checked)"> checks.has_html_doctype</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.canonical&#39;, this.checked)"> checks.canonical</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.no_encoding_meta_tag&#39;, this.checked)"> checks.no_encoding_meta_tag</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.no_h1_tag&#39;, this.checked)"> checks.no_h1_tag</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.https_to_http_links&#39;, this.checked)"> checks.https_to_http_links</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.size_greater_than_3mb&#39;, this.checked)"> checks.size_greater_than_3mb</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.meta_charset_consistency&#39;, this.checked)"> checks.meta_charset_consistency</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.has_meta_refresh_redirect&#39;, this.checked)"> checks.has_meta_refresh_redirect</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.has_render_blocking_resources&#39;, this.checked)"> checks.has_render_blocking_resources</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.low_content_rate&#39;, this.checked)"> checks.low_content_rate</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.high_content_rate&#39;, this.checked)"> checks.high_content_rate</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.low_character_count&#39;, this.checked)"> checks.low_character_count</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.high_character_count&#39;, this.checked)"> checks.high_character_count</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.small_page_size&#39;, this.checked)"> checks.small_page_size</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.large_page_size&#39;, this.checked)"> checks.large_page_size</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.low_readability_rate&#39;, this.checked)"> checks.low_readability_rate</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.irrelevant_description&#39;, this.checked)"> checks.irrelevant_description</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.irrelevant_title&#39;, this.checked)"> checks.irrelevant_title</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.irrelevant_meta_keywords&#39;, this.checked)"> checks.irrelevant_meta_keywords</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.title_too_long&#39;, this.checked)"> checks.title_too_long</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.has_meta_title&#39;, this.checked)"> checks.has_meta_title</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.title_too_short&#39;, this.checked)"> checks.title_too_short</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.deprecated_html_tags&#39;, this.checked)"> checks.deprecated_html_tags</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.duplicate_meta_tags&#39;, this.checked)"> checks.duplicate_meta_tags</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.duplicate_title_tag&#39;, this.checked)"> checks.duplicate_title_tag</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.no_image_alt&#39;, this.checked)"> checks.no_image_alt</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.no_image_title&#39;, this.checked)"> checks.no_image_title</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.no_description&#39;, this.checked)"> checks.no_description</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.no_title&#39;, this.checked)"> checks.no_title</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.no_favicon&#39;, this.checked)"> checks.no_favicon</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.seo_friendly_url&#39;, this.checked)"> checks.seo_friendly_url</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.flash&#39;, this.checked)"> checks.flash</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.frame&#39;, this.checked)"> checks.frame</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.lorem_ipsum&#39;, this.checked)"> checks.lorem_ipsum</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.has_misspelling&#39;, this.checked)"> checks.has_misspelling</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.seo_friendly_url_characters_check&#39;, this.checked)"> checks.seo_friendly_url_characters_check</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.seo_friendly_url_dynamic_check&#39;, this.checked)"> checks.seo_friendly_url_dynamic_check</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.seo_friendly_url_keywords_check&#39;, this.checked)"> checks.seo_friendly_url_keywords_check</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.seo_friendly_url_relative_length_check&#39;, this.checked)"> checks.seo_friendly_url_relative_length_check</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.recursive_canonical&#39;, this.checked)"> checks.recursive_canonical</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.canonical_chain&#39;, this.checked)"> checks.canonical_chain</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.canonical_to_redirect&#39;, this.checked)"> checks.canonical_to_redirect</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.canonical_to_broken&#39;, this.checked)"> checks.canonical_to_broken</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.has_links_to_redirects&#39;, this.checked)"> checks.has_links_to_redirects</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.is_orphan_page&#39;, this.checked)"> checks.is_orphan_page</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.is_link_relation_conflict&#39;, this.checked)"> checks.is_link_relation_conflict</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;checks.redirect_chain&#39;, this.checked)"> checks.redirect_chain</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;content_encoding&#39;, this.checked)"> content_encoding</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;media_type&#39;, this.checked)"> media_type</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;server&#39;, this.checked)"> server</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;is_resource&#39;, this.checked)"> is_resource</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;url_length&#39;, this.checked)"> url_length</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;relative_url_length&#39;, this.checked)"> relative_url_length</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;last_modified.header&#39;, this.checked)"> last_modified.header</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;last_modified.sitemap&#39;, this.checked)"> last_modified.sitemap</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;last_modified.meta_tag&#39;, this.checked)"> last_modified.meta_tag</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.htags.h5&#39;, this.checked)"> meta.htags.h5</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.htags.h4&#39;, this.checked)"> meta.htags.h4</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.social_media_tags.twitter:label1&#39;, this.checked)"> meta.social_media_tags.twitter:label1</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.social_media_tags.twitter:data1&#39;, this.checked)"> meta.social_media_tags.twitter:data1</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.social_media_tags.og:image&#39;, this.checked)"> meta.social_media_tags.og:image</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.social_media_tags.og:image:width&#39;, this.checked)"> meta.social_media_tags.og:image:width</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.social_media_tags.og:image:height&#39;, this.checked)"> meta.social_media_tags.og:image:height</label><label class="column-checkbox-item"><input type="checkbox" onchange="toggleColumn(&#39;meta.social_media_tags.og:image:type&#39;, this.checked)"> meta.social_media_tags.og:image:type</label></div>
+                            </div>
+                            <div id="crawlerReport" style="display: block;">
+                                <div class="doc-link-banner">
+                                    <i class="fas fa-info-circle"></i>
+                                    <span>
+                                        <a href="https://docs.dataforseo.com/v3/on_page/pages/" target="_blank" rel="noopener noreferrer">
+                                            Click here to see what each column means in the report
+                                        </a>
+                                    </span>
+                                </div>
+                                <table>
+                                    <thead id="crawlerTableHeader"><tr><th>No.</th><th>url</th><th>resource_type</th><th>status_code</th><th>meta.title</th><th>meta.htags.h1</th><th>meta.htags.h2</th><th>meta.htags.h3</th><th>meta.description</th><th>onpage_score</th></tr></thead>
+                                    <tbody id="crawlerTableBody"><tr><td>1</td><td>https://www.extraspaceasia.com.sg/</td><td>html</td><td>200</td><td>Self Storage Space for Rent in Singapore | Extra Space</td><td>["Self Storage Space in Singapore"]</td><td>
+                    <div id="text-7r19dfg1q" class="cell-content-wrapped">["About Extra Space Asia","Why Rent a Self Storage Space in Singapore?","6 Steps to Getting it Stored","What Customers Say About Our Self Storage Space","Locate Us"]</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-7r19dfg1q&#39;, this)">See more</span>
+                </td><td>["Keeping Your Home Beautiful","Opportunity for Business Expansion","Enjoying Fine Wine"]</td><td>
+                    <div id="text-f7rogmj1h" class="cell-content-wrapped">Discover affordable self storage space for rent in Singapore with Extra Space Singapore. Trusted for more than 10 years, we offer secure and convenient storage solutions for you.</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-f7rogmj1h&#39;, this)">See more</span>
+                </td><td>88.19</td></tr><tr><td>2</td><td>https://www.extraspaceasia.com.sg/csr-2/</td><td>html</td><td>200</td><td>Corporate Social Responsibility - Extra Space Asia Singapore</td><td>["Corporate Social Responsibility","We Care","Latest Happenings","Our   Beneficiaries"]</td><td>
+                    <div id="text-gy7i3tkbb" class="cell-content-wrapped">["Our Society","Our Environment","Celebrating NDP 2024 With Community Spirit: Extra Space Asia’s Volunteering Efforts","Spreading Joy and Creating Memories: Extra Space Asia’s Fun-filled Christmas Celebration at All Saints Home","Extra Space Asia x Club Rainbow \n A Day of Smiles and Learning"]</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-gy7i3tkbb&#39;, this)">See more</span>
+                </td><td></td><td>null</td><td>97.44</td></tr><tr><td>3</td><td>https://www.extraspaceasia.com.sg/press-release/</td><td>html</td><td>200</td><td>News - Extra Space Asia Singapore</td><td>["News"]</td><td>["2026"]</td><td></td><td>null</td><td>97.44</td></tr><tr><td>4</td><td>https://www.extraspaceasia.com.sg/extra-space-asias-commitment-to-esg/</td><td>html</td><td>200</td><td>Sustainability - Extra Space Asia Singapore</td><td>["Sustainability","We Care","Latest Happenings","Our   Beneficiaries"]</td><td>
+                    <div id="text-8m9qhpqx0" class="cell-content-wrapped">["Our Society","Our Environment","Celebrating NDP 2024 With Community Spirit: Extra Space Asia’s Volunteering Efforts","Spreading Joy and Creating Memories: Extra Space Asia’s Fun-filled Christmas Celebration at All Saints Home","Extra Space Asia x Club Rainbow \n A Day of Smiles and Learning"]</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-8m9qhpqx0&#39;, this)">See more</span>
+                </td><td></td><td>null</td><td>97.44</td></tr><tr><td>5</td><td>https://www.extraspaceasia.com.sg/about-self-storage/</td><td>html</td><td>200</td><td>Secure &amp; Convenient 24/7 Self-Storage Solutions</td><td>["Self Storage"]</td><td>
+                    <div id="text-sljfh6srf" class="cell-content-wrapped">["Self-Storage in Singapore","Change the way you live","Watch why Extra Space Asia makes the best choice for your self storage needs:","Why Self-Storage ?"]</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-sljfh6srf&#39;, this)">See more</span>
+                </td><td>
+                    <div id="text-7i4o3vpcd" class="cell-content-wrapped">["24 Hr Access","Air Conditioned Storage","Friendly Service","Flexible Terms","Packing Materials for Storage","Recorded CCTV","Flexible Payment","You Lock it &amp; Keep the key","Cleanliness and Ease of Use","Free Parking","Insurance","Personal Storage","Business Storage","Wine Storage"]</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-7i4o3vpcd&#39;, this)">See more</span>
+                </td><td>
+                    <div id="text-7lchx2lvc" class="cell-content-wrapped">Experience secure &amp; convenient self storage solution in Singapore with 24/7 access. Safeguard your belongings in air conditioned and drive-up units today.</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-7lchx2lvc&#39;, this)">See more</span>
+                </td><td>97.44</td></tr><tr><td>6</td><td>https://www.extraspaceasia.com.sg/about-self-storage/business-storage/</td><td>html</td><td>200</td><td>Business Self Storage in Singapore | Save Cost with Extra Space</td><td>["Business Self Storage"]</td><td>["It’s all about cost management.","Small to Medium Business Owners","Large Corporations","E-Commerce Business Owners"]</td><td></td><td>
+                    <div id="text-fqq98e0pl" class="cell-content-wrapped">Our business storage in Singapore offers 24/7 secure and efficient solutions to help small to large eCommerce businesses save costs and space since 2007.</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-fqq98e0pl&#39;, this)">See more</span>
+                </td><td>97.44</td></tr><tr><td>7</td><td>https://www.extraspaceasia.com.sg/about-self-storage/personal-storage/</td><td>html</td><td>200</td><td>Personal Self Storage Solutions | Declutter With Extra Space</td><td>["Personal Self Storage"]</td><td></td><td>["Moving House","Families","Hobbyists","Walk-In Wardrobe","Peace of Mind"]</td><td>Safeguard your belongings during renovation/moving with 24/7 Personal Self Storage Solutions. Trusted by 80,000 families since 2007.</td><td>97.44</td></tr><tr><td>8</td><td>https://www.extraspaceasia.com.sg/document-storage-singapore/</td><td>html</td><td>200</td><td>Document Storage Singapore | Extra Space Asia</td><td>["Document Storage Singapore","DOCUMENT STORAGE IN SINGAPORE"]</td><td>
+                    <div id="text-fbs0zhbw4" class="cell-content-wrapped">["Store with Confidence, Access with Ease.","Secure &amp; Reliable &nbsp; Document Storage","Your Documents,  Our Commitment","24/7 Access","State-of-the-Art Security","Flexible Terms","Wide Range of Storage Sizes","Friendly Customer Service","Free Parking","Insurance Coverage","You Lock &amp; Keep the Key","Extra Space Document Storage Process in Singapore","Store Your Documents with &nbsp; Extra Space Asia","Benefits of Storing Your Documents with Extra Space","Store Your Documents with &nbsp;Extra Space Asia"]</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-fbs0zhbw4&#39;, this)">See more</span>
+                </td><td>["Find Your Ideal Location","Estimated Your Required Size","Get a Quote","Visit Us","Pack","STEP 6\n Move-In","Contact Us"]</td><td>
+                    <div id="text-dz2vtlyl9" class="cell-content-wrapped">Looking for reliable document storage in Singapore? Extra Space offers reliable &amp; cost-effective solutions to store important documents with our top-notch facilities.</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-dz2vtlyl9&#39;, this)">See more</span>
+                </td><td>90.39</td></tr><tr><td>9</td><td>https://www.extraspaceasia.com.sg/about-self-storage/wine-storage/</td><td>html</td><td>200</td><td>Climate Controlled Wine Storage | Walk In Cellar Singapore</td><td>["Wine Storage / Locker and Walk In Cellar Singapore"]</td><td>["More About Extra Space Asia's Wine Cellar","Unwind With Extra Space Asia's Wine Cellar","Extra Space Asia Wine Storage Locations"]</td><td>
+                    <div id="text-vythyfosb" class="cell-content-wrapped">["How to Choose the Right Wine Storage Solution for Your Collection","Unlock the Secrets of Exceptional Wine Storage","Yes! Portal - Simplifying your storage experience"]</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-vythyfosb&#39;, this)">See more</span>
+                </td><td>
+                    <div id="text-i7eateyq6" class="cell-content-wrapped">Preserve your wine collection with our climate-controlled walk in cellar &amp; wine self-storage options in Singapore. Gain exclusive access to our wine-tasting room.</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-i7eateyq6&#39;, this)">See more</span>
+                </td><td>97.44</td></tr><tr><td>10</td><td>https://www.extraspaceasia.com.sg/executive-storage/</td><td>html</td><td>200</td><td>Office &amp; Storage Space for Rent | Executive Storage Space</td><td>["EXECUTIVE STORAGE"]</td><td>
+                    <div id="text-bbhdp1561" class="cell-content-wrapped">["STORE, WORK AND COLLABORATE. ALL IN ONE OFFICE STORAGE SPACE.","WHAT IS EXECUTIVE STORAGE?","WHAT IS EXECUTIVE STORAGE?","WHAT IS EXECUTIVE STORAGE?","WHAT IS EXECUTIVE STORAGE?","OFFICE AND STORAGE SPACE PRICING PLAN","Office and Storage Space Amenities","Get in touch"]</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-bbhdp1561&#39;, this)">See more</span>
+                </td><td>
+                    <div id="text-ptmuzqvl2" class="cell-content-wrapped">["OFFICE AND STORAGE SPACE FOR RENT","FLEXIBLE OFFICE STORAGE SOLUTION","OFFICE AND STORAGE SPACE TO INSPIRE ONE ANOTHER","CONDUCIVE OFFICE WORK ENVIRONMENT","Entrepreneur","Start-Up","SME","24/7 Access","CCTV AND SECURITY","AIR-CON STORAGE","PRINTING","HIGH SPEED WIFI","COFFEE MACHINE","MEETING AREA","FLEXIBLE WORKSPACE"]</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-ptmuzqvl2&#39;, this)">See more</span>
+                </td><td>
+                    <div id="text-bmyvzvh9k" class="cell-content-wrapped">Discover 2-in-1 office and storage space for rent, designed for dynamic individuals. Perfect for storing, working, &amp; collaborating all in one convenient location.</div>
+                    <span class="see-more-btn" onclick="toggleSeeMore(&#39;text-bmyvzvh9k&#39;, this)">See more</span>
+                </td><td>90.39</td></tr></tbody>
+                                </table>
+                            </div>
+                        </div>
+                            `
                         }
                     }
                 ]
@@ -29285,47 +29540,180 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                 allowClose: true,
                 steps: [
                     {
-                        element: '#comparison-keyword',
+                        element: '#contentComparison',
                         popover: {
-                            title: 'Step 1: Target Keyword',
-                            description: 'Enter the specific keyword you want to benchmark against competitors.',
-                            side: "bottom", align: 'start'
+                            title: 'Step 1: Target Keyword, URL and Page Type',
+                            description: 'Enter the specific keyword, target URL and page type(s) you want to benchmark against competitors.',
+                            side: "center", align: 'center'
                         },
                         onHighlighted: () => {
                             const el = document.getElementById('comparison-keyword');
                             if (el) el.value = 'self storage singapore';
+                            document.getElementById('comparison-domain').value = "https://www.extraspaceasia.com.sg";
                         }
                     },
                     {
-                        element: '#comparison-domain',
+                        element: '#initial-table',
                         popover: {
-                            title: 'Step 2: Your Domain',
-                            description: 'Enter your own domain name to see how your content stacks up.',
-                            side: "bottom", align: 'start'
-                        },
-                        onHighlighted: () => {
-                            const el = document.getElementById('comparison-domain');
-                            if (el) el.value = 'https://www.extraspaceasia.com.sg';
-                        }
-                    },
-                    {
-                        element: '#comparison-other-urls',
-                        popover: {
-                            title: 'Step 3: Competitor URLs',
-                            description: 'Paste up to 10 competitor URLs (one per line) to compare content density and structure.',
-                            side: "bottom", align: 'start'
-                        },
-                        onHighlighted: () => {
-                            const el = document.getElementById('comparison-other-urls');
-                            if (el) el.value = 'https://www.storefriendly.com.sg/\nhttps://www.selfstore.com.sg/\nhttps://www.mandarin-self-storage.com.sg/';
-                        }
-                    },
-                    {
-                        element: '#contentComparisonAnalyseBtn',
-                        popover: {
-                            title: 'Step 4: Run Comparison',
-                            description: 'Click here to fetch and analyze content from all specified URLs. This may take up to 3 minutes.',
+                            title: 'Step 2: Topic Comparison Table',
+                            description: 'See what page 1 competitors are doing.',
                             side: "top", align: 'center'
+                        },
+                        onHighlighted: () => {
+                            document.getElementById('initial-table').innerHTML = `
+                            <table id="analysisTable"><tbody><tr><th>URL</th><th>
+                        <a href="https://www.storhub.com.sg/en" target="_blank" rel="noopener noreferrer">https://www.storhub.com.sg/en</a></th><th>
+                        <a href="https://www.extraspaceasia.com.sg/" target="_blank" rel="noopener noreferrer">https://www.extraspaceasia.com.sg/</a></th><th>
+                        <a href="https://storefriendly.com.sg/" target="_blank" rel="noopener noreferrer">https://storefriendly.com.sg/</a></th><th>
+                        <a href="https://thesmartlocal.com/read/storage-spaces-singapore/" target="_blank" rel="noopener noreferrer">https://thesmartlocal.com/read/storage-spaces-singapore/</a></th><th>
+                        <a href="https://blog.spaceship.com.sg/storage-price-in-singapore" target="_blank" rel="noopener noreferrer">https://blog.spaceship.com.sg/storage-price-in-singapore</a></th><th>
+                        <a href="https://www.beamspace.com/sg/pricing" target="_blank" rel="noopener noreferrer">https://www.beamspace.com/sg/pricing</a></th><th>
+                        <a href="https://www.mystorey.com.sg/" target="_blank" rel="noopener noreferrer">https://www.mystorey.com.sg/</a></th><th>
+                        <a href="https://ezstorage.sg/" target="_blank" rel="noopener noreferrer">https://ezstorage.sg/</a></th><th>
+                        <a href="https://spacehub.com.sg/" target="_blank" rel="noopener noreferrer">https://spacehub.com.sg/</a></th><th></table>                            `;
+
+                        }
+                    },
+                    {
+                        element: '#comparison-results',
+                        popover: {
+                            title: 'Step 3: Analysis & Recommendations',
+                            description: 'Find out what it takes for your target URL to rank.',
+                            side: "top", align: 'center'
+                        },
+                        onHighlighted: () => {
+                            document.getElementById('comparison-results').innerHTML =
+                                `
+                            <pre><strong>Most Suitable URL:</strong> https://www.extraspaceasia.com.sg/
+
+<strong>Page Type:</strong> Landing Page
+
+<strong>Justification:</strong> A landing page is the most appropriate format to effectively target the keyword "storage space Singapore." This format allows for a focused presentation of services, addressing various user intents—informational, transactional, and commercial investigation—while facilitating conversion optimization. For instance, Extra Space Asia's landing page effectively showcases their self-storage solutions, providing comprehensive information and clear calls-to-action. ([extraspaceasia.com.sg](https://www.extraspaceasia.com.sg/?utm_source=openai))
+
+<strong>Section 1: Comprehensive Overview of Storage Space in Singapore</strong>
+
+- <strong>Description:</strong> Provide an in-depth introduction to the concept of storage space in Singapore, highlighting its importance due to space constraints and the growing demand for personal and business storage solutions.
+
+- <strong>LSI Keywords:</strong> self-storage Singapore, personal storage solutions, business storage needs, space constraints Singapore, storage unit options
+
+- <strong>Word Count:</strong> 300-350 words
+
+- <strong>Content Presentation:</strong> Infographic titled "Storage Space Trends in Singapore: Demand and Solutions," illustrating statistics on space usage, demand growth, and types of storage solutions available.
+
+- <strong>Keyword Usage:</strong> Integrate "storage space Singapore" naturally in the introduction and throughout the section. Variations like "self-storage Singapore" and "personal storage solutions" can be used in subheadings and body text.
+
+- <strong>Internal Linking:</strong> Link to the "Our Services" page using the anchor text "Explore our storage solutions."
+
+- <strong>External Linking:</strong> Link to a reputable local news article discussing the rise in demand for storage spaces in Singapore using the anchor text "Recent trends in Singapore's storage space demand."
+
+<strong>Section 2: Types of Storage Spaces Available</strong>
+
+- <strong>Description:</strong> Detail the various types of storage spaces offered, such as personal storage, business storage, climate-controlled units, and vehicle storage, catering to diverse customer needs.
+
+- <strong>LSI Keywords:</strong> personal storage units, business storage solutions, climate-controlled storage, vehicle storage Singapore, storage unit sizes
+
+- <strong>Word Count:</strong> 400-450 words
+
+- <strong>Content Presentation:</strong> Carousel showcasing different storage unit types with brief descriptions and images.
+
+- <strong>Keyword Usage:</strong> Use "storage space Singapore" in the section heading. Variations like "personal storage units" and "business storage solutions" can be used in subheadings and descriptions.
+
+- <strong>Internal Linking:</strong> Link to the "Pricing" page using the anchor text "View our competitive pricing."
+
+- <strong>External Linking:</strong> Link to a local blog post comparing different types of storage units in Singapore using the anchor text "Comparing storage unit options in Singapore."
+
+<strong>Section 3: Benefits of Choosing Our Storage Solutions</strong>
+
+- <strong>Description:</strong> Highlight the advantages of selecting your storage services, such as 24/7 security, flexible rental terms, climate control, and convenient locations.
+
+- <strong>LSI Keywords:</strong> secure storage Singapore, flexible storage terms, climate-controlled storage, convenient storage locations, 24/7 access
+
+- <strong>Word Count:</strong> 350-400 words
+
+- <strong>Content Presentation:</strong> Comparison table contrasting your services with competitors, emphasizing unique selling points.
+
+- <strong>Keyword Usage:</strong> Incorporate "storage space Singapore" in the section heading. Use variations like "secure storage Singapore" and "flexible storage terms" in bullet points.
+
+- <strong>Internal Linking:</strong> Link to the "Testimonials" page using the anchor text "Read customer testimonials."
+
+- <strong>External Linking:</strong> Link to a local news article discussing the importance of security in storage facilities using the anchor text "Ensuring security in storage facilities."
+
+<strong>Section 4: Pricing and Promotions</strong>
+
+- <strong>Description:</strong> Provide transparent pricing information, including unit sizes, rates, and any ongoing promotions or discounts.
+
+- <strong>LSI Keywords:</strong> affordable storage Singapore, storage unit pricing, storage promotions, storage discounts, competitive storage rates
+
+- <strong>Word Count:</strong> 300-350 words
+
+- <strong>Content Presentation:</strong> Interactive pricing calculator allowing users to estimate costs based on unit size and rental duration.
+
+- <strong>Keyword Usage:</strong> Use "storage space Singapore" in the section heading. Variations like "affordable storage Singapore" and "storage unit pricing" can be used in descriptions.
+
+- <strong>Internal Linking:</strong> Link to the "Contact Us" page using the anchor text "Get in touch for personalized quotes."
+
+- <strong>External Linking:</strong> Link to a local blog post discussing cost-effective storage solutions in Singapore using the anchor text "Finding affordable storage options in Singapore."
+
+<strong>Section 5: How to Book Your Storage Space</strong>
+
+- <strong>Description:</strong> Outline the simple steps to reserve a storage unit, from online booking to move-in procedures.
+
+- <strong>LSI Keywords:</strong> book storage Singapore, reserve storage unit, storage booking process, move-in procedures, online storage reservation
+
+- <strong>Word Count:</strong> 250-300 words
+
+- <strong>Content Presentation:</strong> Step-by-step guide with icons illustrating each stage of the booking process.
+
+- <strong>Keyword Usage:</strong> Incorporate "storage space Singapore" in the section heading. Use variations like "book storage Singapore" and "reserve storage unit" in the steps.
+
+- <strong>Internal Linking:</strong> Link to the "FAQ" page using the anchor text "Have questions? Visit our FAQ."
+
+- <strong>External Linking:</strong> Link to a local news article discussing the convenience of online storage bookings using the anchor text "The rise of online storage reservations in Singapore."
+
+<strong>Section 6: Customer Testimonials</strong>
+
+- <strong>Description:</strong> Feature positive feedback from satisfied customers to build trust and credibility.
+
+- <strong>LSI Keywords:</strong> customer reviews, storage service feedback, client testimonials, storage experience Singapore, satisfied customers
+
+- <strong>Word Count:</strong> 200-250 words
+
+- <strong>Content Presentation:</strong> Carousel of customer testimonials with names and photos (with permission).
+
+- <strong>Keyword Usage:</strong> Use "storage space Singapore" in the section heading. Variations like "customer reviews" and "client testimonials" can be used in the testimonials.
+
+- <strong>Internal Linking:</strong> Link to the "About Us" page using the anchor text "Learn more about our company."
+
+- <strong>External Linking:</strong> Link to a local blog post discussing the importance of customer reviews in choosing storage services using the anchor text "Why customer reviews matter in storage services."
+
+<strong>Section 7: Contact Us</strong>
+
+- <strong>Description:</strong> Provide contact information and a form for inquiries or bookings.
+
+- <strong>LSI Keywords:</strong> contact storage Singapore, storage inquiries, book storage unit, storage customer service, storage support
+
+- <strong>Word Count:</strong> 150-200 words
+
+- <strong>Content Presentation:</strong> Contact form with fields for name, email, phone number, and message.
+
+- <strong>Keyword Usage:</strong> Incorporate "storage space Singapore" in the section heading. Variations like "contact storage Singapore" and "storage inquiries" can be used in the form fields and descriptions.
+
+- <strong>Internal Linking:</strong> Link to the "Pricing" page using the anchor text "Check our pricing options."
+
+- <strong>External Linking:</strong> Link to a local blog post discussing the importance of responsive customer service in storage facilities using the anchor text "The role of customer service in storage services."
+
+<strong>Additional Recommendations:</strong>
+
+- <strong>Visual Elements:</strong> Incorporate high-quality images of storage facilities, unit sizes, and security features to enhance user engagement.
+
+- <strong>Call-to-Action (CTA):</strong> Include clear and compelling CTAs such as "Reserve Your Storage Space Today" and "Contact Us for More Information" to guide users towards conversion.
+
+- <strong>SEO Optimization:</strong> Ensure that the page is optimized for search engines by using appropriate meta tags, alt text for images, and a mobile-friendly design.
+
+- <strong>User Experience (UX):</strong> Design the page with a clean layout, intuitive navigation, and fast loading times to provide a positive user experience.
+
+By implementing these detailed recommendations, the landing page will effectively address user intent, establish topical authority, and optimize for conversions, positioning it to rank highly for the keyword "storage space Singapore." </pre></div>
+                            `
                         }
                     }
                 ]
