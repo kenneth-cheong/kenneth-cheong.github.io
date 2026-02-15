@@ -2531,7 +2531,7 @@
             const cand = state.candidates.find(c => String(c.id) === String(candId));
             if (cand) {
                 cand.pendingBy = pendingBy;
-                await persistenceApiCall('update_candidate_assignee', { id: candId, pendingBy: pendingBy });
+                await persistenceApiCall('upsert_candidate', { id: String(candId), pendingBy: pendingBy });
                 renderCandidates();
                 filterCandidatesRepo();
             }
@@ -3152,7 +3152,7 @@
             try {
                 // Batch updates
                 await Promise.all(selectedIds.map(id =>
-                    persistenceApiCall('update_candidate_assignee', { id: id, pendingBy: assignee })
+                    persistenceApiCall('upsert_candidate', { id: String(id), pendingBy: assignee })
                 ));
 
                 // Update local state
