@@ -28289,19 +28289,94 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                             if (!el) el = document.getElementById('auditSummary');
                             el.style.minHeight = '100px';
                             el.innerHTML = `
-                                <div style="padding: 15px; background: #f8fbff; border: 1px solid #e1e9f0; border-radius: 8px;">
-                                    <h4 style="margin: 0 0 10px 0; color: #004c9d;">Technical Audit: extraspaceasia.com.sg</h4>
-                                    <p style="margin: 0; font-size: 0.9em;">On-Page Score: <strong>97.44/100</strong></p>
-                                    <p style="margin: 5px 0 0 0; font-size: 0.9em;">Total Pages Crawled: <strong>10</strong></p>
+                                <div class="summary-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:10px; margin-bottom:15px;">
+                                    <div class="summary-card has-issues" style="background:#fff3f3; border:1px solid #f5c6cb; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">High Loading Time</div><div><span style="font-size:1.4em; font-weight:700; color:#dc3545;">3</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
+                                    <div class="summary-card has-issues" style="background:#fff3f3; border:1px solid #f5c6cb; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">Is Www</div><div><span style="font-size:1.4em; font-weight:700; color:#dc3545;">10</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
+                                    <div class="summary-card has-issues" style="background:#fff3f3; border:1px solid #f5c6cb; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">Micromarkup Errors</div><div><span style="font-size:1.4em; font-weight:700; color:#dc3545;">10</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
+                                    <div class="summary-card has-issues" style="background:#fff8e6; border:1px solid #ffeeba; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">Canonical</div><div><span style="font-size:1.4em; font-weight:700; color:#e8a317;">1</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
+                                    <div class="summary-card has-issues" style="background:#fff8e6; border:1px solid #ffeeba; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">No Encoding Meta Tag</div><div><span style="font-size:1.4em; font-weight:700; color:#e8a317;">1</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
+                                    <div class="summary-card has-issues" style="background:#fff8e6; border:1px solid #ffeeba; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">Duplicate Meta Tags</div><div><span style="font-size:1.4em; font-weight:700; color:#e8a317;">1</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
+                                    <div class="summary-card has-issues" style="background:#fff8e6; border:1px solid #ffeeba; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">No Image Alt</div><div><span style="font-size:1.4em; font-weight:700; color:#e8a317;">1</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
+                                    <div class="summary-card has-issues" style="background:#fff3f3; border:1px solid #f5c6cb; border-radius:8px; padding:12px; text-align:center;"><div style="font-size:0.8em; color:#666;">Has Misspelling</div><div><span style="font-size:1.4em; font-weight:700; color:#dc3545;">10</span><span style="font-size:0.8em; color:#888;"> / 10</span></div></div>
+                                </div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                                    <div style="padding:12px; background:#f8fbff; border:1px solid #e1e9f0; border-radius:8px;">
+                                        <h4 style="margin:0 0 8px 0; color:#004c9d; font-size:0.9em;">GTmetrix Results</h4>
+                                        <p style="margin:2px 0; font-size:0.85em;">Grade: <strong style="color:#dc3545;">D</strong> | Performance: <strong>48/100</strong></p>
+                                        <p style="margin:2px 0; font-size:0.85em;">LCP: <strong>27,972ms</strong> | TBT: <strong>373ms</strong></p>
+                                    </div>
+                                    <div style="padding:12px; background:#f8fbff; border:1px solid #e1e9f0; border-radius:8px;">
+                                        <h4 style="margin:0 0 8px 0; color:#004c9d; font-size:0.9em;">Page Analysis</h4>
+                                        <p style="margin:2px 0; font-size:0.85em;">PageSpeed (Mobile): <strong style="color:#dc3545;">34/100</strong></p>
+                                        <p style="margin:2px 0; font-size:0.85em;">Malware: <strong style="color:#28a745;">None Detected</strong></p>
+                                    </div>
                                 </div>
                             `;
                         }
                     },
                     {
+                        element: '#gtButton',
+                        popover: {
+                            title: 'GTmetrix Results',
+                            description: 'Performance scores and Core Web Vitals from GTmetrix. Click to expand and review detailed metrics.',
+                            side: "top", align: 'center'
+                        },
+                        onHighlightStarted: () => {
+                            const btn = document.getElementById('gtButton');
+                            const section = document.getElementById('gtMetrix');
+                            if (btn && section) {
+                                btn.classList.add('active');
+                                btn.style.backgroundColor = 'green';
+                                section.style.display = 'block';
+                            }
+                            const report = document.getElementById('gtmetrixReport');
+                            if (report) report.style.display = 'block';
+                            const reportUrl = document.getElementById('reportUrl');
+                            if (reportUrl) reportUrl.innerHTML = '<a href="https://gtmetrix.com/reports/www.extraspaceasia.com.sg/GDe8EUzQ/" target="_blank">View Full Report</a>';
+                            const cls = document.getElementById('cls');
+                            if (cls) cls.textContent = 'N/A';
+                            const lcp = document.getElementById('lcp');
+                            if (lcp) lcp.textContent = '27972';
+                            const tbt = document.getElementById('tbt');
+                            if (tbt) tbt.textContent = '373';
+                            const grade = document.getElementById('grade');
+                            if (grade) { grade.textContent = 'D'; grade.style.color = '#dc3545'; grade.style.fontWeight = '700'; }
+                            const perf = document.getElementById('performance');
+                            if (perf) { perf.textContent = '48'; perf.style.color = '#dc3545'; perf.style.fontWeight = '700'; }
+                        }
+                    },
+                    {
+                        element: '#pageButton',
+                        popover: {
+                            title: 'Page Analysis Results',
+                            description: 'PageSpeed scores, malware check, robots.txt and sitemap verification results.',
+                            side: "top", align: 'center'
+                        },
+                        onHighlightStarted: () => {
+                            const btn = document.getElementById('pageButton');
+                            const section = document.getElementById('pageAnalysis');
+                            if (btn && section) {
+                                btn.classList.add('active');
+                                btn.style.backgroundColor = 'green';
+                                section.style.display = 'block';
+                            }
+                            const report = document.getElementById('pageAuditReport');
+                            if (report) report.style.display = 'block';
+                            const ps = document.getElementById('pagespeed_audit');
+                            if (ps) { ps.textContent = '34.0/100'; ps.style.color = '#dc3545'; ps.style.fontWeight = '700'; }
+                            const mal = document.getElementById('malware');
+                            if (mal) { mal.textContent = 'None Detected'; mal.style.color = '#28a745'; }
+                            const robots = document.getElementById('robots');
+                            if (robots) robots.innerHTML = '<div style="font-family:monospace; font-size:0.85em; background:#fafafa; padding:8px; border-radius:4px;">User-agent: *<br>Disallow: /wp-admin/<br>Allow: /wp-admin/admin-ajax.php<br><br>Sitemap: https://www.extraspaceasia.com.sg/sitemap_index.xml</div>';
+                            const sitemap = document.getElementById('sitemap');
+                            if (sitemap) sitemap.innerHTML = '<a href="https://www.extraspaceasia.com.sg/sitemap_index.xml" target="_blank" style="color:#004c9d;">https://www.extraspaceasia.com.sg/sitemap_index.xml</a>';
+                        }
+                    },
+                    {
                         element: '#crawlerButton',
                         popover: {
-                            title: 'Detailed Crawler Report',
-                            description: 'Access the full page-by-page breakdown of technical issues here.',
+                            title: 'Crawler Report',
+                            description: 'Full page-by-page breakdown of all crawled URLs with on-page scores, headings, meta data and more.',
                             side: "top", align: 'center'
                         }
                     }
@@ -28318,6 +28393,28 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                     summary.innerHTML = '';
                     summary.style.minHeight = '0';
                 }
+                // Clean up GTmetrix
+                const gtBtn = document.getElementById('gtButton');
+                const gtSection = document.getElementById('gtMetrix');
+                if (gtBtn) { gtBtn.classList.remove('active'); gtBtn.style.backgroundColor = ''; }
+                if (gtSection) gtSection.style.display = 'none';
+                const gtReport = document.getElementById('gtmetrixReport');
+                if (gtReport) gtReport.style.display = 'none';
+                ['reportUrl', 'cls', 'lcp', 'tbt', 'grade', 'performance'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) { el.textContent = ''; el.innerHTML = ''; el.style.color = ''; el.style.fontWeight = ''; }
+                });
+                // Clean up Page Analysis
+                const pgBtn = document.getElementById('pageButton');
+                const pgSection = document.getElementById('pageAnalysis');
+                if (pgBtn) { pgBtn.classList.remove('active'); pgBtn.style.backgroundColor = ''; }
+                if (pgSection) pgSection.style.display = 'none';
+                const pgReport = document.getElementById('pageAuditReport');
+                if (pgReport) pgReport.style.display = 'none';
+                ['pagespeed_audit', 'malware', 'robots', 'sitemap'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) { el.textContent = ''; el.innerHTML = ''; el.style.color = ''; el.style.fontWeight = ''; }
+                });
             };
 
             setTimeout(() => {
@@ -29175,6 +29272,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                 if (typeof updateKeywordCount === 'function') updateKeywordCount();
             }
 
+            setTimeout(() => { driverObj.drive(); }, 500);
         }
 
         function initContentComparisonTour() {
@@ -29487,7 +29585,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('competitorsOutput');
                             el.style.display = 'block';
-                            el.innerHTML = '<div class="sem-card"><p>1. competitor-a.com.sg (Score: 88)</p><p>2. competitor-b.com.sg (Score: 75)</p></div>';
+                            el.innerHTML = '<div class="sem-card" style="padding:15px;"><h4 style="margin:0 0 10px 0;">Top Competitors by Keyword Overlap</h4><p style="margin:4px 0;">1. <strong>storefriendly.com.sg</strong> — Overlap: 88% | Est. Traffic: 12,400/mo</p><p style="margin:4px 0;">2. <strong>selfstore.com.sg</strong> — Overlap: 75% | Est. Traffic: 8,200/mo</p><p style="margin:4px 0;">3. <strong>mandarin-self-storage.com.sg</strong> — Overlap: 62% | Est. Traffic: 5,100/mo</p><p style="margin:4px 0;">4. <strong>spaceship.com.sg</strong> — Overlap: 54% | Est. Traffic: 3,800/mo</p></div>';
                         }
                     }
                 ]
@@ -29555,7 +29653,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('persona-results');
                             el.style.display = 'block';
-                            el.innerHTML = '<div class="persona-card"><h4>Sarah the Sustainable Marketer</h4><p>Goals: Zero-waste office. Values: Authenticity and transparency.</p></div>';
+                            el.innerHTML = '<div class="persona-card" style="padding:15px; border:1px solid #e0e6ed; border-radius:10px; background:#fafbfc;"><h4 style="margin:0 0 8px 0; color:#004c9d;">🏠 Alex the Relocating Professional</h4><p style="margin:4px 0; font-size:0.9em;"><strong>Demographics:</strong> Male, 30-40, Expat in Singapore, $8K-$12K household income</p><p style="margin:4px 0; font-size:0.9em;"><strong>Goals:</strong> Secure temporary storage during apartment transition, 24/7 access</p><p style="margin:4px 0; font-size:0.9em;"><strong>Pain Points:</strong> Short lease gaps, bulky furniture, limited condo space</p><p style="margin:4px 0; font-size:0.9em;"><strong>Channels:</strong> Google Search, PropertyGuru, Carousell</p></div>';
                         }
                     }
                 ]
@@ -29625,7 +29723,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('mediaPlanResults');
                             el.style.display = 'block';
-                            el.innerHTML = '<div class="sem-card"><h4>Budget Allocation</h4><p>Google Search: 50% | Facebook: 30% | TikTok: 20%</p></div>';
+                            el.innerHTML = `<div class="sem-card" style="padding:15px;"><h4 style="margin:0 0 12px 0;">Budget Allocation — $10,000/mo</h4><div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;"><div style="padding:10px; background:#e8f5e9; border-radius:8px;"><strong>Google Search</strong><br>45% — $4,500<br><span style="font-size:0.85em; color:#666;">High-intent keywords: storage near me, self storage SG</span></div><div style="padding:10px; background:#e3f2fd; border-radius:8px;"><strong>Meta (FB/IG)</strong><br>25% — $2,500<br><span style="font-size:0.85em; color:#666;">Awareness + retargeting, lifestyle creatives</span></div><div style="padding:10px; background:#fff3e0; border-radius:8px;"><strong>Google Display</strong><br>15% — $1,500<br><span style="font-size:0.85em; color:#666;">Remarketing to site visitors</span></div><div style="padding:10px; background:#fce4ec; border-radius:8px;"><strong>Carousell / PropertyGuru</strong><br>15% — $1,500<br><span style="font-size:0.85em; color:#666;">Contextual ads for movers & renovators</span></div></div></div>`;
                         }
                     }
                 ]
@@ -29757,7 +29855,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('landingPageAuditResults');
                             el.style.display = 'block';
-                            el.innerHTML = '<div class="sem-card"><h4>Conversion Score: 78/100</h4><p>Advice: Add more social proof near the CTA.</p></div>';
+                            el.innerHTML = '<div class="sem-card" style="padding:15px;"><h4 style="margin:0 0 10px 0;">Conversion Score: 72/100</h4><p style="margin:4px 0; font-size:0.9em;">⚠️ <strong>CTA Visibility:</strong> "Get a Free Quote" button is below-the-fold on mobile. Move above hero image.</p><p style="margin:4px 0; font-size:0.9em;">⚠️ <strong>Trust Signals:</strong> Add customer testimonials and security certification badges near the pricing section.</p><p style="margin:4px 0; font-size:0.9em;">✅ <strong>Page Speed:</strong> Mobile LCP is 2.1s — within acceptable range.</p><p style="margin:4px 0; font-size:0.9em;">✅ <strong>Schema Markup:</strong> LocalBusiness schema detected and valid.</p></div>';
                         }
                     }
                 ]
@@ -30136,7 +30234,19 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('output');
                             el.style.display = 'block';
-                            el.innerHTML = '<div class="sem-card"><h4>Headlines:</h4><p>1. Self Storage Singapore - Extra Space Asia</p><p>2. Flexible Storage Units Near You</p><h4>Descriptions:</h4><p>Secure, clean, and accessible storage solutions for your home or business. Book now for special offers!</p></div>';
+                            el.innerHTML = `<div class="sem-card" style="padding:15px;">
+                                <h4 style="margin:0 0 8px 0;">Identified Products/Services</h4>
+                                <p style="font-size:0.85em; color:#475569; margin:0 0 12px 0;">Self-storage solutions, business storage, wine storage, climate-controlled storage, moving assistance</p>
+                                <h4 style="margin:0 0 8px 0;">Brand USPs</h4>
+                                <p style="font-size:0.85em; color:#475569; margin:0 0 15px 0;">State-of-the-art security, 24/7 accessibility, flexible plans, competitive pricing</p>
+                                <hr style="border:none; border-top:1px solid #e2e8f0; margin:10px 0;">
+                                <h4 style="margin:0 0 8px 0;">Google RSA Preview</h4>
+                                <div style="background:#f0f5ff; padding:12px; border-radius:8px; border-left:3px solid #1a73e8;">
+                                    <p style="margin:2px 0; font-size:0.85em; color:#1a73e8; font-weight:600;">Self Storage Singapore | Climate-Controlled Units</p>
+                                    <p style="margin:2px 0; font-size:0.85em; color:#1a73e8; font-weight:600;">Extra Space Asia — 24/7 Access | Flexible Plans from $38/mo</p>
+                                    <p style="margin:6px 0 0 0; font-size:0.82em; color:#4d5156;">Secure and clean storage units for personal & business needs. State-of-the-art security with smart access. Book a free tour today!</p>
+                                </div>
+                            </div>`;
                         }
                     }
                 ]
@@ -30401,7 +30511,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                             if (!el) el = document.getElementById('discVerificationResults');
                             el.style.display = 'block';
                             el.style.minHeight = '100px';
-                            el.innerHTML = '<div style="padding: 15px; background: #fff8f0; border: 1px solid #ffeeba; border-radius: 8px;"><h4>AI Mentions Status</h4><p>GPT-4o: <strong>Mentioned</strong> (Context: Digital Marketing Experts)</p><p>Gemini Pro: <strong>Mentioned</strong> (Context: SEO Agency SG)</p></div>';
+                            el.innerHTML = '<div style="padding: 15px; background: #fff8f0; border: 1px solid #ffeeba; border-radius: 8px;"><h4 style="margin:0 0 10px 0;">AI Mentions Status — Extra Space Asia</h4><p style="margin:4px 0;">GPT-4o: <strong style="color:#28a745;">Mentioned</strong> (Context: Self Storage Provider in Singapore)</p><p style="margin:4px 0;">Gemini Pro: <strong style="color:#28a745;">Mentioned</strong> (Context: Storage Solutions Singapore)</p><p style="margin:4px 0;">Claude 3.5: <strong style="color:#dc3545;">Not Mentioned</strong></p><p style="margin:4px 0;">Perplexity: <strong style="color:#28a745;">Mentioned</strong> (Context: Best Self Storage Singapore)</p></div>';
                         }
                     }
                 ]
@@ -30586,7 +30696,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                             if (!el) el = document.getElementById('pillar-results-display');
                             el.style.display = 'block';
                             const out = document.getElementById('pillar-output-text');
-                            if (out) out.innerHTML = '<h3>Pillar 1: Sustainability</h3><p>Focus on eco-friendly materials and regenerative tourism.</p><h3>Pillar 2: Luxury Experience</h3><p>Highlight the premium nature of our boutique villas.</p>';
+                            if (out) out.innerHTML = '<h3 style="color:#004c9d;">Pillar 1: Space Optimization Tips</h3><p style="margin:4px 0; font-size:0.9em;">Help followers declutter and organize their homes. Topics: KonMari method, seasonal rotation, packing hacks.</p><h3 style="color:#004c9d; margin-top:12px;">Pillar 2: Storage for Life Events</h3><p style="margin:4px 0; font-size:0.9em;">Moving, renovation, new baby — real scenarios where Extra Space Asia solves a need. Customer spotlight stories.</p><h3 style="color:#004c9d; margin-top:12px;">Pillar 3: Business Solutions</h3><p style="margin:4px 0; font-size:0.9em;">E-commerce inventory management, document archival, wine storage for F&B. Thought leadership for SME owners.</p>';
                         }
                     }
                 ]
@@ -30662,7 +30772,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                             if (!el) el = document.getElementById('generated-content');
                             el.style.display = 'block';
                             const out = document.getElementById('content-output-text');
-                            if (out) out.innerHTML = '<strong>Post Option 1:</strong>\n\uD83D\uDCE6 Need more room? Get 50% OFF your first 2 months at Extra Space Asia! Secure, clean, and accessible 24/7. #ExtraSpaceAsia #StorageSingapore';
+                            if (out) out.innerHTML = '<strong>Post Option 1 (Carousel):</strong><br>\uD83D\uDCE6 Running out of room? We\'ve got the space!<br>Get <strong>50% OFF</strong> your first 2 months with our Double Space promo.<br>\u2705 24/7 access \u2705 Climate-controlled \u2705 CCTV secured<br>Book a free tour today \u27A1\uFE0F Link in bio<br><span style="color:#6366f1;">#ExtraSpaceAsia #StorageSingapore #SelfStorage #Declutter #MovingSG</span><br><br><strong>Post Option 2 (Reel Script):</strong><br>\uD83C\uDFAC Hook: "POV: You finally have space for everything"<br>Show: Before (cluttered room) \u2192 After (organized storage unit)<br>CTA: "First 2 months 50% off \u2014 tap the link!"';
                         }
                     }
                 ]
@@ -30702,7 +30812,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         },
                         onHighlighted: () => {
                             const el = document.getElementById('smm_reply_context');
-                            if (el) el.value = 'Professional and empathetic customer service response to a shipping delay.';
+                            if (el) el.value = 'Helpful and friendly response to a customer inquiry about unit sizes and access hours.';
                         }
                     },
                     {
@@ -30714,7 +30824,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         },
                         onHighlighted: () => {
                             const el = document.getElementById('smm_reply_post');
-                            if (el) el.value = 'Announcing our Summer Sale! All items 20% off.';
+                            if (el) el.value = '\uD83C\uDFE0 Running out of space? Get your first month FREE at Extra Space Asia! Secure, climate-controlled units from $38/mo.';
                         }
                     },
                     {
@@ -30726,7 +30836,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         },
                         onHighlighted: () => {
                             const el = document.getElementById('smm_reply_comment');
-                            if (el) el.value = 'I ordered 2 weeks ago and still haven\'t received my tracking number. Very disappointed.';
+                            if (el) el.value = 'What sizes do you have available? And is there really 24/7 access? I need to store furniture during my renovation.';
                         }
                     },
                     {
@@ -30748,7 +30858,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                             if (!el) el = document.getElementById('smm-reply-display');
                             el.style.display = 'block';
                             const out = document.getElementById('smm-reply-output');
-                            if (out) out.innerHTML = '<strong>Draft Response (Helpful & Professional):</strong>\nHi! \uD83D\uDC4B We\'d love to help you find the right space. Our boxes start from just $30/month. Feel free to DM us for a quick quote! #ExtraSpaceAsia';
+                            if (out) out.innerHTML = '<strong>Draft Response (Helpful & Friendly):</strong><br>Hi there! \uD83D\uDC4B Thanks for your interest! We have units ranging from 9 sqft lockers up to 200+ sqft rooms \u2014 perfect for renovation storage. And yes, all our facilities offer genuine 24/7 access with smart card entry! \uD83D\uDD13 Would you like us to arrange a free tour so you can find the perfect fit? Just DM us your preferred location! \uD83D\uDE0A #ExtraSpaceAsia';
                         }
                     }
                 ]

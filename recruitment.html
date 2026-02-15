@@ -2531,7 +2531,8 @@
             const cand = state.candidates.find(c => String(c.id) === String(candId));
             if (cand) {
                 cand.pendingBy = pendingBy;
-                await persistenceApiCall('upsert_candidate', { id: candId, pendingBy: pendingBy });
+                await persistenceApiCall('update_candidate_assignee', { id: candId, pendingBy: pendingBy });
+                renderCandidates();
                 filterCandidatesRepo();
             }
         }
@@ -3572,7 +3573,21 @@
         }
 
         async function addCandidate(fileName, analysis, cvData, fullText) {
-            const rawName = (analysis.name && !analysis.name.includes('HOLDER')) ? analysis.name : fileName.split('.')[0];
+            // Improve name extraction to avoid placeholders
+            const placeholders = ['JOHN DOE', 'JOHNDOE', 'JOHN SMITH', 'JOHNSMITH', 'CANDIDATE NAME', 'FULL NAME', 'HOLDER'];
+            let rawName = analysis.name ? analysis.name.trim() : '';
+
+            const isPlaceholder = rawName && placeholders.some(p => rawName.toUpperCase().includes(p));
+
+            if (!rawName || isPlaceholder) {
+                // Fallback to filename (without extension)
+                rawName = fileName.split('.')[0].replace(/[0-9_\-]/g, ' ').replace(/\s+/g, ' ').trim();
+            }
+
+            if (!rawName || rawName.toLowerCase() === 'cv' || rawName.toLowerCase() === 'resume') {
+                rawName = 'UNKNOWN';
+            }
+
             const candidate = {
                 jobId: state.activeJobId,
                 name: rawName.toUpperCase(),
