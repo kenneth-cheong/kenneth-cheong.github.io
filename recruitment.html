@@ -3408,6 +3408,24 @@
             return await response.json();
         }
 
+        function cleanCandidateName(analysisName, fileName) {
+            const placeholders = ['JOHN DOE', 'JOHNDOE', 'JOHN SMITH', 'JOHNSMITH', 'CANDIDATE NAME', 'FULL NAME', 'HOLDER'];
+            let rawName = analysisName ? analysisName.trim() : '';
+
+            const isPlaceholder = rawName && placeholders.some(p => rawName.toUpperCase().includes(p));
+
+            if (!rawName || isPlaceholder) {
+                // Fallback to filename (without extension)
+                rawName = fileName.split('.')[0].replace(/[0-9_\-]/g, ' ').replace(/\s+/g, ' ').trim();
+            }
+
+            if (!rawName || rawName.toLowerCase() === 'cv' || rawName.toLowerCase() === 'resume') {
+                rawName = 'UNKNOWN';
+            }
+
+            return rawName.toUpperCase();
+        }
+
         async function runAIReEvaluation(candidate) {
             const job = state.jobs.find(j => String(j.id) === String(candidate.jobId));
             if (!job) throw new Error("Job not found for candidate: " + candidate.id);
@@ -3440,6 +3458,7 @@
             const analysis = await response.json();
 
             // Update candidate object
+            candidate.name = cleanCandidateName(analysis.name, candidate.fileName);
             candidate.aiScore = analysis.score;
             candidate.email = analysis.email || candidate.email;
             candidate.phone = analysis.phone || candidate.phone;
@@ -3573,24 +3592,9 @@
         }
 
         async function addCandidate(fileName, analysis, cvData, fullText) {
-            // Improve name extraction to avoid placeholders
-            const placeholders = ['JOHN DOE', 'JOHNDOE', 'JOHN SMITH', 'JOHNSMITH', 'CANDIDATE NAME', 'FULL NAME', 'HOLDER'];
-            let rawName = analysis.name ? analysis.name.trim() : '';
-
-            const isPlaceholder = rawName && placeholders.some(p => rawName.toUpperCase().includes(p));
-
-            if (!rawName || isPlaceholder) {
-                // Fallback to filename (without extension)
-                rawName = fileName.split('.')[0].replace(/[0-9_\-]/g, ' ').replace(/\s+/g, ' ').trim();
-            }
-
-            if (!rawName || rawName.toLowerCase() === 'cv' || rawName.toLowerCase() === 'resume') {
-                rawName = 'UNKNOWN';
-            }
-
             const candidate = {
                 jobId: state.activeJobId,
-                name: rawName.toUpperCase(),
+                name: cleanCandidateName(analysis.name, fileName),
                 fileName: fileName,
                 date: new Date().toISOString(),
                 aiScore: analysis.score,
