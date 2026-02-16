@@ -16423,8 +16423,8 @@ ${selectedText}
             }, 1000);
         }
 
-        function openLandingPageAudit(event) {
-            event.preventDefault();
+        function openLandingPageAudit(event, skipScroll = false) {
+            if (event) event.preventDefault();
             deactivateAllButtons();
             showOthersOnly(event);
 
@@ -16436,10 +16436,11 @@ ${selectedText}
                     content.style.display = content.style.display === "block" ? "none" : "block";
                 }
 
-                const landingPageAuditLink = event.currentTarget;
-                landingPageAuditLink.classList.toggle('active-menu');
+                if (event && event.currentTarget) {
+                    event.currentTarget.classList.toggle('active-menu');
+                }
 
-                if (content.style.display === "block") {
+                if (!skipScroll && content && content.style.display === "block") {
                     const landingPageAuditSection = document.getElementById('landingPageAudit');
                     if (landingPageAuditSection) {
                         landingPageAuditSection.scrollIntoView({ behavior: 'smooth' });
@@ -28333,6 +28334,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
 
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
@@ -28497,7 +28499,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         popover: {
                             title: 'GTmetrix Results',
                             description: 'Performance scores and Core Web Vitals from GTmetrix. Click to expand and review detailed metrics.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: () => {
                             const btn = document.getElementById('gtButton');
@@ -28528,7 +28530,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         popover: {
                             title: 'Page Analysis Results',
                             description: 'PageSpeed scores, malware check, robots.txt and sitemap verification results.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: () => {
                             const btn = document.getElementById('pageButton');
@@ -28555,7 +28557,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         popover: {
                             title: 'Crawler Report',
                             description: 'Full page-by-page breakdown of all crawled URLs with on-page scores, headings, meta data and more.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('crawlerSection');
@@ -28692,6 +28694,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
 
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
@@ -28802,7 +28805,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         popover: {
                             title: 'Step 5: SERPs for Keywords',
                             description: 'Detailed reports showing top 10 SERP results and specific site metrics are generated here.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('serp-section');
@@ -28844,7 +28847,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         popover: {
                             title: 'Step 6: Run Analysis',
                             description: 'Click this button to run a deep dive on the selected keywords.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         }
                     },
                     {
@@ -28853,7 +28856,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         popover: {
                             title: 'Step 7: In-depth Keyword Analysis',
                             description: 'The analysis here will give you a concise summary of the competitiveness of the keyword and what it takes to rank for it.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('keywordAnalysis');
@@ -29434,7 +29437,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         popover: {
                             title: 'Final Step: Consolidated Metrics',
                             description: 'This table provides a high-level summary including search volume and difficulty for your keywords. <br><br><strong>Tour Complete!</strong>',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('overall-summary');
@@ -29537,6 +29540,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
@@ -29544,7 +29548,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         popover: {
                             title: 'Step 1: Target Keyword, URL and Page Type',
                             description: 'Enter the specific keyword, target URL and page type(s) you want to benchmark against competitors.',
-                            side: "center", align: 'center'
+                            side: "center", align: 'start'
                         },
                         onHighlightStarted: () => {
                             const el = document.getElementById('comparison-keyword');
@@ -29557,7 +29561,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         popover: {
                             title: 'Step 2: Topic Comparison Table',
                             description: 'See what page 1 competitors are doing.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: () => {
                             document.getElementById('initial-table').innerHTML = `
@@ -29810,7 +29814,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         popover: {
                             title: 'Step 3: Analysis & Recommendations',
                             description: 'Find out what it takes for your target URL to rank.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: () => {
                             document.getElementById('comparison-results').innerHTML =
@@ -29972,6 +29976,7 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
@@ -29979,7 +29984,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 1: Select Industry',
                             description: 'Choose your industry to see recommended schema types for your business.',
-                            side: "bottom", align: 'center'
+                            side: "bottom", align: 'start'
                         }
                     },
                     {
@@ -29987,7 +29992,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 2: Choose Schema Type',
                             description: 'Select the specific JSON-LD schema type you want to generate (e.g., LocalBusiness, Service, Article).',
-                            side: "bottom", align: 'center'
+                            side: "bottom", align: 'start'
                         }
                     },
                     {
@@ -30011,7 +30016,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 5: Copy & Test',
                             description: 'Preview your JSON-LD code, then copy it or test it directly using Googles Rich Results Test.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         }
                     }
                 ]
@@ -30034,19 +30039,63 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
-                        element: '#onPageSection',
+                        element: '#on-page-url',
                         popover: {
-                            title: 'Step 1: Targeted URL and Keyword(s)',
-                            description: 'Enter the exact URL and keywords you want to audit for on-page SEO factors.',
+                            title: 'Step 1: Target URL',
+                            description: 'Enter the exact page URL you want to audit for on-page SEO factors.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
                             const el = document.getElementById('on-page-url');
                             if (el) el.value = 'https://www.extraspaceasia.com.sg/personal-storage/';
-                            document.getElementById('on-page-keywords').value = 'self storage singapore, storage space rental, cheap storage units';
+                        }
+                    },
+                    {
+                        element: '#on-page-location',
+                        popover: {
+                            title: 'Step 2: Target Location',
+                            description: 'Select the geographic market you\'re optimising for — affects how search intent is interpreted.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('on-page-location');
+                            if (el) el.value = 'Singapore';
+                        }
+                    },
+                    {
+                        element: '#on-page-language',
+                        popover: {
+                            title: 'Step 3: Language',
+                            description: 'Set the content language for accurate keyword analysis and recommendations.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('on-page-language');
+                            if (el) el.value = 'English';
+                        }
+                    },
+                    {
+                        element: '#on-page-keywords',
+                        popover: {
+                            title: 'Step 4: Target Keywords',
+                            description: 'Enter the keywords you want this page to rank for. The AI will check if meta tags, headings, content, and images are optimised for these terms.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('on-page-keywords');
+                            if (el) el.value = 'self storage singapore, storage space rental, cheap storage units';
+                        }
+                    },
+                    {
+                        element: '#getImagesBtn',
+                        popover: {
+                            title: 'Step 5: Extract & Recommend',
+                            description: 'Click to crawl the page and generate recommendations for meta tags, headings, image alt text, and content.',
+                            side: "top", align: 'start'
                         }
                     },
                     {
@@ -30176,7 +30225,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 4: Content Recommedations',
                             description: 'Recommendations to optimise your content.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: () => {
                             document.getElementById('contentCollapsible').style.display = "block";
@@ -30237,15 +30286,25 @@ By implementing these detailed recommendations, the landing page will effectivel
             });
 
             driverObj.onDestroyed = () => {
-                const url = document.getElementById('on-page-url');
-                if (url) url.value = '';
-                const kw = document.getElementById('on-page-keywords');
-                if (kw) kw.value = '';
-                const results = document.getElementById('on-page-results');
-                if (results) {
-                    results.style.display = 'none';
-                    results.innerHTML = '';
-                }
+                // Reset input fields
+                ['on-page-url', 'on-page-keywords'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                // Reset dropdowns to defaults
+                const loc = document.getElementById('on-page-location');
+                if (loc) loc.value = 'Singapore';
+                const lang = document.getElementById('on-page-language');
+                if (lang) lang.value = 'English';
+                // Hide all result collapsibles and clear content
+                ['onPageSerpCollapsible', 'onPageAuditCollapsible', 'onPageResultsCollapsible', 'imageCollapsible', 'contentCollapsible'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = 'none';
+                });
+                ['onPageSerpResults', 'onPageResults', 'imageRecommendations', 'contentRecommendations'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+                });
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -30258,30 +30317,67 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
-                        element: '#rankChecker',
+                        element: '#rankCheckerKeywords',
                         popover: {
-                            title: 'Step 1: Keywords List',
-                            description: 'Enter your list of keywords and target URL/domain to check current rankings.',
+                            title: 'Step 1: Keywords',
+                            description: 'Enter the keywords you want to check rankings for — one per line, up to 1,200 keywords.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
                             const el = document.getElementById('rankCheckerKeywords');
-                            if (el) el.value = 'storage space singapore';
-                            document.getElementById('rankCheckerDomain').value = 'https://www.extraspaceasia.com.sg';
+                            if (el) el.value = 'storage space singapore\nself storage singapore\ncheap storage units singapore';
+                        }
+                    },
+                    {
+                        element: '#rankCheckerDomain',
+                        popover: {
+                            title: 'Step 2: Target Domain',
+                            description: 'Enter the domain or specific URL you want to check rankings for.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('rankCheckerDomain');
+                            if (el) el.value = 'https://www.extraspaceasia.com.sg';
+                        }
+                    },
+                    {
+                        element: '#rankCheckerLanguage',
+                        popover: {
+                            title: 'Step 3: Language',
+                            description: 'Set the search language for accurate ranking data.',
+                            side: "bottom", align: 'start'
+                        }
+                    },
+                    {
+                        element: '#rankCheckerLocation',
+                        popover: {
+                            title: 'Step 4: Location',
+                            description: 'Set the target market location — rankings vary significantly by geography.',
+                            side: "bottom", align: 'start'
+                        }
+                    },
+                    {
+                        element: '#rankCheckerBulkBtn',
+                        popover: {
+                            title: 'Step 5: Check Rankings',
+                            description: 'Click to retrieve live ranking positions for all keywords across the specified location and language.',
+                            side: "top", align: 'start'
                         }
                     },
                     {
                         element: '#rankCheckerResults',
                         popover: {
-                            title: 'Step 2: Ranking Results',
-                            description: 'Rankings for your targeted keywords',
-                            side: "top", align: 'center'
+                            title: 'Sample Ranking Results',
+                            description: 'Live ranking positions are displayed here in a table with keyword, rank, and landing page data.',
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: () => {
-                            document.getElementById('rankCheckerResults').innerHTML = `
+                            const el = document.getElementById('rankCheckerResults');
+                            if (el) el.innerHTML = `
                             <table id="rankCheckerResultsTable" style="display: block;">
                             <thead>
                                 <tr>
@@ -30289,7 +30385,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                                     <th>Rank</th>
                                 </tr>
                             </thead>
-                            <tbody id="rankCheckerResultsTableBody"><tr><td>storage space singapore</td><td>2</td></tr></tbody>
+                            <tbody id="rankCheckerResultsTableBody"><tr><td>storage space singapore</td><td>2</td></tr><tr><td>self storage singapore</td><td>3</td></tr><tr><td>cheap storage units singapore</td><td>7</td></tr></tbody>
                         </table>
                         `;
                         }
@@ -30298,10 +30394,17 @@ By implementing these detailed recommendations, the landing page will effectivel
             });
 
             driverObj.onDestroyed = () => {
+                // Reset text fields
                 const kw = document.getElementById('rankCheckerKeywords');
                 if (kw) kw.value = '';
                 const domain = document.getElementById('rankCheckerDomain');
                 if (domain) domain.value = '';
+                // Reset language/location to defaults
+                const lang = document.getElementById('rankCheckerLanguage');
+                if (lang) lang.value = 'English';
+                const loc = document.getElementById('rankCheckerLocation');
+                if (loc) loc.value = 'Singapore';
+                // Hide results
                 const results = document.getElementById('rankCheckerResults');
                 if (results) {
                     results.style.display = 'none';
@@ -30319,6 +30422,7 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
@@ -30337,28 +30441,72 @@ By implementing these detailed recommendations, the landing page will effectivel
                         element: '#competitor_keywords',
                         popover: {
                             title: 'Step 2: Core Keywords',
-                            description: 'Enter your main keywords to identify competitors ranking for these terms.',
+                            description: 'Enter your main keywords (one per line) to identify competitors ranking for these terms.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
                             const el = document.getElementById('competitor_keywords');
-                            if (el) el.value = 'self storage singapore\nstorage space rental';
+                            if (el) el.value = 'self storage singapore\nstorage space rental\nwarehouse storage';
+                        }
+                    },
+                    {
+                        element: '#competitors-language',
+                        popover: {
+                            title: 'Step 3: Language',
+                            description: 'Set the language for search results analysis.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('competitors-language');
+                            if (el) el.value = 'English';
+                        }
+                    },
+                    {
+                        element: '#competitors-location',
+                        popover: {
+                            title: 'Step 4: Location',
+                            description: 'Set the target market location for competitor discovery.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('competitors-location');
+                            if (el) el.value = 'Singapore';
                         }
                     },
                     {
                         element: '#getCompetitorsBtn',
                         popover: {
-                            title: 'Step 3: Identify Competitors',
-                            description: 'Click to discover your top search competitors and their overlap with your keywords.',
-                            side: "top", align: 'center'
+                            title: 'Step 5: Identify Competitors',
+                            description: 'Click to discover your top search competitors and their keyword overlap.',
+                            side: "top", align: 'start'
+                        }
+                    },
+                    {
+                        element: '#competitor_domains',
+                        popover: {
+                            title: 'Step 6: Competitor Domains',
+                            description: 'After discovery, competitor domains appear here. You can also manually add domains for deeper analysis.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('competitor_domains');
+                            if (el) el.value = 'storefriendly.com.sg\nselfstore.com.sg\nspaceship.com.sg';
+                        }
+                    },
+                    {
+                        element: '#getIntersectionResults2',
+                        popover: {
+                            title: 'Step 7: Get Intersection Results',
+                            description: 'Click to find keyword intersections between your domain and the listed competitors.',
+                            side: "top", align: 'start'
                         }
                     },
                     {
                         element: '#competitorsOutput',
                         popover: {
-                            title: 'Sample Competitor List',
-                            description: 'A prioritized list of domains that are currently outranking or competing with you for the selected terms.',
-                            side: "top", align: 'center'
+                            title: 'Sample Competitor Results',
+                            description: 'A prioritized list of domains that are competing with you for the selected terms, with overlap and traffic estimates.',
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('competitorsOutput');
@@ -30370,10 +30518,17 @@ By implementing these detailed recommendations, the landing page will effectivel
             });
 
             driverObj.onDestroyed = () => {
-                const target = document.getElementById('competitors-target1');
-                if (target) target.value = '';
-                const kw = document.getElementById('competitor_keywords');
-                if (kw) kw.value = '';
+                // Reset text fields
+                ['competitors-target1', 'competitor_keywords', 'competitor_domains'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                // Reset language/location to defaults
+                const lang = document.getElementById('competitors-language');
+                if (lang) lang.value = 'English';
+                const loc = document.getElementById('competitors-location');
+                if (loc) loc.value = 'Singapore';
+                // Hide results
                 const output = document.getElementById('competitorsOutput');
                 if (output) {
                     output.style.display = 'none';
@@ -30391,13 +30546,14 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
                         element: '#persona_webpages',
                         popover: {
                             title: 'Step 1: Website Input',
-                            description: 'Enter your company or product pages to help the AI understand your business.',
+                            description: 'Enter your company or product pages so the AI can understand your business and offerings.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
@@ -30406,27 +30562,53 @@ By implementing these detailed recommendations, the landing page will effectivel
                         }
                     },
                     {
+                        element: '#persona_manual',
+                        popover: {
+                            title: 'Step 2: Additional Information',
+                            description: 'Optionally provide extra context — e.g. focus on a specific product line or market segment.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('persona_manual');
+                            if (el) el.value = 'Focus on personal and business storage solutions in Singapore. Target both local residents and expats.';
+                        }
+                    },
+                    {
                         element: '#researchPersonaBtn',
                         popover: {
-                            title: 'Step 2: Research Products',
+                            title: 'Step 3: Research Products',
                             description: 'Click to analyze your website and identify key product features for persona mapping.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
+                        }
+                    },
+                    {
+                        element: '#persona_products_container',
+                        popover: {
+                            title: 'Step 4: Verified Products',
+                            description: 'After research, the AI fills in the products/services it found. You can edit this list before generating personas.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const container = document.getElementById('persona_products_container');
+                            if (container) container.style.display = 'block';
+                            const el = document.getElementById('persona_products');
+                            if (el) el.value = '1. Personal Storage (9-200+ sqft units)\n2. Business Storage & Document Archival\n3. Wine Storage (climate-controlled)\n4. Vehicle Storage\n5. Short-term Renovation Storage\n6. Student Storage during holidays';
                         }
                     },
                     {
                         element: '#generatePersonaBtn',
                         popover: {
-                            title: 'Step 3: Generate Personas',
-                            description: 'Finally, click to create 10 detailed buyer personas with pain points and motivations.',
-                            side: "top", align: 'center'
+                            title: 'Step 5: Generate Personas',
+                            description: 'Click to create 10 detailed buyer personas with demographics, pain points, and motivations.',
+                            side: "top", align: 'start'
                         }
                     },
                     {
                         element: '#persona-results',
                         popover: {
                             title: 'Sample Personas',
-                            description: 'Explore detailed profiles including demographics, pain points, and preferred marketing channels.',
-                            side: "top", align: 'center'
+                            description: 'Explore detailed profiles including demographics, pain points, goals, and preferred marketing channels. Cards are editable and deletable.',
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('persona-results');
@@ -30438,8 +30620,15 @@ By implementing these detailed recommendations, the landing page will effectivel
             });
 
             driverObj.onDestroyed = () => {
-                const webs = document.getElementById('persona_webpages');
-                if (webs) webs.value = '';
+                // Reset text fields
+                ['persona_webpages', 'persona_manual', 'persona_products'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                // Hide products container
+                const container = document.getElementById('persona_products_container');
+                if (container) container.style.display = 'none';
+                // Hide results
                 const results = document.getElementById('persona-results');
                 if (results) {
                     results.style.display = 'none';
@@ -30457,25 +30646,26 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
                         element: '#MediaPlanWebpages',
                         popover: {
                             title: 'Step 1: Campaign Target',
-                            description: 'Enter the pages you want to drive traffic to.',
+                            description: 'Enter the company or product pages you want to drive traffic to.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
                             const el = document.getElementById('MediaPlanWebpages');
-                            if (el) el.value = 'https://www.extraspaceasia.com.sg/promotion';
+                            if (el) el.value = 'https://www.extraspaceasia.com.sg/promotion\nhttps://www.extraspaceasia.com.sg/personal-storage';
                         }
                     },
                     {
                         element: '#MediaPlanBudget',
                         popover: {
                             title: 'Step 2: Monthly Budget',
-                            description: 'Specify your media spend to get a realistic channel allocation.',
+                            description: 'Specify your total media spend to get a realistic channel allocation.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
@@ -30484,19 +30674,50 @@ By implementing these detailed recommendations, the landing page will effectivel
                         }
                     },
                     {
+                        element: '#MediaPlanAdFormatsGoogleSearch',
+                        popover: {
+                            title: 'Step 3: Preferred Ad Formats',
+                            description: 'Select which advertising platforms to include in your media plan — Google Search, Display, Meta, LinkedIn, TikTok.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            document.querySelectorAll('.media-plan-checkbox').forEach(cb => { cb.checked = true; });
+                        }
+                    },
+                    {
+                        element: '#MediaPlanManual',
+                        popover: {
+                            title: 'Step 4: Additional Context',
+                            description: 'Optionally provide extra details — e.g. focus on a specific product, campaign theme, or seasonal event.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('MediaPlanManual');
+                            if (el) el.value = 'Focus on the "Double Space" promotion. Target homeowners doing renovations and expats relocating to Singapore.';
+                        }
+                    },
+                    {
+                        element: '#mediaPlanOtherFieldsBtn',
+                        popover: {
+                            title: 'Step 5: Other Fields (Optional)',
+                            description: 'Expand this section for advanced inputs like organisational objectives, target audience, customer personas, KPIs, and more.',
+                            side: "bottom", align: 'start'
+                        }
+                    },
+                    {
                         element: '#generateMediaPlanBtn',
                         popover: {
-                            title: 'Step 3: Create Plan',
-                            description: 'Click to generate a full-funnel media plan with channel splits and strategy.',
-                            side: "top", align: 'center'
+                            title: 'Step 6: Create Plan',
+                            description: 'Click to generate a full-funnel media plan with channel splits, budget allocation, and strategy.',
+                            side: "top", align: 'start'
                         }
                     },
                     {
                         element: '#mediaPlanResults',
                         popover: {
                             title: 'Sample Media Plan',
-                            description: 'Your strategic plan is visualized here, showing budget allocation and platform focus.',
-                            side: "top", align: 'center'
+                            description: 'Your strategic plan is visualized here, showing budget allocation across platforms and funnel stages.',
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('mediaPlanResults');
@@ -30508,10 +30729,14 @@ By implementing these detailed recommendations, the landing page will effectivel
             });
 
             driverObj.onDestroyed = () => {
-                const webs = document.getElementById('MediaPlanWebpages');
-                if (webs) webs.value = '';
-                const budget = document.getElementById('MediaPlanBudget');
-                if (budget) budget.value = '';
+                // Reset text fields
+                ['MediaPlanWebpages', 'MediaPlanBudget', 'MediaPlanManual'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                // Re-check all ad format checkboxes
+                document.querySelectorAll('.media-plan-checkbox').forEach(cb => { cb.checked = true; });
+                // Hide results
                 const results = document.getElementById('mediaPlanResults');
                 if (results) {
                     results.style.display = 'none';
@@ -30529,6 +30754,7 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
@@ -30544,23 +30770,47 @@ By implementing these detailed recommendations, the landing page will effectivel
                         }
                     },
                     {
+                        element: '#content_check_other_urls',
+                        popover: {
+                            title: 'Step 2: Other Reference URLs',
+                            description: 'Optionally provide additional website or regulation URLs the AI should check against.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('content_check_other_urls');
+                            if (el) el.value = 'https://www.asas.org.sg/Codes-and-Standards';
+                        }
+                    },
+                    {
                         element: '#content_to_check',
                         popover: {
-                            title: 'Step 2: Content Input',
-                            description: 'Paste the copy you want to validate against your brand standards.',
+                            title: 'Step 3: Content to Validate',
+                            description: 'Paste the copy you want to validate against your brand standards and guidelines.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
                             const el = document.getElementById('content_to_check');
-                            if (el) el.value = 'We offer the cheapest SEO services in the world! Guaranteed #1 ranking in 24 hours.';
+                            if (el) el.value = 'We offer the cheapest storage in Singapore! Guaranteed lowest price or your money back. No hidden fees ever — trust us, we\'re the best.';
+                        }
+                    },
+                    {
+                        element: '#content_check_instructions',
+                        popover: {
+                            title: 'Step 4: Analysis Instructions',
+                            description: 'Add specific rules or focus areas — e.g. "Do not use superlatives" or "Check for ASAS compliance."',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('content_check_instructions');
+                            if (el) el.value = 'Check for superlative claims, verify tone matches brand guide, flag any unsubstantiated guarantees.';
                         }
                     },
                     {
                         element: '#contentCheckBtn',
                         popover: {
-                            title: 'Step 3: Run Validation',
+                            title: 'Step 5: Run Validation',
                             description: 'Click to get an AI-powered compliance report highlighting any deviations.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         }
                     },
                     {
@@ -30568,22 +30818,24 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Sample Audit Report',
                             description: 'Find highlighted issues, suggestions for improvement, and a compliance score.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('checkContentResults');
                             el.style.display = 'block';
-                            el.innerHTML = '<div class="sem-card" style="border-left-color: #f1c40f;"><h4>Observation: Tonal Inconsistency</h4><p>The intro is too formal compared to the brand guide.</p></div>';
+                            el.innerHTML = '<div class="sem-card" style="padding:15px; border-left: 4px solid #f1c40f;"><h4 style="margin:0 0 10px 0;">⚠️ Issues Found: 3</h4><p style="margin:4px 0; font-size:0.9em;"><strong>1. Superlative Claim:</strong> "cheapest storage" — unsubstantiated superlative. Rephrase to "competitively priced" or provide source.</p><p style="margin:4px 0; font-size:0.9em;"><strong>2. Guarantee Language:</strong> "Guaranteed lowest price" may violate ASAS advertising standards without qualifying conditions.</p><p style="margin:4px 0; font-size:0.9em;"><strong>3. Tone Mismatch:</strong> "trust us, we\'re the best" is too informal for the brand\'s professional positioning.</p></div>';
                         }
                     }
                 ]
             });
 
             driverObj.onDestroyed = () => {
-                const guide = document.getElementById('brand_guide_urls');
-                if (guide) guide.value = '';
-                const content = document.getElementById('content_to_check');
-                if (content) content.value = '';
+                // Reset all text fields
+                ['brand_guide_urls', 'content_check_other_urls', 'content_to_check', 'content_check_instructions'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                // Hide results
                 const results = document.getElementById('checkContentResults');
                 if (results) {
                     results.style.display = 'none';
@@ -30601,6 +30853,7 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
@@ -30616,32 +30869,99 @@ By implementing these detailed recommendations, the landing page will effectivel
                         }
                     },
                     {
+                        element: '#landingPageAuditKeyword',
+                        popover: {
+                            title: 'Step 2: Target Keyword',
+                            description: 'Optionally specify the primary keyword this page should rank for — helps the AI assess content relevance.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('landingPageAuditKeyword');
+                            if (el) el.value = 'self storage singapore';
+                        }
+                    },
+                    {
                         element: '#auditLandingPageBtn',
                         popover: {
-                            title: 'Step 2: Run Audit',
-                            description: 'Click to analyze conversion elements, SEO metadata, and content relevance.',
-                            side: "top", align: 'center'
+                            title: 'Step 3: Run Audit',
+                            description: 'Click to analyze conversion elements, SEO metadata, content relevance, and page performance.',
+                            side: "top", align: 'start'
                         }
                     },
                     {
                         element: '#landingPageAuditResults',
                         popover: {
                             title: 'Sample Audit Results',
-                            description: 'Actionable insights to improve your landing page performance and SEO rankings.',
-                            side: "top", align: 'center'
+                            description: 'Actionable insights to improve your landing page performance, conversion rate, and SEO rankings.',
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('landingPageAuditResults');
                             el.style.display = 'block';
-                            el.innerHTML = '<div class="sem-card" style="padding:15px;"><h4 style="margin:0 0 10px 0;">Conversion Score: 72/100</h4><p style="margin:4px 0; font-size:0.9em;">⚠️ <strong>CTA Visibility:</strong> "Get a Free Quote" button is below-the-fold on mobile. Move above hero image.</p><p style="margin:4px 0; font-size:0.9em;">⚠️ <strong>Trust Signals:</strong> Add customer testimonials and security certification badges near the pricing section.</p><p style="margin:4px 0; font-size:0.9em;">✅ <strong>Page Speed:</strong> Mobile LCP is 2.1s — within acceptable range.</p><p style="margin:4px 0; font-size:0.9em;">✅ <strong>Schema Markup:</strong> LocalBusiness schema detected and valid.</p></div>';
+                            el.innerHTML = `
+                            <div id="gauge" class="gauge" style="display: block; margin: 25px auto;">
+                            <div class="gauge__body">
+                                <div class="gauge__fill" style="transform: rotate(0.2turn);"></div>
+                                <div class="gauge__cover">Quality Score<br>4/10</div>
+                            </div>
+                        </div>
+                        <div id="landingPageAuditResults">
+    
+    
+    <title>Landing Page Audit</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid black; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+    
+    
+    <h1>Landing Page Audit Results</h1>
+    <h2>Overall Assessment</h2>
+    <p>The landing page for Extra Space Asia presents a clean and professional design with clear navigation and relevant content. However, it lacks strong calls-to-action (CTAs), comprehensive social proof, and optimized visual elements, which could enhance user engagement and conversion rates.</p>
+
+    <h2>Quality Score</h2>
+    <p><b>4 / 10</b></p>
+    <p>The landing page demonstrates a solid structure and design (strength), but the absence of compelling CTAs, limited social proof, and suboptimal image optimization (weaknesses) significantly impact the score. Enhancing these areas would improve user experience and conversion rates.</p>
+
+    <h2>Strengths</h2>
+    <ul><li>Clean and professional design</li><li>Clear and intuitive navigation</li><li>Relevant and informative content</li></ul>
+
+    <h2>Weaknesses</h2>
+    <table><thead><tr><th>Area</th><th>Description</th><th>Recommendation</th></tr></thead><tbody><tr><td>Call-to-Action</td><td>The page lacks prominent and compelling CTAs, making it difficult for users to know the next steps to take.</td><td>Incorporate clear and persuasive CTAs such as 'Get a Free Quote' or 'Reserve Your Space Now' to guide users towards conversion.</td></tr><tr><td>Social Proof</td><td>There is a lack of customer testimonials, reviews, or case studies to build trust and credibility.</td><td>Add a section featuring customer testimonials with full names and company affiliations, and consider including case studies with quantifiable results.</td></tr><tr><td>Imagery</td><td>The images used are not optimized for web performance, potentially affecting page load speed and user experience.</td><td>Optimize images by compressing them and using modern formats like WebP to improve load times and responsiveness.</td></tr></tbody></table>
+
+    <h2>SEO Recommendations</h2>
+    <ul><li>Research and incorporate relevant keywords such as 'storage space Singapore' into headings, subheadings, and body content to improve search engine rankings.</li><li>Optimize the title tag and meta description with relevant keywords to enhance click-through rates from search results.</li><li>Add descriptive alt text to all images, incorporating relevant keywords where appropriate, to improve accessibility and SEO performance.</li></ul>
+
+    <h2>UX Recommendations</h2>
+    <ul><li>Enhance the mobile responsiveness of the site to ensure a seamless experience across all devices, considering the increasing number of mobile users.</li><li>Simplify the navigation menu to reduce cognitive load and make it easier for users to find information quickly.</li><li>Ensure that all interactive elements, such as forms and buttons, are clearly indicated and easy to identify to improve user engagement.</li></ul>
+
+    <h2>CRO Recommendations</h2>
+    <ul><li>A/B test different versions of CTAs to determine which language and placement yield higher conversion rates.</li><li>Implement a lead capture form offering a free consultation or quote to encourage users to provide their contact information.</li></ul>
+
+    <h2>Social Proof Analysis</h2>
+    <ul><li><b>Testimonial Count:</b> 0</li><li><b>Testimonial Quality:</b> None detected.</li><li><b>Case Study Count:</b> 0</li><li><b>Review Count:</b> 0</li><li><b>Social Media Integration:</b> None detected.</li></ul>
+
+    <h2>Visual Element Analysis</h2>
+    <ul><li><b>Image Count:</b> 5</li><li><b>Average Image Size:</b> 300KB</li><li><b>Video Present:</b> False</li><li><b>Dominant Color Palette:</b> Blue and White</li><li><b>Typography Summary:</b> Uses Arial for headings and Helvetica for body text, generally readable.</li><li><b>Interactive Elements:</b><ul><li><b>Carousel:</b> Not present.</li><li><b>Dropdown Menus:</b> Present in the navigation. Organization is logical, but could be improved with better visual cues.</li><li><b>Buttons:</b> Present, styled with rounded corners and a blue background. Visually distinct and easy to click.</li><li><b>Forms:</b> Present, used for lead capture. Usability is hampered by too many required fields.</li><li><b>Animations:</b> Subtle fade-in effects used on scroll. Generally unobtrusive.</li><li><b>Popups:</b> Not present.</li></ul></li></ul>
+
+    
+    
+    </div>
+                            `;
                         }
                     }
                 ]
             });
 
             driverObj.onDestroyed = () => {
-                const url = document.getElementById('landingPageUrl');
-                if (url) url.value = '';
+                // Reset text fields
+                ['landingPageUrl', 'landingPageAuditKeyword'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                // Hide results
                 const results = document.getElementById('landingPageAuditResults');
                 if (results) {
                     results.style.display = 'none';
@@ -30659,6 +30979,7 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
@@ -30666,7 +30987,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 1: Choose Workflow',
                             description: 'Select whether you are starting a new article or optimizing an existing one.',
-                            side: "bottom", align: 'center'
+                            side: "bottom", align: 'start'
                         }
                     },
                     {
@@ -30687,7 +31008,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 3: Scan Guidelines',
                             description: 'AI scans for relevant SEO regulations or industry compliance guidelines for your brand.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: () => {
                             const list = document.getElementById('complianceGuidelinesList');
@@ -30704,7 +31025,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 4: Full Optimiser Configuration',
                             description: 'Fine-tune AI creativity, tone of voice, and advanced SEO parameters.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         }
                     },
                     {
@@ -30712,7 +31033,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 5: Build Outline',
                             description: 'Click to analyze top SERP competitors and generate an AI-driven content outline.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         }
                     },
                     {
@@ -30720,7 +31041,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 6: Competitor Insights',
                             description: 'Deep dive into content gaps, word counts, and topic coverage of top ranking pages.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: () => {
                             const wrapper = document.getElementById('competitorAnalysisWrapper');
@@ -30785,7 +31106,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 7: SERP Card Tabs',
                             description: 'Switch between Topics, Entities, Questions, and Design insights for each competitor.',
-                            side: "bottom", align: 'center'
+                            side: "bottom", align: 'start'
                         }
                     },
                     {
@@ -30793,7 +31114,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 8: Review & Refine Outline',
                             description: 'Customize the AI-generated outline before committing to full generation.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: () => {
                             const wrapper = document.getElementById('outlineStepWrapper');
@@ -30807,7 +31128,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 9: Generate Full Article',
                             description: 'Transform your outline into a high-converting, SEO-optimised article with one click.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         }
                     },
                     {
@@ -30815,7 +31136,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 10: Content Workspace',
                             description: 'The smart editor where the magic happens. Real-time scoring and AI assistance combined.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             const layout = document.querySelector('.optimiser-layout');
@@ -30831,7 +31152,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 11: Formatting Toolbar',
                             description: 'Full-featured text engine with headings, tables, and media embeds.',
-                            side: "bottom", align: 'center'
+                            side: "bottom", align: 'start'
                         }
                     },
                     {
@@ -30839,7 +31160,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 12: Selection AI Assistant',
                             description: 'Highlight any text in the editor to instantly Rewrite, Expand, or Shorten it using AI.',
-                            side: "bottom", align: 'center'
+                            side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
                             const st = document.getElementById('selectionToolbar');
@@ -30856,7 +31177,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 13: AI Links & Citations',
                             description: 'Automatically scan your content and insert smart internal/external links for better SEO authority.',
-                            side: "bottom", align: 'center'
+                            side: "bottom", align: 'start'
                         }
                     },
                     {
@@ -30864,7 +31185,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 14: Real-time SEO Scoring',
                             description: 'Monitor your readability, title strength, and E-E-A-T score as you write.',
-                            side: "left", align: 'center'
+                            side: "left", align: 'start'
                         },
                         onHighlightStarted: () => {
                             const gauge = document.getElementById('seoScoreGauge');
@@ -30878,7 +31199,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 15: Intelligence Tabs',
                             description: 'Switch between Keyword Density analysis, AI generation tools, and Plagiarism checks.',
-                            side: "left", align: 'center'
+                            side: "left", align: 'start'
                         }
                     },
                     {
@@ -30886,7 +31207,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 16: On-demand AI Generation',
                             description: 'Request specific paragraphs, lists, or creative ideas from the right-hand panel at any time.',
-                            side: "left", align: 'center'
+                            side: "left", align: 'start'
                         },
                         onHighlightStarted: () => {
                             if (typeof switchOptimiserTab === 'function') switchOptimiserTab('ai');
@@ -30897,7 +31218,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 17: Plagiarism & Originality',
                             description: 'Final step: Verify your content\'s integrity before publishing to ensure it\'s 100% unique.',
-                            side: "left", align: 'center'
+                            side: "left", align: 'start'
                         },
                         onHighlightStarted: () => {
                             if (typeof switchOptimiserTab === 'function') switchOptimiserTab('check');
@@ -30913,14 +31234,22 @@ By implementing these detailed recommendations, the landing page will effectivel
                 if (compliance) compliance.innerHTML = '';
                 const compWrapper = document.getElementById('competitorAnalysisWrapper');
                 if (compWrapper) compWrapper.style.display = 'none';
+                const compGrid = document.getElementById('competitorInsightsGrid');
+                if (compGrid) compGrid.innerHTML = '';
                 const outlineWrapper = document.getElementById('outlineStepWrapper');
                 if (outlineWrapper) outlineWrapper.style.display = 'none';
+                const outline = document.getElementById('editableOutline');
+                if (outline) outline.value = '';
                 const layout = document.querySelector('.optimiser-layout');
                 if (layout) layout.style.display = 'none';
                 const editor = document.getElementById('editorContent');
                 if (editor) editor.innerHTML = '';
                 const st = document.getElementById('selectionToolbar');
                 if (st) st.style.display = 'none';
+                const gauge = document.getElementById('seoScoreGauge');
+                if (gauge) gauge.style.strokeDashoffset = '';
+                const scoreVal = document.getElementById('seoScoreValue');
+                if (scoreVal) scoreVal.innerText = '';
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -30933,6 +31262,7 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
@@ -30940,7 +31270,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 1: Authentication',
                             description: 'Connect your Google account safely to access live Search Console data.',
-                            side: "bottom", align: 'center'
+                            side: "bottom", align: 'start'
                         }
                     },
                     {
@@ -30948,7 +31278,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 2: Connect',
                             description: 'Click here to initiate the OAuth flow and select your verified properties.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         }
                     }
                 ]
@@ -30964,10 +31294,11 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
-                        element: '#sem-websites',
+                        element: '#sem_webpages',
                         popover: {
                             title: 'Step 1: Website Input',
                             description: 'Enter your target website URL to begin the SEM analysis.',
@@ -30979,52 +31310,188 @@ By implementing these detailed recommendations, the landing page will effectivel
                         }
                     },
                     {
-                        element: '#getProducts',
+                        element: '#products',
                         popover: {
-                            title: 'Step 2: Scrape Products',
-                            description: 'Click to extract core product and service information from the provided website URL.',
-                            side: "top", align: 'center'
-                        }
-                    },
-                    {
-                        element: '#semAnalyseWebsite',
-                        popover: {
-                            title: 'Step 3: AI Analysis',
-                            description: 'Once products are identified, run the AI analysis to identify unique selling points and target keywords.',
-                            side: "top", align: 'center'
-                        }
-                    },
-                    {
-                        element: '#generateGoogle',
-                        popover: {
-                            title: 'Step 4: Generate Ads',
-                            description: 'Finally, click here to generate high-performing Google Search Ads headlines and descriptions.',
-                            side: "top", align: 'center'
+                            title: 'Step 2: Verify AI Identified Products/Services',
+                            description: 'Make adjustments if necessary to the AI identified products.',
+                            side: "top", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const productsDiv = document.getElementById('products');
+                            productsDiv.style.display = 'block';
+                            productsDiv.innerHTML = '<label for="identifiedProducts">Identified Products/Services/Brand/Company:</label><br><textarea rows="6" id="identifiedProducts"></textarea>';
+                            document.getElementById('identifiedProducts').value = "Product/Service: self-storage solutions, business storage space, wine storage, climate-controlled storage, moving assistance\n\nBrand/Company: state-of-the-art security, round-the-clock accessibility, flexible storage plans, competitive pricing, excellent customer service";
                         }
                     },
                     {
                         element: '#output',
                         popover: {
-                            title: 'Sample SEM Ads',
-                            description: 'Preview your generated Google Ads headlines and descriptions here.',
-                            side: "top", align: 'center'
+                            title: 'Step 3: Choose Keywords, USPs and Target Audience',
+                            description: 'Further customise the AI generation by choosing keywords and USPs.',
+                            side: "top", align: 'start'
                         },
-                        onHighlightStarted: (el) => {
-                            if (!el) el = document.getElementById('output');
-                            el.style.display = 'block';
-                            el.innerHTML = `<div class="sem-card" style="padding:15px;">
-                                <h4 style="margin:0 0 8px 0;">Identified Products/Services</h4>
-                                <p style="font-size:0.85em; color:#475569; margin:0 0 12px 0;">Self-storage solutions, business storage, wine storage, climate-controlled storage, moving assistance</p>
-                                <h4 style="margin:0 0 8px 0;">Brand USPs</h4>
-                                <p style="font-size:0.85em; color:#475569; margin:0 0 15px 0;">State-of-the-art security, 24/7 accessibility, flexible plans, competitive pricing</p>
-                                <hr style="border:none; border-top:1px solid #e2e8f0; margin:10px 0;">
-                                <h4 style="margin:0 0 8px 0;">Google RSA Preview</h4>
-                                <div style="background:#f0f5ff; padding:12px; border-radius:8px; border-left:3px solid #1a73e8;">
-                                    <p style="margin:2px 0; font-size:0.85em; color:#1a73e8; font-weight:600;">Self Storage Singapore | Climate-Controlled Units</p>
-                                    <p style="margin:2px 0; font-size:0.85em; color:#1a73e8; font-weight:600;">Extra Space Asia — 24/7 Access | Flexible Plans from $38/mo</p>
-                                    <p style="margin:6px 0 0 0; font-size:0.82em; color:#4d5156;">Secure and clean storage units for personal & business needs. State-of-the-art security with smart access. Book a free tour today!</p>
-                                </div>
-                            </div>`;
+                        onHighlightStarted: () => {
+                            document.getElementById('output').style.display = 'block';
+                            document.getElementById('output').innerHTML = '<h2>Short-tail Keywords</h2><div class="table-container"><table><tbody><tr><th>Select</th><th>Value</th><th>CPC</th><th>Search Volume</th></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;self-storage Singapore&#39;, &#39;Short-tail Keywords&#39;)"></td><td>self-storage Singapore</td><td>7.61</td><td>6600</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;business storage&#39;, &#39;Short-tail Keywords&#39;)"></td><td>business storage</td><td>3.7</td><td>10</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;wine storage&#39;, &#39;Short-tail Keywords&#39;)"></td><td>wine storage</td><td>5.09</td><td>170</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;climate-controlled storage&#39;, &#39;Short-tail Keywords&#39;)"></td><td>climate-controlled storage</td><td>2.98</td><td>10</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;moving assistance&#39;, &#39;Short-tail Keywords&#39;)"></td><td>moving assistance</td><td>null</td><td>10</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;secure storage&#39;, &#39;Short-tail Keywords&#39;)"></td><td>secure storage</td><td>null</td><td>20</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;flexible storage&#39;, &#39;Short-tail Keywords&#39;)"></td><td>flexible storage</td><td>null</td><td>10</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;24/7 accessibility&#39;, &#39;Short-tail Keywords&#39;)"></td><td>24/7 accessibility</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;storage facilities&#39;, &#39;Short-tail Keywords&#39;)"></td><td>storage facilities</td><td>5.07</td><td>260</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;storage solutions&#39;, &#39;Short-tail Keywords&#39;)"></td><td>storage solutions</td><td>5.24</td><td>140</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;affordable storage&#39;, &#39;Short-tail Keywords&#39;)"></td><td>affordable storage</td><td>10.83</td><td>10</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;commercial storage&#39;, &#39;Short-tail Keywords&#39;)"></td><td>commercial storage</td><td>null</td><td>10</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;short-term storage&#39;, &#39;Short-tail Keywords&#39;)"></td><td>short-term storage</td><td>11.04</td><td>20</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;long-term storage&#39;, &#39;Short-tail Keywords&#39;)"></td><td>long-term storage</td><td>7.6</td><td>10</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;packed storage&#39;, &#39;Short-tail Keywords&#39;)"></td><td>packed storage</td><td>null</td><td>10</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;local storage&#39;, &#39;Short-tail Keywords&#39;)"></td><td>local storage</td><td>null</td><td>170</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;storage units&#39;, &#39;Short-tail Keywords&#39;)"></td><td>storage units</td><td>7.5</td><td>720</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;personal storage&#39;, &#39;Short-tail Keywords&#39;)"></td><td>personal storage</td><td>6.93</td><td>70</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;storage options&#39;, &#39;Short-tail Keywords&#39;)"></td><td>storage options</td><td>null</td><td>10</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;business space&#39;, &#39;Short-tail Keywords&#39;)"></td><td>business space</td><td>null</td><td>10</td></tr></tbody></table></div><h2>Long-tail Keywords</h2><div class="table-container"><table><tbody><tr><th>Select</th><th>Value</th><th>CPC</th><th>Search Volume</th></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;affordable self-storage solutions Singapore&#39;, &#39;Long-tail Keywords&#39;)"></td><td>affordable self-storage solutions Singapore</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;business storage space for startups&#39;, &#39;Long-tail Keywords&#39;)"></td><td>business storage space for startups</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;climate-controlled wine storage units&#39;, &#39;Long-tail Keywords&#39;)"></td><td>climate-controlled wine storage units</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;moving assistance for residential clients&#39;, &#39;Long-tail Keywords&#39;)"></td><td>moving assistance for residential clients</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;secure storage facilities in Singapore&#39;, &#39;Long-tail Keywords&#39;)"></td><td>secure storage facilities in Singapore</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;24/7 accessibility for storage units&#39;, &#39;Long-tail Keywords&#39;)"></td><td>24/7 accessibility for storage units</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;flexible storage plans for businesses&#39;, &#39;Long-tail Keywords&#39;)"></td><td>flexible storage plans for businesses</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;excellent customer service for storage needs&#39;, &#39;Long-tail Keywords&#39;)"></td><td>excellent customer service for storage needs</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;state-of-the-art security storage solutions&#39;, &#39;Long-tail Keywords&#39;)"></td><td>state-of-the-art security storage solutions</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;short-term storage options in Singapore&#39;, &#39;Long-tail Keywords&#39;)"></td><td>short-term storage options in Singapore</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;long-term climate-controlled storage facilities&#39;, &#39;Long-tail Keywords&#39;)"></td><td>long-term climate-controlled storage facilities</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;wine storage solutions with climate control&#39;, &#39;Long-tail Keywords&#39;)"></td><td>wine storage solutions with climate control</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;affordable moving assistance services Singapore&#39;, &#39;Long-tail Keywords&#39;)"></td><td>affordable moving assistance services Singapore</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;commercial storage facilities with security&#39;, &#39;Long-tail Keywords&#39;)"></td><td>commercial storage facilities with security</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;personalized storage solutions for homeowners&#39;, &#39;Long-tail Keywords&#39;)"></td><td>personalized storage solutions for homeowners</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;storage units with excellent customer support&#39;, &#39;Long-tail Keywords&#39;)"></td><td>storage units with excellent customer support</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;secure and flexible business storage options&#39;, &#39;Long-tail Keywords&#39;)"></td><td>secure and flexible business storage options</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;convenient self-storage locations Singapore&#39;, &#39;Long-tail Keywords&#39;)"></td><td>convenient self-storage locations Singapore</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;emergency moving assistance services&#39;, &#39;Long-tail Keywords&#39;)"></td><td>emergency moving assistance services</td><td>null</td><td>null</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;premium wine storage solutions&#39;, &#39;Long-tail Keywords&#39;)"></td><td>premium wine storage solutions</td><td>null</td><td>null</td></tr></tbody></table></div><h2>USPs</h2><div class="table-container"><table><tbody><tr><th>Select</th><th>Value</th></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;State-of-the-art security&#39;, &#39;USPs&#39;)"></td><td>State-of-the-art security</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;Round-the-clock accessibility&#39;, &#39;USPs&#39;)"></td><td>Round-the-clock accessibility</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;Flexible storage plans&#39;, &#39;USPs&#39;)"></td><td>Flexible storage plans</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;Competitive pricing&#39;, &#39;USPs&#39;)"></td><td>Competitive pricing</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;Excellent customer service&#39;, &#39;USPs&#39;)"></td><td>Excellent customer service</td></tr></tbody></table></div><h2>Target Audience</h2><div class="table-container"><table><tbody><tr><th>Select</th><th>Value</th></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;Ages 25-35, urban residents in Singapore, interested in convenience and storage for personal items.&#39;, &#39;Target Audience&#39;)"></td><td>Ages 25-35, urban residents in Singapore, interested in convenience and storage for personal items.</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;Ages 30-50, entrepreneurs in Singapore, looking for reliable and flexible business storage solutions.&#39;, &#39;Target Audience&#39;)"></td><td>Ages 30-50, entrepreneurs in Singapore, looking for reliable and flexible business storage solutions.</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;Ages 30-60, individuals or couples in Singapore with a passion for wine, requiring climate-controlled storage.&#39;, &#39;Target Audience&#39;)"></td><td>Ages 30-60, individuals or couples in Singapore with a passion for wine, requiring climate-controlled storage.</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;Ages 28-50, families moving or renovating within Singapore, requiring temporary storage.&#39;, &#39;Target Audience&#39;)"></td><td>Ages 28-50, families moving or renovating within Singapore, requiring temporary storage.</td></tr><tr><td><input type="checkbox" onchange="updateSemSelected(&#39;Ages 18-25, local or international students in Singapore looking for short-term storage solutions during breaks.&#39;, &#39;Target Audience&#39;)"></td><td>Ages 18-25, local or international students in Singapore looking for short-term storage solutions during breaks.</td></tr></tbody></table></div></div>';
+                        }
+                    },
+                    {
+                        element: '#generated',
+                        popover: {
+                            title: 'Step 4: Pick Headlines, Ad Desc, Sitelinks, Callouts, Negative KWs & Structured Snippets',
+                            description: 'Finally, choose from the highly curated AI generated ads.',
+                            side: "top", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            document.getElementById('selected').style.display = 'block';
+                            document.getElementById('generated').style.display = 'block';
+                            document.getElementById('generated').innerHTML = `
+                            <div id="generated" style="margin-top: 25px;"><h3>HEADLINES</h3><table><tbody><tr><th>Value</th><th>Remove</th></tr><tr>
+                            <td>Secure Self-Storage Now</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 0)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Affordable Storage in SG</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 1)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Premium Wine Storage</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 2)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Top Business Storage Deals</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 3)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>24/7 Secure Access</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 4)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Flexible Storage Solutions</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 5)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Safe Storage for Startups</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 6)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Convenient Personal Storage</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 7)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>State-of-the-Art Facilities</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 8)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Best Prices on Storage</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 9)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Reliable Business Storage</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 10)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Your Stuff, Securely Stored</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 11)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Wine Lovers' Storage</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 12)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Easy Access Storage Units</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 13)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Short-Term &amp; Long-Term Units</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('headlines', 14)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr></tbody></table><h3>AD DESC</h3><table><tbody><tr><th>Value</th><th>Remove</th></tr><tr>
+                            <td>Discover affordable self-storage solutions in Singapore, tailored for you.</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('ad_desc', 0)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Secure and convenient business storage for startups. Get started today!</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('ad_desc', 1)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Premium wine storage solutions with top-notch security, available now!</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('ad_desc', 2)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>24/7 access storage units designed for your convenience. Rent online!</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('ad_desc', 3)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr></tbody></table><h3>SITELINKS</h3><table><tbody><tr><th>Value</th><th>Remove</th></tr><tr>
+                            <td>Business Storage<br>Flexible solutions for startups<br>Secure your space today!<br></td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('sitelinks', 0)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Wine Storage<br>Perfect for wine collectors<br>State-of-the-art conditions!<br></td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('sitelinks', 1)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Affordable Rates<br>Best prices in Singapore<br>Storage that fits your budget.<br></td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('sitelinks', 2)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>24/7 Accessibility<br>Access your belongings anytime<br>Complete convenience for you!<br></td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('sitelinks', 3)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Secure Facilities<br>State-of-the-art security<br>Your belongings are safe with us.<br></td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('sitelinks', 4)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr></tbody></table><h3>CALLOUTS</h3><table><tbody><tr><th>Value</th><th>Remove</th></tr><tr>
+                            <td>Easy Online Booking</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('callouts', 0)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Convenient Locations</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('callouts', 1)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>No Long-Term Contracts</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('callouts', 2)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Affordable Rates Available</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('callouts', 3)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Temperature-Controlled Units</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('callouts', 4)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Flexible Rental Periods</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('callouts', 5)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Safe and Secure Facilities</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('callouts', 6)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr></tbody></table><h3>NEG KEYWORDS</h3><table><tbody><tr><th>Value</th><th>Remove</th></tr><tr>
+                            <td>cheap storage</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('neg_keywords', 0)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>free storage</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('neg_keywords', 1)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>temporary storage</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('neg_keywords', 2)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>storage auctions</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('neg_keywords', 3)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>city storage</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('neg_keywords', 4)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>self storage tips</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('neg_keywords', 5)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>moving supplies</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('neg_keywords', 6)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>climate control</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('neg_keywords', 7)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>storage reviews</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('neg_keywords', 8)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>storage facilities near me</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('neg_keywords', 9)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr></tbody></table><h3>STRUCTURED SNIPPETS</h3><table><tbody><tr><th>Value</th><th>Remove</th></tr><tr>
+                            <td>Self-Storage Options</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('structured_snippets', 0)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Business Storage Units</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('structured_snippets', 1)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Wine Storage Solutions</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('structured_snippets', 2)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Climate-Controlled Units</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('structured_snippets', 3)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>24/7 Access Facilities</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('structured_snippets', 4)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Affordable Rates Offered</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('structured_snippets', 5)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr><tr>
+                            <td>Secure Storage Solutions</td>
+                            <td><span class="remove-row" onclick="removeSemGeneratedRow('structured_snippets', 6)" onmouseover="" style="cursor: pointer;">X</span></td>
+                         </tr></tbody></table><br><button id="downloadSem" onclick="downloadSemCSV()">Download .csv</button></div>
+                            `;
                         }
                     }
                 ]
@@ -31050,6 +31517,7 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
@@ -31077,7 +31545,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 3: Generate File',
                             description: 'Click to create your machine-readable llms.txt file for AI models.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         }
                     },
                     {
@@ -31116,6 +31584,7 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
@@ -31147,7 +31616,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 3: Generate File',
                             description: 'Click to create your cats.txt file for cat-bot discovery metadata.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         }
                     },
                     {
@@ -31188,6 +31657,7 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
@@ -31207,7 +31677,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 2: Run Audit',
                             description: 'Click to analyze robots.txt, metadata, and schema for AI bot accessibility.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             const dr = document.getElementById('discoveryResults');
@@ -32040,7 +32510,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'LLM Visibility',
                             description: 'Checks if your site is blocking any LLM crawling',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         }
                     },
                     {
@@ -32048,7 +32518,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Fixes Recommended',
                             description: 'Prioritized fixes for your websit for GEO optimisation',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         }
                     },
                     {
@@ -32056,7 +32526,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Technical Discovery Audit',
                             description: 'Other checks for website technical health',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         }
                     },
                     {
@@ -32064,7 +32534,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Crawler Deep Insights',
                             description: 'Deeper insights regarding your website technical health',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         }
                     }
                 ]
@@ -32076,9 +32546,10 @@ By implementing these detailed recommendations, the landing page will effectivel
                 const results = document.getElementById('discoveryResults');
                 if (results) {
                     results.style.display = 'none';
-                    const score = document.getElementById('discoveryMainScore');
-                    if (score) score.innerText = '';
+                    results.innerHTML = '';
                 }
+                const score = document.getElementById('discoveryMainScore');
+                if (score) score.innerText = '';
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -32091,6 +32562,7 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
@@ -33784,7 +34256,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Step 3: Prompts',
                             description: 'Select the prompts that you want to check if you are mentioned by the LLMs',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: () => {
                             document.getElementById('discPromptArea').style.display = 'block';
@@ -33969,7 +34441,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Results',
                             description: 'See which AI models are citing your brand and what they are saying.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: () => {
                             document.getElementById('discVerificationResults').style.display = 'block';
@@ -34704,62 +35176,75 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
-                        element: '#sms_company',
+                        element: '#brand_context',
                         popover: {
-                            title: 'Step 1: Company Context',
-                            description: 'Describe your brand or company to ground the strategy in your business identity.',
+                            title: 'Step 1: Brand Context',
+                            description: 'Describe your brand — who it is, what it does, and the market it operates in.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
-                            const el = document.getElementById('sms_company');
-                            if (el) el.value = 'Extra Space Asia';
+                            const el = document.getElementById('brand_context');
+                            if (el) el.value = 'Extra Space Asia is Singapore\'s leading self-storage provider offering personal, business, and wine storage solutions across multiple locations island-wide.';
                         }
                     },
                     {
-                        element: '#sms_product',
+                        element: '#strategic_ambition',
                         popover: {
-                            title: 'Step 2: Core Offering',
-                            description: 'Specify the main product or service you want to promote through social media.',
+                            title: 'Step 2: Strategic Ambition',
+                            description: 'Define what the brand wants to be known for in the minds of the audience.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
-                            const el = document.getElementById('sms_product');
-                            if (el) el.value = 'Personal & Business Self-Storage Solutions';
+                            const el = document.getElementById('strategic_ambition');
+                            if (el) el.value = 'To be recognised as the most trusted and accessible storage partner in Singapore, synonymous with security, convenience, and peace of mind.';
                         }
                     },
                     {
-                        element: '#sms_audience',
+                        element: '#strategic_challenge',
                         popover: {
-                            title: 'Step 3: Target Audience',
-                            description: 'Define who you are trying to reach (e.g., busy professionals, coffee enthusiasts).',
+                            title: 'Step 3: Core Strategic Challenge',
+                            description: 'Identify the key challenge currently limiting the brand\'s growth or perception.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
-                            const el = document.getElementById('sms_audience');
-                            if (el) el.value = 'Homeowners renovators, and business owners in Singapore needing extra space.';
+                            const el = document.getElementById('strategic_challenge');
+                            if (el) el.value = 'Low category awareness — most consumers don\'t consider self-storage until they face an urgent space problem, making it hard to build top-of-mind recall.';
                         }
                     },
                     {
-                        element: '#sms_tone',
+                        element: '#priority_audiences',
                         popover: {
-                            title: 'Step 4: Brand Tone',
-                            description: 'Set the mood for your communications (e.g., energetic, professional, quirky).',
+                            title: 'Step 4: Priority Audiences',
+                            description: 'Specify up to 3 key audience segments you want to reach.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
-                            const el = document.getElementById('sms_tone');
-                            if (el) el.value = 'Reliable, secure, helpful, and community-focused.';
+                            const el = document.getElementById('priority_audiences');
+                            if (el) el.value = 'Homeowners & renovators, SME business owners, expats relocating';
+                        }
+                    },
+                    {
+                        element: '#proof_points',
+                        popover: {
+                            title: 'Step 5: Proof Points & Constraints',
+                            description: 'List what the brand can credibly prove and any constraints to keep in mind.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('proof_points');
+                            if (el) el.value = '20+ locations across Singapore, 24/7 access, climate-controlled units, state-of-the-art CCTV security, flexible month-to-month plans starting from $38/mo.';
                         }
                     },
                     {
                         element: '#generateSmsBtn',
                         popover: {
-                            title: 'Step 5: Build Strategy',
+                            title: 'Step 6: Build Strategy',
                             description: 'Click here to generate a comprehensive social media strategy house including content themes and KPIs.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         }
                     },
                     {
@@ -34767,27 +35252,75 @@ By implementing these detailed recommendations, the landing page will effectivel
                         popover: {
                             title: 'Sample Strategy House',
                             description: 'This is how your strategy house will look, organized by Inspiring, Cultivating, Connecting, and Amplifying layers.',
-                            side: "top", align: 'center'
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('sms-results-display');
                             el.style.display = 'block';
                             const out = document.getElementById('sms-output-text');
-                            if (out) out.innerHTML = '<div class="strategy-house"><div class="house-roof">Strategic Positioning: Singapore\'s Premier Storage Partner</div><div class="house-methods"><div class="method-pillar">Inspire: Space Tips</div><div class="method-pillar">Cultivate: Trust</div><div class="method-pillar">Connect: Local</div><div class="method-pillar">Amplify: Offers</div></div></div>';
+                            if (out) out.innerHTML = `
+                            <div id="sms-output-text" class="html-output">
+                                <!-- Strategy House Template -->
+                                <div id="sms-house-container" class="strategy-house" style="display: block;">
+                                    <div class="house-roof" id="house-positioning">Extraspace revolutionizes storage solutions, delivering cost-effective option <br> for both personal and office needs, while being an accessible choice for every consumer.</div>
+                                    <div class="house-objectives" id="house-objectives">
+                                        <div class="objective-bar">Expand brand reach through targeted social campaigns that engage both office and personal storage users.</div>
+                                        <div class="objective-bar">Enhance audience education on the benefits of cost-effective storage, positioning Extraspace as the go-to resource.</div>
+                                        <div class="objective-bar">Drive community engagement to foster loyalty and advocacy among existing and potential customers.</div>
+                                    </div>
+                                    <div class="house-methods">
+                                        <div class="method-pillar">Inspire</div>
+                                        <div class="method-pillar">Cultivate</div>
+                                        <div class="method-pillar">Connect</div>
+                                        <div class="method-pillar">Amplify</div>
+                                    </div>
+                                </div>
+
+                                <!-- Strategy Grid Template -->
+                                <table id="sms-grid-container" class="strategy-grid" style="display: table;">
+                                    <thead>
+                                        <tr>
+                                            <th colspan="4" class="grid-primary-goal" id="grid-primary-goal">To increase brand reach and customer engagement by 40% within the next year through compelling social media strategies.</th>
+                                        </tr>
+                                        <tr>
+                                            <th class="grid-method">Inspire</th>
+                                            <th class="grid-method">Cultivate</th>
+                                            <th class="grid-method">Connect</th>
+                                            <th class="grid-method">Amplify</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr id="grid-strategies">
+                                            <td class="grid-strategy">Create visually engaging content showcasing innovative storage solutions and user success stories.</td>
+                                            <td class="grid-strategy">Launch educational series about the financial benefits of optimal storage usage for businesses and individuals.</td>
+                                            <td class="grid-strategy">Develop a community platform where users can share tips, ask questions, and exchange ideas related to storage.</td>
+                                            <td class="grid-strategy">Utilize paid promotions to extend the reach of high-performing posts and customer testimonials through targeted ads.</td>
+                                        </tr>
+                                        <tr id="grid-audiences">
+                                            <td class="grid-audience">Personal storage users seeking efficient solutions.</td>
+                                            <td class="grid-audience">Office storage users focused on cost savings.</td>
+                                            <td class="grid-audience">Both personal and office storage users looking for peer advice and interaction.</td>
+                                            <td class="grid-audience">Prospective customers exploring storage options.</td>
+                                        </tr>
+                                        <tr id="grid-pillars">
+                                            <td class="grid-pillars">Success Stories,Innovative Uses,Before and After Transformations</td>
+                                            <td class="grid-pillars">Cost Savings,Storage Tips,Efficiency Guides</td>
+                                            <td class="grid-pillars">User Forums,Q&amp;A Sessions,Community Challenges</td>
+                                            <td class="grid-pillars">Customer Testimonials,Promotional Offers,Brand Advocacy</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            `;
                         }
                     }
                 ]
             });
 
             driverObj.onDestroyed = () => {
-                const company = document.getElementById('sms_company');
-                if (company) company.value = '';
-                const product = document.getElementById('sms_product');
-                if (product) product.value = '';
-                const audience = document.getElementById('sms_audience');
-                if (audience) audience.value = '';
-                const tone = document.getElementById('sms_tone');
-                if (tone) tone.value = '';
+                ['brand_context', 'strategic_ambition', 'strategic_challenge', 'priority_audiences', 'proof_points'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
                 const results = document.getElementById('sms-results-display');
                 if (results) {
                     results.style.display = 'none';
@@ -34806,76 +35339,250 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
-                        element: '#pillar_company',
+                        element: '#pillar_business_model',
                         popover: {
-                            title: 'Step 1: Brand Base',
-                            description: 'Identify your brand to ensure consistent content pillars.',
+                            title: 'Step 1: Business Model',
+                            description: 'Select whether your business is B2B, B2C, B2G, or a Hybrid model.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
-                            const el = document.getElementById('pillar_company');
-                            if (el) el.value = 'Extra Space Asia';
+                            const el = document.getElementById('pillar_business_model');
+                            if (el) el.value = 'B2C';
                         }
                     },
                     {
-                        element: '#pillar_product',
+                        element: '[name="pillar_objective"]',
                         popover: {
-                            title: 'Step 2: Service Focus',
-                            description: 'Detail what you offer to help the AI identify relevant content themes.',
+                            title: 'Step 2: Business Objectives',
+                            description: 'Select up to 2 primary business objectives that your content strategy should serve.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
-                            const el = document.getElementById('pillar_product');
-                            if (el) el.value = 'State-of-the-art climate controlled storage units for all needs.';
+                            document.querySelectorAll('input[name="pillar_objective"]').forEach(cb => {
+                                cb.checked = (cb.value === 'Lead generation' || cb.value === 'Brand authority');
+                            });
                         }
                     },
                     {
-                        element: '#pillar_audience',
+                        element: '#pillar_audience_type',
                         popover: {
-                            title: 'Step 3: Audience Persona',
-                            description: 'Describe your ideal traveler or customer.',
+                            title: 'Step 3: Primary Audience',
+                            description: 'Choose who you are primarily creating content for — individual consumers, SMEs, or enterprise stakeholders.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
-                            const el = document.getElementById('pillar_audience');
-                            if (el) el.value = 'Expatriates, growing families, and e-commerce SMEs in Southeast Asia.';
+                            const el = document.getElementById('pillar_audience_type');
+                            if (el) el.value = 'Individual consumers';
+                        }
+                    },
+                    {
+                        element: '#pillar_complexity',
+                        popover: {
+                            title: 'Step 4: Decision Complexity',
+                            description: 'How complex is the buying decision? This affects the depth and type of content recommended.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('pillar_complexity');
+                            if (el) el.value = 'Medium (comparison)';
+                        }
+                    },
+                    {
+                        element: '[name="pillar_platform"]',
+                        popover: {
+                            title: 'Step 5: Active Platforms',
+                            description: 'Select the social media platforms where your brand is active.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            document.querySelectorAll('input[name="pillar_platform"]').forEach(cb => {
+                                cb.checked = (cb.value === 'Instagram' || cb.value === 'Facebook' || cb.value === 'TikTok');
+                            });
+                        }
+                    },
+                    {
+                        element: '#pillar_sensitivity',
+                        popover: {
+                            title: 'Step 6: Brand Risk Sensitivity',
+                            description: 'Set how cautious your brand tone should be — from playful to highly regulated.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('pillar_sensitivity');
+                            if (el) el.value = 'Medium (balanced)';
+                        }
+                    },
+                    {
+                        element: '#pillar_promo_tolerance',
+                        popover: {
+                            title: 'Step 7: Promotional Tolerance',
+                            description: 'How sales-forward should your content be? This shapes the mix between value-driven and promotional posts.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('pillar_promo_tolerance');
+                            if (el) el.value = 'Medium (occasional CTA)';
+                        }
+                    },
+                    {
+                        element: '#pillar_website',
+                        popover: {
+                            title: 'Step 8: Website URLs',
+                            description: 'Provide your website URLs so the AI can analyse your brand context and offerings.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('pillar_website');
+                            if (el) el.value = 'https://www.extraspaceasia.com.sg';
+                        }
+                    },
+                    {
+                        element: '#pillar_competitors',
+                        popover: {
+                            title: 'Step 9: Key Competitors',
+                            description: 'List your main competitors to help differentiate your content positioning.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('pillar_competitors');
+                            if (el) el.value = 'StorHub, StoreFriendly, Spaceship, Work+Store';
                         }
                     },
                     {
                         element: '#generatePillarBtn',
                         popover: {
-                            title: 'Step 4: Generate Pillars',
-                            description: 'Click to create a structured framework of content pillars to guide your posting schedule.',
-                            side: "top", align: 'center'
+                            title: 'Step 10: Generate Framework',
+                            description: 'Click to generate a strategic content pillar framework tailored to your business context.',
+                            side: "top", align: 'start'
                         }
                     },
                     {
                         element: '#pillar-results-display',
                         popover: {
-                            title: 'Sample Pillars',
-                            description: 'Your strategic pillars are presented here, categorized by themes like Educational, Promotional, and Engagement.',
-                            side: "top", align: 'center'
+                            title: 'Sample Pillar Framework',
+                            description: 'Your strategic content pillars framework, platform role matrix and execution guardrails will appear here.',
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('pillar-results-display');
                             el.style.display = 'block';
-                            const out = document.getElementById('pillar-output-text');
-                            if (out) out.innerHTML = '<h3 style="color:#004c9d;">Pillar 1: Space Optimization Tips</h3><p style="margin:4px 0; font-size:0.9em;">Help followers declutter and organize their homes. Topics: KonMari method, seasonal rotation, packing hacks.</p><h3 style="color:#004c9d; margin-top:12px;">Pillar 2: Storage for Life Events</h3><p style="margin:4px 0; font-size:0.9em;">Moving, renovation, new baby — real scenarios where Extra Space Asia solves a need. Customer spotlight stories.</p><h3 style="color:#004c9d; margin-top:12px;">Pillar 3: Business Solutions</h3><p style="margin:4px 0; font-size:0.9em;">E-commerce inventory management, document archival, wine storage for F&B. Thought leadership for SME owners.</p>';
+                            el.innerHTML = `
+                            <div id="pillar-results-display" style="margin-top: 25px; padding: 25px; background: rgb(255, 255, 255); border-radius: 12px; border-width: 1px 1px 1px 6px; border-style: solid; border-color: rgb(224, 230, 237) rgb(224, 230, 237) rgb(224, 230, 237) rgb(0, 76, 157); border-image: initial; display: block; box-shadow: rgba(0, 0, 0, 0.05) 0px 4px 12px; position: relative;" class="">
+                        <div style="font-size: 0.85em; color: #64748b; margin-bottom: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                            Strategic Framework Output:</div>
+                        <div id="pillar-output-text" class="html-output" style="line-height: 1.6; color: #1e293b;"><h3>1. Strategic Content Pillar Framework</h3>
+<table>
+    <thead>
+        <tr>
+            <th></th>
+            <th>LEAD GENERATION</th>
+            <th>BRAND AUTHORITY</th>
+            <th>CUSTOMER EDUCATION</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Objective</strong></td>
+            <td>Drive inquiries for Extra Space Asia's storage solutions, focusing on personal storage needs like wardrobe and furniture storage.</td>
+            <td>Establish Extra Space Asia as a knowledgeable leader in the self-storage industry, highlighting security features and customer testimonials.</td>
+            <td>Educate potential customers on the various storage solutions offered by Extra Space Asia, including tips on efficient packing and space management.</td>
+        </tr>
+        <tr>
+            <td><strong>Main Topics</strong></td>
+            <td>
+                <ul>
+                    <li>Storage hacks for small apartments</li>
+                    <li>Promotions on wardrobe storage units</li>
+                    <li>Customer case studies on maximizing space</li>
+                </ul>
+            </td>
+            <td>
+                <ul>
+                    <li>Virtual tours of storage facilities</li>
+                    <li>Expert interviews on storage safety</li>
+                    <li>Infographics on industry standards and security</li>
+                </ul>
+            </td>
+            <td>
+                <ul>
+                    <li>How-to guides on maximizing self-storage</li>
+                    <li>Video tutorials on packing efficiently</li>
+                    <li>Blogs on seasonal storage solutions</li>
+                </ul>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>2. Platform Role Matrix</h3>
+<table>
+    <thead>
+        <tr>
+            <th></th>
+            <th>Instagram</th>
+            <th>TikTok</th>
+            <th>Facebook</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>LEAD GENERATION</td>
+            <td>High</td>
+            <td>Medium</td>
+            <td>High</td>
+        </tr>
+        <tr>
+            <td>BRAND AUTHORITY</td>
+            <td>Medium</td>
+            <td>Low</td>
+            <td>High</td>
+        </tr>
+        <tr>
+            <td>CUSTOMER EDUCATION</td>
+            <td>High</td>
+            <td>Medium</td>
+            <td>Medium</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Execution Guardrails</h3>
+<ul>
+    <li>Focus on high-impact content that aligns with direct consumer needs and proven customer pain points.</li>
+    <li>Avoid excessive promotional content; integrate calls-to-action naturally within informative posts.</li>
+    <li>Ensure consistency in brand messaging across all content pillars, maintaining a professional tone.</li>
+    <li>Limit vanity metrics by prioritizing engagement that leads to inquiries or actionable insights.</li>
+    <li>Regularly review performance metrics to refine topics and strategies for higher engagement rates.</li>
+</ul></div>
+                        <button onclick="copyToClipboard('pillar-output-text', event)" style="position: absolute; top: 15px; right: 15px; background: #f1f5f9; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8em; color: #475569; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                            `;
+
                         }
                     }
                 ]
             });
 
             driverObj.onDestroyed = () => {
-                const company = document.getElementById('pillar_company');
-                if (company) company.value = '';
-                const product = document.getElementById('pillar_product');
-                if (product) product.value = '';
-                const audience = document.getElementById('pillar_audience');
-                if (audience) audience.value = '';
+                // Reset selects
+                ['pillar_business_model', 'pillar_audience_type', 'pillar_complexity', 'pillar_sensitivity', 'pillar_promo_tolerance'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.selectedIndex = 0;
+                });
+                // Reset text fields
+                ['pillar_website', 'pillar_brand_guide', 'pillar_competitors'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                // Uncheck checkboxes
+                document.querySelectorAll('input[name="pillar_objective"], input[name="pillar_platform"]').forEach(cb => cb.checked = false);
+                // Hide results
                 const results = document.getElementById('pillar-results-display');
                 if (results) {
                     results.style.display = 'none';
@@ -34894,62 +35601,190 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
-                        element: '#smm_product',
+                        element: '#post-role',
                         popover: {
-                            title: 'Step 1: Promotion Goal',
-                            description: 'What specific product or message are we generating content for today?',
+                            title: 'Step 1: Post Role',
+                            description: 'What should this post achieve? Build awareness, educate your audience, or prompt action.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
-                            const el = document.getElementById('smm_product');
-                            if (el) el.value = 'New "Double Space" Promotion - 50% off for the first 2 months.';
+                            const el = document.getElementById('post-role');
+                            if (el) el.value = 'action';
                         }
                     },
                     {
-                        element: '#smm_platform',
+                        element: '#strategy-fit',
                         popover: {
-                            title: 'Step 2: Platform Choice',
-                            description: 'Select where this content will be posted (e.g., Instagram, LinkedIn, TikTok).',
+                            title: 'Step 2: Strategy Context',
+                            description: 'How does this post fit into your broader strategy — positioning, proof, engagement, or campaign support?',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
-                            const el = document.getElementById('smm_platform');
-                            if (el) el.value = 'Instagram / Facebook';
+                            const el = document.getElementById('strategy-fit');
+                            if (el) el.value = 'campaign';
+                        }
+                    },
+                    {
+                        element: '#core-message',
+                        popover: {
+                            title: 'Step 3: Core Message',
+                            description: 'The single most important takeaway your audience should remember from this post.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('core-message');
+                            if (el) el.value = 'Get 50% off your first 2 months with our Double Space promo.';
+                        }
+                    },
+                    {
+                        element: '#subgroups',
+                        popover: {
+                            title: 'Step 4: Target Sub-Groups',
+                            description: 'Specify the audience segments this post is tailored for.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('subgroups');
+                            if (el) el.value = 'Homeowners doing renovations, young couples moving in';
+                        }
+                    },
+                    {
+                        element: '#painpoints',
+                        popover: {
+                            title: 'Step 5: Pain Points',
+                            description: 'What problems does your audience face that this content should address?',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('painpoints');
+                            if (el) el.value = 'Not enough space at home during renovation, nowhere to keep furniture temporarily';
+                        }
+                    },
+                    {
+                        element: '#audience_goal',
+                        popover: {
+                            title: 'Step 6: Audience Goals',
+                            description: 'What does your audience want to achieve? This helps the AI frame the content around their aspirations.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('audience_goal');
+                            if (el) el.value = 'Convenient, affordable temporary storage solution';
+                        }
+                    },
+                    {
+                        element: '#product_service',
+                        popover: {
+                            title: 'Step 7: Product/Service',
+                            description: 'The specific product or service being promoted in this post.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('product_service');
+                            if (el) el.value = 'Personal Self-Storage Units (various sizes)';
+                        }
+                    },
+                    {
+                        element: '#desired_action',
+                        popover: {
+                            title: 'Step 8: Desired CTA',
+                            description: 'What action do you want the reader to take after seeing this post?',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('desired_action');
+                            if (el) el.value = 'Book a free tour via link in bio';
+                        }
+                    },
+                    {
+                        element: '#content-type',
+                        popover: {
+                            title: 'Step 9: Content Type',
+                            description: 'Choose the format — Instagram caption, LinkedIn post, Facebook post, or blog article.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('content-type');
+                            if (el) el.value = 'instagram-caption';
+                        }
+                    },
+                    {
+                        element: '#tone',
+                        popover: {
+                            title: 'Step 10: Tone of Voice',
+                            description: 'Set the tone — e.g. professional, playful, urgent, or luxurious.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('tone');
+                            if (el) el.value = 'Friendly, helpful, slightly urgent';
+                        }
+                    },
+                    {
+                        element: '#brand-pov',
+                        popover: {
+                            title: 'Step 11: Brand POV',
+                            description: 'Choose the persona your brand speaks from — confident authority, helpful guide, or community peer.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('brand-pov');
+                            if (el) el.value = 'guide';
+                        }
+                    },
+                    {
+                        element: '#post-info',
+                        popover: {
+                            title: 'Step 12: Core Content/Topic',
+                            description: 'Provide the main topic or details the AI should work with to generate the post.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('post-info');
+                            if (el) el.value = 'Extra Space Asia\'s "Double Space" promotion — 50% off first 2 months on all personal storage units. Highlight 24/7 access, climate-controlled, CCTV secured, multiple locations across Singapore.';
                         }
                     },
                     {
                         element: '#generate-button',
                         popover: {
-                            title: 'Step 3: Generate Post',
-                            description: 'Click to receive multiple post options with captions, hashtags, and image prompts.',
-                            side: "top", align: 'center'
+                            title: 'Step 13: Generate Content',
+                            description: 'Click to generate professional social media content with captions, hashtags, and visual suggestions.',
+                            side: "top", align: 'start'
                         }
                     },
                     {
                         element: '#generated-content',
                         popover: {
-                            title: 'Sample Post',
-                            description: 'The AI generates creative captions and visual suggestions based on your input.',
-                            side: "top", align: 'center'
+                            title: 'Sample Generated Post',
+                            description: 'The AI produces ready-to-use content with multiple post options, hashtags, and image prompts.',
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('generated-content');
                             el.style.display = 'block';
                             const out = document.getElementById('content-output-text');
-                            if (out) out.innerHTML = '<strong>Post Option 1 (Carousel):</strong><br>\uD83D\uDCE6 Running out of room? We\'ve got the space!<br>Get <strong>50% OFF</strong> your first 2 months with our Double Space promo.<br>\u2705 24/7 access \u2705 Climate-controlled \u2705 CCTV secured<br>Book a free tour today \u27A1\uFE0F Link in bio<br><span style="color:#6366f1;">#ExtraSpaceAsia #StorageSingapore #SelfStorage #Declutter #MovingSG</span><br><br><strong>Post Option 2 (Reel Script):</strong><br>\uD83C\uDFAC Hook: "POV: You finally have space for everything"<br>Show: Before (cluttered room) \u2192 After (organized storage unit)<br>CTA: "First 2 months 50% off \u2014 tap the link!"';
+                            if (out) out.innerHTML = '<strong>Post Option 1 (Carousel):</strong><br>📦 Running out of room? We\'ve got the space!<br>Get <strong>50% OFF</strong> your first 2 months with our Double Space promo.<br>✅ 24/7 access ✅ Climate-controlled ✅ CCTV secured<br>Book a free tour today ➡️ Link in bio<br><span style="color:#6366f1;">#ExtraSpaceAsia #StorageSingapore #SelfStorage #Declutter #MovingSG</span><br><br><strong>Post Option 2 (Reel Script):</strong><br>🎬 Hook: "POV: You finally have space for everything"<br>Show: Before (cluttered room) → After (organized storage unit)<br>CTA: "First 2 months 50% off — tap the link!"';
                         }
                     }
                 ]
             });
 
             driverObj.onDestroyed = () => {
-                const product = document.getElementById('smm_product');
-                if (product) product.value = '';
-                const platform = document.getElementById('smm_platform');
-                if (platform) platform.value = '';
+                // Reset selects
+                ['post-role', 'strategy-fit', 'content-type', 'brand-pov', 'language_gen'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.selectedIndex = 0;
+                });
+                // Reset text/textarea fields
+                ['core-message', 'subgroups', 'painpoints', 'audience_goal', 'generator_brand_guide_urls', 'product_service', 'desired_action', 'tone', 'word_count', 'usp', 'post-info', 'constraints', 'sample-text', 'reference-url'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                // Hide results
                 const results = document.getElementById('generated-content');
                 if (results) {
                     results.style.display = 'none';
@@ -34968,80 +35803,110 @@ By implementing these detailed recommendations, the landing page will effectivel
             const driver = window.driver.js.driver;
             const driverObj = driver({
                 showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
                 allowClose: true,
                 steps: [
                     {
-                        element: '#smm_reply_context',
+                        element: '#response_platform',
                         popover: {
-                            title: 'Step 1: Scenario Context',
-                            description: 'Provide context for the response (e.g., handling a complaint, gratitude for a review).',
+                            title: 'Step 1: Platform',
+                            description: 'Select the platform where this comment was posted — Meta, Instagram, LinkedIn, or TikTok.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
-                            const el = document.getElementById('smm_reply_context');
-                            if (el) el.value = 'Helpful and friendly response to a customer inquiry about unit sizes and access hours.';
+                            const el = document.getElementById('response_platform');
+                            if (el) el.value = 'instagram';
                         }
                     },
                     {
-                        element: '#smm_reply_post',
+                        element: '#sensitivity',
                         popover: {
-                            title: 'Step 2: Original Post',
-                            description: 'Paste the original post or ad your brand published.',
+                            title: 'Step 2: Sensitivity Level',
+                            description: 'How sensitive is this situation? Routine for common queries, heightened for repeated complaints, or high-risk for legal/viral potential.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
-                            const el = document.getElementById('smm_reply_post');
-                            if (el) el.value = '\uD83C\uDFE0 Running out of space? Get your first month FREE at Extra Space Asia! Secure, climate-controlled units from $38/mo.';
+                            const el = document.getElementById('sensitivity');
+                            if (el) el.value = 'routine';
                         }
                     },
                     {
-                        element: '#smm_reply_comment',
+                        element: '#response_objective',
                         popover: {
-                            title: 'Step 3: Customer Comment',
-                            description: 'Paste the specific customer comment you need to reply to.',
+                            title: 'Step 3: Response Objective',
+                            description: 'What should this reply achieve? De-escalate, correct misinformation, demonstrate accountability, or redirect to DM.',
                             side: "bottom", align: 'start'
                         },
                         onHighlightStarted: () => {
-                            const el = document.getElementById('smm_reply_comment');
+                            const el = document.getElementById('response_objective');
+                            if (el) el.value = 'de_escalate';
+                        }
+                    },
+                    {
+                        element: '#smm-comment-input',
+                        popover: {
+                            title: 'Step 4: Client\'s Comment',
+                            description: 'Paste the customer\'s comment or message that you need to respond to.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('smm-comment-input');
                             if (el) el.value = 'What sizes do you have available? And is there really 24/7 access? I need to store furniture during my renovation.';
+                        }
+                    },
+                    {
+                        element: '#smm-instructions-input',
+                        popover: {
+                            title: 'Step 5: Additional Context',
+                            description: 'Optionally add extra context or specific instructions for the AI — e.g. mention a current promo or link to share.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            const el = document.getElementById('smm-instructions-input');
+                            if (el) el.value = 'Mention our Double Space promo (50% off first 2 months). Keep the tone warm and invite them to book a free tour.';
                         }
                     },
                     {
                         element: '#generateSmmReplyBtn',
                         popover: {
-                            title: 'Step 4: Generate Reply',
-                            description: 'Click to get a perfectly crafted response that addresses the customer\'s concern.',
-                            side: "top", align: 'center'
+                            title: 'Step 6: Generate Reply',
+                            description: 'Click to generate a professionally crafted response that addresses the customer\'s concern.',
+                            side: "top", align: 'start'
                         }
                     },
                     {
                         element: '#smm-reply-display',
                         popover: {
                             title: 'Sample Response',
-                            description: 'The AI crafts a tailored response that maintains your brand voice while addressing the user specifically.',
-                            side: "top", align: 'center'
+                            description: 'The AI crafts a tailored response that maintains your brand voice while addressing the customer specifically.',
+                            side: "top", align: 'start'
                         },
                         onHighlightStarted: (el) => {
                             if (!el) el = document.getElementById('smm-reply-display');
                             el.style.display = 'block';
-                            const out = document.getElementById('smm-reply-output');
-                            if (out) out.innerHTML = '<strong>Draft Response (Helpful & Friendly):</strong><br>Hi there! \uD83D\uDC4B Thanks for your interest! We have units ranging from 9 sqft lockers up to 200+ sqft rooms \u2014 perfect for renovation storage. And yes, all our facilities offer genuine 24/7 access with smart card entry! \uD83D\uDD13 Would you like us to arrange a free tour so you can find the perfect fit? Just DM us your preferred location! \uD83D\uDE0A #ExtraSpaceAsia';
+                            const out = document.getElementById('smm-reply-text');
+                            if (out) out.innerHTML = '<strong>Draft Response (Helpful & Friendly):</strong><br>Hi there! 👋 Thanks for your interest! We have units ranging from 9 sqft lockers up to 200+ sqft rooms — perfect for renovation storage. And yes, all our facilities offer genuine 24/7 access with smart card entry! 🔓 Plus, we\'re currently running our Double Space promo — 50% off your first 2 months! Would you like us to arrange a free tour so you can find the perfect fit? Just DM us your preferred location! 😊 #ExtraSpaceAsia';
                         }
                     }
                 ]
             });
 
             driverObj.onDestroyed = () => {
-                const context = document.getElementById('smm_reply_context');
-                if (context) context.value = '';
-                const post = document.getElementById('smm_reply_post');
-                if (post) post.value = '';
-                const comment = document.getElementById('smm_reply_comment');
-                if (comment) comment.value = '';
+                // Reset selects
+                ['response_platform', 'sensitivity', 'response_objective'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.selectedIndex = 0;
+                });
+                // Reset text fields
+                ['smm-comment-input', 'smm-instructions-input'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                // Hide results
                 const results = document.getElementById('smm-reply-display');
                 if (results) {
                     results.style.display = 'none';
-                    const output = document.getElementById('smm-reply-output');
+                    const output = document.getElementById('smm-reply-text');
                     if (output) output.innerHTML = '';
                 }
             };
