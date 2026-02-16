@@ -4561,55 +4561,80 @@
             box-sizing: border-box;
         }
 
-        .gauge {
+        .modern-gauge {
             width: 100%;
             max-width: 250px;
-            font-family: "Roboto", sans-serif;
-            font-size: 18px;
-            font-weight: bolder;
-            color: #686868;
-        }
-
-        .gauge__body {
-            width: 100%;
-            height: 0;
-            padding-bottom: 50%;
-            background: linear-gradient(90deg, rgba(253, 29, 29, 1) 0%, rgb(245, 229, 0) 50%, rgba(33, 255, 68, 1) 100%);
+            margin: 25px auto;
             position: relative;
-            border-top-left-radius: 100% 200%;
-            border-top-right-radius: 100% 200%;
-            overflow: hidden;
+            font-family: 'Inter', 'Roboto', sans-serif;
         }
 
-        .gauge__fill {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            width: inherit;
-            height: 100%;
-            transform-origin: center top;
-            transform: rotate(0.25turn);
-            transition: transform 0.2s ease-out;
-            border: 2.5px solid #5d5d5d;
-            /* Solid border for a more defined outline */
+        .modern-gauge .gauge-svg {
+            width: 100%;
+            height: auto;
+            display: block;
+            transform: none !important;
         }
 
-        .gauge__cover {
-            width: 75%;
-            height: 150%;
-            background: #f0f0f0;
-            border-radius: 50%;
+        .modern-gauge .gauge-bg {
+            fill: none;
+            stroke: #eef2f7;
+            stroke-width: 12;
+            stroke-linecap: round;
+        }
+
+        .modern-gauge .gauge-fill {
+            fill: none;
+            stroke: url(#gaugeGradient);
+            stroke-width: 12;
+            stroke-linecap: round;
+            stroke-dasharray: 219.9;
+            /* 2 * PI * 70 / 2 (approx for semi-circle) */
+            stroke-dashoffset: 219.9;
+            transition: stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .modern-gauge .gauge-content {
             position: absolute;
-            top: 25%;
+            bottom: 5px;
             left: 50%;
             transform: translateX(-50%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding-bottom: 25%;
-            box-sizing: border-box;
             text-align: center;
+            width: 100%;
+        }
+
+        .modern-gauge .gauge-score-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1a1f36;
+            /* Dark slate for high contrast */
+            margin: 0;
+            line-height: 1;
+        }
+
+        .modern-gauge .gauge-score-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #4f566b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+
+        /* Dark mode support - ensure text remains readable */
+        @media (prefers-color-scheme: dark) {
+            .modern-gauge .gauge-bg {
+                stroke: #2a2f45;
+            }
+
+            .modern-gauge .gauge-score-value {
+                color: #1a1f36;
+                /* Keep dark for visibility on light containers */
+            }
+
+            .modern-gauge .gauge-score-label {
+                color: #4f566b;
+            }
         }
 
         .collapsible i {
@@ -6814,7 +6839,7 @@
         </div>
 
         <div class="nav-item" id="quickHelpNavItem">
-            <a href="#" onclick="initKeywordAnalysisTour()" style="color: #34a853; font-weight: bold;">
+            <a href="#" onclick="runSequentialTours()" style="color: #34a853; font-weight: bold;">
                 <i class="fas fa-question-circle"></i> Help
             </a>
         </div>
@@ -9893,10 +9918,21 @@
                                 </button>
                             </div>
                         </div>
-                        <div id="gauge" class="gauge" style="display: none; margin: 25px auto;">
-                            <div class="gauge__body">
-                                <div class="gauge__fill"></div>
-                                <div class="gauge__cover"></div>
+                        <div id="gauge" class="modern-gauge" style="display: none;">
+                            <svg class="gauge-svg" viewBox="0 0 160 100">
+                                <defs>
+                                    <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" style="stop-color:#ff4d4f;stop-opacity:1" />
+                                        <stop offset="50%" style="stop-color:#ffec3d;stop-opacity:1" />
+                                        <stop offset="100%" style="stop-color:#52c41a;stop-opacity:1" />
+                                    </linearGradient>
+                                </defs>
+                                <path class="gauge-bg" d="M 10 90 A 70 70 0 0 1 150 90"></path>
+                                <path id="modernGaugeFill" class="gauge-fill" d="M 10 90 A 70 70 0 0 1 150 90"></path>
+                            </svg>
+                            <div class="gauge-content">
+                                <div id="modernGaugeScore" class="gauge-score-value">0/10</div>
+                                <div class="gauge-score-label">Quality Score</div>
                             </div>
                         </div>
                         <div id="landingPageAuditResults"></div>
@@ -20763,9 +20799,17 @@ ${selectedText}
                 return;
             }
 
-            const fillElement = gauge.querySelector(".gauge__fill");
-            fillElement.style.transform = `rotate(${value / 2}turn)`;
-            gauge.querySelector(".gauge__cover").innerHTML = `Quality Score<br>${Math.round(value * 10)}/10`;
+            const fillElement = document.getElementById("modernGaugeFill");
+            if (fillElement) {
+                const circumference = 219.9; // Approximate length of the arc
+                const offset = circumference - (value * circumference);
+                fillElement.style.strokeDashoffset = offset;
+            }
+
+            const scoreElement = document.getElementById("modernGaugeScore");
+            if (scoreElement) {
+                scoreElement.innerHTML = `${Math.round(value * 10)}/10`;
+            }
         }
 
         async function generateGoogle() {
@@ -28316,6 +28360,69 @@ CRITICAL CONTENT GUIDELINES (EEAT):
             }
         });
     </script>
+
+    <script>
+        // Tour Manager for Consecutive Progression
+        let sequentialTourActive = false;
+        let currentTourIndex = -1;
+        let allTours = [];
+
+        function runSequentialTours() {
+            // Populate the array when the user clicks 'Help'
+            // This ensures all init functions in later script blocks are now defined
+            allTours = [
+                initKeywordAnalysisTour,
+                initTechnicalSeoTour,
+                initContentComparisonTour,
+                initSchemaGeneratorTour,
+                initOnPageOptimisationTour,
+                initRankCheckerTour,
+                initCompetitorsTour,
+                initPersonaTour,
+                initMediaPlanTour,
+                initContentCheckerTour,
+                initLandingPageAuditTour,
+                initAiContentOptimiserTour,
+                initSemTour,
+                initLlmsTour,
+                initCatsTour,
+                initAiDiscoveryTour,
+                initAiMentionsTour,
+                initSmsTour,
+                initPillarTour,
+                initContentGenTour,
+                initResponseGenTour,
+                initGscTour
+            ];
+            sequentialTourActive = true;
+            currentTourIndex = 0;
+            if (allTours[currentTourIndex]) {
+                allTours[currentTourIndex]();
+            }
+        }
+
+        function advanceTourSequence() {
+            if (!sequentialTourActive) return;
+
+            currentTourIndex++;
+            if (currentTourIndex < allTours.length) {
+                // Short delay to allow cleanup and UI transitions
+                setTimeout(() => {
+                    if (sequentialTourActive && allTours[currentTourIndex]) {
+                        allTours[currentTourIndex]();
+                    }
+                }, 500);
+            } else {
+                stopTourSequence();
+            }
+        }
+
+        function stopTourSequence() {
+            sequentialTourActive = false;
+            currentTourIndex = -1;
+            console.log("Tour sequence completed or stopped.");
+        }
+    </script>
     <script>
 
 
@@ -28672,6 +28779,21 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                     const el = document.getElementById(id);
                     if (el) { el.textContent = ''; el.innerHTML = ''; el.style.color = ''; el.style.fontWeight = ''; }
                 });
+                // Clean up Crawler
+                const crawlBtn = document.getElementById('crawlerButton');
+                const crawlSection = document.getElementById('crawlerSection');
+                if (crawlBtn) { crawlBtn.classList.remove('active'); crawlBtn.style.backgroundColor = ''; }
+                if (crawlSection) crawlSection.style.display = 'none';
+                const crawlReport = document.getElementById('crawlerReport');
+                if (crawlReport) { crawlReport.style.display = 'none'; crawlReport.innerHTML = ''; }
+                const head = document.getElementById('crawlerTableHeader');
+                if (head) head.innerHTML = '';
+                const body = document.getElementById('crawlerTableBody');
+                if (body) body.innerHTML = '';
+                const colSelector = document.getElementById('columnSelector');
+                if (colSelector) { colSelector.style.display = 'none'; colSelector.innerHTML = ''; }
+
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => {
@@ -29449,6 +29571,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                 ],
                 onDestroyed: () => {
                     clearKeywordDemoData();
+                    advanceTourSequence(); // Added for sequential progression
                 }
             });
 
@@ -29964,6 +30087,11 @@ By implementing these detailed recommendations, the landing page will effectivel
                     results.style.display = 'none';
                     results.innerHTML = '';
                 }
+                const initialTable = document.getElementById('initial-table');
+                if (initialTable) {
+                    initialTable.innerHTML = '';
+                }
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -30027,6 +30155,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                 if (output) output.innerHTML = '';
                 const inputs = document.getElementById('input-fields');
                 if (inputs) inputs.innerHTML = '';
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -30305,6 +30434,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                     const el = document.getElementById(id);
                     if (el) { el.style.display = 'none'; el.innerHTML = ''; }
                 });
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -30410,6 +30540,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                     results.style.display = 'none';
                     results.innerHTML = '';
                 }
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -30534,6 +30665,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                     output.style.display = 'none';
                     output.innerHTML = '';
                 }
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -30634,6 +30766,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                     results.style.display = 'none';
                     results.innerHTML = '';
                 }
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -30742,6 +30875,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                     results.style.display = 'none';
                     results.innerHTML = '';
                 }
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -30841,6 +30975,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                     results.style.display = 'none';
                     results.innerHTML = '';
                 }
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -30956,10 +31091,15 @@ By implementing these detailed recommendations, the landing page will effectivel
             });
 
             driverObj.onDestroyed = () => {
+                console.log('Landing Page Audit Tour Destroyed - Cleaning up');
                 // Reset text fields
                 ['landingPageUrl', 'landingPageAuditKeyword'].forEach(id => {
                     const el = document.getElementById(id);
-                    if (el) el.value = '';
+                    if (el) {
+                        el.value = '';
+                        // Trigger change event just in case
+                        el.dispatchEvent(new Event('change'));
+                    }
                 });
                 // Hide results
                 const results = document.getElementById('landingPageAuditResults');
@@ -30967,6 +31107,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                     results.style.display = 'none';
                     results.innerHTML = '';
                 }
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -31250,6 +31391,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                 if (gauge) gauge.style.strokeDashoffset = '';
                 const scoreVal = document.getElementById('seoScoreValue');
                 if (scoreVal) scoreVal.innerText = '';
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -31283,6 +31425,35 @@ By implementing these detailed recommendations, the landing page will effectivel
                     }
                 ]
             });
+
+            driverObj.onDestroyed = () => {
+                // Clear Performance Table
+                const perfBody = document.getElementById('table-performance-body');
+                if (perfBody) perfBody.innerHTML = '';
+
+                // Clear Masterclass Tables
+                ['masterclass-dynamic-striking', 'masterclass-dynamic-gaps', 'masterclass-dynamic-semantic', 'masterclass-dynamic-pruning'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        const tableBody = el.querySelector('tbody');
+                        if (tableBody) tableBody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: #999;">Click "Run Analysis" to load data.</td></tr>';
+                    }
+                });
+
+                // Clear Logs and Results
+                const results = document.getElementById('gscResults');
+                if (results) results.style.display = 'none';
+                const logsBody = document.getElementById('gscLogsBody');
+                if (logsBody) logsBody.innerHTML = '';
+                const systemStatus = document.getElementById('gscSystemStatus');
+                if (systemStatus) systemStatus.innerHTML = '';
+
+                // Reset Pagination
+                const pageIndicator = document.getElementById('gscPageIndicator');
+                if (pageIndicator) pageIndicator.innerText = 'Page 1 of 1';
+
+                advanceTourSequence();
+            };
 
             setTimeout(() => { driverObj.drive(); }, 500);
         }
@@ -31500,11 +31671,26 @@ By implementing these detailed recommendations, the landing page will effectivel
             driverObj.onDestroyed = () => {
                 const webs = document.getElementById('sem-websites');
                 if (webs) webs.value = '';
+                const products = document.getElementById('products');
+                if (products) {
+                    products.style.display = 'none';
+                    products.innerHTML = '';
+                }
                 const output = document.getElementById('output');
                 if (output) {
                     output.style.display = 'none';
                     output.innerHTML = '';
                 }
+                const generated = document.getElementById('generated');
+                if (generated) {
+                    generated.style.display = 'none';
+                    generated.innerHTML = '';
+                }
+                const selected = document.getElementById('selected');
+                if (selected) {
+                    selected.style.display = 'none';
+                }
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -31572,6 +31758,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                 if (preview) preview.style.display = 'none';
                 const text = document.getElementById('geoPreviewText');
                 if (text) text.value = '';
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -31645,6 +31832,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                 if (preview) preview.style.display = 'none';
                 const text = document.getElementById('catsPreviewText');
                 if (text) text.value = '';
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -32550,6 +32738,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                 }
                 const score = document.getElementById('discoveryMainScore');
                 if (score) score.innerText = '';
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -35159,11 +35348,22 @@ By implementing these detailed recommendations, the landing page will effectivel
             driverObj.onDestroyed = () => {
                 const url = document.getElementById('discKeywordUrl');
                 if (url) url.value = '';
+                const keywordArea = document.getElementById('discKeywordArea');
+                if (keywordArea) {
+                    keywordArea.style.display = 'none';
+                    keywordArea.innerHTML = '';
+                }
+                const promptArea = document.getElementById('discPromptArea');
+                if (promptArea) {
+                    promptArea.style.display = 'none';
+                    promptArea.innerHTML = '';
+                }
                 const results = document.getElementById('discVerificationResults');
                 if (results) {
                     results.style.display = 'none';
                     results.innerHTML = '';
                 }
+                advanceTourSequence();
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -35327,6 +35527,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                     const output = document.getElementById('sms-output-text');
                     if (output) output.innerHTML = '';
                 }
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -35589,6 +35790,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                     const output = document.getElementById('pillar-output-text');
                     if (output) output.innerHTML = '';
                 }
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -35791,6 +35993,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                     const output = document.getElementById('content-output-text');
                     if (output) output.innerHTML = '';
                 }
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -35909,6 +36112,7 @@ By implementing these detailed recommendations, the landing page will effectivel
                     const output = document.getElementById('smm-reply-text');
                     if (output) output.innerHTML = '';
                 }
+                advanceTourSequence(); // Added for sequential progression
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
