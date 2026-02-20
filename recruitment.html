@@ -1866,13 +1866,13 @@
 
         async function persistenceApiCall(action, data = {}, skipOverlay = false) {
             if (!skipOverlay) toggleLoading(true);
-            console.log({
+            console.log(JSON.stringify({
                 body: {
                     action: action,
                     data: data,
                     currentUser: state.currentUser
                 }
-            })
+            }, null, 2))
             try {
                 const response = await fetch(PERSISTENCE_LAMBDA_URL, {
                     method: 'POST',
@@ -1886,7 +1886,7 @@
                 if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
 
                 let result = await response.json();
-                console.log(result)
+                console.log(JSON.stringify(result, null, 2))
 
                 // If the Lambda returns a structured response object (statusCode, body, headers),
                 // we need to extract and parse the nested body.
@@ -3006,7 +3006,10 @@
                     }
 
                     const cvDataBase64 = await toBase64(item.blob);
-                    addCandidate(item.name, analysis, cvDataBase64, text);
+                    const success = await addCandidate(item.name, analysis, cvDataBase64, text, true);
+                    if (!success) {
+                        throw new Error(`Failed to save candidate "${item.name}" to database`);
+                    }
                     console.log(`[Batch] Successfully added candidate: ${item.name} `);
                 } catch (err) {
                     console.error(`[Batch] ERROR processing ${item.name}: `, err);
@@ -3426,6 +3429,22 @@
             return rawName.toUpperCase();
         }
 
+        function scanTextForContacts(text) {
+            if (!text) return { email: '', phone: '' };
+            // Simple robust regex for email
+            const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+            // Simple regex for phone numbers (matches various formats)
+            const phoneRegex = /(?:\+?(\d{1,3}))?[-. (]*(\d{3})[-. )]*(\d{3})[-. ]*(\d{4,})/;
+
+            const emailMatch = text.match(emailRegex);
+            const phoneMatch = text.match(phoneRegex);
+
+            return {
+                email: emailMatch ? emailMatch[0] : '',
+                phone: phoneMatch ? phoneMatch[0] : ''
+            };
+        }
+
         async function runAIReEvaluation(candidate) {
             const job = state.jobs.find(j => String(j.id) === String(candidate.jobId));
             if (!job) throw new Error("Job not found for candidate: " + candidate.id);
@@ -3458,10 +3477,11 @@
             const analysis = await response.json();
 
             // Update candidate object
+            const contactScans = scanTextForContacts(candidate.fullText);
             candidate.name = cleanCandidateName(analysis.name, candidate.fileName);
             candidate.aiScore = analysis.score;
-            candidate.email = analysis.email || candidate.email;
-            candidate.phone = analysis.phone || candidate.phone;
+            candidate.email = analysis.email || contactScans.email || candidate.email;
+            candidate.phone = analysis.phone || contactScans.phone || candidate.phone;
             candidate.breakdown = analysis.breakdown;
             candidate.summary = analysis.summary;
             candidate.reasons = analysis.reasons;
@@ -3591,10 +3611,13 @@
             });
         }
 
-        async function addCandidate(fileName, analysis, cvData, fullText) {
+        async function addCandidate(fileName, analysis, cvData, fullText, skipOverlay = false) {
+            const contactScans = scanTextForContacts(fullText);
             const candidate = {
                 jobId: state.activeJobId,
                 name: cleanCandidateName(analysis.name, fileName),
+                email: analysis.email || contactScans.email || '',
+                phone: analysis.phone || contactScans.phone || '',
                 fileName: fileName,
                 date: new Date().toISOString(),
                 aiScore: analysis.score,
@@ -3611,7 +3634,7 @@
                 fullText: fullText
             };
 
-            const result = await persistenceApiCall('add_candidate', candidate);
+            const result = await persistenceApiCall('add_candidate', candidate, skipOverlay);
             if (result && result.success) {
                 state.candidates.push(result.candidate || candidate);
 
@@ -3621,14 +3644,16 @@
                     job.applicants++;
                     if (candidate.status === 'Shortlisted') job.shortlisted++;
                     // We should also persist this increment back to the job object in DB
-                    await persistenceApiCall('upsert_job', job);
+                    await persistenceApiCall('upsert_job', job, true);
                 }
 
                 renderCandidates();
                 updateStats();
                 renderJobs();
+                return true;
             } else {
-                console.error("Failed to persist candidate to database.");
+                console.error("Failed to persist candidate to database. Result:", JSON.stringify(result));
+                return false;
             }
         }
 
