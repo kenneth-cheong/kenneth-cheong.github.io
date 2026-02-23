@@ -1360,8 +1360,8 @@
                     <td>${c.linksCount || 0}</td>
                     <td><span style="color: ${c.status === 'Active' ? 'var(--secondary)' : 'var(--text-dim)'}">${c.status}</span></td>
                     <td>
-                        <button class="btn" style="padding: 4px 8px;" onclick="viewKeywords('${c.id}')"><i class="fas fa-key"></i></button>
-                        <button class="btn" style="padding: 4px 8px;" onclick="editCampaign('${c.id}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn" style="padding: 4px 8px;" onclick="viewKeywords('${safeJS(c.id)}')"><i class="fas fa-key"></i></button>
+                        <button class="btn" style="padding: 4px 8px;" onclick="editCampaign('${safeJS(c.id)}')"><i class="fas fa-edit"></i></button>
                     </td>
                 </tr>
             `).join('');
@@ -1376,8 +1376,8 @@
                     <td>${u.role}</td>
                     <td><span class="badge" style="background: ${u.status === 'Active' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)'}; color: ${u.status === 'Active' ? '#10b981' : '#f43f5e'}; padding: 4px 12px; border-radius: 20px;">${u.status}</span></td>
                     <td>
-                        <button class="btn" style="padding: 4px 8px; background: transparent; border: 1px solid var(--border);" onclick="editUser('${u.id}')"><i class="fas fa-edit"></i></button>
-                        <button class="btn" style="padding: 4px 8px; background: transparent; border: 1px solid var(--border); color: var(--accent);" onclick="deleteUser('${u.id}')"><i class="fas fa-trash"></i></button>
+                        <button class="btn" style="padding: 4px 8px; background: transparent; border: 1px solid var(--border);" onclick="editUser('${safeJS(u.id)}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn" style="padding: 4px 8px; background: transparent; border: 1px solid var(--border); color: var(--accent);" onclick="deleteUser('${safeJS(u.id)}')"><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>
             `).join('');
@@ -1714,8 +1714,8 @@
                         <div style="font-size: 0.75rem; color: var(--text-dim);">BY: ${b.bd || 'N/A'}</div>
                     </td>
                     <td>
-                        <div style="color: var(--primary-light); font-weight: 500; cursor: pointer; border-bottom: 1px dashed var(--primary); display: inline-block;" 
-                             onclick="showKeywordTrend(safeJS('${b.keyword}'), safeJS('${b.campaignName}'), safeJS('${b.targetUrl}'), '')">
+                         <div style="color: var(--primary-light); font-weight: 500; cursor: pointer; border-bottom: 1px dashed var(--primary); display: inline-block;" 
+                              onclick="showKeywordTrend('${safeJS(b.keyword)}', '${safeJS(b.campaignName)}', '${safeJS(b.targetUrl)}', '')">
                             ${b.keyword || 'No Keyword'}
                         </div>
                         <a href="${b.targetUrl}" target="_blank" style="font-size: 0.75rem; color: var(--text-dim); text-decoration: none; display: block; margin-top: 4px;">
@@ -1744,18 +1744,18 @@
                     <td>
                         <div style="display: flex; gap: 4px;">
                             ${(state.role === 'Vendor' || state.role === 'Staff') && !b.deliveredUrl ? `
-                                <button class="btn" style="padding: 4px 8px; font-size: 0.8rem;" onclick="deliverOrder('${b.id}')" title="Deliver Link">
+                                <button class="btn" style="padding: 4px 8px; font-size: 0.8rem;" id="deliver-${b.id}" onclick="deliverOrder('${safeJS(b.id)}')" title="Deliver Link">
                                     <i class="fas fa-upload"></i>
                                 </button>` : ''}
                             
                             ${state.role === 'Staff' && b.deliveredUrl ? `
-                                <button class="btn" style="padding: 4px 8px; font-size: 0.8rem; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--secondary);" 
-                                        onclick="validateBacklink('${b.id}')" title="Validate Now">
+                                <button class="btn" style="padding: 4px 8px; font-size: 0.8rem; background: var(--secondary); color: white; border: none;" 
+                                        id="validate-${b.id}" onclick="validateBacklink('${safeJS(b.id)}')" title="Validate Now">
                                     <i class="fas fa-search"></i>
                                 </button>` : ''}
 
                             <button class="btn" style="padding: 4px 8px; font-size: 0.8rem; background: transparent; border: 1px solid var(--border); color: var(--accent);" 
-                                    onclick="deleteOrder('${b.id}')" title="Delete">
+                                    id="delete-${b.id}" onclick="deleteOrder('${safeJS(b.id)}')" title="Delete">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -1769,27 +1769,31 @@
             const b = state.backlinks.find(x => x.id === id);
             if (!b || !b.deliveredUrl) return;
 
-            toggleLoading(true);
+            const btn = document.getElementById('validate-' + id);
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
             try {
-                // In a real app, this would be a Lambda call to check the URL
-                // For now, we simulate the validation and DA check
                 const ssl = await fetchSsl(b.deliveredUrl);
                 const metrics = await fetchMozMetrics(b.deliveredUrl);
 
                 const update = {
                     id: id,
-                    validatedDa: metrics.DA || 25, // Mocked DA if API fails
+                    validatedDa: metrics.DA || 25,
                     lastValidatedAt: new Date().toISOString(),
                     status: 'Validated',
                     ssl: ssl
                 };
 
-                const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', update);
-                if (result && result.success) fetchOrders();
+                const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', update, true);
+                if (result && result.success) {
+                    // Update local state instead of re-fetching
+                    Object.assign(b, update);
+                    renderOrders();
+                }
             } catch (err) {
                 console.error("Validation Error:", err);
             } finally {
-                toggleLoading(false);
+                const btnAfter = document.getElementById('validate-' + id);
+                if (btnAfter) { btnAfter.disabled = false; btnAfter.innerHTML = '<i class="fas fa-search"></i>'; }
             }
         }
 
@@ -1828,49 +1832,53 @@
             const url = prompt('Enter the delivered backlink URL:');
             if (!url) return;
 
-            toggleLoading(true);
-            // Auto-validate on delivery
-            const [ssl, metrics, html] = await Promise.all([
-                fetchSsl(url),
-                fetchMozMetrics(url),
-                checkExistence(url)
-            ]);
+            const btn = document.getElementById('deliver-' + id);
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+            try {
+                const [ssl, metrics, html] = await Promise.all([
+                    fetchSsl(url),
+                    fetchMozMetrics(url),
+                    checkExistence(url)
+                ]);
 
-            const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', {
-                id: id,
-                deliveredUrl: url,
-                status: 'Delivered',
-                da: metrics.DA || 0,
-                ssl: ssl,
-                exists: html
-            });
+                const updateData = {
+                    id: id,
+                    deliveredUrl: url,
+                    status: 'Delivered',
+                    da: metrics.DA || 0,
+                    ssl: ssl,
+                    exists: html
+                };
 
-            if (result && result.success) {
-                fetchOrders();
-            } else {
-                alert('Failed to update backlink');
+                const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', updateData, true);
+
+                if (result && result.success) {
+                    // Update local state instead of re-fetching
+                    const b = state.backlinks.find(x => x.id === id);
+                    if (b) Object.assign(b, updateData);
+                    renderOrders();
+                } else {
+                    alert('Failed to update backlink');
+                }
+            } finally {
+                const btnAfter = document.getElementById('deliver-' + id);
+                if (btnAfter) { btnAfter.disabled = false; btnAfter.innerHTML = '<i class="fas fa-upload"></i>'; }
             }
-            toggleLoading(false);
         }
 
         async function deleteOrder(id) {
             if (!confirm('Are you sure you want to delete this backlink?')) return;
 
-            const body = document.getElementById('ordersBody');
-            if (body) {
-                body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">
-                    <i class="fas fa-spinner fa-spin"></i> Deleting record...
-                </td></tr>`;
-            }
+            const btn = document.getElementById('delete-' + id);
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
 
-            toggleLoading(true);
-            const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', { id, deleted: true });
+            const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', { id, deleted: true }, true);
             if (result && result.success) {
-                fetchOrders();
-                fetchImportHistory();
+                // Remove from local state instead of re-fetching
+                state.backlinks = state.backlinks.filter(x => x.id !== id);
+                renderOrders();
             } else {
-                fetchOrders();
-                fetchImportHistory();
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-trash"></i>'; }
             }
         }
 
@@ -1990,7 +1998,7 @@
                                     <td>${k.name}</td>
                                     <td>${k.volume || '-'}</td>
                                     <td>${k.difficulty || '-'}</td>
-                                    <td><button class="btn btn-primary" style="padding: 4px 12px;" onclick="orderBacklink(safeJS('${k.name}'))">Order Link</button></td>
+                                    <td><button class="btn btn-primary" style="padding: 4px 12px;" onclick="orderBacklink('${safeJS(k.name)}')">Order Link</button></td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -2922,7 +2930,7 @@
                     <td><span style="color: var(--primary-light); font-weight: 500;">${item.siteName}</span></td>
                     <td>
                         <strong style="cursor: pointer; color: var(--primary-light); border-bottom: 1px dashed var(--primary);" 
-                                onclick="showKeywordTrend(safeJS('${item.keyword}'), safeJS('${item.siteName}'), safeJS('${item.siteUrl}'), safeJS('${item.searchEngine}'))">
+                                onclick="showKeywordTrend('${safeJS(item.keyword)}', '${safeJS(item.siteName)}', '${safeJS(item.siteUrl)}', '${safeJS(item.searchEngine)}')">
                             ${item.keyword}
                         </strong>
                     </td>
