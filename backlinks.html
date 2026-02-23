@@ -10,6 +10,8 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.0.1/dist/chartjs-plugin-annotation.min.js"></script>
     <style>
         :root {
             --primary: #6366f1;
@@ -2956,6 +2958,48 @@
             const sortedDates = Object.keys(dailyData).sort((a, b) => new Date(a) - new Date(b));
             const chartData = sortedDates.map(d => dailyData[d]);
 
+            // Get relevant backlinks for this keyword + site
+            const relevantBacklinks = state.backlinks.filter(b => {
+                const bKw = norm(b.keyword);
+                const bSite = norm(b.campaignName);
+                const bStatus = b.status;
+                const matches = (bKw === targetKw && (bSite === targetSite || bSite.includes(targetSite) || targetSite.includes(bSite)));
+                return matches && (bStatus === 'Delivered' || bStatus === 'Validated');
+            });
+
+            // Group backlinks by build date (truncated to day)
+            const backlinksByDate = {};
+            console.log(`[DEBUG] Found ${relevantBacklinks.length} relevant backlinks for "${keyword}"`);
+            relevantBacklinks.forEach(bl => {
+                const dateKey = new Date(bl.createdAt).toISOString().split('T')[0];
+                backlinksByDate[dateKey] = (backlinksByDate[dateKey] || 0) + 1;
+                console.log(`[DEBUG] Backlink: URL=${bl.deliveredUrl}, Date=${dateKey}, DA=${bl.vendorDa || bl.da}`);
+            });
+
+            // Prepare annotations
+            const annotations = {};
+            Object.keys(backlinksByDate).forEach((date, index) => {
+                if (sortedDates.includes(date)) {
+                    annotations[`line${index}`] = {
+                        type: 'line',
+                        xMin: date,
+                        xMax: date,
+                        borderColor: '#10b981',
+                        borderWidth: 2,
+                        label: {
+                            display: true,
+                            content: `+${backlinksByDate[date]} Backlinks`,
+                            position: 'start',
+                            backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                            color: '#fff',
+                            font: { size: 10, weight: 'bold' },
+                            padding: 4,
+                            borderRadius: 4
+                        }
+                    };
+                }
+            });
+
             if (sortedDates.length === 0) {
                 document.getElementById('chartContainer').innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-dim);">No historical data points found for this keyword selection.</div>';
                 return;
@@ -3009,6 +3053,9 @@
                             bodyColor: '#fff',
                             borderColor: 'rgba(255,255,255,0.1)',
                             borderWidth: 1
+                        },
+                        annotation: {
+                            annotations: annotations
                         }
                     }
                 }
