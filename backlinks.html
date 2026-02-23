@@ -26,6 +26,41 @@
             --glass: rgba(15, 23, 42, 0.8);
         }
 
+        .backlink-tooltip {
+            position: fixed;
+            background: #1e293b;
+            color: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #6366f1;
+            font-size: 0.8rem;
+            z-index: 10000;
+            pointer-events: none;
+            display: none;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+            max-width: 400px;
+        }
+
+        .backlink-tooltip b {
+            color: #818cf8;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .backlink-tooltip ul {
+            list-style: none;
+            margin: 4px 0 0 0;
+            padding: 0;
+        }
+
+        .backlink-tooltip li {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: #10b981;
+            word-break: break-all;
+            margin-top: 2px;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -2969,17 +3004,25 @@
 
             // Group backlinks by build date (truncated to day)
             const backlinksByDate = {};
-            console.log(`[DEBUG] Found ${relevantBacklinks.length} relevant backlinks for "${keyword}"`);
             relevantBacklinks.forEach(bl => {
                 const dateKey = new Date(bl.createdAt).toISOString().split('T')[0];
-                backlinksByDate[dateKey] = (backlinksByDate[dateKey] || 0) + 1;
-                console.log(`[DEBUG] Backlink: URL=${bl.deliveredUrl}, Date=${dateKey}, DA=${bl.vendorDa || bl.da}`);
+                if (!backlinksByDate[dateKey]) {
+                    backlinksByDate[dateKey] = {
+                        count: 0,
+                        targets: new Set(),
+                        links: new Set()
+                    };
+                }
+                backlinksByDate[dateKey].count++;
+                if (bl.targetUrl) backlinksByDate[dateKey].targets.add(bl.targetUrl);
+                if (bl.deliveredUrl) backlinksByDate[dateKey].links.add(bl.deliveredUrl);
             });
 
             // Prepare annotations
             const annotations = {};
             Object.keys(backlinksByDate).forEach((date, index) => {
                 if (sortedDates.includes(date)) {
+                    const data = backlinksByDate[date];
                     annotations[`line${index}`] = {
                         type: 'line',
                         xMin: date,
@@ -2988,13 +3031,32 @@
                         borderWidth: 2,
                         label: {
                             display: true,
-                            content: `+${backlinksByDate[date]} Backlinks`,
+                            content: `+${data.count} Backlinks`,
                             position: 'start',
                             backgroundColor: 'rgba(16, 185, 129, 0.8)',
                             color: '#fff',
                             font: { size: 10, weight: 'bold' },
                             padding: 4,
                             borderRadius: 4
+                        },
+                        enter(ctx) {
+                            const tooltip = document.getElementById('backlinkTooltip');
+                            let html = `<b>Built Date: ${date}</b>`;
+                            if (data.targets.size > 0) {
+                                html += `<div style="margin-top:8px; font-weight:bold; font-size: 0.7rem; color: #94a3b8;">TARGET URLS:</div>`;
+                                html += `<ul>${Array.from(data.targets).map(t => `<li>${t}</li>`).join('')}</ul>`;
+                            }
+                            if (data.links.size > 0) {
+                                html += `<div style="margin-top:8px; font-weight:bold; font-size: 0.7rem; color: #94a3b8;">BACKLINK URLS:</div>`;
+                                html += `<ul>${Array.from(data.links).map(l => `<li>${l}</li>`).join('')}</ul>`;
+                            }
+                            tooltip.innerHTML = html;
+                            tooltip.style.display = 'block';
+                            tooltip.style.left = (ctx.event.native.clientX + 15) + 'px';
+                            tooltip.style.top = (ctx.event.native.clientY + 15) + 'px';
+                        },
+                        leave() {
+                            document.getElementById('backlinkTooltip').style.display = 'none';
                         }
                     };
                 }
@@ -3190,6 +3252,7 @@
             </div>
         </div>
     </div>
+    <div id="backlinkTooltip" class="backlink-tooltip"></div>
 </body>
 
 </html>
