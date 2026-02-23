@@ -890,6 +890,11 @@
             };
         }
 
+        function safeJS(str) {
+            if (!str) return '';
+            return String(str).replace(/'/g, "\\'").replace(/"/g, "&quot;");
+        }
+
         // Search Filter functions with fixed debounce
         const filterOrdersDebounced = debounce(filterOrders, 300);
         const filterRankingsDebounced = debounce(renderRankingsTable, 300);
@@ -968,10 +973,14 @@
                 document.getElementById('importBtn').style.display = 'none';
             }
 
-            fetchCampaigns();
-            fetchOrders();
-            fetchUsers();
-            fetchImportHistory();
+            fetchCampaigns(true);
+            fetchOrders(true);
+            fetchUsers(true);
+            fetchImportHistory(true);
+
+            // Background automated syncs as requested
+            syncMondayData(true);
+            fetchFullSERankingData(true);
         }
 
         function showTab(tabId) {
@@ -1280,8 +1289,8 @@
         }
 
         // API Helpers
-        async function apiCall(url, action, data = {}) {
-            toggleLoading(true);
+        async function apiCall(url, action, data = {}, isQuiet = false) {
+            if (!isQuiet) toggleLoading(true);
             try {
                 const res = await fetch(url, {
                     method: 'POST',
@@ -1308,18 +1317,18 @@
                 console.error(`API Error (${action}):`, err);
                 return null;
             } finally {
-                toggleLoading(false);
+                if (!isQuiet) toggleLoading(false);
             }
         }
 
-        async function fetchCampaigns() {
+        async function fetchCampaigns(isQuiet = false) {
             const body = document.getElementById('campaignsBody');
             if (body) {
                 body.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">
                     <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Loading campaigns...
                 </td></tr>`;
             }
-            const data = await apiCall(PERSISTENCE_URL, 'get_campaigns');
+            const data = await apiCall(PERSISTENCE_URL, 'get_campaigns', {}, isQuiet);
             if (data && Array.isArray(data)) {
                 state.campaigns = data;
                 renderCampaigns();
@@ -1330,8 +1339,8 @@
             }
         }
 
-        async function fetchUsers() {
-            const data = await apiCall(PERSISTENCE_URL, 'get_users');
+        async function fetchUsers(isQuiet = false) {
+            const data = await apiCall(PERSISTENCE_URL, 'get_users', {}, isQuiet);
             if (data && Array.isArray(data)) {
                 state.vendors = data;
                 renderUsers();
@@ -1396,14 +1405,14 @@
             if (result && result.success) fetchCampaigns();
         }
 
-        async function fetchImportHistory() {
+        async function fetchImportHistory(isQuiet = false) {
             const body = document.getElementById('importHistoryBody');
             if (body) {
                 body.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-dim);">
                     <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Loading history...
                 </td></tr>`;
             }
-            const data = await apiCall(PERSISTENCE_URL, 'get_import_history');
+            const data = await apiCall(PERSISTENCE_URL, 'get_import_history', {}, isQuiet);
             if (data && Array.isArray(data)) {
                 state.importHistory = data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                 renderImportHistory();
@@ -1469,7 +1478,7 @@
             }
         }
 
-        async function fetchOrders() {
+        async function fetchOrders(isQuiet = false) {
             if (state.isFetchingOrders) return;
             state.isFetchingOrders = true;
 
@@ -1501,7 +1510,7 @@
 
             try {
                 while (hasMore) {
-                    const data = await apiCall(PERSISTENCE_URL, 'get_backlinks', { limit, skip });
+                    const data = await apiCall(PERSISTENCE_URL, 'get_backlinks', { limit, skip }, isQuiet);
 
                     if (data === null) {
                         if (retryCount < 3) {
@@ -1706,7 +1715,7 @@
                     </td>
                     <td>
                         <div style="color: var(--primary-light); font-weight: 500; cursor: pointer; border-bottom: 1px dashed var(--primary); display: inline-block;" 
-                             onclick="showKeywordTrend('${b.keyword}', '${b.campaignName}', '${b.targetUrl}', '')">
+                             onclick="showKeywordTrend(safeJS('${b.keyword}'), safeJS('${b.campaignName}'), safeJS('${b.targetUrl}'), '')">
                             ${b.keyword || 'No Keyword'}
                         </div>
                         <a href="${b.targetUrl}" target="_blank" style="font-size: 0.75rem; color: var(--text-dim); text-decoration: none; display: block; margin-top: 4px;">
@@ -1981,7 +1990,7 @@
                                     <td>${k.name}</td>
                                     <td>${k.volume || '-'}</td>
                                     <td>${k.difficulty || '-'}</td>
-                                    <td><button class="btn btn-primary" style="padding: 4px 12px;" onclick="orderBacklink('${k.name}')">Order Link</button></td>
+                                    <td><button class="btn btn-primary" style="padding: 4px 12px;" onclick="orderBacklink(safeJS('${k.name}'))">Order Link</button></td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -1997,7 +2006,7 @@
         }
 
         // Monday.com Integration
-        async function openMondayModal() {
+        async function syncMondayData(isQuiet = false) {
             const syncStatus = document.getElementById('syncStatus');
             const importBtn = document.getElementById('importBtn');
 
@@ -2012,7 +2021,7 @@
             try {
                 do {
                     if (syncStatus) syncStatus.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Syncing Page ${page}...`;
-                    const data = await apiCall(MONDAY_URL, 'get_board_items', { cursor });
+                    const data = await apiCall(MONDAY_URL, 'get_board_items', { cursor }, isQuiet);
 
                     if (!data) break;
 
@@ -2027,10 +2036,19 @@
 
             } catch (err) {
                 console.error('Monday Import Error:', err);
-                alert('An error occurred during Monday.com import.');
+                // Background sync shouldn't alert() users unless explicitly asked
+                // alert('An error occurred during Monday.com import.');
             } finally {
                 if (syncStatus) syncStatus.style.display = 'none';
                 if (importBtn) importBtn.disabled = false;
+            }
+        }
+
+        async function openMondayModal() {
+            document.getElementById('mondayModal').style.display = 'flex';
+            // Only sync if we don't have items yet
+            if (state.mondayItems.length === 0) {
+                syncMondayData();
             }
         }
 
@@ -2496,30 +2514,6 @@
             }
         }
 
-        function toggleLoading(show) {
-            const overlay = document.getElementById('loadingOverlay');
-            if (overlay) overlay.style.display = show ? 'flex' : 'none';
-        }
-
-        function completeLogin() {
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('app').style.display = 'flex';
-            document.getElementById('userName').innerText = state.user.name;
-            document.getElementById('userAvatar').innerText = state.user.name[0];
-
-            // Role assignment purely based on email domain for this portal
-            state.role = (state.user.email || "").toLowerCase().includes('mediaone') ? 'Staff' : 'Vendor';
-            document.getElementById('userRole').innerText = state.role;
-
-            if (state.role === 'Vendor') {
-                const importBtn = document.getElementById('importBtn');
-                if (importBtn) importBtn.style.display = 'none';
-            }
-
-            fetchCampaigns();
-            fetchUsers();
-            fetchOrders();
-        }
 
         function logout() {
             localStorage.removeItem('googleUser');
@@ -2529,7 +2523,7 @@
         window.onload = initAuth;
 
         // SE Ranking Integration (Consolidated)
-        async function fetchFullSERankingData() {
+        async function fetchFullSERankingData(isQuiet = false) {
             const syncStatus = document.getElementById('rankingsSyncStatus');
             const refreshBtn = document.getElementById('refreshRankingsBtn');
             const body = document.getElementById('rankingsBody');
@@ -2541,8 +2535,8 @@
             try {
                 if (syncStatus) syncStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching site list...';
                 const [sites, systemEnginesRes] = await Promise.all([
-                    apiCall(SERANKING_URL, 'get_sites'),
-                    apiCall(SERANKING_URL, 'get_system_search_engines')
+                    apiCall(SERANKING_URL, 'get_sites', {}, isQuiet),
+                    apiCall(SERANKING_URL, 'get_system_search_engines', {}, isQuiet)
                 ]);
 
                 if (!sites || !Array.isArray(sites) || sites.length === 0) {
@@ -2567,15 +2561,15 @@
                         const dateFrom = new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString().split('T')[0];
 
                         const [kwRes, posRes, grpRes, engRes] = await Promise.all([
-                            apiCall(SERANKING_URL, 'get_keywords', { siteId: site.id }),
+                            apiCall(SERANKING_URL, 'get_keywords', { siteId: site.id }, isQuiet),
                             apiCall(SERANKING_URL, 'get_positions', {
                                 siteId: site.id,
                                 date_from: dateFrom,
                                 date_to: dateTo,
                                 with_landing_pages: 1
-                            }),
-                            apiCall(SERANKING_URL, 'get_groups', { siteId: site.id }),
-                            apiCall(SERANKING_URL, 'get_search_engines', { siteId: site.id })
+                            }, isQuiet),
+                            apiCall(SERANKING_URL, 'get_groups', { siteId: site.id }, isQuiet),
+                            apiCall(SERANKING_URL, 'get_search_engines', { siteId: site.id }, isQuiet)
                         ]);
 
                         const keywords = (kwRes && kwRes.data) ? kwRes.data : kwRes;
@@ -2928,7 +2922,7 @@
                     <td><span style="color: var(--primary-light); font-weight: 500;">${item.siteName}</span></td>
                     <td>
                         <strong style="cursor: pointer; color: var(--primary-light); border-bottom: 1px dashed var(--primary);" 
-                                onclick="showKeywordTrend('${item.keyword}', '${item.siteName}', '${item.siteUrl}', '${item.searchEngine}')">
+                                onclick="showKeywordTrend(safeJS('${item.keyword}'), safeJS('${item.siteName}'), safeJS('${item.siteUrl}'), safeJS('${item.searchEngine}'))">
                             ${item.keyword}
                         </strong>
                     </td>
@@ -3081,25 +3075,32 @@
                             borderRadius: 4
                         },
                         enter(context, event) {
-                            console.log('[DEBUG] Annotation enter', context.id);
                             const tooltip = document.getElementById('backlinkTooltip');
-                            let html = `<b>Built Date: ${date}</b>`;
+                            let html = '<b>Built Date: ' + date + '</b>';
                             if (data.targets.size > 0) {
-                                html += `<div style="margin-top:8px; font-weight:bold; font-size: 0.7rem; color: #94a3b8; border-bottom: 1px solid var(--border); padding-bottom: 4px;">TARGETED URLS (${data.targets.size}):</div>`;
-                                html += `<ul style="margin-bottom: 12px;">${Array.from(data.targets).map(t => `<li style="color: #6366f1;">${t}</li>`).join('')}</ul>`;
+                                html += '<div style="margin-top:8px; font-weight:bold; font-size: 0.7rem; color: #94a3b8; border-bottom: 1px solid var(--border); padding-bottom: 4px;">TARGETED URLS (' + data.targets.size + '):</div>';
+                                html += '<ul style="margin-bottom: 12px;">';
+                                Array.from(data.targets).forEach(t => {
+                                    html += '<li style="color: #6366f1;">' + t + '</li>';
+                                });
+                                html += '</ul>';
                             }
 
                             const domains = Object.keys(data.domains).sort((a, b) => data.domains[b] - data.domains[a]);
                             if (domains.length > 0) {
-                                html += `<div style="margin-top:8px; font-weight:bold; font-size: 0.7rem; color: #94a3b8; border-bottom: 1px solid var(--border); padding-bottom: 4px;">DOMAINS (${domains.length}):</div>`;
-                                html += `<ul style="margin-bottom: 12px;">${domains.map(d => `
-                                    <li style="margin-bottom: 8px;">
-                                        <div style="font-weight: 600; color: #818cf8;">${d} (${data.domains[d]})</div>
-                                        <div style="font-size: 0.7rem; opacity: 0.8; margin-top: 2px;">
-                                            ${Array.from(data.links).filter(l => l.includes(d)).map(l => `<div style="margin-bottom: 2px; color: #10b981;">${l}</div>`).join('')}
-                                        </div>
-                                    </li>
-                                `).join('')}</ul>`;
+                                html += '<div style="margin-top:8px; font-weight:bold; font-size: 0.7rem; color: #94a3b8; border-bottom: 1px solid var(--border); padding-bottom: 4px;">DOMAINS (' + domains.length + '):</div>';
+                                html += '<ul style="margin-bottom: 12px;">';
+                                domains.forEach(d => {
+                                    html += '<li style="margin-bottom: 8px;">';
+                                    html += '<div style="font-weight: 600; color: #818cf8;">' + d + ' (' + data.domains[d] + ')</div>';
+                                    html += '<div style="font-size: 0.7rem; opacity: 0.8; margin-top: 2px;">';
+                                    const domainLinks = Array.from(data.links).filter(l => l.includes(d));
+                                    domainLinks.forEach(l => {
+                                        html += '<div style="margin-bottom: 2px; color: #10b981;">' + l + '</div>';
+                                    });
+                                    html += '</div></li>';
+                                });
+                                html += '</ul>';
                             }
                             tooltip.innerHTML = html;
                             tooltip.style.display = 'block';
