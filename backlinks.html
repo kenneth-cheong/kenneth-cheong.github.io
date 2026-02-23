@@ -842,6 +842,8 @@
                         <table>
                             <thead>
                                 <tr>
+                                    <th style="width: 40px;"><input type="checkbox" id="selectAllRankings"
+                                            onchange="toggleAllRankingSelections(this.checked)"></th>
                                     <th onclick="sortRankings('siteName')" style="cursor: pointer;">Campaign <i
                                             class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
                                     <th onclick="sortRankings('keyword')" style="cursor: pointer;">Keyword <i
@@ -856,11 +858,12 @@
                                             class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
                                     <th onclick="sortRankings('rank')" style="cursor: pointer;">Rank <i
                                             class="fas fa-sort" style="opacity: 0.3; font-size: 0.7rem;"></i></th>
+                                    <th style="width: 50px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="rankingsBody">
                                 <tr>
-                                    <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-dim);">
+                                    <td colspan="9" style="text-align: center; padding: 40px; color: var(--text-dim);">
                                         Click "Refresh Data" to load rankings.
                                     </td>
                                 </tr>
@@ -893,6 +896,31 @@
         function safeJS(str) {
             if (!str) return '';
             return String(str).replace(/'/g, "\\'").replace(/"/g, "&quot;");
+        }
+
+        function getCampaignList() {
+            // Combine Monday items + manual campaigns, deduped by name
+            const monday = (state.mondayItems || []).map(m => ({ id: m.id || m.name, name: m.name }));
+            const manual = (state.campaigns || []).map(c => ({ id: c.id || c.name, name: c.name }));
+            const seen = new Set();
+            const combined = [];
+            [...monday, ...manual].forEach(c => {
+                if (c.name && !seen.has(c.name)) { seen.add(c.name); combined.push(c); }
+            });
+            return combined;
+        }
+
+        function findCampaignBySite(siteName) {
+            const list = getCampaignList();
+            if (!siteName || !list.length) return null;
+            const target = (siteName || '').toLowerCase().trim();
+            let match = list.find(c => (c.name || '').toLowerCase().trim() === target);
+            if (match) return match;
+            match = list.find(c => {
+                const cName = (c.name || '').toLowerCase().trim();
+                return target.includes(cName) || cName.includes(target);
+            });
+            return match || null;
         }
 
         // Search Filter functions with fixed debounce
@@ -928,7 +956,9 @@
             ordersPageSize: 20,
             importHistory: [],
             loadingCount: 0,
-            isFetchingOrders: false
+            isFetchingOrders: false,
+            selectedRankings: [],
+            cart: []
         };
 
         function toggleLoading(show) {
@@ -1569,25 +1599,28 @@
         }
 
         async function bulkDeleteOrders() {
-            const ids = state.selectedOrders;
+            const ids = [...state.selectedOrders];
             if (ids.length === 0) return;
             if (!confirm(`Are you sure you want to permanently delete ${ids.length} selected records?`)) return;
 
             const body = document.getElementById('ordersBody');
+            let deleted = 0;
             if (body) {
                 body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">
-                    <i class="fas fa-spinner fa-spin"></i> Deleting selected backlinks... Please wait.
+                    <i class="fas fa-spinner fa-spin"></i> Deleting 0/${ids.length}...
                 </td></tr>`;
             }
 
-            toggleLoading(true);
             for (const id of ids) {
-                await apiCall(PERSISTENCE_URL, 'upsert_backlink', { id, deleted: true });
+                await apiCall(PERSISTENCE_URL, 'upsert_backlink', { id, deleted: true }, true);
+                deleted++;
+                state.backlinks = state.backlinks.filter(x => x.id !== id);
+                if (body) body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">
+                    <i class="fas fa-spinner fa-spin"></i> Deleting ${deleted}/${ids.length}...
+                </td></tr>`;
             }
-            alert("Bulk deletion complete.");
             state.selectedOrders = [];
-            fetchOrders();
-            fetchImportHistory();
+            renderOrders();
         }
 
         function toggleOrderSelection(id) {
@@ -1798,25 +1831,28 @@
         }
 
         async function bulkValidateOrders() {
-            const ids = state.selectedOrders;
+            const ids = [...state.selectedOrders];
 
             if (ids.length === 0) return;
             if (!confirm(`Validate ${ids.length} selected backlinks?`)) return;
 
             const body = document.getElementById('ordersBody');
+            let validated = 0;
             if (body) {
                 body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">
-                    <i class="fas fa-spinner fa-spin"></i> Validating selected backlinks... This may take a moment.
+                    <i class="fas fa-spinner fa-spin"></i> Validating 0/${ids.length}...
                 </td></tr>`;
             }
 
-            toggleLoading(true);
             for (const id of ids) {
                 await validateBacklink(id);
+                validated++;
+                if (body) body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">
+                    <i class="fas fa-spinner fa-spin"></i> Validating ${validated}/${ids.length}...
+                </td></tr>`;
             }
-            alert("Bulk validation completed.");
             state.selectedOrders = [];
-            fetchOrders();
+            renderOrders();
         }
 
         function getStatusColor(status) {
@@ -2760,6 +2796,259 @@
             });
         }
 
+        // === Rankings Ordering Functions ===
+
+        function toggleRankingSelection(idx, checked) {
+            // Get the filtered list to find the actual item
+            let filtered = state.rankings;
+            // Apply same filters as renderRankingsTable
+            if (state.rankingsSearch) {
+                const s = state.rankingsSearch.toLowerCase();
+                filtered = filtered.filter(r => (r.keyword || '').toLowerCase().includes(s) || (r.siteName || '').toLowerCase().includes(s));
+            }
+            if (state.rankingsFilters && state.rankingsFilters.length > 0) {
+                filtered = filtered.filter(item => {
+                    return state.rankingsFilters.every(rule => {
+                        const val = (item[rule.colId] || '').toString().toLowerCase();
+                        const filterVal = (rule.value || '').toLowerCase();
+                        switch (rule.operator) {
+                            case 'includes': return val.includes(filterVal);
+                            case 'excludes': return !val.includes(filterVal);
+                            case 'is_empty': return !val.trim();
+                            case 'not_empty': return !!val.trim();
+                            default: return true;
+                        }
+                    });
+                });
+            }
+            const item = filtered[idx];
+            if (!item) return;
+
+            const rowKey = `${item.keyword}||${item.siteName}||${item.siteUrl}||${item.searchEngine}`;
+            if (checked) {
+                if (!state.selectedRankings.some(r => `${r.keyword}||${r.siteName}||${r.siteUrl}||${r.searchEngine}` === rowKey)) {
+                    state.selectedRankings.push({ ...item });
+                }
+            } else {
+                state.selectedRankings = state.selectedRankings.filter(r => `${r.keyword}||${r.siteName}||${r.siteUrl}||${r.searchEngine}` !== rowKey);
+            }
+            updateRankingsFloatingBar();
+        }
+
+        function toggleAllRankingSelections(checked) {
+            let filtered = state.rankings;
+            if (state.rankingsSearch) {
+                const s = state.rankingsSearch.toLowerCase();
+                filtered = filtered.filter(r => (r.keyword || '').toLowerCase().includes(s) || (r.siteName || '').toLowerCase().includes(s));
+            }
+
+            const startIdx = (state.rankingsPage - 1) * state.rankingsPageSize;
+            const paginated = filtered.slice(startIdx, startIdx + state.rankingsPageSize);
+
+            if (checked) {
+                paginated.forEach(item => {
+                    const rowKey = `${item.keyword}||${item.siteName}||${item.siteUrl}||${item.searchEngine}`;
+                    if (!state.selectedRankings.some(r => `${r.keyword}||${r.siteName}||${r.siteUrl}||${r.searchEngine}` === rowKey)) {
+                        state.selectedRankings.push({ ...item });
+                    }
+                });
+            } else {
+                const keys = new Set(paginated.map(item => `${item.keyword}||${item.siteName}||${item.siteUrl}||${item.searchEngine}`));
+                state.selectedRankings = state.selectedRankings.filter(r => !keys.has(`${r.keyword}||${r.siteName}||${r.siteUrl}||${r.searchEngine}`));
+            }
+
+            document.querySelectorAll('.ranking-checkbox').forEach(cb => cb.checked = checked);
+            updateRankingsFloatingBar();
+        }
+
+        function updateRankingsFloatingBar() {
+            const bar = document.getElementById('rankingsFloatingBar');
+            if (!bar) return;
+            const count = state.selectedRankings.length;
+            if (count > 0) {
+                bar.style.display = 'flex';
+                document.getElementById('rankingsSelectedCount').innerText = count;
+            } else {
+                bar.style.display = 'none';
+            }
+        }
+
+        // --- Shopping Cart ---
+        function addToCart(keyword, siteUrl, siteName, targetUrl) {
+            // Avoid duplicates
+            const exists = state.cart.some(c => c.keyword === keyword && c.siteName === siteName);
+            if (exists) return;
+
+            const matched = findCampaignBySite(siteName);
+            state.cart.push({
+                keyword,
+                siteUrl,
+                siteName,
+                targetUrl: targetUrl || siteUrl || '',
+                campaignId: matched ? (matched.id || matched.name) : '',
+                vendorId: '',
+                quantity: 1
+            });
+            updateCartBadge();
+        }
+
+        function addSelectedToCart() {
+            state.selectedRankings.forEach(r => {
+                addToCart(r.keyword, r.siteUrl, r.siteName, r.rankingUrl || r.siteUrl);
+            });
+            state.selectedRankings = [];
+            updateRankingsFloatingBar();
+            renderRankingsTable();
+            openCartModal();
+        }
+
+        function updateCartBadge() {
+            const badge = document.getElementById('cartBadge');
+            const count = state.cart.length;
+            if (badge) {
+                badge.style.display = count > 0 ? 'inline-flex' : 'none';
+                badge.innerText = count;
+            }
+        }
+
+        function openCartModal() {
+            if (state.cart.length === 0) { alert('Your cart is empty. Click the cart icon on a keyword row to add items.'); return; }
+            const modal = document.getElementById('cartModal');
+
+            const allCampaigns = getCampaignList();
+            const campaignDatalist = allCampaigns.map(c => `<option value="${c.name}">`).join('');
+            const vendors = state.vendors.filter(v => v.role === 'Vendor');
+            const vendorDatalist = vendors.map(v => `<option value="${v.name}">`).join('');
+
+            const tbody = document.getElementById('cartBody');
+            tbody.innerHTML = state.cart.map((item, i) => {
+                const matchedCamp = allCampaigns.find(c => c.id === item.campaignId);
+                const campName = matchedCamp ? matchedCamp.name : (item.campaignId || '');
+                return `
+                <tr>
+                    <td>
+                        <input type="text" class="cart-keyword" data-idx="${i}" value="${item.keyword}" 
+                            style="width: 100%; padding: 6px; background: rgba(30,41,59,0.5); border: 1px solid var(--border); border-radius: 6px; color: white; font-size: 0.85rem;">
+                    </td>
+                    <td>
+                        <input type="text" class="cart-url" data-idx="${i}" value="${item.targetUrl}" 
+                            style="width: 100%; padding: 6px; background: rgba(30,41,59,0.5); border: 1px solid var(--border); border-radius: 6px; color: white; font-size: 0.8rem;">
+                    </td>
+                    <td>
+                        <input type="text" class="cart-campaign" data-idx="${i}" value="${campName}" list="campList${i}" placeholder="Search campaigns..."
+                            style="width: 100%; padding: 6px; background: rgba(30,41,59,0.5); border: 1px solid var(--border); border-radius: 6px; color: white; font-size: 0.85rem;">
+                        <datalist id="campList${i}">${campaignDatalist}</datalist>
+                    </td>
+                    <td>
+                        <input type="text" class="cart-vendor" data-idx="${i}" value="" list="vendorList${i}" placeholder="Type vendor..."
+                            style="width: 100%; padding: 6px; background: rgba(30,41,59,0.5); border: 1px solid var(--border); border-radius: 6px; color: white; font-size: 0.85rem;">
+                        <datalist id="vendorList${i}">${vendorDatalist}</datalist>
+                    </td>
+                    <td>
+                        <input type="number" class="cart-qty" data-idx="${i}" value="${item.quantity}" min="1" 
+                            style="width: 60px; padding: 6px; background: rgba(30,41,59,0.5); border: 1px solid var(--border); border-radius: 6px; color: white; text-align: center;">
+                    </td>
+                    <td>
+                        <button class="btn" style="padding: 4px 8px; background: transparent; color: var(--accent); border: none;" onclick="removeCartItem(${i})">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+
+            document.getElementById('cartCount').innerText = state.cart.length;
+
+            // Populate bulk edit dropdowns
+            const bulkCampSel = document.getElementById('cartBulkCampaign');
+            if (bulkCampSel) bulkCampSel.innerHTML = '<option value="">-- Don\'t change --</option>' + allCampaigns.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+            const bulkVendSel = document.getElementById('cartBulkVendor');
+            const allVendors = state.vendors.filter(v => v.role === 'Vendor');
+            if (bulkVendSel) bulkVendSel.innerHTML = '<option value="">-- Don\'t change --</option>' + allVendors.map(v => `<option value="${v.name}">${v.name}</option>`).join('');
+
+            modal.style.display = 'flex';
+        }
+
+        function removeCartItem(idx) {
+            state.cart.splice(idx, 1);
+            updateCartBadge();
+            if (state.cart.length === 0) {
+                closeCartModal();
+                return;
+            }
+            openCartModal(); // Re-render
+        }
+
+        function clearCart() {
+            state.cart = [];
+            updateCartBadge();
+            closeCartModal();
+        }
+
+        async function submitCart() {
+            // Read editable fields from the DOM
+            const keywords = document.querySelectorAll('.cart-keyword');
+            const urls = document.querySelectorAll('.cart-url');
+            const campaigns = document.querySelectorAll('.cart-campaign');
+            const vendors = document.querySelectorAll('.cart-vendor');
+            const qtys = document.querySelectorAll('.cart-qty');
+
+            const btn = document.getElementById('cartSubmitBtn');
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ordering...';
+
+            let successCount = 0;
+            const total = state.cart.length;
+
+            for (let i = 0; i < total; i++) {
+                const campaignName = campaigns[i]?.value || '';
+                const allCamps = getCampaignList();
+                const campaign = allCamps.find(c => c.name === campaignName);
+                const vendorName = vendors[i]?.value || '';
+                const vendor = state.vendors.find(v => v.name === vendorName);
+
+                const orderData = {
+                    campaignId: campaign ? campaign.id : (campaignName || 'uncategorized'),
+                    campaignName: campaign ? campaign.name : (campaignName || 'Uncategorized'),
+                    keyword: keywords[i]?.value || state.cart[i].keyword,
+                    targetUrl: urls[i]?.value || state.cart[i].targetUrl,
+                    vendorId: vendor ? vendor.id : '',
+                    vendorName: vendorName || 'N/A',
+                    quantity: parseInt(qtys[i]?.value) || 1,
+                    status: 'Ordered',
+                    type: 'Backlink',
+                    bd: state.user?.name || 'Unknown',
+                    createdAt: new Date().toISOString()
+                };
+
+                const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', orderData, true);
+                if (result && result.success) {
+                    state.backlinks.push({ ...orderData, id: result.id || Date.now().toString() + i });
+                    successCount++;
+                }
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${successCount}/${total}`;
+            }
+
+            state.cart = [];
+            updateCartBadge();
+            closeCartModal();
+            btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Orders';
+        }
+
+        function closeCartModal() {
+            document.getElementById('cartModal').style.display = 'none';
+        }
+
+        function applyBulkEdit() {
+            const bulkCampaign = document.getElementById('cartBulkCampaign').value;
+            const bulkVendor = document.getElementById('cartBulkVendor').value;
+            if (bulkCampaign) {
+                document.querySelectorAll('.cart-campaign').forEach(inp => inp.value = bulkCampaign);
+            }
+            if (bulkVendor) {
+                document.querySelectorAll('.cart-vendor').forEach(inp => inp.value = bulkVendor);
+            }
+        }
+
         function renderRankingsControls() {
             const container = document.getElementById('rankingsTableControls');
             if (!container) return;
@@ -2925,8 +3214,13 @@
             const startIdx = (state.rankingsPage - 1) * state.rankingsPageSize;
             const paginated = filtered.slice(startIdx, startIdx + state.rankingsPageSize);
 
-            body.innerHTML = paginated.map(item => `
+            body.innerHTML = paginated.map((item, idx) => {
+                const rowKey = `${item.keyword}||${item.siteName}||${item.siteUrl}||${item.searchEngine}`;
+                const isSelected = state.selectedRankings.some(r => `${r.keyword}||${r.siteName}||${r.siteUrl}||${r.searchEngine}` === rowKey);
+                return `
                 <tr>
+                    <td><input type="checkbox" class="ranking-checkbox" data-idx="${startIdx + idx}" ${isSelected ? 'checked' : ''}
+                        onchange="toggleRankingSelection(${startIdx + idx}, this.checked)"></td>
                     <td><span style="color: var(--primary-light); font-weight: 500;">${item.siteName}</span></td>
                     <td>
                         <strong style="cursor: pointer; color: var(--primary-light); border-bottom: 1px dashed var(--primary);" 
@@ -2936,19 +3230,29 @@
                     </td>
                     <td>
                         ${item.rankingUrl && item.rankingUrl !== '-' ?
-                    `<a href="${item.rankingUrl}" target="_blank" style="font-size: 0.75rem; color: var(--secondary); text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                        `<a href="${item.rankingUrl}" target="_blank" style="font-size: 0.75rem; color: var(--secondary); text-decoration: none; display: flex; align-items: center; gap: 4px;">
                              <i class="fas fa-external-link-alt" style="font-size: 0.7rem;"></i> 
                              ${item.rankingUrl.length > 30 ? item.rankingUrl.substring(0, 30) + '...' : item.rankingUrl}
                            </a>` :
-                    `<span style="font-size: 0.75rem; color: var(--text-dim);">-</span>`
-                }
+                        `<span style="font-size: 0.75rem; color: var(--text-dim);">-</span>`
+                    }
                     </td>
                     <td><span class="badge" style="background: rgba(99, 102, 241, 0.2)">${item.group}</span></td>
                     <td style="font-size: 0.8rem; color: var(--text-dim);">${item.searchEngine}</td>
                     <td style="font-size: 0.8rem; color: var(--text-dim);">${item.date}</td>
                     <td style="font-weight: 600;">${item.rank}</td>
+                    <td>
+                        <button class="btn" style="padding: 4px 8px; font-size: 0.8rem; background: var(--primary); color: white; border: none;"
+                                onclick="addToCart('${safeJS(item.keyword)}', '${safeJS(item.siteUrl)}', '${safeJS(item.siteName)}', '${safeJS(item.rankingUrl)}')" title="Add to Cart">
+                            <i class="fas fa-cart-plus"></i>
+                        </button>
+                    </td>
                 </tr>
-            `).join('');
+                `;
+            }).join('');
+
+            // Update floating bar
+            updateRankingsFloatingBar();
 
             renderPagination('rankingsPagination', state.rankingsPage, totalPages, (p) => {
                 state.rankingsPage = p;
@@ -3315,6 +3619,105 @@
             </div>
         </div>
     </div>
+    <!-- Rankings Floating Action Bar -->
+    <div id="rankingsFloatingBar"
+        style="display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 9000;
+        background: linear-gradient(135deg, #312e81, #4338ca); border-top: 2px solid var(--primary);
+        padding: 16px 32px; align-items: center; justify-content: space-between; box-shadow: 0 -4px 20px rgba(0,0,0,0.4);">
+        <div style="display: flex; align-items: center; gap: 12px; color: white;">
+            <i class="fas fa-check-circle" style="font-size: 1.2rem; color: var(--secondary);"></i>
+            <span><strong id="rankingsSelectedCount">0</strong> keywords selected</span>
+        </div>
+        <div style="display: flex; gap: 12px;">
+            <button class="btn"
+                style="padding: 8px 16px; background: transparent; border: 1px solid rgba(255,255,255,0.3); color: white;"
+                onclick="state.selectedRankings = []; updateRankingsFloatingBar(); renderRankingsTable();">Clear</button>
+            <button class="btn btn-primary" style="padding: 8px 24px; font-weight: 600;" onclick="addSelectedToCart()">
+                <i class="fas fa-cart-plus" style="margin-right: 8px;"></i>Add to Cart
+            </button>
+        </div>
+    </div>
+
+    <!-- Cart Badge (floating) -->
+    <button id="cartBadgeBtn" class="btn btn-primary" onclick="openCartModal()"
+        style="position: fixed; bottom: 24px; right: 24px; z-index: 8999; width: 56px; height: 56px; border-radius: 50%; 
+        display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(99,102,241,0.5); font-size: 1.2rem;">
+        <i class="fas fa-shopping-cart"></i>
+        <span id="cartBadge" style="display: none; position: absolute; top: -4px; right: -4px; background: var(--accent); 
+            color: white; font-size: 0.65rem; font-weight: 700; width: 20px; height: 20px; border-radius: 50%; 
+            align-items: center; justify-content: center;">0</span>
+    </button>
+
+    <!-- Cart Modal -->
+    <div id="cartModal" class="modal">
+        <div class="modal-content" style="max-width: 1100px; width: 95%; max-height: 85vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0;"><i class="fas fa-shopping-cart"
+                        style="color: var(--primary-light); margin-right: 8px;"></i>Order Cart — <span
+                        id="cartCount">0</span> Items</h3>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn"
+                        style="padding: 6px 12px; background: transparent; border: 1px solid var(--border); color: var(--accent); font-size: 0.8rem;"
+                        onclick="clearCart()">
+                        <i class="fas fa-trash" style="margin-right: 4px;"></i>Clear All
+                    </button>
+                    <button class="btn" onclick="closeCartModal()" style="padding: 4px 8px; background: transparent;"><i
+                            class="fas fa-times"></i></button>
+                </div>
+            </div>
+
+            <!-- Bulk Edit Controls -->
+            <div
+                style="background: rgba(99,102,241,0.1); border: 1px solid var(--primary); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 10px; color: var(--primary-light);"><i
+                        class="fas fa-edit" style="margin-right: 6px;"></i>Set All Rows</div>
+                <div style="display: flex; gap: 12px; align-items: end; flex-wrap: wrap;">
+                    <div class="form-group" style="flex: 1; margin-bottom: 0; min-width: 180px;">
+                        <label style="font-size: 0.75rem;">Campaign</label>
+                        <select id="cartBulkCampaign"
+                            style="background: rgba(30,41,59,0.5); border: 1px solid var(--border); border-radius: 6px; padding: 8px; color: white; width: 100%; font-size: 0.85rem;">
+                            <option value="">-- Don't change --</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1; margin-bottom: 0; min-width: 180px;">
+                        <label style="font-size: 0.75rem;">Vendor</label>
+                        <select id="cartBulkVendor"
+                            style="background: rgba(30,41,59,0.5); border: 1px solid var(--border); border-radius: 6px; padding: 8px; color: white; width: 100%; font-size: 0.85rem;">
+                            <option value="">-- Don't change --</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" style="padding: 8px 16px; font-size: 0.85rem; white-space: nowrap;"
+                        onclick="applyBulkEdit()">
+                        Apply to All
+                    </button>
+                </div>
+            </div>
+
+            <div style="overflow-x: auto; border: 1px solid var(--border); border-radius: 12px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Keyword</th>
+                            <th>Target URL</th>
+                            <th>Campaign</th>
+                            <th>Vendor</th>
+                            <th style="width: 70px;">Qty</th>
+                            <th style="width: 40px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="cartBody"></tbody>
+                </table>
+            </div>
+            <div style="display: flex; gap: 12px; margin-top: 24px;">
+                <button class="btn" style="flex: 1; justify-content: center;" onclick="closeCartModal()">Cancel</button>
+                <button id="cartSubmitBtn" class="btn btn-primary" style="flex: 1; justify-content: center;"
+                    onclick="submitCart()">
+                    <i class="fas fa-paper-plane"></i> Submit Orders
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="backlinkTooltip" class="backlink-tooltip"></div>
 </body>
 
