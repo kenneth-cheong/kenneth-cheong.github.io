@@ -1079,10 +1079,13 @@
                                         class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortJobCandidates('score')" style="cursor: pointer;">AI Score <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th>Interviewer Score</th>
+                                <th onclick="sortJobCandidates('interviewerScore')" style="cursor: pointer;">Interviewer
+                                    Score <i class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortJobCandidates('hopper')" style="cursor: pointer;">Job Hopper <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th>Pending action by</th>
+                                <th onclick="sortJobCandidates('pendingBy')" style="cursor: pointer;">Pending action by
+                                    <i class="fas fa-sort ms-1"></i>
+                                </th>
                                 <th onclick="sortJobCandidates('status')" style="cursor: pointer;">Status <i
                                         class="fas fa-sort ms-1"></i></th>
                                 <th>Actions</th>
@@ -1156,6 +1159,7 @@
                                 <option value="Scheduled">Scheduled</option>
                                 <option value="Interviewed">Interviewed</option>
                                 <option value="Shortlisted">Shortlisted</option>
+                                <option value="Offered">Offered</option>
                                 <option value="Rejected">Rejected</option>
                             </select>
                         </div>
@@ -1186,8 +1190,10 @@
                                         class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortRepoTable('score')" style="cursor: pointer;">AI Score <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th>Interviewer Score</th>
-                                <th>Pending action by</th>
+                                <th onclick="sortRepoTable('interviewerScore')" style="cursor: pointer;">Interviewer
+                                    Score <i class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortRepoTable('pendingBy')" style="cursor: pointer;">Pending action by <i
+                                        class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortRepoTable('status')" style="cursor: pointer;">Status <i
                                         class="fas fa-sort ms-1"></i></th>
                                 <th>Actions</th>
@@ -1406,6 +1412,14 @@
                                 onclick="reEvaluateCurrentCandidate(event)">
                                 <i class="fas fa-sync-alt"></i> AI Re-evaluate Candidate
                             </button>
+                            <div id="detailContactInfo"
+                                style="display: flex; gap: 12px; align-items: center; color: var(--text-dim); font-size: 0.8rem;">
+                                <span id="detailEmail" contenteditable="true"
+                                    onblur="updateCandidateEmail(this.innerText)"
+                                    style="outline: none; border-radius: 4px; padding: 2px 4px; border: 1px solid transparent;"
+                                    onmouseover="this.style.borderColor='var(--border)'"
+                                    onmouseout="this.style.borderColor='transparent'">candidate@email.com</span>
+                            </div>
                             <div
                                 style="display: flex; align-items: center; gap: 8px; background: var(--glass); padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border);">
                                 <label style="font-size: 0.75rem; color: var(--text-dim); font-weight: 600;">Interviewer
@@ -1418,6 +1432,11 @@
                     </div>
                     <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 12px;">
                         <div style="display: flex; gap: 8px;">
+                            <button class="btn"
+                                style="background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
+                                onclick="sendCandidateEmail()">
+                                <i class="fas fa-envelope"></i> Email
+                            </button>
                             <button class="btn"
                                 style="background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
                                 onclick="copyShareLink(editingCandId)">
@@ -1847,13 +1866,13 @@
 
         async function persistenceApiCall(action, data = {}, skipOverlay = false) {
             if (!skipOverlay) toggleLoading(true);
-            console.log({
+            console.log(JSON.stringify({
                 body: {
                     action: action,
                     data: data,
                     currentUser: state.currentUser
                 }
-            })
+            }, null, 2))
             try {
                 const response = await fetch(PERSISTENCE_LAMBDA_URL, {
                     method: 'POST',
@@ -1867,7 +1886,7 @@
                 if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
 
                 let result = await response.json();
-                console.log(result)
+                console.log(JSON.stringify(result, null, 2))
 
                 // If the Lambda returns a structured response object (statusCode, body, headers),
                 // we need to extract and parse the nested body.
@@ -2490,7 +2509,7 @@
         }
 
         function getStatusOptions(currentStatus) {
-            const statuses = ['No Action', 'Invited', 'Scheduled', 'Interviewed', 'Shortlisted', 'Rejected'];
+            const statuses = ['No Action', 'Invited', 'Scheduled', 'Interviewed', 'Shortlisted', 'Offered', 'Rejected'];
             return statuses.map(s => `<option value="${s}" ${s === currentStatus ? 'selected' : ''}>${s}</option>`).join('');
         }
 
@@ -2512,7 +2531,8 @@
             const cand = state.candidates.find(c => String(c.id) === String(candId));
             if (cand) {
                 cand.pendingBy = pendingBy;
-                await persistenceApiCall('upsert_candidate', { id: candId, pendingBy: pendingBy });
+                await persistenceApiCall('upsert_candidate', { id: String(candId), pendingBy: pendingBy });
+                renderCandidates();
                 filterCandidatesRepo();
             }
         }
@@ -2537,6 +2557,7 @@
                     <td style="display: flex; gap: 8px;">
                         <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem;" onclick="openJobDetails('${job.id}')">Manage</button>
                         <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border);" onclick="openEditJobModal('${job.id}')">Edit</button>
+                        <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);" onclick="confirmDuplicateJob('${job.id}')"><i class="fas fa-clone"></i> Clone</button>
                         <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: rgba(244, 63, 94, 0.1); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.2);" onclick="deleteJob('${job.id}')">🗑️</button>
                     </td>
                 </tr>
@@ -2563,6 +2584,46 @@
                 if (Array.isArray(jobs)) state.jobs = jobs;
                 showAuditLogs(); // Refresh log view
                 alert("Job restored successfully!");
+            } else {
+                alert("Failed to restore job.");
+            }
+        }
+
+        function confirmDuplicateJob(jobId) {
+            const job = state.jobs.find(j => String(j.id) === String(jobId));
+            if (!job) return;
+
+            const newTitle = prompt("Duplicate job: " + job.title + "\nEnter new job title:", job.title + " (Copy)");
+            if (newTitle === null || newTitle.trim() === "") return;
+
+            duplicateJob(jobId, newTitle.trim());
+        }
+
+        async function duplicateJob(jobId, newTitle) {
+            const originalJob = state.jobs.find(j => String(j.id) === String(jobId));
+            if (!originalJob) return;
+
+            // Clone job data but reset ID and candidate related fields
+            const newJobData = {
+                title: newTitle,
+                desc: originalJob.desc || '',
+                kpi: originalJob.kpi || '',
+                evaluationCriteria: JSON.parse(JSON.stringify(originalJob.evaluationCriteria || [])),
+                interviewQuestions: JSON.parse(JSON.stringify(originalJob.interviewQuestions || [])),
+                status: 'Open',
+                applicants: 0,
+                shortlisted: 0
+            };
+
+            const result = await persistenceApiCall('upsert_job', newJobData);
+            if (result && result.success) {
+                // Refresh local jobs list
+                const jobs = await persistenceApiCall('get_jobs');
+                if (Array.isArray(jobs)) state.jobs = jobs;
+                renderJobs();
+                alert("Job duplicated successfully!");
+            } else {
+                alert("Failed to duplicate job.");
             }
         }
 
@@ -2740,6 +2801,8 @@
                 else if (repoSort.field === 'job') { valA = a.jobTitle; valB = b.jobTitle; }
                 else if (repoSort.field === 'date') { valA = new Date(ensureUTC(a.date)); valB = new Date(ensureUTC(b.date)); }
                 else if (repoSort.field === 'score') { valA = a.aiScore; valB = b.aiScore; }
+                else if (repoSort.field === 'interviewerScore') { valA = a.interviewerScore || 0; valB = b.interviewerScore || 0; }
+                else if (repoSort.field === 'pendingBy') { valA = a.pendingBy; valB = b.pendingBy; }
                 else if (repoSort.field === 'status') { valA = a.status; valB = b.status; }
 
                 if (valA < valB) return repoSort.direction === 'asc' ? -1 : 1;
@@ -2943,7 +3006,10 @@
                     }
 
                     const cvDataBase64 = await toBase64(item.blob);
-                    addCandidate(item.name, analysis, cvDataBase64, text);
+                    const success = await addCandidate(item.name, analysis, cvDataBase64, text, true);
+                    if (!success) {
+                        throw new Error(`Failed to save candidate "${item.name}" to database`);
+                    }
                     console.log(`[Batch] Successfully added candidate: ${item.name} `);
                 } catch (err) {
                     console.error(`[Batch] ERROR processing ${item.name}: `, err);
@@ -3089,7 +3155,7 @@
             try {
                 // Batch updates
                 await Promise.all(selectedIds.map(id =>
-                    persistenceApiCall('update_candidate_assignee', { id: id, pendingBy: assignee })
+                    persistenceApiCall('upsert_candidate', { id: String(id), pendingBy: assignee })
                 ));
 
                 // Update local state
@@ -3345,6 +3411,40 @@
             return await response.json();
         }
 
+        function cleanCandidateName(analysisName, fileName) {
+            const placeholders = ['JOHN DOE', 'JOHNDOE', 'JOHN SMITH', 'JOHNSMITH', 'CANDIDATE NAME', 'FULL NAME', 'HOLDER'];
+            let rawName = analysisName ? analysisName.trim() : '';
+
+            const isPlaceholder = rawName && placeholders.some(p => rawName.toUpperCase().includes(p));
+
+            if (!rawName || isPlaceholder) {
+                // Fallback to filename (without extension)
+                rawName = fileName.split('.')[0].replace(/[0-9_\-]/g, ' ').replace(/\s+/g, ' ').trim();
+            }
+
+            if (!rawName || rawName.toLowerCase() === 'cv' || rawName.toLowerCase() === 'resume') {
+                rawName = 'UNKNOWN';
+            }
+
+            return rawName.toUpperCase();
+        }
+
+        function scanTextForContacts(text) {
+            if (!text) return { email: '', phone: '' };
+            // Simple robust regex for email
+            const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+            // Simple regex for phone numbers (matches various formats)
+            const phoneRegex = /(?:\+?(\d{1,3}))?[-. (]*(\d{3})[-. )]*(\d{3})[-. ]*(\d{4,})/;
+
+            const emailMatch = text.match(emailRegex);
+            const phoneMatch = text.match(phoneRegex);
+
+            return {
+                email: emailMatch ? emailMatch[0] : '',
+                phone: phoneMatch ? phoneMatch[0] : ''
+            };
+        }
+
         async function runAIReEvaluation(candidate) {
             const job = state.jobs.find(j => String(j.id) === String(candidate.jobId));
             if (!job) throw new Error("Job not found for candidate: " + candidate.id);
@@ -3377,7 +3477,11 @@
             const analysis = await response.json();
 
             // Update candidate object
+            const contactScans = scanTextForContacts(candidate.fullText);
+            candidate.name = cleanCandidateName(analysis.name, candidate.fileName);
             candidate.aiScore = analysis.score;
+            candidate.email = analysis.email || contactScans.email || candidate.email;
+            candidate.phone = analysis.phone || contactScans.phone || candidate.phone;
             candidate.breakdown = analysis.breakdown;
             candidate.summary = analysis.summary;
             candidate.reasons = analysis.reasons;
@@ -3507,11 +3611,13 @@
             });
         }
 
-        async function addCandidate(fileName, analysis, cvData, fullText) {
-            const rawName = (analysis.name && !analysis.name.includes('HOLDER')) ? analysis.name : fileName.split('.')[0];
+        async function addCandidate(fileName, analysis, cvData, fullText, skipOverlay = false) {
+            const contactScans = scanTextForContacts(fullText);
             const candidate = {
                 jobId: state.activeJobId,
-                name: rawName.toUpperCase(),
+                name: cleanCandidateName(analysis.name, fileName),
+                email: analysis.email || contactScans.email || '',
+                phone: analysis.phone || contactScans.phone || '',
                 fileName: fileName,
                 date: new Date().toISOString(),
                 aiScore: analysis.score,
@@ -3528,7 +3634,7 @@
                 fullText: fullText
             };
 
-            const result = await persistenceApiCall('add_candidate', candidate);
+            const result = await persistenceApiCall('add_candidate', candidate, skipOverlay);
             if (result && result.success) {
                 state.candidates.push(result.candidate || candidate);
 
@@ -3538,14 +3644,16 @@
                     job.applicants++;
                     if (candidate.status === 'Shortlisted') job.shortlisted++;
                     // We should also persist this increment back to the job object in DB
-                    await persistenceApiCall('upsert_job', job);
+                    await persistenceApiCall('upsert_job', job, true);
                 }
 
                 renderCandidates();
                 updateStats();
                 renderJobs();
+                return true;
             } else {
-                console.error("Failed to persist candidate to database.");
+                console.error("Failed to persist candidate to database. Result:", JSON.stringify(result));
+                return false;
             }
         }
 
@@ -3571,8 +3679,10 @@
                 if (jobDetailsSort.field === 'name') { valA = a.name; valB = b.name; }
                 else if (jobDetailsSort.field === 'date') { valA = new Date(ensureUTC(a.date)); valB = new Date(ensureUTC(b.date)); }
                 else if (jobDetailsSort.field === 'score') { valA = a.aiScore; valB = b.aiScore; }
+                else if (jobDetailsSort.field === 'interviewerScore') { valA = a.interviewerScore || 0; valB = b.interviewerScore || 0; }
                 else if (jobDetailsSort.field === 'status') { valA = a.status; valB = b.status; }
                 else if (jobDetailsSort.field === 'hopper') { valA = a.isHopper; valB = b.isHopper; }
+                else if (jobDetailsSort.field === 'pendingBy') { valA = a.pendingBy; valB = b.pendingBy; }
 
                 if (valA < valB) return jobDetailsSort.direction === 'asc' ? -1 : 1;
                 if (valA > valB) return jobDetailsSort.direction === 'asc' ? 1 : -1;
@@ -3707,6 +3817,8 @@
             }
 
             document.getElementById('detailName').innerText = c.name;
+            document.getElementById('detailEmail').innerText = c.email || 'Click to add email';
+            document.getElementById('detailEmail').style.color = c.email ? 'var(--text-main)' : 'var(--text-dim)';
             document.getElementById('detailScore').innerText = `AI Score: ${c.aiScore}/100`;
             document.getElementById('detailInterviewerScore').value = c.interviewerScore || 0;
             document.getElementById('detailSummary').innerText = c.summary;
@@ -3816,22 +3928,14 @@
         }
 
         async function updateCandidateName(newName) {
-            if (!state.viewingCandidateId || !newName) return;
+            if (!editingCandId || !newName) return;
             newName = newName.trim().toUpperCase();
 
-            const cand = state.candidates.find(c => String(c.id) === String(state.viewingCandidateId));
+            const cand = state.candidates.find(c => String(c.id) === String(editingCandId));
             if (!cand || cand.name === newName) return;
 
-            console.log(`Updating candidate ${state.viewingCandidateId} name to: ${newName}`);
-
-            // Update local state and UI
             cand.name = newName;
-
-            // Save to backend
-            const result = await persistenceApiCall('upsert_candidate', {
-                id: state.viewingCandidateId,
-                name: newName
-            });
+            const result = await persistenceApiCall('upsert_candidate', { id: editingCandId, name: newName });
 
             if (result && result.success) {
                 showToast("Candidate name updated successfully!");
@@ -3839,7 +3943,41 @@
                 filterCandidatesRepo();
             } else {
                 showToast("Failed to update candidate name", "error");
+                renderCandidates(); // Reset UI
             }
+        }
+
+        async function updateCandidateEmail(newEmail) {
+            if (!editingCandId) return;
+            const emailValue = (newEmail === 'Click to add email') ? '' : newEmail.trim();
+
+            const cand = state.candidates.find(c => String(c.id) === String(editingCandId));
+            if (!cand || cand.email === emailValue) return;
+
+            cand.email = emailValue;
+            const result = await persistenceApiCall('upsert_candidate', { id: editingCandId, email: emailValue });
+
+            if (result && result.success) {
+                showToast("Email updated successfully!");
+                document.getElementById('detailEmail').style.color = emailValue ? 'var(--text-main)' : 'var(--text-dim)';
+                renderCandidates();
+                filterCandidatesRepo();
+            } else {
+                showToast("Failed to update email", "error");
+            }
+        }
+
+        function sendCandidateEmail() {
+            const c = state.candidates.find(cand => String(cand.id) === String(editingCandId));
+            if (!c || !c.email) {
+                alert("No email address found for this candidate. Please add one first.");
+                return;
+            }
+            const job = state.jobs.find(j => String(j.id) === String(c.jobId));
+            const subject = encodeURIComponent(`Application Update: ${job ? job.title : 'Position'} - ${c.name}`);
+            const body = encodeURIComponent(`Hi ${c.name},\n\nI hope this email finds you well.\n\n[Add your message here regarding their application for ${job ? job.title : 'the position'}]\n\nBest regards,\n${state.currentUser}`);
+
+            window.location.href = `mailto:${c.email}?subject=${subject}&body=${body}`;
         }
 
         function rejectCurrentCandidate() {

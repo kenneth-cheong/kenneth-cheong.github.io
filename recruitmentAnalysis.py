@@ -55,6 +55,8 @@ def lambda_handler(event, context):
         Return ONLY a valid JSON object with the following structure:
         {{
             "name": "FULL NAME EXTRACTED FROM CV (DO NOT USE HOLDER TEXT)",
+            "email": "CANDIDATE EMAIL ADDRESS",
+            "phone": "CANDIDATE PHONE NUMBER",
             "score": 0-100,
             "breakdown": {{
                 "Criterion Name 1": 0-100,
