@@ -35,10 +35,26 @@
             border: 1px solid #6366f1;
             font-size: 0.8rem;
             z-index: 10000;
-            pointer-events: none;
             display: none;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
-            max-width: 400px;
+            max-width: 450px;
+            max-height: 400px;
+            overflow-y: auto;
+            pointer-events: auto;
+            user-select: text;
+        }
+
+        .backlink-tooltip::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .backlink-tooltip::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .backlink-tooltip::-webkit-scrollbar-thumb {
+            background: #6366f1;
+            border-radius: 3px;
         }
 
         .backlink-tooltip b {
@@ -2941,6 +2957,20 @@
         }
 
         let trendChart = null;
+        let tooltipTimeout = null;
+
+        // Initialize sticky tooltip behavior
+        document.addEventListener('DOMContentLoaded', () => {
+            const tooltip = document.getElementById('backlinkTooltip');
+            if (tooltip) {
+                tooltip.onmouseenter = () => {
+                    if (tooltipTimeout) clearTimeout(tooltipTimeout);
+                };
+                tooltip.onmouseleave = () => {
+                    tooltip.style.display = 'none';
+                };
+            }
+        });
         function showKeywordTrend(keyword, siteName, siteUrl = '', searchEngine = '') {
             const modal = document.getElementById('trendModal');
             document.getElementById('trendTitle').innerText = `${keyword} | ${siteName} ${searchEngine ? `(${searchEngine})` : ''}`;
@@ -3010,12 +3040,22 @@
                     backlinksByDate[dateKey] = {
                         count: 0,
                         targets: new Set(),
-                        links: new Set()
+                        links: new Set(),
+                        domains: {} // domain -> count
                     };
                 }
-                backlinksByDate[dateKey].count++;
-                if (bl.targetUrl) backlinksByDate[dateKey].targets.add(bl.targetUrl);
-                if (bl.deliveredUrl) backlinksByDate[dateKey].links.add(bl.deliveredUrl);
+                const data = backlinksByDate[dateKey];
+                data.count++;
+                if (bl.targetUrl) data.targets.add(bl.targetUrl);
+                if (bl.deliveredUrl) {
+                    data.links.add(bl.deliveredUrl);
+                    try {
+                        const domain = new URL(bl.deliveredUrl).hostname.replace('www.', '');
+                        data.domains[domain] = (data.domains[domain] || 0) + 1;
+                    } catch (e) {
+                        data.domains['Unknown'] = (data.domains['Unknown'] || 0) + 1;
+                    }
+                }
             });
 
             // Prepare annotations
@@ -3024,11 +3064,12 @@
                 if (sortedDates.includes(date)) {
                     const data = backlinksByDate[date];
                     annotations[`line${index}`] = {
+                        drawTime: 'afterDatasetsDraw',
                         type: 'line',
                         xMin: date,
                         xMax: date,
                         borderColor: '#10b981',
-                        borderWidth: 2,
+                        borderWidth: 4,
                         label: {
                             display: true,
                             content: `+${data.count} Backlinks`,
@@ -3039,24 +3080,36 @@
                             padding: 4,
                             borderRadius: 4
                         },
-                        enter(ctx) {
+                        enter(context, event) {
+                            console.log('[DEBUG] Annotation enter', context.id);
                             const tooltip = document.getElementById('backlinkTooltip');
                             let html = `<b>Built Date: ${date}</b>`;
                             if (data.targets.size > 0) {
-                                html += `<div style="margin-top:8px; font-weight:bold; font-size: 0.7rem; color: #94a3b8;">TARGET URLS:</div>`;
-                                html += `<ul>${Array.from(data.targets).map(t => `<li>${t}</li>`).join('')}</ul>`;
+                                html += `<div style="margin-top:8px; font-weight:bold; font-size: 0.7rem; color: #94a3b8; border-bottom: 1px solid var(--border); padding-bottom: 4px;">TARGETED URLS (${data.targets.size}):</div>`;
+                                html += `<ul style="margin-bottom: 12px;">${Array.from(data.targets).map(t => `<li style="color: #6366f1;">${t}</li>`).join('')}</ul>`;
                             }
-                            if (data.links.size > 0) {
-                                html += `<div style="margin-top:8px; font-weight:bold; font-size: 0.7rem; color: #94a3b8;">BACKLINK URLS:</div>`;
-                                html += `<ul>${Array.from(data.links).map(l => `<li>${l}</li>`).join('')}</ul>`;
+
+                            const domains = Object.keys(data.domains).sort((a, b) => data.domains[b] - data.domains[a]);
+                            if (domains.length > 0) {
+                                html += `<div style="margin-top:8px; font-weight:bold; font-size: 0.7rem; color: #94a3b8; border-bottom: 1px solid var(--border); padding-bottom: 4px;">DOMAINS (${domains.length}):</div>`;
+                                html += `<ul style="margin-bottom: 12px;">${domains.map(d => `
+                                    <li style="margin-bottom: 8px;">
+                                        <div style="font-weight: 600; color: #818cf8;">${d} (${data.domains[d]})</div>
+                                        <div style="font-size: 0.7rem; opacity: 0.8; margin-top: 2px;">
+                                            ${Array.from(data.links).filter(l => l.includes(d)).map(l => `<div style="margin-bottom: 2px; color: #10b981;">${l}</div>`).join('')}
+                                        </div>
+                                    </li>
+                                `).join('')}</ul>`;
                             }
                             tooltip.innerHTML = html;
                             tooltip.style.display = 'block';
-                            tooltip.style.left = (ctx.event.native.clientX + 15) + 'px';
-                            tooltip.style.top = (ctx.event.native.clientY + 15) + 'px';
+                            tooltip.style.left = (event.native.clientX + 15) + 'px';
+                            tooltip.style.top = (event.native.clientY + 15) + 'px';
                         },
                         leave() {
-                            document.getElementById('backlinkTooltip').style.display = 'none';
+                            tooltipTimeout = setTimeout(() => {
+                                document.getElementById('backlinkTooltip').style.display = 'none';
+                            }, 300);
                         }
                     };
                 }
@@ -3094,6 +3147,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    events: ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove'],
                     scales: {
                         y: {
                             reverse: true, // Rank 1 at top
