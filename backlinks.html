@@ -664,11 +664,17 @@
                 <div class="card">
                     <div class="flex-resp" style="margin-bottom: 24px;">
                         <h3>Delivered Backlinks</h3>
-                        <div style="display: flex; gap: 12px;">
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
                             <input type="file" id="excelUpload" style="display: none;" accept=".csv, .xlsx, .xls"
                                 onchange="handleFileUpload(this)">
+                            <input type="file" id="deliveryUpload" style="display: none;" accept=".csv, .xlsx, .xls"
+                                onchange="handleDeliveryFileUpload(this)">
                             <button class="btn btn-primary" onclick="importFromSheet()" id="importBtn">
                                 <i class="fas fa-file-csv"></i> Import CSV / Sheet
+                            </button>
+                            <button class="btn" onclick="openDeliveryUpload()" id="deliveryUploadBtn"
+                                style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none;">
+                                <i class="fas fa-file-upload"></i> Upload Delivery CSV
                             </button>
                             <button class="btn btn-primary" onclick="bulkValidateOrders()" id="bulkValidateBtn"
                                 style="display: none;">
@@ -3498,6 +3504,317 @@
                 trendChart = null;
             }
         }
+
+        // ===== Vendor Delivery CSV Upload =====
+        let deliveryMatchedRows = [];
+
+        function openDeliveryUpload() {
+            resetDeliveryModal();
+            document.getElementById('deliveryModal').style.display = 'flex';
+        }
+
+        function closeDeliveryModal() {
+            document.getElementById('deliveryModal').style.display = 'none';
+            resetDeliveryModal();
+        }
+
+        function resetDeliveryModal() {
+            deliveryMatchedRows = [];
+            document.getElementById('deliveryStep1').style.display = 'block';
+            document.getElementById('deliveryStep2').style.display = 'none';
+            const input = document.getElementById('deliveryFileInput');
+            if (input) input.value = '';
+        }
+
+        function handleDeliveryDrop(event) {
+            const file = event.dataTransfer.files[0];
+            if (file) processDeliveryFile(file);
+        }
+
+        function handleDeliveryFileSelected(input) {
+            const file = input.files[0];
+            if (file) processDeliveryFile(file);
+        }
+
+        // Also handle the hidden file input from the header button
+        function handleDeliveryFileUpload(input) {
+            const file = input.files[0];
+            if (file) {
+                openDeliveryUpload();
+                processDeliveryFile(file);
+            }
+            input.value = '';
+        }
+
+        async function processDeliveryFile(file) {
+            toggleLoading(true);
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const allRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+                    // Find header row (first row with a 'keyword' column)
+                    let headerIndex = -1;
+                    for (let i = 0; i < Math.min(allRows.length, 10); i++) {
+                        const row = allRows[i].map(c => String(c).toLowerCase().trim());
+                        if (row.some(c => c.includes('keyword'))) {
+                            headerIndex = i;
+                            break;
+                        }
+                    }
+                    if (headerIndex === -1) {
+                        alert('Could not find a header row with a "Keyword" column. Please check your CSV format.');
+                        toggleLoading(false);
+                        return;
+                    }
+
+                    const headers = allRows[headerIndex].map(h => String(h).trim());
+                    const rows = allRows.slice(headerIndex + 1).filter(r => r.some(c => String(c).trim()));
+
+                    // Find column indices
+                    const findCol = (names) => {
+                        for (const name of names) {
+                            const i = headers.findIndex(h => String(h).toLowerCase().trim().includes(name.toLowerCase()));
+                            if (i !== -1) return i;
+                        }
+                        return -1;
+                    };
+
+                    const colKeyword = findCol(['keyword']);
+                    const colUrl = findCol(['delivered url', 'delivered', 'backlink', 'url', 'link']);
+                    const colDa = findCol(['da', 'domain authority']);
+                    const colCampaign = findCol(['campaign', 'client', 'site']);
+
+                    if (colKeyword === -1) {
+                        alert('Could not find a "Keyword" column.');
+                        toggleLoading(false);
+                        return;
+                    }
+                    if (colUrl === -1) {
+                        alert('Could not find a delivery URL column (Delivered URL / Backlink / URL).');
+                        toggleLoading(false);
+                        return;
+                    }
+
+                    // Parse rows
+                    const parsedRows = rows
+                        .filter(r => r[colKeyword] && r[colUrl])
+                        .map(r => ({
+                            keyword: String(r[colKeyword]).trim(),
+                            deliveredUrl: String(r[colUrl]).trim(),
+                            da: colDa !== -1 ? (parseInt(r[colDa]) || 0) : 0,
+                            campaignName: colCampaign !== -1 ? String(r[colCampaign]).trim() : ''
+                        }))
+                        .filter(r => r.deliveredUrl.startsWith('http'));
+
+                    if (parsedRows.length === 0) {
+                        alert('No valid rows found. Make sure your CSV has Keyword and URL columns with http(s) links.');
+                        toggleLoading(false);
+                        return;
+                    }
+
+                    // Match to ordered backlinks
+                    matchDeliveryToOrders(parsedRows);
+                } catch (err) {
+                    console.error('Delivery CSV Error:', err);
+                    alert('Failed to parse file. Please ensure it is a valid CSV/XLSX.');
+                } finally {
+                    toggleLoading(false);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function matchDeliveryToOrders(parsedRows) {
+            // Get all "Ordered" backlinks (no deliveredUrl yet)
+            const orderedBacklinks = state.backlinks.filter(b => b.status === 'Ordered' && !b.deliveredUrl);
+
+            // Track which orders have been claimed so we don't double-match
+            const claimedIds = new Set();
+
+            deliveryMatchedRows = parsedRows.map(row => {
+                const kw = row.keyword.toLowerCase().trim();
+                const camp = row.campaignName ? row.campaignName.toLowerCase().trim() : '';
+
+                // Find matching ordered backlinks by keyword
+                let candidates = orderedBacklinks.filter(b =>
+                    (b.keyword || '').toLowerCase().trim() === kw && !claimedIds.has(b.id)
+                );
+
+                // If campaign provided, narrow down
+                if (camp && candidates.length > 1) {
+                    const campMatch = candidates.filter(b =>
+                        (b.campaignName || '').toLowerCase().trim().includes(camp) ||
+                        camp.includes((b.campaignName || '').toLowerCase().trim())
+                    );
+                    if (campMatch.length > 0) candidates = campMatch;
+                }
+
+                let matchStatus, matchedOrder;
+                if (candidates.length === 1) {
+                    matchStatus = 'matched';
+                    matchedOrder = candidates[0];
+                    claimedIds.add(matchedOrder.id);
+                } else if (candidates.length > 1) {
+                    matchStatus = 'ambiguous';
+                    matchedOrder = candidates[0]; // Default to first
+                    claimedIds.add(matchedOrder.id);
+                } else {
+                    matchStatus = 'unmatched';
+                    matchedOrder = null;
+                }
+
+                return {
+                    ...row,
+                    matchStatus,
+                    matchedOrder,
+                    candidates,
+                    selected: matchStatus !== 'unmatched'
+                };
+            });
+
+            renderDeliveryPreview();
+        }
+
+        function renderDeliveryPreview() {
+            document.getElementById('deliveryStep1').style.display = 'none';
+            document.getElementById('deliveryStep2').style.display = 'block';
+
+            const matched = deliveryMatchedRows.filter(r => r.matchStatus === 'matched').length;
+            const ambiguous = deliveryMatchedRows.filter(r => r.matchStatus === 'ambiguous').length;
+            const unmatched = deliveryMatchedRows.filter(r => r.matchStatus === 'unmatched').length;
+            const total = deliveryMatchedRows.length;
+
+            document.getElementById('deliveryStats').innerHTML = `
+                <div style="flex: 1; min-width: 120px; padding: 12px 16px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 12px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #10b981;">${matched}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-dim);">Matched</div>
+                </div>
+                <div style="flex: 1; min-width: 120px; padding: 12px 16px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 12px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #f59e0b;">${ambiguous}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-dim);">Ambiguous</div>
+                </div>
+                <div style="flex: 1; min-width: 120px; padding: 12px 16px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #ef4444;">${unmatched}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-dim);">Unmatched</div>
+                </div>
+                <div style="flex: 1; min-width: 120px; padding: 12px 16px; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 12px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-light);">${total}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-dim);">Total Rows</div>
+                </div>
+            `;
+
+            const body = document.getElementById('deliveryPreviewBody');
+            body.innerHTML = deliveryMatchedRows.map((row, idx) => {
+                const statusIcon = row.matchStatus === 'matched' ? '<i class="fas fa-check-circle" style="color: #10b981;"></i>'
+                    : row.matchStatus === 'ambiguous' ? '<i class="fas fa-exclamation-triangle" style="color: #f59e0b;"></i>'
+                        : '<i class="fas fa-times-circle" style="color: #ef4444;"></i>';
+
+                const matchInfo = row.matchedOrder
+                    ? `<div style="font-weight: 500;">${row.matchedOrder.campaignName || 'Unnamed'}</div>
+                       <div style="font-size: 0.75rem; color: var(--text-dim);">${row.matchedOrder.keyword}</div>
+                       <div style="font-size: 0.7rem; color: var(--text-dim);">${row.matchedOrder.targetUrl || ''}</div>`
+                    : '<span style="color: #ef4444; font-size: 0.8rem;">No matching order found</span>';
+
+                // For ambiguous matches, show a dropdown
+                let matchCell = matchInfo;
+                if (row.matchStatus === 'ambiguous' && row.candidates.length > 1) {
+                    matchCell = `<select onchange="updateDeliveryMatch(${idx}, this.value)" style="width: 100%; padding: 6px; background: rgba(30,41,59,0.5); border: 1px solid var(--border); border-radius: 6px; color: white; font-size: 0.8rem;">
+                        ${row.candidates.map(c => `<option value="${c.id}" ${c.id === row.matchedOrder?.id ? 'selected' : ''}>${c.campaignName} — ${c.keyword} (${c.targetUrl || 'no url'})</option>`).join('')}
+                    </select>`;
+                }
+
+                const urlDisplay = row.deliveredUrl.length > 50 ? row.deliveredUrl.substring(0, 50) + '...' : row.deliveredUrl;
+
+                return `<tr style="opacity: ${row.matchStatus === 'unmatched' ? 0.5 : 1}">
+                    <td>${statusIcon}</td>
+                    <td>${row.keyword}</td>
+                    <td><a href="${row.deliveredUrl}" target="_blank" style="color: var(--secondary); text-decoration: none; word-break: break-all; font-size: 0.8rem;">${urlDisplay}</a></td>
+                    <td>${row.da || '-'}</td>
+                    <td>${matchCell}</td>
+                </tr>`;
+            }).join('');
+
+            // Disable confirm if nothing matched
+            const confirmBtn = document.getElementById('confirmDeliveryBtn');
+            const deliverableCount = deliveryMatchedRows.filter(r => r.matchedOrder).length;
+            if (deliverableCount === 0) {
+                confirmBtn.disabled = true;
+                confirmBtn.style.opacity = '0.5';
+                confirmBtn.innerHTML = '<i class="fas fa-times-circle" style="margin-right: 6px;"></i>No Matches to Deliver';
+            } else {
+                confirmBtn.disabled = false;
+                confirmBtn.style.opacity = '1';
+                confirmBtn.innerHTML = `<i class="fas fa-check-circle" style="margin-right: 6px;"></i>Confirm & Deliver (${deliverableCount} links)`;
+            }
+        }
+
+        function updateDeliveryMatch(rowIdx, orderId) {
+            const row = deliveryMatchedRows[rowIdx];
+            if (!row || !row.candidates) return;
+            const newMatch = row.candidates.find(c => c.id === orderId);
+            if (newMatch) {
+                row.matchedOrder = newMatch;
+            }
+        }
+
+        async function confirmDeliveryUpload() {
+            const deliverable = deliveryMatchedRows.filter(r => r.matchedOrder);
+            if (deliverable.length === 0) return;
+
+            if (!confirm(`Deliver ${deliverable.length} backlink(s)? This will update their status to "Delivered".`)) return;
+
+            const btn = document.getElementById('confirmDeliveryBtn');
+            btn.disabled = true;
+            let processed = 0;
+
+            for (const row of deliverable) {
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin" style="margin-right: 6px;"></i>Processing ${processed + 1}/${deliverable.length}...`;
+
+                try {
+                    // Auto-validate: fetch SSL and Moz metrics
+                    const [ssl, metrics] = await Promise.all([
+                        fetchSsl(row.deliveredUrl).catch(() => false),
+                        fetchMozMetrics(row.deliveredUrl).catch(() => ({ DA: 0 }))
+                    ]);
+
+                    const updateData = {
+                        id: row.matchedOrder.id,
+                        deliveredUrl: row.deliveredUrl,
+                        status: 'Delivered',
+                        vendorDa: row.da || 0,
+                        validatedDa: metrics.DA || 0,
+                        ssl: ssl,
+                        lastValidatedAt: new Date().toISOString()
+                    };
+
+                    const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', updateData, true);
+                    if (result && result.success) {
+                        // Update local state
+                        const b = state.backlinks.find(x => x.id === row.matchedOrder.id);
+                        if (b) Object.assign(b, updateData);
+                        processed++;
+                    }
+                } catch (err) {
+                    console.error('Delivery error for', row.keyword, err);
+                }
+            }
+
+            btn.innerHTML = `<i class="fas fa-check" style="margin-right: 6px;"></i>Done! ${processed}/${deliverable.length} delivered`;
+            btn.style.background = 'rgba(16, 185, 129, 0.3)';
+
+            // Refresh orders table
+            renderOrders();
+            updateDashboard();
+
+            // Auto-close after a moment
+            setTimeout(() => {
+                closeDeliveryModal();
+            }, 2000);
+        }
     </script>
     <!-- User Modal -->
     <div id="userModal" class="modal">
@@ -3714,6 +4031,88 @@
                     onclick="submitCart()">
                     <i class="fas fa-paper-plane"></i> Submit Orders
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delivery Upload Modal -->
+    <div id="deliveryModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <div>
+                    <h3 style="margin: 0;"><i class="fas fa-file-upload"
+                            style="color: var(--secondary); margin-right: 8px;"></i>Upload Delivery CSV</h3>
+                    <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: 6px;">Upload a CSV with delivered
+                        URLs to map to existing orders.</p>
+                </div>
+                <button class="btn" onclick="closeDeliveryModal()"
+                    style="padding: 6px 10px; background: transparent; border: 1px solid var(--border); color: var(--text-dim);">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Step 1: File Upload -->
+            <div id="deliveryStep1">
+                <div style="border: 2px dashed var(--border); border-radius: 16px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s;"
+                    onclick="document.getElementById('deliveryFileInput').click()"
+                    ondragover="event.preventDefault(); this.style.borderColor='var(--secondary)'; this.style.background='rgba(16,185,129,0.05)'"
+                    ondragleave="this.style.borderColor='var(--border)'; this.style.background='transparent'"
+                    ondrop="event.preventDefault(); this.style.borderColor='var(--border)'; this.style.background='transparent'; handleDeliveryDrop(event)">
+                    <i class="fas fa-cloud-upload-alt"
+                        style="font-size: 2.5rem; color: var(--secondary); margin-bottom: 12px; display: block;"></i>
+                    <p style="font-weight: 600; margin-bottom: 4px;">Drag & drop your delivery CSV here</p>
+                    <p style="color: var(--text-dim); font-size: 0.85rem;">or click to browse — supports .csv, .xlsx,
+                        .xls</p>
+                    <input type="file" id="deliveryFileInput" style="display: none;" accept=".csv,.xlsx,.xls"
+                        onchange="handleDeliveryFileSelected(this)">
+                </div>
+                <div
+                    style="margin-top: 16px; padding: 16px; background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.15); border-radius: 12px;">
+                    <p style="font-size: 0.85rem; font-weight: 600; color: var(--primary-light); margin-bottom: 8px;"><i
+                            class="fas fa-info-circle" style="margin-right: 6px;"></i>Expected CSV Columns</p>
+                    <p style="font-size: 0.8rem; color: var(--text-dim);"><b>Required:</b> <code
+                            style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">Keyword</code>,
+                        <code
+                            style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">Delivered URL</code>
+                        (or <code
+                            style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">Backlink</code>
+                        / <code
+                            style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">URL</code>)
+                    </p>
+                    <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 4px;"><b>Optional:</b> <code
+                            style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">Campaign Name</code>,
+                        <code
+                            style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">DA</code>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Step 2: Preview -->
+            <div id="deliveryStep2" style="display: none;">
+                <div id="deliveryStats" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;"></div>
+                <div style="overflow-x: auto; max-height: 50vh;">
+                    <table style="font-size: 0.85rem;">
+                        <thead>
+                            <tr>
+                                <th style="width: 30px;"></th>
+                                <th>Keyword (from CSV)</th>
+                                <th>Delivered URL</th>
+                                <th>DA</th>
+                                <th>Matched Order</th>
+                            </tr>
+                        </thead>
+                        <tbody id="deliveryPreviewBody"></tbody>
+                    </table>
+                </div>
+                <div style="display: flex; gap: 12px; margin-top: 20px;">
+                    <button class="btn" style="flex: 1; justify-content: center;" onclick="resetDeliveryModal()"><i
+                            class="fas fa-arrow-left" style="margin-right: 6px;"></i>Back</button>
+                    <button id="confirmDeliveryBtn" class="btn"
+                        style="flex: 2; justify-content: center; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none;"
+                        onclick="confirmDeliveryUpload()">
+                        <i class="fas fa-check-circle" style="margin-right: 6px;"></i>Confirm & Deliver
+                    </button>
+                </div>
             </div>
         </div>
     </div>
