@@ -6809,7 +6809,7 @@
                 <a href="#catsTxtGenerator" onclick="openCatsTxtGenerator(event)">cats.txt Generator</a>
                 <a href="#aiDiscoveryAudit" onclick="openAiDiscoveryAudit(event)">Ai Discovery</a>
                 <a href="#discoveryKeywordsSection" onclick="openAiMentions(event)">AI Mentions</a>
-                <a href="#geoOnPageSection" onclick="openGeoOnPage(event)">GEO on-page optimisation</a>
+                <a href="#geoOnPageSection" onclick="openGeoOnPage(event)">GEO On-Page Optimisation</a>
                 <a href="#" onclick="triggerSchemaFromGeo()">Schema Generator</a>
             </div>
         </div>
@@ -9456,38 +9456,43 @@
                         <div class="geo-card" style="margin-top: 10px;">
                             <div class="geo-input-group">
                                 <div class="geo-input-item">
-                                    <label>URL to Analyse (Landing Page)</label>
+                                    <label>URL to Analyse (Landing Page) <span style="color: #ef4444;">*</span></label>
                                     <input type="text" id="geoOnPageUrl"
-                                        placeholder="e.g. https://mediaonemarketing.com.sg/seo-services/">
+                                        placeholder="e.g. https://www.extraspaceasia.com.sg/personal-storage/">
                                 </div>
                                 <div class="geo-input-item">
-                                    <label>Target Prompts (One per line, 1-3 recommended)</label>
+                                    <label>Target Prompts (One per line, 1-3 recommended) <span
+                                            style="color: #ef4444;">*</span></label>
                                     <textarea id="geoOnPagePrompts"
-                                        placeholder="e.g. What is the best SEO agency in Singapore?"
+                                        placeholder="e.g. Where can I find self-storage in Singapore?"
                                         style="height: 80px;"></textarea>
                                 </div>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                                     <div class="geo-input-item">
-                                        <label>Brand Name</label>
-                                        <input type="text" id="geoOnPageBrand" placeholder="e.g. MediaOne">
+                                        <label>Brand Name <span
+                                                style="color: #94a3b8; font-weight: 400; font-size: 0.85em;">(optional)</span></label>
+                                        <input type="text" id="geoOnPageBrand" placeholder="e.g. Extra Space Asia">
                                     </div>
                                     <div class="geo-input-item">
-                                        <label>Industry/Niche</label>
-                                        <input type="text" id="geoOnPageIndustry" placeholder="e.g. Digital Marketing">
+                                        <label>Industry/Niche <span
+                                                style="color: #94a3b8; font-weight: 400; font-size: 0.85em;">(optional)</span></label>
+                                        <input type="text" id="geoOnPageIndustry" placeholder="e.g. Self-Storage">
                                     </div>
                                 </div>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                                     <div class="geo-input-item">
-                                        <label>Target Audience</label>
+                                        <label>Target Audience <span
+                                                style="color: #94a3b8; font-weight: 400; font-size: 0.85em;">(optional)</span></label>
                                         <input type="text" id="geoOnPageAudience"
-                                            placeholder="e.g. CMOs, Business Owners">
+                                            placeholder="e.g. Homeowners, Small Business Owners">
                                     </div>
                                     <div class="geo-input-item">
-                                        <label>Target Market</label>
+                                        <label>Target Market <span
+                                                style="color: #94a3b8; font-weight: 400; font-size: 0.85em;">(optional)</span></label>
                                         <input type="text" id="geoOnPageMarket" value="Singapore">
                                     </div>
                                 </div>
-                                <button class="discovery-btn-run" style="margin-top: 15px; width: 100%;"
+                                <button class="discovery-btn-run" style="margin-top: 15px; width: fit-content;"
                                     onclick="runGeoOnPageAnalysis()">
                                     <i class="fas fa-magic"></i> Run GEO On-Page Analysis
                                 </button>
@@ -9510,7 +9515,7 @@
                             </div>
 
                             <div class="discovery-tech-grid" id="geoOnPageAnalysisGrid"
-                                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; margin-top: 25px;">
+                                style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 25px;">
                                 <!-- AI Analysis Cards will be injected here -->
                             </div>
 
@@ -13893,8 +13898,11 @@
             const audience = document.getElementById('geoOnPageAudience').value;
             const market = document.getElementById('geoOnPageMarket').value;
 
-            if (!url) {
-                alert("Please enter a URL to analyse.");
+            const missingFields = [];
+            if (!url) missingFields.push('URL to Analyse');
+            if (!prompts.trim()) missingFields.push('Target Prompts');
+            if (missingFields.length > 0) {
+                alert('Please fill in the following required fields:\n\n• ' + missingFields.join('\n• '));
                 return;
             }
 
@@ -13919,7 +13927,8 @@
                     })
                 });
 
-                const data = await response.json();
+                const raw = await response.json();
+                const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : raw;
                 if (data.error) throw new Error(data.error);
 
                 // Populate Results
@@ -13936,6 +13945,14 @@
             }
         }
 
+        // Global store for schema data to avoid inline JSON in onclick
+        window._geoSchemaData = null;
+        function copyGeoSchema() {
+            if (window._geoSchemaData) {
+                navigator.clipboard.writeText(JSON.stringify(window._geoSchemaData, null, 2));
+            }
+        }
+
         function displayGeoOnPageResults(data) {
             const score = data.overall_score || 0;
             document.getElementById('geoOnPageMainScore').innerText = score;
@@ -13944,38 +13961,298 @@
             const grid = document.getElementById('geoOnPageAnalysisGrid');
             grid.innerHTML = '';
 
-            const parts = [
-                { id: 1, title: 'Vector Embedding Optimisation', key: 'vector_embedding' },
-                { id: 2, title: 'Entity Optimisation', key: 'entity_optimization' },
-                { id: 3, title: 'Content Structure & FAQ', key: 'content_structure' },
-                { id: 4, title: 'Internal Linking Strategy', key: 'internal_linking' },
-                { id: 5, title: 'Citation-Worthiness', key: 'citation_worthiness' }
-            ];
+            // Helper: copy text to clipboard via data attribute
+            function copyBtn(text, label) {
+                const id = 'cb_' + Math.random().toString(36).substr(2, 6);
+                setTimeout(() => {
+                    const el = document.getElementById(id);
+                    if (el) el.addEventListener('click', () => {
+                        navigator.clipboard.writeText(text);
+                        el.innerHTML = '<i class="fas fa-check"></i>';
+                        setTimeout(() => el.innerHTML = '<i class="fas fa-copy"></i>', 1500);
+                    });
+                }, 100);
+                return '<button id="' + id + '" style="background:none;border:none;color:#94a3b8;cursor:pointer;padding:2px 4px;font-size:0.8em;" title="Copy"><i class="fas fa-copy"></i></button>';
+            }
 
-            parts.forEach(part => {
-                const partData = data[part.key] || {};
-                const score = partData.score || 0;
-                const insights = partData.insights || [];
+            function scoreColor(s) { return s > 70 ? '#10a37f' : (s > 40 ? '#f59e0b' : '#ef4444'); }
 
-                const card = document.createElement('div');
-                card.className = 'geo-card';
-                card.style.margin = '0';
-                card.innerHTML = `
-                    <div class="geo-card-header" style="background: #f8fafc;">
-                        <div class="geo-card-title" style="font-size: 0.95em;">Part ${part.id}: ${part.title}</div>
-                        <div style="font-weight: 700; color: ${score > 70 ? '#10a37f' : (score > 40 ? '#f59e0b' : '#ef4444')}">${score}%</div>
-                    </div>
-                    <div style="padding: 15px;">
-                        <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.85em; color: #475569;">
-                            ${insights.map(point => `<li style="margin-bottom: 8px; display: flex; gap: 10px;">
-                                <i class="fas fa-check-circle" style="color: #10a37f; margin-top: 3px;"></i>
-                                <span>${point}</span>
-                            </li>`).join('')}
-                        </ul>
-                    </div>
-                `;
-                grid.appendChild(card);
-            });
+            const cardStyle = 'overflow:hidden;word-break:break-word;';
+
+            function insightsList(insights) {
+                if (!insights || !insights.length) return '';
+                const items = insights.map(point => {
+                    const isPositive = typeof point === 'object' ? point.positive : true;
+                    const text = typeof point === 'object' ? point.text : point;
+                    const icon = isPositive ? 'fa-check-circle' : 'fa-times-circle';
+                    const iconColor = isPositive ? '#10a37f' : '#ef4444';
+                    return '<li style="margin-bottom:8px;display:flex;gap:8px;align-items:flex-start;">' +
+                        '<i class="fas ' + icon + '" style="color:' + iconColor + ';margin-top:3px;flex-shrink:0;"></i>' +
+                        '<span style="flex:1;">' + text + '</span>' + copyBtn(text, 'insight') +
+                        '</li>';
+                }).join('');
+                return '<ul style="list-style:none;padding:0;margin:8px 0 0;font-size:0.85em;color:#475569;">' + items + '</ul>';
+            }
+
+            // ── PART 1: Vector Embedding ──
+            const ve = data.vector_embedding || {};
+            const veCard = document.createElement('div');
+            veCard.className = 'geo-card';
+            veCard.style.cssText = 'margin:0;' + cardStyle;
+
+            const semCov = ve.semantic_coverage || 0;
+            const recTerms = ve.recommended_terms || [];
+            const topicClusters = ve.topic_clusters || [];
+            const allVeInsights = [...(ve.strengths || []), ...(ve.missing_elements || [])];
+
+            let veHtml = '<div class="geo-card-header" style="background:#f8fafc;">' +
+                '<div class="geo-card-title" style="font-size:0.95em;">Part 1: Vector Embedding Optimisation</div>' +
+                '<div style="font-weight:700;color:' + scoreColor(ve.score || 0) + '">' + (ve.score || 0) + '%</div></div>' +
+                '<div style="padding:15px;">' +
+                '<div style="margin-bottom:15px;">' +
+                '<div style="display:flex;justify-content:space-between;font-size:0.8em;color:#64748b;margin-bottom:4px;">' +
+                '<span style="font-weight:600;">Semantic Coverage</span><span>' + semCov + '%</span></div>' +
+                '<div style="height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;">' +
+                '<div style="height:100%;width:' + semCov + '%;background:' + scoreColor(semCov) + ';border-radius:4px;"></div></div></div>';
+
+            if (recTerms.length) {
+                veHtml += '<div style="margin-bottom:15px;">' +
+                    '<div style="font-weight:700;font-size:0.85em;color:#1e293b;margin-bottom:8px;">' +
+                    '<i class="fas fa-plus-circle" style="color:#2563eb;"></i> Recommended Terms to Include:</div>' +
+                    '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+                recTerms.forEach(t => {
+                    const termId = 'term_' + Math.random().toString(36).substr(2, 6);
+                    veHtml += '<span id="' + termId + '" style="background:#eff6ff;color:#1d4ed8;padding:4px 10px;border-radius:20px;font-size:0.8em;cursor:pointer;border:1px solid #bfdbfe;" title="Click to copy">' + t + '</span>';
+                    setTimeout(() => {
+                        const el = document.getElementById(termId);
+                        if (el) el.addEventListener('click', () => {
+                            navigator.clipboard.writeText(t);
+                            el.style.background = '#dcfce7';
+                            setTimeout(() => el.style.background = '#eff6ff', 1000);
+                        });
+                    }, 100);
+                });
+                veHtml += '</div></div>';
+            }
+
+            if (topicClusters.length) {
+                veHtml += '<div style="margin-bottom:15px;">' +
+                    '<div style="font-weight:700;font-size:0.85em;color:#1e293b;margin-bottom:8px;">' +
+                    '<i class="fas fa-project-diagram" style="color:#7c3aed;"></i> Topic Clusters:</div>' +
+                    '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+                topicClusters.forEach(t => {
+                    const tcId = 'tc_' + Math.random().toString(36).substr(2, 6);
+                    veHtml += '<span id="' + tcId + '" style="background:#f5f3ff;color:#6d28d9;padding:4px 10px;border-radius:20px;font-size:0.8em;border:1px solid #ddd6fe;cursor:pointer;" title="Click to copy">' + t + '</span>';
+                    setTimeout(() => {
+                        const el = document.getElementById(tcId);
+                        if (el) el.addEventListener('click', () => {
+                            navigator.clipboard.writeText(t);
+                            el.style.background = '#dcfce7';
+                            setTimeout(() => el.style.background = '#f5f3ff', 1000);
+                        });
+                    }, 100);
+                });
+                veHtml += '</div></div>';
+            }
+
+            veHtml += insightsList(allVeInsights) + '</div>';
+            veCard.innerHTML = veHtml;
+            grid.appendChild(veCard);
+
+            // ── PART 2: Entity Optimisation ──
+            const eo = data.entity_optimization || {};
+            const eoCard = document.createElement('div');
+            eoCard.className = 'geo-card';
+            eoCard.style.cssText = 'margin:0;' + cardStyle;
+
+            const entities = eo.entities || [];
+            const eeatSignals = eo.eeat_signals || [];
+            const schemaSuggestion = eo.schema_suggestion || null;
+
+            const typeColorMap = {
+                'Organization': { bg: 'rgba(245,158,11,0.15)', fg: '#b45309' },
+                'Product': { bg: 'rgba(16,185,129,0.15)', fg: '#047857' },
+                'Service': { bg: 'rgba(59,130,246,0.15)', fg: '#1d4ed8' },
+                'Place': { bg: 'rgba(139,92,246,0.15)', fg: '#6d28d9' },
+                'Person': { bg: 'rgba(236,72,153,0.15)', fg: '#be185d' },
+                'Event': { bg: 'rgba(249,115,22,0.15)', fg: '#c2410c' },
+                'SoftwareApplication': { bg: 'rgba(6,182,212,0.15)', fg: '#0891b2' }
+            };
+            const defaultTypeColor = { bg: 'rgba(148,163,184,0.15)', fg: '#64748b' };
+
+            let eoHtml = '<div class="geo-card-header" style="background:#f8fafc;">' +
+                '<div class="geo-card-title" style="font-size:0.95em;">Part 2: Entity Optimisation</div>' +
+                '<div style="font-weight:700;color:' + scoreColor(eo.score || 0) + '">' + (eo.score || 0) + '%</div></div>' +
+                '<div style="padding:15px;">';
+
+            if (entities.length) {
+                eoHtml += '<div style="margin-bottom:15px;">' +
+                    '<div style="font-weight:700;font-size:0.85em;color:#1e293b;margin-bottom:8px;">Primary Entities Identified</div>' +
+                    '<div style="overflow-x:auto;"><table style="width:100%;font-size:0.82em;border-collapse:collapse;">' +
+                    '<thead><tr style="border-bottom:2px solid #e2e8f0;">' +
+                    '<th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600;">#</th>' +
+                    '<th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600;">Name</th>' +
+                    '<th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600;">Type</th>' +
+                    '<th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600;">Status</th>' +
+                    '</tr></thead><tbody>';
+                entities.forEach((e, i) => {
+                    const tc = typeColorMap[e.type] || defaultTypeColor;
+                    const statusIcon = e.status === 'found' ? 'fa-check-circle' : 'fa-plus-circle';
+                    const statusColor = e.status === 'found' ? '#10a37f' : '#f59e0b';
+                    const statusLabel = e.status === 'found' ? 'Found' : 'Add';
+                    eoHtml += '<tr style="border-bottom:1px solid #f1f5f9;">' +
+                        '<td style="padding:6px 8px;color:#94a3b8;">' + (i + 1) + '.</td>' +
+                        '<td style="padding:6px 8px;font-weight:600;color:#1e293b;">' + e.name + '</td>' +
+                        '<td style="padding:6px 8px;"><span style="background:' + tc.bg + ';color:' + tc.fg + ';padding:2px 8px;border-radius:4px;font-size:0.85em;font-weight:600;white-space:nowrap;">' + e.type + '</span></td>' +
+                        '<td style="padding:6px 8px;white-space:nowrap;"><i class="fas ' + statusIcon + '" style="color:' + statusColor + ';"></i> ' + statusLabel + '</td></tr>';
+                });
+                eoHtml += '</tbody></table></div></div>';
+            }
+
+            if (schemaSuggestion) {
+                window._geoSchemaData = schemaSuggestion;
+                const schemaStr = JSON.stringify(schemaSuggestion, null, 2);
+                const escapedSchema = schemaStr.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                eoHtml += '<div style="margin-bottom:15px;">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
+                    '<span style="font-weight:700;font-size:0.85em;color:#1e293b;">Schema Markup (JSON-LD):</span>' +
+                    '<button onclick="copyGeoSchema();this.innerHTML=\'<i class=\\\'fas fa-check\\\'></i> Copied\';setTimeout(()=>this.innerHTML=\'<i class=\\\'fas fa-copy\\\'></i> Copy Schema\',1500)" style="background:#10a37f;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:0.75em;cursor:pointer;white-space:nowrap;"><i class="fas fa-copy"></i> Copy Schema</button>' +
+                    '</div>' +
+                    '<pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;font-size:0.72em;overflow:auto;max-height:120px;color:#475569;margin:0;white-space:pre-wrap;word-break:break-all;">' + escapedSchema + '</pre></div>';
+            }
+
+            if (eeatSignals.length) {
+                eoHtml += '<div style="margin-bottom:12px;">' +
+                    '<div style="font-weight:700;font-size:0.85em;color:#1e293b;margin-bottom:8px;">E-E-A-T Signals:</div>' +
+                    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">';
+                eeatSignals.forEach(s => {
+                    const sColor = s.present ? '#10a37f' : '#94a3b8';
+                    const sIcon = s.present ? 'fa-check-square' : 'fa-square';
+                    eoHtml += '<div style="display:flex;align-items:center;gap:6px;font-size:0.82em;color:' + sColor + ';">' +
+                        '<i class="fas ' + sIcon + '" style="font-size:0.9em;"></i> ' + s.signal + '</div>';
+                });
+                eoHtml += '</div></div>';
+            }
+
+            eoHtml += insightsList(eo.insights) + '</div>';
+            eoCard.innerHTML = eoHtml;
+            grid.appendChild(eoCard);
+
+            // ── PART 3: Content Structure ──
+            const cs = data.content_structure || {};
+            const csCard = document.createElement('div');
+            csCard.className = 'geo-card';
+            csCard.style.cssText = 'margin:0;' + cardStyle;
+
+            const headings = cs.heading_hierarchy || [];
+            const faqs = cs.faq_suggestions || [];
+
+            let csHtml = '<div class="geo-card-header" style="background:#f8fafc;">' +
+                '<div class="geo-card-title" style="font-size:0.95em;">Part 3: Content Structure & FAQ</div>' +
+                '<div style="font-weight:700;color:' + scoreColor(cs.score || 0) + '">' + (cs.score || 0) + '%</div></div>' +
+                '<div style="padding:15px;">';
+
+            if (headings.length) {
+                csHtml += '<div style="margin-bottom:15px;">' +
+                    '<div style="font-weight:700;font-size:0.85em;color:#1e293b;margin-bottom:8px;">' +
+                    '<i class="fas fa-sitemap" style="color:#0891b2;"></i> Heading Hierarchy:</div>' +
+                    '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:0.82em;">';
+                headings.forEach(h => {
+                    const indent = (parseInt(h.level.replace('H', '')) - 1) * 20;
+                    const isFound = h.status === 'found';
+                    const hColor = isFound ? '#1e293b' : '#f59e0b';
+                    const lvlColor = isFound ? '#10a37f' : '#f59e0b';
+                    csHtml += '<div style="padding-left:' + indent + 'px;margin-bottom:4px;display:flex;align-items:center;gap:6px;">' +
+                        '<span style="color:' + lvlColor + ';font-weight:700;font-size:0.9em;">' + h.level + ':</span>' +
+                        '<span style="color:' + hColor + ';' + (isFound ? '' : 'font-style:italic;') + '">' + h.text + '</span>';
+                    if (!isFound) csHtml += '<span style="font-size:0.75em;color:#f59e0b;background:#fef3c7;padding:1px 6px;border-radius:3px;">Add</span>';
+                    csHtml += copyBtn(h.text, 'heading') + '</div>';
+                });
+                csHtml += '</div></div>';
+            }
+
+            if (faqs.length) {
+                csHtml += '<div style="margin-bottom:15px;">' +
+                    '<div style="font-weight:700;font-size:0.85em;color:#1e293b;margin-bottom:8px;">' +
+                    '<i class="fas fa-question-circle" style="color:#7c3aed;"></i> Suggested FAQ Section:</div>';
+                faqs.forEach(f => {
+                    csHtml += '<div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:10px;margin-bottom:6px;">' +
+                        '<div style="font-weight:600;font-size:0.85em;color:#6d28d9;display:flex;justify-content:space-between;align-items:center;">' +
+                        '<span>Q: ' + f.question + '</span>' + copyBtn(f.question + '\n' + f.answer_preview, 'FAQ') + '</div>' +
+                        '<div style="font-size:0.8em;color:#475569;margin-top:4px;">A: ' + f.answer_preview + '</div></div>';
+                });
+                csHtml += '</div>';
+            }
+
+            csHtml += insightsList(cs.insights) + '</div>';
+            csCard.innerHTML = csHtml;
+            grid.appendChild(csCard);
+
+            // ── PART 4: Internal Linking ──
+            const il = data.internal_linking || {};
+            const ilCard = document.createElement('div');
+            ilCard.className = 'geo-card';
+            ilCard.style.cssText = 'margin:0;' + cardStyle;
+
+            const linkTable = il.linking_table || [];
+
+            let ilHtml = '<div class="geo-card-header" style="background:#f8fafc;">' +
+                '<div class="geo-card-title" style="font-size:0.95em;">Part 4: Internal Linking Strategy</div>' +
+                '<div style="font-weight:700;color:' + scoreColor(il.score || 0) + '">' + (il.score || 0) + '%</div></div>' +
+                '<div style="padding:15px;">';
+
+            if (linkTable.length) {
+                ilHtml += '<div style="margin-bottom:15px;">' +
+                    '<div style="font-weight:700;font-size:0.85em;color:#1e293b;margin-bottom:8px;">Linking Table Preview:</div>' +
+                    '<div style="overflow-x:auto;"><table style="width:100%;font-size:0.82em;border-collapse:collapse;">' +
+                    '<thead><tr style="border-bottom:2px solid #e2e8f0;">' +
+                    '<th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600;">Anchor Text</th>' +
+                    '<th style="padding:6px 4px;"></th>' +
+                    '<th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600;">Target URL</th>' +
+                    '<th style="padding:6px 4px;"></th></tr></thead><tbody>';
+                linkTable.forEach(l => {
+                    ilHtml += '<tr style="border-bottom:1px solid #f1f5f9;">' +
+                        '<td style="padding:6px 8px;font-weight:600;color:#2563eb;">' + l.anchor_text + '</td>' +
+                        '<td style="padding:6px 4px;color:#94a3b8;">→</td>' +
+                        '<td style="padding:6px 8px;color:#475569;font-size:0.9em;word-break:break-all;">' + l.target_url + '</td>' +
+                        '<td style="padding:6px 4px;">' + copyBtn(l.anchor_text, 'link') + '</td></tr>';
+                });
+                ilHtml += '</tbody></table></div></div>';
+            }
+
+            ilHtml += insightsList(il.insights) + '</div>';
+            ilCard.innerHTML = ilHtml;
+            grid.appendChild(ilCard);
+
+            // ── PART 5: Citation-Worthiness ──
+            const cw = data.citation_worthiness || {};
+            const cwCard = document.createElement('div');
+            cwCard.className = 'geo-card';
+            cwCard.style.cssText = 'margin:0;' + cardStyle;
+
+            const quotables = cw.quotable_statements || [];
+
+            let cwHtml = '<div class="geo-card-header" style="background:#f8fafc;">' +
+                '<div class="geo-card-title" style="font-size:0.95em;">Part 5: Citation-Worthiness</div>' +
+                '<div style="font-weight:700;color:' + scoreColor(cw.score || 0) + '">' + (cw.score || 0) + '%</div></div>' +
+                '<div style="padding:15px;">';
+
+            if (quotables.length) {
+                cwHtml += '<div style="margin-bottom:15px;">' +
+                    '<div style="font-weight:700;font-size:0.85em;color:#1e293b;margin-bottom:8px;">' +
+                    '<i class="fas fa-quote-left" style="color:#0891b2;"></i> Quotable Statements to Add:</div>';
+                quotables.forEach(q => {
+                    cwHtml += '<div style="background:#f0fdfa;border-left:3px solid #14b8a6;padding:10px 12px;margin-bottom:8px;border-radius:0 8px 8px 0;">' +
+                        '<div style="font-size:0.85em;color:#1e293b;font-style:italic;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">' +
+                        '<span>\u201C' + q.statement + '\u201D</span>' + copyBtn(q.statement, 'quote') + '</div>' +
+                        '<div style="font-size:0.75em;color:#64748b;margin-top:4px;"><i class="fas fa-tag"></i> ' + q.topic + '</div></div>';
+                });
+                cwHtml += '</div>';
+            }
+
+            cwHtml += insightsList(cw.insights) + '</div>';
+            cwCard.innerHTML = cwHtml;
+            grid.appendChild(cwCard);
 
             // Assets
             document.getElementById('geoOnPageOptimizedText').innerText = data.optimized_content || "No content generated.";
