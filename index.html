@@ -9765,8 +9765,8 @@
                                         <div id="geoOnPage_optimizedContent">
                                             <p style="font-size: 0.9em; margin-bottom: 10px; color: #64748b;">
                                                 AI-suggested on-page content rewrite for maximum GEO impact.</p>
-                                            <div id="geoOnPageOptimizedText" class="keyword-input-textarea"
-                                                style="height: 300px; overflow-y: auto; background: #f8fafc; padding: 15px; white-space: pre-wrap;">
+                                            <div id="geoOnPageOptimizedText"
+                                                style="margin-top: 10px; min-height: 100px;">
                                             </div>
                                         </div>
                                         <div id="geoOnPage_schemaMarkup" style="display: none;">
@@ -11734,7 +11734,7 @@
         <div class="sem-input-item"><label for="image">Image URL:</label><input type="url" id="image" placeholder="https://example.com/product.jpg" oninput="updateSchema()"></div>
         <div class="sem-input-item"><label for="sku">SKU:</label><input type="text" id="sku" placeholder="SW3000-B" oninput="updateSchema()"></div>
         <div class="sem-input-item"><label for="mpn">MPN:</label><input type="text" id="mpn" placeholder="925872" oninput="updateSchema()"></div>
-        <div class="sem-input-item"><label for="category">Category:</label><input type="text" id="category" placeholder="Electronics > Gadgets" oninput="updateSchema()"></div>
+        <div class="sem-input-item"><label for="category">Category:</label><input type="text" id="category" placeholder="Electronics> Gadgets" oninput="updateSchema()"></div>
         <div class="sem-input-item"><label for="model">Model:</label><input type="text" id="model" placeholder="W-3000" oninput="updateSchema()"></div>
         <div class="sem-input-item"><label for="color">Color:</label><input type="text" id="color" placeholder="Midnight Blue" oninput="updateSchema()"></div>
         <div class="sem-input-item"><label for="material">Material:</label><input type="text" id="material" placeholder="Carbon Fiber" oninput="updateSchema()"></div>
@@ -13056,7 +13056,7 @@
                         gaugeHtml = `
                                 <div style="margin-top: 8px;">
                                     <div style="display: flex; justify-content: space-between; font-size: 0.75em; color: #64748b; margin-bottom: 4px;">
-                                        <span>Target: < 2s</span>
+                                        <span>Target: <2s</span>
                                     </div>
                                     <div style="height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden;">
                                         <div style="height: 100%; width: ${percent}%; background: ${statusColor}; transition: width 0.5s;"></div>
@@ -13209,10 +13209,10 @@
                         if (actionable.includes(m.label)) {
                             // Re-evaluate status based on strict analyzer.ts thresholds
                             // (Though metrics array already did pass/warn/fail logic above, let's ensure consistency)
-                            // Word Count: < 500 = Warn, < 300 = Fail
-                            // Internal Links: < 10 = Warn, < 3 = Fail
-                            // Load Time: > 2s = Warn, > 4s = Fail
-                            // Readability: < 60 = Warn, < 45 = Fail
+                            // Word Count: <500 = Warn, <300 = Fail
+                            // Internal Links: <10 = Warn, <3 = Fail
+                            // Load Time:> 2s = Warn,> 4s = Fail
+                            // Readability: <60 = Warn, <45 = Fail
 
                             // Note: 'metrics' array construction defined simpler logic; we trust it or refine it?
                             // Let's refine the status in the pushed item if needed, but metrics construction 
@@ -14385,8 +14385,8 @@
                     const isFound = h.status === 'found';
                     const hColor = isFound ? '#1e293b' : '#f59e0b';
                     const lvlColor = isFound ? '#10a37f' : '#f59e0b';
-                    csHtml += '<div style="padding-left:' + indent + 'px;margin-bottom:4px;display:flex;align-items:center;gap:6px;">' +
-                        '<span style="color:' + lvlColor + ';font-weight:700;font-size:0.9em;">' + h.level + ':</span>' +
+                    csHtml += '<div style="padding-left:' + indent + 'px;margin-bottom:4px;display:flex;align-items:flex-start;gap:6px;">' +
+                        '<span style="color:' + lvlColor + ';font-weight:700;font-size:0.9em;white-space:nowrap;flex-shrink:0;display:inline-block;min-width:32px;">' + h.level + ':</span>' +
                         '<span style="color:' + hColor + ';' + (isFound ? '' : 'font-style:italic;') + '">' + h.text + '</span>';
                     if (!isFound) csHtml += '<span style="font-size:0.75em;color:#f59e0b;background:#fef3c7;padding:1px 6px;border-radius:3px;">Add</span>';
                     csHtml += copyBtn(h.text, 'heading') + '</div>';
@@ -14478,12 +14478,54 @@
             grid.appendChild(cwCard);
 
             // Assets
-            document.getElementById('geoOnPageOptimizedText').innerText = data.optimized_content || "No content generated.";
+            const optimizedContainer = document.getElementById('geoOnPageOptimizedText');
+            if (data.optimized_chunks && data.optimized_chunks.length > 0) {
+                let chunkHtml = '';
+                data.optimized_chunks.forEach((chunk, idx) => {
+                    chunkHtml += `
+                        <div style="margin-bottom: 20px;">
+                            <div style="font-weight: 700; font-size: 0.8em; color: #1e293b; margin-bottom: 8px;">Chunk ${idx + 1}</div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px;">
+                                    <div style="font-weight: 700; font-size: 0.75em; color: #64748b; margin-bottom: 8px; text-transform: uppercase;">Original Text</div>
+                                    <div style="font-size: 0.85em; color: #1e293b; line-height: 1.5; white-space: pre-wrap;">${chunk.original || ''}</div>
+                                </div>
+                                <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 15px; position: relative;">
+                                    <div style="font-weight: 700; font-size: 0.75em; color: #0369a1; margin-bottom: 8px; text-transform: uppercase;">Optimised Text</div>
+                                    <div style="font-size: 0.85em; color: #0c4a6e; line-height: 1.5; white-space: pre-wrap;">${chunk.optimized || ''}</div>
+                                    <div style="position: absolute; top: 12px; right: 12px;">
+                                        ${copyBtn(chunk.optimized || '', 'optimized')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                optimizedContainer.innerHTML = chunkHtml;
+            } else {
+                // Fallback: show single side-by-side card with the consolidated content
+                optimizedContainer.innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px;">
+                            <div style="font-weight: 700; font-size: 0.75em; color: #64748b; margin-bottom: 8px; text-transform: uppercase;">Original Text</div>
+                            <div style="font-size: 0.85em; color: #94a3b8; line-height: 1.5; font-style: italic;">Original text chunks not available. Update the Lambda to return <code>optimized_chunks</code> for per-section comparison.</div>
+                        </div>
+                        <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 15px; position: relative;">
+                            <div style="font-weight: 700; font-size: 0.75em; color: #0369a1; margin-bottom: 8px; text-transform: uppercase;">Optimised Text</div>
+                            <div style="font-size: 0.85em; color: #0c4a6e; line-height: 1.5; white-space: pre-wrap;">${data.optimized_content || "No content generated."}</div>
+                            <div style="position: absolute; top: 12px; right: 12px;">
+                                ${copyBtn(data.optimized_content || '', 'optimized')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
             document.getElementById('geoOnPageSchema').value = data.schema_markup ? JSON.stringify(data.schema_markup, null, 2) : "";
         }
 
         function switchGeoOnPageAssetTab(tabId) {
-            document.querySelectorAll('#geoOnPageAssetContent > div').forEach(d => d.style.display = 'none');
+            document.querySelectorAll('#geoOnPageAssetContent> div').forEach(d => d.style.display = 'none');
             document.querySelectorAll('#geoOnPageSection .geo-tab').forEach(t => t.classList.remove('active'));
 
             document.getElementById('geoOnPage_' + tabId).style.display = 'block';
@@ -16292,7 +16334,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     strikingDistance.push({ query, pageUrl, pos, impressions });
                 }
 
-                // 2. Detect Low CTR (Pos 1-5, CTR < 3%)
+                // 2. Detect Low CTR (Pos 1-5, CTR <3%)
                 if (row.position <= 5 && row.ctr < 0.03 && row.impressions > 100) {
                     lowCtr.push({ query, pageUrl, ctr, impressions });
                 }
@@ -23833,7 +23875,7 @@ ${selectedText}
         }
 
         async function runSerpUrlMapping(keyword, location, language, targetDomain, containerId) {
-            containerId = containerId || 'urlMappingResults';
+            containerId = containerId || "urlMappingResults";
             const container = document.getElementById(containerId);
             if (!container) return;
             container.innerHTML = `
@@ -23844,13 +23886,13 @@ ${selectedText}
                 </div>`;
 
             try {
-                const user = JSON.parse(localStorage.getItem('googleUser'))?.email || 'anonymous';
+                const user = JSON.parse(localStorage.getItem("googleUser"))?.email || "anonymous";
 
                 // 1. Fetch top 20 SERP results
-                const serpResponse = await fetch('https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ keyword, location, language, user, page_types: 'any', limit: 20 })
+                const serpResponse = await fetch("https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ keyword, location, language, user, page_types: "any", limit: 20 })
                 });
                 const serpData = await serpResponse.json();
                 const serpArray = Object.values(serpData);
@@ -23861,65 +23903,76 @@ ${selectedText}
                     return;
                 }
 
-                container.innerHTML = `
-                    <div style="text-align: center; padding: 40px;">
-                        <i class="fas fa-spinner fa-spin fa-3x" style="color: #2563eb;"></i>
-                        <p style="margin-top: 15px; color: #666;">Fetching domain authority for ${serpArray.length} competitors...</p>
-                    </div>`;
+                // Initial render with just SERP data (DA and Page Type will be blank/loading)
+                let workingResults = serpArray.map((item, idx) => ({
+                    rank: idx + 1,
+                    url: item.url,
+                    title: item.title || '',
+                    description: item.description || '',
+                    da: 'Fetching...',
+                    page_type: '...'
+                }));
 
-                // 2. Fetch Moz DA metrics for all URLs concurrently
-                const metricsPromises = serpArray.map(async (item, idx) => {
+                renderUrlMappingResults(container, { serp_results: workingResults }, keyword, containerId, false);
+
+                // Auto-expand the collapsible if it's the GEO one
+                if (containerId === 'geoUrlMappingResults') {
+                    setTimeout(() => {
+                        const collapsible = document.getElementById('geoUrlMappingCollapsible');
+                        if (collapsible && !collapsible.classList.contains('active')) {
+                            collapsible.classList.add('active');
+                            const content = collapsible.nextElementSibling;
+                            if (content) content.style.display = 'block';
+                            const icon = collapsible.querySelector('i');
+                            if (icon) {
+                                if (icon.classList.contains('fa-plus-square')) {
+                                    icon.classList.remove('fa-plus-square');
+                                    icon.classList.add('fa-minus-square');
+                                }
+                            }
+                        }
+                    }, 500);
+                }
+
+                // 2. Fetch Moz DA metrics for all URLs concurrently but update UI progressively
+                const metricsPromises = workingResults.map(async (item, idx) => {
                     try {
                         let domain = "";
                         try {
-                            domain = new URL(item.url).hostname.replace('www.', '');
+                            domain = new URL(item.url).hostname.replace("www.", "");
                         } catch (e) {
                             domain = item.url;
                         }
 
-                        const mozResponse = await fetch('https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                        const mozResponse = await fetch("https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ domain })
                         });
                         const mozData = await mozResponse.json();
 
-                        return {
-                            rank: idx + 1,
-                            url: item.url,
-                            title: item.title || '',
-                            description: item.description || '',
-                            da: mozData.domain_authority || 'N/A'
-                        };
+                        workingResults[idx].da = mozData.domain_authority || "N/A";
                     } catch (e) {
-                        return {
-                            rank: idx + 1,
-                            url: item.url,
-                            title: item.title || '',
-                            description: item.description || '',
-                            da: 'N/A'
-                        };
+                        workingResults[idx].da = "N/A";
                     }
+                    // Progressive update
+                    renderUrlMappingResults(container, { serp_results: workingResults }, keyword, containerId, false);
                 });
-                const enrichedResults = await Promise.all(metricsPromises);
-                console.log("URL Mapping: Enriched results with DA:", enrichedResults);
 
-                container.innerHTML = `
-                    <div style="text-align: center; padding: 40px;">
-                        <i class="fas fa-spinner fa-spin fa-3x" style="color: #7c3aed;"></i>
-                        <p style="margin-top: 15px; color: #666;">AI is classifying page types & generating URL recommendation...</p>
-                    </div>`;
+                // Wait for all DA to be ready before moving to AI step
+                await Promise.all(metricsPromises);
+                console.log("URL Mapping: Results with DA:", workingResults);
 
                 // 3. Send to AI for classification and recommendation
-                const aiPrompt = `You are an expert SEO strategist. Analyse the following top ${enrichedResults.length} Google SERP results for the keyword "${keyword}" and provide a SERP competitor analysis with URL mapping recommendation.
+                const aiPrompt = `You are an expert SEO strategist. Analyse the following top ${workingResults.length} Google SERP results for the keyword "${keyword}" and provide a SERP competitor analysis with URL mapping recommendation.
 
 TARGET DOMAIN (our site): ${targetDomain}
 
 SERP RESULTS:
-${JSON.stringify(enrichedResults, null, 2)}
+${JSON.stringify(workingResults, null, 2)}
 
 YOUR TASKS:
-1. For each SERP result, classify its page_type as one of: "blog", "service", "product", "homepage", "category", "other".
+1. For each SERP result, classify its page_type as one of: "blog", "service", "product", "homepage", "category", "other". IMPORTANT: If the URL is a root domain URL (e.g., https://example.com/ or https://www.example.com/), it MUST be classified as "homepage".
 2. Identify the competitor with the LOWEST domain authority (DA) that is still ranking in the top 20 — this is the most replaceable competitor.
 3. On the target domain "${targetDomain}", determine the most relevant existing URL that could rank for "${keyword}". If you cannot determine a specific URL, suggest creating a new page.
 4. If suggesting a new page, classify it as: "Blog Page", "Service Page", or "Product Page" based on keyword intent.
@@ -23943,9 +23996,9 @@ Return ONLY valid JSON in this exact format:
   }
 }`;
 
-                const aiResponse = await fetch('https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                const aiResponse = await fetch("https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         action: 'generate',
                         prompt: aiPrompt,
@@ -23962,24 +24015,37 @@ Return ONLY valid JSON in this exact format:
                     const jsonMatch = resultText.match(/```(?:json)?\s*([\s\S]*?)```/);
                     const jsonStr = jsonMatch ? jsonMatch[1].trim() : resultText.trim();
                     aiResult = JSON.parse(jsonStr);
+
+                    // Deterministic Override: Ensure root URLs are always "homepage"
+                    if (aiResult.serp_results) {
+                        aiResult.serp_results = aiResult.serp_results.map(r => {
+                            try {
+                                const urlObj = new URL(r.url);
+                                if (urlObj.pathname === "/" || urlObj.pathname === "") {
+                                    r.page_type = "homepage";
+                                }
+                            } catch (e) { }
+                            return r;
+                        });
+                    }
                 } catch (parseErr) {
-                    console.error("URL Mapping: Failed to parse AI response, using enriched data as fallback", parseErr);
-                    // Fallback: use enriched data without AI classification
+                    console.error("URL Mapping: Failed to parse AI response, using current results as fallback", parseErr);
+                    // Fallback: use current data without AI classification
                     aiResult = {
-                        serp_results: enrichedResults.map(r => ({ ...r, page_type: 'other' })),
+                        serp_results: workingResults.map(r => ({ ...r, page_type: 'other' })),
                         recommendation: {
                             target_url: targetDomain,
                             existing_or_new: 'Existing',
                             suggested_page_type: 'N/A',
-                            weakest_competitor: enrichedResults.filter(r => r.da !== 'N/A').sort((a, b) => Number(a.da) - Number(b.da))[0] || enrichedResults[0],
+                            weakest_competitor: workingResults.filter(r => r.da !== 'N/A' && r.da !== 'Fetching...').sort((a, b) => Number(a.da) - Number(b.da))[0] || workingResults[0],
                             rationale: 'AI classification failed. Showing raw SERP data. Please review manually.',
                             suggested_improvements: 'Retry the analysis for AI-powered recommendations.'
                         }
                     };
                 }
 
-                // 4. Render results
-                renderUrlMappingResults(container, aiResult, keyword, containerId);
+                // 4. Final Render
+                renderUrlMappingResults(container, aiResult, keyword, containerId, true);
 
             } catch (err) {
                 console.error("URL Mapping Error:", err);
@@ -23996,15 +24062,15 @@ Return ONLY valid JSON in this exact format:
                     </div>`;
             }
         }
-
-        function renderUrlMappingResults(container, aiResult, keyword, containerId) {
-            containerId = containerId || 'urlMappingResults';
+        function renderUrlMappingResults(container, aiResult, keyword, containerId, isAIComplete = false) {
             const results = aiResult.serp_results || [];
             const reco = aiResult.recommendation || {};
-            const weakestUrl = reco.weakest_competitor?.url || '';
+            const weakestUrl = reco.weakest_competitor?.url;
+            const targetDomain = reco.target_url;
 
             function getPageTypeBadge(type) {
-                const t = (type || 'other').toLowerCase();
+                if (!type || type === '...') return '<span class="page-type-badge other" style="opacity: 0.5;">...</span>';
+                const t = type.toLowerCase();
                 const cls = ['blog', 'service', 'product', 'homepage', 'category'].includes(t) ? t : 'other';
                 return `<span class="page-type-badge ${cls}">${type || 'Other'}</span>`;
             }
@@ -24021,7 +24087,7 @@ Return ONLY valid JSON in this exact format:
                     <td title="${r.title || ''}">${displayTitle}</td>
                     <td title="${r.description || ''}">${displayDesc}</td>
                     <td>${getPageTypeBadge(r.page_type)}</td>
-                    <td>${(r.da !== 'N/A' && r.da !== null && r.da !== 'null') ? '<b>' + r.da + '</b>' : '—'}</td>
+                    <td>${(r.da !== 'N/A' && r.da !== null && r.da !== 'null' && r.da !== 'Fetching...') ? '<b>' + r.da + '</b>' : '<span style="color:#999; font-size:0.8em; font-style:italic;">Fetching...</span>'}</td>
                 </tr>`;
             }).join('');
 
@@ -24032,6 +24098,7 @@ Return ONLY valid JSON in this exact format:
                             <i class="fas fa-trophy" style="color: #f59e0b;"></i>
                             Top ${results.length} SERP Results for "<em>${keyword}</em>"
                         </h3>
+                        ${isAIComplete ? `
                         <button class="url-mapping-standalone-btn" onclick="runSerpUrlMapping(
                             '${keyword.replace(/'/g, "\\'")}',
                             document.getElementById('on-page-location')?.value || 'Singapore',
@@ -24039,6 +24106,11 @@ Return ONLY valid JSON in this exact format:
                             document.getElementById('on-page-url')?.value?.trim() || '${(typeof targetDomain !== 'undefined' ? targetDomain : '').replace(/'/g, "\\'")}',
                             '${containerId}'
                         )"><i class="fas fa-sync-alt"></i> Re-analyse</button>
+                        ` : `
+                        <div style="font-size: 0.85em; color: #666; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-spinner fa-spin"></i> Processing AI Analysis...
+                        </div>
+                        `}
                     </div>
                     <div style="overflow-x: auto;">
                         <table class="url-mapping-table">
@@ -24059,6 +24131,7 @@ Return ONLY valid JSON in this exact format:
                         <i class="fas fa-info-circle"></i> Highlighted row = weakest competitor (lowest DA, most replaceable)
                     </p>
 
+                    ${isAIComplete ? `
                     <div class="url-mapping-reco-card">
                         <h3><i class="fas fa-crosshairs" style="color: #2563eb;"></i> Mapped URL Recommendation</h3>
 
@@ -24108,6 +24181,7 @@ Return ONLY valid JSON in this exact format:
                             <div class="reco-value">${reco.suggested_improvements || 'N/A'}</div>
                         </div>
                     </div>
+                    ` : ''}
                 </div>`;
         }
 
@@ -24119,7 +24193,7 @@ Return ONLY valid JSON in this exact format:
             // If grid was wiped by runOnPageAuditRoot's general cleanup, restore it
             if (!grid && onPageAuditResultsContent) {
                 console.log("Restoring onPageAuditGrid because it was cleared...");
-                onPageAuditResultsContent.innerHTML = `<div id="onPageAuditGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding: 20px;"></div>`;
+                onPageAuditResultsContent.innerHTML = `<div id="onPageAuditGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding: 20px;"></div> `;
                 grid = document.getElementById('onPageAuditGrid');
             }
 
@@ -24129,7 +24203,7 @@ Return ONLY valid JSON in this exact format:
             }
 
             // Initial loading state
-            grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Performing deep technical & AI discovery audit...</p></div>`;
+            grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Performing deep technical & AI discovery audit...</p></div> `;
             console.log("UI updated to technical audit loading state.");
 
             const techAuditResults = [];
@@ -24199,7 +24273,7 @@ Return ONLY valid JSON in this exact format:
                     techAuditResults.push({ label: 'Meta Description', value: desc, icon: 'fa-align-left', status: desc.length >= 50 ? 'pass' : 'warn', geoDescription: 'AI search engines use this to understand context and generate snippet answers.' });
 
                     const h1Count = doc.querySelectorAll('h1').length;
-                    techAuditResults.push({ label: 'H1 Header', value: h1Count === 0 ? 'Missing' : `Found (${h1Count})`, icon: 'fa-heading', status: h1Count === 1 ? 'pass' : 'fail', geoDescription: 'A single H1 tag is critical for AI agents to identify the core subject.' });
+                    techAuditResults.push({ label: 'H1 Header', value: h1Count === 0 ? 'Missing' : `Found(${h1Count})`, icon: 'fa-heading', status: h1Count === 1 ? 'pass' : 'fail', geoDescription: 'A single H1 tag is critical for AI agents to identify the core subject.' });
 
                     // Semantic Depth
                     const semanticTags = ['header', 'footer', 'main', 'nav'];
@@ -24239,7 +24313,7 @@ Return ONLY valid JSON in this exact format:
                         <b>GEO Rationale:</b> ${m.geoDescription}
                     </div>
                 </div>
-            `;
+                `;
                 }).join('');
 
                 // 4. Trigger Crawler Integration (Replicated)
@@ -24247,14 +24321,14 @@ Return ONLY valid JSON in this exact format:
                 startOnPageCrawl(url);
 
             } catch (err) {
-                grid.innerHTML = `<p style="padding: 20px; color: #ef4444;">Deep audit failed: ${err.message}</p>`;
+                grid.innerHTML = `<p style="padding: 20px; color: #ef4444;"> Deep audit failed: ${err.message}</p> `;
             }
         }
 
         // --- On-Page Crawler Logic (Scoped Helpers) ---
         async function startOnPageCrawl(url) {
             const table = document.getElementById('onPageCrawlerTable');
-            table.innerHTML = `<thead><tr><th colspan="100%" style="text-align:center; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Initialising crawler for ${url}...</p></th></tr></thead>`;
+            table.innerHTML = `<thead> <tr><th colspan="100%" style="text-align:center; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Initialising crawler for ${url}...</p></th></tr></thead> `;
 
             try {
                 const response = await fetch("https://34208dks88.execute-api.ap-southeast-1.amazonaws.com/submitDiscoveryCrawl", {
@@ -24309,7 +24383,7 @@ Return ONLY valid JSON in this exact format:
             // Header
             let head = '<tr>';
             const activeHeaders = onPageCrawlerDynamicHeaders.filter(h => onPageCrawlerActiveColumns.has(h));
-            activeHeaders.forEach(h => head += `<th>${h.replace(/_/g, ' ')}</th>`);
+            activeHeaders.forEach(h => head += `<th> ${h.replace(/_/g, ' ')}</th> `);
             head += '</tr>';
 
             // Body
@@ -24318,22 +24392,22 @@ Return ONLY valid JSON in this exact format:
                 activeHeaders.forEach(h => {
                     let val = item[h] || '-';
                     if (h === 'No.') val = idx + 1;
-                    row += `<td>${val.length > 100 ? `<span title="${val}">${val.substring(0, 100)}...</span>` : val}</td>`;
+                    row += `<td> ${val.length > 100 ? `<span title="${val}">${val.substring(0, 100)}...</span>` : val}</td> `;
                 });
                 row += '</tr>';
                 return row;
             }).join('');
 
-            table.innerHTML = `<thead>${head}</thead><tbody>${body}</tbody>`;
+            table.innerHTML = `<thead> ${head}</thead> <tbody>${body}</tbody>`;
         }
 
         function updateOnPageColumnSelectorUI() {
             const container = document.getElementById('onPageColumnCheckboxList');
             container.innerHTML = onPageCrawlerDynamicHeaders.map(h => `
-        <label class="column-checkbox-item" style="display:flex; align-items:center; gap:5px; font-size:0.8em; cursor:pointer;">
-            <input type="checkbox" ${onPageCrawlerActiveColumns.has(h) ? 'checked' : ''} onchange="toggleOnPageColumn('${h}', this.checked)"> ${h}
-        </label>
-    `).join('');
+                <label class="column-checkbox-item" style="display:flex; align-items:center; gap:5px; font-size:0.8em; cursor:pointer;">
+                    <input type="checkbox" ${onPageCrawlerActiveColumns.has(h) ? 'checked' : ''} onchange="toggleOnPageColumn('${h}', this.checked)"> ${h}
+                    </label>
+            `).join('');
         }
 
         function toggleOnPageColumn(key, isActive) {
@@ -24371,11 +24445,11 @@ Return ONLY valid JSON in this exact format:
                 const count = onPageCrawlerItems.filter(v => v[iss.key]).length;
                 const active = onPageCrawlerActiveFilter === iss.key;
                 return `
-            <div class="summary-card ${active ? 'active' : ''}" style="cursor:pointer; padding:12px; background:white; border:1px solid ${active ? iss.color : '#eee'}; border-radius:8px;" onclick="setOnPageCrawlerFilter('${iss.key}')">
+                <div class="summary-card ${active ? 'active' : ''}" style="cursor:pointer; padding:12px; background:white; border:1px solid ${active ? iss.color : '#eee'}; border-radius:8px;" onclick="setOnPageCrawlerFilter('${iss.key}')">
                 <div style="font-size:0.75em; color:#666;">${iss.label}</div>
                 <div style="font-size:1.2em; font-weight:700; color:${iss.color};">${count}</div>
             </div>
-        `;
+                `;
             }).join('');
         }
 
@@ -24417,14 +24491,14 @@ Return ONLY valid JSON in this exact format:
                 });
 
                 if (!recommendationResponse.ok) {
-                    throw new Error(`HTTP error! status: ${recommendationResponse.status}`);
+                    throw new Error(`HTTP error! status: ${recommendationResponse.status} `);
                 }
 
                 const recommendationData = await recommendationResponse.json();
                 console.log(recommendationData);
 
                 let contentTableHTML = `
-            <table id="contentTable">
+                <table id="contentTable">
                 <thead>
                     <tr>
                         <th>No.</th>
@@ -24460,7 +24534,7 @@ Return ONLY valid JSON in this exact format:
 
             } catch (error) {
                 console.error("Error fetching recommendations:", error);
-                document.getElementById('contentRecommendations').innerHTML = `< p > Error fetching recommendations: ${error}</p > `;
+                document.getElementById('contentRecommendations').innerHTML = `<p> Error fetching recommendations: ${error}</p> `;
             }
         }
 
@@ -24472,7 +24546,8 @@ Return ONLY valid JSON in this exact format:
             onPageCrawlerItems.forEach(item => {
                 const row = headers.map(h => {
                     let val = String(item[h] || '');
-                    return `"${val.replace(/"/g, '""')}"`;
+                    return `"${val.replace(/"/g, '""')
+                        } "`;
                 });
                 csv += row.join(',') + '\n';
             });
@@ -24513,7 +24588,7 @@ Return ONLY valid JSON in this exact format:
             } catch (error) {
                 console.error("Error fetching recommendations:", error);
                 updateCollapsibleState('onPageButton', 'error');
-                document.getElementById('onPageResults').innerHTML = `< p > Error fetching recommendations: ${error}</p > `;
+                document.getElementById('onPageResults').innerHTML = `<p> Error fetching recommendations: ${error}</p> `;
             }
         }
 
@@ -24715,7 +24790,7 @@ Return ONLY valid JSON in this exact format:
 
             imageTableHTML += `
                 </tbody>
-            </table >
+            </table>
                     `;
 
             resultsHTML += metaTableHTML;
@@ -25283,9 +25358,9 @@ Return ONLY valid JSON in this exact format:
                 // Assuming 'urls' and 'responses' are defined elsewhere, and are related to multiple URLs.  Since we are only processing ONE URL at a time here, these need to be adjusted or removed.  For this example, I'm assuming it should use the current URL.  If not, you need to define/get the correct 'urls' array.
                 const urls = [url]; // Use the current URL in an array for consistency with the original logic
                 urls.forEach(url => {
-                    tableHTML += `< th onclick = "sortDensityTable('${url}')" > ${url}</th > `;
+                    tableHTML += `<th onclick="sortDensityTable('${url}')"> ${url}</th> `;
                 });
-                tableHTML += `< th > Add to Keyword Analysis</th ></tr ></thead > <tbody>`; // Added the header for the new column.
+                tableHTML += `<th> Add to Keyword Analysis</th></tr></thead> <tbody>`; // Added the header for the new column.
 
                 // Extract all unique keywords
                 let allKeywords = new Set();
@@ -25318,7 +25393,7 @@ Return ONLY valid JSON in this exact format:
                     tableHTML += `<td><a href="#" class="add-keyword-button" data-keyword="${keyword}" onclick="addKeywordToAnalysis(event, this)"><i class="fas fa-plus-circle"></i></a></td></tr>`;
                 });
 
-                tableHTML += '</tbody></table ></div > ';
+                tableHTML += '</tbody></table></div> ';
                 keywordDensityDiv.innerHTML = tableHTML;
 
 
