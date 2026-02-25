@@ -574,6 +574,7 @@
         .geo-input-item input,
         .geo-input-item select {
             width: 100%;
+            box-sizing: border-box;
             border: 1px solid #dce4f2;
             border-radius: 8px;
             padding: 10px 12px;
@@ -1089,6 +1090,16 @@
             position: sticky;
             top: 0;
             z-index: 1;
+        }
+
+        .geo-card th {
+            background-color: #f8fafc !important;
+            color: #1e293b !important;
+            white-space: normal !important;
+            padding: 6px 8px !important;
+            font-weight: 600 !important;
+            font-size: 0.9em !important;
+            position: static !important;
         }
 
 
@@ -14067,7 +14078,6 @@
 
             const entities = eo.entities || [];
             const eeatSignals = eo.eeat_signals || [];
-            const schemaSuggestion = eo.schema_suggestion || null;
 
             const typeColorMap = {
                 'Organization': { bg: 'rgba(245,158,11,0.15)', fg: '#b45309' },
@@ -14089,11 +14099,11 @@
                 eoHtml += '<div style="margin-bottom:15px;">' +
                     '<div style="font-weight:700;font-size:0.85em;color:#1e293b;margin-bottom:8px;">Primary Entities Identified</div>' +
                     '<div style="overflow-x:auto;"><table style="width:100%;font-size:0.82em;border-collapse:collapse;">' +
-                    '<thead><tr style="border-bottom:2px solid #e2e8f0;">' +
-                    '<th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600;">#</th>' +
-                    '<th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600;">Name</th>' +
-                    '<th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600;">Type</th>' +
-                    '<th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600;">Status</th>' +
+                    '<thead><tr style="border-bottom:2px solid #e2e8f0;background:#f8fafc;">' +
+                    '<th style="text-align:left;padding:6px 8px;color:#1e293b;font-weight:600;font-size:0.9em;">#</th>' +
+                    '<th style="text-align:left;padding:6px 8px;color:#1e293b;font-weight:600;font-size:0.9em;">Name</th>' +
+                    '<th style="text-align:left;padding:6px 8px;color:#1e293b;font-weight:600;font-size:0.9em;">Type</th>' +
+                    '<th style="text-align:left;padding:6px 8px;color:#1e293b;font-weight:600;font-size:0.9em;">Status</th>' +
                     '</tr></thead><tbody>';
                 entities.forEach((e, i) => {
                     const tc = typeColorMap[e.type] || defaultTypeColor;
@@ -14107,18 +14117,6 @@
                         '<td style="padding:6px 8px;white-space:nowrap;"><i class="fas ' + statusIcon + '" style="color:' + statusColor + ';"></i> ' + statusLabel + '</td></tr>';
                 });
                 eoHtml += '</tbody></table></div></div>';
-            }
-
-            if (schemaSuggestion) {
-                window._geoSchemaData = schemaSuggestion;
-                const schemaStr = JSON.stringify(schemaSuggestion, null, 2);
-                const escapedSchema = schemaStr.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                eoHtml += '<div style="margin-bottom:15px;">' +
-                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
-                    '<span style="font-weight:700;font-size:0.85em;color:#1e293b;">Schema Markup (JSON-LD):</span>' +
-                    '<button onclick="copyGeoSchema();this.innerHTML=\'<i class=\\\'fas fa-check\\\'></i> Copied\';setTimeout(()=>this.innerHTML=\'<i class=\\\'fas fa-copy\\\'></i> Copy Schema\',1500)" style="background:#10a37f;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:0.75em;cursor:pointer;white-space:nowrap;"><i class="fas fa-copy"></i> Copy Schema</button>' +
-                    '</div>' +
-                    '<pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;font-size:0.72em;overflow:auto;max-height:120px;color:#475569;margin:0;white-space:pre-wrap;word-break:break-all;">' + escapedSchema + '</pre></div>';
             }
 
             if (eeatSignals.length) {
@@ -14205,10 +14203,10 @@
                 ilHtml += '<div style="margin-bottom:15px;">' +
                     '<div style="font-weight:700;font-size:0.85em;color:#1e293b;margin-bottom:8px;">Linking Table Preview:</div>' +
                     '<div style="overflow-x:auto;"><table style="width:100%;font-size:0.82em;border-collapse:collapse;">' +
-                    '<thead><tr style="border-bottom:2px solid #e2e8f0;">' +
-                    '<th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600;">Anchor Text</th>' +
+                    '<thead><tr style="border-bottom:2px solid #e2e8f0;background:#f8fafc;">' +
+                    '<th style="text-align:left;padding:6px 8px;color:#1e293b;font-weight:600;font-size:0.9em;">Anchor Text</th>' +
                     '<th style="padding:6px 4px;"></th>' +
-                    '<th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:600;">Target URL</th>' +
+                    '<th style="text-align:left;padding:6px 8px;color:#1e293b;font-weight:600;font-size:0.9em;">Target URL</th>' +
                     '<th style="padding:6px 4px;"></th></tr></thead><tbody>';
                 linkTable.forEach(l => {
                     ilHtml += '<tr style="border-bottom:1px solid #f1f5f9;">' +
