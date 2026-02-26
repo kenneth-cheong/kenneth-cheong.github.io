@@ -480,6 +480,23 @@
             padding-bottom: 10px;
         }
 
+        [data-geo-editable] {
+            transition: background 0.2s, box-shadow 0.2s;
+            border-radius: 4px;
+            cursor: text;
+        }
+
+        [data-geo-editable]:hover {
+            background: rgba(37, 99, 235, 0.04);
+            box-shadow: inset 0 -2px 0 0 rgba(37, 99, 235, 0.25);
+        }
+
+        [data-geo-editable]:focus {
+            outline: 2px solid rgba(37, 99, 235, 0.35);
+            outline-offset: 2px;
+            background: rgba(37, 99, 235, 0.03);
+        }
+
         .geo-card-title {
             font-weight: 700;
             color: #004c9d;
@@ -9742,6 +9759,13 @@
                                 </div>
                             </div>
 
+                            <div id="geoEditableBanner"
+                                style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 12px 18px; margin-top: 20px; font-size: 0.88em; color: #1e40af; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-edit" style="font-size: 1.1em; flex-shrink: 0;"></i>
+                                <span><strong>Editable Output:</strong> Click on any highlighted text below to edit it
+                                    before copying to Google Sheets.</span>
+                            </div>
+
                             <div class="discovery-tech-grid" id="geoOnPageAnalysisGrid"
                                 style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 25px;">
                                 <!-- AI Analysis Cards will be injected here -->
@@ -14207,13 +14231,17 @@
             const grid = document.getElementById('geoOnPageAnalysisGrid');
             grid.innerHTML = '';
 
-            // Helper: copy text to clipboard via data attribute
+            // Helper: copy text to clipboard — reads live text from the editable sibling
             function copyBtn(text, label) {
                 const id = 'cb_' + Math.random().toString(36).substr(2, 6);
                 setTimeout(() => {
                     const el = document.getElementById(id);
                     if (el) el.addEventListener('click', () => {
-                        navigator.clipboard.writeText(text);
+                        // Read live text from the nearest editable sibling
+                        const parent = el.closest('li, div, tr');
+                        const editable = parent ? parent.querySelector('[data-geo-editable]') : null;
+                        const liveText = editable ? editable.textContent.trim() : text;
+                        navigator.clipboard.writeText(liveText);
                         el.innerHTML = '<i class="fas fa-check"></i>';
                         setTimeout(() => el.innerHTML = '<i class="fas fa-copy"></i>', 1500);
                     });
@@ -14225,16 +14253,17 @@
 
             const cardStyle = 'overflow:hidden;word-break:break-word;';
 
-            function insightsList(insights) {
+            function insightsList(insights, isNegativeOnly) {
                 if (!insights || !insights.length) return '';
                 const items = insights.map(point => {
                     const isPositive = typeof point === 'object' ? point.positive : true;
                     const text = typeof point === 'object' ? point.text : point;
                     const icon = isPositive ? 'fa-check-circle' : 'fa-times-circle';
                     const iconColor = isPositive ? '#10a37f' : '#ef4444';
+                    const negAttr = isPositive ? '' : ' data-geo-insight-negative="true"';
                     return '<li style="margin-bottom:8px;display:flex;gap:8px;align-items:flex-start;">' +
                         '<i class="fas ' + icon + '" style="color:' + iconColor + ';margin-top:3px;flex-shrink:0;"></i>' +
-                        '<span style="flex:1;">' + text + '</span>' + copyBtn(text, 'insight') +
+                        '<span contenteditable="true" data-geo-editable data-geo-insight="true"' + negAttr + ' style="flex:1;">' + text + '</span>' + copyBtn(text, 'insight') +
                         '</li>';
                 }).join('');
                 return '<ul style="list-style:none;padding:0;margin:8px 0 0;font-size:0.85em;color:#475569;">' + items + '</ul>';
@@ -14267,16 +14296,7 @@
                     '<i class="fas fa-plus-circle" style="color:#2563eb;"></i> Recommended Terms to Include:</div>' +
                     '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
                 recTerms.forEach(t => {
-                    const termId = 'term_' + Math.random().toString(36).substr(2, 6);
-                    veHtml += '<span id="' + termId + '" style="background:#eff6ff;color:#1d4ed8;padding:4px 10px;border-radius:20px;font-size:0.8em;cursor:pointer;border:1px solid #bfdbfe;" title="Click to copy">' + t + '</span>';
-                    setTimeout(() => {
-                        const el = document.getElementById(termId);
-                        if (el) el.addEventListener('click', () => {
-                            navigator.clipboard.writeText(t);
-                            el.style.background = '#dcfce7';
-                            setTimeout(() => el.style.background = '#eff6ff', 1000);
-                        });
-                    }, 100);
+                    veHtml += '<span contenteditable="true" data-geo-editable data-geo-rec-term="true" style="background:#eff6ff;color:#1d4ed8;padding:4px 10px;border-radius:20px;font-size:0.8em;cursor:text;border:1px solid #bfdbfe;" title="Click to edit">' + t + '</span>';
                 });
                 veHtml += '</div></div>';
             }
@@ -14287,16 +14307,7 @@
                     '<i class="fas fa-project-diagram" style="color:#7c3aed;"></i> Topic Clusters:</div>' +
                     '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
                 topicClusters.forEach(t => {
-                    const tcId = 'tc_' + Math.random().toString(36).substr(2, 6);
-                    veHtml += '<span id="' + tcId + '" style="background:#f5f3ff;color:#6d28d9;padding:4px 10px;border-radius:20px;font-size:0.8em;border:1px solid #ddd6fe;cursor:pointer;" title="Click to copy">' + t + '</span>';
-                    setTimeout(() => {
-                        const el = document.getElementById(tcId);
-                        if (el) el.addEventListener('click', () => {
-                            navigator.clipboard.writeText(t);
-                            el.style.background = '#dcfce7';
-                            setTimeout(() => el.style.background = '#f5f3ff', 1000);
-                        });
-                    }, 100);
+                    veHtml += '<span contenteditable="true" data-geo-editable data-geo-topic-cluster="true" style="background:#f5f3ff;color:#6d28d9;padding:4px 10px;border-radius:20px;font-size:0.8em;border:1px solid #ddd6fe;cursor:text;" title="Click to edit">' + t + '</span>';
                 });
                 veHtml += '</div></div>';
             }
@@ -14395,9 +14406,10 @@
                     const isFound = h.status === 'found';
                     const hColor = isFound ? '#1e293b' : '#f59e0b';
                     const lvlColor = isFound ? '#10a37f' : '#f59e0b';
+                    const headingDataAttr = isFound ? 'data-geo-heading-found' : 'data-geo-heading-rec';
                     csHtml += '<div style="padding-left:' + indent + 'px;margin-bottom:4px;display:flex;align-items:flex-start;gap:6px;">' +
                         '<span style="color:' + lvlColor + ';font-weight:700;font-size:0.9em;white-space:nowrap;flex-shrink:0;display:inline-block;min-width:32px;">' + h.level + ':</span>' +
-                        '<span style="color:' + hColor + ';' + (isFound ? '' : 'font-style:italic;') + '">' + h.text + '</span>';
+                        '<span contenteditable="true" data-geo-editable ' + headingDataAttr + '="true" data-geo-heading-level="' + h.level + '" style="color:' + hColor + ';' + (isFound ? '' : 'font-style:italic;') + '">' + h.text + '</span>';
                     if (!isFound) csHtml += '<span style="font-size:0.75em;color:#f59e0b;background:#fef3c7;padding:1px 6px;border-radius:3px;">Add</span>';
                     csHtml += copyBtn(h.text, 'heading') + '</div>';
                 });
@@ -14409,10 +14421,10 @@
                     '<div style="font-weight:700;font-size:0.85em;color:#1e293b;margin-bottom:8px;">' +
                     '<i class="fas fa-question-circle" style="color:#7c3aed;"></i> Suggested FAQ Section:</div>';
                 faqs.forEach(f => {
-                    csHtml += '<div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:10px;margin-bottom:6px;">' +
+                    csHtml += '<div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:10px;margin-bottom:6px;" data-geo-faq-pair>' +
                         '<div style="font-weight:600;font-size:0.85em;color:#6d28d9;display:flex;justify-content:space-between;align-items:center;">' +
-                        '<span>Q: ' + f.question + '</span>' + copyBtn(f.question + '\n' + f.answer_preview, 'FAQ') + '</div>' +
-                        '<div style="font-size:0.8em;color:#475569;margin-top:4px;">A: ' + f.answer_preview + '</div></div>';
+                        '<span>Q: <span contenteditable="true" data-geo-editable data-geo-faq-q="true">' + f.question + '</span></span>' + copyBtn(f.question + '\n' + f.answer_preview, 'FAQ') + '</div>' +
+                        '<div style="font-size:0.8em;color:#475569;margin-top:4px;">A: <span contenteditable="true" data-geo-editable data-geo-faq-a="true">' + f.answer_preview + '</span></div></div>';
                 });
                 csHtml += '</div>';
             }
@@ -14445,9 +14457,9 @@
                     '<th style="padding:6px 4px;"></th></tr></thead><tbody>';
                 linkTable.forEach(l => {
                     ilHtml += '<tr style="border-bottom:1px solid #f1f5f9;">' +
-                        '<td style="padding:6px 8px;font-weight:600;color:#2563eb;">' + l.anchor_text + '</td>' +
+                        '<td contenteditable="true" data-geo-editable data-geo-link-anchor="true" style="padding:6px 8px;font-weight:600;color:#2563eb;">' + l.anchor_text + '</td>' +
                         '<td style="padding:6px 4px;color:#94a3b8;">→</td>' +
-                        '<td style="padding:6px 8px;color:#475569;font-size:0.9em;word-break:break-all;">' + l.target_url + '</td>' +
+                        '<td contenteditable="true" data-geo-editable data-geo-link-url="true" style="padding:6px 8px;color:#475569;font-size:0.9em;word-break:break-all;">' + l.target_url + '</td>' +
                         '<td style="padding:6px 4px;">' + copyBtn(l.anchor_text, 'link') + '</td></tr>';
                 });
                 ilHtml += '</tbody></table></div></div>';
@@ -14477,8 +14489,8 @@
                 quotables.forEach(q => {
                     cwHtml += '<div style="background:#f0fdfa;border-left:3px solid #14b8a6;padding:10px 12px;margin-bottom:8px;border-radius:0 8px 8px 0;">' +
                         '<div style="font-size:0.85em;color:#1e293b;font-style:italic;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">' +
-                        '<span>\u201C' + q.statement + '\u201D</span>' + copyBtn(q.statement, 'quote') + '</div>' +
-                        '<div style="font-size:0.75em;color:#64748b;margin-top:4px;"><i class="fas fa-tag"></i> ' + q.topic + '</div></div>';
+                        '<span>\u201C<span contenteditable="true" data-geo-editable data-geo-quote="true">' + q.statement + '</span>\u201D</span>' + copyBtn(q.statement, 'quote') + '</div>' +
+                        '<div style="font-size:0.75em;color:#64748b;margin-top:4px;"><i class="fas fa-tag"></i> <span contenteditable="true" data-geo-editable data-geo-quote-topic="true">' + q.topic + '</span></div></div>';
                 });
                 cwHtml += '</div>';
             }
@@ -14493,16 +14505,16 @@
                 let chunkHtml = '';
                 data.optimized_chunks.forEach((chunk, idx) => {
                     chunkHtml += `
-                        <div style="margin-bottom: 20px;">
+                        <div style="margin-bottom: 20px;" data-geo-chunk-pair>
                             <div style="font-weight: 700; font-size: 0.8em; color: #1e293b; margin-bottom: 8px;">Chunk ${idx + 1}</div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                                 <div style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px;">
                                     <div style="font-weight: 700; font-size: 0.75em; color: #64748b; margin-bottom: 8px; text-transform: uppercase;">Original Text</div>
-                                    <div style="font-size: 0.85em; color: #1e293b; line-height: 1.5; white-space: pre-wrap;">${chunk.original || ''}</div>
+                                    <div contenteditable="true" data-geo-editable data-geo-chunk-original="true" style="font-size: 0.85em; color: #1e293b; line-height: 1.5; white-space: pre-wrap;">${chunk.original || ''}</div>
                                 </div>
                                 <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 15px; position: relative;">
                                     <div style="font-weight: 700; font-size: 0.75em; color: #0369a1; margin-bottom: 8px; text-transform: uppercase;">Optimised Text</div>
-                                    <div style="font-size: 0.85em; color: #0c4a6e; line-height: 1.5; white-space: pre-wrap;">${chunk.optimized || ''}</div>
+                                    <div contenteditable="true" data-geo-editable data-geo-chunk-optimized="true" style="font-size: 0.85em; color: #0c4a6e; line-height: 1.5; white-space: pre-wrap;">${chunk.optimized || ''}</div>
                                     <div style="position: absolute; top: 12px; right: 12px;">
                                         ${copyBtn(chunk.optimized || '', 'optimized')}
                                     </div>
@@ -14515,14 +14527,14 @@
             } else {
                 // Fallback: show single side-by-side card with the consolidated content
                 optimizedContainer.innerHTML = `
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;" data-geo-chunk-pair>
                         <div style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px;">
                             <div style="font-weight: 700; font-size: 0.75em; color: #64748b; margin-bottom: 8px; text-transform: uppercase;">Original Text</div>
-                            <div style="font-size: 0.85em; color: #94a3b8; line-height: 1.5; font-style: italic;">Original text chunks not available. Update the Lambda to return <code>optimized_chunks</code> for per-section comparison.</div>
+                            <div contenteditable="true" data-geo-editable data-geo-chunk-original="true" style="font-size: 0.85em; color: #94a3b8; line-height: 1.5; font-style: italic;">Original text chunks not available.</div>
                         </div>
                         <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 15px; position: relative;">
                             <div style="font-weight: 700; font-size: 0.75em; color: #0369a1; margin-bottom: 8px; text-transform: uppercase;">Optimised Text</div>
-                            <div style="font-size: 0.85em; color: #0c4a6e; line-height: 1.5; white-space: pre-wrap;">${data.optimized_content || "No content generated."}</div>
+                            <div contenteditable="true" data-geo-editable data-geo-chunk-optimized="true" style="font-size: 0.85em; color: #0c4a6e; line-height: 1.5; white-space: pre-wrap;">${data.optimized_content || "No content generated."}</div>
                             <div style="position: absolute; top: 12px; right: 12px;">
                                 ${copyBtn(data.optimized_content || '', 'optimized')}
                             </div>
@@ -14554,9 +14566,9 @@
             if (!data) { alert('No GEO On-Page data to export. Run an analysis first.'); return; }
 
             const T = '\t';
+            const resultsArea = document.getElementById('geoOnPageResults');
             // Build a row-indexed array. Index 0 = row 1, index 1 = row 2, etc.
             // We allocate up to row 149 to cover Image Optimisation.
-            // Each entry is a string of tab-separated values for columns B, C, D, E, F, G.
             const totalRows = 149;
             const rows = new Array(totalRows).fill('');
 
@@ -14568,45 +14580,27 @@
             // ═══════════════════════════════════════════
             // TEMPLATE HEADERS — preserve existing headers
             // ═══════════════════════════════════════════
-            // Row 2: Table of Contents
             rows[1] = 'Table of Contents';
-            // Row 3: Targeted Existing URL header
             rows[2] = ['Targeted Existing URL (if necessary)', '', '', 'Proposed New URL (if necessary)', '', "Client's Approval"].join(T);
-            // Row 5: 301 redirect note
             rows[4] = ['', '', '', 'Kindly perform 301 redirection from the old to new URL'].join(T);
-            // Row 7: Existing Canonical Tag header
             rows[6] = ['Existing Canonical Tag', '', '', 'Proposed New Canonical Tag', '', "Client's Approval"].join(T);
-            // Row 10: Existing Meta Title header
             rows[9] = ['Existing Meta Title', '', '', 'Proposed New Meta Title', '', "Client's Approval"].join(T);
-            // Row 13: Existing Meta Description header
             rows[12] = ['Existing Meta Description', '', '', 'Proposed New Meta Description', '', "Client's Approval"].join(T);
-            // Row 16: Targeted Keywords header
             rows[15] = 'Targeted Keywords';
-            // Row 19: Header Optimisation section title
             rows[18] = 'Header Optimisation';
-            // Row 20: Header Optimisation column headers
             rows[19] = ['Original Headers', 'Type', 'Remarks by SEO Team', 'Proposed New Headers', "Client's Approval / Comments", 'SEO Implementation'].join(T);
-            // Row 121: Content Optimisation section title
             rows[120] = 'Content Optimisation';
-            // Row 122: Content Optimisation column headers
             rows[121] = ['Original Content', 'Remarks by SEO Team', '', 'Proposed Amended Content', "Client's Approval / Comments", 'SEO Implementation'].join(T);
-            // Row 127: Internal Linking section title
             rows[126] = 'Internal Linking';
-            // Row 128: Internal Linking column headers
             rows[127] = ['Original Content', 'Remarks by SEO Team', '', 'Proposed Content with linking', "Client's Approval / Comments", 'SEO Implementation'].join(T);
-            // Row 133: Additional Recommendations section title
             rows[132] = 'Additional Recommendations';
-            // Row 134: Instructions text
             rows[133] = '(add a summary of the competitive research and keyword density)';
-            // Row 135: Additional Recommendations column headers
             rows[134] = ['Content Direction and Reference URL', 'Content reference (picture)', '', 'Where you can add this information to your site', "Client's Approval / Comments", 'Content To Be Done By'].join(T);
-            // Row 141: Image Optimisation section title
             rows[140] = 'Image Optimisation';
-            // Row 142: Image Optimisation column headers
             rows[141] = ['Image URL', '', 'Image', 'Existing Image Alt Text', 'Suggested Image Alt Text', "Client's Approval / Comments"].join(T);
 
             // ═══════════════════════════════════
-            // DATA ROWS
+            // DATA ROWS — read from editable DOM
             // ═══════════════════════════════════
 
             // ─── Row 4: Targeted Existing URL ───
@@ -14623,107 +14617,101 @@
                 rows[16] = clean(kwList);
             }
 
-            // ─── Rows 21+: Header Optimisation data ───
-            // Columns: B=Original Headers, C=Type, D=Remarks, E=Proposed New Headers
-            const headings = (data.content_structure || {}).heading_hierarchy || [];
-            const foundHeadings = headings.filter(h => h.status === 'found');
-            const recommendedHeadings = headings.filter(h => h.status !== 'found');
-            const faqs = (data.content_structure || {}).faq_suggestions || [];
+            // ─── Rows 21+: Header Optimisation data (from DOM) ───
+            const foundHeadingEls = resultsArea.querySelectorAll('[data-geo-heading-found]');
+            const recHeadingEls = resultsArea.querySelectorAll('[data-geo-heading-rec]');
+            const faqPairs = resultsArea.querySelectorAll('[data-geo-faq-pair]');
 
-            let headerRow = 20; // index 20 = row 21
-            foundHeadings.forEach(h => {
+            let headerRow = 20;
+            foundHeadingEls.forEach(el => {
                 if (headerRow < 120) {
-                    rows[headerRow] = [clean(h.text), clean(h.level), '', ''].join(T);
+                    const level = el.getAttribute('data-geo-heading-level') || '';
+                    rows[headerRow] = [clean(el.textContent), clean(level), '', ''].join(T);
                     headerRow++;
                 }
             });
-            recommendedHeadings.forEach(h => {
+            recHeadingEls.forEach(el => {
                 if (headerRow < 120) {
-                    rows[headerRow] = ['', clean(h.level), 'AI Recommendation', clean(h.text)].join(T);
+                    const level = el.getAttribute('data-geo-heading-level') || '';
+                    rows[headerRow] = ['', clean(level), 'AI Recommendation', clean(el.textContent)].join(T);
                     headerRow++;
                 }
             });
-            faqs.forEach(f => {
+            faqPairs.forEach(pair => {
                 if (headerRow < 120) {
-                    rows[headerRow] = ['', 'FAQ', 'AI Recommendation', 'Q: ' + clean(f.question) + ' | A: ' + clean(f.answer_preview)].join(T);
+                    const q = pair.querySelector('[data-geo-faq-q]');
+                    const a = pair.querySelector('[data-geo-faq-a]');
+                    const qText = q ? q.textContent.trim() : '';
+                    const aText = a ? a.textContent.trim() : '';
+                    rows[headerRow] = ['', 'FAQ', 'AI Recommendation', 'Q: ' + clean(qText) + ' | A: ' + clean(aText)].join(T);
                     headerRow++;
                 }
             });
 
-            // ─── Rows 123+: Content Optimisation data ───
-            // Columns: B=Original Content, C=Remarks, D='', E=Proposed Amended Content
-            const chunks = data.optimized_chunks || [];
-            let contentRow = 122; // index 122 = row 123
-            if (chunks.length > 0) {
-                chunks.forEach(c => {
+            // ─── Rows 123+: Content Optimisation data (from DOM) ───
+            const chunkOriginals = resultsArea.querySelectorAll('[data-geo-chunk-original]');
+            const chunkOptimized = resultsArea.querySelectorAll('[data-geo-chunk-optimized]');
+            let contentRow = 122;
+            if (chunkOriginals.length > 0) {
+                chunkOriginals.forEach((origEl, idx) => {
                     if (contentRow < 126) {
-                        rows[contentRow] = [clean(c.original), '', '', clean(c.optimized)].join(T);
+                        const optEl = chunkOptimized[idx];
+                        rows[contentRow] = [clean(origEl.textContent), '', '', clean(optEl ? optEl.textContent : '')].join(T);
                         contentRow++;
                     }
                 });
-            } else if (data.optimized_content) {
-                rows[contentRow] = ['(Full page content)', '', '', clean(data.optimized_content)].join(T);
-                contentRow++;
             }
 
-            // ─── Rows 129+: Internal Linking data ───
-            // Columns: B=Original Content, C=Remarks, D='', E=Proposed Content with linking
-            const linkTable = (data.internal_linking || {}).linking_table || [];
-            let linkRow = 128; // index 128 = row 129
-            linkTable.forEach(l => {
+            // ─── Rows 129+: Internal Linking data (from DOM) ───
+            const linkAnchors = resultsArea.querySelectorAll('[data-geo-link-anchor]');
+            const linkUrls = resultsArea.querySelectorAll('[data-geo-link-url]');
+            let linkRow = 128;
+            linkAnchors.forEach((anchorEl, idx) => {
                 if (linkRow < 132) {
-                    const proposed = clean(l.anchor_text) + ' → ' + clean(l.target_url);
-                    const remark = clean(l.context || '');
-                    rows[linkRow] = ['', remark, '', proposed].join(T);
+                    const urlEl = linkUrls[idx];
+                    const proposed = clean(anchorEl.textContent) + ' \u2192 ' + clean(urlEl ? urlEl.textContent : '');
+                    rows[linkRow] = ['', '', '', proposed].join(T);
                     linkRow++;
                 }
             });
 
-            // ─── Rows 136+: Additional Recommendations data ───
-            // Columns: B=Content Direction/URL, C=Content ref, D='', E=Where to add
-            let addRow = 135; // index 135 = row 136
+            // ─── Rows 136+: Additional Recommendations data (from DOM) ───
+            let addRow = 135;
 
-            // Quotable statements (citation-worthiness)
-            const quotables = (data.citation_worthiness || {}).quotable_statements || [];
-            quotables.forEach(q => {
+            // Quotable statements
+            const quoteEls = resultsArea.querySelectorAll('[data-geo-quote]');
+            const quoteTopicEls = resultsArea.querySelectorAll('[data-geo-quote-topic]');
+            quoteEls.forEach((el, idx) => {
                 if (addRow < 140) {
-                    rows[addRow] = ['[Citation] ' + clean(q.statement), '', '', clean(q.topic)].join(T);
+                    const topic = quoteTopicEls[idx] ? quoteTopicEls[idx].textContent.trim() : '';
+                    rows[addRow] = ['[Citation] ' + clean(el.textContent), '', '', clean(topic)].join(T);
                     addRow++;
                 }
             });
 
-            // Recommended terms from vector embedding
-            const recTerms = (data.vector_embedding || {}).recommended_terms || [];
-            if (recTerms.length > 0 && addRow < 140) {
-                rows[addRow] = ['[Semantic Terms] Add these terms/phrases: ' + recTerms.join(', '), '', '', 'Throughout main body content'].join(T);
+            // Recommended terms
+            const recTermEls = resultsArea.querySelectorAll('[data-geo-rec-term]');
+            if (recTermEls.length > 0 && addRow < 140) {
+                const terms = Array.from(recTermEls).map(el => el.textContent.trim()).join(', ');
+                rows[addRow] = ['[Semantic Terms] Add these terms/phrases: ' + clean(terms), '', '', 'Throughout main body content'].join(T);
                 addRow++;
             }
 
             // Topic clusters
-            const topicClusters = (data.vector_embedding || {}).topic_clusters || [];
-            if (topicClusters.length > 0 && addRow < 140) {
-                rows[addRow] = ['[Topic Clusters] Cover these topics: ' + topicClusters.join(', '), '', '', 'As dedicated sections or sub-headings'].join(T);
+            const clusterEls = resultsArea.querySelectorAll('[data-geo-topic-cluster]');
+            if (clusterEls.length > 0 && addRow < 140) {
+                const clusters = Array.from(clusterEls).map(el => el.textContent.trim()).join(', ');
+                rows[addRow] = ['[Topic Clusters] Cover these topics: ' + clean(clusters), '', '', 'As dedicated sections or sub-headings'].join(T);
                 addRow++;
             }
 
-            // Negative insights as additional recommendations
-            const allInsightSources = [
-                { label: 'Vector Embedding', insights: (data.vector_embedding || {}).strengths || [] },
-                { label: 'Vector Embedding', insights: (data.vector_embedding || {}).missing_elements || [] },
-                { label: 'Entity', insights: (data.entity_optimization || {}).insights || [] },
-                { label: 'Content Structure', insights: (data.content_structure || {}).insights || [] },
-                { label: 'Internal Linking', insights: (data.internal_linking || {}).insights || [] },
-                { label: 'Citation', insights: (data.citation_worthiness || {}).insights || [] }
-            ];
-            allInsightSources.forEach(src => {
-                (src.insights || []).forEach(insight => {
-                    const text = typeof insight === 'object' ? insight.text : insight;
-                    const isPositive = typeof insight === 'object' ? insight.positive : true;
-                    if (!isPositive && addRow < 140) {
-                        rows[addRow] = ['[' + src.label + '] ' + clean(text), '', '', ''].join(T);
-                        addRow++;
-                    }
-                });
+            // Negative insights
+            const negInsightEls = resultsArea.querySelectorAll('[data-geo-insight-negative]');
+            negInsightEls.forEach(el => {
+                if (addRow < 140) {
+                    rows[addRow] = ['[Insight] ' + clean(el.textContent), '', '', ''].join(T);
+                    addRow++;
+                }
             });
 
             // Build final TSV — join all rows with newlines
