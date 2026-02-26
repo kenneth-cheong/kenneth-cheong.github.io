@@ -9766,6 +9766,8 @@
                                     before copying to Google Sheets.</span>
                             </div>
 
+                            <div id="geoOnPageMetadata" style="margin-top: 20px;"></div>
+
                             <div class="discovery-tech-grid" id="geoOnPageAnalysisGrid"
                                 style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 25px;">
                                 <!-- AI Analysis Cards will be injected here -->
@@ -14231,6 +14233,57 @@
             const grid = document.getElementById('geoOnPageAnalysisGrid');
             grid.innerHTML = '';
 
+            // ── Render Page Metadata card (URL, Canonical, Meta Title, Meta Description) ──
+            const metaContainer = document.getElementById('geoOnPageMetadata');
+            const pm = data.page_metadata || {};
+            const existingUrl = document.getElementById('geoOnPageUrl').value || '';
+            const existingCanonical = pm.existing_canonical_url || '';
+            const existingTitle = pm.existing_meta_title || '';
+            const existingDesc = pm.existing_meta_description || '';
+            const proposedTitle = data.proposed_meta_title || '';
+            const proposedDesc = data.proposed_meta_description || '';
+
+            function metaRow(label, existingVal, proposedVal, existingAttr, proposedAttr) {
+                return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">' +
+                    '<div>' +
+                    '<div style="font-weight:600;font-size:0.75em;color:#64748b;text-transform:uppercase;margin-bottom:4px;">' + label + ' (Existing)</div>' +
+                    '<div contenteditable="true" data-geo-editable ' + existingAttr + ' style="font-size:0.85em;color:#1e293b;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;min-height:20px;">' + (existingVal || '<span style=\'color:#94a3b8;font-style:italic;\'>Not found</span>') + '</div>' +
+                    '</div>' +
+                    '<div>' +
+                    '<div style="font-weight:600;font-size:0.75em;color:#0369a1;text-transform:uppercase;margin-bottom:4px;">' + label + ' (Proposed)</div>' +
+                    '<div contenteditable="true" data-geo-editable ' + proposedAttr + ' style="font-size:0.85em;color:#0c4a6e;padding:8px 10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;min-height:20px;">' + (proposedVal || '') + '</div>' +
+                    '</div>' +
+                    '</div>';
+            }
+
+            let metaHtml = '<div class="geo-card" style="margin:0;overflow:hidden;word-break:break-word;">' +
+                '<div class="geo-card-header" style="background:#f8fafc;">' +
+                '<div class="geo-card-title" style="font-size:0.95em;">Page Metadata</div></div>' +
+                '<div style="padding:15px;">';
+
+            // URL row
+            metaHtml += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">' +
+                '<div>' +
+                '<div style="font-weight:600;font-size:0.75em;color:#64748b;text-transform:uppercase;margin-bottom:4px;">Targeted Existing URL</div>' +
+                '<div contenteditable="true" data-geo-editable data-geo-meta-existing-url="true" style="font-size:0.85em;color:#1e293b;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;word-break:break-all;">' + existingUrl + '</div>' +
+                '</div>' +
+                '<div>' +
+                '<div style="font-weight:600;font-size:0.75em;color:#0369a1;text-transform:uppercase;margin-bottom:4px;">Proposed New URL</div>' +
+                '<div contenteditable="true" data-geo-editable data-geo-meta-proposed-url="true" style="font-size:0.85em;color:#0c4a6e;padding:8px 10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;min-height:20px;"></div>' +
+                '</div></div>';
+
+            // Canonical row
+            metaHtml += metaRow('Canonical Tag', existingCanonical, '', 'data-geo-meta-existing-canonical="true"', 'data-geo-meta-proposed-canonical="true"');
+
+            // Meta Title row
+            metaHtml += metaRow('Meta Title', existingTitle, proposedTitle, 'data-geo-meta-existing-title="true"', 'data-geo-meta-proposed-title="true"');
+
+            // Meta Description row
+            metaHtml += metaRow('Meta Description', existingDesc, proposedDesc, 'data-geo-meta-existing-desc="true"', 'data-geo-meta-proposed-desc="true"');
+
+            metaHtml += '</div></div>';
+            metaContainer.innerHTML = metaHtml;
+
             // Helper: copy text to clipboard — reads live text from the editable sibling
             function copyBtn(text, label) {
                 const id = 'cb_' + Math.random().toString(36).substr(2, 6);
@@ -14603,11 +14656,25 @@
             // DATA ROWS — read from editable DOM
             // ═══════════════════════════════════
 
-            // ─── Row 4: Targeted Existing URL ───
-            const analysedUrl = document.getElementById('geoOnPageUrl').value || '';
-            if (analysedUrl) {
-                rows[3] = [clean(analysedUrl), '', '', ''].join(T);
-            }
+            // ─── Row 4: Targeted Existing URL / Proposed New URL ───
+            const metaExistingUrl = resultsArea.querySelector('[data-geo-meta-existing-url]');
+            const metaProposedUrl = resultsArea.querySelector('[data-geo-meta-proposed-url]');
+            rows[3] = [clean(metaExistingUrl ? metaExistingUrl.textContent : ''), '', '', clean(metaProposedUrl ? metaProposedUrl.textContent : '')].join(T);
+
+            // ─── Row 8: Existing Canonical Tag / Proposed New Canonical Tag ───
+            const metaExistingCanonical = resultsArea.querySelector('[data-geo-meta-existing-canonical]');
+            const metaProposedCanonical = resultsArea.querySelector('[data-geo-meta-proposed-canonical]');
+            rows[7] = [clean(metaExistingCanonical ? metaExistingCanonical.textContent : ''), '', '', clean(metaProposedCanonical ? metaProposedCanonical.textContent : '')].join(T);
+
+            // ─── Row 11: Existing Meta Title / Proposed New Meta Title ───
+            const metaExistingTitle = resultsArea.querySelector('[data-geo-meta-existing-title]');
+            const metaProposedTitle = resultsArea.querySelector('[data-geo-meta-proposed-title]');
+            rows[10] = [clean(metaExistingTitle ? metaExistingTitle.textContent : ''), '', '', clean(metaProposedTitle ? metaProposedTitle.textContent : '')].join(T);
+
+            // ─── Row 14: Existing Meta Description / Proposed New Meta Description ───
+            const metaExistingDesc = resultsArea.querySelector('[data-geo-meta-existing-desc]');
+            const metaProposedDesc = resultsArea.querySelector('[data-geo-meta-proposed-desc]');
+            rows[13] = [clean(metaExistingDesc ? metaExistingDesc.textContent : ''), '', '', clean(metaProposedDesc ? metaProposedDesc.textContent : '')].join(T);
 
             // ─── Row 17: Targeted Keywords ───
             const promptsEl = document.getElementById('geoOnPagePrompts');
