@@ -9738,10 +9738,6 @@
                                         <h3 style="margin-bottom: 10px;">Overall GEO Score</h3>
                                         <p style="color: #475569; font-size: 0.9em;">AI-optimised score based on
                                             semantic relevance and platform visibility.</p>
-                                        <button onclick="exportGeoOnPageToSheets()" class="discovery-btn-run"
-                                            style="margin-top: 15px; width: fit-content; padding: 8px 20px; font-size: 0.85em; background: linear-gradient(135deg, #0f9d58, #34a853);">
-                                            <i class="fas fa-table"></i> Copy for Google Sheets
-                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -9787,6 +9783,14 @@
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- Copy for Google Sheets button -->
+                            <div style="text-align: center; margin-top: 25px;">
+                                <button onclick="exportGeoOnPageToSheets()" class="discovery-btn-run"
+                                    style="width: fit-content; padding: 10px 24px; font-size: 0.9em; background: linear-gradient(135deg, #0f9d58, #34a853);">
+                                    <i class="fas fa-table"></i> Copy for Google Sheets (paste at B3)
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -14550,74 +14554,159 @@
             if (!data) { alert('No GEO On-Page data to export. Run an analysis first.'); return; }
 
             const T = '\t';
-            const lines = [];
+            // Build a row-indexed array. Index 0 = row 1, index 1 = row 2, etc.
+            // We allocate up to row 149 to cover Image Optimisation.
+            // Each entry is a string of tab-separated values for columns B, C, D, E, F, G.
+            const totalRows = 149;
+            const rows = new Array(totalRows).fill('');
 
-            // ─── Header Optimization ───
-            lines.push('Header Optimisation');
-            lines.push(['Original Headers', 'Type', 'Remarks by SEO Team', 'Proposed New Headers'].join(T));
+            // Helper: sanitise text for TSV (strip tabs and newlines)
+            function clean(str) {
+                return (str || '').replace(/\t/g, ' ').replace(/\n/g, ' ').replace(/\r/g, '');
+            }
+
+            // ═══════════════════════════════════════════
+            // TEMPLATE HEADERS — preserve existing headers
+            // ═══════════════════════════════════════════
+            // Row 2: Table of Contents
+            rows[1] = 'Table of Contents';
+            // Row 3: Targeted Existing URL header
+            rows[2] = ['Targeted Existing URL (if necessary)', '', '', 'Proposed New URL (if necessary)', '', "Client's Approval"].join(T);
+            // Row 5: 301 redirect note
+            rows[4] = ['', '', '', 'Kindly perform 301 redirection from the old to new URL'].join(T);
+            // Row 7: Existing Canonical Tag header
+            rows[6] = ['Existing Canonical Tag', '', '', 'Proposed New Canonical Tag', '', "Client's Approval"].join(T);
+            // Row 10: Existing Meta Title header
+            rows[9] = ['Existing Meta Title', '', '', 'Proposed New Meta Title', '', "Client's Approval"].join(T);
+            // Row 13: Existing Meta Description header
+            rows[12] = ['Existing Meta Description', '', '', 'Proposed New Meta Description', '', "Client's Approval"].join(T);
+            // Row 16: Targeted Keywords header
+            rows[15] = 'Targeted Keywords';
+            // Row 19: Header Optimisation section title
+            rows[18] = 'Header Optimisation';
+            // Row 20: Header Optimisation column headers
+            rows[19] = ['Original Headers', 'Type', 'Remarks by SEO Team', 'Proposed New Headers', "Client's Approval / Comments", 'SEO Implementation'].join(T);
+            // Row 121: Content Optimisation section title
+            rows[120] = 'Content Optimisation';
+            // Row 122: Content Optimisation column headers
+            rows[121] = ['Original Content', 'Remarks by SEO Team', '', 'Proposed Amended Content', "Client's Approval / Comments", 'SEO Implementation'].join(T);
+            // Row 127: Internal Linking section title
+            rows[126] = 'Internal Linking';
+            // Row 128: Internal Linking column headers
+            rows[127] = ['Original Content', 'Remarks by SEO Team', '', 'Proposed Content with linking', "Client's Approval / Comments", 'SEO Implementation'].join(T);
+            // Row 133: Additional Recommendations section title
+            rows[132] = 'Additional Recommendations';
+            // Row 134: Instructions text
+            rows[133] = '(add a summary of the competitive research and keyword density)';
+            // Row 135: Additional Recommendations column headers
+            rows[134] = ['Content Direction and Reference URL', 'Content reference (picture)', '', 'Where you can add this information to your site', "Client's Approval / Comments", 'Content To Be Done By'].join(T);
+            // Row 141: Image Optimisation section title
+            rows[140] = 'Image Optimisation';
+            // Row 142: Image Optimisation column headers
+            rows[141] = ['Image URL', '', 'Image', 'Existing Image Alt Text', 'Suggested Image Alt Text', "Client's Approval / Comments"].join(T);
+
+            // ═══════════════════════════════════
+            // DATA ROWS
+            // ═══════════════════════════════════
+
+            // ─── Row 4: Targeted Existing URL ───
+            const analysedUrl = document.getElementById('geoOnPageUrl').value || '';
+            if (analysedUrl) {
+                rows[3] = [clean(analysedUrl), '', '', ''].join(T);
+            }
+
+            // ─── Row 17: Targeted Keywords ───
+            const promptsEl = document.getElementById('geoOnPagePrompts');
+            const prompts = promptsEl ? promptsEl.value : '';
+            if (prompts.trim()) {
+                const kwList = prompts.split('\n').map(p => p.trim()).filter(Boolean).join(', ');
+                rows[16] = clean(kwList);
+            }
+
+            // ─── Rows 21+: Header Optimisation data ───
+            // Columns: B=Original Headers, C=Type, D=Remarks, E=Proposed New Headers
             const headings = (data.content_structure || {}).heading_hierarchy || [];
             const foundHeadings = headings.filter(h => h.status === 'found');
             const recommendedHeadings = headings.filter(h => h.status !== 'found');
-            // Found headings in Original column
-            foundHeadings.forEach(h => {
-                lines.push([h.text, h.level, '', ''].join(T));
-            });
-            // Recommended headings in Proposed column
-            recommendedHeadings.forEach(h => {
-                lines.push(['', h.level, 'AI Recommendation', h.text].join(T));
-            });
-            // FAQs as recommended headers
             const faqs = (data.content_structure || {}).faq_suggestions || [];
-            faqs.forEach(f => {
-                lines.push(['', 'FAQ', 'AI Recommendation', 'Q: ' + f.question + ' | A: ' + f.answer_preview].join(T));
-            });
-            lines.push('');
 
-            // ─── Content Optimisation ───
-            lines.push('Content Optimisation');
-            lines.push(['Original Content', 'Remarks by SEO Team', 'Proposed Amended Content'].join(T));
+            let headerRow = 20; // index 20 = row 21
+            foundHeadings.forEach(h => {
+                if (headerRow < 120) {
+                    rows[headerRow] = [clean(h.text), clean(h.level), '', ''].join(T);
+                    headerRow++;
+                }
+            });
+            recommendedHeadings.forEach(h => {
+                if (headerRow < 120) {
+                    rows[headerRow] = ['', clean(h.level), 'AI Recommendation', clean(h.text)].join(T);
+                    headerRow++;
+                }
+            });
+            faqs.forEach(f => {
+                if (headerRow < 120) {
+                    rows[headerRow] = ['', 'FAQ', 'AI Recommendation', 'Q: ' + clean(f.question) + ' | A: ' + clean(f.answer_preview)].join(T);
+                    headerRow++;
+                }
+            });
+
+            // ─── Rows 123+: Content Optimisation data ───
+            // Columns: B=Original Content, C=Remarks, D='', E=Proposed Amended Content
             const chunks = data.optimized_chunks || [];
+            let contentRow = 122; // index 122 = row 123
             if (chunks.length > 0) {
                 chunks.forEach(c => {
-                    const orig = (c.original || '').replace(/\t/g, ' ').replace(/\n/g, ' ');
-                    const opt = (c.optimized || '').replace(/\t/g, ' ').replace(/\n/g, ' ');
-                    lines.push([orig, '', opt].join(T));
+                    if (contentRow < 126) {
+                        rows[contentRow] = [clean(c.original), '', '', clean(c.optimized)].join(T);
+                        contentRow++;
+                    }
                 });
             } else if (data.optimized_content) {
-                lines.push(['(Full page content)', '', data.optimized_content.replace(/\t/g, ' ').replace(/\n/g, ' ')].join(T));
+                rows[contentRow] = ['(Full page content)', '', '', clean(data.optimized_content)].join(T);
+                contentRow++;
             }
-            lines.push('');
 
-            // ─── Internal Linking ───
-            lines.push('Internal Linking');
-            lines.push(['Original Content', 'Remarks by SEO Team', 'Proposed Content with linking'].join(T));
+            // ─── Rows 129+: Internal Linking data ───
+            // Columns: B=Original Content, C=Remarks, D='', E=Proposed Content with linking
             const linkTable = (data.internal_linking || {}).linking_table || [];
+            let linkRow = 128; // index 128 = row 129
             linkTable.forEach(l => {
-                const proposed = l.anchor_text + ' → ' + l.target_url;
-                const remark = l.context || '';
-                lines.push(['', remark, proposed].join(T));
+                if (linkRow < 132) {
+                    const proposed = clean(l.anchor_text) + ' → ' + clean(l.target_url);
+                    const remark = clean(l.context || '');
+                    rows[linkRow] = ['', remark, '', proposed].join(T);
+                    linkRow++;
+                }
             });
-            lines.push('');
 
-            // ─── Additional Recommendations ───
-            lines.push('Additional Recommendations');
-            lines.push(['Content Direction and Reference URL', 'Content reference (picture)', 'Where you can add this information to your site'].join(T));
-            // Quotable statements
+            // ─── Rows 136+: Additional Recommendations data ───
+            // Columns: B=Content Direction/URL, C=Content ref, D='', E=Where to add
+            let addRow = 135; // index 135 = row 136
+
+            // Quotable statements (citation-worthiness)
             const quotables = (data.citation_worthiness || {}).quotable_statements || [];
             quotables.forEach(q => {
-                lines.push(['[Citation] ' + q.statement, '', q.topic].join(T));
+                if (addRow < 140) {
+                    rows[addRow] = ['[Citation] ' + clean(q.statement), '', '', clean(q.topic)].join(T);
+                    addRow++;
+                }
             });
+
             // Recommended terms from vector embedding
             const recTerms = (data.vector_embedding || {}).recommended_terms || [];
-            if (recTerms.length > 0) {
-                lines.push(['[Semantic Terms] Add these terms/phrases to content: ' + recTerms.join(', '), '', 'Throughout main body content'].join(T));
+            if (recTerms.length > 0 && addRow < 140) {
+                rows[addRow] = ['[Semantic Terms] Add these terms/phrases: ' + recTerms.join(', '), '', '', 'Throughout main body content'].join(T);
+                addRow++;
             }
+
             // Topic clusters
             const topicClusters = (data.vector_embedding || {}).topic_clusters || [];
-            if (topicClusters.length > 0) {
-                lines.push(['[Topic Clusters] Cover these topics: ' + topicClusters.join(', '), '', 'As dedicated sections or sub-headings'].join(T));
+            if (topicClusters.length > 0 && addRow < 140) {
+                rows[addRow] = ['[Topic Clusters] Cover these topics: ' + topicClusters.join(', '), '', '', 'As dedicated sections or sub-headings'].join(T);
+                addRow++;
             }
-            // Collect all insights
+
+            // Negative insights as additional recommendations
             const allInsightSources = [
                 { label: 'Vector Embedding', insights: (data.vector_embedding || {}).strengths || [] },
                 { label: 'Vector Embedding', insights: (data.vector_embedding || {}).missing_elements || [] },
@@ -14630,13 +14719,16 @@
                 (src.insights || []).forEach(insight => {
                     const text = typeof insight === 'object' ? insight.text : insight;
                     const isPositive = typeof insight === 'object' ? insight.positive : true;
-                    if (!isPositive) {
-                        lines.push(['[' + src.label + '] ' + text, '', ''].join(T));
+                    if (!isPositive && addRow < 140) {
+                        rows[addRow] = ['[' + src.label + '] ' + clean(text), '', '', ''].join(T);
+                        addRow++;
                     }
                 });
             });
 
-            const tsv = lines.join('\n');
+            // Build final TSV — join all rows with newlines
+            // Skip rows 1-2 (logo + ToC) — output starts from row 3 so user pastes at B3
+            const tsv = rows.slice(2).join('\n');
             navigator.clipboard.writeText(tsv).then(() => {
                 const btn = event.currentTarget;
                 const orig = btn.innerHTML;
