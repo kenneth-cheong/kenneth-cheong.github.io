@@ -50,6 +50,9 @@ HEADINGS FOUND ON PAGE (extracted via parser, authoritative):
 ORIGINAL TEXT CHUNKS (split by headings/paragraphs for comparison):
 {json.dumps(text_chunks, indent=2)}
 
+IMAGES FOUND ON PAGE (extracted via parser):
+{json.dumps(page_data.get('images', []), indent=2)}
+
 PAGE CONTENT EXCERPT (HTML):
 ---
 {page_data['html'][:18000]}
@@ -99,6 +102,10 @@ Output your analysis in strictly JSON format:
   "optimized_content": "The full consolidated optimized text combining all optimized chunks above into one continuous piece.",
   "proposed_meta_title": "A concise, keyword-rich meta title (50-60 chars) optimised for AI visibility and CTR.",
   "proposed_meta_description": "A compelling meta description (140-160 chars) that addresses user intent and includes target keywords.",
+  "image_optimization": [
+    {{"src": "the exact image src from the IMAGES FOUND ON PAGE list", "existing_alt": "the current alt text (may be empty)", "suggested_alt": "a descriptive, keyword-rich alt text that is specific to the image context and includes relevant target keywords for GEO visibility (max 125 chars)"}},
+    ...(one entry per image from the IMAGES FOUND ON PAGE list, skip tiny icons/tracking pixels)
+  ],
   "schema_markup": [{{a complete valid JSON-LD schema object for EACH applicable type, e.g. Organization, WebPage, LocalBusiness, FAQPage, BreadcrumbList, Product, Service, etc. Include as many distinct @type schemas as are relevant to this page.}}, ...]
 }}
 """
@@ -202,6 +209,91 @@ def scrape_page(url):
                 "text": text
             })
 
+    # Extract all images BEFORE decomposing elements
+    from urllib.parse import urlparse, urljoin
+    parsed_url = urlparse(url)
+    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+
+    def resolve_src(raw):
+        """Resolve a raw src/data-src to an absolute URL, or return '' if unusable."""
+        if not raw or raw.startswith('data:'):
+            return ''
+        raw = raw.strip()
+        if raw.startswith('//'):
+            return 'https:' + raw
+        if raw.startswith('/'):
+            return base_url + raw
+        if raw.startswith('http'):
+            return raw
+        # Relative path – resolve against the page URL
+        return urljoin(url, raw)
+
+    def best_src(tag):
+        """Pick the best real image URL from an element's attributes."""
+        # Priority order: explicit lazy-load attrs first, then src, then srcset
+        for attr in ('data-src', 'data-lazy-src', 'data-original', 'data-srcset'):
+            val = tag.get(attr, '')
+            if val:
+                # data-srcset / srcset contain comma-separated candidates; take the first
+                resolved = resolve_src(val.split(',')[0].strip().split()[0])
+                if resolved:
+                    return resolved
+        # Regular src (skip if it's a placeholder data URI)
+        src = tag.get('src', '')
+        resolved = resolve_src(src)
+        if resolved:
+            return resolved
+        # srcset fallback
+        srcset = tag.get('srcset', '')
+        if srcset:
+            resolved = resolve_src(srcset.split(',')[0].strip().split()[0])
+            if resolved:
+                return resolved
+        return ''
+
+    images = []
+    seen_srcs = set()
+
+    # Also parse <noscript> blocks which often contain the real <img> for lazy loaders
+    noscript_tags = soup.find_all('noscript')
+    for ns in noscript_tags:
+        ns_soup = BeautifulSoup(ns.decode_contents(), 'html.parser')
+        for img in ns_soup.find_all('img'):
+            ns.append(img)  # inject so the main loop picks them up
+
+    for img in soup.find_all('img'):
+        src = best_src(img)
+        alt = img.get('alt', '')
+        if not src:
+            continue
+        # Skip tracking pixels (1x1) and common pixel patterns
+        w = img.get('width', '')
+        h = img.get('height', '')
+        if (str(w) == '1' and str(h) == '1') or 'pixel' in src.lower() or 'spacer' in src.lower():
+            continue
+        if src in seen_srcs:
+            continue
+        seen_srcs.add(src)
+        images.append({
+            "src": src,
+            "existing_alt": alt
+        })
+
+    # Also check <picture> > <source> elements
+    for picture in soup.find_all('picture'):
+        source = picture.find('source')
+        if source:
+            srcset = source.get('srcset', '')
+            src = resolve_src(srcset.split(',')[0].strip().split()[0]) if srcset else ''
+            if src and src not in seen_srcs:
+                img_tag = picture.find('img')
+                alt = img_tag.get('alt', '') if img_tag else ''
+                seen_srcs.add(src)
+                images.append({"src": src, "existing_alt": alt})
+
+    # Limit to 15 images to avoid token bloat
+    images = images[:15]
+
     # Remove script and style elements
     for element in soup(["script", "style", "nav", "footer"]):
         element.decompose()
@@ -210,6 +302,7 @@ def scrape_page(url):
         "html": str(soup),
         "text": soup.get_text(separator=' ', strip=True),
         "headings": headings,
+        "images": images,
         "meta_title": meta_title,
         "meta_description": meta_description,
         "canonical_url": canonical_url

@@ -9786,6 +9786,9 @@
                                             Content</button>
                                         <button class="geo-tab" onclick="switchGeoOnPageAssetTab('schemaMarkup')">Schema
                                             Markup</button>
+                                        <button class="geo-tab"
+                                            onclick="switchGeoOnPageAssetTab('imageOptimization')">Image
+                                            Alt Text</button>
                                     </div>
                                     <div id="geoOnPageAssetContent" style="margin-top: 15px;">
                                         <div id="geoOnPage_optimizedContent">
@@ -9806,6 +9809,11 @@
                                                 onclick="copyGeoOnPageSchema()">
                                                 <i class="fas fa-copy"></i> Copy Schema
                                             </button>
+                                        </div>
+                                        <div id="geoOnPage_imageOptimization" style="display: none;">
+                                            <p style="font-size: 0.9em; margin-bottom: 10px; color: #64748b;">
+                                                Suggested alt text for images found on the page.</p>
+                                            <div id="geoOnPageImageTable"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -14597,6 +14605,34 @@
             }
 
             document.getElementById('geoOnPageSchema').value = data.schema_markup ? JSON.stringify(data.schema_markup, null, 2) : "";
+
+            // ── Render Image Optimization table ──
+            const imgTableEl = document.getElementById('geoOnPageImageTable');
+            const imgData = data.image_optimization || [];
+            if (imgData.length > 0) {
+                let imgHtml = '<div style="overflow-x:auto;">' +
+                    '<table style="width:100%;border-collapse:collapse;font-size:0.85em;">' +
+                    '<thead><tr style="background:#f1f5f9;">' +
+                    '<th style="padding:10px 12px;text-align:left;border-bottom:2px solid #e2e8f0;font-weight:700;color:#475569;font-size:0.8em;text-transform:uppercase;">Image URL</th>' +
+                    '<th style="padding:10px 12px;text-align:left;border-bottom:2px solid #e2e8f0;font-weight:700;color:#475569;font-size:0.8em;text-transform:uppercase;">Existing Alt Text</th>' +
+                    '<th style="padding:10px 12px;text-align:left;border-bottom:2px solid #e2e8f0;font-weight:700;color:#0369a1;font-size:0.8em;text-transform:uppercase;">Suggested Alt Text</th>' +
+                    '</tr></thead><tbody>';
+                imgData.forEach(function (img, idx) {
+                    const bgColor = idx % 2 === 0 ? '#fff' : '#f8fafc';
+                    imgHtml += '<tr data-geo-img-row style="background:' + bgColor + ';">' +
+                        '<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;word-break:break-all;max-width:250px;">' +
+                        '<div contenteditable="true" data-geo-editable data-geo-img-src="true" style="color:#475569;">' + (img.src || '') + '</div></td>' +
+                        '<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">' +
+                        '<div contenteditable="true" data-geo-editable data-geo-img-existing-alt="true" style="color:#64748b;">' + (img.existing_alt || '<span style=\'color:#94a3b8;font-style:italic;\'>No alt text</span>') + '</div></td>' +
+                        '<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;background:#f0f9ff;">' +
+                        '<div contenteditable="true" data-geo-editable data-geo-img-suggested-alt="true" style="color:#0c4a6e;font-weight:500;">' + (img.suggested_alt || '') + '</div></td>' +
+                        '</tr>';
+                });
+                imgHtml += '</tbody></table></div>';
+                imgTableEl.innerHTML = imgHtml;
+            } else {
+                imgTableEl.innerHTML = '<p style="font-size:0.9em;color:#94a3b8;font-style:italic;">No images found on the page.</p>';
+            }
         }
 
         function switchGeoOnPageAssetTab(tabId) {
@@ -14622,7 +14658,7 @@
             const resultsArea = document.getElementById('geoOnPageResults');
             // Build a row-indexed array. Index 0 = row 1, index 1 = row 2, etc.
             // We allocate up to row 149 to cover Image Optimisation.
-            const totalRows = 149;
+            const totalRows = 165;
             const rows = new Array(totalRows).fill('');
 
             // Helper: sanitise text for TSV (strip tabs and newlines)
@@ -14778,6 +14814,19 @@
                 if (addRow < 140) {
                     rows[addRow] = ['[Insight] ' + clean(el.textContent), '', '', ''].join(T);
                     addRow++;
+                }
+            });
+
+            // ─── Rows 142+: Image Optimisation data (from DOM) ───
+            const imgRows = resultsArea.querySelectorAll('[data-geo-img-row]');
+            let imgRow = 142;
+            imgRows.forEach(tr => {
+                if (imgRow < totalRows) {
+                    const srcEl = tr.querySelector('[data-geo-img-src]');
+                    const existAltEl = tr.querySelector('[data-geo-img-existing-alt]');
+                    const sugAltEl = tr.querySelector('[data-geo-img-suggested-alt]');
+                    rows[imgRow] = [clean(srcEl ? srcEl.textContent : ''), '', '', clean(existAltEl ? existAltEl.textContent : ''), clean(sugAltEl ? sugAltEl.textContent : '')].join(T);
+                    imgRow++;
                 }
             });
 
