@@ -1457,7 +1457,7 @@
         }
 
         #crawlerReport {
-            max-height: 600px;
+            max-height: 75vh; min-height: 600px;
             overflow: auto;
             border: 1px solid #ddd;
             border-radius: 8px;
@@ -7617,26 +7617,48 @@
         <!-- COCKPIT SECTION START   -->
         <!-- ======================= -->
         <div id="cockpitSection" style="display: none; padding: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                <h1 style="color: #1e293b; font-size: 2.2em; margin: 0;">Business Cockpit</h1>
-                <button onclick="refreshCockpitData()" class="discovery-btn-run" style="padding: 10px 20px;">
-                    <i class="fas fa-sync-alt"></i> Refresh All Data
-                </button>
-            </div>
+
 
             <div class="discovery-platform-list"
-                style="grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); gap: 30px;">
+                style="grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); gap: 15px;">
 
                 <!-- Monday.com Card -->
-                <div class="geo-card" style="display: flex; flex-direction: column; height: 400px;">
-                    <div class="geo-card-header">
-                        <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
-                            <img src="https://monday.com/p/wp-content/uploads/2020/06/Logo.svg" alt="Monday.com"
-                                style="height: 24px;">
-                            Actionable Tasks
-                        </h3>
-                        <span id="cockpit-monday-count" class="badge-action"
-                            style="font-size: 14px; padding: 5px 10px;">Loading...</span>
+                <div class="geo-card" style="display: flex; flex-direction: column; height: 75vh; min-height: 600px;">
+                    <div class="geo-card-header" style="flex-direction: column; align-items: stretch; gap: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                                <img src="https://monday.com/favicon.ico" alt="Monday.com" style="height: 24px;">
+                                Actionable Tasks
+                            </h3>
+                            <span id="cockpit-monday-count" class="badge-action"
+                                style="font-size: 14px; padding: 5px 10px;">Loading...</span>
+                        </div>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <!-- User Multi-select -->
+                            <div id="user-filter-container" style="position: relative; flex: 1; min-width: 140px;">
+                                <button onclick="toggleFilterDropdown('user-dropdown')" class="filter-btn"
+                                    style="width: 100%; text-align: left; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; font-size: 0.8rem; color: #1e293b; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                                    <span id="user-filter-label">All Users</span>
+                                    <i class="fas fa-chevron-down" style="font-size: 0.7rem;"></i>
+                                </button>
+                                <div id="user-dropdown" class="filter-dropdown-content"
+                                    style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; margin-top: 4px; max-height: 250px; overflow-y: auto; padding: 10px;">
+                                    <div id="user-options-list"></div>
+                                </div>
+                            </div>
+                            <!-- Status Multi-select -->
+                            <div id="status-filter-container" style="position: relative; flex: 1; min-width: 140px;">
+                                <button onclick="toggleFilterDropdown('status-dropdown')" class="filter-btn"
+                                    style="width: 100%; text-align: left; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; font-size: 0.8rem; color: #1e293b; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                                    <span id="status-filter-label">All Status</span>
+                                    <i class="fas fa-chevron-down" style="font-size: 0.7rem;"></i>
+                                </button>
+                                <div id="status-dropdown" class="filter-dropdown-content"
+                                    style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; margin-top: 4px; max-height: 250px; overflow-y: auto; padding: 10px;">
+                                    <div id="status-options-list"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div id="cockpit-monday-content" style="flex: 1; overflow-y: auto; padding-right: 10px;">
                         <div style="text-align: center; color: #64748b; padding: 40px;">
@@ -7646,8 +7668,59 @@
                     </div>
                 </div>
 
+                <!-- Monday Updates Card -->
+                <div class="geo-card" style="display: flex; flex-direction: column; height: 75vh; min-height: 600px;">
+                    <div class="geo-card-header" style="flex-direction: column; align-items: stretch; gap: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-comment-dots" style="color: #6366f1;"></i>
+                                Latest Item Updates
+                            </h3>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <button onclick="refreshCockpitData()" class="discovery-btn-run"
+                                    style="padding: 4px 12px; font-size: 0.8rem;">
+                                    <i class="fas fa-sync-alt"></i> Refresh
+                                </button>
+                                <span id="cockpit-updates-count" class="badge-action"
+                                    style="font-size: 14px; padding: 5px 10px; background: rgba(99, 102, 241, 0.1); color: #6366f1;">-</span>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <!-- Said By Multi-select -->
+                            <div id="author-filter-container" style="position: relative; flex: 1; min-width: 140px;">
+                                <button onclick="toggleFilterDropdown('author-dropdown')" class="filter-btn"
+                                    style="width: 100%; text-align: left; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; font-size: 0.8rem; color: #1e293b; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                                    <span id="author-filter-label">All Authors</span>
+                                    <i class="fas fa-chevron-down" style="font-size: 0.7rem;"></i>
+                                </button>
+                                <div id="author-dropdown" class="filter-dropdown-content"
+                                    style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; margin-top: 4px; max-height: 250px; overflow-y: auto; padding: 10px;">
+                                    <div id="author-options-list"></div>
+                                </div>
+                            </div>
+                            <!-- Free Text Search -->
+                            <div id="search-filter-container" style="position: relative; flex: 1; min-width: 140px;">
+                                <div style="position: relative; width: 100%;">
+                                    <i class="fas fa-search"
+                                        style="position: absolute; left: 10px; top: 10px; color: #94a3b8; font-size: 0.8rem;"></i>
+                                    <input type="text" id="update-search-input" placeholder="Search updates..."
+                                        onkeyup="updateSearchFilter(this.value)"
+                                        style="width: 100%; padding: 8px 12px 8px 30px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.8rem; color: #1e293b; box-sizing: border-box;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="cockpit-updates-content" style="flex: 1; overflow-y: auto; padding-right: 10px;">
+                        <div style="text-align: center; color: #64748b; padding: 40px;">
+                            <i class="fas fa-spinner fa-spin fa-2x"></i>
+                            <p style="margin-top: 15px;">Fetching updates...</p>
+                        </div>
+                    </div>
+
+                </div>
+
                 <!-- SE Ranking Card -->
-                <div class="geo-card" style="display: flex; flex-direction: column; height: 400px;">
+                <div class="geo-card" style="display: flex; flex-direction: column; height: 75vh; min-height: 600px;">
                     <div class="geo-card-header">
                         <h3 style="margin: 0; font-size: 1.1em; color: #3b82f6;"><i class="fas fa-chart-line"
                                 style="margin-right: 8px;"></i> Global Top Movers</h3>
@@ -9171,7 +9244,8 @@
                             <input type="file" id="smm-response-files" multiple accept=".pdf,.docx,image/*"
                                 style="margin-top: 5px; display: block;" onchange="renderSmmResponseAttachments()">
                             <div id="smm-response-attachment-preview" class="attachment-preview"
-                                style="margin-top: 10px;"></div>
+                                style="margin-top: 10px;">
+                            </div>
                         </div>
 
                         <div style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
@@ -11997,7 +12071,8 @@
                                     <div
                                         style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
                                         Active Users: <br><strong id="ga4ActiveUsers"
-                                            style="font-size: 1.5em;">-</strong></div>
+                                            style="font-size: 1.5em;">-</strong>
+                                    </div>
                                     <div
                                         style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
                                         Sessions: <br><strong id="ga4Sessions" style="font-size: 1.5em;">-</strong>
@@ -12005,7 +12080,8 @@
                                     <div
                                         style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
                                         Conversions: <br><strong id="ga4Conversions"
-                                            style="font-size: 1.5em;">-</strong></div>
+                                            style="font-size: 1.5em;">-</strong>
+                                    </div>
                                 </div>
                                 <div style="margin-top: 25px; padding-top: 25px; border-top: 1px solid #eee;">
                                     <canvas id="ga4TrafficChart"
@@ -12116,7 +12192,8 @@
                                             <label
                                                 style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
                                                     type="checkbox" onchange="adsFieldChanged()"
-                                                    value="campaign.status"> Status</label>
+                                                    value="campaign.status">
+                                                Status</label>
                                             <label
                                                 style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
                                                     type="checkbox" onchange="adsFieldChanged()"
@@ -12124,7 +12201,8 @@
                                             <label
                                                 style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
                                                     type="checkbox" onchange="adsFieldChanged()"
-                                                    value="campaign.end_date"> End Date</label>
+                                                    value="campaign.end_date">
+                                                End Date</label>
 
                                             <div
                                                 style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
@@ -12140,7 +12218,8 @@
                                             <label
                                                 style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
                                                     type="checkbox" onchange="adsFieldChanged()"
-                                                    value="segments.device"> Device</label>
+                                                    value="segments.device">
+                                                Device</label>
 
                                             <div
                                                 style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
@@ -12854,134 +12933,436 @@
             showMainSection('cockpitSection', null);
         }
 
+
+        let cockpitState = {
+            mondayItems: [],
+            mondayUpdates: [],
+            updatesPage: 1,
+            updatesMaxPages: 10, // Safety limit
+            hasMoreUpdates: true,
+            selectedUsers: new Set(),
+            selectedStatuses: new Set(),
+            selectedUpdateAuthors: new Set(),
+            selectedUpdateMentions: new Set()
+        };
+
         function refreshCockpitData() {
             fetchCockpitMonday();
+            // Reset updates pagination
+            cockpitState.updatesPage = 1;
+            cockpitState.mondayUpdates = [];
+            cockpitState.hasMoreUpdates = true;
+            fetchMondayUpdates();
             fetchGlobalSERankingMovers();
+        }
+
+        function toggleFilterDropdown(id) {
+            const dropdown = document.getElementById(id);
+            const isVisible = dropdown.style.display === 'block';
+
+            // Close all first
+            document.querySelectorAll('.filter-dropdown-content').forEach(el => el.style.display = 'none');
+
+            if (!isVisible) {
+                dropdown.style.display = 'block';
+                // Close when clicking outside
+                const closeHandler = (e) => {
+                    if (!dropdown.parentElement.contains(e.target)) {
+                        dropdown.style.display = 'none';
+                        document.removeEventListener('click', closeHandler);
+                    }
+                };
+                setTimeout(() => document.addEventListener('click', closeHandler), 0);
+            }
         }
 
         async function fetchCockpitMonday() {
             const mondayEl = document.getElementById('cockpit-monday-content');
             const badgeEl = document.getElementById('cockpit-monday-count');
             try {
-                mondayEl.innerHTML = '<div style="text-align: center; color: #64748b; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p style="margin-top: 15px;">Fetching tasks from Monday.com proxy...</p></div>';
+                mondayEl.innerHTML = '<div style="text-align: center; color: #64748b; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p style="margin-top: 15px;" id="monday-fetch-status">Connecting to Monday.com...</p></div>';
 
-                // Query the AWS API Gateway identical to backlinks.html
-                const resp = await fetch('https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: "get_board_items", fetch_type: "all_campaigns", cursor: null })
-                });
+                let allItems = [];
+                let cursor = null;
+                let page = 1;
 
-                let data = await resp.json();
+                do {
+                    const statusEl = document.getElementById('monday-fetch-status');
+                    if (statusEl) statusEl.innerText = `Fetching all tasks... Page ${page} (${allItems.length} items fetched)`;
 
-                // Safely unwrap nested body (handles both string and object formats)
-                if (data.body) {
-                    if (typeof data.body === 'string') {
-                        try { data = JSON.parse(data.body); } catch (e) { }
-                    } else {
-                        data = data.body;
-                    }
-                }
+                    const resp = await fetch('https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: "get_board_items", fetch_type: "all_campaigns", cursor: cursor })
+                    });
 
-                let items = [];
-                if (data.items) {
-                    items = data.items;
-                } else if (data.data?.boards?.[0]?.items_page?.items) {
-                    items = data.data.boards[0].items_page.items;
-                } else if (Array.isArray(data)) {
-                    items = data;
-                }
-
-                if (!items || items.length === 0) {
-                    badgeEl.textContent = '0';
-                    mondayEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No active tasks assigned to you right now.</div>';
-                    return;
-                }
-
-                let html = '<ul style="list-style: none; padding: 0; margin: 0;">';
-                let validCount = 0;
-
-                // Process up to 50 items for the dashboard preview
-                items.slice(0, 50).forEach(item => {
-                    if (!item.name) return;
-
-                    let status = 'Working on it';
-                    let assignee = 'Unassigned';
-                    let dueDate = 'No Date';
-
-                    // Parse columns using the logic observed in looker_studio_data.py
-                    if (item.column_values && Array.isArray(item.column_values)) {
-                        item.column_values.forEach(cv => {
-                            if (!cv.column || !cv.column.title) return;
-                            const title = cv.column.title;
-                            const text = cv.text || '';
-
-                            if (title === 'Status' || title === 'Content Status') {
-                                status = text || status;
-                            } else if (title === 'Assigned Person' || title === 'POC' || title.includes('Person')) {
-                                assignee = text || assignee;
-                            } else if (title.includes('Timeline') || title === 'Due Date') {
-                                // Extract simple date from timeline structs
-                                dueDate = text || dueDate;
-                                if (dueDate !== 'No Date' && dueDate.includes('-')) {
-                                    // "2025-01-01 - 2025-02-01"  -> take the second half
-                                    const parts = dueDate.split('-');
-                                    if (parts.length > 3) {
-                                        dueDate = parts.slice(3).join('-').trim();
-                                    }
-                                }
-                            }
-                        });
+                    let data = await resp.json();
+                    if (data.body) {
+                        try { data = typeof data.body === 'string' ? JSON.parse(data.body) : data.body; } catch (e) { }
                     }
 
-                    // For the Cockpit, we might want to skip "Done" tasks eventually, but we'll show all for now
-                    let statusColor = status.toLowerCase() === 'done' || status.toLowerCase() === 'delivered' ? 'background: #22c55e;' :
-                        status.toLowerCase().includes('wait') || status.toLowerCase().includes('stuck') ? 'background: #ef4444;' :
-                            'background: #3b82f6;';
-
-                    // We wrap the item name in a link if possible
-                    let itemLink = '#';
-                    if (item.relative_link) {
-                        itemLink = 'https://mediaone-business-group-pte-ltd.monday.com' + item.relative_link;
+                    let pageItems = [];
+                    if (data.items) {
+                        pageItems = data.items;
+                    } else if (data.data?.boards?.[0]?.items_page?.items) {
+                        pageItems = data.data.boards[0].items_page.items;
+                    } else if (Array.isArray(data)) {
+                        pageItems = data;
                     }
 
-                    html += `
-                        <li style="padding: 15px; border-bottom: 1px solid #e2e8f0;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                                <a href="${itemLink}" target="_blank" style="font-weight: 500; color: #1e293b; text-decoration: none; max-width: 70%; line-height: 1.4;">
-                                    ${item.name}
-                                </a>
-                                <span style="${statusColor} color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 500; white-space: nowrap;">
-                                    ${status}
-                                </span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #64748b;">
-                                <div style="display: flex; align-items: center; gap: 6px;">
-                                    <i class="fas fa-user-circle"></i> ${assignee}
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 6px;">
-                                    <i class="far fa-calendar-alt"></i> Due: ${dueDate}
-                                </div>
-                            </div>
-                        </li>
-                    `;
-                    validCount++;
-                });
+                    allItems = allItems.concat(pageItems);
+                    cursor = data.cursor || data.data?.boards?.[0]?.items_page?.cursor || null;
+                    page++;
 
-                html += '</ul>';
+                } while (cursor && page < 20); // Safety limit
 
-                if (validCount === 0) {
-                    html = '<div style="padding: 20px; text-align: center; color: #64748b;">No renderable tasks processed.</div>';
-                }
+                cockpitState.mondayItems = allItems;
 
-                mondayEl.innerHTML = html;
-                badgeEl.textContent = validCount.toString();
+                // Reset multi-selects on fresh fetch
+                cockpitState.selectedUsers.clear();
+                cockpitState.selectedStatuses.clear();
+
+                populateMondayFilters(allItems);
+                renderMondayTasks();
 
             } catch (err) {
                 console.error('Monday error', err);
                 mondayEl.innerHTML = '<div style="padding: 20px; color: #ef4444;">Error loading Monday data.</div>';
                 badgeEl.textContent = "Error";
             }
+        }
+
+        function populateMondayFilters(items) {
+            const users = new Set();
+            const statuses = new Set();
+
+            items.forEach(item => {
+                if (item.column_values && Array.isArray(item.column_values)) {
+                    item.column_values.forEach(cv => {
+                        const title = cv.column?.title || '';
+                        const text = cv.text || '';
+                        if (title === 'Status' || title === 'Content Status') {
+                            if (text) statuses.add(text);
+                        } else if (title === 'Assigned Person' || title === 'POC' || title.includes('Person')) {
+                            const names = text ? text.split(',').map(n => n.trim()) : [];
+                            names.forEach(name => { if (name) users.add(name); });
+                        }
+                    });
+                }
+            });
+
+            // Populate User Dropdown
+            const userList = document.getElementById('user-options-list');
+            if (userList) {
+                userList.innerHTML = Array.from(users).sort().map(user => `
+                    <label style="display: flex; align-items: center; gap: 10px; padding: 6px 4px; cursor: pointer; font-size: 0.85rem; color: #334155;">
+                        <input type="checkbox" value="${user}" onchange="updateFilter('user', this.value, this.checked)" style="width: 14px; height: 14px;">
+                        ${user}
+                    </label>
+                `).join('');
+            }
+
+            // Populate Status Dropdown
+            const statusList = document.getElementById('status-options-list');
+            if (statusList) {
+                statusList.innerHTML = Array.from(statuses).sort().map(status => `
+                    <label style="display: flex; align-items: center; gap: 10px; padding: 6px 4px; cursor: pointer; font-size: 0.85rem; color: #334155;">
+                        <input type="checkbox" value="${status}" onchange="updateFilter('status', this.value, this.checked)" style="width: 14px; height: 14px;">
+                        ${status}
+                    </label>
+                `).join('');
+            }
+
+            updateFilterLabels('tasks');
+        }
+
+        function updateFilter(type, value, checked) {
+            if (type === 'user') {
+                checked ? cockpitState.selectedUsers.add(value) : cockpitState.selectedUsers.delete(value);
+                updateFilterLabels('tasks');
+                renderMondayTasks();
+            } else if (type === 'status') {
+                checked ? cockpitState.selectedStatuses.add(value) : cockpitState.selectedStatuses.delete(value);
+                updateFilterLabels('tasks');
+                renderMondayTasks();
+            } else if (type === 'author') {
+                checked ? cockpitState.selectedUpdateAuthors.add(value) : cockpitState.selectedUpdateAuthors.delete(value);
+                updateFilterLabels('updates');
+                renderMondayUpdates();
+            }
+        }
+
+        function updateSearchFilter(text) {
+            cockpitState.updateSearchText = text.toLowerCase();
+            renderMondayUpdates();
+        }
+
+        function updateFilterLabels(context) {
+            if (context === 'tasks') {
+                const userLabel = document.getElementById('user-filter-label');
+                const statusLabel = document.getElementById('status-filter-label');
+
+                if (userLabel) userLabel.innerText = cockpitState.selectedUsers.size === 0 ? 'All Users' : cockpitState.selectedUsers.size === 1 ? Array.from(cockpitState.selectedUsers)[0] : `${cockpitState.selectedUsers.size} Selected`;
+                if (statusLabel) statusLabel.innerText = cockpitState.selectedStatuses.size === 0 ? 'All Status' : cockpitState.selectedStatuses.size === 1 ? Array.from(cockpitState.selectedStatuses)[0] : `${cockpitState.selectedStatuses.size} Selected`;
+            } else if (context === 'updates') {
+                const authorLabel = document.getElementById('author-filter-label');
+
+
+                if (authorLabel) authorLabel.innerText = cockpitState.selectedUpdateAuthors.size === 0 ? 'All Authors' : cockpitState.selectedUpdateAuthors.size === 1 ? Array.from(cockpitState.selectedUpdateAuthors)[0] : `${cockpitState.selectedUpdateAuthors.size} Authors`;
+
+            }
+        }
+
+        function renderMondayTasks() {
+            const mondayEl = document.getElementById('cockpit-monday-content');
+            const badgeEl = document.getElementById('cockpit-monday-count');
+
+            let html = '<ul style="list-style: none; padding: 0; margin: 0;">';
+            let validCount = 0;
+
+            cockpitState.mondayItems.forEach(item => {
+                if (!item.name) return;
+
+                let status = 'Working on it';
+                let assignee = 'Unassigned';
+                let assigneeList = [];
+                let dueDate = 'No Date';
+                let boardName = item.board?.name || 'Monday Board';
+
+                if (item.column_values && Array.isArray(item.column_values)) {
+                    item.column_values.forEach(cv => {
+                        const title = cv.column?.title || '';
+                        const text = cv.text || '';
+                        if (title === 'Status' || title === 'Content Status') {
+                            status = text || status;
+                        } else if (title === 'Assigned Person' || title === 'POC' || title.includes('Person')) {
+                            assignee = text || assignee;
+                            if (text) assigneeList = text.split(',').map(n => n.trim());
+                        } else if (title.includes('Timeline') || title === 'Due Date') {
+                            dueDate = text || dueDate;
+                            if (dueDate !== 'No Date' && dueDate.includes('-')) {
+                                const parts = dueDate.split('-');
+                                if (parts.length > 3) dueDate = parts.slice(3).join('-').trim();
+                            }
+                        }
+                    });
+                }
+
+                // Filtering: If set is empty, show all. If not empty, item must match at least one in set.
+                const userMatch = cockpitState.selectedUsers.size === 0 ||
+                    assigneeList.some(name => cockpitState.selectedUsers.has(name)) ||
+                    (assigneeList.length === 0 && cockpitState.selectedUsers.has('Unassigned'));
+
+                const statusMatch = cockpitState.selectedStatuses.size === 0 ||
+                    cockpitState.selectedStatuses.has(status);
+
+                if (!userMatch || !statusMatch) return;
+
+                let statusColor = status.toLowerCase() === 'done' || status.toLowerCase() === 'delivered' ? 'background: #22c55e;' :
+                    status.toLowerCase().includes('wait') || status.toLowerCase().includes('stuck') ? 'background: #ef4444;' :
+                        'background: #3b82f6;';
+
+                let itemLink = item.relative_link ? 'https://mediaone-business-group-pte-ltd.monday.com' + item.relative_link : '#';
+
+                html += `
+                    <li style="padding: 15px; border-bottom: 1px solid #e2e8f0;">
+                        <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: #6366f1; margin-bottom: 4px; letter-spacing: 0.05em;">
+                            ${boardName}
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                            <a href="${itemLink}" target="_blank" style="font-weight: 500; color: #1e293b; text-decoration: none; max-width: 70%; line-height: 1.4; font-size: 0.95rem;">
+                                ${item.name}
+                            </a>
+                            <span style="${statusColor} color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; white-space: nowrap;">
+                                ${status}
+                            </span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #64748b;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <i class="fas fa-user-circle"></i> ${assignee}
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <i class="far fa-calendar-alt"></i> Due: ${dueDate}
+                            </div>
+                        </div>
+                    </li>
+                `;
+                validCount++;
+            });
+
+            html += '</ul>';
+            if (validCount === 0) html = '<div style="padding: 40px; text-align: center; color: #64748b;">No tasks match your filters.</div>';
+
+            mondayEl.innerHTML = html;
+            badgeEl.textContent = validCount.toString();
+        }
+
+        async function fetchMondayUpdates(isLoadMore = false) {
+            const updatesEl = document.getElementById('cockpit-updates-content');
+            const loadMoreContainer = document.getElementById('load-more-updates-container');
+            const loadMoreBtn = document.getElementById('load-more-btn');
+
+            if (!isLoadMore) {
+                // Initial load: start fresh
+                cockpitState.updatesPage = 1;
+                cockpitState.updatesMaxPages = 10;
+                cockpitState.mondayUpdates = [];
+                cockpitState.hasMoreUpdates = true;
+                updatesEl.innerHTML = '<div style="text-align: center; color: #64748b; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p id="updates-fetch-status" style="margin-top: 15px;">Connecting to Monday.com...</p></div>';
+            } else {
+                // Expanding pagination limits
+                cockpitState.updatesMaxPages += 10; 
+                if (loadMoreBtn) loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+            }
+
+            if (loadMoreContainer) loadMoreContainer.style.display = 'none';
+
+            let pagesFetchedThisBatch = 0;
+
+            try {
+                do {
+                    // Stop if we don't have matching loading HTML overlay
+                    const statusEl = document.getElementById('updates-fetch-status');
+                    if (statusEl && updatesEl.innerHTML.includes('updates-fetch-status')) {
+                         statusEl.innerText = `Fetching updates... Page ${cockpitState.updatesPage} (${cockpitState.mondayUpdates.length} items fetched)`;
+                    }
+
+                    const resp = await fetch('https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: "get_updates", limit: 100, page: cockpitState.updatesPage })
+                    });
+
+                    let data = await resp.json();
+                    if (data.body) {
+                        try { data = typeof data.body === 'string' ? JSON.parse(data.body) : data.body; } catch (e) { }
+                    }
+
+                    let newUpdates = [];
+                    if (data.updates) newUpdates = data.updates;
+                    else if (data.data?.updates) newUpdates = data.data.updates;
+                    else if (data.data?.boards?.[0]?.updates) newUpdates = data.data.boards[0].updates;
+                    else if (Array.isArray(data)) newUpdates = data;
+
+                    if (!newUpdates || newUpdates.length === 0) {
+                        cockpitState.hasMoreUpdates = false;
+                        break;
+                    } 
+                    
+                    cockpitState.mondayUpdates = cockpitState.mondayUpdates.concat(newUpdates);
+                    populateUpdatesFilters(cockpitState.mondayUpdates);
+                    
+                    // Progressive Rendering! Update UI immediately for users to see
+                    renderMondayUpdates();
+
+                    cockpitState.updatesPage++;
+                    pagesFetchedThisBatch++;
+
+                } while (cockpitState.hasMoreUpdates && pagesFetchedThisBatch < 10);
+
+            } catch (err) {
+                console.error('Updates error', err);
+                if (!isLoadMore) updatesEl.innerHTML = '<div style="padding: 20px; color: #ef4444;">Error loading updates.</div>';
+            }
+
+            // Restore Load More Button if there's more data
+            if (cockpitState.hasMoreUpdates) {
+                if (loadMoreContainer) loadMoreContainer.style.display = 'block';
+                if (loadMoreBtn) loadMoreBtn.innerHTML = 'Load Next 1,000 Updates';
+            }
+        }
+
+        function loadMoreUpdatesBatch() {
+            fetchMondayUpdates(true);
+        }
+
+        function populateUpdatesFilters(updates) {
+            const authors = new Set();
+            updates.forEach(upd => {
+                if (upd.creator?.name) authors.add(upd.creator.name);
+            });
+
+            // Populate Author Dropdown
+            const authorList = document.getElementById('author-options-list');
+            if (authorList) {
+                authorList.innerHTML = Array.from(authors).sort().map(author => `
+                    <label style="display: flex; align-items: center; gap: 10px; padding: 6px 4px; cursor: pointer; font-size: 0.85rem; color: #334155;">
+                        <input type="checkbox" value="${author}" onchange="updateFilter('author', this.value, this.checked)" style="width: 14px; height: 14px;">
+                        ${author}
+                    </label>
+                `).join('');
+            }
+
+            // Populate Mentions Dropdown
+            const mentionsList = document.getElementById('mentions-options-list');
+            if (mentionsList) {
+                mentionsList.innerHTML = Array.from(mentions).sort().map(mention => `
+                    <label style="display: flex; align-items: center; gap: 10px; padding: 6px 4px; cursor: pointer; font-size: 0.85rem; color: #334155;">
+                        <input type="checkbox" value="${mention}" onchange="updateFilter('mentions', this.value, this.checked)" style="width: 14px; height: 14px;">
+                        ${mention}
+                    </label>
+                `).join('');
+            }
+        }
+
+        function renderMondayUpdates() {
+            const updatesEl = document.getElementById('cockpit-updates-content');
+            const badgeEl = document.getElementById('cockpit-updates-count');
+
+
+
+            let html = '<ul style="list-style: none; padding: 0; margin: 0;">';
+            let validCount = 0;
+
+            cockpitState.mondayUpdates.forEach(upd => {
+                const author = upd.creator?.name || 'Unknown User';
+                const text = upd.text_body || upd.body || '';
+
+                // Filtering Check
+                const authorMatch = cockpitState.selectedUpdateAuthors.size === 0 || cockpitState.selectedUpdateAuthors.has(author);
+                let textMatch = true;
+                if (cockpitState.updateSearchText) {
+                    textMatch = text.toLowerCase().includes(cockpitState.updateSearchText) ||
+                        author.toLowerCase().includes(cockpitState.updateSearchText);
+                }
+
+                if (!authorMatch || !textMatch) return;
+
+                const itemName = upd.item?.name || 'Unknown Item';
+                const itemUrl = upd.item?.url || '#';
+                const boardName = upd.item?.board?.name || 'Monday Board';
+                const createdAt = upd.created_at ? new Date(upd.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Recent';
+
+                html += `
+                    <li style="padding: 15px; border-bottom: 1px solid #e2e8f0;">
+                        <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: #6366f1; margin-bottom: 4px; letter-spacing: 0.05em;">
+                            ${boardName}
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.8rem;">
+                            <a href="${itemUrl}" target="_blank" style="font-weight: 700; color: #1e293b; text-decoration: none; display: flex; align-items: center; gap: 5px;">
+                                ${itemName} <i class="fas fa-external-link-alt" style="font-size: 0.7em; color: #94a3b8;"></i>
+                            </a>
+                            <span style="color: #64748b; white-space: nowrap;">${createdAt}</span>
+                        </div>
+                        <div style="background: #f8fafc; padding: 10px; border-radius: 8px; font-size: 0.85rem; color: #334155; line-height: 1.5; margin-bottom: 8px; border-left: 3px solid #e2e8f0; white-space: pre-wrap;">${text}</div>
+                        <div style="font-size: 0.75rem; color: #64748b; display: flex; align-items: center; gap: 5px;">
+                            <i class="fas fa-user-edit"></i> <b>${author}</b>
+                        </div>
+                    </li>
+                `;
+                validCount++;
+            });
+
+            html += '</ul>';
+
+            if (validCount === 0) {
+                html = '<div style="padding: 20px; text-align: center; color: #64748b;">No matching updates found.</div>';
+            }
+
+            updatesEl.innerHTML = html;
+            badgeEl.textContent = validCount.toString();
+
+
         }
 
         async function fetchGlobalSERankingMovers() {

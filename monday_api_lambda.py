@@ -14,10 +14,42 @@ def lambda_handler(event, context):
 
     try:
         body = event
+        action = body.get('action')
         fetch_type = body.get('fetch_type')
         cursor = body.get('cursor')
         
-        if fetch_type == 'all_campaigns':
+        # Handle get_updates action
+        if action == 'get_updates':
+            limit = body.get('limit', 30)
+            page = body.get('page', 1)
+            updates_query = f'''
+            {{
+              updates (limit: {limit}, page: {page}) {{
+                id
+                text_body
+                created_at
+                creator {{
+                  name
+                }}
+                item {{
+                  name
+                  url
+                  board {{
+                    name
+                  }}
+                }}
+              }}
+            }}
+            '''
+            u_res = requests.post(MONDAY_API_URL, headers=headers, json={"query": updates_query})
+            u_data = u_res.json()
+            if 'errors' in u_data:
+                return response(400, u_data)
+            
+            updates = u_data.get('data', {}).get('updates', [])
+            return response(200, {"updates": updates})
+        
+        elif fetch_type == 'all_campaigns':
             # Target folders to draw project boards from
             target_folders = [
                 'PSG V3 Campaigns', '9. PSG Campaigns', '9. Regular Campaigns',
