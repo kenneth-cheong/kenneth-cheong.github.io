@@ -12874,9 +12874,13 @@
 
                 let data = await resp.json();
 
-                // Safely parse nested HTTP stringifies
-                if (data.body && typeof data.body === 'string') {
-                    try { data = JSON.parse(data.body); } catch (e) { }
+                // Safely unwrap nested body (handles both string and object formats)
+                if (data.body) {
+                    if (typeof data.body === 'string') {
+                        try { data = JSON.parse(data.body); } catch (e) { }
+                    } else {
+                        data = data.body;
+                    }
                 }
 
                 let items = [];
