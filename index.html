@@ -2406,13 +2406,18 @@
             background-color: #004c9d;
             color: white;
             cursor: pointer;
-            padding: 10px;
+            padding: 12px 20px;
             width: 99%;
             border: none;
             text-align: left;
             outline: none;
-            font-size: 1em;
-            transition: background-color 0.3s ease;
+            font-size: 1.1em;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 2px;
         }
 
         .collapsible.running {
@@ -5034,7 +5039,11 @@
         }
 
         .collapsible i {
-            margin-right: 1em;
+            color: white !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 20px;
+            text-align: center;
         }
 
 
@@ -8480,12 +8489,15 @@
 
 
 
-                        <button class="collapsible" id="onPageResultsCollapsible" style="display: none;">Meta Data and
+                        <button class="collapsible" id="onPageResultsCollapsible" style="display: none;"><i
+                                class="fas fa-plus-square"></i><i class="fas fa-file-alt"></i>Meta Data and
                             Headings</button>
                         <div class="content" id="onPageResults"></div>
-                        <button class="collapsible" id="imageCollapsible" style="display: none;">Image Alt Text</button>
+                        <button class="collapsible" id="imageCollapsible" style="display: none;"><i
+                                class="fas fa-plus-square"></i><i class="fas fa-image"></i>Image Alt Text</button>
                         <div class="content" id="imageRecommendations"></div>
-                        <button class="collapsible" id="contentCollapsible" style="display: none;">Content</button>
+                        <button class="collapsible" id="contentCollapsible" style="display: none;"><i
+                                class="fas fa-plus-square"></i><i class="fas fa-align-left"></i>Content</button>
                         <div class="content" id="contentRecommendations"></div>
                     </div>
                 </div>
@@ -9884,7 +9896,8 @@
 
                         <!-- SERP Competitor Analysis & URL Mapping (GEO) -->
                         <button class="collapsible" id="geoUrlMappingCollapsible" style="display: none;"><i
-                                class="fas fa-crosshairs"></i> SERP Competitor Analysis & URL Mapping</button>
+                                class="fas fa-plus-square"></i><i class="fas fa-crosshairs"></i> SERP Competitor
+                            Analysis & URL Mapping</button>
                         <div class="content" id="geoUrlMappingResults"></div>
 
                         <!-- Results Area (Initial state hidden) -->
@@ -11884,7 +11897,7 @@
                 <!-- GA4 Section -->
                 <div id="ga4IntegrationSection">
                     <button class="collapsible" id="ga4IntegrationBtn"><i class="fas fa-plus-square"></i><i
-                            class="fas fa-chart-pie" style="color:#f4b400; padding: 0 10px;"></i>Google Analytics
+                            class="fas fa-chart-pie"></i>Google Analytics
                         4</button>
                     <div class="content" id="ga4Content" style="display: none; padding: 20px;">
                         <div id="ga4AuthSection"
@@ -11948,7 +11961,7 @@
                 <!-- Google Ads Section -->
                 <div id="adsIntegrationSection">
                     <button class="collapsible" id="adsIntegrationBtn"><i class="fas fa-plus-square"></i><i
-                            class="fas fa-ad" style="color:#0f9d58; padding: 0 10px;"></i>Google Ads</button>
+                            class="fas fa-ad"></i>Google Ads</button>
                     <div class="content" id="adsContent" style="display: none; padding: 20px;">
                         <div id="adsAuthSection"
                             style="margin-bottom: 20px; padding: 15px; background: #e6f4ea; border-radius: 8px; border: 1px solid #ceead6;">
@@ -12213,6 +12226,26 @@
                                             onmouseout="this.style.opacity='0.6'"></i>
                                     </div>
                                     <div id="adsAdGroupDropdownMenu"
+                                        style="display: none; position: absolute; left: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 10px; width: 280px; z-index: 101; max-height: 300px; overflow-y: auto;">
+                                        <!-- Checkboxes will be rendered here -->
+                                    </div>
+                                </div>
+
+                                <div id="adsFilterAd" style="display: none; align-items: center; position: relative;">
+                                    <div id="adsFilterAdChip"
+                                        onclick="event.stopPropagation(); toggleAdsHierarchyDropdown('ad')"
+                                        style="display: flex; align-items: center; gap: 6px; background: #fff7ed; padding: 6px 12px; border-radius: 20px; color: #9a3412; border: 1px solid #fed7aa; cursor: pointer;">
+                                        <span
+                                            style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.7;">Ad</span>
+                                        <span id="adsBreadcrumbAdName" style="font-weight: 600;">Select Ad...</span>
+                                        <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 4px;"></i>
+                                        <i id="adsClearAd" class="fas fa-times"
+                                            onclick="event.stopPropagation(); clearHierarchyLevel('ad')"
+                                            style="cursor: pointer; margin-left: 4px; opacity: 0.6; padding: 2px; display: none;"
+                                            title="Clear Selection" onmouseover="this.style.opacity='1'"
+                                            onmouseout="this.style.opacity='0.6'"></i>
+                                    </div>
+                                    <div id="adsAdDropdownMenu"
                                         style="display: none; position: absolute; left: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 10px; width: 280px; z-index: 101; max-height: 300px; overflow-y: auto;">
                                         <!-- Checkboxes will be rendered here -->
                                     </div>
@@ -17584,10 +17617,13 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         let adsCurrentLevel = 'campaign'; // 'campaign', 'ad_group', or 'ad'
         let adsSelectedCampaignIds = [];
         let adsSelectedAdGroupIds = [];
+        let adsSelectedAdIds = [];
         let adsAvailableCampaigns = []; // List of {id, name} for dropdown
         let adsAvailableAdGroups = [];  // List of {id, name} for dropdown
+        let adsAvailableAds = [];       // List of {id, name} for dropdown
         let adsCampaignNameMap = {}; // ID to Name
         let adsAdGroupNameMap = {}; // ID to Name
+        let adsAdNameMap = {};       // ID to Name
 
         const adsFieldLabels = {
             'campaign.name': 'Campaign', 'campaign.status': 'Status', 'campaign.start_date': 'Start Date', 'campaign.end_date': 'End Date',
@@ -17646,6 +17682,8 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
             document.getElementById('adsCurrentViewLabel').textContent = 'Ad Groups';
             document.getElementById('adsFilterCampaign').style.display = 'flex';
+            document.getElementById('adsFilterAdGroup').style.display = 'none';
+            document.getElementById('adsFilterAd').style.display = 'none';
             updateHierarchyChipLabels();
             updateAdsColumnAvailability();
             updateSelectedAdsProperty(true);
@@ -17655,8 +17693,10 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             if (adsCurrentLevel === 'ad') {
                 adsCurrentLevel = 'ad_group';
                 adsSelectedAdGroupIds = [];
+                adsSelectedAdIds = [];
                 document.getElementById('adsCurrentViewLabel').textContent = 'Ad Groups';
                 document.getElementById('adsFilterAdGroup').style.display = 'none';
+                document.getElementById('adsFilterAd').style.display = 'none';
                 updateAdsColumnAvailability();
                 updateSelectedAdsProperty(true);
             }
@@ -17682,55 +17722,175 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             adsCurrentLevel = 'campaign';
             adsSelectedCampaignIds = [];
             adsSelectedAdGroupIds = [];
+            adsSelectedAdIds = [];
             document.getElementById('adsCurrentViewLabel').textContent = 'Campaigns';
             document.getElementById('adsFilterCampaign').style.display = 'none';
             document.getElementById('adsFilterAdGroup').style.display = 'none';
+            document.getElementById('adsFilterAd').style.display = 'none';
             updateAdsColumnAvailability();
             updateSelectedAdsProperty(true);
+        }
+
+        function selectAccountFromChip(accountId) {
+            const selectEl = document.getElementById('adsSiteList');
+            selectEl.value = accountId;
+            document.getElementById('adsAccountDropdownMenu').style.display = 'none';
+
+            // Crucial: Clear lower levels
+            adsSelectedCampaignIds = [];
+            adsSelectedAdGroupIds = [];
+            adsSelectedAdIds = [];
+            adsCurrentLevel = 'campaign';
+            document.getElementById('adsCurrentViewLabel').textContent = 'Campaigns';
+
+            updateHierarchyChipLabels();
+            updateAdsColumnAvailability();
+            updateSelectedAdsProperty(true);
+        }
+
+        function clearHierarchyLevel(level) {
+            if (level === 'campaign') {
+                adsSelectedCampaignIds = [];
+                adsSelectedAdGroupIds = [];
+                adsSelectedAdIds = [];
+                adsCurrentLevel = 'campaign';
+                document.getElementById('adsCurrentViewLabel').textContent = 'Campaigns';
+            } else if (level === 'ad_group') {
+                adsSelectedAdGroupIds = [];
+                adsSelectedAdIds = [];
+                adsCurrentLevel = 'ad_group';
+                if (adsSelectedCampaignIds.length === 1) {
+                    adsCurrentLevel = 'ad_group';
+                    const name = adsCampaignNameMap[adsSelectedCampaignIds[0]] || 'Campaign';
+                    document.getElementById('adsCurrentViewLabel').textContent = `Ad Groups for ${name}`;
+                } else if (adsSelectedCampaignIds.length > 1) {
+                    adsCurrentLevel = 'ad_group';
+                    document.getElementById('adsCurrentViewLabel').textContent = `Ad Groups for ${adsSelectedCampaignIds.length} Campaigns`;
+                } else {
+                    adsCurrentLevel = 'campaign';
+                    document.getElementById('adsCurrentViewLabel').textContent = 'Campaigns';
+                }
+            } else if (level === 'ad') {
+                adsSelectedAdIds = [];
+                adsCurrentLevel = 'ad';
+                if (adsSelectedAdGroupIds.length === 1) {
+                    const name = adsAdGroupNameMap[adsSelectedAdGroupIds[0]] || 'Ad Group';
+                    document.getElementById('adsCurrentViewLabel').textContent = `Ads for ${name}`;
+                } else if (adsSelectedAdGroupIds.length > 1) {
+                    document.getElementById('adsCurrentViewLabel').textContent = `Ads for ${adsSelectedAdGroupIds.length} Ad Groups`;
+                } else {
+                    adsCurrentLevel = 'ad_group';
+                    document.getElementById('adsCurrentViewLabel').textContent = 'Ad Groups';
+                }
+            }
+            updateHierarchyChipLabels();
+            updateAdsColumnAvailability();
+            updateSelectedAdsProperty(true);
+        }
+
+        function toggleAdsHierarchyDropdown(level) {
+            // Close other dropdowns first
+            document.getElementById('adsAccountDropdownMenu').style.display = 'none';
+            document.getElementById('adsCampaignDropdownMenu').style.display = 'none';
+            document.getElementById('adsAdGroupDropdownMenu').style.display = 'none';
+            document.getElementById('adsAdDropdownMenu').style.display = 'none';
+            document.getElementById('adsColumnMenu').style.display = 'none';
+
+            let menu;
+            if (level === 'account') {
+                menu = document.getElementById('adsAccountDropdownMenu');
+                if (menu.style.display !== 'block') renderAccountDropdown();
+            } else if (level === 'campaign') {
+                menu = document.getElementById('adsCampaignDropdownMenu');
+                if (menu.style.display !== 'block') renderHierarchyDropdown('campaign');
+            } else if (level === 'ad_group') {
+                menu = document.getElementById('adsAdGroupDropdownMenu');
+                if (menu.style.display !== 'block') renderHierarchyDropdown('ad_group');
+            } else if (level === 'ad') {
+                menu = document.getElementById('adsAdDropdownMenu');
+                if (menu.style.display !== 'block') renderHierarchyDropdown('ad');
+            }
+
+            if (menu) {
+                menu.style.display = 'block';
+            }
         }
 
         function applyAdsHierarchySelection(level) {
             // Close the dropdown
             if (level === 'campaign') {
                 document.getElementById('adsCampaignDropdownMenu').style.display = 'none';
+                if (adsSelectedCampaignIds.length > 0) {
+                    adsCurrentLevel = 'ad_group';
+                    if (adsSelectedCampaignIds.length === 1) {
+                        const name = adsCampaignNameMap[adsSelectedCampaignIds[0]] || 'Campaign';
+                        document.getElementById('adsCurrentViewLabel').textContent = `Ad Groups for ${name}`;
+                    } else {
+                        document.getElementById('adsCurrentViewLabel').textContent = `Ad Groups for ${adsSelectedCampaignIds.length} Campaigns`;
+                    }
+                } else {
+                    adsCurrentLevel = 'campaign';
+                    document.getElementById('adsCurrentViewLabel').textContent = 'Campaigns';
+                }
             } else if (level === 'ad_group') {
                 document.getElementById('adsAdGroupDropdownMenu').style.display = 'none';
+                if (adsSelectedAdGroupIds.length > 0) {
+                    adsCurrentLevel = 'ad';
+                    if (adsSelectedAdGroupIds.length === 1) {
+                        const name = adsAdGroupNameMap[adsSelectedAdGroupIds[0]] || 'Ad Group';
+                        document.getElementById('adsCurrentViewLabel').textContent = `Ads for ${name}`;
+                    } else {
+                        document.getElementById('adsCurrentViewLabel').textContent = `Ads for ${adsSelectedAdGroupIds.length} Ad Groups`;
+                    }
+                } else {
+                    adsCurrentLevel = 'ad_group';
+                    document.getElementById('adsCurrentViewLabel').textContent = 'Ad Groups';
+                }
+            } else if (level === 'ad') {
+                document.getElementById('adsAdDropdownMenu').style.display = 'none';
+                // Stay on 'ad' level
+                adsCurrentLevel = 'ad';
+                if (adsSelectedAdIds.length === 1) {
+                    const name = adsAdNameMap[adsSelectedAdIds[0]] || 'Ad';
+                    document.getElementById('adsCurrentViewLabel').textContent = `Single Ad: ${name}`;
+                } else if (adsSelectedAdIds.length > 1) {
+                    document.getElementById('adsCurrentViewLabel').textContent = `Viewing ${adsSelectedAdIds.length} Ads`;
+                }
             }
             // Trigger refresh
             updateSelectedAdsProperty(true);
         }
 
         function toggleHierarchySelection(level, id) {
+            let dataList = [];
+            let nameMap = {};
+            let selArr = [];
+
             if (level === 'campaign') {
-                const index = adsSelectedCampaignIds.indexOf(id);
-                if (index > -1) {
-                    adsSelectedCampaignIds.splice(index, 1);
-                } else {
-                    adsSelectedCampaignIds.push(id);
-                }
-
-                // If the user unchecks everything, reset to the top layer
-                if (adsSelectedCampaignIds.length === 0) {
-                    clearHierarchyLevel('campaign');
-                    return;
-                }
+                dataList = adsAvailableCampaigns;
+                nameMap = adsCampaignNameMap;
+                selArr = adsSelectedCampaignIds;
             } else if (level === 'ad_group') {
-                const index = adsSelectedAdGroupIds.indexOf(id);
-                if (index > -1) {
-                    adsSelectedAdGroupIds.splice(index, 1);
-                } else {
-                    adsSelectedAdGroupIds.push(id);
-                }
+                dataList = adsAvailableAdGroups;
+                nameMap = adsAdGroupNameMap;
+                selArr = adsSelectedAdGroupIds;
+            } else if (level === 'ad') {
+                dataList = adsAvailableAds;
+                nameMap = adsAdNameMap;
+                selArr = adsSelectedAdIds;
+            }
 
-                // If the user unchecks everything, jump up a layer
-                if (adsSelectedAdGroupIds.length === 0) {
-                    navBackToAdGroups();
-                    return;
-                }
+            const item = dataList.find(i => String(i.id) === String(id));
+            if (item) nameMap[id] = item.name;
+
+            const index = selArr.indexOf(id);
+            if (index > -1) {
+                selArr.splice(index, 1);
+            } else {
+                selArr.push(id);
             }
 
             updateHierarchyChipLabels();
-            // updateSelectedAdsProperty(true); // Removed to prevent immediate reload
         }
 
         function updateHierarchyChipLabels() {
@@ -17781,6 +17941,27 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             } else {
                 adgChip.style.display = 'none';
             }
+
+            // Ad chip logic
+            const adChip = document.getElementById('adsFilterAd');
+            const adLabelObj = document.getElementById('adsBreadcrumbAdName');
+            const adClear = document.getElementById('adsClearAd');
+
+            if (adsSelectedAdGroupIds.length > 0) {
+                adChip.style.display = 'flex';
+                if (adsSelectedAdIds.length === 0) {
+                    adLabelObj.textContent = 'Select Ad...';
+                    adClear.style.display = 'none';
+                } else if (adsSelectedAdIds.length === 1) {
+                    adLabelObj.textContent = adsAdNameMap[adsSelectedAdIds[0]] || 'Loading...';
+                    adClear.style.display = 'inline-block';
+                } else {
+                    adLabelObj.textContent = `${adsSelectedAdIds.length} Ads`;
+                    adClear.style.display = 'inline-block';
+                }
+            } else {
+                adChip.style.display = 'none';
+            }
         }
 
         function renderHierarchyDropdown(level) {
@@ -17793,6 +17974,10 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 container = document.getElementById('adsAdGroupDropdownMenu');
                 dataList = adsAvailableAdGroups;
                 selectedIds = adsSelectedAdGroupIds;
+            } else if (level === 'ad') {
+                container = document.getElementById('adsAdDropdownMenu');
+                dataList = adsAvailableAds;
+                selectedIds = adsSelectedAdIds;
             } else { return; }
 
             if (!container) return;
@@ -17826,7 +18011,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
         function filterHierarchyDropdown(inputEl, level) {
             const filterText = inputEl.value.toLowerCase();
-            const container = level === 'campaign' ? document.getElementById('adsCampaignDropdownMenu') : (level === 'account' ? document.getElementById('adsAccountDropdownMenu') : document.getElementById('adsAdGroupDropdownMenu'));
+            const container = level === 'campaign' ? document.getElementById('adsCampaignDropdownMenu') : (level === 'ad_group' ? document.getElementById('adsAdGroupDropdownMenu') : document.getElementById('adsAdDropdownMenu'));
             const items = container.querySelectorAll('.dropdown-item');
 
             items.forEach(item => {
@@ -17863,58 +18048,6 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             container.innerHTML = html;
         }
 
-        function toggleAdsHierarchyDropdown(level) {
-            // Close other dropdowns first
-            document.getElementById('adsAccountDropdownMenu').style.display = 'none';
-            document.getElementById('adsCampaignDropdownMenu').style.display = 'none';
-            document.getElementById('adsAdGroupDropdownMenu').style.display = 'none';
-            document.getElementById('adsColumnMenu').style.display = 'none';
-
-            let menu;
-            if (level === 'account') {
-                menu = document.getElementById('adsAccountDropdownMenu');
-                if (menu.style.display !== 'block') renderAccountDropdown();
-            } else if (level === 'campaign') {
-                menu = document.getElementById('adsCampaignDropdownMenu');
-                if (menu.style.display !== 'block') renderHierarchyDropdown('campaign');
-            } else if (level === 'ad_group') {
-                menu = document.getElementById('adsAdGroupDropdownMenu');
-                if (menu.style.display !== 'block') renderHierarchyDropdown('ad_group');
-            }
-
-            if (menu) {
-                menu.style.display = 'block';
-            }
-        }
-
-        function clearHierarchyLevel(level) {
-            if (level === 'campaign') {
-                adsSelectedCampaignIds = [];
-                adsSelectedAdGroupIds = [];
-                adsCurrentLevel = 'campaign';
-                document.getElementById('adsCurrentViewLabel').textContent = 'Campaigns';
-            } else if (level === 'ad_group') {
-                adsSelectedAdGroupIds = [];
-                adsCurrentLevel = 'ad_group';
-                document.getElementById('adsCurrentViewLabel').textContent = 'Ad Groups';
-            }
-            updateAdsColumnAvailability();
-            updateSelectedAdsProperty(true);
-        }
-
-        function selectAccountFromChip(accountId) {
-            const selectEl = document.getElementById('adsSiteList');
-            selectEl.value = accountId;
-            document.getElementById('adsAccountDropdownMenu').style.display = 'none';
-
-            // Crucial: Clear lower levels
-            adsSelectedCampaignIds = [];
-            adsSelectedAdGroupIds = [];
-            adsCurrentLevel = 'campaign';
-            document.getElementById('adsCurrentViewLabel').textContent = 'Campaigns';
-
-            updateSelectedAdsProperty(true);
-        }
 
         function updateAdsColumnAvailability() {
             const checkboxes = document.querySelectorAll('#adsColumnMenu input[type="checkbox"]');
@@ -17968,10 +18101,17 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 // 2. Collect Selected Fields
                 const checkedFields = Array.from(document.querySelectorAll('#adsColumnMenu input:checked')).map(el => el.value);
 
-                // Ensure primary name field per level is included
+                // Ensure primary name field per level is included, plus parent names for mapping
                 if (adsCurrentLevel === 'campaign' && !checkedFields.includes('campaign.name')) checkedFields.unshift('campaign.name');
-                if (adsCurrentLevel === 'ad_group' && !checkedFields.includes('ad_group.name')) checkedFields.unshift('ad_group.name');
-                if (adsCurrentLevel === 'ad' && !checkedFields.includes('ad_group_ad.ad.name')) checkedFields.unshift('ad_group_ad.ad.name');
+                if (adsCurrentLevel === 'ad_group') {
+                    if (!checkedFields.includes('ad_group.name')) checkedFields.unshift('ad_group.name');
+                    if (!checkedFields.includes('campaign.name')) checkedFields.push('campaign.name');
+                }
+                if (adsCurrentLevel === 'ad') {
+                    if (!checkedFields.includes('ad_group_ad.ad.name')) checkedFields.unshift('ad_group_ad.ad.name');
+                    if (!checkedFields.includes('ad_group.name')) checkedFields.push('ad_group.name');
+                    if (!checkedFields.includes('campaign.name')) checkedFields.push('campaign.name');
+                }
 
                 // Always select IDs for navigation and date for chart
                 const mandatorySelects = ['segments.date'];
@@ -18010,12 +18150,17 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 }
 
                 let whereClause = `WHERE ${dateCondition}`;
-                if (adsCurrentLevel === 'ad_group' && adsSelectedCampaignIds.length > 0) {
+                if (adsSelectedCampaignIds.length > 0) {
                     const idsStr = adsSelectedCampaignIds.map(id => `'${id}'`).join(', ');
                     whereClause += ` AND campaign.id IN (${idsStr})`;
-                } else if (adsCurrentLevel === 'ad' && adsSelectedAdGroupIds.length > 0) {
+                }
+                if (adsSelectedAdGroupIds.length > 0 && adsCurrentLevel !== 'campaign') {
                     const idsStr = adsSelectedAdGroupIds.map(id => `'${id}'`).join(', ');
                     whereClause += ` AND ad_group.id IN (${idsStr})`;
+                }
+                if (adsSelectedAdIds.length > 0 && adsCurrentLevel === 'ad') {
+                    const idsStr = adsSelectedAdIds.map(id => `'${id}'`).join(', ');
+                    whereClause += ` AND ad_group_ad.ad.id IN (${idsStr})`;
                 }
 
                 // GAQL Query - dynamic builder
@@ -18069,18 +18214,26 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                                 if (!dateStr) return;
                                 const formattedDate = `${dateStr.substring(5, 7)}/${dateStr.substring(8, 10)}`; // MM/DD
 
-                                // Dynamic Name Resolution
+                                // Dynamic Name Resolution & Parent Mapping
                                 let mainName = "Unknown";
                                 let mainId = "";
                                 if (adsCurrentLevel === 'campaign') {
                                     mainName = row.campaign?.name || "Unknown Campaign";
                                     mainId = row.campaign?.id || "";
+                                    if (mainId && mainName !== "Unknown Campaign") adsCampaignNameMap[mainId] = mainName;
                                 } else if (adsCurrentLevel === 'ad_group') {
                                     mainName = row.adGroup?.name || "Unknown Ad Group";
                                     mainId = row.adGroup?.id || "";
+                                    if (mainId && mainName !== "Unknown Ad Group") adsAdGroupNameMap[mainId] = mainName;
+                                    // Map parent campaign too
+                                    if (row.campaign?.id && row.campaign?.name) adsCampaignNameMap[row.campaign.id] = row.campaign.name;
                                 } else if (adsCurrentLevel === 'ad') {
                                     mainName = row.adGroupAd?.ad?.name || "Unknown Ad";
                                     mainId = row.adGroupAd?.ad?.id || "";
+                                    if (mainId && mainName !== "Unknown Ad") adsAdNameMap[mainId] = mainName;
+                                    // Map parents
+                                    if (row.adGroup?.id && row.adGroup?.name) adsAdGroupNameMap[row.adGroup.id] = row.adGroup.name;
+                                    if (row.campaign?.id && row.campaign?.name) adsCampaignNameMap[row.campaign.id] = row.campaign.name;
                                 }
 
                                 const impressions = parseInt(row.metrics?.impressions) || 0;
@@ -18149,10 +18302,16 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     // Update available options for multi-select dropdowns
                     if (adsCurrentLevel === 'campaign') {
                         adsAvailableCampaigns = campaignsList.map(c => ({ id: c.id, name: c.name }));
+                        adsAvailableCampaigns.forEach(c => { adsCampaignNameMap[c.id] = c.name; });
                         renderHierarchyDropdown('campaign');
                     } else if (adsCurrentLevel === 'ad_group') {
                         adsAvailableAdGroups = campaignsList.map(c => ({ id: c.id, name: c.name }));
+                        adsAvailableAdGroups.forEach(c => { adsAdGroupNameMap[c.id] = c.name; });
                         renderHierarchyDropdown('ad_group');
+                    } else if (adsCurrentLevel === 'ad') {
+                        adsAvailableAds = campaignsList.map(c => ({ id: c.id, name: c.name }));
+                        adsAvailableAds.forEach(c => { adsAdNameMap[c.id] = c.name; });
+                        renderHierarchyDropdown('ad');
                     }
 
                     let costTotal = totalCostMicros / 1000000;
@@ -18182,6 +18341,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     }
 
                     renderAdsChart(chartDates, chartClicks, chartConversions, chartTitle);
+                    updateHierarchyChipLabels();
                 } else {
                     document.getElementById('adsImpressions').textContent = '0';
                     document.getElementById('adsClicks').textContent = '0';
@@ -18273,6 +18433,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 }
 
                 renderAdsChart(mockDates, chartClicks, chartConversions, chartTitle);
+                updateHierarchyChipLabels();
                 console.log("Rendered dynamic mock data fallback for Ads.");
             }
         }
@@ -18305,6 +18466,12 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             const accMenu = document.getElementById('adsAccountDropdownMenu');
             if (accChip && accMenu && !accChip.contains(event.target) && !accMenu.contains(event.target)) {
                 accMenu.style.display = 'none';
+            }
+
+            const adChip = document.getElementById('adsFilterAdChip');
+            const adMenu = document.getElementById('adsAdDropdownMenu');
+            if (adChip && adMenu && !adChip.contains(event.target) && !adMenu.contains(event.target)) {
+                adMenu.style.display = 'none';
             }
         });
 
