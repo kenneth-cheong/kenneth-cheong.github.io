@@ -12863,90 +12863,118 @@
             const mondayEl = document.getElementById('cockpit-monday-content');
             const badgeEl = document.getElementById('cockpit-monday-count');
             try {
-                mondayEl.innerHTML = '<div style="text-align: center; color: #64748b; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p style="margin-top: 15px;">Fetching tasks from Monday.com...</p></div>';
+                mondayEl.innerHTML = '<div style="text-align: center; color: #64748b; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p style="margin-top: 15px;">Fetching tasks from Monday.com proxy...</p></div>';
 
+                // Query the AWS API Gateway identical to backlinks.html
                 const resp = await fetch('https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({})
+                    body: JSON.stringify({ action: "get_board_items", fetch_type: "all_campaigns", cursor: null })
                 });
 
                 let data = await resp.json();
 
+                // Safely parse nested HTTP stringifies
                 if (data.body && typeof data.body === 'string') {
-                    data = JSON.parse(data.body);
+                    try { data = JSON.parse(data.body); } catch (e) { }
                 }
 
                 let items = [];
-                let boardName = "Tasks";
-                let boardId = "";
-
-                if (data.data && data.data.boards && data.data.boards.length > 0) {
-                    items = data.data.boards[0].items_page ? data.data.boards[0].items_page.items : data.data.boards[0].items;
-                    boardName = data.data.boards[0].name;
-                    boardId = data.data.boards[0].id;
+                if (data.items) {
+                    items = data.items;
+                } else if (data.data?.boards?.[0]?.items_page?.items) {
+                    items = data.data.boards[0].items_page.items;
                 } else if (Array.isArray(data)) {
                     items = data;
-                } else if (data.items) {
-                    items = data.items;
-                } else if (data.data && Array.isArray(data.data)) {
-                    items = data.data;
                 }
 
-                if (!items) throw new Error("Invalid format from Monday API");
-
-                badgeEl.textContent = items.length;
-
-                if (items.length === 0) {
-                    mondayEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No assigned tasks found.</div>';
+                if (!items || items.length === 0) {
+                    badgeEl.textContent = '0';
+                    mondayEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No active tasks assigned to you right now.</div>';
                     return;
                 }
 
                 let html = '<ul style="list-style: none; padding: 0; margin: 0;">';
-                items.forEach(item => {
-                    let status = 'Unknown';
-                    if (item.column_values) {
-                        const statusCol = item.column_values.find(c => c.id === 'status' || c.id === 'status_1' || c.id.includes('status'));
-                        if (statusCol) {
-                            status = statusCol.text || status;
-                        }
-                    } else if (item.status) {
-                        status = item.status;
-                    } else if (item.group && item.group.title) {
-                        status = item.group.title;
+                let validCount = 0;
+
+                // Process up to 50 items for the dashboard preview
+                items.slice(0, 50).forEach(item => {
+                    if (!item.name) return;
+
+                    let status = 'Working on it';
+                    let assignee = 'Unassigned';
+                    let dueDate = 'No Date';
+
+                    // Parse columns using the logic observed in looker_studio_data.py
+                    if (item.column_values && Array.isArray(item.column_values)) {
+                        item.column_values.forEach(cv => {
+                            if (!cv.column || !cv.column.title) return;
+                            const title = cv.column.title;
+                            const text = cv.text || '';
+
+                            if (title === 'Status' || title === 'Content Status') {
+                                status = text || status;
+                            } else if (title === 'Assigned Person' || title === 'POC' || title.includes('Person')) {
+                                assignee = text || assignee;
+                            } else if (title.includes('Timeline') || title === 'Due Date') {
+                                // Extract simple date from timeline structs
+                                dueDate = text || dueDate;
+                                if (dueDate !== 'No Date' && dueDate.includes('-')) {
+                                    // "2025-01-01 - 2025-02-01"  -> take the second half
+                                    const parts = dueDate.split('-');
+                                    if (parts.length > 3) {
+                                        dueDate = parts.slice(3).join('-').trim();
+                                    }
+                                }
+                            }
+                        });
                     }
 
-                    let statusColor = '#e2e8f0';
-                    const sLower = status ? status.toLowerCase() : '';
-                    if (sLower.includes('done') || sLower.includes('completed')) statusColor = '#bbf7d0';
-                    else if (sLower.includes('working') || sLower.includes('progress')) statusColor = '#fef08a';
-                    else if (sLower.includes('stuck') || sLower.includes('waiting')) statusColor = '#fecaca';
+                    // For the Cockpit, we might want to skip "Done" tasks eventually, but we'll show all for now
+                    let statusColor = status.toLowerCase() === 'done' || status.toLowerCase() === 'delivered' ? 'background: #22c55e;' :
+                        status.toLowerCase().includes('wait') || status.toLowerCase().includes('stuck') ? 'background: #ef4444;' :
+                            'background: #3b82f6;';
 
-                    const itemName = item.name || 'Unnamed Task';
-                    const bName = item.board ? item.board.name : boardName;
-
-                    let link = '#';
-                    if (boardId && item.id) {
-                        link = `https://omg-asia.monday.com/boards/${boardId}/pulses/${item.id}`;
-                    } else if (item.id && (item.board_id || item.board?.id)) {
-                        link = `https://omg-asia.monday.com/boards/${item.board_id || item.board.id}/pulses/${item.id}`;
+                    // We wrap the item name in a link if possible
+                    let itemLink = '#';
+                    if (item.relative_link) {
+                        itemLink = 'https://mediaone-business-group-pte-ltd.monday.com' + item.relative_link;
                     }
 
                     html += `
-                        <li style="padding: 15px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'" onclick="if('${link}' !== '#') window.open('${link}', '_blank')">
-                            <div style="flex: 1; padding-right: 15px;">
-                                <div style="font-weight: 600; color: #1e293b; margin-bottom: 5px;">${itemName}</div>
-                                <div style="font-size: 0.85em; color: #64748b;">Board: ${bName}</div>
+                        <li style="padding: 15px; border-bottom: 1px solid #e2e8f0;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                                <a href="${itemLink}" target="_blank" style="font-weight: 500; color: #1e293b; text-decoration: none; max-width: 70%; line-height: 1.4;">
+                                    ${item.name}
+                                </a>
+                                <span style="${statusColor} color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 500; white-space: nowrap;">
+                                    ${status}
+                                </span>
                             </div>
-                            <span style="background-color: ${statusColor}; color: #334155; padding: 4px 10px; border-radius: 12px; font-size: 0.8em; font-weight: 500; white-space: nowrap;">${status}</span>
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #64748b;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <i class="fas fa-user-circle"></i> ${assignee}
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <i class="far fa-calendar-alt"></i> Due: ${dueDate}
+                                </div>
+                            </div>
                         </li>
                     `;
+                    validCount++;
                 });
-                html += '</ul>';
-                mondayEl.innerHTML = html;
 
-            } catch (e) {
-                console.error('Monday error', e);
+                html += '</ul>';
+
+                if (validCount === 0) {
+                    html = '<div style="padding: 20px; text-align: center; color: #64748b;">No renderable tasks processed.</div>';
+                }
+
+                mondayEl.innerHTML = html;
+                badgeEl.textContent = validCount.toString();
+
+            } catch (err) {
+                console.error('Monday error', err);
                 mondayEl.innerHTML = '<div style="padding: 20px; color: #ef4444;">Error loading Monday data.</div>';
                 badgeEl.textContent = "Error";
             }
