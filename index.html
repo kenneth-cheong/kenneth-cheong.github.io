@@ -7292,6 +7292,10 @@
             </div>
         </div>
 
+        <div class="nav-item" id="cockpitNavItem">
+            <a href="#" onclick="showCockpitOnly(event)">Cockpit</a>
+        </div>
+
         <div class="nav-item" id="uat">
             <a href="/uat.html" target="_blank">UAT</a>
         </div>
@@ -7608,6 +7612,60 @@
                 </div>
             </div>
         </div>
+
+        <!-- ======================= -->
+        <!-- COCKPIT SECTION START   -->
+        <!-- ======================= -->
+        <div id="cockpitSection" style="display: none; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                <h1 style="color: #1e293b; font-size: 2.2em; margin: 0;">Business Cockpit</h1>
+                <button onclick="refreshCockpitData()" class="discovery-btn-run" style="padding: 10px 20px;">
+                    <i class="fas fa-sync-alt"></i> Refresh All Data
+                </button>
+            </div>
+
+            <div class="discovery-platform-list"
+                style="grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); gap: 30px;">
+
+                <!-- Monday.com Card -->
+                <div class="geo-card" style="display: flex; flex-direction: column; height: 400px;">
+                    <div class="geo-card-header">
+                        <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                            <img src="https://monday.com/p/wp-content/uploads/2020/06/Logo.svg" alt="Monday.com"
+                                style="height: 24px;">
+                            Actionable Tasks
+                        </h3>
+                        <span id="cockpit-monday-count" class="badge-action"
+                            style="font-size: 14px; padding: 5px 10px;">Loading...</span>
+                    </div>
+                    <div id="cockpit-monday-content" style="flex: 1; overflow-y: auto; padding-right: 10px;">
+                        <div style="text-align: center; color: #64748b; padding: 40px;">
+                            <i class="fas fa-spinner fa-spin fa-2x"></i>
+                            <p style="margin-top: 15px;">Fetching tasks from Monday.com...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SE Ranking Card -->
+                <div class="geo-card" style="display: flex; flex-direction: column; height: 400px;">
+                    <div class="geo-card-header">
+                        <h3 style="margin: 0; font-size: 1.1em; color: #3b82f6;"><i class="fas fa-chart-line"
+                                style="margin-right: 8px;"></i> Global Top Movers</h3>
+                        <span id="seranking-sync-status" style="font-size: 0.85em; color: #64748b;">Ready</span>
+                    </div>
+                    <div id="cockpit-seranking-content" style="max-height: 400px; overflow-y: auto;">
+                        <div style="text-align: center; color: #64748b; padding: 40px;">
+                            <i class="fas fa-spinner fa-spin fa-2x"></i>
+                            <p style="margin-top: 15px;">Waiting for site selection...</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <!-- ======================= -->
+        <!-- COCKPIT SECTION END     -->
+        <!-- ======================= -->
 
         <div id="seoSection">
             <button class="collapsible" id="seo"><i class="fas fa-plus-square"></i><i class="fab fa-google"></i>Search
@@ -12773,15 +12831,326 @@
         }
 
         function showMainSection(sectionId, mainBtnId) {
-            const sections = ['seoSection', 'smmSection', 'semSection', 'geoSection', 'othersSection'];
+            const sections = ['cockpitSection', 'seoSection', 'smmSection', 'semSection', 'geoSection', 'othersSection'];
             sections.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = (id === sectionId) ? 'block' : 'none';
             });
+
+            // If cockpit, we don't have a collapsible mainBtnId
+            if (sectionId === 'cockpitSection') {
+                refreshCockpitData();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+            }
             if (mainBtnId) {
                 forceOpenCollapsible(mainBtnId);
             }
             window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function showCockpitOnly(event) {
+            if (event) event.preventDefault();
+            showMainSection('cockpitSection', null);
+        }
+
+        function refreshCockpitData() {
+            fetchCockpitMonday();
+            fetchGlobalSERankingMovers();
+        }
+
+        async function fetchCockpitMonday() {
+            const mondayEl = document.getElementById('cockpit-monday-content');
+            const badgeEl = document.getElementById('cockpit-monday-count');
+            try {
+                mondayEl.innerHTML = '<div style="text-align: center; color: #64748b; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p style="margin-top: 15px;">Fetching tasks from Monday.com...</p></div>';
+
+                const resp = await fetch('https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+
+                let data = await resp.json();
+
+                if (data.body && typeof data.body === 'string') {
+                    data = JSON.parse(data.body);
+                }
+
+                let items = [];
+                let boardName = "Tasks";
+                let boardId = "";
+
+                if (data.data && data.data.boards && data.data.boards.length > 0) {
+                    items = data.data.boards[0].items_page ? data.data.boards[0].items_page.items : data.data.boards[0].items;
+                    boardName = data.data.boards[0].name;
+                    boardId = data.data.boards[0].id;
+                } else if (Array.isArray(data)) {
+                    items = data;
+                } else if (data.items) {
+                    items = data.items;
+                } else if (data.data && Array.isArray(data.data)) {
+                    items = data.data;
+                }
+
+                if (!items) throw new Error("Invalid format from Monday API");
+
+                badgeEl.textContent = items.length;
+
+                if (items.length === 0) {
+                    mondayEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No assigned tasks found.</div>';
+                    return;
+                }
+
+                let html = '<ul style="list-style: none; padding: 0; margin: 0;">';
+                items.forEach(item => {
+                    let status = 'Unknown';
+                    if (item.column_values) {
+                        const statusCol = item.column_values.find(c => c.id === 'status' || c.id === 'status_1' || c.id.includes('status'));
+                        if (statusCol) {
+                            status = statusCol.text || status;
+                        }
+                    } else if (item.status) {
+                        status = item.status;
+                    } else if (item.group && item.group.title) {
+                        status = item.group.title;
+                    }
+
+                    let statusColor = '#e2e8f0';
+                    const sLower = status ? status.toLowerCase() : '';
+                    if (sLower.includes('done') || sLower.includes('completed')) statusColor = '#bbf7d0';
+                    else if (sLower.includes('working') || sLower.includes('progress')) statusColor = '#fef08a';
+                    else if (sLower.includes('stuck') || sLower.includes('waiting')) statusColor = '#fecaca';
+
+                    const itemName = item.name || 'Unnamed Task';
+                    const bName = item.board ? item.board.name : boardName;
+
+                    let link = '#';
+                    if (boardId && item.id) {
+                        link = `https://omg-asia.monday.com/boards/${boardId}/pulses/${item.id}`;
+                    } else if (item.id && (item.board_id || item.board?.id)) {
+                        link = `https://omg-asia.monday.com/boards/${item.board_id || item.board.id}/pulses/${item.id}`;
+                    }
+
+                    html += `
+                        <li style="padding: 15px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'" onclick="if('${link}' !== '#') window.open('${link}', '_blank')">
+                            <div style="flex: 1; padding-right: 15px;">
+                                <div style="font-weight: 600; color: #1e293b; margin-bottom: 5px;">${itemName}</div>
+                                <div style="font-size: 0.85em; color: #64748b;">Board: ${bName}</div>
+                            </div>
+                            <span style="background-color: ${statusColor}; color: #334155; padding: 4px 10px; border-radius: 12px; font-size: 0.8em; font-weight: 500; white-space: nowrap;">${status}</span>
+                        </li>
+                    `;
+                });
+                html += '</ul>';
+                mondayEl.innerHTML = html;
+
+            } catch (e) {
+                console.error('Monday error', e);
+                mondayEl.innerHTML = '<div style="padding: 20px; color: #ef4444;">Error loading Monday data.</div>';
+                badgeEl.textContent = "Error";
+            }
+        }
+
+        async function fetchGlobalSERankingMovers() {
+            const contentEl = document.getElementById('cockpit-seranking-content');
+            const syncStatus = document.getElementById('seranking-sync-status');
+            contentEl.innerHTML = '<div style="text-align: center; color: #64748b; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p style="margin-top: 15px;">Fetching rank changes across all sites...</p></div>';
+            syncStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching site list...';
+
+            try {
+                // 1. Fetch all sites
+                const sitesResp = await fetch('https://u2u2ptqaxd.execute-api.ap-southeast-1.amazonaws.com/seRanking', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: "get_sites" })
+                });
+                let stData = await sitesResp.json();
+                if (stData.body && typeof stData.body === 'string') stData = JSON.parse(stData.body);
+                const sites = Array.isArray(stData) ? stData : (stData.sites || []);
+
+                if (sites.length === 0) {
+                    contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No sites found in SE Ranking.</div>';
+                    syncStatus.innerHTML = 'Complete';
+                    return;
+                }
+
+                let allMovers = [];
+                let completed = 0;
+                syncStatus.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Syncing... (0/${sites.length})`;
+
+                // 2. Fetch keywords and positions for each site concurrently
+                const fetchPromises = sites.map(async (site) => {
+                    try {
+                        const dateTo = new Date().toISOString().split('T')[0];
+                        const dateFrom = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0];
+
+                        const [kwRes, posRes] = await Promise.all([
+                            fetch('https://u2u2ptqaxd.execute-api.ap-southeast-1.amazonaws.com/seRanking', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: "get_keywords", siteId: site.id })
+                            }).then(r => r.json()),
+                            fetch('https://u2u2ptqaxd.execute-api.ap-southeast-1.amazonaws.com/seRanking', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: "get_positions", siteId: site.id, date_from: dateFrom, date_to: dateTo, with_landing_pages: 0 })
+                            }).then(r => r.json())
+                        ]);
+
+                        let keywordsData = kwRes.body ? (typeof kwRes.body === 'string' ? JSON.parse(kwRes.body) : kwRes.body) : kwRes;
+                        let positionsData = posRes.body ? (typeof posRes.body === 'string' ? JSON.parse(posRes.body) : posRes.body) : posRes;
+
+                        // Normalize
+                        const keywords = (keywordsData && keywordsData.data) ? keywordsData.data : (Array.isArray(keywordsData) ? keywordsData : []);
+                        const positions = (positionsData && positionsData.data) ? positionsData.data : (Array.isArray(positionsData) ? positionsData : (typeof positionsData === 'object' ? positionsData : []));
+
+                        const kwMap = {};
+                        if (Array.isArray(keywords)) {
+                            keywords.forEach(kw => kwMap[String(kw.id)] = kw);
+                        }
+
+                        // Calculate changes
+                        if (typeof positions === 'object') {
+                            if (Array.isArray(positions)) {
+                                positions.forEach(engineEntry => {
+                                    if (Array.isArray(engineEntry.keywords)) {
+                                        engineEntry.keywords.forEach(kwPos => {
+                                            const kw = kwMap[String(kwPos.id)];
+                                            if (!kw || !Array.isArray(kwPos.positions) || kwPos.positions.length === 0) return;
+
+                                            // Sort positions by date
+                                            kwPos.positions.sort((a, b) => new Date(a.date) - new Date(b.date));
+                                            const oldest = kwPos.positions[0];
+                                            const newest = kwPos.positions[kwPos.positions.length - 1];
+
+                                            const oldRank = oldest.pos !== undefined ? oldest.pos : (oldest.rank || 0);
+                                            const newRank = newest.pos !== undefined ? newest.pos : (newest.rank || 0);
+
+                                            if (oldRank !== 0 && newRank !== 0 && oldRank !== newRank) {
+                                                const d1 = new Date(oldest.date);
+                                                const d2 = new Date(newest.date);
+                                                const diffTime = Math.abs(d2 - d1);
+                                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                                                const dOld = d1.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                                const dNew = d2.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+                                                allMovers.push({
+                                                    siteName: site.title || site.name,
+                                                    keyword: kw.name || kw.keyword,
+                                                    oldRank: oldRank,
+                                                    newRank: newRank,
+                                                    change: oldRank - newRank,
+                                                    absChange: Math.abs(oldRank - newRank),
+                                                    timeframe: `${dOld} - ${dNew} (${diffDays} day${diffDays !== 1 ? 's' : ''})`
+                                                });
+                                            }
+                                        });
+                                    }
+                                });
+                            } else {
+                                // Date keyed object
+                                const dates = Object.keys(positions).sort((a, b) => new Date(a) - new Date(b));
+                                if (dates.length >= 2) {
+                                    const oldestDate = dates[0];
+                                    const newestDate = dates[dates.length - 1];
+                                    const oldestPosData = positions[oldestDate];
+                                    const newestPosData = positions[newestDate];
+
+                                    Object.keys(newestPosData).forEach(kwId => {
+                                        const kw = kwMap[kwId];
+                                        if (!kw) return;
+
+                                        const newEntry = newestPosData[kwId];
+                                        const oldEntry = oldestPosData[kwId];
+
+                                        if (oldEntry && newEntry) {
+                                            const oldRank = oldEntry.pos !== undefined ? oldEntry.pos : (oldEntry.rank || 0);
+                                            const newRank = newEntry.pos !== undefined ? newEntry.pos : (newEntry.rank || 0);
+                                            if (oldRank !== 0 && newRank !== 0 && oldRank !== newRank) {
+                                                const d1 = new Date(oldestDate);
+                                                const d2 = new Date(newestDate);
+                                                const diffTime = Math.abs(d2 - d1);
+                                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                                                const dOld = d1.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                                const dNew = d2.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+                                                allMovers.push({
+                                                    siteName: site.title || site.name,
+                                                    keyword: kw.name || kw.keyword,
+                                                    oldRank: oldRank,
+                                                    newRank: newRank,
+                                                    change: oldRank - newRank, // Negative rank diff = positive movement
+                                                    absChange: Math.abs(oldRank - newRank),
+                                                    timeframe: `${dOld} - ${dNew} (${diffDays} day${diffDays !== 1 ? 's' : ''})`
+                                                });
+                                            }
+                                        }
+                                    });
+                                }
+                            }
+                        }
+
+                    } catch (err) {
+                        console.error(`Error processing site ${site.name}:`, err);
+                    } finally {
+                        completed++;
+                        syncStatus.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Syncing... (${completed}/${sites.length})`;
+                    }
+                });
+
+                await Promise.all(fetchPromises);
+
+                // Sort movers by absolute change (biggest movers first)
+                allMovers.sort((a, b) => b.absChange - a.absChange);
+                // Keep top 100
+                allMovers = allMovers.slice(0, 100);
+
+                if (allMovers.length === 0) {
+                    contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No recent rank changes found across any sites.</div>';
+                    syncStatus.innerHTML = 'Complete';
+                    return;
+                }
+
+                let html = '<ul style="list-style: none; padding: 0; margin: 0;">';
+                allMovers.forEach(item => {
+                    let changeColor = '#64748b';
+                    let changeIcon = '';
+
+                    if (item.change > 0) { // e.g. 5 -> 2. old=5, new=2. diff=3.
+                        changeColor = '#22c55e';
+                        changeIcon = '<i class="fas fa-arrow-up"></i>';
+                    } else if (item.change < 0) {
+                        changeColor = '#ef4444';
+                        changeIcon = '<i class="fas fa-arrow-down"></i>';
+                    }
+
+                    html += `
+                        <li style="padding: 15px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                            <div style="flex: 1; padding-right: 15px;">
+                                <div style="font-weight: 500; color: #1e293b;">${item.keyword}</div>
+                                <div style="font-size: 0.8em; color: #64748b; margin-top: 3px;">
+                                    ${item.siteName} <span style="margin: 0 4px; opacity: 0.5;">|</span> ${item.timeframe}
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 1.1em; font-weight: 600; color: #0f172a;">#${item.newRank} <span style="font-size: 0.7em; color: #94a3b8; font-weight: 400;">from #${item.oldRank}</span></div>
+                                <div style="font-size: 0.85em; color: ${changeColor}; font-weight: 500; margin-top: 2px;">
+                                    ${changeIcon} ${item.absChange}
+                                </div>
+                            </div>
+                        </li>
+                    `;
+                });
+                html += '</ul>';
+                contentEl.innerHTML = html;
+                syncStatus.innerHTML = `Complete (${sites.length} sites checked)`;
+
+            } catch (e) {
+                console.error('SE Ranking global movers error', e);
+                contentEl.innerHTML = '<div style="padding: 20px; color: #ef4444;">Error loading rank changes from SE Ranking.</div>';
+                syncStatus.innerHTML = 'Error';
+            }
         }
 
         function showSeoOnly(event) {
