@@ -19,6 +19,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script>
         // Google Sign-In variables (global scope)
@@ -715,6 +716,133 @@
 
         .keyword-density-table tr:hover {
             background: #f8fbff;
+        }
+
+        .gsc-insight-badge.badge-red { background: #ffebee; color: #c62828; }
+        .gsc-insight-badge.badge-neutral { background: #f1f3f4; color: #5f6368; }
+
+        /* Kodalogic Google Ads Dashboard Styles */
+        .koda-dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .koda-kpi-card {
+            border-radius: 12px;
+            padding: 15px;
+            color: #fff;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 110px;
+        }
+
+        .koda-kpi-card .kpi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            font-weight: 500;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+
+        .koda-kpi-card .kpi-value {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .koda-kpi-card .kpi-subtext {
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+            opacity: 0.8;
+        }
+
+        .koda-kpi-card i.kpi-icon {
+            font-size: 1.2em;
+            opacity: 0.8;
+            background: rgba(255, 255, 255, 0.2);
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+        }
+
+        /* Kodalogic Color Palette */
+        .koda-bg-blue { background: linear-gradient(135deg, #1a73e8, #4285f4); }
+        .koda-bg-red { background: linear-gradient(135deg, #d32f2f, #ea4335); }
+        .koda-bg-orange { background: linear-gradient(135deg, #f57c00, #fb8c00); }
+        .koda-bg-yellow { background: linear-gradient(135deg, #fbc02d, #fdd835); }
+        .koda-bg-purple { background: linear-gradient(135deg, #7b1fa2, #9c27b0); }
+        .koda-bg-green { background: linear-gradient(135deg, #388e3c, #4caf50); }
+        .koda-bg-indigo { background: linear-gradient(135deg, #303f9f, #3f51b5); }
+        .koda-bg-greyblue { background: linear-gradient(135deg, #455a64, #546e7a); }
+
+        .koda-section-title {
+            font-size: 16px;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .koda-chart-container {
+            background: #fff;
+            border: 1px solid #eef0f2;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+            margin-bottom: 25px;
+        }
+
+        .koda-mock-table-container {
+            background: #fff;
+            border: 1px solid #eef0f2;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+            overflow: hidden;
+        }
+
+        .koda-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .koda-table th, .koda-table td {
+            text-align: left;
+            padding: 12px 15px;
+            border-bottom: 1px solid #f1f3f4;
+            color: #475569;
+        }
+
+        .koda-table th {
+            font-weight: 600;
+            color: #1e293b;
+            background-color: #f8fafc;
+        }
+        
+        .koda-bar-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100px;
+        }
+        .koda-inline-bar {
+            height: 6px;
+            border-radius: 3px;
+            background: #1a73e8;
         }
 
         .geo-tag {
@@ -11719,11 +11847,368 @@
                             </div>
                         </div>
                     </div>
-                    <hr>
                 </div>
-            </div>
 
+                <!-- GA4 Section -->
+                <div id="ga4IntegrationSection">
+                    <button class="collapsible" id="ga4IntegrationBtn"><i class="fas fa-plus-square"></i><i
+                            class="fas fa-chart-pie" style="color:#f4b400; padding: 0 10px;"></i>Google Analytics
+                        4</button>
+                    <div class="content" id="ga4Content" style="display: none; padding: 20px;">
+                        <div id="ga4AuthSection"
+                            style="margin-bottom: 20px; padding: 15px; background: #fff8e1; border-radius: 8px; border: 1px solid #ffe082;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <h4 style="margin: 0; color: #f57f17;"><i class="fas fa-chart-pie"></i> Google
+                                        Analytics 4
+                                    </h4>
+                                    <p id="ga4AuthStatus" style="margin: 5px 0 0 0; font-size: 13px; color: #5f6368;">
+                                        Not connected. Connect to your Google account to use GA4 tools.</p>
+                                </div>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <button class="btn-gradient" id="btnConnectGa4" onclick="connectGoogleTools()"
+                                        style="background: #f4b400; width: 180px; margin: 0; color: #000;">
+                                        <i class="fas fa-link"></i> Connect GA4
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="ga4PropertySelector"
+                                style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #ffe082;">
+                                <label
+                                    style="font-size: 13px; color: #f57f17; font-weight: bold; display: block; margin-bottom: 8px;">Select
+                                    Account/Property:</label>
+                                <select id="ga4SiteList" onchange="updateSelectedGa4Property()"
+                                    style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #ffe082; font-family: inherit; font-size: 14px; background: #fff;">
+                                    <option value="">-- Loading properties... --</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="ga4ToolsArea" style="opacity: 0.5;">
+                            <div style="background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 20px;">
+                                <h3 style="margin-top: 0; color: #f4b400;"><i class="fas fa-chart-line"></i> Traffic
+                                    Overview</h3>
+                                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Key metrics from GA4 will
+                                    appear here once connected.</p>
+                                <div id="ga4InsightsData"
+                                    style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                                    <div
+                                        style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
+                                        Active Users: <br><strong id="ga4ActiveUsers"
+                                            style="font-size: 1.5em;">-</strong></div>
+                                    <div
+                                        style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
+                                        Sessions: <br><strong id="ga4Sessions" style="font-size: 1.5em;">-</strong>
+                                    </div>
+                                    <div
+                                        style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
+                                        Conversions: <br><strong id="ga4Conversions"
+                                            style="font-size: 1.5em;">-</strong></div>
+                                </div>
+                                <div style="margin-top: 25px; padding-top: 25px; border-top: 1px solid #eee;">
+                                    <canvas id="ga4TrafficChart"
+                                        style="width: 100%; height: 300px; display: none;"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Google Ads Section -->
+                <div id="adsIntegrationSection">
+                    <button class="collapsible" id="adsIntegrationBtn"><i class="fas fa-plus-square"></i><i
+                            class="fas fa-ad" style="color:#0f9d58; padding: 0 10px;"></i>Google Ads</button>
+                    <div class="content" id="adsContent" style="display: none; padding: 20px;">
+                        <div id="adsAuthSection"
+                            style="margin-bottom: 20px; padding: 15px; background: #e6f4ea; border-radius: 8px; border: 1px solid #ceead6;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <h4 style="margin: 0; color: #0f9d58;"><i class="fas fa-ad"></i> Google Ads
+                                    </h4>
+                                    <p id="adsAuthStatus" style="margin: 5px 0 0 0; font-size: 13px; color: #5f6368;">
+                                        Not connected. Connect to your Google account to use Ads tools.</p>
+                                </div>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <button class="btn-gradient" id="btnConnectAds" onclick="connectGoogleTools()"
+                                        style="background: #0f9d58; width: 180px; margin: 0;">
+                                        <i class="fas fa-link"></i> Connect Ads
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="adsPropertySelector"
+                                style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #ceead6;">
+                                <label
+                                    style="font-size: 13px; color: #0f9d58; font-weight: bold; display: block; margin-bottom: 8px;">Select
+                                    Customer ID:</label>
+                                <select id="adsSiteList" onchange="updateSelectedAdsProperty()"
+                                    style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #ceead6; font-family: inherit; font-size: 14px; background: #fff;">
+                                    <option value="">-- Loading accounts... --</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="adsToolsArea" style="opacity: 0.5;">
+                            <!-- Top Dashboard Controls -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #eef0f2; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                                <div style="display: flex; gap: 15px; align-items: center;">
+                                    <div>
+                                        <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Date Range</label>
+                                        <select id="adsDateRange" onchange="adsDateRangeChanged()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc; min-width: 150px; cursor: pointer;">
+                                            <option value="LAST_7_DAYS">Last 7 Days</option>
+                                            <option value="LAST_14_DAYS">Last 14 Days</option>
+                                            <option value="LAST_30_DAYS" selected>Last 30 Days</option>
+                                            <option value="LAST_90_DAYS">Last 90 Days</option>
+                                            <option value="LAST_365_DAYS">Last 365 Days</option>
+                                            <option value="THIS_MONTH">This Month</option>
+                                            <option value="LAST_MONTH">Last Month</option>
+                                            <option value="CUSTOM">Custom Range</option>
+                                        </select>
+                                    </div>
+                                    <div id="adsCustomDateInputs" style="display: none; align-items: flex-end; gap: 10px;">
+                                        <div>
+                                            <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Start Date</label>
+                                            <input type="date" id="adsStartDate" style="padding: 7px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">End Date</label>
+                                            <input type="date" id="adsEndDate" style="padding: 7px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc;">
+                                        </div>
+                                        <button onclick="updateSelectedAdsProperty(true)" style="padding: 8px 15px; border-radius: 6px; border: none; background: #0f9d58; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;">Apply</button>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 15px; align-items: center;">
+                                    <div style="position: relative;">
+                                        <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 12px;"></i>
+                                        <input type="text" id="adsCampaignFilter" placeholder="Filter campaigns..." oninput="reRenderAdsTable()" style="padding: 8px 12px 8px 32px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; width: 220px;">
+                                    </div>
+                                    <div style="position: relative;" id="adsColumnDropdownWrapper">
+                                        <button onclick="document.getElementById('adsColumnMenu').style.display = document.getElementById('adsColumnMenu').style.display === 'block' ? 'none' : 'block'" style="padding: 8px 15px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; font-size: 13px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 8px;">
+                                            <i class="fas fa-columns"></i> Columns <i class="fas fa-caret-down" style="font-size: 10px;"></i>
+                                        </button>
+                                        <div id="adsColumnMenu" style="display: none; position: absolute; right: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 15px; width: 300px; z-index: 100; max-height: 400px; overflow-y: auto;">
+                                            <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">Primary Info</div>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderAdsTable()" value="campaign.name" checked disabled> Campaign Name</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="campaign.status"> Status</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="campaign.start_date"> Start Date</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="campaign.end_date"> End Date</label>
+                                            
+                                            <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">Hierarchy & Segments</div>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="ad_group.name"> Ad Group Name</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="ad_group_ad.ad.name"> Ad Name</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="segments.device"> Device</label>
+                                            
+                                            <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">Core Metrics</div>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderAdsTable()" value="metrics.impressions" checked> Impressions</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderAdsTable()" value="metrics.clicks" checked> Clicks</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderAdsTable()" value="metrics.ctr"> CTR</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="metrics.average_cpc"> Avg. CPC</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="metrics.average_cpm"> Avg. CPM</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderAdsTable()" value="metrics.cost_micros" checked> Cost</label>
+                                            
+                                            <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">Conversions</div>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderAdsTable()" value="metrics.conversions" checked> Conversions</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="metrics.conversions_value"> Conv. Value</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="metrics.cost_per_conversion"> Cost / Conv.</label>
+                                            
+                                            <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">Video Perf.</div>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="metrics.average_video_watch_time_duration_millis"> Avg. Watch Time</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="metrics.video_quartile_p25_rate"> 25% View Rate</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="metrics.video_quartile_p50_rate"> 50% View Rate</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="metrics.video_quartile_p75_rate"> 75% View Rate</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="adsFieldChanged()" value="metrics.video_quartile_p100_rate"> 100% View Rate</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Breadcrumbs Navigation (Redesigned as Filter/View Bar) -->
+                            <div id="adsBreadcrumbs" style="display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; font-size: 13px;">
+                                <!-- Active View Badge -->
+                                <div style="display: flex; align-items: center; gap: 6px; background: #f1f5f9; padding: 6px 12px; border-radius: 20px; color: #475569; font-weight: 600; border: 1px solid #e2e8f0;">
+                                    <i class="fas fa-layer-group" style="color: #64748b;"></i> 
+                                    <span style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.7;">Viewing</span>
+                                    <span id="adsCurrentViewLabel" style="color: #0f9d58;">Campaigns</span>
+                                </div>
+                                
+                                <!-- Active Filters (Drilldowns) -->
+                                <div id="adsFilterCampaign" style="display: none; align-items: center; position: relative;">
+                                    <div id="adsFilterCampaignChip" onclick="document.getElementById('adsCampaignDropdownMenu').style.display = document.getElementById('adsCampaignDropdownMenu').style.display === 'block' ? 'none' : 'block'" style="display: flex; align-items: center; gap: 6px; background: #e0f2fe; padding: 6px 12px; border-radius: 20px; color: #0369a1; border: 1px solid #bae6fd; cursor: pointer;">
+                                        <span style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.7;">Campaign</span>
+                                        <span id="adsBreadcrumbCampaignName" style="font-weight: 600;"></span>
+                                        <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 4px;"></i>
+                                        <i class="fas fa-times" onclick="event.stopPropagation(); resetAdsHierarchy()" style="cursor: pointer; margin-left: 4px; opacity: 0.6; padding: 2px;" title="Clear All" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'"></i>
+                                    </div>
+                                    <div id="adsCampaignDropdownMenu" style="display: none; position: absolute; left: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 10px; width: 280px; z-index: 101; max-height: 300px; overflow-y: auto;">
+                                        <!-- Checkboxes will be rendered here -->
+                                    </div>
+                                </div>
+
+                                <div id="adsFilterAdGroup" style="display: none; align-items: center; position: relative;">
+                                    <div id="adsFilterAdGroupChip" onclick="document.getElementById('adsAdGroupDropdownMenu').style.display = document.getElementById('adsAdGroupDropdownMenu').style.display === 'block' ? 'none' : 'block'" style="display: flex; align-items: center; gap: 6px; background: #e0f2fe; padding: 6px 12px; border-radius: 20px; color: #0369a1; border: 1px solid #bae6fd; cursor: pointer;">
+                                        <span style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.7;">Ad Group</span>
+                                        <span id="adsBreadcrumbAdGroupName" style="font-weight: 600;"></span>
+                                        <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 4px;"></i>
+                                        <i class="fas fa-times" onclick="event.stopPropagation(); navBackToAdGroups()" style="cursor: pointer; margin-left: 4px; opacity: 0.6; padding: 2px;" title="Clear All" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'"></i>
+                                    </div>
+                                    <div id="adsAdGroupDropdownMenu" style="display: none; position: absolute; left: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 10px; width: 280px; z-index: 101; max-height: 300px; overflow-y: auto;">
+                                        <!-- Checkboxes will be rendered here -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            
+                            <!-- Progress Over Time -->
+                            <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                                <div style="flex: 1;">
+                                    <h3 class="koda-section-title">Progress Over Time</h3>
+                                    <div class="koda-dashboard-grid" style="grid-template-columns: repeat(2, 1fr);">
+                                        <!-- Impressions -->
+                                        <div class="koda-kpi-card koda-bg-blue">
+                                            <div class="kpi-header">
+                                                <span>Impressions</span>
+                                                <i class="fas fa-eye kpi-icon"></i>
+                                            </div>
+                                            <div class="kpi-value" id="adsImpressions">-</div>
+                                            <div class="kpi-subtext">
+                                                <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                                <span>~ 0</span>
+                                            </div>
+                                        </div>
+                                        <!-- Clicks -->
+                                        <div class="koda-kpi-card koda-bg-red">
+                                            <div class="kpi-header">
+                                                <span>Clicks</span>
+                                                <i class="fas fa-mouse-pointer kpi-icon"></i>
+                                            </div>
+                                            <div class="kpi-value" id="adsClicks">-</div>
+                                            <div class="kpi-subtext">
+                                                <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                                <span>~ 0</span>
+                                            </div>
+                                        </div>
+                                        <!-- CTR -->
+                                        <div class="koda-kpi-card koda-bg-purple">
+                                            <div class="kpi-header">
+                                                <span>CTR</span>
+                                                <i class="fas fa-chart-line kpi-icon"></i>
+                                            </div>
+                                            <div class="kpi-value" id="adsCtr">-</div>
+                                            <div class="kpi-subtext">
+                                                <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                                <span>~ 0</span>
+                                            </div>
+                                        </div>
+                                        <!-- Cost -->
+                                        <div class="koda-kpi-card koda-bg-green">
+                                            <div class="kpi-header">
+                                                <span>Cost</span>
+                                                <i class="fas fa-credit-card kpi-icon"></i>
+                                            </div>
+                                            <div class="kpi-value" id="adsCost">-</div>
+                                            <div class="kpi-subtext">
+                                                <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                                <span>~ $0.00</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Conversions -->
+                                <div style="flex: 1;">
+                                    <h3 class="koda-section-title">Conversions</h3>
+                                    <div class="koda-dashboard-grid" style="grid-template-columns: repeat(2, 1fr);">
+                                        <!-- Conversions -->
+                                        <div class="koda-kpi-card koda-bg-orange">
+                                            <div class="kpi-header">
+                                                <span>Conversions</span>
+                                                <i class="fas fa-filter kpi-icon"></i>
+                                            </div>
+                                            <div class="kpi-value" id="adsConversions">-</div>
+                                            <div class="kpi-subtext">
+                                                <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                                <span>~ 0</span>
+                                            </div>
+                                        </div>
+                                        <!-- Conv Rate -->
+                                        <div class="koda-kpi-card koda-bg-yellow" style="color: #6a4f00;">
+                                            <div class="kpi-header">
+                                                <span>Conv. Rate</span>
+                                                <i class="fas fa-percentage kpi-icon" style="background: rgba(0,0,0,0.1);"></i>
+                                            </div>
+                                            <div class="kpi-value" id="adsConvRate">-</div>
+                                            <div class="kpi-subtext">
+                                                <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                                <span>~ 0.00%</span>
+                                            </div>
+                                        </div>
+                                        <!-- Revenue -->
+                                        <div class="koda-kpi-card koda-bg-indigo">
+                                            <div class="kpi-header">
+                                                <span>Revenue</span>
+                                                <i class="fas fa-money-bill-wave kpi-icon"></i>
+                                            </div>
+                                            <div class="kpi-value" id="adsRevenue">-</div>
+                                            <div class="kpi-subtext">
+                                                <span>No Data Available</span>
+                                                <span>(API Value Missing)</span>
+                                            </div>
+                                        </div>
+                                        <!-- Cost / Conv -->
+                                        <div class="koda-kpi-card koda-bg-greyblue">
+                                            <div class="kpi-header">
+                                                <span>Cost/ Conv.</span>
+                                                <i class="fas fa-sync-alt kpi-icon"></i>
+                                            </div>
+                                            <div class="kpi-value" id="adsCostConv">-</div>
+                                            <div class="kpi-subtext">
+                                                <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                                <span>~ $0.00</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Main Chart -->
+                            <div class="koda-chart-container">
+                                <div style="height: 350px;">
+                                    <canvas id="adsPerformanceChart" style="width: 100%; height: 100%; display: none;"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- Campaigns Data Table Mock -->
+                            <div class="koda-mock-table-container mt-4">
+                                <div style="padding: 15px 20px; border-bottom: 1px solid #f1f3f4; display: flex; justify-content: space-between; align-items: center;">
+                                    <h3 class="koda-section-title" style="margin: 0;">Campaigns <a href="#" style="font-size: 11px; font-weight: 400; color: #1a73e8; margin-left: 10px;">View campaign details</a></h3>
+                                </div>
+                                <div style="overflow-x: auto;">
+                                    <table class="koda-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Campaign</th>
+                                                <th>Impressions</th>
+                                                <th>Clicks</th>
+                                                <th>Conversions</th>
+                                                <th>Cost</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="adsCampaignsTableBody">
+                                            <tr>
+                                                <td colspan="5" style="text-align: center; padding: 20px;">Load an account above to populate campaign data.</td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot id="adsCampaignsTableFoot" style="font-weight: bold; background: #fff;">
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+                <hr>
+            </div>
         </div>
+
+    </div>
 
     </div>
 
@@ -14691,6 +15176,7 @@
 
             const T = '\t';
             const resultsArea = document.getElementById('geoOnPageResults');
+            const approveText = '"Approve / Disapprove\n(Please provide reason/alternative)"';
             // Build a row-indexed array. Index 0 = row 1, index 1 = row 2, etc.
             // We allocate up to row 149 to cover Image Optimisation.
             const totalRows = 165;
@@ -14730,22 +15216,22 @@
             // ─── Row 4: Targeted Existing URL / Proposed New URL ───
             const metaExistingUrl = resultsArea.querySelector('[data-geo-meta-existing-url]');
             const metaProposedUrl = resultsArea.querySelector('[data-geo-meta-proposed-url]');
-            rows[3] = [clean(metaExistingUrl ? metaExistingUrl.textContent : ''), '', '', clean(metaProposedUrl ? metaProposedUrl.textContent : '')].join(T);
+            rows[3] = [clean(metaExistingUrl ? metaExistingUrl.textContent : ''), '', '', clean(metaProposedUrl ? metaProposedUrl.textContent : ''), '', approveText].join(T);
 
             // ─── Row 8: Existing Canonical Tag / Proposed New Canonical Tag ───
             const metaExistingCanonical = resultsArea.querySelector('[data-geo-meta-existing-canonical]');
             const metaProposedCanonical = resultsArea.querySelector('[data-geo-meta-proposed-canonical]');
-            rows[7] = [clean(metaExistingCanonical ? metaExistingCanonical.textContent : ''), '', '', clean(metaProposedCanonical ? metaProposedCanonical.textContent : '')].join(T);
+            rows[7] = [clean(metaExistingCanonical ? metaExistingCanonical.textContent : ''), '', '', clean(metaProposedCanonical ? metaProposedCanonical.textContent : ''), '', approveText].join(T);
 
             // ─── Row 11: Existing Meta Title / Proposed New Meta Title ───
             const metaExistingTitle = resultsArea.querySelector('[data-geo-meta-existing-title]');
             const metaProposedTitle = resultsArea.querySelector('[data-geo-meta-proposed-title]');
-            rows[10] = [clean(metaExistingTitle ? metaExistingTitle.textContent : ''), '', '', clean(metaProposedTitle ? metaProposedTitle.textContent : '')].join(T);
+            rows[10] = [clean(metaExistingTitle ? metaExistingTitle.textContent : ''), '', '', clean(metaProposedTitle ? metaProposedTitle.textContent : ''), '', approveText].join(T);
 
             // ─── Row 14: Existing Meta Description / Proposed New Meta Description ───
             const metaExistingDesc = resultsArea.querySelector('[data-geo-meta-existing-desc]');
             const metaProposedDesc = resultsArea.querySelector('[data-geo-meta-proposed-desc]');
-            rows[13] = [clean(metaExistingDesc ? metaExistingDesc.textContent : ''), '', '', clean(metaProposedDesc ? metaProposedDesc.textContent : '')].join(T);
+            rows[13] = [clean(metaExistingDesc ? metaExistingDesc.textContent : ''), '', '', clean(metaProposedDesc ? metaProposedDesc.textContent : ''), '', approveText].join(T);
 
             // ─── Row 17: Targeted Keywords ───
             const promptsEl = document.getElementById('geoOnPagePrompts');
@@ -14764,14 +15250,14 @@
             foundHeadingEls.forEach(el => {
                 if (headerRow < 120) {
                     const level = el.getAttribute('data-geo-heading-level') || '';
-                    rows[headerRow] = [clean(el.textContent), clean(level), '', ''].join(T);
+                    rows[headerRow] = [clean(el.textContent), clean(level), '', '', approveText].join(T);
                     headerRow++;
                 }
             });
             recHeadingEls.forEach(el => {
                 if (headerRow < 120) {
                     const level = el.getAttribute('data-geo-heading-level') || '';
-                    rows[headerRow] = ['', clean(level), 'AI Recommendation', clean(el.textContent)].join(T);
+                    rows[headerRow] = ['', clean(level), 'AI Recommendation', clean(el.textContent), approveText].join(T);
                     headerRow++;
                 }
             });
@@ -14781,7 +15267,7 @@
                     const a = pair.querySelector('[data-geo-faq-a]');
                     const qText = q ? q.textContent.trim() : '';
                     const aText = a ? a.textContent.trim() : '';
-                    rows[headerRow] = ['', 'FAQ', 'AI Recommendation', 'Q: ' + clean(qText) + ' | A: ' + clean(aText)].join(T);
+                    rows[headerRow] = ['', 'FAQ', 'AI Recommendation', 'Q: ' + clean(qText) + ' | A: ' + clean(aText), approveText].join(T);
                     headerRow++;
                 }
             });
@@ -14794,7 +15280,7 @@
                 chunkOriginals.forEach((origEl, idx) => {
                     if (contentRow < 126) {
                         const optEl = chunkOptimized[idx];
-                        rows[contentRow] = [clean(origEl.textContent), '', '', clean(optEl ? optEl.textContent : '')].join(T);
+                        rows[contentRow] = [clean(origEl.textContent), '', '', clean(optEl ? optEl.textContent : ''), approveText].join(T);
                         contentRow++;
                     }
                 });
@@ -14808,7 +15294,7 @@
                 if (linkRow < 132) {
                     const urlEl = linkUrls[idx];
                     const proposed = clean(anchorEl.textContent) + ' \u2192 ' + clean(urlEl ? urlEl.textContent : '');
-                    rows[linkRow] = ['', '', '', proposed].join(T);
+                    rows[linkRow] = ['', '', '', proposed, approveText].join(T);
                     linkRow++;
                 }
             });
@@ -14822,7 +15308,7 @@
             quoteEls.forEach((el, idx) => {
                 if (addRow < 140) {
                     const topic = quoteTopicEls[idx] ? quoteTopicEls[idx].textContent.trim() : '';
-                    rows[addRow] = ['[Citation] ' + clean(el.textContent), '', '', clean(topic)].join(T);
+                    rows[addRow] = ['[Citation] ' + clean(el.textContent), '', '', clean(topic), approveText].join(T);
                     addRow++;
                 }
             });
@@ -14831,7 +15317,7 @@
             const recTermEls = resultsArea.querySelectorAll('[data-geo-rec-term]');
             if (recTermEls.length > 0 && addRow < 140) {
                 const terms = Array.from(recTermEls).map(el => el.textContent.trim()).join(', ');
-                rows[addRow] = ['[Semantic Terms] Add these terms/phrases: ' + clean(terms), '', '', 'Throughout main body content'].join(T);
+                rows[addRow] = ['[Semantic Terms] Add these terms/phrases: ' + clean(terms), '', '', 'Throughout main body content', approveText].join(T);
                 addRow++;
             }
 
@@ -14839,7 +15325,7 @@
             const clusterEls = resultsArea.querySelectorAll('[data-geo-topic-cluster]');
             if (clusterEls.length > 0 && addRow < 140) {
                 const clusters = Array.from(clusterEls).map(el => el.textContent.trim()).join(', ');
-                rows[addRow] = ['[Topic Clusters] Cover these topics: ' + clean(clusters), '', '', 'As dedicated sections or sub-headings'].join(T);
+                rows[addRow] = ['[Topic Clusters] Cover these topics: ' + clean(clusters), '', '', 'As dedicated sections or sub-headings', approveText].join(T);
                 addRow++;
             }
 
@@ -14847,7 +15333,7 @@
             const negInsightEls = resultsArea.querySelectorAll('[data-geo-insight-negative]');
             negInsightEls.forEach(el => {
                 if (addRow < 140) {
-                    rows[addRow] = ['[Insight] ' + clean(el.textContent), '', '', ''].join(T);
+                    rows[addRow] = ['[Insight] ' + clean(el.textContent), '', '', '', approveText].join(T);
                     addRow++;
                 }
             });
@@ -14860,7 +15346,7 @@
                     const srcEl = tr.querySelector('[data-geo-img-src]');
                     const existAltEl = tr.querySelector('[data-geo-img-existing-alt]');
                     const sugAltEl = tr.querySelector('[data-geo-img-suggested-alt]');
-                    rows[imgRow] = [clean(srcEl ? srcEl.textContent : ''), '', '', clean(existAltEl ? existAltEl.textContent : ''), clean(sugAltEl ? sugAltEl.textContent : '')].join(T);
+                    rows[imgRow] = [clean(srcEl ? srcEl.textContent : ''), '', '', clean(existAltEl ? existAltEl.textContent : ''), clean(sugAltEl ? sugAltEl.textContent : ''), approveText].join(T);
                     imgRow++;
                 }
             });
@@ -16465,23 +16951,61 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         }
 
 
-        // GSC Integration Functions
-        function initGscAuth() {
+        // Google Integration Functions
+        function initGoogleAuth() {
             if (typeof google === 'undefined') return;
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: GSC_CLIENT_ID,
-                scope: 'https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/indexing',
+                scope: 'https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/indexing https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/adwords',
                 callback: (response) => {
                     if (response.access_token) {
                         googleAccessToken = response.access_token;
+
+                        // Update GSC UI
                         document.getElementById('gscAuthStatus').innerHTML = '<i class="fas fa-check-circle" style="color: #34a853;"></i> Connected to Google Search Console';
                         document.getElementById('gscAuthStatus').style.color = '#34a853';
-                        document.getElementById('btnConnectGsc').innerHTML = '<i class="fas fa-sync"></i> Reconnect';
-                        document.getElementById('gscToolsArea').style.opacity = '1';
-                        document.getElementById('gscToolsArea').style.pointer_events = 'auto';
-                        document.getElementById('gscAuthSection').style.background = '#e6f4ea';
-                        document.getElementById('gscAuthSection').style.border = '1px solid #34a853';
+                        if (document.getElementById('btnConnectGsc')) document.getElementById('btnConnectGsc').innerHTML = '<i class="fas fa-sync"></i> Switch Account';
+                        if (document.getElementById('gscToolsArea')) {
+                            document.getElementById('gscToolsArea').style.opacity = '1';
+                            document.getElementById('gscToolsArea').style.pointerEvents = 'auto';
+                        }
+                        if (document.getElementById('gscAuthSection')) {
+                            document.getElementById('gscAuthSection').style.background = '#e6f4ea';
+                            document.getElementById('gscAuthSection').style.border = '1px solid #34a853';
+                        }
                         fetchGscProperties();
+
+                        // Update GA4 UI
+                        if (document.getElementById('ga4AuthStatus')) {
+                            document.getElementById('ga4AuthStatus').innerHTML = '<i class="fas fa-check-circle" style="color: #34a853;"></i> Connected to GA4';
+                            document.getElementById('ga4AuthStatus').style.color = '#34a853';
+                        }
+                        if (document.getElementById('btnConnectGa4')) document.getElementById('btnConnectGa4').innerHTML = '<i class="fas fa-sync"></i> Switch Account';
+                        if (document.getElementById('ga4ToolsArea')) {
+                            document.getElementById('ga4ToolsArea').style.opacity = '1';
+                            document.getElementById('ga4ToolsArea').style.pointerEvents = 'auto';
+                        }
+                        if (document.getElementById('ga4AuthSection')) {
+                            document.getElementById('ga4AuthSection').style.background = '#e6f4ea';
+                            document.getElementById('ga4AuthSection').style.border = '1px solid #34a853';
+                        }
+                        fetchGa4Properties();
+
+                        // Update Ads UI
+                        if (document.getElementById('adsAuthStatus')) {
+                            document.getElementById('adsAuthStatus').innerHTML = '<i class="fas fa-check-circle" style="color: #34a853;"></i> Connected to Google Ads';
+                            document.getElementById('adsAuthStatus').style.color = '#34a853';
+                        }
+                        if (document.getElementById('btnConnectAds')) document.getElementById('btnConnectAds').innerHTML = '<i class="fas fa-sync"></i> Switch Account';
+                        if (document.getElementById('adsToolsArea')) {
+                            document.getElementById('adsToolsArea').style.opacity = '1';
+                            document.getElementById('adsToolsArea').style.pointerEvents = 'auto';
+                        }
+                        if (document.getElementById('adsAuthSection')) {
+                            document.getElementById('adsAuthSection').style.background = '#e6f4ea';
+                            document.getElementById('adsAuthSection').style.border = '1px solid #34a853';
+                        }
+                        fetchAdsProperties();
                     }
                 }
             });
@@ -16540,12 +17064,1122 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         }
 
         // Initialize on load if library ready
-        window.addEventListener('load', initGscAuth);
+        window.addEventListener('load', initGoogleAuth);
 
         function connectGsc() {
-            if (!tokenClient) initGscAuth();
+            connectGoogleTools();
+        }
+
+        function connectGoogleTools() {
+            if (!tokenClient) initGoogleAuth();
             if (!tokenClient) return alert("Google Identity Services not loaded yet.");
-            tokenClient.requestAccessToken({ prompt: 'consent' });
+            tokenClient.requestAccessToken({ prompt: 'select_account consent' });
+        }
+
+        let ga4ChartInstance = null;
+
+        async function fetchGa4Properties() {
+            const statusEl = document.getElementById('ga4AuthStatus');
+            const selectEl = document.getElementById('ga4SiteList');
+            const selectorDiv = document.getElementById('ga4PropertySelector');
+
+            try {
+                statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching GA4 properties...';
+
+                const response = await fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'ga4ListProperties',
+                        access_token: googleAccessToken
+                    })
+                });
+                let data = await response.json();
+                data = parseLambdaResponse(data);
+
+                if (data.accountSummaries && data.accountSummaries.length > 0) {
+                    selectEl.innerHTML = '<option value="">-- Choose a GA4 Property --</option>';
+                    data.accountSummaries.forEach(account => {
+                        if (account.propertySummaries) {
+                            account.propertySummaries.forEach(property => {
+                                const option = document.createElement('option');
+                                option.value = property.property; // e.g. "properties/1234567"
+                                option.textContent = `${account.displayName} > ${property.displayName}`;
+                                selectEl.appendChild(option);
+                            });
+                        }
+                    });
+                    selectorDiv.style.display = 'block';
+                    statusEl.innerHTML = '<i class="fas fa-check-circle" style="color: #34a853;"></i> Connected. Please select a property below.';
+                } else {
+                    statusEl.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #ea4335;"></i> Attached Google account has no GA4 properties.';
+                }
+            } catch (err) {
+                statusEl.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #ea4335;"></i> Error fetching GA4 properties: ' + err.message;
+            }
+        }
+
+        async function updateSelectedGa4Property() {
+            const selectedProperty = document.getElementById('ga4SiteList').value;
+            const toolsArea = document.getElementById('ga4ToolsArea');
+            if (selectedProperty) {
+                toolsArea.style.opacity = '1';
+                fetchGa4Insights(selectedProperty);
+            } else {
+                // Clear UI if no property selected
+                document.getElementById('ga4ActiveUsers').textContent = '-';
+                document.getElementById('ga4Sessions').textContent = '-';
+                document.getElementById('ga4Conversions').textContent = '-';
+                if (ga4ChartInstance) {
+                    ga4ChartInstance.destroy();
+                }
+                document.getElementById('ga4TrafficChart').style.display = 'none';
+            }
+        }
+
+        async function fetchGa4Insights(propertyId) {
+            try {
+                // Fetch Overview Stats and Timeline (Daily)
+                const requestBody = {
+                    dateRanges: [{ startDate: '28daysAgo', endDate: 'today' }],
+                    dimensions: [{ name: 'date' }],
+                    metrics: [
+                        { name: 'activeUsers' },
+                        { name: 'sessions' },
+                        { name: 'conversions' }
+                    ]
+                };
+
+                const response = await fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'ga4RunReport',
+                        propertyId: propertyId,
+                        access_token: googleAccessToken,
+                        payload: requestBody
+                    })
+                });
+                let data = await response.json();
+                data = parseLambdaResponse(data);
+
+                if (data.rows && data.rows.length > 0) {
+                    // Update Summary Totals (summing up from daily data for precision over the date range)
+                    let totalActiveUsers = 0;
+                    let totalSessions = 0;
+                    let totalConversions = 0;
+
+                    const chartDates = [];
+                    const chartSessions = [];
+                    const chartUsers = [];
+
+                    // Data is typically not sorted perfectly by date API, sort it
+                    data.rows.sort((a, b) => a.dimensionValues[0].value.localeCompare(b.dimensionValues[0].value));
+
+                    data.rows.forEach(row => {
+                        const dateStr = row.dimensionValues[0].value;
+                        const formattedDate = `${dateStr.substring(4, 6)}/${dateStr.substring(6, 8)}`; // MM/DD
+
+                        const activeUsers = parseInt(row.metricValues[0].value) || 0;
+                        const sessions = parseInt(row.metricValues[1].value) || 0;
+                        const conversions = parseFloat(row.metricValues[2].value) || 0;
+
+                        totalActiveUsers += activeUsers;
+                        totalSessions += sessions;
+                        totalConversions += conversions;
+
+                        chartDates.push(formattedDate);
+                        chartUsers.push(activeUsers);
+                        chartSessions.push(sessions);
+                    });
+
+                    document.getElementById('ga4ActiveUsers').textContent = totalActiveUsers.toLocaleString();
+                    document.getElementById('ga4Sessions').textContent = totalSessions.toLocaleString();
+                    document.getElementById('ga4Conversions').textContent = totalConversions.toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+                    // Render Chart
+                    renderGa4Chart(chartDates, chartSessions, chartUsers);
+                } else {
+                    document.getElementById('ga4ActiveUsers').textContent = '0';
+                    document.getElementById('ga4Sessions').textContent = '0';
+                    document.getElementById('ga4Conversions').textContent = '0';
+                    if (ga4ChartInstance) {
+                        ga4ChartInstance.destroy();
+                    }
+                    document.getElementById('ga4TrafficChart').style.display = 'none';
+                }
+            } catch (err) {
+                console.error("Error fetching GA4 Insights:", err);
+            }
+        }
+
+        function renderGa4Chart(labels, sessions, users) {
+            const canvas = document.getElementById('ga4TrafficChart');
+            canvas.style.display = 'block';
+
+            if (ga4ChartInstance) {
+                ga4ChartInstance.destroy(); // Destroy previous instance to prevent glitches
+            }
+
+            const ctx = canvas.getContext('2d');
+
+            // Create nice gradients for the lines
+            const sessionGradient = ctx.createLinearGradient(0, 0, 0, 300);
+            sessionGradient.addColorStop(0, 'rgba(66, 133, 244, 0.4)');
+            sessionGradient.addColorStop(1, 'rgba(66, 133, 244, 0.0)');
+
+            const userGradient = ctx.createLinearGradient(0, 0, 0, 300);
+            userGradient.addColorStop(0, 'rgba(15, 157, 88, 0.4)');
+            userGradient.addColorStop(1, 'rgba(15, 157, 88, 0.0)');
+
+            ga4ChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Sessions',
+                            data: sessions,
+                            borderColor: '#4285f4', // Google Blue
+                            backgroundColor: sessionGradient,
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4, // Smooth curve
+                            pointRadius: 3,
+                            pointBackgroundColor: '#fff',
+                            pointBorderColor: '#4285f4'
+                        },
+                        {
+                            label: 'Active Users',
+                            data: users,
+                            borderColor: '#0f9d58', // Google Green
+                            backgroundColor: userGradient,
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#fff',
+                            pointBorderColor: '#0f9d58'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                boxWidth: 6
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false,
+                                drawBorder: false
+                            },
+                            ticks: {
+                                maxTicksLimit: 14 // Show tick every ~2 days
+                            }
+                        },
+                        y: {
+                            grid: {
+                                color: '#f0f0f0',
+                                drawBorder: false
+                            },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        let adsChartInstance = null;
+
+        async function fetchAdsProperties() {
+            const statusEl = document.getElementById('adsAuthStatus');
+            const selectEl = document.getElementById('adsSiteList');
+            const selectorDiv = document.getElementById('adsPropertySelector');
+
+            try {
+                statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching Ads properties...';
+
+                // User's predefined values from Apps Script
+                const developerToken = "mmWDgUpTcZSkkrj-7nnebg"; 
+                const loginCustomerId = "4695999392";
+
+                const response = await fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'adsListCustomers',
+                        access_token: googleAccessToken,
+                        developerToken: developerToken,
+                        loginCustomerId: loginCustomerId
+                    })
+                });
+                let data = await response.json();
+                data = parseLambdaResponse(data);
+                console.log("Raw Google Ads API Response:", data);
+
+                if (data.error) {
+                    let errorMessage = data.error;
+                    if (typeof data.error === 'object') {
+                        errorMessage = JSON.stringify(data.error);
+                    }
+                    statusEl.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #ea4335;"></i> Error: ' + errorMessage;
+                    return;
+                }
+
+                // If results exist from googleAds:search
+                if (data.results && data.results.length > 0) {
+                    selectEl.innerHTML = '<option value="">-- Choose an Ads Account --</option>';
+                    
+                    data.results.forEach(row => {
+                        if (row.customerClient) {
+                            const rawCustomerId = row.customerClient.clientCustomer || "";
+                            const customerId = rawCustomerId.replace('customers/', ''); // extract ID from customers/12345
+                            const descriptiveName = row.customerClient.descriptiveName || `Account: ${customerId}`;
+                            const isManager = row.customerClient.manager === true;
+                            
+                            const option = document.createElement('option');
+                            option.value = customerId;
+                            // Set MCC Manager ID fallback for the query
+                            option.dataset.managerId = isManager ? customerId : loginCustomerId;
+                            option.dataset.developerToken = developerToken;
+                            option.textContent = isManager ? `[MANAGER] ${descriptiveName} (${customerId})` : `${descriptiveName} (${customerId})`;
+                            selectEl.appendChild(option);
+                        }
+                    });
+                    
+                    selectorDiv.style.display = 'block';
+                    statusEl.innerHTML = '<i class="fas fa-check-circle" style="color: #34a853;"></i> Connected. Please select an Ads Account below.';
+                } else {
+                    console.warn("No results returned. Raw payload:", data);
+                    statusEl.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #ea4335;"></i> Attached Google account has no unhidden Ads properties associated with MCC. <br><br><strong>Raw API Response:</strong><br><pre style="font-size:11px; background:#f4f4f4; padding:5px; border-radius:4px; max-width: 100%; overflow: auto;">' + JSON.stringify(data, null, 2) + '</pre>';
+                }
+            } catch (err) {
+                statusEl.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #ea4335;"></i> Error fetching Ads properties: ' + err.message;
+            }
+        }
+
+        async function updateSelectedAdsProperty(isRefresh = false) {
+            const selectEl = document.getElementById('adsSiteList');
+            const selectedProperty = selectEl.value;
+            const toolsArea = document.getElementById('adsToolsArea');
+            if (selectedProperty) {
+                toolsArea.style.opacity = '1';
+                const selectedOption = selectEl.options[selectEl.selectedIndex];
+                const loginCustomerId = selectedOption.dataset.managerId || null;
+                const developerToken = selectedOption.dataset.developerToken || null;
+                updateAdsColumnAvailability();
+                fetchAdsInsights(selectedProperty, loginCustomerId, developerToken, isRefresh);
+            } else {
+                document.getElementById('adsImpressions').textContent = '-';
+                document.getElementById('adsClicks').textContent = '-';
+                document.getElementById('adsCost').textContent = '-';
+                document.getElementById('adsConversions').textContent = '-';
+                document.getElementById('adsCtr').textContent = '-';
+                document.getElementById('adsConvRate').textContent = '-';
+                document.getElementById('adsCostConv').textContent = '-';
+                document.getElementById('adsRevenue').textContent = 'No Data';
+
+                if (adsChartInstance) {
+                    adsChartInstance.destroy();
+                }
+                document.getElementById('adsPerformanceChart').style.display = 'none';
+            }
+        }
+
+        let lastFetchedCampaignsList = []; // Store raw data for client-side filtering
+        let lastFetchedTotals = { imps: 0, clicks: 0, convs: 0, cost: 0 };
+        
+        // Advanced Hierarchy State
+        let adsCurrentLevel = 'campaign'; // 'campaign', 'ad_group', or 'ad'
+        let adsSelectedCampaignIds = [];
+        let adsSelectedAdGroupIds = [];
+        let adsAvailableCampaigns = []; // List of {id, name} for dropdown
+        let adsAvailableAdGroups = [];  // List of {id, name} for dropdown
+        let adsCampaignNameMap = {}; // ID to Name
+        let adsAdGroupNameMap = {}; // ID to Name
+
+        const adsFieldLabels = {
+            'campaign.name': 'Campaign', 'campaign.status': 'Status', 'campaign.start_date': 'Start Date', 'campaign.end_date': 'End Date',
+            'ad_group.name': 'Ad Group', 'ad_group_ad.ad.name': 'Ad', 'segments.device': 'Device',
+            'metrics.average_video_watch_time_duration_millis': 'Avg. Watch Time',
+            'metrics.impressions': 'Impressions', 'metrics.clicks': 'Clicks', 'metrics.ctr': 'CTR',
+            'metrics.average_cpc': 'Avg. CPC', 'metrics.average_cpm': 'Avg. CPM', 'metrics.cost_micros': 'Cost',
+            'metrics.conversions': 'Conversions', 'metrics.conversions_value': 'Conv. Value', 'metrics.cost_per_conversion': 'Cost / Conv.',
+            'metrics.video_quartile_p100_rate': '100% rate', 'metrics.video_quartile_p25_rate': '25% rate', 'metrics.video_quartile_p50_rate': '50% rate', 'metrics.video_quartile_p75_rate': '75% rate'
+        };
+
+        function formatAdsValue(field, val) {
+            if(val === null || val === undefined) return '-';
+            if(field.includes('cost_micros') || field.includes('average_cpc') || field.includes('average_cpm') || field.includes('conversions_value') || field.includes('cost_per_conversion')) {
+                let amount = field.includes('micros') ? val / 1000000 : val;
+                return '$' + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+            if(field.includes('ctr') || field.includes('rate')) {
+                return (val * 100).toFixed(2) + '%';
+            }
+            if(field.includes('duration_millis')) return (val / 1000).toFixed(1) + 's';
+            if(typeof val === 'number') return val.toLocaleString();
+            return val;
+        }
+
+        function adsFieldChanged() {
+            // Trigger a re-fetch because segments/metrics often require different GAQL selects
+            updateSelectedAdsProperty(true);
+        }
+
+        function adsDateRangeChanged() {
+            const range = document.getElementById('adsDateRange').value;
+            const customInputs = document.getElementById('adsCustomDateInputs');
+            if (range === 'CUSTOM') {
+                customInputs.style.display = 'flex';
+            } else {
+                customInputs.style.display = 'none';
+                updateSelectedAdsProperty(true);
+            }
+        }
+
+        function drillDownToAdGroups(campaignId, campaignName) {
+            adsCurrentLevel = 'ad_group';
+            // If dragging from 'campaign' to 'ad_group', reset ad groups selections
+            adsSelectedAdGroupIds = [];
+            // If the user clicked on a campaign that isn't currently the *only* one selected, update the selection Array
+            if(!adsSelectedCampaignIds.includes(campaignId)) {
+                 adsSelectedCampaignIds = [campaignId];
+            } else if (adsSelectedCampaignIds.length > 1) {
+                // If they had 5 selected, and clicked one of them in the table to drill down, 
+                // we assume they want to focus specifically on THAT one campaign's ad groups now.
+                 adsSelectedCampaignIds = [campaignId]; 
+            }
+            // Populate the Ad Group name tracking
+            adsCampaignNameMap[campaignId] = campaignName;
+            
+            document.getElementById('adsCurrentViewLabel').textContent = 'Ad Groups';
+            document.getElementById('adsFilterCampaign').style.display = 'flex';
+            updateHierarchyChipLabels();
+            updateAdsColumnAvailability();
+            updateSelectedAdsProperty(true);
+        }
+
+        function navBackToAdGroups() {
+            if(adsCurrentLevel === 'ad') {
+                adsCurrentLevel = 'ad_group';
+                adsSelectedAdGroupIds = [];
+                document.getElementById('adsCurrentViewLabel').textContent = 'Ad Groups';
+                document.getElementById('adsFilterAdGroup').style.display = 'none';
+                updateAdsColumnAvailability();
+                updateSelectedAdsProperty(true);
+            }
+        }
+
+        function drillDownToAds(adGroupId, adGroupName) {
+            adsCurrentLevel = 'ad';
+            if(!adsSelectedAdGroupIds.includes(adGroupId)) {
+                adsSelectedAdGroupIds = [adGroupId];
+            } else if (adsSelectedAdGroupIds.length > 1) {
+                adsSelectedAdGroupIds = [adGroupId];
+            }
+            adsAdGroupNameMap[adGroupId] = adGroupName;
+
+            document.getElementById('adsCurrentViewLabel').textContent = 'Ads';
+            document.getElementById('adsFilterAdGroup').style.display = 'flex';
+            updateHierarchyChipLabels();
+            updateAdsColumnAvailability();
+            updateSelectedAdsProperty(true);
+        }
+
+        function resetAdsHierarchy() {
+            adsCurrentLevel = 'campaign';
+            adsSelectedCampaignIds = [];
+            adsSelectedAdGroupIds = [];
+            document.getElementById('adsCurrentViewLabel').textContent = 'Campaigns';
+            document.getElementById('adsFilterCampaign').style.display = 'none';
+            document.getElementById('adsFilterAdGroup').style.display = 'none';
+            updateAdsColumnAvailability();
+            updateSelectedAdsProperty(true);
+        }
+
+        function toggleHierarchySelection(level, id) {
+            if (level === 'campaign') {
+                const index = adsSelectedCampaignIds.indexOf(id);
+                if (index > -1) {
+                    adsSelectedCampaignIds.splice(index, 1);
+                } else {
+                    adsSelectedCampaignIds.push(id);
+                }
+                
+                // If the user unchecks everything, reset to the top layer
+                if(adsSelectedCampaignIds.length === 0) {
+                    resetAdsHierarchy();
+                    return;
+                }
+            } else if (level === 'ad_group') {
+                const index = adsSelectedAdGroupIds.indexOf(id);
+                if (index > -1) {
+                    adsSelectedAdGroupIds.splice(index, 1);
+                } else {
+                    adsSelectedAdGroupIds.push(id);
+                }
+                
+                // If the user unchecks everything, jump up a layer
+                if(adsSelectedAdGroupIds.length === 0) {
+                    navBackToAdGroups();
+                    return;
+                }
+            }
+            
+            updateHierarchyChipLabels();
+            updateSelectedAdsProperty(true);
+        }
+
+        function updateHierarchyChipLabels() {
+            const campLabelObj = document.getElementById('adsBreadcrumbCampaignName');
+            const adgLabelObj = document.getElementById('adsBreadcrumbAdGroupName');
+
+            if(adsSelectedCampaignIds.length === 1) {
+                campLabelObj.textContent = adsCampaignNameMap[adsSelectedCampaignIds[0]] || 'Loading...';
+            } else if (adsSelectedCampaignIds.length > 1) {
+                campLabelObj.textContent = `${adsSelectedCampaignIds.length} Campaigns`;
+            }
+
+            if(adsSelectedAdGroupIds.length === 1) {
+                adgLabelObj.textContent = adsAdGroupNameMap[adsSelectedAdGroupIds[0]] || 'Loading...';
+            } else if (adsSelectedAdGroupIds.length > 1) {
+                adgLabelObj.textContent = `${adsSelectedAdGroupIds.length} Ad Groups`;
+            }
+        }
+
+        function renderHierarchyDropdown(level) {
+            let container, dataList, selectedIds;
+            if (level === 'campaign') {
+                container = document.getElementById('adsCampaignDropdownMenu');
+                dataList = adsAvailableCampaigns;
+                selectedIds = adsSelectedCampaignIds;
+            } else if (level === 'ad_group') {
+                container = document.getElementById('adsAdGroupDropdownMenu');
+                dataList = adsAvailableAdGroups;
+                selectedIds = adsSelectedAdGroupIds;
+            } else { return; }
+
+            if (!container) return;
+            
+            if (dataList.length === 0) {
+                container.innerHTML = '<div style="padding: 10px; font-size: 12px; color: #94a3b8; text-align: center;">No items available</div>';
+                return;
+            }
+
+            let html = `<div style="padding: 4px; border-bottom: 1px solid #f1f5f9; margin-bottom: 8px;">
+                            <input type="text" placeholder="Search..." onkeyup="event.stopPropagation(); filterHierarchyDropdown(this, '${level}')" onclick="event.stopPropagation()" style="width: 100%; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 12px; outline: none; box-sizing: border-box;">
+                        </div>`;
+            
+            html += `<div class="dropdown-list-items" style="display: flex; flex-direction: column; gap: 2px;">`;
+            dataList.forEach(item => {
+                const isSelected = selectedIds.includes(item.id);
+                html += `<label style="display: flex; align-items: flex-start; gap: 8px; padding: 6px; font-size: 12px; cursor: pointer; border-radius: 4px; color: #334155; word-break: break-word;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'" class="dropdown-item">
+                            <input type="checkbox" onchange="toggleHierarchySelection('${level}', '${item.id}')" ${isSelected ? 'checked' : ''} style="margin-top: 2px;">
+                            <span class="item-name">${item.name}</span>
+                        </label>`;
+            });
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        function filterHierarchyDropdown(inputEl, level) {
+            const filterText = inputEl.value.toLowerCase();
+            const container = level === 'campaign' ? document.getElementById('adsCampaignDropdownMenu') : document.getElementById('adsAdGroupDropdownMenu');
+            const items = container.querySelectorAll('.dropdown-item');
+            
+            items.forEach(item => {
+                const name = item.querySelector('.item-name').textContent.toLowerCase();
+                if (name.includes(filterText)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function updateAdsColumnAvailability() {
+            const checkboxes = document.querySelectorAll('#adsColumnMenu input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                const val = cb.value;
+                let disabled = false;
+                
+                // Rule: Cannot select fields from levels deeper than current granularity
+                if (adsCurrentLevel === 'campaign') {
+                    if (val.includes('ad_group.') || val.includes('ad_group_ad.')) disabled = true;
+                } else if (adsCurrentLevel === 'ad_group') {
+                    if (val.includes('ad_group_ad.')) disabled = true;
+                }
+                
+                // Always disable name checkboxes if they correspond to the current level 
+                // (since "Name" is already the primary first column anyway)
+                if (adsCurrentLevel === 'campaign' && val === 'campaign.name') disabled = true;
+                if (adsCurrentLevel === 'ad_group' && val === 'ad_group.name') disabled = true;
+                if (adsCurrentLevel === 'ad' && val === 'ad_group_ad.ad.name') disabled = true;
+
+                cb.disabled = disabled;
+                if (disabled && val.includes('.name') && val !== 'campaign.name' && val !== 'ad_group.name' && val !== 'ad_group_ad.ad.name') {
+                   // Only auto-uncheck if it's a name field that's now invalid
+                   cb.checked = false;
+                } else if (disabled && !val.includes('.name')) {
+                    // Also uncheck other invalid metrics if any (currently all metrics are multi-level)
+                }
+                
+                // Visual feedback
+                const label = cb.closest('label');
+                if (label) {
+                    label.style.opacity = disabled ? '0.4' : '1';
+                    label.style.cursor = disabled ? 'not-allowed' : 'pointer';
+                }
+            });
+        }
+
+        async function fetchAdsInsights(customerId, loginCustomerId = null, developerToken = null, isRefresh = false) {
+            try {
+                if(isRefresh) {
+                   document.getElementById('adsCampaignsTableBody').innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading ' + adsCurrentLevel.replace('_',' ') + 's...</td></tr>';
+                }
+
+                const dateRangeFilter = document.getElementById('adsDateRange').value || 'LAST_30_DAYS';
+                
+                // 1. Determine Resource Based on Level
+                let resource = 'campaign';
+                if(adsCurrentLevel === 'ad_group') resource = 'ad_group';
+                if(adsCurrentLevel === 'ad') resource = 'ad_group_ad';
+
+                // 2. Collect Selected Fields
+                const checkedFields = Array.from(document.querySelectorAll('#adsColumnMenu input:checked')).map(el => el.value);
+                
+                // Ensure primary name field per level is included
+                if(adsCurrentLevel === 'campaign' && !checkedFields.includes('campaign.name')) checkedFields.unshift('campaign.name');
+                if(adsCurrentLevel === 'ad_group' && !checkedFields.includes('ad_group.name')) checkedFields.unshift('ad_group.name');
+                if(adsCurrentLevel === 'ad' && !checkedFields.includes('ad_group_ad.ad.name')) checkedFields.unshift('ad_group_ad.ad.name');
+                
+                // Always select IDs for navigation and date for chart
+                const mandatorySelects = ['segments.date'];
+                if(adsCurrentLevel === 'campaign') mandatorySelects.push('campaign.id');
+                if(adsCurrentLevel === 'ad_group') mandatorySelects.push('ad_group.id');
+                if(adsCurrentLevel === 'ad') mandatorySelects.push('ad_group_ad.ad.id');
+
+                const allSelects = [...new Set([...mandatorySelects, ...checkedFields])];
+
+                // 3. Build WHERE clause
+                let dateCondition = `segments.date DURING ${dateRangeFilter}`;
+                
+                if (dateRangeFilter === 'LAST_90_DAYS' || dateRangeFilter === 'LAST_365_DAYS' || dateRangeFilter === 'CUSTOM') {
+                    let start, end;
+                    const now = new Date();
+                    const endDay = new Date(now.getTime() - 86400000); // Yesterday
+                    
+                    if (dateRangeFilter === 'LAST_90_DAYS') {
+                        const startDay = new Date(now.getTime() - (90 * 86400000));
+                        start = startDay.toISOString().split('T')[0];
+                        end = endDay.toISOString().split('T')[0];
+                    } else if (dateRangeFilter === 'LAST_365_DAYS') {
+                        const startDay = new Date(now.getTime() - (365 * 86400000));
+                        start = startDay.toISOString().split('T')[0];
+                        end = endDay.toISOString().split('T')[0];
+                    } else {
+                        // CUSTOM
+                        start = document.getElementById('adsStartDate').value;
+                        end = document.getElementById('adsEndDate').value;
+                        if (!start || !end) {
+                            console.warn("Custom dates not fully set");
+                            return; // Don't fetch yet
+                        }
+                    }
+                    dateCondition = `segments.date BETWEEN '${start}' AND '${end}'`;
+                }
+
+                let whereClause = `WHERE ${dateCondition}`;
+                if(adsCurrentLevel === 'ad_group' && adsSelectedCampaignIds.length > 0) {
+                    const idsStr = adsSelectedCampaignIds.map(id => `'${id}'`).join(', ');
+                    whereClause += ` AND campaign.id IN (${idsStr})`;
+                } else if(adsCurrentLevel === 'ad' && adsSelectedAdGroupIds.length > 0) {
+                    const idsStr = adsSelectedAdGroupIds.map(id => `'${id}'`).join(', ');
+                    whereClause += ` AND ad_group.id IN (${idsStr})`;
+                }
+
+                // GAQL Query - dynamic builder
+                const query = `
+                    SELECT 
+                        ${allSelects.join(', ')}
+                    FROM ${resource} 
+                    ${whereClause} 
+                    ORDER BY segments.date ASC
+                `;
+                
+                const payloadStr = {
+                    action: 'adsSearchStream',
+                    customerId: customerId,
+                    access_token: googleAccessToken,
+                    payload: { query: query }
+                };
+                if (loginCustomerId) {
+                    payloadStr.loginCustomerId = loginCustomerId;
+                }
+                if (developerToken) {
+                    payloadStr.developerToken = developerToken;
+                }
+
+                const response = await fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payloadStr)
+                });
+                let dataStream = await response.json();
+                dataStream = parseLambdaResponse(dataStream);
+                console.log("Raw Google Ads Insights API Response:", dataStream);
+                if (dataStream.error) {
+                    console.error("Ads Insights API Error:", dataStream.error);
+                    throw new Error(typeof dataStream.error === 'object' ? JSON.stringify(dataStream.error) : dataStream.error);
+                }
+
+                let totalImpressions = 0;
+                let totalClicks = 0;
+                let totalCostMicros = 0;
+                let totalConversions = 0;
+
+                const dailyData = {};
+                const campaignData = {};
+
+                if (Array.isArray(dataStream) && dataStream.length > 0) {
+                    dataStream.forEach(batch => {
+                        if (batch.results) {
+                            batch.results.forEach(row => {
+                                const dateStr = row.segments?.date;
+                                if (!dateStr) return;
+                                const formattedDate = `${dateStr.substring(5, 7)}/${dateStr.substring(8, 10)}`; // MM/DD
+
+                                // Dynamic Name Resolution
+                                let mainName = "Unknown";
+                                let mainId = "";
+                                if(adsCurrentLevel === 'campaign') {
+                                    mainName = row.campaign?.name || "Unknown Campaign";
+                                    mainId = row.campaign?.id || "";
+                                } else if(adsCurrentLevel === 'ad_group') {
+                                    mainName = row.adGroup?.name || "Unknown Ad Group";
+                                    mainId = row.adGroup?.id || "";
+                                } else if(adsCurrentLevel === 'ad') {
+                                    mainName = row.adGroupAd?.ad?.name || "Unknown Ad";
+                                    mainId = row.adGroupAd?.ad?.id || "";
+                                }
+
+                                const impressions = parseInt(row.metrics?.impressions) || 0;
+                                const clicks = parseInt(row.metrics?.clicks) || 0;
+                                const costMicros = parseInt(row.metrics?.costMicros) || 0;
+                                const conversions = parseFloat(row.metrics?.conversions) || 0;
+
+                                totalImpressions += impressions;
+                                totalClicks += clicks;
+                                totalCostMicros += costMicros;
+                                totalConversions += conversions;
+
+                                // Aggregate Daily (For Chart)
+                                if (!dailyData[formattedDate]) {
+                                    dailyData[formattedDate] = { clicks: 0, conversions: 0 };
+                                }
+                                dailyData[formattedDate].clicks += clicks;
+                                dailyData[formattedDate].conversions += conversions;
+
+                                // Aggregate Dynamic Row (For Table)
+                                if (!campaignData[mainId]) {
+                                    campaignData[mainId] = { id: mainId, name: mainName, imps: 0, clicks: 0, convs: 0, cost: 0, extra: {} };
+                                    
+                                    // Extract any extra requested fields dynamically
+                                    checkedFields.forEach(field => {
+                                        // Map field names (campaign.status) to row properties (row.campaign.status)
+                                        const parts = field.split('.');
+                                        let val = row;
+                                        parts.forEach(p => { 
+                                            // Handle camelCase conversion for metrics/segments/etc
+                                            const key = p.replace(/_([a-z])/g, g => g[1].toUpperCase());
+                                            val = val ? val[key] : null; 
+                                        });
+                                        if(val !== undefined && val !== null) {
+                                            campaignData[mainId].extra[field] = val;
+                                        }
+                                    });
+                                }
+                                campaignData[mainId].imps += impressions;
+                                campaignData[mainId].clicks += clicks;
+                                campaignData[mainId].convs += conversions;
+                                campaignData[mainId].cost += (costMicros / 1000000);
+                            });
+                        }
+                    });
+
+                    // Prepare Chart Arrays
+                    const chartDates = Object.keys(dailyData).sort();
+                    const chartClicks = chartDates.map(d => dailyData[d].clicks);
+                    const chartConversions = chartDates.map(d => dailyData[d].conversions);
+
+                    // Prepare Campaign Array
+                    const campaignsList = Object.keys(campaignData).map(id => ({
+                        id: id,
+                        name: campaignData[id].name,
+                        imps: campaignData[id].imps,
+                        clicks: campaignData[id].clicks,
+                        convs: campaignData[id].convs,
+                        cost: campaignData[id].cost,
+                        extra: campaignData[id].extra
+                    })).sort((a,b) => b.imps - a.imps);
+
+                    // Store globally for the filter/column controls
+                    lastFetchedCampaignsList = campaignsList;
+                    
+                    // Update available options for multi-select dropdowns
+                    if (adsCurrentLevel === 'campaign') {
+                        adsAvailableCampaigns = campaignsList.map(c => ({id: c.id, name: c.name}));
+                        renderHierarchyDropdown('campaign');
+                    } else if (adsCurrentLevel === 'ad_group') {
+                        adsAvailableAdGroups = campaignsList.map(c => ({id: c.id, name: c.name}));
+                        renderHierarchyDropdown('ad_group');
+                    }
+                    
+                    let costTotal = totalCostMicros / 1000000;
+                    let costConv = costTotal / totalConversions || 0;
+                    lastFetchedTotals = { imps: totalImpressions, clicks: totalClicks, convs: totalConversions, cost: costTotal };
+
+                            let ctr = (totalClicks / totalImpressions) * 100 || 0;
+                            let convRate = (totalConversions / totalClicks) * 100 || 0;
+                            
+                            document.getElementById('adsImpressions').textContent = totalImpressions.toLocaleString();
+                            document.getElementById('adsClicks').textContent = totalClicks.toLocaleString();
+                            document.getElementById('adsCost').textContent = '$' + costTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            document.getElementById('adsConversions').textContent = totalConversions.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                            
+                            document.getElementById('adsCtr').textContent = ctr.toFixed(2) + '%';
+                            document.getElementById('adsConvRate').textContent = convRate.toFixed(2) + '%';
+                            document.getElementById('adsCostConv').textContent = '$' + costConv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            document.getElementById('adsRevenue').textContent = 'N/A'; // No value in basic API query
+                            
+                            // Real Campaign Data rendering
+                            reRenderAdsTable();
+
+                            const dateLabel = document.getElementById('adsDateRange').options[document.getElementById('adsDateRange').selectedIndex].text;
+                            let chartTitle = `Performance over ${dateLabel}`;
+                            if(document.getElementById('adsDateRange').value === 'CUSTOM') {
+                                chartTitle = `Performance from ${document.getElementById('adsStartDate').value} to ${document.getElementById('adsEndDate').value}`;
+                            }
+
+                            renderAdsChart(chartDates, chartClicks, chartConversions, chartTitle);
+                        } else {
+                            document.getElementById('adsImpressions').textContent = '0';
+                            document.getElementById('adsClicks').textContent = '0';
+                            document.getElementById('adsCost').textContent = '$0.00';
+                            document.getElementById('adsConversions').textContent = '0';
+                            document.getElementById('adsCtr').textContent = '0.00%';
+                            document.getElementById('adsConvRate').textContent = '0.00%';
+                            document.getElementById('adsCostConv').textContent = '$0.00';
+                            document.getElementById('adsRevenue').textContent = 'N/A';
+                            
+                            if (adsChartInstance) {
+                                adsChartInstance.destroy();
+                            }
+                            document.getElementById('adsPerformanceChart').style.display = 'none';
+                            document.getElementById('adsCampaignsTableBody').innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">No performance data found for the selected period.</td></tr>';
+                        }
+            } catch (err) {
+                console.error("Error fetching Ads Insights:", err);
+
+                // Simulate interactivity for Demo purposes if API fails or token is missing
+                const dateRangeFilter = document.getElementById('adsDateRange').value || 'LAST_30_DAYS';
+                let multiplier = 1;
+                let days = 30;
+                if (dateRangeFilter.includes('7')) { multiplier = 0.25; days = 7; }
+                else if (dateRangeFilter.includes('14')) { multiplier = 0.5; days = 14; }
+                else if (dateRangeFilter.includes('90')) { multiplier = 3.0; days = 90; }
+                else if (dateRangeFilter.includes('365')) { multiplier = 12.0; days = 365; }
+                else if (dateRangeFilter === 'CUSTOM') {
+                    const start = new Date(document.getElementById('adsStartDate').value);
+                    const end = new Date(document.getElementById('adsEndDate').value);
+                    if (start && end && !isNaN(start) && !isNaN(end)) {
+                        days = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+                        multiplier = days / 30;
+                    }
+                }
+
+                const mockImps = Math.floor(24500 * multiplier * (0.9 + Math.random() * 0.2));
+                const mockClicks = Math.floor(1250 * multiplier * (0.9 + Math.random() * 0.2));
+                const mockCost = 450.00 * multiplier * (0.9 + Math.random() * 0.2);
+                const mockConvs = Math.floor(85 * multiplier * (0.9 + Math.random() * 0.2));
+                
+                const ctr = (mockClicks / mockImps) * 100;
+                const convRate = (mockConvs / mockClicks) * 100;
+                const costConv = mockCost / mockConvs;
+
+                document.getElementById('adsImpressions').textContent = mockImps.toLocaleString();
+                document.getElementById('adsClicks').textContent = mockClicks.toLocaleString();
+                document.getElementById('adsCost').textContent = '$' + mockCost.toLocaleString(undefined, {minimumFractionDigits:2});
+                document.getElementById('adsConversions').textContent = mockConvs.toLocaleString();
+                document.getElementById('adsCtr').textContent = ctr.toFixed(2) + '%';
+                document.getElementById('adsConvRate').textContent = convRate.toFixed(2) + '%';
+                document.getElementById('adsCostConv').textContent = '$' + costConv.toFixed(2);
+                document.getElementById('adsRevenue').textContent = 'N/A';
+
+                const mockDates = Array.from({ length: days }, (_, i) => `02/${String(i + 1).padStart(2, '0')}`);
+                const chartClicks = Array.from({ length: days }, () => Math.floor(Math.random() * (mockClicks / days) * 2));
+                const chartConversions = Array.from({ length: days }, () => Math.floor(Math.random() * (mockConvs / days) * 2));
+
+                const mockNames = ["PTZ | Studio Pro Videos", "PTZ | Remarketing", "PTZ | Search | Products", "PTZ | V_Education", "PTZ | PTZOptics - PMax"];
+                const mockCamps = mockNames.map(name => ({
+                    id: Math.random().toString(36).substring(7), // add fake ID
+                    name: name,
+                    imps: Math.round(mockImps * (0.1 + Math.random() * 0.3)),
+                    clicks: Math.round(mockClicks * (0.1 + Math.random() * 0.3)),
+                    convs: Math.round(mockConvs * (0.1 + Math.random() * 0.3)),
+                    cost: mockCost * (0.1 + Math.random() * 0.3),
+                    extra: {} // ensure extra object exists
+                }));
+                
+                lastFetchedCampaignsList = mockCamps;
+                lastFetchedTotals = { imps: mockImps, clicks: mockClicks, convs: mockConvs, cost: mockCost };
+
+                // Update available options for multi-select dropdowns (mock fallback)
+                if (adsCurrentLevel === 'campaign') {
+                    adsAvailableCampaigns = mockCamps.map(c => ({id: c.id, name: c.name}));
+                    renderHierarchyDropdown('campaign');
+                } else if (adsCurrentLevel === 'ad_group') {
+                    adsAvailableAdGroups = mockCamps.map(c => ({id: c.id, name: c.name}));
+                    renderHierarchyDropdown('ad_group');
+                }
+
+                reRenderAdsTable();
+                
+                const dateLabelObj = document.getElementById('adsDateRange');
+                const dateLabel = dateLabelObj.options[dateLabelObj.selectedIndex].text;
+                let chartTitle = `Performance over ${dateLabel} (Mocked)`;
+                if(dateLabelObj.value === 'CUSTOM') {
+                    chartTitle = `Performance from ${document.getElementById('adsStartDate').value || 'Start'} to ${document.getElementById('adsEndDate').value || 'End'} (Mocked)`;
+                }
+
+                renderAdsChart(mockDates, chartClicks, chartConversions, chartTitle);
+                console.log("Rendered dynamic mock data fallback for Ads.");
+            }
+        }
+        
+        function reRenderAdsTable() {
+            renderCampaignsTable(lastFetchedCampaignsList, lastFetchedTotals.imps, lastFetchedTotals.clicks, lastFetchedTotals.convs, lastFetchedTotals.cost);
+        }
+
+        // Close column menu and hierarchy dropdowns if clicking outside
+        document.addEventListener('click', function(event) {
+            const columnWrapper = document.getElementById('adsColumnDropdownWrapper');
+            const columnMenu = document.getElementById('adsColumnMenu');
+            if (columnWrapper && columnMenu && !columnWrapper.contains(event.target)) {
+                columnMenu.style.display = 'none';
+            }
+
+            const campChip = document.getElementById('adsFilterCampaignChip');
+            const campMenu = document.getElementById('adsCampaignDropdownMenu');
+            if (campChip && campMenu && !campChip.contains(event.target) && !campMenu.contains(event.target)) {
+                campMenu.style.display = 'none';
+            }
+
+            const adgChip = document.getElementById('adsFilterAdGroupChip');
+            const adgMenu = document.getElementById('adsAdGroupDropdownMenu');
+            if (adgChip && adgMenu && !adgChip.contains(event.target) && !adgMenu.contains(event.target)) {
+                adgMenu.style.display = 'none';
+            }
+        });
+
+        function renderCampaignsTable(campaignsList, totalImps, totalClicks, totalConvs, totalCost) {
+            const tbody = document.getElementById('adsCampaignsTableBody');
+            const tfoot = document.getElementById('adsCampaignsTableFoot');
+            const thead = document.querySelector('.koda-table thead tr');
+            
+            if (!campaignsList || campaignsList.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 20px;">No performance data found.</td></tr>';
+                tfoot.innerHTML = '';
+                return;
+            }
+            
+            // 1. Collect Checked Fields
+            const checkedFields = Array.from(document.querySelectorAll('#adsColumnMenu input:checked')).map(el => el.value);
+            const filterText = document.getElementById('adsCampaignFilter')?.value.toLowerCase() || '';
+
+            // 2. Render Header
+            if(thead) {
+                let headerHtml = `<th style="padding-left: 15px;">Name</th>`;
+                checkedFields.forEach(f => {
+                    if(f.includes('.name')) return; // Skip name as it's the primary col
+                    headerHtml += `<th>${adsFieldLabels[f] || f}</th>`;
+                });
+                thead.innerHTML = headerHtml;
+            }
+
+            // 3. Filter & Render Rows
+            const filteredList = campaignsList.filter(item => item.name.toLowerCase().includes(filterText));
+            let html = '';
+            
+            filteredList.forEach(item => {
+                let nameCell = '';
+                if(adsCurrentLevel === 'campaign') {
+                    nameCell = `<a href="javascript:void(0)" onclick="drillDownToAdGroups('${item.id}', '${item.name.replace(/'/g, "\\'")}')" style="color: #1a73e8; text-decoration: none; font-weight: 500;">${item.name}</a>`;
+                } else if(adsCurrentLevel === 'ad_group') {
+                    nameCell = `<a href="javascript:void(0)" onclick="drillDownToAds('${item.id}', '${item.name.replace(/'/g, "\\'")}')" style="color: #1a73e8; text-decoration: none; font-weight: 500;">${item.name}</a>`;
+                } else {
+                    nameCell = `<span style="color: #475569; font-weight: 500;">${item.name}</span>`;
+                }
+
+                html += `<tr><td style="padding-left: 15px; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${item.name}">${nameCell}</td>`;
+                
+                checkedFields.forEach(f => {
+                    if(f.includes('.name')) return;
+                    let val = item.extra[f];
+                    if(f === 'metrics.impressions') val = item.imps;
+                    if(f === 'metrics.clicks') val = item.clicks;
+                    if(f === 'metrics.conversions') val = item.convs;
+                    if(f === 'metrics.cost_micros') val = item.cost * 1000000;
+
+                    html += `<td>${formatAdsValue(f, val)}</td>`;
+                });
+                html += `</tr>`;
+            });
+            tbody.innerHTML = html || '<tr><td colspan="10" style="text-align: center; padding: 20px;">No matches found.</td></tr>';
+
+            // 4. Grand Total Row
+            let footHtml = `<tr><td style="padding-left: 15px; font-weight: 700;">Grand total</td>`;
+            checkedFields.forEach(f => {
+                if(f.includes('.name')) return;
+                let totalVal = '-';
+                if(f === 'metrics.impressions') totalVal = totalImps.toLocaleString();
+                if(f === 'metrics.clicks') totalVal = totalClicks.toLocaleString();
+                if(f === 'metrics.conversions') totalVal = totalConvs.toLocaleString();
+                if(f === 'metrics.cost_micros') totalVal = '$' + totalCost.toLocaleString(undefined, {minimumFractionDigits:2});
+                
+                footHtml += `<td style="font-weight: 700;">${totalVal}</td>`;
+            });
+            footHtml += `</tr>`;
+            tfoot.innerHTML = (filteredList.length > 0) ? footHtml : '';
+        }
+
+        function renderAdsChart(labels, clicks, conversions, titleText = "Performance Overview") {
+            const canvas = document.getElementById('adsPerformanceChart');
+            canvas.style.display = 'block';
+
+            if (adsChartInstance) {
+                adsChartInstance.destroy();
+            }
+
+            const ctx = canvas.getContext('2d');
+
+            const clickGradient = ctx.createLinearGradient(0, 0, 0, 300);
+            clickGradient.addColorStop(0, 'rgba(15, 157, 88, 0.4)'); // Google Green
+            clickGradient.addColorStop(1, 'rgba(15, 157, 88, 0.0)');
+
+            const convGradient = ctx.createLinearGradient(0, 0, 0, 300);
+            convGradient.addColorStop(0, 'rgba(234, 67, 53, 0.4)'); // Google Red
+            convGradient.addColorStop(1, 'rgba(234, 67, 53, 0.0)');
+
+            adsChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Clicks',
+                            data: clicks,
+                            borderColor: '#0f9d58',
+                            backgroundColor: clickGradient,
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#fff',
+                            pointBorderColor: '#0f9d58',
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Conversions',
+                            data: conversions,
+                            borderColor: '#ea4335',
+                            backgroundColor: convGradient,
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#fff',
+                            pointBorderColor: '#ea4335',
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: titleText,
+                            font: { size: 14, weight: '600', family: "'Inter', sans-serif" },
+                            color: '#475569',
+                            padding: { top: 10, bottom: 20 }
+                        },
+                        legend: {
+                            position: 'top',
+                            align: 'end',
+                            labels: {
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                boxWidth: 8,
+                                boxHeight: 8,
+                                padding: 20,
+                                font: { size: 12, family: "'Inter', sans-serif" },
+                                color: '#64748b'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false,
+                                drawBorder: false
+                            },
+                            ticks: {
+                                maxTicksLimit: 15
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            grid: {
+                                color: '#f0f0f0',
+                                drawBorder: false
+                            },
+                            beginAtZero: true
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: {
+                                drawOnChartArea: false, // only want the grid lines for one axis to show up
+                                drawBorder: false
+                            },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
         }
 
         function switchGscTab(tabName) {

@@ -676,6 +676,10 @@
                                 style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none;">
                                 <i class="fas fa-file-upload"></i> Upload Delivery CSV
                             </button>
+                            <button class="btn" onclick="exportOrderedCSV()" id="exportOrderedBtn"
+                                style="background: #4f46e5; color: white; border: none;">
+                                <i class="fas fa-file-export"></i> Export Ordered CSV
+                            </button>
                             <button class="btn btn-primary" onclick="bulkValidateOrders()" id="bulkValidateBtn"
                                 style="display: none;">
                                 <i class="fas fa-check-double"></i> Validate Selected
@@ -706,6 +710,8 @@
                         </select>
                         <input type="text" id="bdFilter" placeholder="Filter by BD..." onkeyup="filterOrders()"
                             style="padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white; width: 140px;">
+                        <input type="text" id="vendorExportFilter" list="vendorList" placeholder="Vendor for Export..."
+                            style="padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white; width: 160px;">
                         <input type="date" id="dateFilter" onchange="filterOrders()"
                             style="padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white; width: 140px;">
                     </div>
@@ -1928,24 +1934,65 @@
             document.getElementById('orderKeyword').value = keyword;
             document.getElementById('orderKeywordDisplay').value = keyword;
 
-            const vendorSelect = document.getElementById('orderVendorSelect');
+            const vendorDatalist = document.getElementById('vendorList');
             const vendors = state.vendors.filter(v => v.role === 'Vendor');
-            vendorSelect.innerHTML = vendors.map(v => `<option value="${v.id}">${v.name}</option>`).join('') || '<option value="">No Vendors Found</option>';
+            vendorDatalist.innerHTML = vendors.map(v => `<option value="${v.name}"></option>`).join('');
+
+            const vendorInput = document.getElementById('orderVendorInput');
+            vendorInput.value = 'Anurag'; // Default vendor
 
             document.getElementById('orderModal').style.display = 'flex';
         }
 
+        async function exportOrderedCSV() {
+            const vendorFilter = document.getElementById('vendorExportFilter').value.toLowerCase();
+            
+            const orderedLinks = state.backlinks.filter(b => {
+                const isOrdered = b.status === 'Ordered';
+                const matchesVendor = !vendorFilter || (b.vendorName || '').toLowerCase().includes(vendorFilter);
+                return isOrdered && matchesVendor;
+            });
+
+            if (orderedLinks.length === 0) {
+                alert('No "Ordered" backlinks found' + (vendorFilter ? ' for this vendor.' : '.'));
+                return;
+            }
+
+            const headers = ['Campaign', 'Keyword', 'Quantity', 'Vendor', 'Requested Date'];
+            const rows = orderedLinks.map(b => [
+                b.campaignName || 'N/A',
+                b.keyword || 'N/A',
+                b.quantity || 1,
+                b.vendorName || 'N/A',
+                b.createdAt ? new Date(b.createdAt).toLocaleDateString() : 'N/A'
+            ]);
+
+            const csvContent = [headers, ...rows]
+                .map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+                .join("\n");
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            const filename = `ordered_backlinks_${new Date().toISOString().split('T')[0]}.csv`;
+            link.setAttribute("download", filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         async function saveOrder() {
-            const vendorId = document.getElementById('orderVendorSelect').value;
-            const vendor = state.vendors.find(v => v.id === vendorId);
+            const vendorName = document.getElementById('orderVendorInput').value;
+            const vendor = state.vendors.find(v => v.name === vendorName);
             const campaign = state.campaigns.find(c => c.id === activeCampaignId);
 
             const orderData = {
                 campaignId: activeCampaignId,
                 campaignName: campaign ? campaign.name : 'N/A',
                 keyword: document.getElementById('orderKeyword').value,
-                vendorId: vendorId,
-                vendorName: vendor ? vendor.name : 'N/A',
+                vendorId: vendor ? vendor.id : 'custom',
+                vendorName: vendorName || 'N/A',
                 quantity: document.getElementById('orderQuantity').value,
                 status: 'Ordered',
                 type: 'Backlink'
@@ -3896,7 +3943,8 @@
                 </div>
                 <div class="form-group">
                     <label>Vendor</label>
-                    <select id="orderVendorSelect" required></select>
+                    <input type="text" id="orderVendorInput" list="vendorList" placeholder="Select or type vendor..." required>
+                    <datalist id="vendorList"></datalist>
                 </div>
                 <div class="form-group">
                     <label>Quantity</label>
