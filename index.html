@@ -1457,7 +1457,8 @@
         }
 
         #crawlerReport {
-            max-height: 75vh; min-height: 600px;
+            max-height: 75vh;
+            min-height: 600px;
             overflow: auto;
             border: 1px solid #ddd;
             border-radius: 8px;
@@ -4307,6 +4308,13 @@
             color: black;
             text-decoration: none;
             cursor: pointer;
+        }
+
+        .geo-card ul {
+            max-height: none;
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
         }
 
         #auditSummary table {
@@ -7616,22 +7624,28 @@
         <!-- ======================= -->
         <!-- COCKPIT SECTION START   -->
         <!-- ======================= -->
-        <div id="cockpitSection" style="display: none; padding: 20px;">
+        <div id="cockpitSection" style="display: none; padding: 10px; box-sizing: border-box;">
 
 
             <div class="discovery-platform-list"
-                style="grid-template-columns: repeat(auto-fill, minmax(450px, 1fr)); gap: 15px;">
-
+                style="grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; width: 100%;">
                 <!-- Monday.com Card -->
-                <div class="geo-card" style="display: flex; flex-direction: column; height: 75vh; min-height: 600px;">
+                <div class="geo-card"
+                    style="display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 500px; margin-bottom: 0;">
                     <div class="geo-card-header" style="flex-direction: column; align-items: stretch; gap: 12px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
                                 <img src="https://monday.com/favicon.ico" alt="Monday.com" style="height: 24px;">
                                 Actionable Tasks
                             </h3>
-                            <span id="cockpit-monday-count" class="badge-action"
-                                style="font-size: 14px; padding: 5px 10px;">Loading...</span>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <button onclick="refreshMondayTasks()" class="discovery-btn-run"
+                                    style="padding: 4px 12px; font-size: 0.8rem;">
+                                    <i class="fas fa-sync-alt"></i> Refresh
+                                </button>
+                                <span id="cockpit-monday-count" class="badge-action"
+                                    style="font-size: 14px; padding: 5px 10px;">Loading...</span>
+                            </div>
                         </div>
                         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                             <!-- User Multi-select -->
@@ -7669,7 +7683,8 @@
                 </div>
 
                 <!-- Monday Updates Card -->
-                <div class="geo-card" style="display: flex; flex-direction: column; height: 75vh; min-height: 600px;">
+                <div class="geo-card"
+                    style="display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 500px; margin-bottom: 0;">
                     <div class="geo-card-header" style="flex-direction: column; align-items: stretch; gap: 12px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
@@ -7677,7 +7692,7 @@
                                 Latest Item Updates
                             </h3>
                             <div style="display: flex; gap: 10px; align-items: center;">
-                                <button onclick="refreshCockpitData()" class="discovery-btn-run"
+                                <button onclick="refreshMondayUpdates()" class="discovery-btn-run"
                                     style="padding: 4px 12px; font-size: 0.8rem;">
                                     <i class="fas fa-sync-alt"></i> Refresh
                                 </button>
@@ -7716,17 +7731,25 @@
                             <p style="margin-top: 15px;">Fetching updates...</p>
                         </div>
                     </div>
-
                 </div>
 
                 <!-- SE Ranking Card -->
-                <div class="geo-card" style="display: flex; flex-direction: column; height: 75vh; min-height: 600px;">
-                    <div class="geo-card-header">
-                        <h3 style="margin: 0; font-size: 1.1em; color: #3b82f6;"><i class="fas fa-chart-line"
-                                style="margin-right: 8px;"></i> Global Top Movers</h3>
-                        <span id="seranking-sync-status" style="font-size: 0.85em; color: #64748b;">Ready</span>
+                <div class="geo-card"
+                    style="display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 500px; margin-bottom: 0;">
+                    <div class="geo-card-header" style="justify-content: space-between; align-items: center;">
+                        <h3
+                            style="margin: 0; font-size: 1.1em; color: #3b82f6; display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-chart-line"></i> Global Top Movers
+                        </h3>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <button onclick="refreshSERankingMovers()" class="discovery-btn-run"
+                                style="padding: 4px 12px; font-size: 0.8rem;">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <span id="seranking-sync-status" style="font-size: 0.85em; color: #64748b;">Ready</span>
+                        </div>
                     </div>
-                    <div id="cockpit-seranking-content" style="max-height: 400px; overflow-y: auto;">
+                    <div id="cockpit-seranking-content" style="flex: 1; overflow-y: auto;">
                         <div style="text-align: center; color: #64748b; padding: 40px;">
                             <i class="fas fa-spinner fa-spin fa-2x"></i>
                             <p style="margin-top: 15px;">Waiting for site selection...</p>
@@ -12946,14 +12969,25 @@
             selectedUpdateMentions: new Set()
         };
 
-        function refreshCockpitData() {
+        function refreshMondayTasks() {
             fetchCockpitMonday();
-            // Reset updates pagination
+        }
+
+        function refreshMondayUpdates() {
             cockpitState.updatesPage = 1;
             cockpitState.mondayUpdates = [];
             cockpitState.hasMoreUpdates = true;
             fetchMondayUpdates();
+        }
+
+        function refreshSERankingMovers() {
             fetchGlobalSERankingMovers();
+        }
+
+        function refreshCockpitData() {
+            refreshMondayTasks();
+            refreshMondayUpdates();
+            refreshSERankingMovers();
         }
 
         function toggleFilterDropdown(id) {
@@ -13211,7 +13245,7 @@
                 updatesEl.innerHTML = '<div style="text-align: center; color: #64748b; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p id="updates-fetch-status" style="margin-top: 15px;">Connecting to Monday.com...</p></div>';
             } else {
                 // Expanding pagination limits
-                cockpitState.updatesMaxPages += 10; 
+                cockpitState.updatesMaxPages += 10;
                 if (loadMoreBtn) loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
             }
 
@@ -13224,7 +13258,7 @@
                     // Stop if we don't have matching loading HTML overlay
                     const statusEl = document.getElementById('updates-fetch-status');
                     if (statusEl && updatesEl.innerHTML.includes('updates-fetch-status')) {
-                         statusEl.innerText = `Fetching updates... Page ${cockpitState.updatesPage} (${cockpitState.mondayUpdates.length} items fetched)`;
+                        statusEl.innerText = `Fetching updates... Page ${cockpitState.updatesPage} (${cockpitState.mondayUpdates.length} items fetched)`;
                     }
 
                     const resp = await fetch('https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday', {
@@ -13247,11 +13281,11 @@
                     if (!newUpdates || newUpdates.length === 0) {
                         cockpitState.hasMoreUpdates = false;
                         break;
-                    } 
-                    
+                    }
+
                     cockpitState.mondayUpdates = cockpitState.mondayUpdates.concat(newUpdates);
                     populateUpdatesFilters(cockpitState.mondayUpdates);
-                    
+
                     // Progressive Rendering! Update UI immediately for users to see
                     renderMondayUpdates();
 
