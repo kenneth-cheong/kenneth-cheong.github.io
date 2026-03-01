@@ -20,7 +20,7 @@ def lambda_handler(event, context):
         
         # Handle get_updates action
         if action == 'get_updates':
-            limit = body.get('limit', 30)
+            limit = body.get('limit', 100)
             page = body.get('page', 1)
             updates_query = f'''
             {{
@@ -81,14 +81,14 @@ def lambda_handler(event, context):
             
             # 3. Batch Query Items Across Boards (Limit to 50 target boards and 10 items each to prevent timeout/complexity issues)
             # You can paginate or parallelize this in the future if limits are hit
-            boards_query_list = ",".join(target_board_ids[:40]) 
+            boards_query_list = ",".join(target_board_ids) 
             
             all_campaign_query = f'''
             {{
               boards (ids: [{boards_query_list}]) {{
                 id
                 name
-                items_page (limit: 15) {{
+                items_page (limit: 100) {{
                   items {{
                     id
                     name

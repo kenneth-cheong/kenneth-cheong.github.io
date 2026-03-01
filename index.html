@@ -12199,6 +12199,10 @@
                                         </div>
                                         <button onclick="updateSelectedAdsProperty(true)"
                                             style="padding: 8px 15px; border-radius: 6px; border: none; background: #0f9d58; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;">Apply</button>
+                                        <button id="btnRunAdsAudit" onclick="runAdsAudit()"
+                                            style="padding: 8px 15px; border-radius: 6px; border: none; background: #ea4335; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                                            <i class="fas fa-chart-line"></i> Run Audit
+                                        </button>
                                     </div>
                                 </div>
                                 <div style="display: flex; gap: 15px; align-items: center;">
@@ -12536,6 +12540,26 @@
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- Ads Audit Results Container -->
+                            <div id="adsAuditSection"
+                                style="display: none; margin-bottom: 25px; background: #fff; border-radius: 12px; border: 1px solid #eef0f2; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                    <h3
+                                        style="margin: 0; font-size: 16px; color: #1e293b; display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-microscope" style="color: #ea4335;"></i> Google Ads Audit
+                                        Report
+                                    </h3>
+                                    <button onclick="document.getElementById('adsAuditSection').style.display='none'"
+                                        style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 16px;"><i
+                                            class="fas fa-times"></i></button>
+                                </div>
+                                <div id="adsAuditResultsGrid"
+                                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
+                                    <!-- Results will be injected here -->
                                 </div>
                             </div>
 
@@ -18554,6 +18578,12 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 updateHierarchyChipLabels();
 
                 fetchAdsInsights(selectedProperty, loginCustomerId, developerToken, isRefresh);
+
+                // Automated Audit trigger
+                setTimeout(() => {
+                    console.log("Automating Google Ads Audit after account selection...");
+                    runAdsAudit();
+                }, 1500);
             } else {
                 document.getElementById('adsImpressions').textContent = '-';
                 document.getElementById('adsClicks').textContent = '-';
@@ -19402,6 +19432,240 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
         function reRenderAdsTable() {
             renderCampaignsTable(lastFetchedCampaignsList, lastFetchedTotals.imps, lastFetchedTotals.clicks, lastFetchedTotals.convs, lastFetchedTotals.cost);
+        }
+
+        // --- Google Ads Audit Logic ---
+
+        async function fetchAdsGAQL(customerId, loginCustomerId, developerToken, query) {
+            const payloadStr = {
+                action: 'adsSearchStream',
+                customerId: customerId,
+                access_token: googleAccessToken,
+                payload: { query: query.trim() }
+            };
+            if (loginCustomerId) payloadStr.loginCustomerId = loginCustomerId;
+            if (developerToken) payloadStr.developerToken = developerToken;
+
+            const response = await fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payloadStr)
+            });
+            let data = await response.json();
+            data = parseLambdaResponse(data);
+            if (data.error) throw new Error(typeof data.error === 'object' ? JSON.stringify(data.error) : data.error);
+
+            let results = [];
+            if (Array.isArray(data)) {
+                data.forEach(batch => { if (batch.results) results = results.concat(batch.results); });
+            }
+            return results;
+        }
+
+        async function runAdsAudit() {
+            const selectEl = document.getElementById('adsSiteList');
+            const customerId = selectEl.value;
+            if (!customerId) {
+                alert("Please select an Ads account first.");
+                return;
+            }
+            const selectedOption = selectEl.options[selectEl.selectedIndex];
+            const loginCustomerId = selectedOption.dataset.managerId || null;
+            const developerToken = selectedOption.dataset.developerToken || null;
+
+            const grid = document.getElementById('adsAuditResultsGrid');
+            const section = document.getElementById('adsAuditSection');
+
+            section.style.display = 'block';
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x" style="color: #ea4335;"></i><p style="margin-top:15px; color:#64748b;">Scanning account data for insights...</p></div>';
+            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            try {
+                // Fetch Data needed for Audit
+                const campaigns = await fetchAdsGAQL(customerId, loginCustomerId, developerToken, `
+                    SELECT 
+                        campaign.id, campaign.name, campaign.status, campaign.bidding_strategy_type, 
+                        metrics.impressions, metrics.clicks, metrics.conversions, metrics.cost_micros, metrics.ctr,
+                        metrics.search_budget_lost_impression_share, metrics.search_rank_lost_impression_share 
+                    FROM campaign 
+                    WHERE segments.date DURING LAST_30_DAYS
+                `);
+
+                const ads = await fetchAdsGAQL(customerId, loginCustomerId, developerToken, `
+                    SELECT 
+                        campaign.id, ad_group.id, ad_group.name, ad_group.status, 
+                        ad_group_ad.ad.id, ad_group_ad.status, 
+                        ad_group_ad.policy_summary.approval_status, 
+                        ad_group_ad.ad.responsive_search_ad.ad_strength 
+                    FROM ad_group_ad 
+                    WHERE ad_group_ad.status = 'ENABLED' OR ad_group.status = 'ENABLED'
+                `);
+
+                const keywords = await fetchAdsGAQL(customerId, loginCustomerId, developerToken, `
+                    SELECT 
+                        ad_group.id, ad_group_criterion.criterion_id, 
+                        ad_group_criterion.keyword.text, 
+                        ad_group_criterion.keyword.match_type, 
+                        ad_group_criterion.status,
+                        ad_group_criterion.quality_info.quality_score, 
+                        metrics.cost_micros 
+                    FROM keyword_view 
+                    WHERE segments.date DURING LAST_30_DAYS
+                `);
+
+                const searchTerms = await fetchAdsGAQL(customerId, loginCustomerId, developerToken, `
+                    SELECT search_term_view.search_term, metrics.conversions 
+                    FROM search_term_view 
+                    WHERE metrics.conversions > 0 AND segments.date DURING LAST_30_DAYS
+                `);
+
+                const findings = analyzeAdsData(campaigns, ads, keywords, searchTerms);
+                renderAuditFindings(findings);
+            } catch (err) {
+                console.error("Audit Error:", err);
+                grid.innerHTML = `<div style="grid-column: 1/-1; color: #ea4335; padding: 20px; text-align: center;"><i class="fas fa-exclamation-triangle"></i><br>Error running audit: ${err.message}</div>`;
+            }
+        }
+
+        function analyzeAdsData(campaigns, ads, keywords, searchTerms) {
+            const findings = { critical: [], high: [], medium: [], opportunity: [] };
+
+            // 1. Critical Flags
+            const adGroupAdsMap = {};
+            ads.forEach(ad => {
+                const agId = ad.adGroup?.id;
+                if (!adGroupAdsMap[agId]) adGroupAdsMap[agId] = { name: ad.adGroup?.name, status: ad.adGroup?.status, ads: [] };
+                adGroupAdsMap[agId].ads.push(ad);
+            });
+
+            // Empty Ad Groups
+            Object.keys(adGroupAdsMap).forEach(agId => {
+                const ag = adGroupAdsMap[agId];
+                const activeAds = ag.ads.filter(a => a.adGroupAd?.status === 'ENABLED');
+                if (ag.status === 'ENABLED' && activeAds.length === 0) {
+                    findings.critical.push({ title: "Empty Ad Group", desc: `Ad Group '${ag.name}' is enabled but has no active ads.`, icon: "fa-folder-open" });
+                }
+            });
+
+            // Disapproved Ads
+            ads.forEach(ad => {
+                const status = ad.adGroupAd?.policySummary?.approvalStatus;
+                if (status === 'DISAPPROVED' || status === 'AREA_OF_INTEREST_ONLY') {
+                    findings.critical.push({ title: "Ad Disapproved", desc: `Ad in '${ad.adGroup?.name}' is disapproved or limited.`, icon: "fa-ban" });
+                }
+            });
+
+            // Performance Flags
+            campaigns.forEach(c => {
+                const cost = (c.metrics?.costMicros || 0) / 1000000;
+                const convs = parseFloat(c.metrics?.conversions || 0);
+                const imps = parseInt(c.metrics?.impressions || 0);
+                const ctr = parseFloat(c.metrics?.ctr || 0);
+                const roas = cost > 0 ? (parseFloat(c.metrics?.conversionsValue || 0) / cost) : 0;
+
+                if (cost > 50 && convs === 0) {
+                    findings.critical.push({ title: "Wasteful Spend", desc: `Campaign '${c.campaign.name}' spent $${cost.toFixed(2)} with 0 conversions.`, icon: "fa-dollar-sign" });
+                }
+
+                const budgetLoss = parseFloat(c.metrics?.searchBudgetLostImpressionShare || 0);
+                if (budgetLoss > 0.20) {
+                    findings.critical.push({ title: "Budget Limited", desc: `Campaign '${c.campaign.name}' is losing ${(budgetLoss * 100).toFixed(1)}% IS due to budget.`, icon: "fa-battery-quarter" });
+                }
+
+                // Smart Bidding check
+                if (['TARGET_CPA', 'TARGET_ROAS', 'MAXIMIZE_CONVERSIONS', 'MAXIMIZE_CONVERSION_VALUE'].includes(c.campaign?.biddingStrategyType)) {
+                    if (convs < 30) {
+                        findings.critical.push({ title: "Smart Bidding Alert", desc: `'${c.campaign.name}' has only ${convs} conversions (recommended 30+ for Smart Bidding).`, icon: "fa-brain" });
+                    }
+                }
+
+                // High Priority CTR check
+                if (imps > 500 && ctr < 0.01) {
+                    findings.high.push({ title: "Low CTR Performance", desc: `Search campaign '${c.campaign.name}' has CTR below 1% (${(ctr * 100).toFixed(2)}%).`, icon: "fa-mouse-pointer" });
+                }
+
+                // Rank Loss
+                const rankLoss = parseFloat(c.metrics?.searchRankLostImpressionShare || 0);
+                if (rankLoss > 0.30) {
+                    findings.high.push({ title: "High Rank Loss", desc: `Campaign '${c.campaign.name}' has >30% IS loss due to Ad Rank.`, icon: "fa-arrow-down" });
+                }
+
+                // ROAS Check
+                if (cost > 100 && roas < 1.5) {
+                    findings.medium.push({ title: "Low ROAS", desc: `Campaign '${c.campaign.name}' ROAS is ${roas.toFixed(2)} (Target > 1.5).`, icon: "fa-chart-pie" });
+                }
+            });
+
+            // Keyword Flags
+            keywords.forEach(kw => {
+                const score = kw.adGroupCriterion?.qualityInfo?.qualityScore;
+                const cost = (kw.metrics?.costMicros || 0) / 1000000;
+                if (score && score <= 4 && cost > 10) {
+                    findings.high.push({ title: "Low Quality Score", desc: `Keyword '${kw.adGroupCriterion.keyword.text}' has QS of ${score} and high cost.`, icon: "fa-low-vision" });
+                }
+
+                if (kw.adGroupCriterion?.keyword?.matchType === 'BROAD' && cost > 20) {
+                    findings.medium.push({ title: "Unmanaged Broad Match", desc: `Broad match '${kw.adGroupCriterion.keyword.text}' has significant spend.`, icon: "fa-random" });
+                }
+            });
+
+            // Ad Group Structures
+            Object.keys(adGroupAdsMap).forEach(agId => {
+                const ag = adGroupAdsMap[agId];
+                const activeAdsCount = ag.ads.filter(a => a.adGroupAd?.status === 'ENABLED').length;
+                if (activeAdsCount === 1) {
+                    findings.high.push({ title: "No A/B Testing", desc: `Ad Group '${ag.name}' has only 1 active ad.`, icon: "fa-vial" });
+                }
+            });
+
+            // Opportunity Flags
+            const existingKws = new Set(keywords.map(k => k.adGroupCriterion?.keyword?.text?.toLowerCase()).filter(Boolean));
+            searchTerms.forEach(st => {
+                const term = st.searchTermView?.searchTerm;
+                if (term && !existingKws.has(term.toLowerCase())) {
+                    findings.opportunity.push({ title: "New Keyword Gold", desc: `Term '${term}' is converting but not targeted yet.`, icon: "fa-plus-circle" });
+                }
+            });
+
+            return findings;
+        }
+
+        function renderAuditFindings(findings) {
+            const grid = document.getElementById('adsAuditResultsGrid');
+            grid.innerHTML = '';
+
+            const categories = [
+                { id: 'critical', title: 'Critical Issues', color: '#ea4335', icon: 'fa-exclamation-circle' },
+                { id: 'high', title: 'High Priority', color: '#f9ab00', icon: 'fa-exclamation-triangle' },
+                { id: 'medium', title: 'Medium Priority', color: '#fbbf24', icon: 'fa-info-circle' },
+                { id: 'opportunity', title: 'Opportunities', color: '#1a73e8', icon: 'fa-lightbulb' }
+            ];
+
+            categories.forEach(cat => {
+                const items = findings[cat.id] || [];
+                const card = document.createElement('div');
+                card.style.cssText = `background: #fff; border: 1px solid #eef0f2; border-radius: 10px; padding: 15px; border-top: 4px solid ${cat.color}; display: flex; flex-direction: column;`;
+
+                let itemsHtml = items.length > 0 ? items.map(item => `
+                    <div style="display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-start; border-bottom: 1px solid #f8fafc; padding-bottom: 8px;">
+                        <i class="fas ${item.icon || 'fa-tag'}" style="color: ${cat.color}; margin-top: 3px; font-size: 14px;"></i>
+                        <div>
+                            <div style="font-weight: 600; font-size: 13px; color: #1e293b;">${item.title}</div>
+                            <div style="font-size: 12px; color: #64748b;">${item.desc}</div>
+                        </div>
+                    </div>
+                `).join('') : '<div style="color: #94a3b8; font-size: 12px; text-align: center; padding: 10px;">No issues identified in this category.</div>';
+
+                card.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-weight: 700; font-size: 14px; color: ${cat.color};">
+                        <i class="fas ${cat.icon}"></i> ${cat.title} (${items.length})
+                    </div>
+                    <div style="max-height: 300px; overflow-y: auto; padding-right: 5px;">
+                        ${itemsHtml}
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
         }
 
         // Close column menu and hierarchy dropdowns if clicking outside
