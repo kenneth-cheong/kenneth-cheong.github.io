@@ -7636,7 +7636,7 @@
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
                                 <img src="https://monday.com/favicon.ico" alt="Monday.com" style="height: 24px;">
-                                Actionable Tasks
+                                Monday Tasks
                             </h3>
                             <div style="display: flex; gap: 10px; align-items: center;">
                                 <button onclick="refreshMondayTasks()" class="discovery-btn-run"
@@ -7671,6 +7671,19 @@
                                     style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; margin-top: 4px; max-height: 250px; overflow-y: auto; padding: 10px;">
                                     <div id="status-options-list"></div>
                                 </div>
+                            </div>
+                            <!-- Date Range Filter -->
+                            <div
+                                style="display: flex; gap: 5px; align-items: center; flex: 1.5; min-width: 280px; background: #fff; padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                <span style="font-size: 0.75rem; color: #64748b; white-space: nowrap;">Due
+                                    Between:</span>
+                                <input type="date" id="monday-start-date"
+                                    onchange="updateMondayDateFilter('start', this.value)"
+                                    style="border: none; font-size: 0.75rem; color: #1e293b; background: transparent; padding: 4px;">
+                                <span style="font-size: 0.75rem; color: #64748b;">-</span>
+                                <input type="date" id="monday-end-date"
+                                    onchange="updateMondayDateFilter('end', this.value)"
+                                    style="border: none; font-size: 0.75rem; color: #1e293b; background: transparent; padding: 4px;">
                             </div>
                         </div>
                     </div>
@@ -12966,7 +12979,9 @@
             selectedUsers: new Set(),
             selectedStatuses: new Set(),
             selectedUpdateAuthors: new Set(),
-            selectedUpdateMentions: new Set()
+            selectedUpdateMentions: new Set(),
+            mondayStartDate: '',
+            mondayEndDate: ''
         };
 
         function refreshMondayTasks() {
@@ -13147,6 +13162,25 @@
             }
         }
 
+        function updateMondayDateFilter(type, value) {
+            if (type === 'start') cockpitState.mondayStartDate = value;
+            if (type === 'end') cockpitState.mondayEndDate = value;
+            renderMondayTasks();
+        }
+
+        function parseMondayDate(dateStr) {
+            if (!dateStr || dateStr === 'No Date') return null;
+            // Monday dates can be "YYYY-MM-DD" or "YYYY-MM-DD - YYYY-MM-DD"
+            // If it's a range, we take the end date for "Due Between" logic
+            let target = dateStr;
+            if (dateStr.includes(' - ')) {
+                const parts = dateStr.split(' - ');
+                target = parts[parts.length - 1].trim();
+            }
+            const d = new Date(target);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
         function renderMondayTasks() {
             const mondayEl = document.getElementById('cockpit-monday-content');
             const badgeEl = document.getElementById('cockpit-monday-count');
@@ -13190,7 +13224,28 @@
                 const statusMatch = cockpitState.selectedStatuses.size === 0 ||
                     cockpitState.selectedStatuses.has(status);
 
-                if (!userMatch || !statusMatch) return;
+                // Date Filtering
+                let dateMatch = true;
+                if (cockpitState.mondayStartDate || cockpitState.mondayEndDate) {
+                    const taskDate = parseMondayDate(dueDate);
+                    if (taskDate) {
+                        if (cockpitState.mondayStartDate) {
+                            const start = new Date(cockpitState.mondayStartDate);
+                            if (taskDate < start) dateMatch = false;
+                        }
+                        if (cockpitState.mondayEndDate) {
+                            const end = new Date(cockpitState.mondayEndDate);
+                            // Set to end of day
+                            end.setHours(23, 59, 59, 999);
+                            if (taskDate > end) dateMatch = false;
+                        }
+                    } else {
+                        // If user has set a date range, tasks with NO date are hidden
+                        dateMatch = false;
+                    }
+                }
+
+                if (!userMatch || !statusMatch || !dateMatch) return;
 
                 let statusColor = status.toLowerCase() === 'done' || status.toLowerCase() === 'delivered' ? 'background: #22c55e;' :
                     status.toLowerCase().includes('wait') || status.toLowerCase().includes('stuck') ? 'background: #ef4444;' :
@@ -13367,6 +13422,27 @@
                 const boardName = upd.item?.board?.name || 'Monday Board';
                 const createdAt = upd.created_at ? new Date(upd.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Recent';
 
+                let repliesHtml = '';
+                if (upd.replies && Array.isArray(upd.replies) && upd.replies.length > 0) {
+                    repliesHtml = '<div style="margin-left: 20px; margin-top: 10px; border-left: 2px solid #e2e8f0; padding-left: 15px;">';
+                    upd.replies.forEach(reply => {
+                        const replyAuthor = reply.creator?.name || 'Unknown User';
+                        const replyText = reply.text_body || '';
+                        const replyAt = reply.created_at ? new Date(reply.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '';
+
+                        repliesHtml += `
+                            <div style="margin-bottom: 12px;">
+                                <div style="font-size: 0.75rem; color: #64748b; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                    <b>${replyAuthor}</b>
+                                    <span style="font-size: 0.7rem;">${replyAt}</span>
+                                </div>
+                                <div style="font-size: 0.8rem; color: #475569; line-height: 1.4; white-space: pre-wrap;">${replyText}</div>
+                            </div>
+                        `;
+                    });
+                    repliesHtml += '</div>';
+                }
+
                 html += `
                     <li style="padding: 15px; border-bottom: 1px solid #e2e8f0;">
                         <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: #6366f1; margin-bottom: 4px; letter-spacing: 0.05em;">
@@ -13379,9 +13455,10 @@
                             <span style="color: #64748b; white-space: nowrap;">${createdAt}</span>
                         </div>
                         <div style="background: #f8fafc; padding: 10px; border-radius: 8px; font-size: 0.85rem; color: #334155; line-height: 1.5; margin-bottom: 8px; border-left: 3px solid #e2e8f0; white-space: pre-wrap;">${text}</div>
-                        <div style="font-size: 0.75rem; color: #64748b; display: flex; align-items: center; gap: 5px;">
+                        <div style="font-size: 0.75rem; color: #64748b; display: flex; align-items: center; gap: 5px; margin-bottom: 5px;">
                             <i class="fas fa-user-edit"></i> <b>${author}</b>
                         </div>
+                        ${repliesHtml}
                     </li>
                 `;
                 validCount++;

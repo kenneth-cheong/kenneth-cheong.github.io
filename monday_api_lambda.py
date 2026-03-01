@@ -38,6 +38,14 @@ def lambda_handler(event, context):
                     name
                   }}
                 }}
+                replies {{
+                  id
+                  text_body
+                  created_at
+                  creator {{
+                    name
+                  }}
+                }}
               }}
             }}
             '''
