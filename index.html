@@ -12970,6 +12970,13 @@
         }
 
 
+        // Default Filters Setup
+        const defaultDeadlineDate = (() => {
+            const d = new Date();
+            d.setDate(d.getDate() + 3);
+            return d.toISOString().split('T')[0];
+        })();
+
         let cockpitState = {
             mondayItems: [],
             mondayUpdates: [],
@@ -12981,7 +12988,8 @@
             selectedUpdateAuthors: new Set(),
             selectedUpdateMentions: new Set(),
             mondayStartDate: '',
-            mondayEndDate: ''
+            mondayEndDate: defaultDeadlineDate,
+            filtersInitialized: false // To handle default selection once
         };
 
         function refreshMondayTasks() {
@@ -13022,6 +13030,22 @@
                     }
                 };
                 setTimeout(() => document.addEventListener('click', closeHandler), 0);
+            }
+        }
+
+        function toggleMondayReplies(event, id) {
+            if (event) event.preventDefault();
+            const el = document.getElementById(id);
+            const btn = event.currentTarget;
+            if (el.style.display === 'none') {
+                el.style.display = 'block';
+                btn.innerHTML = `<i class="fas fa-comments"></i> Hide Replies`;
+                btn.style.background = '#e2e8f0';
+            } else {
+                el.style.display = 'none';
+                const count = btn.getAttribute('data-count');
+                btn.innerHTML = `<i class="fas fa-comments"></i> Show ${count} ${count == 1 ? 'Reply' : 'Replies'}`;
+                btn.style.background = '#f1f5f9';
             }
         }
 
@@ -13113,10 +13137,28 @@
 
             // Populate Status Dropdown
             const statusList = document.getElementById('status-options-list');
+            const doneLikes = ['Done', '[MO] Not Needed', '[MO] Done'];
+
             if (statusList) {
+                // Handle Default Selection on First Load
+                if (!cockpitState.filtersInitialized && cockpitState.selectedStatuses.size === 0) {
+                    statuses.forEach(s => {
+                        if (!doneLikes.includes(s)) cockpitState.selectedStatuses.add(s);
+                    });
+                    cockpitState.filtersInitialized = true;
+
+                    // Also initialize the date input UI since this is effectively our "first clear setup"
+                    const dateInput = document.getElementById('monday-end-date');
+                    if (dateInput && !dateInput.value) {
+                        dateInput.value = cockpitState.mondayEndDate;
+                    }
+                }
+
                 statusList.innerHTML = Array.from(statuses).sort().map(status => `
                     <label style="display: flex; align-items: center; gap: 10px; padding: 6px 4px; cursor: pointer; font-size: 0.85rem; color: #334155;">
-                        <input type="checkbox" value="${status}" onchange="updateFilter('status', this.value, this.checked)" style="width: 14px; height: 14px;">
+                        <input type="checkbox" value="${status}" 
+                               ${cockpitState.selectedStatuses.has(status) ? 'checked' : ''}
+                               onchange="updateFilter('status', this.value, this.checked)" style="width: 14px; height: 14px;">
                         ${status}
                     </label>
                 `).join('');
@@ -13403,7 +13445,24 @@
             let html = '<ul style="list-style: none; padding: 0; margin: 0;">';
             let validCount = 0;
 
-            cockpitState.mondayUpdates.forEach(upd => {
+            // Helper to get latest timestamp (activity)
+            const getLatestActivity = (u) => {
+                let latest = new Date(u.created_at || 0);
+                if (u.replies && Array.isArray(u.replies)) {
+                    u.replies.forEach(r => {
+                        const d = new Date(r.created_at || 0);
+                        if (d > latest) latest = d;
+                    });
+                }
+                return latest;
+            };
+
+            // Explicit sorting: Latest Activity first
+            const sortedUpdates = [...cockpitState.mondayUpdates].sort((a, b) => {
+                return getLatestActivity(b) - getLatestActivity(a);
+            });
+
+            sortedUpdates.forEach(upd => {
                 const author = upd.creator?.name || 'Unknown User';
                 const text = upd.text_body || upd.body || '';
 
@@ -13424,13 +13483,12 @@
 
                 let repliesHtml = '';
                 if (upd.replies && Array.isArray(upd.replies) && upd.replies.length > 0) {
-                    repliesHtml = '<div style="margin-left: 20px; margin-top: 10px; border-left: 2px solid #e2e8f0; padding-left: 15px;">';
-                    upd.replies.forEach(reply => {
+                    const replyCount = upd.replies.length;
+                    const nestedReplies = upd.replies.map(reply => {
                         const replyAuthor = reply.creator?.name || 'Unknown User';
                         const replyText = reply.text_body || '';
                         const replyAt = reply.created_at ? new Date(reply.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '';
-
-                        repliesHtml += `
+                        return `
                             <div style="margin-bottom: 12px;">
                                 <div style="font-size: 0.75rem; color: #64748b; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                                     <b>${replyAuthor}</b>
@@ -13439,8 +13497,19 @@
                                 <div style="font-size: 0.8rem; color: #475569; line-height: 1.4; white-space: pre-wrap;">${replyText}</div>
                             </div>
                         `;
-                    });
-                    repliesHtml += '</div>';
+                    }).join('');
+
+                    repliesHtml = `
+                        <div style="margin-top: 10px;">
+                            <button onclick="toggleMondayReplies(event, 'replies-${upd.id}')" data-count="${replyCount}"
+                                    style="background: #f1f5f9; border: 1px solid #e2e8f0; color: #4f46e5; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                                <i class="fas fa-comments"></i> Show ${replyCount} ${replyCount === 1 ? 'Reply' : 'Replies'}
+                            </button>
+                            <div id="replies-${upd.id}" style="display: none; margin-left: 15px; margin-top: 12px; border-left: 2px solid #e2e8f0; padding-left: 15px;">
+                                ${nestedReplies}
+                            </div>
+                        </div>
+                    `;
                 }
 
                 html += `
