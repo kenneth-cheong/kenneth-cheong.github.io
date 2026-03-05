@@ -9988,7 +9988,7 @@
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                             <div class="geo-input-item">
                                 <label>Location</label>
-                                <select id="discKeywordLocation">
+                                <select id="discKeywordLocation" onchange="updateDiscLanguageBasedOnLocation()">
                                     <option value="Singapore">Singapore</option>
                                     <option value="South Korea">South Korea</option>
                                     <option value="Malaysia">Malaysia</option>
@@ -10010,6 +10010,12 @@
                                 <label>Language</label>
                                 <select id="discKeywordLanguage">
                                     <option value="English">English</option>
+                                    <option value="Korean">Korean</option>
+                                    <option value="Japanese">Japanese</option>
+                                    <option value="German">German</option>
+                                    <option value="French">French</option>
+                                    <option value="Thai">Thai</option>
+                                    <option value="Vietnamese">Vietnamese</option>
                                     <option value="Chinese (Simplified)">Chinese (Simplified)</option>
                                     <option value="Chinese (Traditional)">Chinese (Traditional)</option>
                                     <option value="Malay">Malay</option>
@@ -16353,6 +16359,31 @@
                 event.currentTarget.classList.add('active-menu');
             }
             closeJourneyModal();
+        }
+
+        function updateDiscLanguageBasedOnLocation() {
+            const location = document.getElementById('discKeywordLocation').value;
+            const langSelect = document.getElementById('discKeywordLanguage');
+
+            const mapping = {
+                'South Korea': 'Korean',
+                'Japan': 'Japanese',
+                'Germany': 'German',
+                'France': 'French',
+                'Thailand': 'Thai',
+                'Vietnam': 'Vietnamese',
+                'Hong Kong': 'Chinese (Traditional)',
+                'Taiwan': 'Chinese (Traditional)',
+                'United Kingdom': 'English',
+                'United States': 'English',
+                'Australia': 'English',
+                'Canada': 'English',
+                'Singapore': 'English'
+            };
+
+            if (mapping[location]) {
+                langSelect.value = mapping[location];
+            }
         }
 
         function openGeoOnPage(event) {
