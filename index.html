@@ -15,6 +15,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
@@ -129,7 +130,7 @@
     <style>
         html,
         body {
-            overflow-x: hidden;
+            overflow-x: clip;
             max-width: 100%;
             margin: 0;
             padding: 0;
@@ -6355,6 +6356,7 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             height: 60px;
             box-sizing: border-box;
+            overflow: visible !important;
         }
 
         /* Logo Container */
@@ -6403,16 +6405,19 @@
             background-color: #ffffff;
             min-width: 240px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-            z-index: 1001;
+            z-index: 9999;
             top: calc(100% + 10px);
             left: 50%;
             transform: translateX(-50%);
             border-radius: 12px;
             overflow: visible;
-            /* Changed from hidden to allow pseudo-element bridge */
             border: 1px solid #eef2f6;
             padding: 8px 0;
             animation: navFadeIn 0.2s ease-out;
+        }
+
+        .mobile-caret {
+            display: none;
         }
 
         /* Hover bridge to prevent menu closing over the gap */
@@ -6513,6 +6518,7 @@
 
             /* Mobile dropdown caret icon */
             .mobile-caret {
+                display: inline-block;
                 margin-left: auto;
                 font-size: 12px;
                 transition: transform 0.25s ease;
@@ -8869,9 +8875,66 @@
                     </table>
                 </div>
             </div>
+            <!-- Internal Anchor Text Cleaner Section -->
+            <div id="anchorTextCleanerSection">
+                <button class="collapsible" id="anchorTextCleanerBtn">
+                    <i class="fas fa-plus-square"></i><i class="fas fa-link"></i>Internal Anchor Text Cleaner
+                </button>
+                <div class="content" id="anchorTextCleanerContent">
+                    <div class="sem-step-card id" id="anchorAuditForm">
+                        <div class="sem-card-title"><i class="fas fa-search"></i> Internal Link Audit Configuration
+                        </div>
+                        <div class="sem-input-group">
+                            <div class="sem-input-item">
+                                <label for="anchorTargetUrlInput">Target URL:</label>
+                                <input type="url" id="anchorTargetUrlInput"
+                                    placeholder="https://domain.com/seo-agency/">
+                            </div>
+                            <div class="sem-input-item">
+                                <label for="anchorTargetKeywordInput">Target Keyword:</label>
+                                <input type="text" id="anchorTargetKeywordInput" placeholder="seo agency">
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px;">
+                            <button id="runAnchorAuditBtn" class="config-btn-highlight" style="margin:0;"
+                                onclick="runAnchorTextAudit()">Run Audit</button>
+                        </div>
+                        <div id="anchorAuditLoading" style="display:none; margin-top:15px; text-align:center;">
+                            <i class="fas fa-spinner fa-spin" style="font-size:2em; color:#004c9d;"></i>
+                            <p style="margin-top:10px; color:#666;">Scanning sitemaps and crawling pages. This may take
+                                a few minutes...</p>
+                        </div>
+                    </div>
+
+                    <div id="anchorAuditResults" style="display:none; margin-top: 20px;">
+                        <div class="geo-card" style="margin-top: 25px;">
+                            <div class="geo-card-header">
+                                <div class="geo-card-title"><i class="fas fa-chart-bar"></i> Audit Summary</div>
+                            </div>
+                            <div style="padding: 20px;">
+                                <div id="anchorAuditSummaryText" style="line-height: 1.6;"></div>
+
+                                <div
+                                    style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 25px; justify-content: center;">
+                                    <button onclick="downloadAnchorPageAudit()" class="discovery-btn-run"
+                                        style="width: fit-content; padding: 10px 24px; font-size: 0.9em; background: linear-gradient(135deg, #004c9d, #0066cc);">
+                                        <i class="fas fa-file-excel"></i> Download Page Audit (Outbound)
+                                    </button>
+                                    <button onclick="downloadAnchorBlogAudit()" class="discovery-btn-run"
+                                        style="width: fit-content; padding: 10px 24px; font-size: 0.9em; background: linear-gradient(135deg, #0f9d58, #34a853);">
+                                        <i class="fas fa-file-excel"></i> Download Blog Audit (Inbound)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="page-break"></div>
         </div>
         <hr>
+
     </div>
 
     <div id="smmSection">
@@ -49154,6 +49217,168 @@ Move-In</h3>
     <div id="tooltip"
         style="display:none; position:absolute; background:white; border:1px solid #ccc; padding:8px; z-index:10000; pointer-events:none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; color: #1e293b; border: 1px solid #e2e8f0;">
     </div>
+    <script>
+        // -----------------------------------------------------------------------------
+        // INTERNAL ANCHOR TEXT CLEANER (SEO SECTION)
+        // -----------------------------------------------------------------------------
+        let anchorAuditPageData = [];
+        let anchorAuditBlogData = [];
+
+        async function runAnchorTextAudit() {
+            const targetUrl = document.getElementById('anchorTargetUrlInput').value.trim();
+            const targetKeyword = document.getElementById('anchorTargetKeywordInput').value.trim();
+
+            if (!targetUrl || !targetKeyword) {
+                alert("Please enter both a Target URL and Target Keyword.");
+                return;
+            }
+
+            // Extract site domain from targetUrl
+            let siteDomain;
+            try {
+                const urlObj = new URL(targetUrl);
+                siteDomain = urlObj.origin;
+            } catch (e) {
+                alert("Invalid Target URL format.");
+                return;
+            }
+
+            document.getElementById('runAnchorAuditBtn').disabled = true;
+            document.getElementById('anchorAuditLoading').style.display = 'block';
+            document.getElementById('anchorAuditResults').style.display = 'none';
+
+            try {
+                // Replace with your actual deployed AWS API Gateway Endpoint
+                const apiUrl = 'https://tu88gycq72.execute-api.ap-southeast-1.amazonaws.com/anchorTextAudit';
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target_url: targetUrl,
+                        target_keyword: targetKeyword,
+                        site_domain: siteDomain
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API returned status ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Populate global variables for downloading later
+                anchorAuditPageData = data.page_audit || [];
+                anchorAuditBlogData = data.blog_audit || [];
+
+                // Render Summary Texts
+                let summaryHtml = `
+                    <strong>PAGE AUDIT SUMMARY</strong><br>
+                    ├── Total outbound internal links found: ${data.summary.page.internal_links_found}<br>
+                    ├── 🔴 Self-referential links: ${data.summary.page.self_referential} (CRITICAL)<br>
+                    ├── 🟠 Anchor text mismatches: ${data.summary.page.mismatch} (HIGH)<br>
+                    ├── 🟡 Irrelevant pages (diluting topic): ${data.summary.page.irrelevant} (HIGH/MEDIUM)<br>
+                    ├── ⚪ Empty or broken anchors: ${data.summary.page.empty} (CRITICAL/HIGH)<br>
+                    ├── 🔵 Generic/weak anchors: ${data.summary.page.weak} (MEDIUM/LOW)<br>
+                    └── ✅ Good links to keep: ${data.summary.page.good}
+                    <br><br>
+                    <strong>BLOG AUDIT SUMMARY</strong><br>
+                    ├── Total blog posts crawled: ${data.summary.blog.posts_crawled}<br>
+                    ├── Blog posts linking to target page: ${data.summary.blog.posts_linking}<br>
+                    ├── Total unique in-content anchors found: ${data.summary.blog.unique_anchors_found}<br>
+                    ├── ✅ GOOD anchors (contain target keyword): ${data.summary.blog.good_anchors} (${data.summary.blog.good_pct}%)<br>
+                    ├── ❌ WEAK/WRONG anchors to fix: ${data.summary.blog.weak_anchors} (${data.summary.blog.weak_pct}%)<br>
+                    │   ├── CRITICAL broken fragments: ${data.summary.blog.broken_fragments}<br>
+                    │   ├── HIGH near-miss (SEO company/firm): ${data.summary.blog.near_miss}<br>
+                    │   ├── HIGH topically generic: ${data.summary.blog.generic}<br>
+                    │   └── MEDIUM irrelevant/brand-only: ${data.summary.blog.irrelevant}<br>
+                    └── Top recommended anchor text: "${targetKeyword} Singapore"
+                    <br><br>
+                    <strong>ROOT CAUSE DIAGNOSIS</strong><br>
+                    ${data.summary.diagnosis}
+                `;
+
+                document.getElementById('anchorAuditSummaryText').innerHTML = summaryHtml;
+                document.getElementById('anchorAuditResults').style.display = 'block';
+
+            } catch (error) {
+                console.error("Error running audit:", error);
+                alert("An error occurred during the audit: " + error.message);
+            } finally {
+                document.getElementById('runAnchorAuditBtn').disabled = false;
+                document.getElementById('anchorAuditLoading').style.display = 'none';
+            }
+        }
+
+        function downloadAnchorPageAudit() {
+            if (!anchorAuditPageData || anchorAuditPageData.length === 0) {
+                alert("No page audit data available.");
+                return;
+            }
+            const targetUrl = document.getElementById('anchorTargetUrlInput').value.trim();
+            const domainSlug = new URL(targetUrl).hostname.replace('www.', '');
+            const dateStr = new Date().toISOString().split('T')[0];
+            const filename = `${domainSlug}_Page_Link_Audit_${dateStr}.xlsx`;
+
+            // Filter data for the two tabs
+            const issuesData = anchorAuditPageData.filter(row => row.Priority !== 'KEEP');
+            const goodData = anchorAuditPageData.filter(row => row.Priority === 'KEEP');
+
+            // Create workbook and worksheets
+            const wb = XLSX.utils.book_new();
+            const wsIssues = XLSX.utils.json_to_sheet(issuesData);
+            const wsGood = XLSX.utils.json_to_sheet(goodData);
+
+            XLSX.utils.book_append_sheet(wb, wsIssues, "Internal Link Issues");
+            XLSX.utils.book_append_sheet(wb, wsGood, "✅ Good Links (Keep)");
+
+            XLSX.writeFile(wb, filename);
+        }
+
+        function downloadAnchorBlogAudit() {
+            if (!anchorAuditBlogData || anchorAuditBlogData.length === 0) {
+                alert("No blog audit data available.");
+                return;
+            }
+            const targetUrl = document.getElementById('anchorTargetUrlInput').value.trim();
+            const domainSlug = new URL(targetUrl).hostname.replace('www.', '');
+            const dateStr = new Date().toISOString().split('T')[0];
+            const filename = `${domainSlug}_Blog_Link_Audit_${dateStr}.xlsx`;
+
+            // Create a deep copy to manipulate for the summary row
+            let allData = JSON.parse(JSON.stringify(anchorAuditBlogData));
+
+            // Add summary row at the top manually
+            const total = allData.length;
+            const goodCount = allData.filter(row => row.Priority === 'KEEP').length;
+            const weakCount = total - goodCount;
+
+            // Unshift adds to the beginning
+            allData.unshift({
+                "#": `TOTAL: ${total} | GOOD: ${goodCount} | WEAK/WRONG: ${weakCount}`,
+                "Status": "",
+                "Blog Post URL": "",
+                "Current Anchor Text": "",
+                "Issue": "",
+                "Recommendation": "",
+                "Priority": ""
+            });
+
+            const weakData = anchorAuditBlogData.filter(row => row.Priority !== 'KEEP');
+            const goodData = anchorAuditBlogData.filter(row => row.Priority === 'KEEP');
+
+            const wb = XLSX.utils.book_new();
+            const wsAll = XLSX.utils.json_to_sheet(allData);
+            const wsWeak = XLSX.utils.json_to_sheet(weakData);
+            const wsGood = XLSX.utils.json_to_sheet(goodData);
+
+            XLSX.utils.book_append_sheet(wb, wsAll, "📋 Blog Link Audit");
+            XLSX.utils.book_append_sheet(wb, wsWeak, "🔴 WEAK-WRONG (Fix These)");
+            XLSX.utils.book_append_sheet(wb, wsGood, "✅ GOOD (Keep)");
+
+            XLSX.writeFile(wb, filename);
+        }
+    </script>
 </body>
 
 </html>
