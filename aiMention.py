@@ -68,7 +68,7 @@ def lambda_handler(event, context):
         brand = body.get('brand')
         url = body.get('url')
         location = body.get('location', 'Global')
-        models = body.get('models', ['gpt-4o-mini', 'gemini-1.5-flash', 'perplexity', 'copilot'])
+        models = body.get('models', ['gpt-4o-mini', 'gemini-3.1-flash-lite-preview', 'perplexity', 'copilot'])
         
         if not prompt or not brand:
             return error_response("Missing prompt or brand")
@@ -192,9 +192,8 @@ Provide a detailed, modern, and helpful response with active links."""
 
 def query_gemini(model, prompt, location):
     """Google Gemini API handler."""
-    # Respect user preference for gemini-3-flash-preview if provided, else fallback
-    m_target = model if "preview" in model.lower() else ("gemini-2.0-flash-exp" if "flash" in model.lower() else "gemini-2.0-pro-exp")
-    if "gemini-3" in model.lower(): m_target = "gemini-3-flash-preview" # User specific preference
+    # Default everything to gemini-3.1-flash-lite-preview as requested
+    m_target = "gemini-3.1-flash-lite-preview"
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_target}:generateContent?key={GOOGLE_API_KEY}"
     headers = {"Content-Type": "application/json"}

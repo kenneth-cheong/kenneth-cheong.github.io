@@ -1077,7 +1077,7 @@ function googleDrive2() {
 
 function googleDriveQuery(space, query, user) {
   drive_dict = getDriveFiles();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAkYBqT7uSa7BfbeKpb0xBTFrfHeU9oF34`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=AIzaSyAkYBqT7uSa7BfbeKpb0xBTFrfHeU9oF34`;
 
   // Construct the request body
   const querystring = {
@@ -1128,7 +1128,7 @@ function googleDriveQuery(space, query, user) {
 }
 
 function spaceHistoryQuery(space, query, user) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAkYBqT7uSa7BfbeKpb0xBTFrfHeU9oF34`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=AIzaSyAkYBqT7uSa7BfbeKpb0xBTFrfHeU9oF34`;
   const result = Chat.Spaces.Messages.list(space, { pageSize: 1000 });
   history = "";
   for (i = 0; i < result["messages"].length; i++) {
@@ -1178,7 +1178,7 @@ function spaceHistoryQuery(space, query, user) {
 }
 
 function moFaqQuery(space, query, user) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAkYBqT7uSa7BfbeKpb0xBTFrfHeU9oF34`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=AIzaSyAkYBqT7uSa7BfbeKpb0xBTFrfHeU9oF34`;
   const ss = SpreadsheetApp.openByUrl(
     "https://docs.google.com/spreadsheets/d/1aiAaELbN-pv9jq_CQ1TDoWazRTcVPCFGX-N8Dr_1UEY/"
   );
@@ -1249,7 +1249,7 @@ function moFaqQuery(space, query, user) {
 }
 
 function multipleSpaceQuery(space, query) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAkYBqT7uSa7BfbeKpb0xBTFrfHeU9oF34`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=AIzaSyAkYBqT7uSa7BfbeKpb0xBTFrfHeU9oF34`;
   const result = Chat.Spaces.Messages.list(space, { pageSize: 1000 });
   history = "";
   for (i = 0; i < result["messages"].length; i++) {
