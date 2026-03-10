@@ -128,6 +128,19 @@
 
 
     <style>
+        .competitor-compare-cb {
+            accent-color: #1a73e8 !important;
+            width: 20px !important;
+            height: 20px !important;
+            margin-left: 10px !important;
+            display: inline-block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            cursor: pointer !important;
+            position: relative !important;
+            z-index: 999 !important;
+        }
+
         html,
         body {
             overflow-x: clip;
@@ -11396,6 +11409,15 @@
                                 AI Content
                                 Analysis" button below to continue.
                             </p>
+                            <div id="concurrentCompareContainer-new"
+                                style="margin-bottom: 15px; display: none; background: #e3f2fd; padding: 10px; border-radius: 8px; border: 1px solid #bbdefb; align-items: center; justify-content: space-between;">
+                                <span style="font-weight: bold; color: #1a73e8;"><i class="fas fa-check-circle"></i>
+                                    <span id="concurrentCount-new">0</span> competitors selected for deep
+                                    comparison</span>
+                                <button onclick="runConcurrentFromGrid('new')" class="btn-gradient"
+                                    style="padding: 6px 12px; font-size: 0.9em;"><i class="fas fa-search-plus"></i> Deep
+                                    Compare Selected</button>
+                            </div>
                             <div
                                 style="margin-bottom: 15px; display: flex; gap: 10px; justify-content: flex-end; align-items: center; flex-wrap: wrap;">
                                 <button id="btnAiPick-new" onclick="aiPickTopics('new')"
@@ -11607,6 +11629,15 @@
                             style="display: none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
                             <div class="competitor-insights-title">
                                 <i class="fas fa-chart-line"></i> Competitor Content Insights
+                            </div>
+                            <div id="concurrentCompareContainer-optimise"
+                                style="margin-bottom: 15px; display: none; background: #e3f2fd; padding: 10px; border-radius: 8px; border: 1px solid #bbdefb; align-items: center; justify-content: space-between;">
+                                <span style="font-weight: bold; color: #1a73e8;"><i class="fas fa-check-circle"></i>
+                                    <span id="concurrentCount-optimise">0</span> competitors selected for deep
+                                    comparison</span>
+                                <button onclick="runConcurrentFromGrid('optimise')" class="btn-gradient"
+                                    style="padding: 6px 12px; font-size: 0.9em;"><i class="fas fa-search-plus"></i> Deep
+                                    Compare Selected</button>
                             </div>
                             <p style="font-size: 0.9em; color: #666; margin-bottom: 15px;">
                                 We've analysed the top 10 SERP competitors for your keywords. <b>Select multiple
@@ -23215,7 +23246,7 @@ ${selectedText}
                 }
 
                 // 3. Create and display the table (modified createAnalysisTable function below)
-                comparisonTableHTML = createAnalysisTable(analysisData, keyword, urls);  // Pass keyword and target URLs
+                comparisonTableHTML = createAnalysisTable(analysisData, keyword, [document.getElementById('comparison-domain').value]);  // Pass keyword and target URLs
                 document.getElementById('initial-table').innerHTML = `<div id="tableContainer">${comparisonTableHTML}</div>`;
                 makeTableResizable('analysisTable');
 
@@ -23237,7 +23268,7 @@ ${selectedText}
 
                 try {
                     //const outputTableHTML = createHTMLTableFromJSON(comparisonData.body.output); // Parse JSON string to object
-                    const outputTableHTML = createAnalysisTable(comparisonData.body.output, keyword, urls)
+                    const outputTableHTML = createAnalysisTable(comparisonData.body.output, keyword, [document.getElementById('comparison-domain').value]);
                     document.getElementById('initial-table').innerHTML = "";
                     document.getElementById('initial-table').innerHTML = `<div id="tableContainer">${outputTableHTML}</div>`;
                     makeTableResizable('analysisTable');
@@ -23401,7 +23432,8 @@ ${selectedText}
 
         // Function to create the HTML table from the analysis data
         function createAnalysisTable(data, keyword, targetUrls) {
-            let tableHTML = '<table id="analysisTable">';
+            let tableHTML = '<div id="concurrentCompareContainer" style="margin-bottom: 12px; display: none; text-align: right;"><button id="runConcurrentBtn" class="btn-gradient" style="padding: 8px 16px; font-weight: bold;"><i class="fas fa-search-plus"></i> Concurrent Deep Compare (<span id="concurrentCount">0</span>)</button></div>';
+            tableHTML += '<table id="analysisTable">';
             tableHTML += '<thead><tr><th>URL<div class="resizer"></div></th>';
 
             const urls = Object.keys(data);
@@ -23422,8 +23454,11 @@ ${selectedText}
 
                 tableHTML += `<th ${isTarget && keyword ? 'class="targetUrl"' : ''}>
                         <div class="resizer"></div>
-                        <a href="${url}" target="_blank" rel="noopener noreferrer" style="display:block;margin-bottom:8px;word-break:break-all;">${url}</a>
-                        ${!isTarget && primaryTargetUrl ? `<button onclick="runDeepComparison('${primaryTargetUrl}', '${url}', '${keyword}')" class="btn-gradient" style="font-size: 11px; padding: 4px 8px; width:100%; margin-top:5px;"><i class="fas fa-search-plus"></i> Deep Compare</button>` : ''}
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px;">
+                            <a href="${url}" target="_blank" rel="noopener noreferrer" style="word-break:break-all;">${url}</a>
+                            ${!isTarget && primaryTargetUrl ? `<input type="checkbox" class="competitor-compare-cb" value="${url}" data-target="${primaryTargetUrl}" data-keyword="${keyword}" style="transform: scale(1.3); cursor: pointer;" onchange="updateConcurrentButton()">` : ''}
+                        </div>
+                        ${!isTarget && primaryTargetUrl ? `<button onclick="runDeepComparison('${primaryTargetUrl}', ['${url}'], '${keyword}')" class="btn-gradient" style="font-size: 11px; padding: 4px 8px; width:100%; margin-top:5px;"><i class="fas fa-search-plus"></i> Deep Compare</button>` : ''}
                         </th>`;
             });
             tableHTML += '</tr></thead><tbody>';
@@ -23507,13 +23542,92 @@ ${selectedText}
 
         const deepCompareCache = {}; // Cache to store previously analyzed comparisons
 
-        async function runDeepComparison(targetUrl, competitorUrl, keyword) {
+        function updateConcurrentButton() {
+            // Checkboxes for 'new' analysis
+            const checkboxesNew = document.querySelectorAll('#competitorInsightsGrid .competitor-compare-cb:checked');
+            const containerNew = document.getElementById('concurrentCompareContainer-new');
+            const countSpanNew = document.getElementById('concurrentCount-new');
+
+            if (containerNew && countSpanNew) {
+                if (checkboxesNew.length > 0) {
+                    containerNew.style.display = 'flex';
+                    countSpanNew.innerText = checkboxesNew.length;
+                } else {
+                    containerNew.style.display = 'none';
+                }
+            }
+
+            // Checkboxes for 'optimise' analysis
+            const checkboxesOptimise = document.querySelectorAll('#competitorInsightsGrid-Optimise .competitor-compare-cb:checked');
+            const containerOptimise = document.getElementById('concurrentCompareContainer-optimise');
+            const countSpanOptimise = document.getElementById('concurrentCount-optimise');
+
+            if (containerOptimise && countSpanOptimise) {
+                if (checkboxesOptimise.length > 0) {
+                    containerOptimise.style.display = 'flex';
+                    countSpanOptimise.innerText = checkboxesOptimise.length;
+                } else {
+                    containerOptimise.style.display = 'none';
+                }
+            }
+
+            // Checkboxes for 'onpage' analysis
+            const checkboxesOnPage = document.querySelectorAll('#onPageSerpGrid .competitor-compare-cb:checked');
+            const containerOnPage = document.getElementById('concurrentCompareContainer-onpage');
+            const countSpanOnPage = document.getElementById('concurrentCount-onpage');
+
+            if (containerOnPage && countSpanOnPage) {
+                if (checkboxesOnPage.length > 0) {
+                    containerOnPage.style.display = 'flex';
+                    countSpanOnPage.innerText = checkboxesOnPage.length;
+                } else {
+                    containerOnPage.style.display = 'none';
+                }
+            }
+
+            // Legacy/Fallback
+            const allCheckboxes = document.querySelectorAll('.competitor-compare-cb:checked');
+            const legacyContainer = document.getElementById('concurrentCompareContainer');
+            const legacyCountSpan = document.getElementById('concurrentCount');
+            if (legacyContainer && legacyCountSpan) {
+                if (allCheckboxes.length > 0) {
+                    legacyContainer.style.display = 'block';
+                    legacyCountSpan.innerText = allCheckboxes.length;
+                } else {
+                    legacyContainer.style.display = 'none';
+                }
+            }
+        }
+
+        function runConcurrentFromGrid(type) {
+            let gridId;
+            if (type === 'new') gridId = 'competitorInsightsGrid';
+            else if (type === 'optimise') gridId = 'competitorInsightsGrid-Optimise';
+            else if (type === 'onpage') gridId = 'onPageSerpGrid';
+
+            const checkboxes = document.querySelectorAll(`#${gridId} .competitor-compare-cb:checked`);
+            if (checkboxes.length === 0) {
+                alert("Please select at least one competitor.");
+                return;
+            }
+
+            const targetUrl = checkboxes[0].getAttribute('data-target');
+            const keyword = checkboxes[0].getAttribute('data-keyword');
+            const selectedUrls = Array.from(checkboxes).map(cb => cb.value);
+
+            runDeepComparison(targetUrl, selectedUrls, keyword);
+        }
+
+        async function runDeepComparison(targetUrl, competitorUrls, keyword) {
+            const urlsArray = Array.isArray(competitorUrls) ? competitorUrls : [competitorUrls];
+            const sortedUrls = [...urlsArray].sort();
+
             if (OPTIMISER_ENDPOINTS.DEEP_COMPARE === 'YOUR_DEEP_COMPARE_LAMBDA_URL') {
                 alert("Please configure the DEEP_COMPARE lambda endpoint in OPTIMISER_ENDPOINTS.");
                 return;
             }
 
-            const cacheKey = `${targetUrl}_vs_${competitorUrl}`;
+            const cacheKey = `${targetUrl}_vs_${sortedUrls.join(',')}`;
             const cachedData = deepCompareCache[cacheKey];
 
             let modal = document.getElementById('deepCompareModal');
@@ -23532,17 +23646,17 @@ ${selectedText}
             }
             modal.style.display = 'block';
 
-            const renderHeader = (compUrl) => {
-                const cleanUrl = compUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+            const renderHeader = (compUrls) => {
+                const urlList = compUrls.map(u => u.replace(/^https?:\/\//, '').replace(/\/$/, '')).join(', ');
                 return `<h3 style="margin-top:20px;margin-bottom:20px;color:#fff;background:#282828;padding:15px;border-radius:8px; border-left: 4px solid #1a73e8; font-size: 1.3rem;">
                             Deep Comparison:<br>
                             <span style="font-size:0.9em; font-weight:normal; color:#bbb;">Target: ${targetUrl}</span><br>
-                            <span style="font-size:0.9em; font-weight:normal; color:#4caf50;">Competitor: ${cleanUrl}</span>
+                            <span style="font-size:0.9em; font-weight:normal; color:#4caf50;">Competitors: ${urlList}</span>
                         </h3>`;
             };
 
-            const renderTables = (data, compUrl) => {
-                let htmlContent = renderHeader(compUrl);
+            const renderTables = (data, compUrls) => {
+                let htmlContent = renderHeader(compUrls);
 
                 // Priority Action Plan UI
                 if (data.priority_action_plan && data.priority_action_plan.length > 0) {
@@ -23571,7 +23685,7 @@ ${selectedText}
             if (cachedData) {
                 const resultsContainer = document.getElementById('deepCompareModalContent');
                 if (resultsContainer) {
-                    let fullHtml = renderTables(cachedData, competitorUrl);
+                    let fullHtml = renderTables(cachedData, urlsArray);
                     // Append the standard tables using the helper
                     const renderIssueTable = (title, icon, items) => {
                         if (!items || items.length === 0) return '';
@@ -23591,7 +23705,7 @@ ${selectedText}
                         html += `</tbody></table></div>`;
                         return html;
                     };
-                    
+
                     fullHtml += renderIssueTable('E-E-A-T & Trust Signals', 'fa-shield-alt', cachedData.eeat_trust_signals);
                     fullHtml += renderIssueTable('Topical Authority & Content Cluster', 'fa-network-wired', cachedData.topical_authority_clusters);
                     fullHtml += renderIssueTable('Competitive Differentiation & SERP Positioning', 'fa-chess-knight', cachedData.competitive_differentiation);
@@ -23605,7 +23719,8 @@ ${selectedText}
 
             const resultsContainer = document.getElementById('deepCompareModalContent');
             if (resultsContainer) {
-                resultsContainer.innerHTML = `<div style="text-align:center; padding: 60px;"><i class="fas fa-spinner fa-spin fa-3x" style="color:#1a73e8;"></i><p style="margin-top:20px; font-size:1.2rem; color:#ccc;">Generating Deep Comparison for <br><b style="color:#fff;">${competitorUrl}</b><br><br><span style="font-size:0.9rem;color:#888;">This may take up to 60 seconds as AI analyzes hundreds of data points...</span></p></div>`;
+                const urlList = urlsArray.join(', ');
+                resultsContainer.innerHTML = `<div style="text-align:center; padding: 60px;"><i class="fas fa-spinner fa-spin fa-3x" style="color:#1a73e8;"></i><p style="margin-top:20px; font-size:1.2rem; color:#ccc;">Generating Deep Comparison for <br><b style="color:#fff;">${urlList}</b><br><br><span style="font-size:0.9rem;color:#888;">This may take up to ${urlsArray.length * 30 + 30} seconds as AI analyzes hundreds of data points...</span></p></div>`;
             }
 
             try {
@@ -23614,7 +23729,7 @@ ${selectedText}
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         target_url: targetUrl,
-                        competitor_url: competitorUrl,
+                        competitor_urls: urlsArray, // send array to lambda
                         keyword: keyword
                     })
                 });
@@ -23622,11 +23737,11 @@ ${selectedText}
                 if (!response.ok) throw new Error("Deep Compare Lambda returned an error: " + response.status);
                 const rawData = await response.json();
                 const data = parseLambdaResponse(rawData);
-                
+
                 // Save to cache
                 deepCompareCache[cacheKey] = data;
 
-                let fullHtml = renderTables(data, competitorUrl);
+                let fullHtml = renderTables(data, urlsArray);
 
                 // Helper for standard issue tables
                 const renderIssueTable = (title, icon, items) => {
@@ -29293,6 +29408,10 @@ ${selectedText}
         async function fetchSERPForOnPage(keyword, location, language) {
             const container = document.getElementById('onPageSerpResults');
             container.innerHTML = `
+        <div id="concurrentCompareContainer-onpage" style="margin: 10px 20px; display: none; background: #e3f2fd; padding: 10px; border-radius: 8px; border: 1px solid #bbdefb; align-items: center; justify-content: space-between;">
+            <span style="font-weight: bold; color: #1a73e8;"><i class="fas fa-check-circle"></i> <span id="concurrentCount-onpage">0</span> competitors selected for deep comparison</span>
+            <button onclick="runConcurrentFromGrid('onpage')" class="btn-gradient" style="padding: 6px 12px; font-size: 0.9em;"><i class="fas fa-search-plus"></i> Deep Compare Selected</button>
+        </div>
         <div id="onPageSerpGrid" class="competitor-insights-grid" style="padding: 20px;">
             <div style="grid-column: 1/-1; text-align: center; padding: 40px;">
                 <i class="fas fa-spinner fa-spin fa-3x" style="color: #004c9d;"></i>
@@ -33081,6 +33200,7 @@ INSTRUCTIONS:
         }
 
         function getCompetitorCardInnerHtml(item, cardId, keyword) {
+            console.log("Rendering competitor card inner HTML for:", cardId);
             const rank = item ? item.rank : '';
             const url = item.url || 'Unknown URL';
             const displayUrl = url.length > 50 ? url.substring(0, 47) + '...' : url;
@@ -33119,9 +33239,12 @@ INSTRUCTIONS:
                     <div class="card-delete-btn" title="Delete competitor" onclick="deleteCard('${cardId}')">
                         <i class="fas fa-trash-alt"></i>
                     </div>
-                    <a href="${url}" target="_blank" class="competitor-card-url" title="${url}" style="margin-bottom: 5px;">
-                        <i class="fas fa-external-link-alt"></i> ${displayUrl}
-                    </a>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
+                        <a href="${url}" target="_blank" class="competitor-card-url" title="${url}" style="margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:85%;">
+                            <i class="fas fa-external-link-alt"></i> ${displayUrl}
+                        </a>
+                        <input type="checkbox" class="competitor-compare-cb" value="${url}" data-target="${targetUrlForCompare}" data-keyword="${keyword}" style="transform: scale(1.3); cursor: pointer;" onchange="updateConcurrentButton()">
+                    </div>
                     <button class="btn-gradient" onclick="runDeepComparison('${targetUrlForCompare}', '${url}', '${keyword}')" style="font-size: 11px; padding: 4px 8px; width: 100%; margin-bottom: 10px; border-radius: 4px;">
                         <i class="fas fa-search-plus"></i> Deep Compare Gap Analysis
                     </button>

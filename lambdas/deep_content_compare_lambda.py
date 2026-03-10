@@ -4,6 +4,7 @@ import requests
 import re
 from bs4 import BeautifulSoup
 import urllib.request
+import concurrent.futures
 
 def strip_html(content):
     soup = BeautifulSoup(content, "html.parser")
@@ -20,10 +21,14 @@ def lambda_handler(event, context):
 
         target_url = event.get('target_url')
         competitor_url = event.get('competitor_url')
+        competitor_urls = event.get('competitor_urls', [])
+        
+        if competitor_url and not competitor_urls:
+            competitor_urls = [competitor_url]
+            
         keyword = event.get('keyword', '')
         
         target_content = event.get('target_content', '')
-        competitor_content = event.get('competitor_content', '')
 
         # Function to scrape url if content is not provided
         def get_content_from_url(url):
@@ -44,21 +49,29 @@ def lambda_handler(event, context):
         else:
             target_text = "Content not provided."
             
-        # Process or scrape competitor
-        if competitor_content:
-            competitor_text = strip_html(competitor_content)
-        elif competitor_url:
-            competitor_text = get_content_from_url(competitor_url)
-        else:
-            competitor_text = "Content not provided."
+        # Concurrently scrape competitors
+        competitor_texts_dict = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_url = {executor.submit(get_content_from_url, url): url for url in competitor_urls}
+            for future in concurrent.futures.as_completed(future_to_url):
+                url = future_to_url[future]
+                try:
+                    competitor_texts_dict[url] = future.result()
+                except Exception as exc:
+                    print(f'{url} generated an exception: {exc}')
+                    competitor_texts_dict[url] = "Could not retrieve content."
+                    
+        competitor_master_text = ""
+        for url, text in competitor_texts_dict.items():
+            competitor_master_text += f"\n\n--- COMPETITOR: {url} ---\n{text[:6000]}"
 
-        system_msg = """You are a world-class SEO strategist performing an extreme deep-dive gap analysis between a Target Domain and a Top Competitor.
+        system_msg = """You are a world-class SEO strategist performing an extreme deep-dive gap analysis between a Target Domain and one or more Top Competitors.
 You must output a highly structured JSON object that perfectly matches the required tables for a premium SEO audit presentation.
-The tone must be authoritative, objective, and brutally honest about the Target Domain's shortcomings compared to the Competitor.
+The tone must be authoritative, objective, and brutally honest about the Target Domain's shortcomings compared to the Competitors.
 
-CRITICAL INSTRUCTION: You MUST use exact, verbatim quotes from the provided Target and Competitor content to illustrate your points. Do not use generic explanations like 'Article exists in isolation' or 'No author byline' if you can extract an actual quote that proves your point. For example, if evaluating Tone, quote a specific bland sentence from the Target and contrast it with a compelling sentence mapped from the Competitor.
+CRITICAL INSTRUCTION: You MUST use exact, verbatim quotes from the provided Target and Competitor content to illustrate your points. When citing a competitor, you MUST explicitly name which competitor URL you are quoting. For example: [Competitor example.com: "quote here"].
 
-For the `target_gap` field, you MUST be highly detailed and specific. Provide at least 2-3 full sentences explaining EXACTLY why the target's approach fails compared to the competitor's approach, referencing the psychological or SEO impact of the gap.
+For the `target_gap` field, you MUST be highly detailed and specific. Provide at least 2-3 full sentences explaining EXACTLY why the target's approach fails compared to the competitors' approach, referencing the psychological or SEO impact of the gap.
 
 For the `fix` field, do NOT just say "Add X". You MUST provide the actual suggested replacement copy or specific structural implementation. Tell the user *exactly* what to write or do.
 
@@ -68,39 +81,39 @@ YOUR REQUIRED JSON OUTPUT FORMAT:
     {"action": "Specific tactic", "expected_outcome": "Why do this?", "effort": "Low/Medium/High", "priority": "1 (Critical) to 5 (Nice-to-have)"}
   ],
   "eeat_trust_signals": [
-    {"issue": "e.g., Target says '[quote]', missing expertise...", "competitor_approach": "Competitor proves expertise: '[quote]'", "target_gap": "What target is missing", "fix": "Exact recommended fix"}
+    {"issue": "Target says '[quote]'", "competitor_approach": "[Competitor X] proves expertise: '[quote]'", "target_gap": "Why target fails...", "fix": "Exact fix"}
   ],
   "topical_authority": [
-    {"issue": "e.g., Target only covers X '[quote]'", "competitor_approach": "Competitor covers Y and Z: '[quote]'", "target_gap": "What target is missing", "fix": "Exact recommended fix"}
+    {"issue": "Target only covers X '[quote]'", "competitor_approach": "[Competitor X] covers Y and Z: '[quote]'", "target_gap": "What target is missing", "fix": "Exact fix"}
   ],
   "competitive_differentiation": [
-    {"issue": "e.g., Generic claim: '[quote]'", "competitor_approach": "Unique angle: '[quote]'", "target_gap": "What target is missing", "fix": "Exact recommended fix"}
+    {"issue": "Generic claim: '[quote]'", "competitor_approach": "[Competitor X] Unique angle: '[quote]'", "target_gap": "What target is missing", "fix": "Exact fix"}
   ],
   "technical_schema_seo": [
-    {"issue": "e.g., Missing FAQ Schema", "competitor_approach": "Competitor uses structured data for X", "target_gap": "Target status", "fix": "Exact recommended fix"}
+    {"issue": "Missing FAQ Schema", "competitor_approach": "[Competitor X] uses structured data", "target_gap": "Target status", "fix": "Exact fix"}
   ],
   "audience_targeting": [
-    {"issue": "e.g., Target intro is weak: '[quote]'", "competitor_approach": "Competitor intro hooks reader: '[quote]'", "target_gap": "Target's generic approach", "fix": "Exact recommended fix"}
+    {"issue": "Target intro is weak: '[quote]'", "competitor_approach": "[Competitor X] intro hooks reader: '[quote]'", "target_gap": "Target's generic approach", "fix": "Exact fix"}
   ]
 }
 
-Ensure there are 4-6 highly specific rows per table to provide substantial, actionable value. Do NOT use generic advice. You MUST use specific, verbatim quotes from the provided text to justify your analysis wherever possible."""
+Ensure there are 4-6 highly specific rows per table to provide substantial, actionable value. Do NOT use generic advice. Synthesize insights across all provided competitors to highlight the biggest gaps."""
 
         user_msg = f"""
 TARGET DOMAIN/URL: {target_url}
-COMPETITOR URL: {competitor_url}
+COMPETITOR URLS: {', '.join(competitor_urls)}
 FOCUS KEYWORD: {keyword}
 
 --- TARGET CONTENT (Abridged) ---
 {target_text[:8000]}
 
---- COMPETITOR CONTENT (Abridged) ---
-{competitor_text[:8000]}
+--- COMPETITOR CONTENTS ---
+{competitor_master_text}
 
 Based on the content above, generate the required strict JSON output for the Deep Compare Analysis.
 """
 
-        print("Sending request to OpenAI...")
+        print("Sending request to OpenAI with concurrent scrape payload...")
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
@@ -110,7 +123,7 @@ Based on the content above, generate the required strict JSON output for the Dee
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json={
-                "model": "gpt-4o-mini", # Using 4o for superior instruction following and reasoning
+                "model": "gpt-4o-mini",
                 "messages": [
                     {"role": "system", "content": system_msg},
                     {"role": "user", "content": user_msg}
