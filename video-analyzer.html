@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Analyzer | MediaOne Portfolio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-start: #0f111a;
+            --bg-end: #1a1f2b;
+            --panel: rgba(255, 255, 255, 0.04);
+            --card: rgba(255, 255, 255, 0.08);
+            --text: #eaeff4;
+            --muted: #cbd5e1;
+            --accent: #818cf8;
+            --accent-glow: rgba(129, 140, 248, 0.3);
+            --shadow: 0 10px 25px rgba(0, 0, 0, .25);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, var(--bg-start), var(--bg-end));
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-attachment: fixed;
+        }
+
+        /* Ambient background orbs */
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: -1;
+            opacity: 0.15;
+        }
+
+        .orb-1 {
+            width: 400px;
+            height: 400px;
+            background: #818cf8;
+            top: -100px;
+            left: -100px;
+        }
+
+        .orb-2 {
+            width: 300px;
+            height: 300px;
+            background: #c084fc;
+            bottom: -50px;
+            right: -50px;
+        }
+
+        .orb-3 {
+            width: 250px;
+            height: 250px;
+            background: #4ade80;
+            top: 40%;
+            left: 60%;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 0 20px;
+            width: 100%;
+        }
+
+        header {
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: var(--muted);
+            opacity: 0.8;
+        }
+
+        .card {
+            background: var(--card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s ease;
+        }
+
+        h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-badge {
+            background: var(--accent);
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        p,
+        ol {
+            color: var(--muted);
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        ol {
+            margin-left: 20px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            background: #6366f1;
+            box-shadow: 0 0 15px var(--accent-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: none;
+        }
+
+        textarea {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 15px;
+            color: white;
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 120px;
+            margin-bottom: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus {
+            border-color: var(--accent);
+        }
+
+        .api-config {
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        input[type="password"],
+        input[type="text"] {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: white;
+            outline: none;
+        }
+
+        .results-table-wrapper {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th {
+            background: rgba(0, 0, 0, 0.2);
+            text-align: left;
+            padding: 12px 15px;
+            color: var(--muted);
+            font-weight: 600;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--glass-border);
+            vertical-align: top;
+        }
+
+        .video-link {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .video-link:hover {
+            text-decoration: underline;
+        }
+
+        .analysis-cell {
+            min-width: 250px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-pending {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--muted);
+        }
+
+        .status-loading {
+            background: rgba(129, 140, 248, 0.2);
+            color: #818cf8;
+        }
+
+        .status-done {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+
+        footer {
+            margin-top: auto;
+            padding: 40px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 14px;
+            opacity: 0.6;
+        }
+
+        kbd {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--glass-border);
+            border-radius: 4px;
+            padding: 2px 5px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Animation for AI writing */
+        .typing::after {
+            content: '|';
+            animation: blink 0.7s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
+    <div class="container">
+        <header>
+            <div class="logo">AI Video Content Analyzer</div>
+            <p class="subtitle">Extract metadata from social profiles and analyze content with Gemini 1.5 Flash-8b</p>
+        </header>
+
+        <!-- Step 1: Extraction Script -->
+        <div class="card">
+            <h2><span class="step-badge">1</span> Get Profile Data</h2>
+            <p>Use this script to extract video links, timestamps, handles, and captions from any Instagram or TikTok
+                profile page.</p>
+            <ol>
+                <li>Open the target profile in your browser.</li>
+                <li>Scroll to load the videos you want to analyze.</li>
+                <li>Press <kbd>Cmd+Opt+I</kbd> (Mac) or <kbd>F12</kbd> (Windows) to open Console.</li>
+                <li>Click the button below to copy the script, paste it in the Console, and press Enter.</li>
+            </ol>
+            <button class="btn btn-secondary" onclick="copyExtractionScript()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                Copy Extraction Script
+            </button>
+            <span id="copy-status" style="margin-left: 10px; font-size: 12px; color: #4ade80;"></span>
+        </div>
+
+        <!-- Step 2: Paste Data -->
+        <div class="card">
+            <h2><span class="step-badge">2</span> Import Videos</h2>
+            <p>Paste the JSON results copied from the console below:</p>
+            <textarea id="data-input"
+                placeholder='Paste JSON here... e.g. [{"url": "...", "handle": "...", "timestamp": "...", "caption": "..."}]'></textarea>
+            <button class="btn" onclick="importData()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Import Data
+            </button>
+        </div>
+
+        <!-- Step 3: API Config -->
+        <div class="card">
+            <h2><span class="step-badge">3</span> AI Configuration</h2>
+            <div class="api-config">
+                <div class="input-group">
+                    <label for="api-key">Gemini API Key</label>
+                    <input type="password" id="api-key" placeholder="Enter your Google Gemini API Key">
+                    <p style="font-size: 11px; margin-top: 5px;">Model: gemini-1.5-flash-8b (Cheapest). Your key is
+                        stored locally in your browser and never
+                        sent to our servers.</p>
+                </div>
+                <div class="input-group">
+                    <label for="prompt">Analysis Prompt</label>
+                    <input type="text" id="prompt"
+                        value="Describe the content of this video, determine the main topic, and analyze the sentiment of the caption.">
+                </div>
+            </div>
+            <button class="btn" id="analyze-btn" onclick="analyzeAll()" disabled>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                </svg>
+                Analyze All Videos
+            </button>
+        </div>
+
+        <!-- Results Table -->
+        <div class="card" id="results-card" style="display:none;">
+            <h2>Results</h2>
+            <div class="results-table-wrapper">
+                <table id="video-table">
+                    <thead>
+                        <tr>
+                            <th>Video</th>
+                            <th>Handle / Date</th>
+                            <th>Upload Video</th>
+                            <th>Caption</th>
+                            <th>AI Content Analysis</th>
+                        </tr>
+                    </thead>
+                    <tbody id="video-body">
+                        <!-- Dynamic content -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <footer>
+            <p>Built for MediaOne Marketing SG &copy; 2024</p>
+        </footer>
+    </div>
+
+    <script>
+        let videoData = [];
+
+        // Initialize API Key from localStorage
+        const apiKeyInput = document.getElementById('api-key');
+        apiKeyInput.value = localStorage.getItem('gemini_api_key') || '';
+        apiKeyInput.addEventListener('change', () => {
+            localStorage.setItem('gemini_api_key', apiKeyInput.value);
+        });
+
+        function copyExtractionScript() {
+            const script = `
+(function() {
+    const platform = window.location.hostname.includes('instagram') ? 'instagram' : 'tiktok';
+    let results = [];
+    
+    if (platform === 'instagram') {
+        const isStory = window.location.pathname.includes('/stories/');
+        
+        if (isStory) {
+            // Extraction for an active Story
+            const video = document.querySelector('video');
+            const handle = window.location.pathname.split('/')[2];
+            const url = window.location.href;
+            const videoSrc = video ? video.querySelector('source')?.src || video.src : '';
+            
+            results.push({ 
+                url: url, 
+                videoSrc: videoSrc,
+                handle: handle, 
+                timestamp: "Active Story", 
+                caption: "IG Story" 
+            });
+        } else {
+            // On Profile Page: Check for available stories
+            const profilePic = document.querySelector('header canvas, header img[style*="cursor: pointer"]');
+            if (profilePic && profilePic.closest('div[role="button"]')) {
+                console.log("Story detected! Clicking to open...");
+                profilePic.closest('div[role="button"]').click();
+                alert("Story detected and clicked! Please wait for it to load, then run this script again to capture the content.");
+                return;
+            }
+
+            // Extraction for Profile Feed / Reels Grid
+            const posts = document.querySelectorAll('article div div a[href^="/p/"], article div div a[href^="/reels/"]');
+            posts.forEach(post => {
+                const url = "https://www.instagram.com" + post.getAttribute('href');
+                const handle = document.querySelector('header h2')?.innerText || window.location.pathname.split('/')[1];
+                results.push({ url, handle, timestamp: "Grid Post", caption: "Extracted from grid" });
+            });
+        }
+    } else {
+        // TikTok logic
+        const posts = document.querySelectorAll('a[href*="/video/"]');
+        posts.forEach(post => {
+            results.push({ 
+                url: post.href, 
+                handle: window.location.pathname.split('@')[1]?.split('/')[0] || "unknown", 
+                timestamp: "Recent", 
+                caption: post.closest('div')?.querySelector('img')?.alt || "" 
+            });
+        });
+    }
+    
+    // De-duplicate
+    results = Array.from(new Set(results.map(r => r.url))).map(url => results.find(r => r.url === url));
+
+    const json = JSON.stringify(results, null, 2);
+    copy(json);
+    console.log("Extracted " + results.length + " items. Data copied to clipboard!");
+    if (results.length > 0) alert("Extracted " + results.length + " items. Data copied to clipboard!");
+})();`;
+
+            navigator.clipboard.writeText(script).then(() => {
+                const status = document.getElementById('copy-status');
+                status.innerText = "COPIED!";
+                setTimeout(() => status.innerText = "", 2000);
+            });
+        }
+
+        function importData() {
+            const input = document.getElementById('data-input').value;
+            try {
+                const data = JSON.parse(input);
+                if (!Array.isArray(data)) throw new Error("Input must be a JSON array");
+
+                videoData = data.map(item => ({
+                    ...item,
+                    status: 'pending',
+                    analysis: ''
+                }));
+
+                renderTable();
+                document.getElementById('results-card').style.display = 'block';
+                document.getElementById('analyze-btn').disabled = false;
+            } catch (e) {
+                alert("Invalid JSON data. Please make sure you copied the full result from the script.");
+            }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('video-body');
+            tbody.innerHTML = '';
+
+            videoData.forEach((video, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <a href="${video.url}" target="_blank" class="video-link">View Original</a>
+                    </td>
+                    <td>
+                        <div style="font-weight:600">@${video.handle}</div>
+                        <div style="font-size:11px; color:var(--muted)">${video.timestamp}</div>
+                    </td>
+                    <td>
+                        <input type="file" id="file-${index}" accept="video/*" class="file-input" style="font-size:10px; width:150px;">
+                    </td>
+                    <td style="font-size:12px; max-width:150px; overflow:hidden; text-overflow:ellipsis;">
+                        ${video.caption || '<span style="opacity:0.3">No caption</span>'}
+                    </td>
+                    <td class="analysis-cell">
+                        <span class="status-badge status-${video.status}">${video.status === 'done' ? 'Completed' : (video.status === 'loading' ? 'Analyzing...' : 'Pending')}</span>
+                        <div id="analysis-${index}" style="margin-top:8px">${video.analysis}</div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function analyzeAll() {
+            const key = apiKeyInput.value;
+            if (!key) {
+                alert("Please enter a Gemini API Key in Step 3.");
+                return;
+            }
+
+            const promptTemplate = document.getElementById('prompt').value;
+            const btn = document.getElementById('analyze-btn');
+            btn.disabled = true;
+            btn.innerText = "Analyzing...";
+
+            for (let i = 0; i < videoData.length; i++) {
+                if (videoData[i].status === 'done') continue;
+
+                videoData[i].status = 'loading';
+                renderTable();
+
+                try {
+                    const fileInput = document.getElementById(`file-${i}`);
+                    let videoFile = null;
+                    if (fileInput && fileInput.files.length > 0) {
+                        videoFile = fileInput.files[0];
+                    }
+
+                    const result = await callGemini(key, videoData[i], promptTemplate, videoFile);
+                    videoData[i].analysis = result;
+                    videoData[i].status = 'done';
+                } catch (e) {
+                    videoData[i].analysis = "Error: " + e.message;
+                    videoData[i].status = 'pending';
+                }
+                renderTable();
+            }
+
+            btn.disabled = false;
+            btn.innerText = "Analyze All Videos";
+        }
+
+        async function callGemini(key, video, prompt, videoFile) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${key}`;
+
+            const parts = [
+                { text: `${prompt}\n\nVideo URL: ${video.url}\nCaption: ${video.caption}\nHandle: ${video.handle}` }
+            ];
+
+            if (videoFile) {
+                const base64Data = await fileToBase64(videoFile);
+                parts.push({
+                    inline_data: {
+                        mime_type: videoFile.type,
+                        data: base64Data.split(',')[1]
+                    }
+                });
+            }
+
+            const body = {
+                contents: [{ parts }]
+            };
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error?.message || "LLM Request failed");
+            }
+
+            const data = await response.json();
+            return data.candidates[0].content.parts[0].text;
+        }
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+    </script>
+</body>
+
+</html>
