@@ -18455,7 +18455,8 @@
             COMPLIANCE_RECOMMENDER: 'https://0jincjjy14.execute-api.ap-southeast-1.amazonaws.com/complianceRecommender',
             DESIGN_ANALYSIS: 'https://bzedwsy4mb.execute-api.ap-southeast-1.amazonaws.com/pageDesignAnalysis',
             AI_TOPIC_PICKER: 'https://mv0yv43k5d.execute-api.ap-southeast-1.amazonaws.com/aiTopicPicker',
-            KEYWORD_FILTER: 'https://4en3fo1fr0.execute-api.ap-southeast-1.amazonaws.com/keywordFilter'
+            KEYWORD_FILTER: 'https://4en3fo1fr0.execute-api.ap-southeast-1.amazonaws.com/keywordFilter',
+            DEEP_COMPARE: 'https://8bbhravqn2.execute-api.ap-southeast-1.amazonaws.com/deepContentCompare'
         };
 
 
@@ -23404,10 +23405,26 @@ ${selectedText}
             tableHTML += '<thead><tr><th>URL<div class="resizer"></div></th>';
 
             const urls = Object.keys(data);
+            let primaryTargetUrl = targetUrls && targetUrls.length > 0 ? targetUrls[0] : '';
+
+            // Fallback to the domain input if no specific target URLs were provided
+            if (!primaryTargetUrl) {
+                const domainInput = document.getElementById('comparison-domain');
+                if (domainInput && domainInput.value) {
+                    const domainVal = domainInput.value.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                    const matchedUrl = urls.find(u => u.includes(domainVal));
+                    primaryTargetUrl = matchedUrl || domainInput.value;
+                }
+            }
+
             urls.forEach(url => {
-                tableHTML += `<th ${targetUrls.includes(url) && keyword ? 'class="targetUrl"' : ''}>
+                const isTarget = (targetUrls && targetUrls.includes(url)) || (primaryTargetUrl && url === primaryTargetUrl);
+
+                tableHTML += `<th ${isTarget && keyword ? 'class="targetUrl"' : ''}>
                         <div class="resizer"></div>
-                        <a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></th>`;
+                        <a href="${url}" target="_blank" rel="noopener noreferrer" style="display:block;margin-bottom:8px;word-break:break-all;">${url}</a>
+                        ${!isTarget && primaryTargetUrl ? `<button onclick="runDeepComparison('${primaryTargetUrl}', '${url}', '${keyword}')" class="btn-gradient" style="font-size: 11px; padding: 4px 8px; width:100%; margin-top:5px;"><i class="fas fa-search-plus"></i> Deep Compare</button>` : ''}
+                        </th>`;
             });
             tableHTML += '</tr></thead><tbody>';
 
@@ -23486,6 +23503,165 @@ ${selectedText}
 
             tableHTML += '</tbody></table>';
             return tableHTML;
+        }
+
+        const deepCompareCache = {}; // Cache to store previously analyzed comparisons
+
+        async function runDeepComparison(targetUrl, competitorUrl, keyword) {
+            if (OPTIMISER_ENDPOINTS.DEEP_COMPARE === 'YOUR_DEEP_COMPARE_LAMBDA_URL') {
+                alert("Please configure the DEEP_COMPARE lambda endpoint in OPTIMISER_ENDPOINTS.");
+                return;
+            }
+
+            const cacheKey = `${targetUrl}_vs_${competitorUrl}`;
+            const cachedData = deepCompareCache[cacheKey];
+
+            let modal = document.getElementById('deepCompareModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'deepCompareModal';
+                modal.innerHTML = `
+                    <div style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; display:flex; justify-content:center; align-items:flex-start; overflow-y:auto; padding: 40px 20px;">
+                        <div style="background:#1e1e1e; border-radius:12px; width:95%; max-width:1200px; padding:30px; position:relative; color:#f0f0f0; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                            <button onclick="document.getElementById('deepCompareModal').style.display='none'" style="position:absolute; top:20px; right:20px; background:transparent; border:none; color:#bbb; font-size:24px; cursor:pointer; transition: 0.2s;"><i class="fas fa-times"></i></button>
+                            <div id="deepCompareModalContent"></div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+            modal.style.display = 'block';
+
+            const renderHeader = (compUrl) => {
+                const cleanUrl = compUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                return `<h3 style="margin-top:20px;margin-bottom:20px;color:#fff;background:#282828;padding:15px;border-radius:8px; border-left: 4px solid #1a73e8; font-size: 1.3rem;">
+                            Deep Comparison:<br>
+                            <span style="font-size:0.9em; font-weight:normal; color:#bbb;">Target: ${targetUrl}</span><br>
+                            <span style="font-size:0.9em; font-weight:normal; color:#4caf50;">Competitor: ${cleanUrl}</span>
+                        </h3>`;
+            };
+
+            const renderTables = (data, compUrl) => {
+                let htmlContent = renderHeader(compUrl);
+
+                // Priority Action Plan UI
+                if (data.priority_action_plan && data.priority_action_plan.length > 0) {
+                    htmlContent += `<div style="margin-bottom:40px;"><h4 style="margin-bottom:15px; font-size: 1.1rem; color:#fff;"><i class="fas fa-bullseye" style="color:#f44336;margin-right:8px;"></i>Priority Action Plan</h4>`;
+                    htmlContent += `<table style="width:100%; border-collapse:collapse; background:#121212; color:#e0e0e0; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+                                <thead style="background:#1a5286; color:#fff;"><tr><th style="padding:15px;text-align:left;">Priority</th><th style="padding:15px;text-align:left;">Action</th><th style="padding:15px;text-align:left;">Expected Outcome</th><th style="padding:15px;text-align:left;">Effort</th></tr></thead><tbody>`;
+                    data.priority_action_plan.forEach((item, idx) => {
+                        let dotColor = '#f44336'; // High Priority default
+                        if (item.priority && item.priority.toString().includes('3')) dotColor = '#ff9800';
+                        if (item.priority && item.priority.toString().includes('4') || item.priority && item.priority.toString().includes('5')) dotColor = '#4caf50';
+                        const rowBg = idx % 2 === 0 ? '#1e1e1e' : '#252525';
+                        htmlContent += `<tr style="background:${rowBg}; border-bottom: 1px solid #333; transition: background 0.2s;" onmouseover="this.style.background='#303030'" onmouseout="this.style.background='${rowBg}'">
+                                    <td style="padding:15px;"><span style="height:12px;width:12px;background-color:${dotColor};border-radius:50%;display:inline-block;margin-right:10px;box-shadow:0 0 5px ${dotColor}88;"></span>${item.priority || '-'}</td>
+                                    <td style="padding:15px;font-weight:bold;color:#fff;">${item.action || '-'}</td>
+                                    <td style="padding:15px;color:#ccc;">${item.expected_outcome || '-'}</td>
+                                    <td style="padding:15px;color:#aaa;">${item.effort || '-'}</td>
+                                 </tr>`;
+                    });
+                    htmlContent += `</tbody></table></div>`;
+                }
+
+                return htmlContent;
+            };
+
+            // Use cached data if available
+            if (cachedData) {
+                const resultsContainer = document.getElementById('deepCompareModalContent');
+                if (resultsContainer) {
+                    let fullHtml = renderTables(cachedData, competitorUrl);
+                    // Append the standard tables using the helper
+                    const renderIssueTable = (title, icon, items) => {
+                        if (!items || items.length === 0) return '';
+                        let html = `<div style="margin-bottom:40px;"><h4 style="margin-bottom:15px; font-size: 1.1rem; color:#fff;"><i class="fas ${icon}" style="color:#f44336;margin-right:8px;"></i>${title}</h4>`;
+                        html += `<table style="width:100%; border-collapse:collapse; background:#121212; color:#e0e0e0; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+                                    <thead style="background:#1a5286; color:#fff;"><tr><th style="padding:15px;text-align:left;width:5%;">#</th><th style="padding:15px;text-align:left;width:20%;">Specific Issue</th><th style="padding:15px;text-align:left;width:25%;">Competitor's Approach</th><th style="padding:15px;text-align:left;width:25%;">Target Gap</th><th style="padding:15px;text-align:left;width:25%;">Fix</th></tr></thead><tbody>`;
+                        items.forEach((item, idx) => {
+                            const rowBg = idx % 2 === 0 ? '#1e1e1e' : '#252525';
+                            html += `<tr style="background:${rowBg}; border-bottom: 1px solid #333; transition: background 0.2s;" onmouseover="this.style.background='#303030'" onmouseout="this.style.background='${rowBg}'">
+                                        <td style="padding:15px;color:#888;">${idx + 1}</td>
+                                        <td style="padding:15px;font-weight:bold;color:#fff;">${item.issue || '-'}</td>
+                                        <td style="padding:15px;color:#aaa;">${item.competitor_approach || '-'}</td>
+                                        <td style="padding:15px;color:#ccc;">${item.target_gap || '-'}</td>
+                                        <td style="padding:15px;color:#4caf50;">${item.fix || '-'}</td>
+                                     </tr>`;
+                        });
+                        html += `</tbody></table></div>`;
+                        return html;
+                    };
+                    
+                    fullHtml += renderIssueTable('E-E-A-T & Trust Signals', 'fa-shield-alt', cachedData.eeat_trust_signals);
+                    fullHtml += renderIssueTable('Topical Authority & Content Cluster', 'fa-network-wired', cachedData.topical_authority_clusters);
+                    fullHtml += renderIssueTable('Competitive Differentiation & SERP Positioning', 'fa-chess-knight', cachedData.competitive_differentiation);
+                    fullHtml += renderIssueTable('Technical & Schema SEO', 'fa-code', cachedData.technical_schema_seo);
+                    fullHtml += renderIssueTable('Audience Targeting & Reader Psychology', 'fa-users', cachedData.audience_targeting_psychology);
+
+                    resultsContainer.innerHTML = fullHtml;
+                }
+                return;
+            }
+
+            const resultsContainer = document.getElementById('deepCompareModalContent');
+            if (resultsContainer) {
+                resultsContainer.innerHTML = `<div style="text-align:center; padding: 60px;"><i class="fas fa-spinner fa-spin fa-3x" style="color:#1a73e8;"></i><p style="margin-top:20px; font-size:1.2rem; color:#ccc;">Generating Deep Comparison for <br><b style="color:#fff;">${competitorUrl}</b><br><br><span style="font-size:0.9rem;color:#888;">This may take up to 60 seconds as AI analyzes hundreds of data points...</span></p></div>`;
+            }
+
+            try {
+                const response = await fetch(OPTIMISER_ENDPOINTS.DEEP_COMPARE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target_url: targetUrl,
+                        competitor_url: competitorUrl,
+                        keyword: keyword
+                    })
+                });
+
+                if (!response.ok) throw new Error("Deep Compare Lambda returned an error: " + response.status);
+                const rawData = await response.json();
+                const data = parseLambdaResponse(rawData);
+                
+                // Save to cache
+                deepCompareCache[cacheKey] = data;
+
+                let fullHtml = renderTables(data, competitorUrl);
+
+                // Helper for standard issue tables
+                const renderIssueTable = (title, icon, items) => {
+                    if (!items || items.length === 0) return '';
+                    let html = `<div style="margin-bottom:40px;"><h4 style="margin-bottom:15px; font-size: 1.1rem; color:#fff;"><i class="fas ${icon}" style="color:#f44336;margin-right:8px;"></i>${title}</h4>`;
+                    html += `<table style="width:100%; border-collapse:collapse; background:#121212; color:#e0e0e0; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+                                <thead style="background:#1a5286; color:#fff;"><tr><th style="padding:15px;text-align:left;width:5%;">#</th><th style="padding:15px;text-align:left;width:20%;">Specific Issue</th><th style="padding:15px;text-align:left;width:25%;">Competitor's Approach</th><th style="padding:15px;text-align:left;width:25%;">Target Gap</th><th style="padding:15px;text-align:left;width:25%;">Fix</th></tr></thead><tbody>`;
+                    items.forEach((item, idx) => {
+                        const rowBg = idx % 2 === 0 ? '#1e1e1e' : '#252525';
+                        html += `<tr style="background:${rowBg}; border-bottom: 1px solid #333; transition: background 0.2s;" onmouseover="this.style.background='#303030'" onmouseout="this.style.background='${rowBg}'">
+                                    <td style="padding:15px;color:#888;">${idx + 1}</td>
+                                    <td style="padding:15px;font-weight:bold;color:#fff;">${item.issue || '-'}</td>
+                                    <td style="padding:15px;color:#aaa;">${item.competitor_approach || '-'}</td>
+                                    <td style="padding:15px;color:#ccc;">${item.target_gap || '-'}</td>
+                                    <td style="padding:15px;color:#4caf50;">${item.fix || '-'}</td>
+                                 </tr>`;
+                    });
+                    html += `</tbody></table></div>`;
+                    return html;
+                };
+
+                fullHtml += renderIssueTable("E-E-A-T & Trust Signals", "fa-shield-check", data.eeat_trust_signals);
+                fullHtml += renderIssueTable("Topical Authority & Content Cluster", "fa-sitemap", data.topical_authority);
+                fullHtml += renderIssueTable("Competitive Differentiation", "fa-chess-knight", data.competitive_differentiation);
+                fullHtml += renderIssueTable("Technical & Schema SEO", "fa-code", data.technical_schema_seo);
+                fullHtml += renderIssueTable("Audience Targeting", "fa-users-class", data.audience_targeting);
+
+                resultsContainer.innerHTML = fullHtml;
+
+            } catch (error) {
+                console.error("Deep Comparison Error:", error);
+                if (resultsContainer) {
+                    resultsContainer.innerHTML = `<div style="padding: 20px; color: #f44336; border: 1px solid #f44336; border-radius: 8px;"><b>Error performing Deep Comparison:</b> ${error.message}</div>`;
+                }
+            }
         }
 
         function applyGradientsToRows() {
@@ -32930,14 +33106,25 @@ INSTRUCTIONS:
             const designData = item.designData;
 
             if (item && !item.error) {
+                // Determine target URL for Deep Compare feature
+                let targetUrlForCompare = '';
+                const optimiserUrlEl = document.getElementById('optimiserPageUrl');
+                const cmpDomainEl = document.getElementById('comparison-domain');
+                if (optimiserUrlEl && optimiserUrlEl.value) targetUrlForCompare = optimiserUrlEl.value;
+                else if (cmpDomainEl && cmpDomainEl.value) targetUrlForCompare = cmpDomainEl.value;
+                else targetUrlForCompare = 'https://YOUR_DOMAIN.com'; // fallback if everything is empty
+
                 return `
                     <div class="competitor-card-rank">${rank || ''}</div>
                     <div class="card-delete-btn" title="Delete competitor" onclick="deleteCard('${cardId}')">
                         <i class="fas fa-trash-alt"></i>
                     </div>
-                    <a href="${url}" target="_blank" class="competitor-card-url" title="${url}">
+                    <a href="${url}" target="_blank" class="competitor-card-url" title="${url}" style="margin-bottom: 5px;">
                         <i class="fas fa-external-link-alt"></i> ${displayUrl}
                     </a>
+                    <button class="btn-gradient" onclick="runDeepComparison('${targetUrlForCompare}', '${url}', '${keyword}')" style="font-size: 11px; padding: 4px 8px; width: 100%; margin-bottom: 10px; border-radius: 4px;">
+                        <i class="fas fa-search-plus"></i> Deep Compare Gap Analysis
+                    </button>
                     
                     <div class="competitor-card-toggle">
                         <button class="active" onclick="switchCompetitorCardTab('${cardId}', 'topics')">Topics</button>
