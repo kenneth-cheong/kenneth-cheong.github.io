@@ -3,6 +3,7 @@ import requests
 import os
 import re
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 
 def lambda_handler(event, context):
     try:
@@ -50,7 +51,10 @@ HEADINGS FOUND ON PAGE (extracted via parser, authoritative):
 ORIGINAL TEXT CHUNKS (split by headings/paragraphs for comparison):
 {json.dumps(text_chunks, indent=2)}
 
-IMAGES FOUND ON PAGE (extracted via parser):
+PAGE METADATA:
+{json.dumps(page_data.get('metadata', {}), indent=2)}
+
+PAGE IMAGES:
 {json.dumps(page_data.get('images', []), indent=2)}
 
 PAGE CONTENT EXCERPT (HTML):
@@ -62,8 +66,20 @@ Your analysis must focus on how to make this page more visible in AI-generated r
 
 Be EXTREMELY SPECIFIC and ACTIONABLE. Provide exact phrases, exact terms, exact URLs, exact anchor text. Do NOT give generic advice. Every recommendation must be something the user can directly copy-paste or implement.
 
+CRITICAL: For internal linking suggestions, strictly PRIORITIZE using existing URLs found on the website. Only suggest new URLs if absolutely necessary for the user's goals.
+
 Output your analysis in strictly JSON format:
 {{
+  "page_metadata": {{
+    "existing_canonical_url": "URL from PAGE METADATA",
+    "existing_meta_title": "Title from PAGE METADATA",
+    "existing_meta_description": "Description from PAGE METADATA"
+  }},
+  "proposed_meta_title": "An SEO-optimized title (max 60 chars)",
+  "proposed_meta_description": "An SEO-optimized description including target keywords (max 160 chars)",
+  "image_optimization": [
+    {{"src": "exact src from PAGE IMAGES", "existing_alt": "exact alt from PAGE IMAGES", "suggested_alt": "Optimized alt text incorporating keywords"}}
+  ],
   "overall_score": integer (0-100),
   "vector_embedding": {{
     "score": integer,
@@ -87,7 +103,7 @@ Output your analysis in strictly JSON format:
   }},
   "internal_linking": {{
     "score": integer,
-    "linking_table": [{{"anchor_text": "exact anchor text to use", "target_url": "suggested target URL path", "context": "brief reason"}}, ...],
+    "linking_table": [{{"anchor_text": "exact anchor text to use", "target_url": "suggested target URL path (PRIORITIZE EXISTING)", "context": "brief reason"}}, ...],
     "insights": [{{"text": "specific linking recommendation", "positive": true or false}}, ...]
   }},
   "citation_worthiness": {{
@@ -100,12 +116,6 @@ Output your analysis in strictly JSON format:
     ...(one entry per chunk from the ORIGINAL TEXT CHUNKS list)
   ],
   "optimized_content": "The full consolidated optimized text combining all optimized chunks above into one continuous piece.",
-  "proposed_meta_title": "A concise, keyword-rich meta title (50-60 chars) optimised for AI visibility and CTR.",
-  "proposed_meta_description": "A compelling meta description (140-160 chars) that addresses user intent and includes target keywords.",
-  "image_optimization": [
-    {{"src": "the exact image src from the IMAGES FOUND ON PAGE list", "existing_alt": "the current alt text (may be empty)", "suggested_alt": "a descriptive, keyword-rich alt text that is specific to the image context and includes relevant target keywords for GEO visibility (max 125 chars)"}},
-    ...(one entry per image from the IMAGES FOUND ON PAGE list, skip tiny icons/tracking pixels)
-  ],
   "schema_markup": [{{a complete valid JSON-LD schema object for EACH applicable type, e.g. Organization, WebPage, LocalBusiness, FAQPage, BreadcrumbList, Product, Service, etc. Include as many distinct @type schemas as are relevant to this page.}}, ...]
 }}
 """
@@ -130,12 +140,31 @@ Output your analysis in strictly JSON format:
         result = response.json()
         analysis_data = json.loads(result['choices'][0]['message']['content'])
 
-        # Attach scraped page metadata so the frontend can populate rows 4-14
-        analysis_data['page_metadata'] = {
-            'existing_meta_title': page_data.get('meta_title', ''),
-            'existing_meta_description': page_data.get('meta_description', ''),
-            'existing_canonical_url': page_data.get('canonical_url', '')
-        }
+        # Verify internal linking URLs
+        if 'internal_linking' in analysis_data and 'linking_table' in analysis_data['internal_linking']:
+            for link in analysis_data['internal_linking']['linking_table']:
+                target_url = link.get('target_url')
+                if not target_url:
+                    continue
+                try:
+                    # Make it an absolute URL if it is a relative path
+                    if target_url.startswith('/'):
+                        parsed_base = urlparse(url)
+                        test_url = f"{parsed_base.scheme}://{parsed_base.netloc}{target_url}"
+                    else:
+                        test_url = target_url
+
+                    # Check HTTP status code
+                    res = requests.head(test_url, timeout=3, allow_redirects=True, headers={'User-Agent': 'Mozilla/5.0'})
+                    if res.status_code >= 400 and res.status_code != 405:
+                        res = requests.get(test_url, timeout=3, allow_redirects=True, headers={'User-Agent': 'Mozilla/5.0'})
+                    
+                    if res.status_code < 400:
+                        link['url_status'] = 'exists'
+                    else:
+                        link['url_status'] = 'missing'
+                except Exception as e:
+                    link['url_status'] = 'missing'
 
         return success_response(analysis_data)
 
@@ -183,21 +212,34 @@ def scrape_page(url):
     # Parse with BeautifulSoup
     soup = BeautifulSoup(html, 'html.parser')
 
-    # Extract existing page metadata BEFORE decomposing elements
-    meta_title = ''
-    title_tag = soup.find('title')
-    if title_tag:
-        meta_title = title_tag.get_text(strip=True)
-    
-    meta_description = ''
-    desc_tag = soup.find('meta', attrs={'name': re.compile(r'^description$', re.I)})
+    # Extract page metadata
+    metadata = {
+        "existing_meta_title": "",
+        "existing_meta_description": "",
+        "existing_canonical_url": ""
+    }
+    if soup.title and soup.title.string:
+        metadata["existing_meta_title"] = soup.title.string.strip()
+        
+    desc_tag = soup.find("meta", attrs={"name": "description"})
     if desc_tag:
-        meta_description = desc_tag.get('content', '')
-    
-    canonical_url = ''
-    canonical_tag = soup.find('link', attrs={'rel': 'canonical'})
-    if canonical_tag:
-        canonical_url = canonical_tag.get('href', '')
+        metadata["existing_meta_description"] = desc_tag.get("content", "").strip()
+        
+    can_tag = soup.find("link", rel="canonical")
+    if can_tag:
+        metadata["existing_canonical_url"] = can_tag.get("href", "").strip()
+
+    # Extract images (cap to 15 to save tokens)
+    images = []
+    for img in soup.find_all('img'):
+        src = img.get('src')
+        if src and not src.startswith('data:'):
+            images.append({
+                "src": src,
+                "alt": img.get('alt', '')
+            })
+            if len(images) >= 15:
+                break
 
     # Extract all headings BEFORE decomposing elements
     headings = []
@@ -209,91 +251,6 @@ def scrape_page(url):
                 "text": text
             })
 
-    # Extract all images BEFORE decomposing elements
-    from urllib.parse import urlparse, urljoin
-    parsed_url = urlparse(url)
-    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-
-    def resolve_src(raw):
-        """Resolve a raw src/data-src to an absolute URL, or return '' if unusable."""
-        if not raw or raw.startswith('data:'):
-            return ''
-        raw = raw.strip()
-        if raw.startswith('//'):
-            return 'https:' + raw
-        if raw.startswith('/'):
-            return base_url + raw
-        if raw.startswith('http'):
-            return raw
-        # Relative path – resolve against the page URL
-        return urljoin(url, raw)
-
-    def best_src(tag):
-        """Pick the best real image URL from an element's attributes."""
-        # Priority order: explicit lazy-load attrs first, then src, then srcset
-        for attr in ('data-src', 'data-lazy-src', 'data-original', 'data-srcset'):
-            val = tag.get(attr, '')
-            if val:
-                # data-srcset / srcset contain comma-separated candidates; take the first
-                resolved = resolve_src(val.split(',')[0].strip().split()[0])
-                if resolved:
-                    return resolved
-        # Regular src (skip if it's a placeholder data URI)
-        src = tag.get('src', '')
-        resolved = resolve_src(src)
-        if resolved:
-            return resolved
-        # srcset fallback
-        srcset = tag.get('srcset', '')
-        if srcset:
-            resolved = resolve_src(srcset.split(',')[0].strip().split()[0])
-            if resolved:
-                return resolved
-        return ''
-
-    images = []
-    seen_srcs = set()
-
-    # Also parse <noscript> blocks which often contain the real <img> for lazy loaders
-    noscript_tags = soup.find_all('noscript')
-    for ns in noscript_tags:
-        ns_soup = BeautifulSoup(ns.decode_contents(), 'html.parser')
-        for img in ns_soup.find_all('img'):
-            ns.append(img)  # inject so the main loop picks them up
-
-    for img in soup.find_all('img'):
-        src = best_src(img)
-        alt = img.get('alt', '')
-        if not src:
-            continue
-        # Skip tracking pixels (1x1) and common pixel patterns
-        w = img.get('width', '')
-        h = img.get('height', '')
-        if (str(w) == '1' and str(h) == '1') or 'pixel' in src.lower() or 'spacer' in src.lower():
-            continue
-        if src in seen_srcs:
-            continue
-        seen_srcs.add(src)
-        images.append({
-            "src": src,
-            "existing_alt": alt
-        })
-
-    # Also check <picture> > <source> elements
-    for picture in soup.find_all('picture'):
-        source = picture.find('source')
-        if source:
-            srcset = source.get('srcset', '')
-            src = resolve_src(srcset.split(',')[0].strip().split()[0]) if srcset else ''
-            if src and src not in seen_srcs:
-                img_tag = picture.find('img')
-                alt = img_tag.get('alt', '') if img_tag else ''
-                seen_srcs.add(src)
-                images.append({"src": src, "existing_alt": alt})
-
-    # Limit to 15 images to avoid token bloat
-    images = images[:15]
-
     # Remove script and style elements
     for element in soup(["script", "style", "nav", "footer"]):
         element.decompose()
@@ -302,10 +259,8 @@ def scrape_page(url):
         "html": str(soup),
         "text": soup.get_text(separator=' ', strip=True),
         "headings": headings,
-        "images": images,
-        "meta_title": meta_title,
-        "meta_description": meta_description,
-        "canonical_url": canonical_url
+        "metadata": metadata,
+        "images": images
     }
 
 def extract_text_chunks(html_str):

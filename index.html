@@ -798,6 +798,111 @@
             top: -5px;
             right: -5px;
             background: #1a73e8;
+            color: white;
+            font-size: 10px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
+
+        /* Schema Markup Enhancements */
+        .schema-chip-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+            padding: 5px 0;
+        }
+
+        .schema-chip {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 5px 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+
+        .schema-chip:hover {
+            background: #e2e8f0;
+            color: #1e293b;
+            border-color: #cbd5e1;
+            transform: translateY(-1px);
+        }
+
+        .schema-chip.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #2563eb;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+        }
+
+        .schema-json-field {
+            width: 100%;
+            height: 600px;
+            background: #f8fafc;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.6;
+            overflow: auto;
+            white-space: pre !important;
+            word-break: normal;
+            word-wrap: normal;
+            outline: none;
+            tab-size: 2;
+        }
+
+        /* Syntax Highlighting Colors - Matching SEMRush style */
+        .json-key { color: #9d174d; font-weight: 600; } /* Darker Crimson/Pink */
+        .json-string { color: #0369a1; } /* Darker Cyan/Blue */
+        .json-number { color: #6d28d9; } /* Vivid Purple */
+        .json-boolean { color: #b45309; } /* Deep Amber/Orange */
+        .json-null { color: #475569; } /* Slate Gray */
+
+        .schema-json-field:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.05);
+        }
+
+        .schema-block-highlight {
+            background: rgba(59, 130, 246, 0.1) !important;
+            box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.3) !important;
+            display: inline-block;
+            width: 100%;
+            border-radius: 4px;
+        }
+
+        .fictional-highlight {
+            border-bottom: 2px dashed #f59e0b;
+            border-radius: 2px;
+            color: #fbbf24;
+            padding: 0 2px;
+            cursor: help;
+        }
+
+        .selected-schema-highlight {
+            background: rgba(37, 99, 235, 0.1);
+            border-radius: 4px;
+            box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2);
+            transition: all 0.2s ease;
+        }
+
+        .needs-creation-badge {
             color: #fff;
             font-size: 10px;
             font-weight: 700;
@@ -1414,27 +1519,27 @@
             border-bottom-right-radius: 12px;
         }
 
-        .json-key {
+        .code-block .json-key {
             color: #93c5fd;
         }
 
-        .json-string {
+        .code-block .json-string {
             color: #4ade80;
         }
 
-        .json-number {
+        .code-block .json-number {
             color: #fbbf24;
         }
 
-        .json-boolean {
+        .code-block .json-boolean {
             color: #f472b6;
         }
 
-        .json-null {
+        .code-block .json-null {
             color: #9ca3af;
         }
 
-        .json-tag {
+        .code-block .json-tag {
             color: #9ca3af;
             font-style: italic;
         }
@@ -7910,7 +8015,7 @@
         <p id="loginError" style="color: red;"></p>
     </div>
 
-    <div class="navbar">
+    <div id="navbar" class="navbar">
         <div class="logo-container" id="logo" style="cursor: pointer;" onclick="window.location.reload()">
             <img src="Digimetrics Logo-02.png" alt="Extra Space Asia Logo">
         </div>
@@ -10933,11 +11038,13 @@
                                         </div>
                                     </div>
                                     <div id="geoOnPage_schemaMarkup" style="display: none;">
-                                        <p style="font-size: 0.9em; margin-bottom: 10px; color: #64748b;">
-                                            Technical JSON-LD for generative engine consumption.</p>
-                                        <textarea id="geoOnPageSchema" class="keyword-input-textarea"
-                                            style="height: 300px; font-family: monospace; font-size: 0.85em;"
-                                            readonly></textarea>
+                                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px; font-size: 13px; color: #475569;">
+                                            <h4 style="margin: 0 0 8px 0; color: #1e293b; font-size: 14px;"><i class="fas fa-info-circle" style="color: #3b82f6; margin-right: 6px;"></i> How to Use This Schema for GEO</h4>
+                                            <p style="margin: 0 0 10px 0; line-height: 1.5;"><strong>Why it helps:</strong> Search engines and AI models (like ChatGPT or Gemini) use Schema Markup (JSON-LD) to clearly understand context and explicitly identify entities on your page. Providing this structured data directly feeds exactly what you want the AI to "know" about your page, improving visibility and accuracy in generative summaries.</p>
+                                            <p style="margin: 0; line-height: 1.5;"><strong>Implementation:</strong> Click "Copy Schema" below and paste the code block directly into the <code>&lt;head&gt;</code> section of your HTML document, ensuring it is wrapped within <code>&lt;script type="application/ld+json"&gt; ... &lt;/script&gt;</code> tags. If you use a CMS (like WordPress), you can often use an SEO plugin or header injection settings to add this code.</p>
+                                        </div>
+                                        <div id="geoOnPageSchemaChips" class="schema-chip-container"></div>
+                                        <div id="geoOnPageSchema" class="schema-json-field" contenteditable="true" spellcheck="false"></div>
                                         <button class="geo-btn-add"
                                             style="margin-top: 10px; background: #10a37f; color: white;"
                                             onclick="copyGeoOnPageSchema()">
@@ -17435,6 +17542,28 @@
             }
         }
 
+        function switchGeoOnPageAssetTab(tabName) {
+            // Update active state of buttons
+            const tabs = document.querySelectorAll('#geoOnPageSection .geo-tab');
+            tabs.forEach(tab => {
+                const onClick = tab.getAttribute('onclick') || '';
+                if (onClick.includes(tabName)) {
+                    tab.classList.add('active');
+                } else {
+                    tab.classList.remove('active');
+                }
+            });
+
+            // Switch visibility of analysis blocks
+            const sectionIds = ['optimizedContent', 'schemaMarkup', 'imageOptimization'];
+            sectionIds.forEach(id => {
+                const el = document.getElementById('geoOnPage_' + id);
+                if (el) {
+                    el.style.display = (id === tabName) ? 'block' : 'none';
+                }
+            });
+        }
+
         // Global store for schema data to avoid inline JSON in onclick
         window._geoSchemaData = null;
         function copyGeoSchema() {
@@ -17734,10 +17863,13 @@
                     '<th style="text-align:left;padding:6px 8px;color:#1e293b;font-weight:600;font-size:0.9em;">Target URL</th>' +
                     '<th style="padding:6px 4px;"></th></tr></thead><tbody>';
                 linkTable.forEach(l => {
+                    const statusBadge = (l.url_status === 'missing') 
+                        ? ' <span style="background:#fef2f2;color:#ef4444;border:1px solid #fecaca;padding:2px 6px;border-radius:4px;font-size:0.75em;margin-left:6px;font-weight:600;white-space:nowrap;" title="This URL does not exist and needs to be created."><i class="fas fa-exclamation-circle"></i> Needs Creation</span>' 
+                        : '';
                     ilHtml += '<tr style="border-bottom:1px solid #f1f5f9;">' +
-                        '<td contenteditable="true" data-geo-editable data-geo-link-anchor="true" style="padding:6px 8px;font-weight:600;color:#2563eb;">' + l.anchor_text + '</td>' +
+                        '<td contenteditable="true" data-geo-editable data-geo-link-anchor="true" style="padding:6px 8px;font-weight:600;color:#2563eb;">' + (l.anchor_text || '') + '</td>' +
                         '<td style="padding:6px 4px;color:#94a3b8;">→</td>' +
-                        '<td contenteditable="true" data-geo-editable data-geo-link-url="true" style="padding:6px 8px;color:#475569;font-size:0.9em;word-break:break-all;">' + l.target_url + '</td>' +
+                        '<td style="padding:6px 8px;color:#475569;font-size:0.9em;word-break:break-all;"><span contenteditable="true" data-geo-editable data-geo-link-url="true">' + (l.target_url || '') + '</span>' + statusBadge + '</td>' +
                         '<td style="padding:6px 4px;">' + copyBtn(l.anchor_text, 'link') + '</td></tr>';
                 });
                 ilHtml += '</tbody></table></div></div>';
@@ -17821,7 +17953,38 @@
                 `;
             }
 
-            document.getElementById('geoOnPageSchema').value = data.schema_markup ? JSON.stringify(data.schema_markup, null, 2) : "";
+            const schemaField = document.getElementById('geoOnPageSchema');
+            if (data.schema_markup) {
+                let markup = data.schema_markup;
+                
+                // Deep parsing if it's a string or contains strings
+                function deepParse(input) {
+                    if (typeof input === 'string') {
+                        try {
+                            const parsed = JSON.parse(input);
+                            return deepParse(parsed);
+                        } catch(e) { return input; }
+                    }
+                    if (Array.isArray(input)) return input.map(item => deepParse(item));
+                    if (input && typeof input === 'object') {
+                        const newObj = {};
+                        for (let key in input) newObj[key] = deepParse(input[key]);
+                        return newObj;
+                    }
+                    return input;
+                }
+
+                const cleanedMarkup = deepParse(markup);
+                const markupArray = Array.isArray(cleanedMarkup) ? cleanedMarkup : [cleanedMarkup];
+                
+                const prettyJson = JSON.stringify(markupArray, null, 2);
+                schemaField.innerHTML = syntaxHighlightJson(prettyJson);
+                
+                renderSchemaChips(markupArray);
+            } else {
+                schemaField.innerHTML = "";
+                document.getElementById('geoOnPageSchemaChips').innerHTML = "";
+            }
 
             // ── Render Image Optimization table ──
             const imgTableEl = document.getElementById('geoOnPageImageTable');
@@ -17882,18 +18045,176 @@
             }
         }
 
-        function switchGeoOnPageAssetTab(tabId) {
-            document.querySelectorAll('#geoOnPageAssetContent> div').forEach(d => d.style.display = 'none');
-            document.querySelectorAll('#geoOnPageSection .geo-tab').forEach(t => t.classList.remove('active'));
+        function renderSchemaChips(jsonObj) {
+            const container = document.getElementById('geoOnPageSchemaChips');
+            container.innerHTML = "";
+            const types = [];
 
-            document.getElementById('geoOnPage_' + tabId).style.display = 'block';
-            event.currentTarget.classList.add('active');
+            function findTypes(obj) {
+                if (!obj || typeof obj !== 'object') return;
+                if (obj['@type']) {
+                    if (Array.isArray(obj['@type'])) {
+                        obj['@type'].forEach(t => { if (!types.includes(t)) types.push(t); });
+                    } else if (!types.includes(obj['@type'])) {
+                        types.push(obj['@type']);
+                    }
+                }
+                Object.values(obj).forEach(val => findTypes(val));
+            }
+
+            findTypes(jsonObj);
+
+            types.forEach(type => {
+                const chip = document.createElement('div');
+                chip.className = 'schema-chip';
+                chip.innerHTML = `<i class="fas fa-tag"></i> ${type}`;
+                chip.onclick = () => highlightSpecificSchemaType(type, chip);
+                container.appendChild(chip);
+            });
         }
+
+        function syntaxHighlightJson(json) {
+            if (typeof json !== 'string') {
+                json = JSON.stringify(json, null, 2);
+            }
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            
+            // Fictional/placeholder patterns
+            const fictionalPatterns = [
+                /\[INSERT [^\]]+\]/gi,
+                /\[URL\]/gi,
+                /example\.com/gi,
+                /yourdomain\.com/gi,
+                /placeholder/gi,
+                /000-000-0000/g,
+                /\[CITY\]/gi,
+                /\[COUNTRY\]/gi
+            ];
+
+            // Apply fictional highlighting first
+            fictionalPatterns.forEach(pattern => {
+                json = json.replace(pattern, match => `<span class="fictional-highlight">${match}</span>`);
+            });
+
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                // Skip if it's already inside a fictional-highlight span
+                if (match.includes('class="fictional-highlight"')) return match;
+                
+                let cls = 'json-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'json-key';
+                    } else {
+                        cls = 'json-string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'json-boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'json-null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
+        function highlightSpecificSchemaType(type, chipEl) {
+            const schemaField = document.getElementById('geoOnPageSchema');
+            
+            // Remove active class from all chips
+            document.querySelectorAll('.schema-chip').forEach(c => c.classList.remove('active'));
+            chipEl.classList.add('active');
+
+            const text = schemaField.innerText;
+            const searchStr = `"@type": "${type}"`;
+            const typeIndex = text.indexOf(searchStr);
+
+            if (typeIndex === -1) {
+                console.warn(`Could not find schema type: ${type}`);
+                return;
+            }
+
+            // Find the start of the object {
+            let startPos = typeIndex;
+            let openBraces = 0;
+            while (startPos >= 0) {
+                if (text[startPos] === '{') {
+                    if (openBraces === 0) break;
+                    openBraces--;
+                } else if (text[startPos] === '}') {
+                    openBraces++;
+                }
+                startPos--;
+            }
+
+            // Find the end of the object }
+            let endPos = typeIndex;
+            let closeBraces = 0;
+            while (endPos < text.length) {
+                if (text[endPos] === '}') {
+                    if (closeBraces === 0) break;
+                    closeBraces--;
+                } else if (text[endPos] === '{') {
+                    closeBraces++;
+                }
+                endPos++;
+            }
+
+            if (startPos !== -1 && endPos !== -1) {
+                // Clear previous block highlights by stripping the span but keeping the content
+                const prev = schemaField.querySelectorAll('.schema-block-highlight');
+                prev.forEach(p => {
+                    const parent = p.parentNode;
+                    while(p.firstChild) parent.insertBefore(p.firstChild, p);
+                    parent.removeChild(p);
+                });
+                schemaField.normalize();
+
+                const walker = document.createTreeWalker(schemaField, NodeFilter.SHOW_TEXT, null, false);
+                let currentPos = 0;
+                let startNode = null;
+                let startOffset = 0;
+                let endNode = null;
+                let endOffset = 0;
+
+                while (walker.nextNode()) {
+                    const node = walker.currentNode;
+                    const len = node.textContent.length;
+                    
+                    if (!startNode && currentPos + len >= startPos) {
+                        startNode = node;
+                        startOffset = startPos - currentPos;
+                    }
+                    if (!endNode && currentPos + len >= endPos + 1) {
+                        endNode = node;
+                        endOffset = (endPos + 1) - currentPos;
+                        break;
+                    }
+                    currentPos += len;
+                }
+
+                if (startNode && endNode) {
+                    const range = document.createRange();
+                    range.setStart(startNode, startOffset);
+                    range.setEnd(endNode, endOffset);
+                    
+                    const span = document.createElement('span');
+                    span.className = 'schema-block-highlight';
+                    range.surroundContents(span);
+                    
+                    span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }
+
+
 
         function copyGeoOnPageSchema() {
             const schema = document.getElementById('geoOnPageSchema');
-            schema.select();
+            const tempTextArea = document.createElement("textarea");
+            tempTextArea.value = schema.innerText;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
             document.execCommand('copy');
+            document.body.removeChild(tempTextArea);
             alert("Schema copied to clipboard!");
         }
 
