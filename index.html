@@ -13116,12 +13116,13 @@
                             <h3 style="margin-top: 0; color: #f4b400;"><i class="fas fa-chart-line"></i> Traffic
                                 Overview</h3>
                             
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fffdf7; padding: 12px; border-radius: 8px; border: 1px solid #fff59d;">
+                            <!-- GA4 Control Bar (Ads Style) -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #fef3c7; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
                                 <div style="display: flex; gap: 15px; align-items: center;">
                                     <div>
                                         <label style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">Date Range</label>
                                         <select id="ga4DateRange" onchange="ga4DateRangeChanged()"
-                                            style="padding: 6px 10px; border-radius: 4px; border: 1px solid #ffe082; font-size: 13px; color: #5f6368; outline: none; background: #fff; min-width: 140px; cursor: pointer;">
+                                            style="padding: 8px 12px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; background: #fff; min-width: 150px; cursor: pointer;">
                                             <option value="today">Today</option>
                                             <option value="yesterday">Yesterday</option>
                                             <option value="7daysAgo">Last 7 Days</option>
@@ -13132,17 +13133,65 @@
                                             <option value="CUSTOM">Custom Range</option>
                                         </select>
                                     </div>
-                                    <div id="ga4CustomDateInputs" style="display: none; align-items: flex-end; gap: 8px;">
+                                    <div id="ga4CustomDateInputs" style="display: none; align-items: flex-end; gap: 10px;">
                                         <div>
                                             <label style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">Start</label>
-                                            <input type="date" id="ga4StartDate" style="padding: 5px 8px; border-radius: 4px; border: 1px solid #ffe082; font-size: 12px; height: 32px; box-sizing: border-box;">
+                                            <input type="date" id="ga4StartDate" style="padding: 7px 10px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; background: #fff;">
                                         </div>
                                         <div>
                                             <label style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">End</label>
-                                            <input type="date" id="ga4EndDate" style="padding: 5px 8px; border-radius: 4px; border: 1px solid #ffe082; font-size: 12px; height: 32px; box-sizing: border-box;">
+                                            <input type="date" id="ga4EndDate" style="padding: 7px 10px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; background: #fff;">
                                         </div>
                                         <button onclick="updateSelectedGa4Property()"
-                                            style="padding: 6px 12px; border-radius: 4px; border: none; background: #f4b400; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; height: 32px;">Apply</button>
+                                            style="padding: 8px 15px; border-radius: 6px; border: none; background: #f4b400; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;">Apply</button>
+                                    </div>
+
+                                    <div>
+                                        <label style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">View By</label>
+                                        <select id="ga4Dimension" onchange="updateSelectedGa4Property()"
+                                            style="padding: 8px 12px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; background: #fff; min-width: 150px; cursor: pointer;">
+                                            <option value="date">Date</option>
+                                            <option value="pageTitle">Page Title</option>
+                                            <option value="sessionSourceMedium">Source / Medium</option>
+                                            <option value="deviceCategory">Device Category</option>
+                                            <option value="country">Country</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div style="display: flex; gap: 15px; align-items: center;">
+                                    <div style="position: relative;">
+                                        <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #f4b400; font-size: 12px; opacity: 0.7;"></i>
+                                        <input type="text" id="ga4TableFilter" placeholder="Filter rows..." oninput="reRenderGa4Table()"
+                                            style="padding: 8px 12px 8px 32px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; width: 220px;">
+                                    </div>
+
+                                    <button onclick="exportGa4TableToCSV()"
+                                        style="padding: 8px 15px; border-radius: 6px; border: 1px solid #ffe082; background: #fff; font-size: 13px; cursor: pointer; color: #5f6368; display: flex; align-items: center; gap: 8px;">
+                                        <i class="fas fa-file-csv"></i> Export CSV
+                                    </button>
+
+                                    <div style="position: relative;" id="ga4ColumnDropdownWrapper">
+                                        <button onclick="document.getElementById('ga4ColumnMenu').style.display = document.getElementById('ga4ColumnMenu').style.display === 'block' ? 'none' : 'block'"
+                                            style="padding: 8px 15px; border-radius: 6px; border: 1px solid #ffe082; background: #fff; font-size: 13px; cursor: pointer; color: #5f6368; display: flex; align-items: center; gap: 8px;">
+                                            <i class="fas fa-columns"></i> Columns <i class="fas fa-caret-down" style="font-size: 10px;"></i>
+                                        </button>
+                                        <div id="ga4ColumnMenu"
+                                            style="display: none; position: absolute; right: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 15px; width: 250px; z-index: 100; max-height: 400px; overflow-y: auto;">
+                                            <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">Metrics</div>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderGa4Table(); updateGa4CardsVisibility()" value="activeUsers" checked> Active Users</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderGa4Table(); updateGa4CardsVisibility()" value="totalUsers" checked> Total Users</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderGa4Table(); updateGa4CardsVisibility()" value="sessions" checked> Sessions</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderGa4Table(); updateGa4CardsVisibility()" value="engagedSessions" checked> Engaged Sessions</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderGa4Table(); updateGa4CardsVisibility()" value="engagementRate" checked> Eng. Rate</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderGa4Table(); updateGa4CardsVisibility()" value="averageSessionDuration" checked> Avg. Sess. Dur.</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderGa4Table(); updateGa4CardsVisibility()" value="bounceRate" checked> Bounce Rate</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderGa4Table(); updateGa4CardsVisibility()" value="screenPageViews" checked> Page Views</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderGa4Table(); updateGa4CardsVisibility()" value="eventCount" checked> Event Count</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderGa4Table(); updateGa4CardsVisibility()" value="conversions" checked> Conversions</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderGa4Table(); updateGa4CardsVisibility()" value="totalRevenue" checked> Revenue</label>
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input type="checkbox" onchange="reRenderGa4Table(); updateGa4CardsVisibility()" value="newUsers" checked> New Users</label>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -13258,10 +13307,46 @@
                                         <span>Acquisition Ratio</span>
                                     </div>
                                 </div>
+                                <!-- Total Users -->
+                                <div class="koda-kpi-card koda-bg-purple">
+                                    <div class="kpi-header">
+                                        <span>Total Users</span>
+                                        <i class="fas fa-users kpi-icon"></i>
+                                    </div>
+                                    <div class="kpi-value" id="ga4TotalUsers">-</div>
+                                    <div class="kpi-subtext">
+                                        <span>Unique Visitors</span>
+                                    </div>
+                                </div>
+                                <!-- Engaged Sessions -->
+                                <div class="koda-kpi-card koda-bg-teal">
+                                    <div class="kpi-header">
+                                        <span>Engaged Sessions</span>
+                                        <i class="fas fa-user-clock kpi-icon"></i>
+                                    </div>
+                                    <div class="kpi-value" id="ga4EngagedSessions">-</div>
+                                    <div class="kpi-subtext">
+                                        <span>Meaningful Visits</span>
+                                    </div>
+                                </div>
                             </div>
                             <div style="margin-top: 25px; padding-top: 25px; border-top: 1px solid #eee;">
                                 <canvas id="ga4TrafficChart"
                                     style="width: 100%; height: 300px; display: none;"></canvas>
+                            </div>
+
+                            <!-- GA4 Detailed Data Table -->
+                            <div id="ga4TableContainer" style="margin-top: 30px; display: none;">
+                                <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                    <table id="ga4ReportTable" style="width: 100%; border-collapse: collapse; font-size: 13px; background: #fff;">
+                                        <thead id="ga4TableHead" style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                                            <!-- Columns will be injected here -->
+                                        </thead>
+                                        <tbody id="ga4TableBody">
+                                            <!-- Rows will be injected here -->
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
 
                             <!-- GA4 Strategic Audit Section -->
@@ -20562,6 +20647,99 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             }
         }
 
+        let ga4RawData = null; // Store last fetched report data
+
+        function updateGa4CardsVisibility() {
+            const checkedCols = Array.from(document.querySelectorAll('#ga4ColumnMenu input:checked')).map(cb => cb.value);
+            const cardMap = {
+                activeUsers: 'ga4ActiveUsers',
+                sessions: 'ga4Sessions',
+                engagementRate: 'ga4EngRate',
+                averageSessionDuration: 'ga4AvgDuration',
+                bounceRate: 'ga4BounceRate',
+                screenPageViews: 'ga4PageViews',
+                eventCount: 'ga4EventCount',
+                conversions: 'ga4Conversions',
+                totalRevenue: 'ga4Revenue',
+                newUsers: 'ga4NewUsersMix',
+                totalUsers: 'ga4TotalUsers',
+                engagedSessions: 'ga4EngagedSessions'
+            };
+
+            Object.entries(cardMap).forEach(([val, id]) => {
+                const card = document.getElementById(id).closest('.koda-kpi-card');
+                if (card) {
+                    card.style.display = checkedCols.includes(val) ? 'flex' : 'none';
+                }
+            });
+        }
+
+        function reRenderGa4Table() {
+            if (!ga4RawData) return;
+            renderGa4Table(ga4RawData);
+        }
+
+        function renderGa4Table(data) {
+            const head = document.getElementById('ga4TableHead');
+            const body = document.getElementById('ga4TableBody');
+            const container = document.getElementById('ga4TableContainer');
+            const filter = document.getElementById('ga4TableFilter').value.toLowerCase();
+            
+            if (!data.rows || data.rows.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+            container.style.display = 'block';
+
+            const dimName = document.getElementById('ga4Dimension').options[document.getElementById('ga4Dimension').selectedIndex].text;
+            const checkedMetrics = Array.from(document.querySelectorAll('#ga4ColumnMenu input:checked')).map(cb => ({
+                value: cb.value,
+                label: cb.parentElement.textContent.trim()
+            }));
+
+            // Build Header
+            let headHtml = `<tr><th style="padding: 12px; text-align: left; background: #1e3a8a; color: #ffffff; font-weight: 600; text-transform: uppercase; font-size: 11px; border-right: 1px solid rgba(255,255,255,0.1);">${dimName}</th>`;
+            checkedMetrics.forEach(m => {
+                headHtml += `<th style="padding: 12px; text-align: right; background: #1e3a8a; color: #ffffff; font-weight: 600; text-transform: uppercase; font-size: 11px; border-right: 1px solid rgba(255,255,255,0.1);">${m.label}</th>`;
+            });
+            headHtml += `</tr>`;
+            head.innerHTML = headHtml;
+
+            // Build Body
+            let bodyHtml = '';
+            const metricLabels = data.metricHeaders.map(h => h.name);
+            
+            data.rows.forEach(row => {
+                const dimValue = row.dimensionValues[0].value;
+                if (filter && !dimValue.toLowerCase().includes(filter)) return;
+
+                bodyHtml += `<tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='white'">`;
+                bodyHtml += `<td style="padding: 12px; font-weight: 500; color: #1e293b;">${dimValue}</td>`;
+                
+                checkedMetrics.forEach(m => {
+                    const mIdx = metricLabels.indexOf(m.value);
+                    let val = row.metricValues[mIdx].value;
+                    
+                    // Formatting
+                    if (m.value === 'engagementRate' || m.value === 'bounceRate') {
+                        val = (parseFloat(val) * 100).toFixed(1) + '%';
+                    } else if (m.value === 'averageSessionDuration') {
+                        const mins = Math.floor(val / 60);
+                        const secs = Math.floor(val % 60);
+                        val = `${mins}:${secs.toString().padStart(2, '0')}`;
+                    } else if (m.value === 'totalRevenue') {
+                        val = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+                    } else {
+                        val = parseInt(val).toLocaleString();
+                    }
+
+                    bodyHtml += `<td style="padding: 12px; text-align: right; color: #475569;">${val}</td>`;
+                });
+                bodyHtml += `</tr>`;
+            });
+            body.innerHTML = bodyHtml;
+        }
+
         async function fetchGa4Insights(propertyId) {
             const formatDuration = (seconds) => {
                 const mins = Math.floor(seconds / 60);
@@ -20587,62 +20765,113 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     if (!startDate || !endDate) return;
                 }
 
-                // Split metrics into two requests to respect GA4's 10-metric limit
-                const req1 = {
-                    dateRanges: [{ startDate: startDate, endDate: endDate }],
-                    dimensions: [{ name: 'date' }],
-                    metrics: [
-                        { name: 'activeUsers' }, { name: 'sessions' }, { name: 'conversions' },
-                        { name: 'engagementRate' }, { name: 'averageSessionDuration' },
-                        { name: 'bounceRate' }, { name: 'screenPageViews' },
-                        { name: 'eventCount' }, { name: 'totalRevenue' }, { name: 'newUsers' }
-                    ]
-                };
+                const dimension = document.getElementById('ga4Dimension').value || 'date';
+                
+                // Group 1: Standard performance metrics
+                const metricBatch1 = [
+                    { name: 'activeUsers' }, { name: 'sessions' }, { name: 'conversions' },
+                    { name: 'engagementRate' }, { name: 'averageSessionDuration' },
+                    { name: 'bounceRate' }
+                ];
+                // Group 2: Secondary performance metrics
+                const metricBatch2 = [
+                    { name: 'screenPageViews' }, { name: 'eventCount' }, { name: 'totalRevenue' }, 
+                    { name: 'newUsers' }, { name: 'totalUsers' }, { name: 'engagedSessions' }
+                ];
 
-                const res1 = await fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, { 
-                    method: 'POST', 
-                    body: JSON.stringify({ 
-                        action: 'ga4RunReport', 
-                        propertyId, 
-                        access_token: googleAccessToken, 
-                        payload: req1 
-                    }) 
-                }).then(r => r.json());
+                const [res1, res2] = await Promise.all([
+                    fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, { 
+                        method: 'POST', 
+                        body: JSON.stringify({ 
+                            action: 'ga4RunReport', 
+                            propertyId, 
+                            access_token: googleAccessToken, 
+                            payload: {
+                                dateRanges: [{ startDate: startDate, endDate: endDate }],
+                                dimensions: [{ name: dimension }],
+                                metrics: metricBatch1
+                            }
+                        }) 
+                    }).then(r => r.json()),
+                    fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, { 
+                        method: 'POST', 
+                        body: JSON.stringify({ 
+                            action: 'ga4RunReport', 
+                            propertyId, 
+                            access_token: googleAccessToken, 
+                            payload: {
+                                dateRanges: [{ startDate: startDate, endDate: endDate }],
+                                dimensions: [{ name: dimension }],
+                                metrics: metricBatch2
+                            }
+                        }) 
+                    }).then(r => r.json())
+                ]);
 
                 let data1 = parseLambdaResponse(res1);
+                let data2 = parseLambdaResponse(res2);
 
-                // Handle data1 (Core Metrics) Errors - These are critical
-                if (data1.error) {
-                    console.error("GA4 Core API Error:", data1.error);
-                    const errMsg = data1.error.message || "Unknown Core API Error";
+                if (data1.error || data2.error) {
+                    const error = data1.error || data2.error;
+                    console.error("GA4 API Error:", error);
+                    const errMsg = error.message || "Unknown API Error";
+                    insightsGrid.innerHTML = `<div style="grid-column: 1/-1; padding: 15px; background: #fdecea; border: 1px solid #ea4335; border-radius: 8px; color: #ea4335; font-size: 13px;"><i class="fas fa-exclamation-circle"></i> <strong>Report Error:</strong> ${errMsg}</div>`;
+                    return;
+                }
+
+                // Merge Batch 1 and Batch 2
+                const mergedData = {
+                    metricHeaders: [...(data1.metricHeaders || []), ...(data2.metricHeaders || [])],
+                    rows: []
+                };
+
+                const rows2Map = {};
+                if (data2.rows) {
+                    data2.rows.forEach(r => {
+                        rows2Map[r.dimensionValues[0].value] = r.metricValues;
+                    });
+                }
+
+                if (data1.rows) {
+                    data1.rows.forEach(r1 => {
+                        const dimVal = r1.dimensionValues[0].value;
+                        const m2 = rows2Map[dimVal] || (data2.metricHeaders || []).map(() => ({ value: "0" }));
+                        mergedData.rows.push({
+                            dimensionValues: r1.dimensionValues,
+                            metricValues: [...(r1.metricValues || []), ...m2]
+                        });
+                    });
+                }
+                
+                let data = mergedData;
+                ga4RawData = data; // Cache for table rendering
+
+                if (data.error) {
+                    console.error("GA4 API Error:", data.error);
+                    const errMsg = data.error.message || "Unknown API Error";
                     insightsGrid.innerHTML = `<div style="grid-column: 1/-1; padding: 15px; background: #fdecea; border: 1px solid #ea4335; border-radius: 8px; color: #ea4335; font-size: 13px;"><i class="fas fa-exclamation-circle"></i> <strong>Report Error:</strong> ${errMsg}</div>`;
                     return;
                 }
 
                 // Restore grid if it was showing error
                 if (insightsGrid.querySelector('.fa-exclamation-circle')) {
-                    const selector = document.querySelector('.ga4-searchable-select-container');
-                    // We don't want to infinite loop, just clear the error div if we have data now
                     const errorDiv = insightsGrid.querySelector('div[style*="background: #fdecea"]');
                     if (errorDiv) errorDiv.remove();
                 }
 
-                if (data1.rows && data1.rows.length > 0) {
+                if (data.rows && data.rows.length > 0) {
                     const totals = {
                         activeUsers: 0, sessions: 0, conversions: 0, engRate: 0,
                         avgDuration: 0, bounceRate: 0, pageViews: 0, eventCount: 0,
-                        revenue: 0, newUsers: 0, seoClicks: 0
+                        revenue: 0, newUsers: 0, totalUsers: 0, engagedSessions: 0
                     };
 
                     const chartDates = [];
                     const chartSessions = [];
                     const chartUsers = [];
 
-                    // Sort both datasets to ensure date alignment
-                    const sortByDate = (a, b) => a.dimensionValues[0].value.localeCompare(b.dimensionValues[0].value);
-                    data1.rows.sort(sortByDate);
-
-                    data1.rows.forEach((r, idx) => {
+                    // For the cards, we sum/avg across all rows
+                    data.rows.forEach((r) => {
                         const actives = parseInt(r.metricValues[0].value) || 0;
                         const sessions = parseInt(r.metricValues[1].value) || 0;
                         
@@ -20656,15 +20885,19 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                         totals.eventCount += parseInt(r.metricValues[7].value) || 0;
                         totals.revenue += parseFloat(r.metricValues[8].value) || 0;
                         totals.newUsers += parseInt(r.metricValues[9].value) || 0;
+                        totals.totalUsers += parseInt(r.metricValues[10].value) || 0;
+                        totals.engagedSessions += parseInt(r.metricValues[11].value) || 0;
 
-                        const dateStr = r.dimensionValues[0].value;
-                        const formattedDate = `${dateStr.substring(4, 6)}/${dateStr.substring(6, 8)}`;
-                        chartDates.push(formattedDate);
-                        chartSessions.push(sessions);
-                        chartUsers.push(actives);
+                        if (dimension === 'date') {
+                            const dateStr = r.dimensionValues[0].value;
+                            const formattedDate = `${dateStr.substring(4, 6)}/${dateStr.substring(6, 8)}`;
+                            chartDates.push(formattedDate);
+                            chartSessions.push(sessions);
+                            chartUsers.push(actives);
+                        }
                     });
 
-                    const rowCount = data1.rows.length || 1;
+                    const rowCount = data.rows.length || 1;
                     document.getElementById('ga4ActiveUsers').textContent = totals.activeUsers.toLocaleString();
                     document.getElementById('ga4Sessions').textContent = totals.sessions.toLocaleString();
                     document.getElementById('ga4EngRate').textContent = ((totals.engRate / rowCount) * 100).toFixed(1) + '%';
@@ -20674,31 +20907,105 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     document.getElementById('ga4EventCount').textContent = totals.eventCount.toLocaleString();
                     document.getElementById('ga4Conversions').textContent = totals.conversions.toLocaleString(undefined, { maximumFractionDigits: 0 });
                     document.getElementById('ga4Revenue').textContent = formatCurrency(totals.revenue);
+                    document.getElementById('ga4TotalUsers').textContent = totals.totalUsers.toLocaleString();
+                    document.getElementById('ga4EngagedSessions').textContent = totals.engagedSessions.toLocaleString();
                     
                     const newPct = totals.activeUsers > 0 ? (totals.newUsers / totals.activeUsers * 100).toFixed(0) : 0;
                     document.getElementById('ga4NewUsersMix').innerHTML = `${totals.newUsers.toLocaleString()} <span style="font-size: 10px; color: #666;">(${newPct}% New)</span>`;
                     
-                    renderGa4Chart(chartDates, chartSessions, chartUsers);
+                    if (dimension === 'date') {
+                        renderGa4Chart(chartDates, chartSessions, chartUsers);
+                    } else {
+                        if (ga4ChartInstance) { ga4ChartInstance.destroy(); ga4ChartInstance = null; }
+                        document.getElementById('ga4TrafficChart').style.display = 'none';
+                    }
+
+                    renderGa4Table(data);
+                    updateGa4CardsVisibility();
                 } else {
-                    document.getElementById('ga4ActiveUsers').textContent = '0';
-                    document.getElementById('ga4Sessions').textContent = '0';
-                    document.getElementById('ga4EngRate').textContent = '0%';
+                    // Reset UI if no data
+                    ['ga4ActiveUsers', 'ga4Sessions', 'ga4PageViews', 'ga4EventCount', 'ga4Conversions'].forEach(id => document.getElementById(id).textContent = '0');
+                    ['ga4EngRate', 'ga4BounceRate'].forEach(id => document.getElementById(id).textContent = '0%');
                     document.getElementById('ga4AvgDuration').textContent = '0:00';
-                    document.getElementById('ga4BounceRate').textContent = '0%';
-                    document.getElementById('ga4PageViews').textContent = '0';
-                    document.getElementById('ga4EventCount').textContent = '0';
-                    document.getElementById('ga4Conversions').textContent = '0';
                     document.getElementById('ga4Revenue').textContent = '$0.00';
                     document.getElementById('ga4NewUsersMix').textContent = '0 (0% New)';
+                    document.getElementById('ga4TotalUsers').textContent = '0';
+                    document.getElementById('ga4EngagedSessions').textContent = '0';
                     
-                    if (ga4ChartInstance) { ga4ChartInstance.destroy(); }
+                    if (ga4ChartInstance) { ga4ChartInstance.destroy(); ga4ChartInstance = null; }
                     document.getElementById('ga4TrafficChart').style.display = 'none';
+                    document.getElementById('ga4TableContainer').style.display = 'none';
                 }
             } catch (err) {
                 console.error("Error fetching GA4 Insights:", err);
                 insightsGrid.innerHTML = `<div style="grid-column: 1/-1; padding: 15px; color: #ea4335;">Fetch Error: ${err.message}</div>`;
             }
         }
+        
+        function exportGa4TableToCSV() {
+            if (!ga4RawData || !ga4RawData.rows || ga4RawData.rows.length === 0) {
+                alert("No data available to export.");
+                return;
+            }
+
+            const filterText = document.getElementById('ga4TableFilter')?.value.toLowerCase() || '';
+            const filteredRows = ga4RawData.rows.filter(row => {
+                const dimValue = row.dimensionValues[0].value;
+                return !filterText || dimValue.toLowerCase().includes(filterText);
+            });
+
+            if (filteredRows.length === 0) {
+                alert("No data matches the current filters.");
+                return;
+            }
+
+            const checkedMetrics = Array.from(document.querySelectorAll('#ga4ColumnMenu input:checked')).map(cb => ({
+                value: cb.value,
+                label: cb.parentElement.textContent.trim()
+            }));
+
+            const dimName = document.getElementById('ga4Dimension').options[document.getElementById('ga4Dimension').selectedIndex].text;
+            const headers = [dimName, ...checkedMetrics.map(m => m.label)];
+            const csvRows = [headers.map(t => `"${t.replace(/"/g, '""')}"`).join(',')];
+
+            const metricLabels = ga4RawData.metricHeaders.map(h => h.name);
+
+            filteredRows.forEach(row => {
+                const rowData = [row.dimensionValues[0].value];
+                
+                checkedMetrics.forEach(m => {
+                    const mIdx = metricLabels.indexOf(m.value);
+                    let val = row.metricValues[mIdx].value;
+                    
+                    // Simple formatting for CSV (no thousands separators, just raw/clean numbers)
+                    if (m.value === 'engagementRate' || m.value === 'bounceRate') {
+                        val = (parseFloat(val) * 100).toFixed(2) + '%';
+                    } else if (m.value === 'averageSessionDuration') {
+                        const mins = Math.floor(val / 60);
+                        const secs = Math.floor(val % 60);
+                        val = `${mins}:${secs.toString().padStart(2, '0')}`;
+                    }
+                    rowData.push(val);
+                });
+                csvRows.push(rowData.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','));
+            });
+
+            const csvString = csvRows.join('\n');
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            
+            const timestamp = new Date().toISOString().split('T')[0];
+            const propertyName = document.getElementById('ga4PropertySearch')?.value.split(' > ')[1] || 'Export';
+            
+            link.setAttribute("href", url);
+            link.setAttribute("download", `GA4_${propertyName}_${timestamp}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
 
 
         function renderGa4Chart(labels, sessions, users) {
