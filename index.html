@@ -13147,18 +13147,50 @@
                                 </div>
                             </div>
                             <div id="ga4InsightsData"
-                                style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                                style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px;">
                                 <div
                                     style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
-                                    Active Users: <br><strong id="ga4ActiveUsers" style="font-size: 1.5em;">-</strong>
+                                    <span style="font-size: 11px; color: #666; text-transform: uppercase; font-weight: 600;">Active Users</span><br><strong id="ga4ActiveUsers" style="font-size: 1.5em; color: #1e293b;">-</strong>
                                 </div>
                                 <div
                                     style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
-                                    Sessions: <br><strong id="ga4Sessions" style="font-size: 1.5em;">-</strong>
+                                    <span style="font-size: 11px; color: #666; text-transform: uppercase; font-weight: 600;">Sessions</span><br><strong id="ga4Sessions" style="font-size: 1.5em; color: #1e293b;">-</strong>
                                 </div>
                                 <div
                                     style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
-                                    Conversions: <br><strong id="ga4Conversions" style="font-size: 1.5em;">-</strong>
+                                    <span style="font-size: 11px; color: #666; text-transform: uppercase; font-weight: 600;">Eng. Rate</span><br><strong id="ga4EngRate" style="font-size: 1.5em; color: #1e293b;">-</strong>
+                                </div>
+                                <div
+                                    style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
+                                    <span style="font-size: 11px; color: #666; text-transform: uppercase; font-weight: 600;">Avg. Sess. Dur.</span><br><strong id="ga4AvgDuration" style="font-size: 1.5em; color: #1e293b;">-</strong>
+                                </div>
+                                <div
+                                    style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
+                                    <span style="font-size: 11px; color: #666; text-transform: uppercase; font-weight: 600;">Bounce Rate</span><br><strong id="ga4BounceRate" style="font-size: 1.5em; color: #1e293b;">-</strong>
+                                </div>
+                                <div
+                                    style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
+                                    <span style="font-size: 11px; color: #666; text-transform: uppercase; font-weight: 600;">Page Views</span><br><strong id="ga4PageViews" style="font-size: 1.5em; color: #1e293b;">-</strong>
+                                </div>
+                                <div
+                                    style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
+                                    <span style="font-size: 11px; color: #666; text-transform: uppercase; font-weight: 600;">Event Count</span><br><strong id="ga4EventCount" style="font-size: 1.5em; color: #1e293b;">-</strong>
+                                </div>
+                                <div
+                                    style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
+                                    <span style="font-size: 11px; color: #666; text-transform: uppercase; font-weight: 600;">Conversions</span><br><strong id="ga4Conversions" style="font-size: 1.5em; color: #1e293b;">-</strong>
+                                </div>
+                                <div
+                                    style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
+                                    <span style="font-size: 11px; color: #666; text-transform: uppercase; font-weight: 600;">Revenue</span><br><strong id="ga4Revenue" style="font-size: 1.5em; color: #1e293b;">-</strong>
+                                </div>
+                                <div
+                                    style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
+                                    <span style="font-size: 11px; color: #666; text-transform: uppercase; font-weight: 600;">New Users Mix</span><br><strong id="ga4NewUsersMix" style="font-size: 1.25em; color: #1e293b;">-</strong>
+                                </div>
+                                <div
+                                    style="padding: 15px; border: 1px solid #eee; border-radius: 8px; text-align: center;">
+                                    <span style="font-size: 11px; color: #666; text-transform: uppercase; font-weight: 600;">SEO Clicks</span><br><strong id="ga4SeoClicks" style="font-size: 1.5em; color: #1e293b;">-</strong>
                                 </div>
                             </div>
                             <div style="margin-top: 25px; padding-top: 25px; border-top: 1px solid #eee;">
@@ -20397,7 +20429,15 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 // Clear UI if no property selected
                 document.getElementById('ga4ActiveUsers').textContent = '-';
                 document.getElementById('ga4Sessions').textContent = '-';
+                document.getElementById('ga4EngRate').textContent = '-';
+                document.getElementById('ga4AvgDuration').textContent = '-';
+                document.getElementById('ga4BounceRate').textContent = '-';
+                document.getElementById('ga4PageViews').textContent = '-';
+                document.getElementById('ga4EventCount').textContent = '-';
                 document.getElementById('ga4Conversions').textContent = '-';
+                document.getElementById('ga4Revenue').textContent = '-';
+                document.getElementById('ga4NewUsersMix').textContent = '-';
+                document.getElementById('ga4SeoClicks').textContent = '-';
                 if (ga4ChartInstance) {
                     ga4ChartInstance.destroy();
                 }
@@ -20406,6 +20446,18 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         }
 
         async function fetchGa4Insights(propertyId) {
+            const formatDuration = (seconds) => {
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            };
+
+            const formatCurrency = (val) => {
+                return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+            };
+
+            const insightsGrid = document.getElementById('ga4InsightsData');
+
             try {
                 // Determine Date Range
                 const rangeOption = document.getElementById('ga4DateRange').value || '28daysAgo';
@@ -20415,82 +20467,146 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 if (rangeOption === 'CUSTOM') {
                     startDate = document.getElementById('ga4StartDate').value;
                     endDate = document.getElementById('ga4EndDate').value;
-                    if (!startDate || !endDate) return; // Wait for both
+                    if (!startDate || !endDate) return;
                 }
 
-                // Fetch Overview Stats and Timeline (Daily)
-                const requestBody = {
+                // Split metrics into two requests to respect GA4's 10-metric limit
+                const req1 = {
                     dateRanges: [{ startDate: startDate, endDate: endDate }],
                     dimensions: [{ name: 'date' }],
                     metrics: [
-                        { name: 'activeUsers' },
-                        { name: 'sessions' },
-                        { name: 'conversions' }
+                        { name: 'activeUsers' }, { name: 'sessions' }, { name: 'conversions' },
+                        { name: 'engagementRate' }, { name: 'averageSessionDuration' },
+                        { name: 'bounceRate' }, { name: 'screenPageViews' },
+                        { name: 'eventCount' }, { name: 'totalRevenue' }, { name: 'newUsers' }
                     ]
                 };
 
-                const response = await fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'ga4RunReport',
-                        propertyId: propertyId,
-                        access_token: googleAccessToken,
-                        payload: requestBody
-                    })
-                });
-                let data = await response.json();
-                data = parseLambdaResponse(data);
+                const req2 = {
+                    dateRanges: [{ startDate: startDate, endDate: endDate }],
+                    dimensions: [{ name: 'date' }],
+                    metrics: [
+                        { name: 'organicGoogleSearchClicks' }
+                    ]
+                };
 
-                if (data.rows && data.rows.length > 0) {
-                    // Update Summary Totals (summing up from daily data for precision over the date range)
-                    let totalActiveUsers = 0;
-                    let totalSessions = 0;
-                    let totalConversions = 0;
+                const [res1, res2] = await Promise.all([
+                    fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, { method: 'POST', body: JSON.stringify({ action: 'ga4RunReport', propertyId, access_token: googleAccessToken, payload: req1 }) }).then(r => r.json()),
+                    fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, { method: 'POST', body: JSON.stringify({ action: 'ga4RunReport', propertyId, access_token: googleAccessToken, payload: req2 }) }).then(r => r.json())
+                ]);
+
+                let data1 = parseLambdaResponse(res1);
+                let data2 = parseLambdaResponse(res2);
+
+                // Handle data1 (Core Metrics) Errors - These are critical
+                if (data1.error) {
+                    console.error("GA4 Core API Error:", data1.error);
+                    const errMsg = data1.error.message || "Unknown Core API Error";
+                    insightsGrid.innerHTML = `<div style="grid-column: 1/-1; padding: 15px; background: #fdecea; border: 1px solid #ea4335; border-radius: 8px; color: #ea4335; font-size: 13px;"><i class="fas fa-exclamation-circle"></i> <strong>Report Error:</strong> ${errMsg}</div>`;
+                    return;
+                }
+
+                // Handle data2 (SEO Clicks) Errors - These are often due to missing GSC links
+                let seoClicksUnavailable = false;
+                if (data2.error) {
+                    console.warn("GA4 SEO Metrics Unavailable:", data2.error.message);
+                    seoClicksUnavailable = true;
+                }
+
+                // Restore grid if it was showing error
+                if (insightsGrid.querySelector('.fa-exclamation-circle')) {
+                    const selector = document.querySelector('.ga4-searchable-select-container');
+                    // We don't want to infinite loop, just clear the error div if we have data now
+                    const errorDiv = insightsGrid.querySelector('div[style*="background: #fdecea"]');
+                    if (errorDiv) errorDiv.remove();
+                }
+
+                if (data1.rows && data1.rows.length > 0) {
+                    const totals = {
+                        activeUsers: 0, sessions: 0, conversions: 0, engRate: 0,
+                        avgDuration: 0, bounceRate: 0, pageViews: 0, eventCount: 0,
+                        revenue: 0, newUsers: 0, seoClicks: 0
+                    };
 
                     const chartDates = [];
                     const chartSessions = [];
                     const chartUsers = [];
 
-                    // Data is typically not sorted perfectly by date API, sort it
-                    data.rows.sort((a, b) => a.dimensionValues[0].value.localeCompare(b.dimensionValues[0].value));
+                    // Sort both datasets to ensure date alignment
+                    const sortByDate = (a, b) => a.dimensionValues[0].value.localeCompare(b.dimensionValues[0].value);
+                    data1.rows.sort(sortByDate);
+                    if (data2.rows) data2.rows.sort(sortByDate);
 
-                    data.rows.forEach(row => {
-                        const dateStr = row.dimensionValues[0].value;
-                        const formattedDate = `${dateStr.substring(4, 6)}/${dateStr.substring(6, 8)}`; // MM/DD
+                    data1.rows.forEach((r, idx) => {
+                        const actives = parseInt(r.metricValues[0].value) || 0;
+                        const sessions = parseInt(r.metricValues[1].value) || 0;
+                        
+                        totals.activeUsers += actives;
+                        totals.sessions += sessions;
+                        totals.conversions += parseFloat(r.metricValues[2].value) || 0;
+                        totals.engRate += parseFloat(r.metricValues[3].value) || 0;
+                        totals.avgDuration += parseFloat(r.metricValues[4].value) || 0;
+                        totals.bounceRate += parseFloat(r.metricValues[5].value) || 0;
+                        totals.pageViews += parseInt(r.metricValues[6].value) || 0;
+                        totals.eventCount += parseInt(r.metricValues[7].value) || 0;
+                        totals.revenue += parseFloat(r.metricValues[8].value) || 0;
+                        totals.newUsers += parseInt(r.metricValues[9].value) || 0;
 
-                        const activeUsers = parseInt(row.metricValues[0].value) || 0;
-                        const sessions = parseInt(row.metricValues[1].value) || 0;
-                        const conversions = parseFloat(row.metricValues[2].value) || 0;
+                        // Merge in SEO clicks from data2 (matching by index since the requests are identical except for metrics)
+                        if (data2.rows && data2.rows[idx]) {
+                            totals.seoClicks += parseInt(data2.rows[idx].metricValues[0].value) || 0;
+                        }
 
-                        totalActiveUsers += activeUsers;
-                        totalSessions += sessions;
-                        totalConversions += conversions;
-
+                        const dateStr = r.dimensionValues[0].value;
+                        const formattedDate = `${dateStr.substring(4, 6)}/${dateStr.substring(6, 8)}`;
                         chartDates.push(formattedDate);
-                        chartUsers.push(activeUsers);
                         chartSessions.push(sessions);
+                        chartUsers.push(actives);
                     });
 
-                    document.getElementById('ga4ActiveUsers').textContent = totalActiveUsers.toLocaleString();
-                    document.getElementById('ga4Sessions').textContent = totalSessions.toLocaleString();
-                    document.getElementById('ga4Conversions').textContent = totalConversions.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                    const rowCount = data1.rows.length || 1;
+                    document.getElementById('ga4ActiveUsers').textContent = totals.activeUsers.toLocaleString();
+                    document.getElementById('ga4Sessions').textContent = totals.sessions.toLocaleString();
+                    document.getElementById('ga4EngRate').textContent = ((totals.engRate / rowCount) * 100).toFixed(1) + '%';
+                    document.getElementById('ga4AvgDuration').textContent = formatDuration(totals.avgDuration / rowCount);
+                    document.getElementById('ga4BounceRate').textContent = ((totals.bounceRate / rowCount) * 100).toFixed(1) + '%';
+                    document.getElementById('ga4PageViews').textContent = totals.pageViews.toLocaleString();
+                    document.getElementById('ga4EventCount').textContent = totals.eventCount.toLocaleString();
+                    document.getElementById('ga4Conversions').textContent = totals.conversions.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                    document.getElementById('ga4Revenue').textContent = formatCurrency(totals.revenue);
+                    
+                    const newPct = totals.activeUsers > 0 ? (totals.newUsers / totals.activeUsers * 100).toFixed(0) : 0;
+                    document.getElementById('ga4NewUsersMix').innerHTML = `${totals.newUsers.toLocaleString()} <span style="font-size: 10px; color: #666;">(${newPct}% New)</span>`;
+                    
+                    if (seoClicksUnavailable) {
+                        document.getElementById('ga4SeoClicks').innerHTML = `<span style="font-size: 12px; color: #999;">Not Linked</span>`;
+                    } else {
+                        document.getElementById('ga4SeoClicks').textContent = totals.seoClicks.toLocaleString();
+                    }
 
-                    // Render Chart
                     renderGa4Chart(chartDates, chartSessions, chartUsers);
                 } else {
                     document.getElementById('ga4ActiveUsers').textContent = '0';
                     document.getElementById('ga4Sessions').textContent = '0';
+                    document.getElementById('ga4EngRate').textContent = '0%';
+                    document.getElementById('ga4AvgDuration').textContent = '0:00';
+                    document.getElementById('ga4BounceRate').textContent = '0%';
+                    document.getElementById('ga4PageViews').textContent = '0';
+                    document.getElementById('ga4EventCount').textContent = '0';
                     document.getElementById('ga4Conversions').textContent = '0';
-                    if (ga4ChartInstance) {
-                        ga4ChartInstance.destroy();
-                    }
+                    document.getElementById('ga4Revenue').textContent = '$0.00';
+                    document.getElementById('ga4NewUsersMix').textContent = '0 (0% New)';
+                    document.getElementById('ga4SeoClicks').textContent = '0';
+                    
+                    if (ga4ChartInstance) { ga4ChartInstance.destroy(); }
                     document.getElementById('ga4TrafficChart').style.display = 'none';
                 }
             } catch (err) {
                 console.error("Error fetching GA4 Insights:", err);
+                insightsGrid.innerHTML = `<div style="grid-column: 1/-1; padding: 15px; color: #ea4335;">Fetch Error: ${err.message}</div>`;
             }
         }
+
 
         function renderGa4Chart(labels, sessions, users) {
             const canvas = document.getElementById('ga4TrafficChart');

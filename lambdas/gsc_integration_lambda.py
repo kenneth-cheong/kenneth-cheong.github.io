@@ -206,8 +206,10 @@ def query_search_analytics(site_url, token, payload):
             "startDate": start_date,
             "endDate": end_date,
             "dimensions": ["query"],
-            "rowLimit": 1000
+            "rowLimit": 25000 # Increased from 1000 to API max
         }
+    elif "rowLimit" not in payload:
+        payload["rowLimit"] = 25000
 
     response = requests.post(endpoint, headers=headers, json=payload)
     try:
@@ -235,25 +237,46 @@ def query_search_analytics(site_url, token, payload):
 def ga4_list_properties(token):
     """
     Calls the Google Analytics Admin API to list accessible account summaries.
+    Handles pagination to ensure all properties are fetched.
     """
     endpoint = "https://analyticsadmin.googleapis.com/v1beta/accountSummaries"
     headers = {"Authorization": f"Bearer {token}"}
     
-    response = requests.get(endpoint, headers=headers)
-    try:
-        data = response.json()
-    except json.JSONDecodeError:
-        return {
-            'statusCode': response.status_code,
-            'headers': {'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'error': f"Non-JSON response from GA4 Admin API ({response.status_code}): {response.text}"})
-        }
+    all_account_summaries = []
+    next_page_token = None
     
-    return {
-        'statusCode': response.status_code,
-        'headers': {'Access-Control-Allow-Origin': '*'},
-        'body': json.dumps(data)
-    }
+    try:
+        while True:
+            params = {}
+            if next_page_token:
+                params['pageToken'] = next_page_token
+            
+            response = requests.get(endpoint, headers=headers, params=params)
+            
+            if response.status_code != 200:
+                print(f"GA4 API Error ({response.status_code}): {response.text}")
+                break
+                
+            data = response.json()
+            summaries = data.get('accountSummaries', [])
+            all_account_summaries.extend(summaries)
+            
+            next_page_token = data.get('nextPageToken')
+            if not next_page_token:
+                break
+                
+        return {
+            'statusCode': 200,
+            'headers': {'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'accountSummaries': all_account_summaries})
+        }
+        
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'headers': {'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': f"Lambda error during pagination: {str(e)}"})
+        }
 
 def ga4_run_report(property_id, token, payload):
     """
@@ -281,6 +304,7 @@ def ga4_run_report(property_id, token, payload):
 def ads_list_customers(token, login_customer_id, developer_token):
     """
     Calls the Google Ads API to list accessible customers using googleAds:search.
+    Handles pagination for accounts with many sub-accounts.
     """
     # Requires a login customer ID to search across
     if not login_customer_id:
@@ -300,25 +324,42 @@ def ads_list_customers(token, login_customer_id, developer_token):
     if developer_token:
         headers["developer-token"] = str(developer_token)
         
-    payload = {
-        "query": "SELECT customer_client.descriptive_name, customer_client.client_customer FROM customer_client WHERE customer_client.hidden = FALSE"
-    }
-        
-    response = requests.post(endpoint, headers=headers, json=payload)
-    try:
-        data = response.json()
-    except json.JSONDecodeError:
-        return {
-            'statusCode': response.status_code,
-            'headers': {'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'error': f"Non-JSON response from Google Ads API ({response.status_code}): {response.text}"})
-        }
+    all_results = []
+    next_page_token = None
     
-    return {
-        'statusCode': response.status_code,
-        'headers': {'Access-Control-Allow-Origin': '*'},
-        'body': json.dumps(data)
-    }
+    try:
+        while True:
+            payload = {
+                "query": "SELECT customer_client.descriptive_name, customer_client.client_customer FROM customer_client WHERE customer_client.hidden = FALSE"
+            }
+            if next_page_token:
+                payload["pageToken"] = next_page_token
+                
+            response = requests.post(endpoint, headers=headers, json=payload)
+            
+            if response.status_code != 200:
+                print(f"Ads API Error ({response.status_code}): {response.text}")
+                break
+                
+            data = response.json()
+            results = data.get('results', [])
+            all_results.extend(results)
+            
+            next_page_token = data.get('nextPageToken')
+            if not next_page_token:
+                break
+                
+        return {
+            'statusCode': 200,
+            'headers': {'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'results': all_results})
+        }
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'headers': {'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': f"Lambda error during Ads pagination: {str(e)}"})
+        }
 
 def ads_search_stream(customer_id, token, payload, login_customer_id=None, developer_token=None):
     """
