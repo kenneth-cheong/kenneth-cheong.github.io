@@ -1017,6 +1017,56 @@
             color: #0d9488;
         }
 
+        /* GA4 Searchable Select - Yellow Theme */
+        .ga4-searchable-select-container {
+            position: relative;
+            width: 100%;
+        }
+
+        .ga4-searchable-select-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 300px;
+            overflow-y: auto;
+            background: #fff;
+            border: 1px solid #ffe082;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            z-index: 1000;
+            display: none;
+        }
+
+        .ga4-searchable-select-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #1e293b;
+            transition: all 0.2s;
+            border-bottom: 1px solid #fff8e1;
+        }
+
+        .ga4-searchable-select-item:last-child {
+            border-bottom: none;
+        }
+
+        .ga4-searchable-select-item:hover {
+            background-color: #fffde7;
+            color: #f57f17;
+        }
+
+        .ga4-searchable-select-item.account {
+            font-weight: 500;
+            color: #f57f17;
+            background: #fff8e1;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            pointer-events: none;
+        }
+
         .ads-filter-popup-header {
             display: flex;
             justify-content: space-between;
@@ -13037,9 +13087,27 @@
                             <label
                                 style="font-size: 13px; color: #f57f17; font-weight: bold; display: block; margin-bottom: 8px;">Select
                                 Account/Property:</label>
-                            <select id="ga4SiteList" onchange="updateSelectedGa4Property()"
-                                style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #ffe082; font-family: inherit; font-size: 14px; background: #fff;">
-                                <option value="">-- Loading properties... --</option>
+                            
+                            <div class="ga4-searchable-select-container">
+                                <div style="position: relative;">
+                                    <i class="fas fa-search"
+                                        style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #f4b400; font-size: 12px; opacity: 0.7;"></i>
+                                    <input type="text" id="ga4PropertySearch" placeholder="Search or select properties..."
+                                        oninput="filterGa4PropertyList()"
+                                        onfocus="showGa4PropertyDropdown()"
+                                        style="width: 100%; padding: 10px 10px 10px 30px; border-radius: 4px; border: 1px solid #ffe082; font-size: 14px; box-sizing: border-box; outline: none; background: #fff; cursor: pointer;">
+                                    <i class="fas fa-chevron-down" 
+                                        onclick="toggleGa4PropertyDropdown()"
+                                        style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #f4b400; font-size: 12px; cursor: pointer; opacity: 0.8;"></i>
+                                </div>
+                                <div id="ga4PropertyDropdownResults" class="ga4-searchable-select-results">
+                                    <!-- Results will be injected here -->
+                                </div>
+                            </div>
+
+                            <!-- Hidden select for compatibility -->
+                            <select id="ga4SiteList" onchange="updateSelectedGa4Property()" style="display: none;">
+                                <option value="">-- Choose a GA4 Property --</option>
                             </select>
                         </div>
                     </div>
@@ -13047,8 +13115,37 @@
                         <div style="background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 20px;">
                             <h3 style="margin-top: 0; color: #f4b400;"><i class="fas fa-chart-line"></i> Traffic
                                 Overview</h3>
-                            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Key metrics from GA4 will
-                                appear here once connected.</p>
+                            
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fffdf7; padding: 12px; border-radius: 8px; border: 1px solid #fff59d;">
+                                <div style="display: flex; gap: 15px; align-items: center;">
+                                    <div>
+                                        <label style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">Date Range</label>
+                                        <select id="ga4DateRange" onchange="ga4DateRangeChanged()"
+                                            style="padding: 6px 10px; border-radius: 4px; border: 1px solid #ffe082; font-size: 13px; color: #5f6368; outline: none; background: #fff; min-width: 140px; cursor: pointer;">
+                                            <option value="today">Today</option>
+                                            <option value="yesterday">Yesterday</option>
+                                            <option value="7daysAgo">Last 7 Days</option>
+                                            <option value="28daysAgo" selected>Last 28 Days</option>
+                                            <option value="30daysAgo">Last 30 Days</option>
+                                            <option value="90daysAgo">Last 90 Days</option>
+                                            <option value="365daysAgo">Last Year</option>
+                                            <option value="CUSTOM">Custom Range</option>
+                                        </select>
+                                    </div>
+                                    <div id="ga4CustomDateInputs" style="display: none; align-items: flex-end; gap: 8px;">
+                                        <div>
+                                            <label style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">Start</label>
+                                            <input type="date" id="ga4StartDate" style="padding: 5px 8px; border-radius: 4px; border: 1px solid #ffe082; font-size: 12px; height: 32px; box-sizing: border-box;">
+                                        </div>
+                                        <div>
+                                            <label style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">End</label>
+                                            <input type="date" id="ga4EndDate" style="padding: 5px 8px; border-radius: 4px; border: 1px solid #ffe082; font-size: 12px; height: 32px; box-sizing: border-box;">
+                                        </div>
+                                        <button onclick="updateSelectedGa4Property()"
+                                            style="padding: 6px 12px; border-radius: 4px; border: none; background: #f4b400; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; height: 32px;">Apply</button>
+                                    </div>
+                                </div>
+                            </div>
                             <div id="ga4InsightsData"
                                 style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
                                 <div
@@ -20177,6 +20274,10 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                             });
                         }
                     });
+                    
+                    // NEW: Initial rendering of the searchable dropdown
+                    filterGa4PropertyList();
+                    
                     selectorDiv.style.display = 'block';
                     statusEl.innerHTML = '<i class="fas fa-check-circle" style="color: #34a853;"></i> Connected. Please select a property below.';
                 } else {
@@ -20184,6 +20285,97 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 }
             } catch (err) {
                 statusEl.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #ea4335;"></i> Error fetching GA4 properties: ' + err.message;
+            }
+        }
+
+        // GA4 Searchable Selector Logic
+        function filterGa4PropertyList() {
+            const searchVal = document.getElementById('ga4PropertySearch').value.toLowerCase();
+            const resultsContainer = document.getElementById('ga4PropertyDropdownResults');
+            resultsContainer.innerHTML = '';
+
+            // Group by account for better UI
+            const grouped = {};
+            ga4PropertyList.forEach(p => {
+                if (!grouped[p.accountName]) grouped[p.accountName] = [];
+                grouped[p.accountName].push(p);
+            });
+
+            let hasMatches = false;
+            for (const accountName in grouped) {
+                const matches = grouped[accountName].filter(p => 
+                    p.displayName.toLowerCase().includes(searchVal) || 
+                    p.property.toLowerCase().includes(searchVal) ||
+                    p.accountName.toLowerCase().includes(searchVal)
+                );
+
+                if (matches.length > 0) {
+                    hasMatches = true;
+                    const accountHeader = document.createElement('div');
+                    accountHeader.className = 'ga4-searchable-select-item account';
+                    accountHeader.textContent = accountName;
+                    resultsContainer.appendChild(accountHeader);
+
+                    matches.forEach(p => {
+                        const item = document.createElement('div');
+                        item.className = 'ga4-searchable-select-item';
+                        item.innerHTML = `<span style="font-weight: 500;">${p.displayName}</span> <span style="font-size: 11px; color: #999; margin-left: 5px;">(${p.property.split('/')[1]})</span>`;
+                        item.onclick = () => selectGa4Property(p.property, p.displayName, p.accountName);
+                        resultsContainer.appendChild(item);
+                    });
+                }
+            }
+
+            if (!hasMatches) {
+                resultsContainer.innerHTML = '<div style="padding: 15px; text-align: center; color: #999; font-size: 13px;">No properties found matching "' + searchVal + '"</div>';
+            }
+        }
+
+        function showGa4PropertyDropdown() {
+            const results = document.getElementById('ga4PropertyDropdownResults');
+            results.style.display = 'block';
+            
+            // Close when clicking outside
+            const closeDropdown = (e) => {
+                const container = document.querySelector('.ga4-searchable-select-container');
+                if (!container.contains(e.target)) {
+                    results.style.display = 'none';
+                    document.removeEventListener('mousedown', closeDropdown);
+                }
+            };
+            document.addEventListener('mousedown', closeDropdown);
+        }
+
+        function toggleGa4PropertyDropdown() {
+            const results = document.getElementById('ga4PropertyDropdownResults');
+            if (results.style.display === 'block') {
+                results.style.display = 'none';
+            } else {
+                showGa4PropertyDropdown();
+            }
+        }
+
+        function selectGa4Property(propertyId, displayName, accountName) {
+            const searchInput = document.getElementById('ga4PropertySearch');
+            const hiddenSelect = document.getElementById('ga4SiteList');
+            const results = document.getElementById('ga4PropertyDropdownResults');
+
+            searchInput.value = `${accountName} > ${displayName}`;
+            hiddenSelect.value = propertyId;
+            results.style.display = 'none';
+
+            // Trigger the same logic as the old select
+            updateSelectedGa4Property();
+        }
+
+        function ga4DateRangeChanged() {
+            const range = document.getElementById('ga4DateRange').value;
+            const customInputs = document.getElementById('ga4CustomDateInputs');
+            if (range === 'CUSTOM') {
+                customInputs.style.display = 'flex';
+            } else {
+                customInputs.style.display = 'none';
+                updateSelectedGa4Property();
             }
         }
 
@@ -20215,9 +20407,20 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
         async function fetchGa4Insights(propertyId) {
             try {
+                // Determine Date Range
+                const rangeOption = document.getElementById('ga4DateRange').value || '28daysAgo';
+                let startDate = rangeOption;
+                let endDate = 'today';
+
+                if (rangeOption === 'CUSTOM') {
+                    startDate = document.getElementById('ga4StartDate').value;
+                    endDate = document.getElementById('ga4EndDate').value;
+                    if (!startDate || !endDate) return; // Wait for both
+                }
+
                 // Fetch Overview Stats and Timeline (Daily)
                 const requestBody = {
-                    dateRanges: [{ startDate: '28daysAgo', endDate: 'today' }],
+                    dateRanges: [{ startDate: startDate, endDate: endDate }],
                     dimensions: [{ name: 'date' }],
                     metrics: [
                         { name: 'activeUsers' },
@@ -20393,9 +20596,38 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             badge.style.display = 'none';
 
             try {
-                // Parallel fetching for different segments (Current vs Previous)
-                const currentPeriod = { startDate: '28daysAgo', endDate: 'today' };
-                const previousPeriod = { startDate: '56daysAgo', endDate: '29daysAgo' };
+                // Determine Date Range
+                const rangeOption = document.getElementById('ga4DateRange').value || '28daysAgo';
+                let startDate = rangeOption;
+                let endDate = 'today';
+
+                if (rangeOption === 'CUSTOM') {
+                    startDate = document.getElementById('ga4StartDate').value;
+                    endDate = document.getElementById('ga4EndDate').value;
+                    if (!startDate || !endDate) return;
+                }
+
+                // Calculate Previous Period for delta comparison (simplistic: same length before start)
+                // For simplicity with GA4 shorthand (e.g. 28daysAgo), we'll try to guess
+                let prevStartDate = '56daysAgo';
+                let prevEndDate = '29daysAgo';
+
+                if (rangeOption === '7daysAgo') { prevStartDate = '14daysAgo'; prevEndDate = '8daysAgo'; }
+                else if (rangeOption === '30daysAgo') { prevStartDate = '60daysAgo'; prevEndDate = '31daysAgo'; }
+                else if (rangeOption === '90daysAgo') { prevStartDate = '180daysAgo'; prevEndDate = '91daysAgo'; }
+                else if (rangeOption === '365daysAgo') { prevStartDate = '730daysAgo'; prevEndDate = '366daysAgo'; }
+                else if (rangeOption === 'CUSTOM') {
+                    const s = new Date(startDate);
+                    const e = new Date(endDate);
+                    const diff = Math.abs(e - s);
+                    const ps = new Date(s.getTime() - diff - 86400000);
+                    const pe = new Date(s.getTime() - 86400000);
+                    prevStartDate = ps.toISOString().split('T')[0];
+                    prevEndDate = pe.toISOString().split('T')[0];
+                }
+
+                const currentPeriod = { startDate: startDate, endDate: endDate };
+                const previousPeriod = { startDate: prevStartDate, endDate: prevEndDate };
 
                 const fetchParams = (period, dims, metrics) => ({
                     action: 'ga4RunReport',
@@ -20432,9 +20664,10 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
         function analyzeGa4AuditData(data, returnOnly = false) {
             const findings = [];
+            let grid = null;
             if (!returnOnly) {
-                const grid = document.getElementById('ga4AuditResultsGrid');
-                grid.innerHTML = '';
+                grid = document.getElementById('ga4AuditResultsGrid');
+                if (grid) grid.innerHTML = '';
             }
 
             // --- 🔴 CRITICAL / HIGH: Traffic & Channel Health ---
@@ -20543,22 +20776,48 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 }
             }
 
-            if (findings.length === 0) {
-                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #34a853; padding: 20px;">No flags detected! Your GA4 setup and performance look healthy.</div>';
-            } else {
-                // Sort by priority
-                const priorityOrder = { 'Critical': 0, 'High': 1, 'Medium': 2, 'Opportunity': 3 };
-                findings.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+            if (!returnOnly && grid) {
+                if (findings.length === 0) {
+                    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #34a853; padding: 20px;">No flags detected! Your GA4 setup and performance look healthy.</div>';
+                } else {
+                    // Sort by priority
+                    const priorityOrder = { 'Critical': 0, 'High': 1, 'Medium': 2, 'Opportunity': 3 };
+                    findings.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
-                findings.forEach(f => {
-                    const color = f.priority === 'Critical' ? '#ea4335' : (f.priority === 'High' ? '#f4b400' : (f.priority === 'Medium' ? '#4285f4' : '#34a853'));
-                    const bgColor = f.priority === 'Critical' ? '#fdecea' : (f.priority === 'High' ? '#fff8e1' : (f.priority === 'Medium' ? '#e8f0fe' : '#e6f4ea'));
+                    findings.forEach(f => {
+                        const color = f.priority === 'Critical' ? '#ea4335' : (f.priority === 'High' ? '#f4b400' : (f.priority === 'Medium' ? '#4285f4' : '#34a853'));
+                        const bgColor = f.priority === 'Critical' ? '#fdecea' : (f.priority === 'High' ? '#fff8e1' : (f.priority === 'Medium' ? '#e8f0fe' : '#e6f4ea'));
 
-                });
+                        const card = document.createElement('div');
+                        card.style.padding = '15px';
+                        card.style.background = bgColor;
+                        card.style.border = `1px solid ${color}`;
+                        card.style.borderRadius = '8px';
+                        card.style.display = 'flex';
+                        card.style.gap = '15px';
+                        card.style.alignItems = 'flex-start';
+
+                        card.innerHTML = `
+                            <div style="background: ${color}; color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <i class="fas ${f.icon}"></i>
+                            </div>
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                                    <span style="font-size: 10px; font-weight: bold; text-transform: uppercase; background: ${color}; color: #fff; padding: 2px 6px; border-radius: 4px;">${f.priority}</span>
+                                    <strong style="font-size: 14px; color: #1e293b;">${f.label}</strong>
+                                </div>
+                                <div style="font-weight: 700; color: ${color}; font-size: 13px; margin-bottom: 5px;">${f.value}</div>
+                                <p style="margin: 0; font-size: 12px; color: #475569; line-height: 1.4;">${f.desc}</p>
+                            </div>
+                        `;
+                        grid.appendChild(card);
+                    });
+                }
             }
 
             if (returnOnly) return findings;
         }
+
 
         let adsChartInstance = null;
         let adsCustomerList = []; // Global list for cockpit progressive recs
