@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Scraper | Standalone</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ===== Design Tokens ===== */
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --primary-glow: rgba(99, 102, 241, 0.25);
+            --accent: #10b981;
+            --accent-hover: #059669;
+            --bg-deep: #0a0e1a;
+            --bg-card: rgba(255, 255, 255, 0.04);
+            --bg-card-hover: rgba(255, 255, 255, 0.06);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(255, 255, 255, 0.15);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --radius: 16px;
+            --radius-sm: 10px;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* ===== Reset ===== */
+        *, *::before, *::after {
+            box-sizing: border-box; margin: 0; padding: 0;
+        }
+
+        /* ===== App Shell ===== */
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .app {
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 2.5rem 1.5rem;
+        }
+
+        /* ===== Ambient Orbs ===== */
+        .orb {
+            position: fixed; border-radius: 50%; filter: blur(100px); opacity: 0.12; pointer-events: none; z-index: 0;
+        }
+        .orb-1 { width: 400px; height: 400px; background: #6366f1; top: -100px; left: -100px; animation: float 20s ease-in-out infinite; }
+        .orb-2 { width: 350px; height: 350px; background: #c084fc; bottom: -50px; right: -80px; animation: float 25s ease-in-out infinite reverse; }
+        .orb-3 { width: 250px; height: 250px; background: #10b981; top: 50%; left: 50%; transform: translate(-50%, -50%); animation: float 18s ease-in-out infinite 5s; }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(30px, -40px); }
+            50% { transform: translate(-20px, 20px); }
+            75% { transform: translate(15px, 35px); }
+        }
+
+        /* ===== Container ===== */
+        .container { width: 100%; max-width: 1200px; position: relative; z-index: 1; }
+
+        /* ===== Header ===== */
+        header { text-align: center; margin-bottom: 2rem; }
+        .logo { display: inline-flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+        .logo span { font-size: 1.6rem; font-weight: 700; background: linear-gradient(135deg, #818cf8, #c084fc); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+        .subtitle { color: var(--text-muted); font-size: 0.9rem; font-weight: 400; }
+
+        /* ===== Cards ===== */
+        .card {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem; backdrop-filter: blur(16px); transition: border-color var(--transition);
+        }
+        .card:hover { border-color: var(--border-hover); }
+        .card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem; }
+        .card-header h2 { font-size: 1rem; font-weight: 600; color: var(--text-primary); }
+        .step-badge { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+
+        /* ===== Buttons ===== */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1.25rem; border-radius: var(--radius-sm); border: none; cursor: pointer; font-weight: 600; font-size: 0.85rem; font-family: inherit; transition: all var(--transition); white-space: nowrap;
+        }
+        .btn-primary { flex: 1; background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 4px 20px var(--primary-glow); }
+        .btn-accent { background: #f59e0b; color: #000; font-weight: 600; }
+        .btn-accent:hover { background: #d97706; transform: translateY(-1px); }
+        .btn-download { background: var(--accent); color: #fff; padding: 0.5rem 1rem; font-size: 0.8rem; }
+        .btn-download:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3); }
+
+        /* ===== Content Views ===== */
+        .manual-actions { display: flex; gap: 1rem; margin-top: 1rem; }
+        .manual-list { padding-left: 1.5rem; margin-bottom: 1.5rem; color: var(--text-secondary); font-size: 0.85rem; line-height: 1.7; }
+        .manual-list li { margin-bottom: 0.5rem; }
+        .manual-list kbd { background: rgba(255, 255, 255, 0.1); border: 1px solid var(--border); border-radius: 4px; padding: 0.15rem 0.4rem; font-size: 0.75rem; font-family: monospace; }
+        .copy-status { font-size: 0.75rem; color: var(--accent); display: block; margin-top: 0.5rem; height: 1.2em; }
+
+        /* ===== Verification ===== */
+        .verification-controls { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-end; }
+        .input-group { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; min-width: 250px; }
+        .input-group label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+        input[type="text"] { width: 100%; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.75rem 1rem; color: var(--text-primary); font-size: 0.9rem; transition: all var(--transition); }
+        input[type="text"]:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+        .checkbox-group { display: flex; align-items: center; gap: 0.5rem; }
+
+        /* ===== Results Table ===== */
+        .table-wrapper { max-height: 500px; overflow-y: auto; border-radius: var(--radius-sm); border: 1px solid var(--border); background: rgba(0,0,0,0.2); }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; background: #161b22; padding: 1rem; position: sticky; top: 0; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; z-index: 10; border-bottom: 2px solid var(--border); cursor: pointer; }
+        th:hover { background: #1c2128; }
+        td { padding: 0.85rem 1rem; border-bottom: 1px solid rgba(255, 255, 255, 0.04); font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; }
+        tr:hover td { background: rgba(255, 255, 255, 0.02); }
+        .user-badge { display: inline-block; padding: 0.2rem 0.6rem; background: rgba(99, 102, 241, 0.1); color: var(--primary); border-radius: 6px; font-weight: 600; font-size: 0.8rem; }
+        .correct-row { background: rgba(16, 185, 129, 0.1) !important; }
+        .hidden { display: none !important; }
+        .empty-state { padding: 3rem; text-align: center; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+
+        footer { text-align: center; margin-top: 2rem; padding: 1.5rem; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.75rem; }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+
+        <div class="container">
+            <header>
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="url(#grad)" stroke-width="2">
+                        <defs><linearGradient id="grad"><stop offset="0%" style="stop-color:#818cf8"/><stop offset="100%" style="stop-color:#c084fc"/></linearGradient></defs>
+                        <circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/>
+                    </svg>
+                    <span>Social Scraper</span>
+                </div>
+                <p class="subtitle">Extract comments from Facebook & Instagram posts standalone.</p>
+            </header>
+
+            <!-- Step 1 -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="step-badge">1</span>
+                    <h2>Extract Comments</h2>
+                </div>
+                <div class="manual-content-main">
+                    <ol class="manual-list">
+                        <li>Open the IG/FB post in <strong>Chrome</strong></li>
+                        <li>Expand all comments (scroll & click "View more")</li>
+                        <li>Press <kbd>Cmd+Opt+I</kbd> &rarr; go to <strong>Console</strong></li>
+                        <li>Copy script below, paste in Console, press Enter</li>
+                        <li>Results are auto-copied. Click <strong>"Paste Results"</strong> here.</li>
+                    </ol>
+                    <div class="manual-actions">
+                        <button class="btn btn-accent" onclick="copyExtractScript()">📋 Copy Extract Script</button>
+                        <button class="btn btn-primary" onclick="pasteResults()">📋 Paste Results</button>
+                    </div>
+                    <span id="copy-status" class="copy-status"></span>
+                </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="card">
+                <div class="card-header"><span class="step-badge">2</span><h2>Verify Answer</h2></div>
+                <div class="verification-controls">
+                    <div class="input-group">
+                        <label for="correct-answer">Correct Answer Pattern:</label>
+                        <input type="text" id="correct-answer" placeholder="e.g. 18 Golden Coins" oninput="applyFilters()">
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="case-sensitive" onchange="applyFilters()">
+                        <label for="case-sensitive">Case Sensitive</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="card card-results">
+                <div class="card-header" style="justify-content: space-between; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span class="step-badge">3</span><h2>Results</h2><span id="results-count" class="results-count"></span>
+                    </div>
+                    <button id="download-btn" class="btn btn-download hidden" onclick="downloadCSV()">Download CSV</button>
+                </div>
+                <div class="table-wrapper">
+                    <table id="results-table">
+                        <thead>
+                            <tr>
+                                <th onclick="sortData('index')">#</th>
+                                <th onclick="sortData('user')">User</th>
+                                <th onclick="sortData('datetime')">Date</th>
+                                <th onclick="sortData('comment')">Comment</th>
+                                <th>Tag 1</th><th>Tag 2</th><th>Tag 3</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-body"></tbody>
+                    </table>
+                    <div id="empty-state" class="empty-state">
+                        <p>No comments imported yet.</p>
+                        <span>Follow steps 1 & 2 to see data.</span>
+                    </div>
+                </div>
+            </div>
+
+            <footer><p>Standalone Social Scraper Tool</p></footer>
+        </div>
+    </div>
+
+    <script>
+        let allResults = [];
+        let currentSort = { col: 'index', asc: true };
+
+        const EXTRACT_SCRIPT = `(function() {
+    const platform = window.location.hostname.includes('instagram') ? 'instagram' : 'facebook';
+    console.log('--- Social Scraper Extraction v10.6 ---');
+    console.log('Extracting ' + platform + ' comments...');
+    let results = [];
+
+    const escapeRegex = (str) => str.replace(/[.*+?^$\{()|[\\\]\\\\\]/g, '\\\\$&');
+
+    if (platform === 'instagram') {
+        const seen = new Set();
+        const navWords = ['Home','Reels','Messages','Search','Explore','Create','Profile',
+            'Notifications','More','Threads','Settings','Your activity','Saved',
+            'Switch accounts','Log out','Boost reel','View Insights','Add a comment','Post','Meta','About','Blog','Jobs','Help','Privacy','Terms','Locations'];
+
+        const allLinks = document.querySelectorAll('a[href^="/"]');
+        allLinks.forEach(link => {
+            const href = link.getAttribute('href') || '';
+            const username = href.split('/').filter(Boolean)[0];
+            if (!username || username.length > 30 || username.length < 2) return;
+            if (['explore','reels','accounts','about','p','stories','direct','tags','reel'].includes(username)) return;
+
+            let container = link.closest('li, div[role="menuitem"], div > div > div > div > span > a')?.parentElement?.parentElement?.parentElement;
+            if (!container) {
+                container = link.parentElement;
+                for (let d = 0; d < 8 && container; d++) {
+                    const t = container.textContent.trim();
+                    if (t.length > username.length + 5 && (t.includes('Reply') || t.includes('like'))) break;
+                    container = container.parentElement;
+                }
+            }
+            if (!container || container.hasAttribute('data-scraped')) return;
+
+            let fullText = (container.innerText || container.textContent).trim();
+            fullText = fullText.replace(/[\\r\\n]+/g, ' ');
+
+            if (!fullText.startsWith(username)) return;
+            if (fullText.length > 4000) return; 
+            if (navWords.some(w => fullText.includes(w) && fullText.indexOf(w) < username.length + 10)) return;
+
+            container.setAttribute('data-scraped', 'true');
+            let commentText = fullText.substring(username.length).trim();
+
+            // More robust date detection for IG
+            const timeEl = container.querySelector('time');
+            let datetime = '';
+            if (timeEl) {
+                datetime = timeEl.textContent.trim();
+                const timeStr = timeEl.textContent.trim();
+                if (commentText.startsWith(timeStr)) {
+                    commentText = commentText.substring(timeStr.length).trim();
+                }
+            } else {
+                const tm = commentText.match(/^([^\\w]*\\d+)\\s*([smhdw])/);
+                if (tm) {
+                    const u = {s:'second',m:'minute',h:'hour',d:'day',w:'week'};
+                    const val = tm[1].replace(/[^\\d]/g, '');
+                    const unit = tm[2];
+                    datetime = val + ' ' + (u[unit]||unit) + (parseInt(val)>1?'s':'') + ' ago';
+                    commentText = commentText.substring(tm[0].length).trim();
+                }
+            }
+
+            const tags = [];
+            container.querySelectorAll('a[href^="/"]').forEach(ml => {
+                const tg = (ml.getAttribute('href') || '').split('/').filter(Boolean)[0];
+                if (tg && tg !== username && tags.length < 3 && !tags.includes(tg)) {
+                    if (!['explore','reels','accounts','about','p','stories','direct','tags','reel'].includes(tg)) {
+                        tags.push(tg);
+                    }
+                }
+            });
+
+            let prev = '';
+            while (prev !== commentText) {
+                prev = commentText;
+                commentText = commentText
+                    .replace(/Reply$/,'').replace(/See translation$/,'').replace(/Edited$/,'')
+                    .replace(/Verified$/,'').replace(/View replies \\(\\d+\\)$/,'').replace(/View \\d+ replies?$/,'')
+                    .replace(/\\d+\\s*likes?$/,'').replace(/\\d+\\s*[smhdw]$/,'').replace(/like$/,'')
+                    .replace(new RegExp(escapeRegex(username) + '$'), '')
+                    .replace(/\\d+ (weeks?|days?|hours?|minutes?|seconds?) ago$/,'')
+                    .replace(/Log in to like or reply\\.$/,'').replace(/Hide replies$/,'').trim();
+                
+                if (commentText.match(/\\d+$/)) {
+                    commentText = commentText.replace(/\\d+$/,'').trim();
+                }
+            }
+            commentText = commentText.replace(/^\\s*[,.\\s-]+/,'').replace(/[,.\\s-]+$/,'').trim();
+
+            if (commentText.length > 0) {
+                results.push({
+                    user: username, comment: commentText, datetime: datetime,
+                    tag_1: tags[0]||'', tag_2: tags[1]||'', tag_3: tags[2]||''
+                });
+            }
+        });
+        document.querySelectorAll('[data-scraped]').forEach(el => el.removeAttribute('data-scraped'));
+    } else {
+        document.querySelectorAll('div[role="article"]').forEach(article => {
+            try {
+                let user='';
+                article.querySelectorAll('a span span').forEach(l => { if(!user && l.textContent.trim().length>0 && l.textContent.trim().length<50) user=l.textContent.trim(); });
+                if(!user) return;
+                let comment='';
+                article.querySelectorAll('div[dir="auto"]').forEach(div => { const t=div.textContent.trim(); if(!comment && t && t!==user && t.length>1 && !['Like','Reply','See more'].includes(t)) comment=t; });
+                
+                let datetime = '';
+                const tags = [];
+                const isDatePattern = (t, link) => {
+                    if (!t) return false;
+                    const alphaOnly = t.replace(/[^a-z0-9]/gi, '').toLowerCase();
+                    if (/^\\d+[smhdw]$/.test(alphaOnly)) return true;
+                    
+                    const clean = t.replace(/[·•●\\s\\r\\n]/g, '').toLowerCase();
+                    const title = (link.getAttribute('title') || '').toLowerCase();
+                    const keywords = ['justnow', 'hrs', 'mins', 'yesterday', 'ago', 'hour', 'minute', 'second', 'week'];
+                    return keywords.some(k => clean.includes(k)) || 
+                           (title && (title.includes(':') || title.match(/20\\d{2}/)));
+                };
+
+                article.querySelectorAll('a').forEach(link => {
+                    const text = (link.textContent || '').trim();
+                    if (!text) return;
+
+                    // Detect Date
+                    if (!datetime && isDatePattern(text, link)) {
+                        datetime = text;
+                        return;
+                    }
+
+                    // Strict exclusion for tags
+                    if (isDatePattern(text, link)) return;
+
+                    if (text !== user && text.length > 1 && text.length < 50 && 
+                        !['Like','Reply','Share','See more','See Translation','Edited'].includes(text) &&
+                        !link.querySelector('svg')) {
+                        if (tags.length < 3 && !tags.includes(text)) {
+                            tags.push(text);
+                        }
+                    }
+                });
+
+                if(user && comment) results.push({user, comment, datetime, tag_1:tags[0]||'', tag_2:tags[1]||'', tag_3:tags[2]||''});
+            } catch(e) {}
+        });
+    }
+
+    const j = JSON.stringify(results);
+    try {
+        if (typeof copy === 'function') {
+            copy(j);
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = j; ta.style.position='fixed'; ta.style.left='-9999px';
+            document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+        }
+        console.log('✅ Found ' + results.length + ' comments. DATA COPIED TO CLIPBOARD.');
+    } catch (e) {
+        console.log('❌ Auto-copy failed. COPY BELOW:');
+        console.log(j);
+    }
+})();`;
+
+        function copyExtractScript() {
+            navigator.clipboard.writeText(EXTRACT_SCRIPT);
+            const status = document.getElementById('copy-status');
+            status.textContent = '✅ Copied! Paste in IG Console.';
+            setTimeout(() => status.textContent = '', 5000);
+        }
+
+        async function pasteResults() {
+            try {
+                const clipText = await navigator.clipboard.readText();
+                const results = tryParseResults(clipText);
+                if (results && results.length > 0) {
+                    processImport(results);
+                } else {
+                    alert('Valid data not found in clipboard. Please run script in console first.');
+                }
+            } catch (err) {
+                alert('Could not access clipboard.');
+            }
+        }
+
+        function tryParseResults(text) {
+            if (!text) return null;
+            let cleanText = text.trim();
+            const start = cleanText.indexOf('[');
+            const end = cleanText.lastIndexOf(']');
+            if (start !== -1 && end !== -1) cleanText = cleanText.substring(start, end + 1);
+            try {
+                return JSON.parse(cleanText);
+            } catch (e) {
+                try {
+                    // Simple repair for loose console JSON
+                    const repaired = cleanText.replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":').replace(/'/g, '"');
+                    return JSON.parse(repaired);
+                } catch (e2) { return null; }
+            }
+        }
+
+        function processImport(results) {
+            const uniqueResults = [];
+            const seen = new Set();
+            results.forEach(r => {
+                const key = `${r.user}|${r.comment}`;
+                if (!seen.has(key)) { seen.add(key); uniqueResults.push(r); }
+            });
+            allResults = uniqueResults.map((r, i) => ({ ...r, originalIndex: i }));
+            document.getElementById('copy-status').textContent = `✅ ${allResults.length} comments imported!`;
+            renderResults(allResults);
+        }
+
+        function renderResults(results) {
+            const body = document.getElementById('results-body');
+            const empty = document.getElementById('empty-state');
+            const count = document.getElementById('results-count');
+            const downloadBtn = document.getElementById('download-btn');
+            const answer = document.getElementById('correct-answer').value.trim();
+            const sensitive = document.getElementById('case-sensitive').checked;
+
+            if (results.length === 0) {
+                body.innerHTML = ''; empty.classList.remove('hidden'); count.textContent = ''; downloadBtn.classList.add('hidden');
+                return;
+            }
+
+            empty.classList.add('hidden');
+            count.textContent = `${results.length} comments`;
+            downloadBtn.classList.remove('hidden');
+            body.innerHTML = '';
+
+            results.forEach((res, idx) => {
+                const row = document.createElement('tr');
+                if (answer) {
+                    const c = res.comment || '';
+                    if (sensitive ? c.includes(answer) : c.toLowerCase().includes(answer.toLowerCase())) {
+                        row.classList.add('correct-row');
+                    }
+                }
+                const usr = res.user || '';
+                row.innerHTML = `
+                    <td>${res.originalIndex + 1}</td>
+                    <td><span class="user-badge">${usr}</span></td>
+                    <td>${res.datetime || ''}</td>
+                    <td>${res.comment || ''}</td>
+                    <td>${res.tag_1 || ''}</td><td>${res.tag_2 || ''}</td><td>${res.tag_3 || ''}</td>
+                `;
+                body.appendChild(row);
+            });
+        }
+
+        function applyFilters() { renderResults(allResults); }
+
+        function sortData(col) {
+            if (currentSort.col === col) currentSort.asc = !currentSort.asc;
+            else { currentSort.col = col; currentSort.asc = true; }
+            allResults.sort((a, b) => {
+                let vA = col === 'index' ? a.originalIndex : (a[col] || '').toString().toLowerCase();
+                let vB = col === 'index' ? b.originalIndex : (b[col] || '').toString().toLowerCase();
+                return vA < vB ? (currentSort.asc ? -1 : 1) : (currentSort.asc ? 1 : -1);
+            });
+            renderResults(allResults);
+        }
+
+        function downloadCSV() {
+            if (allResults.length === 0) return;
+            const headers = ["User", "Date", "Comment", "Tag 1", "Tag 2", "Tag 3"];
+            const rows = allResults.map(r => [r.user, r.datetime, r.comment, r.tag_1, r.tag_2, r.tag_3]);
+            const csv = [headers, ...rows].map(row => row.map(v => `"${(v||'').toString().replace(/"/g, '""')}"`).join(",")).join("\n");
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = `scraper_results_${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        }
+    </script>
+</body>
+
+</html>
