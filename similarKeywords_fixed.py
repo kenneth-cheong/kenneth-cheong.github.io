@@ -24,8 +24,9 @@ def lambda_handler(event, context):
     location = event.get('location')
     language_name = event.get('language')
 
-    # Deduplicated results dictionary
-    result = {}
+    # Deduplicated results dictionaries
+    priority_result = {}
+    suggestions_result = {}
     document_list = []
 
     # 1. Try Mangools Integration
@@ -111,27 +112,39 @@ def lambda_handler(event, context):
                     if 'keywords' in kw_data:
                         for suggestion in kw_data['keywords']:
                             kw_name = suggestion['kw']
-                            if kw_name not in result:
-                                result[kw_name] = {
-                                    'search_volume': suggestion['sv'],
-                                    'cpc': suggestion.get('cpc'),
-                                    'competition': suggestion['seo']
-                                }
-                                # Add competition text logic
-                                seo = suggestion['seo']
-                                if 0 <= seo <= 14: text = "easy"
-                                elif 15 <= seo <= 29: text = "still easy"
-                                elif 30 <= seo <= 49: text = "possible"
-                                elif 50 <= seo <= 69: text = "hard"
-                                elif 70 <= seo <= 84: text = "very hard"
-                                else: text = "don't do it"
-                                result[kw_name]['competition_text'] = text
+                            
+                            # Competition text logic
+                            seo = suggestion['seo']
+                            if 0 <= seo <= 14: text = "easy"
+                            elif 15 <= seo <= 29: text = "still easy"
+                            elif 30 <= seo <= 49: text = "possible"
+                            elif 50 <= seo <= 69: text = "hard"
+                            elif 70 <= seo <= 84: text = "very hard"
+                            else: text = "don't do it"
+
+                            data_obj = {
+                                'search_volume': suggestion['sv'],
+                                'cpc': suggestion.get('cpc'),
+                                'competition': suggestion['seo'],
+                                'competition_text': text
+                            }
+
+                            # PRIORITIZATION: If it's one of the input keywords, put in priority_result
+                            if kw_name.lower() in [k.lower() for k in keywords_input]:
+                                # Keep original casing if possible, or use current
+                                priority_result[kw_name] = data_obj
+                            elif kw_name not in priority_result and kw_name not in suggestions_result:
+                                suggestions_result[kw_name] = data_obj
+                                
             except Exception as e:
                 print(f"Error fetching from Mangools for keyword '{kw}': {e}")
 
         if mangools_success:
+            # Merge results: priority first
+            final_result = {**priority_result, **suggestions_result}
+            
             # Prepare and insert into MongoDB
-            for kw, data in result.items():
+            for kw, data in final_result.items():
                 document_list.append({
                     "keyword": kw,
                     "search_vol": data['search_volume'],
@@ -145,7 +158,7 @@ def lambda_handler(event, context):
             if document_list:
                 collection.insert_many(document_list)
             
-            return {'statusCode': 200, 'body': result}
+            return {'statusCode': 200, 'body': final_result}
 
     except Exception as e:
         print("Mangools attempt failed, falling back to DataForSEO:", e)
@@ -188,25 +201,20 @@ def lambda_handler(event, context):
         if 'tasks' in resp_json and resp_json['tasks'][0]['result']:
             for suggestion in resp_json['tasks'][0]['result']:
                 kw_name = suggestion['keyword']
-                if kw_name not in result:
-                    result[kw_name] = {
-                        'competition': suggestion.get('competition'),
-                        'search_volume': suggestion.get("search_volume"),
-                        'cpc': suggestion.get("cpc")
-                    }
-                    document_list.append({
-                        "keyword": kw_name,
-                        "search_vol": suggestion.get("search_volume"),
-                        "cpc": suggestion.get("cpc"),
-                        "date": local_datetime,
-                        "location": location,
-                        "competition": suggestion.get('competition'),
-                        "competition_index": suggestion.get('competition_index'),
-                        "user": user
-                    })
+                data_obj = {
+                    'competition': suggestion.get('competition'),
+                    'search_volume': suggestion.get("search_volume"),
+                    'cpc': suggestion.get("cpc")
+                }
+                
+                # PRIORITIZATION
+                if kw_name.lower() in [k.lower() for k in keywords_input]:
+                    priority_result[kw_name] = data_obj
+                elif kw_name not in priority_result and kw_name not in suggestions_result:
+                    suggestions_result[kw_name] = data_obj
 
         # If still short on results, try to expand with GPT
-        if len(result.keys()) < 20:
+        if (len(priority_result) + len(suggestions_result)) < 20:
             print("Expanding with GPT...")
             gpt_url = "https://api.openai.com/v1/chat/completions"
             prompt = f"You are an SEO expert doing keyword research. Output as a list (only) in the format: [keyword1,keyword2,keyword3]. Come up with 20 similar keywords from the root keyword(s): {json.dumps(keywords_input)}"
@@ -232,29 +240,34 @@ def lambda_handler(event, context):
                 if 'tasks' in resp_json and resp_json['tasks'][0]['result']:
                     for suggestion in resp_json['tasks'][0]['result']:
                         kw_name = suggestion['keyword']
-                        if kw_name not in result:
-                            result[kw_name] = {
-                                'competition': suggestion.get('competition'),
-                                'search_volume': suggestion.get("search_volume"),
-                                'cpc': suggestion.get("cpc")
-                            }
-                            document_list.append({
-                                "keyword": kw_name,
-                                "search_vol": suggestion.get("search_volume"),
-                                "cpc": suggestion.get("cpc"),
-                                "date": local_datetime,
-                                "location": location,
-                                "competition": suggestion.get('competition'),
-                                "competition_index": suggestion.get('competition_index'),
-                                "user": user
-                            })
+                        data_obj = {
+                            'competition': suggestion.get('competition'),
+                            'search_volume': suggestion.get("search_volume"),
+                            'cpc': suggestion.get("cpc")
+                        }
+                        if kw_name not in priority_result and kw_name not in suggestions_result:
+                            suggestions_result[kw_name] = data_obj
+
+        final_result = {**priority_result, **suggestions_result}
+        
+        for kw, data in final_result.items():
+            document_list.append({
+                "keyword": kw,
+                "search_vol": data.get('search_volume'),
+                "cpc": data.get("cpc"),
+                "date": local_datetime,
+                "location": location,
+                "competition": data.get('competition'),
+                "competition_index": data.get('competition_index'),
+                "user": user
+            })
 
         if document_list:
             collection.insert_many(document_list)
 
         return {
             'statusCode': 200,
-            'body': result
+            'body': final_result
         }
 
     except Exception as e:
