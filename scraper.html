@@ -443,9 +443,9 @@
                 <div class="manual-content-main">
                     <ol class="manual-list">
                         <li>Open the IG/FB post in <strong>Chrome</strong></li>
-                        <li>Expand all comments (scroll & click "View more")</li>
                         <li>Press <kbd>Cmd+Opt+I</kbd> &rarr; go to <strong>Console</strong></li>
                         <li>Copy script below, paste in Console, press Enter</li>
+                        <li><strong>Wait</strong> for the script to auto-expand & scrape</li>
                         <li>Results are auto-copied. Click <strong>"Paste Results"</strong> here.</li>
                     </ol>
                     <div class="manual-actions">
@@ -492,6 +492,7 @@
                                 <th onclick="sortData('user')">User</th>
                                 <th onclick="sortData('datetime')">Date</th>
                                 <th onclick="sortData('comment')">Comment</th>
+                                <th>Match</th>
                                 <th onclick="sortData('followers')">Followers</th>
                                 <th onclick="sortData('status')">Status</th>
                                 <th>Tag 1</th>
@@ -521,23 +522,37 @@
 
         const EXTRACT_SCRIPT = `(async function() {
     const platform = window.location.hostname.includes('instagram') ? 'instagram' : 'facebook';
-    console.log('--- Social Scraper Extraction v11.3 ---');
-    console.log('Extracting ' + platform + ' comments...');
-    let results = [];
-
+    console.log('--- Social Scraper Extraction v14.0 (BRUTE FORCE) ---');
+    
     const sleep = (ms) => new Promise(res => setTimeout(res, ms));
-    const escapeRegex = (str) => str.replace(/[.*+?^$\{()|[\\\]\\\\\]/g, '\\\\$&');
+    const escapeRegex = (str) => str.replace(/[.*+?^$\\{()|[\\\\\\\\]\\\\\\\\]/g, '\\\\\\\\$&');
 
-    if (platform === 'instagram') {
-        const userElements = {}; // {username: linkElement}
-        const navWords = ['Home','Reels','Messages','Search','Explore','Create','Profile',
-            'Notifications','More','Threads','Settings','Your activity','Saved',
-            'Switch accounts','Log out','Boost reel','View Insights','Add a comment','Post','Meta','About','Blog','Jobs','Help','Privacy','Terms','Locations'];
+    const showOverlay = (msg) => {
+        let ov = document.getElementById('sc-status-ovl');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'sc-status-ovl';
+            ov.style = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.98);color:#fff;padding:40px;border-radius:24px;z-index:1000000;font-family:sans-serif;text-align:center;box-shadow:0 0 80px rgba(99,102,241,0.5);border:1px solid rgba(255,255,255,0.1);min-width:380px;backdrop-filter:blur(20px);';
+            document.body.appendChild(ov);
+        }
+        ov.innerHTML = '<div style="font-size:32px;margin-bottom:20px;font-weight:900;background:linear-gradient(135deg,#818cf8,#c084fc);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.02em;">Social Scraper <span style="font-size:14px;color:#6366f1;vertical-align:middle;padding:2px 8px;background:rgba(99,102,241,0.1);border-radius:20px;border:1px solid #6366f1;margin-left:8px;">v14.0</span></div>' + 
+                      '<div style="font-size:18px;line-height:1.6;color:#e2e8f0;margin-bottom:25px;">' + msg + '</div>' +
+                      '<div id="sc-diag" style="font-family:monospace;font-size:11px;color:#64748b;text-align:left;background:rgba(0,0,0,0.3);padding:15px;border-radius:12px;border:1px solid rgba(255,255,255,0.05);">Initializing brute-force expansion...</div>';
+    };
 
-        // --- Pass 1: Capture clean comment data ---
+    const updateDiag = (log) => {
+        const d = document.getElementById('sc-diag');
+        if (d) d.innerText = '> ' + log;
+    };
+
+    let allUniqueComments = new Map();
+    let userElements = {};
+
+    function parseComments() {
+        if (platform !== 'instagram') return;
+        const navWords = ['Home','Reels','Messages','Search','Explore','Create','Profile','Notifications','More','Threads','Settings','Your activity','Saved','Switch accounts','Log out','Post','About','Blog','Jobs','Help','Privacy','Terms'];
         const allLinks = Array.from(document.querySelectorAll('a[href^="/"]'));
         for (const link of allLinks) {
-            
             const href = link.getAttribute('href') || '';
             const username = href.split('/').filter(Boolean)[0];
             if (!username || username.length > 30 || username.length < 2) continue;
@@ -552,45 +567,21 @@
                     container = container.parentElement;
                 }
             }
-            if (!container || container.hasAttribute('data-scraped')) continue;
+            if (!container) continue;
 
             let fullText = (container.innerText || container.textContent).trim();
             fullText = fullText.replace(/[\\r\\n]+/g, ' ');
+            if (fullText.length > 4000) continue;
+            if (navWords.some(w => fullText.includes(w) && fullText.toLowerCase().indexOf(w.toLowerCase()) < username.length + 10)) continue;
 
-            if (!fullText.startsWith(username)) continue;
-            if (fullText.length > 4000) continue; 
-            if (navWords.some(w => fullText.includes(w) && fullText.indexOf(w) < username.length + 10)) continue;
+            let lowerFull = fullText.toLowerCase();
+            let idx = lowerFull.indexOf(username.toLowerCase());
+            if (idx === -1) continue;
             
-            // Filter out profile info snippets (prevents hovercard pollution)
-            if (fullText.includes(' followers') && (fullText.includes(' post') || fullText.includes(' following'))) continue;
-
-            container.setAttribute('data-scraped', 'true');
-            let commentText = fullText.substring(username.length).trim();
-
+            let commentText = fullText.substring(idx + username.length).trim();
             const timeEl = container.querySelector('time');
-            let datetime = '';
-            if (timeEl) {
-                datetime = timeEl.textContent.trim();
-                if (commentText.startsWith(datetime)) commentText = commentText.substring(datetime.length).trim();
-            } else {
-                const tm = commentText.match(/^([^\\w]*\\d+)\\s*([smhdw])/);
-                if (tm) {
-                    const u = {s:'second',m:'minute',h:'hour',d:'day',w:'week'};
-                    const val = tm[1].replace(/[^\\d]/g, '');
-                    const unit = tm[2];
-                    datetime = val + ' ' + (u[unit]||unit) + (parseInt(val)>1?'s':'') + ' ago';
-                    commentText = commentText.substring(tm[0].length).trim();
-                }
-            }
-
-            const tags = [];
-            container.querySelectorAll('a[href^="/"]').forEach(ml => {
-                const tg = (ml.getAttribute('href') || '').split('/').filter(Boolean)[0];
-                if (tg && tg !== username && tags.length < 3 && !tags.includes(tg)) {
-                    if (!['explore','reels','accounts','about','p','stories','direct','tags','reel'].includes(tg)) tags.push(tg);
-                }
-            });
-
+            let datetime = timeEl ? timeEl.textContent.trim() : '';
+            
             let prev = '';
             while (prev !== commentText) {
                 prev = commentText;
@@ -598,150 +589,169 @@
                     .replace(/Reply$/,'').replace(/See translation$/,'').replace(/Edited$/,'')
                     .replace(/Verified$/,'').replace(/View replies \\(\\d+\\)$/,'').replace(/View \\d+ replies?$/,'')
                     .replace(/\\d+\\s*likes?$/,'').replace(/\\d+\\s*[smhdw]$/,'').replace(/like$/,'')
-                    .replace(new RegExp(escapeRegex(username) + '$'), '')
-                    .replace(/\\d+ (weeks?|days?|hours?|minutes?|seconds?) ago$/,'')
-                    .replace(/Log in to like or reply\\.$/,'').replace(/Hide replies$/,'').trim();
-                
-                if (commentText.match(/\\d+$/)) commentText = commentText.replace(/\\d+$/,'').trim();
+                    .replace(new RegExp(escapeRegex(username) + '$', 'i'), '')
+                    .replace(/\\d+ (weeks?|days?|hours?|minutes?|seconds?) ago$/,'').trim();
             }
             commentText = commentText.replace(/^\\s*[,.\\s-]+/,'').replace(/[,.\\s-]+$/,'').trim();
+            if (commentText.startsWith(datetime)) commentText = commentText.substring(datetime.length).trim();
 
             if (commentText.length > 0) {
-                results.push({
-                    user: username, comment: commentText, datetime: datetime,
-                    followers: '', status: '',
-                    tag_1: tags[0]||'', tag_2: tags[1]||'', tag_3: tags[2]||''
-                });
-                if (!userElements[username]) userElements[username] = link;
+                const key = \`\${username.toLowerCase()}|\${commentText}\`;
+                if (!allUniqueComments.has(key)) {
+                    const tags = [];
+                    container.querySelectorAll('a[href^="/"]').forEach(ml => {
+                        const tg = (ml.getAttribute('href') || '').split('/').filter(Boolean)[0];
+                        if (tg && tg.toLowerCase() !== username.toLowerCase() && tags.length < 3 && !tags.includes(tg)) {
+                            if (!['explore','reels','accounts','about','p','stories','direct','tags','reel'].includes(tg)) tags.push(tg);
+                        }
+                    });
+                    allUniqueComments.set(key, {
+                        user: username, comment: commentText, datetime: datetime,
+                        followers: '', status: '',
+                        tag_1: tags[0]||'', tag_2: tags[1]||'', tag_3: tags[2]||''
+                    });
+                    if (!userElements[username]) userElements[username] = link;
+                }
             }
         }
-        document.querySelectorAll('[data-scraped]').forEach(el => el.removeAttribute('data-scraped'));
+    }
 
-        // --- Pass 2: Extract Profiles via Hovers ---
-        const uniqueUsers = Object.keys(userElements);
-        console.log('Found ' + uniqueUsers.length + ' unique users. Starting profile extraction...');
-        const userCache = {}; // {username: {followers, status}}
+    if (platform === 'instagram') {
+        let cycle = 0;
+        let stagnateCycles = 0;
+        let lastCount = 0;
 
-        for (const username of uniqueUsers) {
-            console.log('Hovering over ' + username + '...');
-            const link = userElements[username];
-            link.scrollIntoView({ block: 'center' });
-            await sleep(300);
-            
-            link.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-            await sleep(1800); // Wait 1.8s
-            
-            let followers = '';
-            let status = 'Public';
-            
-            const findHovercard = () => {
-                const candidates = Array.from(document.querySelectorAll('div')).filter(el => {
-                    const w = el.offsetWidth;
-                    if (w > 600 || w < 200) return false; // Hovercards are usually ~300-400px
-                    const t = (el.innerText || '').toLowerCase();
-                    return t.includes('follower') && (t.includes('following') || t.includes('post'));
+        while (cycle < 1500) {
+            parseComments();
+            const currentCount = allUniqueComments.size;
+            showOverlay(\`Phase 1: BRUTE-FORCE Expansion<br><b style="font-size:32px;color:#6366f1;">\${currentCount}</b> unique comments found\`);
+            updateDiag(\`Cycle \${cycle} | Stagnation \${stagnateCycles}/15\`);
+
+            if (currentCount > lastCount) { lastCount = currentCount; stagnateCycles = 0; } 
+            else { stagnateCycles++; }
+
+            if (stagnateCycles >= 15) break;
+
+            const containers = Array.from(document.querySelectorAll('*')).filter(el => {
+                const s = window.getComputedStyle(el);
+                return (s.overflowY === 'auto' || s.overflowY === 'scroll') && el.scrollHeight > el.clientHeight;
+            });
+            if (containers.length === 0) containers.push(document.body);
+
+            for (const c of containers) {
+                const target = c === document.body ? window : c;
+                const scrollPos = c === document.body ? document.documentElement.scrollHeight : c.scrollHeight;
+                
+                c.scrollTo({ top: scrollPos, behavior: 'auto' });
+                c.dispatchEvent(new Event('scroll', { bubbles: true }));
+                c.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 100 }));
+                
+                await sleep(100);
+                c.scrollBy(0, -100); 
+                await sleep(50);
+                c.scrollBy(0, 200);
+            }
+
+            const scrollBottom = () => {
+                const items = Array.from(document.querySelectorAll('li, div[role="menuitem"]'));
+                if (items.length > 0) items[items.length - 1].scrollIntoView({ block: 'end' });
+            };
+            scrollBottom();
+
+            const getButtons = () => {
+                const list = [];
+                // Load More Text/SVG candidates
+                document.querySelectorAll('div[role="button"], span, svg').forEach(el => {
+                    const t = (el.innerText || el.getAttribute('aria-label') || '').toLowerCase();
+                    if (t.includes('more comments') || t.includes('plus icon') || (t.includes('view') && t.includes('more'))) {
+                        list.push(el.closest('div[role="button"]') || el);
+                    }
+                    if (t.includes('replies')) list.push(el);
+                    if (t.includes('hidden comments')) list.push(el);
                 });
-                return candidates.sort((a,b) => a.innerText.length - b.innerText.length)[0];
+                return Array.from(new Set(list));
             };
 
-            const hovercard = findHovercard();
-            if (hovercard) {
-                const hText = hovercard.innerText || '';
-                if (hText.toLowerCase().includes('private')) status = 'Private';
-                
-                // Aggressive follower extraction: look for numeric value before "follower"
-                // This handles "6,810 followers", "1.2M followers", "0 followers" etc.
-                const fMatch = hText.match(/([\\d.,KMB]+)\\s+followers?/i);
-                if (fMatch) {
-                    followers = fMatch[1];
-                } else {
-                    // Fallback: search for any line that just has a number and is near "followers"
-                    const lines = hText.split(/[\\r\\n]+/);
-                    const fIdx = lines.findIndex(l => l.toLowerCase().includes('follower'));
-                    if (fIdx > 0) followers = lines[fIdx-1].trim();
-                }
-                console.log('   -> Success: ' + (followers || '???') + ' followers, ' + status);
-            } else {
-                console.log('   -> Failed: Hovercard not detected.');
+            const buttons = getButtons();
+            for (const btn of buttons) {
+                try {
+                    btn.click();
+                    await sleep(300);
+                } catch(e) {}
             }
-            
-            userCache[username] = { followers, status };
-            link.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
-            await sleep(300);
+
+            await sleep(1200);
+            cycle++;
         }
 
-        // Apply profile info back to results
-        results.forEach(r => {
-            if (userCache[r.user]) {
-                r.followers = userCache[r.user].followers;
-                r.status = userCache[r.user].status;
-            }
-        });
+        const users = Object.keys(userElements).filter(u => u.length > 0);
+        for (let i = 0; i < users.length; i++) {
+            const username = users[i];
+            showOverlay(\`Phase 2: Extracting Profiles<br><span style="color:#94a3b8;">User \${i+1} of \${users.length}</span><br><b style="color:#6366f1;">\${username}</b>\`);
+            updateDiag(\`Extracting profile data via hover cards...\`);
+            
+            const link = userElements[username];
+            try {
+                link.scrollIntoView({ block: 'center', behavior: 'auto' });
+                await sleep(200);
+                link.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+                await sleep(1500);
 
+                const findHovercard = () => {
+                    return Array.from(document.querySelectorAll('div')).find(el => {
+                        const w = el.offsetWidth;
+                        if (w > 650 || w < 150) return false;
+                        const t = (el.innerText || '').toLowerCase();
+                        return (t.includes('follower') || t.includes('post')) && (t.includes('following') || t.includes('message'));
+                    });
+                };
+
+                const hovercard = findHovercard();
+                if (hovercard) {
+                    const hText = (hovercard.innerText || '').toLowerCase();
+                    let status = (hText.includes('private') || hText.includes('follow to see')) ? 'Private' : 'Public';
+                    let followers = hText.match(/([\\d.,KMB]+)\\s+followers?/i)?.[1] || '';
+                    for (let [key, val] of allUniqueComments) {
+                        if (val.user.toLowerCase() === username.toLowerCase()) {
+                            val.followers = followers;
+                            val.status = status;
+                        }
+                    }
+                }
+                link.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+            } catch(e) {}
+            await sleep(100);
+        }
     } else {
         document.querySelectorAll('div[role="article"]').forEach(article => {
             try {
                 let user='';
-                article.querySelectorAll('a span span').forEach(l => { if(!user && l.textContent.trim().length>0 && l.textContent.trim().length<50) user=l.textContent.trim(); });
-                if(!user) return;
+                article.querySelectorAll('a span span').forEach(l => { if(!user && l.textContent.trim().length>0) user=l.textContent.trim(); });
                 let comment='';
                 article.querySelectorAll('div[dir="auto"]').forEach(div => { const t=div.textContent.trim(); if(!comment && t && t!==user && t.length>1 && !['Like','Reply','See more'].includes(t)) comment=t; });
-                
-                let datetime = '';
-                const tags = [];
-                const isDatePattern = (t, link) => {
-                    if (!t) return false;
-                    const alphaOnly = t.replace(/[^a-z0-9]/gi, '').toLowerCase();
-                    if (/^\\d+[smhdw]$/.test(alphaOnly)) return true;
-                    
-                    const clean = t.replace(/[·•●\\s\\r\\n]/g, '').toLowerCase();
-                    const title = (link.getAttribute('title') || '').toLowerCase();
-                    const keywords = ['justnow', 'hrs', 'mins', 'yesterday', 'ago', 'hour', 'minute', 'second', 'week'];
-                    return keywords.some(k => clean.includes(k)) || 
-                           (title && (title.includes(':') || title.match(/20\\d{2}/)));
-                };
-
-                article.querySelectorAll('a').forEach(link => {
-                    const text = (link.textContent || '').trim();
-                    if (!text) return;
-
-                    // Detect Date
-                    if (!datetime && isDatePattern(text, link)) {
-                        datetime = text;
-                        return;
-                    }
-
-                    // Strict exclusion for tags
-                    if (isDatePattern(text, link)) return;
-
-                    if (text !== user && text.length > 1 && text.length < 50 && 
-                        !['Like','Reply','Share','See more','See Translation','Edited'].includes(text) &&
-                        !link.querySelector('svg')) {
-                        if (tags.length < 3 && !tags.includes(text)) {
-                            tags.push(text);
-                        }
-                    }
-                });
-
-                if(user && comment) results.push({user, comment, datetime, followers:'', status:'', tag_1:tags[0]||'', tag_2:tags[1]||'', tag_3:tags[2]||''});
+                if(user && comment) allUniqueComments.set(\`\${user.toLowerCase()}|\${comment}\`, {user, comment, datetime:'', followers:'', status:'', tag_1:'', tag_2:'', tag_3:''});
             } catch(e) {}
         });
     }
 
+    const results = Array.from(allUniqueComments.values());
     const j = JSON.stringify(results);
+    const ov = document.getElementById('sc-status-ovl');
+    if (ov) ov.remove();
+
     const box = document.createElement('div');
     box.id = 'scraper-ovl';
-    box.style = 'position:fixed;top:20px;right:20px;background:#10b981;color:#fff;padding:25px;z-index:999999;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.6);font-family:sans-serif;text-align:center;min-width:300px;border:2px solid #fff;';
-    box.innerHTML = '<h3 style="margin:0 0 10px 0;font-size:20px;">✅ Extraction Complete</h3>' + 
-                  '<p style="margin:0 0 20px 0;font-size:16px;">Found <b>' + results.length + '</b> comments.</p>' +
-                  '<button id="scr-cp-btn" style="background:#fff;color:#10b981;border:none;padding:12px 25px;border-radius:8px;font-weight:800;cursor:pointer;font-size:18px;width:100%;box-shadow:0 4px 10px rgba(0,0,0,0.2);">COPY RESULTS TO TOOL</button>';
+    box.style = 'position:fixed;top:20px;right:20px;background:#10b981;color:#fff;padding:25px;z-index:999999;border-radius:16px;box-shadow:0 20px 50px rgba(16,185,129,0.3);font-family:sans-serif;text-align:center;min-width:320px;border:1px solid rgba(255,255,255,0.2);backdrop-filter:blur(15px);';
+    box.innerHTML = '<h3 style="margin:0 0 10px 0;font-size:20px;letter-spacing:-0.01em;">✅ EXTRACTION READY</h3>' + 
+                   '<p style="margin:0 0 20px 0;font-size:16px;opacity:0.9;">Successfully captured <b>' + results.length + '</b> unique comments using brute-force expansion.</p>' +
+                   '<button id="scr-cp-btn" style="background:#fff;color:#059669;border:none;padding:14px 25px;border-radius:12px;font-weight:800;cursor:pointer;font-size:18px;width:100%;box-shadow:0 4px 12px rgba(0,0,0,0.1);transition:transform 0.2s;">COPY TO TOOL</button>';
     document.body.appendChild(box);
     document.getElementById('scr-cp-btn').onclick = function() {
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(j).then(() => {
                 this.textContent = '✅ COPIED!';
-                this.style.background = '#dcfce7';
-                setTimeout(() => box.remove(), 2000);
+                this.style.background = '#d1fae5';
+                setTimeout(() => box.remove(), 2500);
             });
         } else {
             prompt("Auto-copy failed. Copy JSON below:", j);
@@ -831,11 +841,11 @@
 
             results.forEach((res, idx) => {
                 const row = document.createElement('tr');
+                let matchText = '---';
                 if (answer) {
                     const c = res.comment || '';
-                    if (sensitive ? c.includes(answer) : c.toLowerCase().includes(answer.toLowerCase())) {
-                        row.classList.add('correct-row');
-                    }
+                    const isMatch = sensitive ? c.includes(answer) : c.toLowerCase().includes(answer.toLowerCase());
+                    matchText = isMatch ? '✅ Yes' : 'No';
                 }
                 const usr = res.user || '';
                 row.innerHTML = `
@@ -843,6 +853,7 @@
                     <td><span class="user-badge">${usr}</span></td>
                     <td>${res.datetime || ''}</td>
                     <td>${res.comment || ''}</td>
+                    <td><span class="${matchText === '✅ Yes' ? 'user-badge' : ''}" style="${matchText === '✅ Yes' ? 'background:rgba(16,185,129,0.1);color:#10b981;border-color:#10b981;' : 'color:#94a3b8;'}">${matchText}</span></td>
                     <td>${res.followers || ''}</td>
                     <td>${res.status || ''}</td>
                     <td>${res.tag_1 || ''}</td><td>${res.tag_2 || ''}</td><td>${res.tag_3 || ''}</td>
@@ -866,8 +877,19 @@
 
         function downloadCSV() {
             if (allResults.length === 0) return;
-            const headers = ["User", "Date", "Comment", "Followers", "Status", "Tag 1", "Tag 2", "Tag 3"];
-            const rows = allResults.map(r => [r.user, r.datetime, r.comment, r.followers, r.status, r.tag_1, r.tag_2, r.tag_3]);
+            const answer = document.getElementById('correct-answer').value.trim();
+            const sensitive = document.getElementById('case-sensitive').checked;
+            
+            const headers = ["User", "Date", "Comment", "Match", "Followers", "Status", "Tag 1", "Tag 2", "Tag 3"];
+            const rows = allResults.map(r => {
+                let matchStatus = '---';
+                if (answer) {
+                    const c = r.comment || '';
+                    const isMatch = sensitive ? c.includes(answer) : c.toLowerCase().includes(answer.toLowerCase());
+                    matchStatus = isMatch ? 'Yes' : 'No';
+                }
+                return [r.user, r.datetime, r.comment, matchStatus, r.followers, r.status, r.tag_1, r.tag_2, r.tag_3];
+            });
             const csv = [headers, ...rows].map(row => row.map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(",")).join("\n");
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
