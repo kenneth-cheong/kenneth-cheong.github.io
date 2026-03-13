@@ -399,6 +399,44 @@
             gap: 0.5rem;
         }
 
+        .tag-chip {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--primary);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .tag-chip:hover {
+            background: rgba(99, 102, 241, 0.25);
+            border-color: var(--primary);
+        }
+
+        .tag-remove {
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            line-height: 1;
+        }
+
+        .tag-remove:hover {
+            color: #ef4444;
+        }
+
+        .tags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
         footer {
             text-align: center;
             margin-top: 2rem;
@@ -463,10 +501,11 @@
                 </div>
                 <div class="verification-controls">
                     <div class="input-group">
-                        <label for="correct-answer">Correct Answer Pattern:</label>
+                        <label for="correct-answer">Add Answer Pattern (Press Enter):</label>
                         <input type="text" id="correct-answer" placeholder="e.g. 18 Golden Coins"
-                            oninput="applyFilters()">
+                            onkeydown="if(event.key==='Enter') { addPattern(this.value); this.value=''; }">
                     </div>
+                    <div id="patterns-container" class="tags-container"></div>
                     <div class="checkbox-group">
                         <input type="checkbox" id="case-sensitive" onchange="applyFilters()">
                         <label for="case-sensitive">Case Sensitive</label>
@@ -517,7 +556,33 @@
 
     <script>
         let allResults = [];
+        let patterns = [];
         let currentSort = { col: 'index', asc: true };
+
+        function addPattern(val) {
+            val = val.trim();
+            if (!val || patterns.includes(val)) return;
+            patterns.push(val);
+            renderPatterns();
+            applyFilters();
+        }
+
+        function removePattern(val) {
+            patterns = patterns.filter(p => p !== val);
+            renderPatterns();
+            applyFilters();
+        }
+
+        function renderPatterns() {
+            const container = document.getElementById('patterns-container');
+            container.innerHTML = '';
+            patterns.forEach(p => {
+                const chip = document.createElement('div');
+                chip.className = 'tag-chip';
+                chip.innerHTML = `<span>${p}</span><span class="tag-remove" onclick="removePattern('${p.replace(/'/g, "\\'")}')">&times;</span>`;
+                container.appendChild(chip);
+            });
+        }
 
 
         const EXTRACT_SCRIPT = `(async function() {
@@ -660,7 +725,6 @@
 
             const getButtons = () => {
                 const list = [];
-                // Load More Text/SVG candidates
                 document.querySelectorAll('div[role="button"], span, svg').forEach(el => {
                     const t = (el.innerText || el.getAttribute('aria-label') || '').toLowerCase();
                     if (t.includes('more comments') || t.includes('plus icon') || (t.includes('view') && t.includes('more'))) {
@@ -688,39 +752,118 @@
         for (let i = 0; i < users.length; i++) {
             const username = users[i];
             showOverlay(\`Phase 2: Extracting Profiles<br><span style="color:#94a3b8;">User \${i+1} of \${users.length}</span><br><b style="color:#6366f1;">\${username}</b>\`);
-            updateDiag(\`Extracting profile data via hover cards...\`);
+            updateDiag(\`Clearing stale cards... \`);
             
+            // Aggressive cleanup
+            document.querySelectorAll('a[href^="/"]').forEach(a => a.dispatchEvent(new MouseEvent('mouseout', { bubbles: true })));
+            await sleep(400);
+
             const link = userElements[username];
             try {
                 link.scrollIntoView({ block: 'center', behavior: 'auto' });
-                await sleep(200);
-                link.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-                await sleep(1500);
+                await sleep(300);
+                
+                // Precise coordinate hover
+                const box = link.getBoundingClientRect();
+                const clientX = box.left + box.width / 2;
+                const clientY = box.top + box.height / 2;
+                
+                updateDiag(\`Hovering at [\${Math.round(clientX)},\${Math.round(clientY)}]...\`);
+                link.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, clientX, clientY }));
+                link.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, clientX, clientY }));
+                link.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX, clientY }));
+                
+                // NEW: Guaranteed cooldown to let animation/request start
+                await sleep(1000);
+                updateDiag(\`Waiting for card to appear...\`);
 
-                const findHovercard = () => {
-                    return Array.from(document.querySelectorAll('div')).find(el => {
+                let hovercard = null;
+                // Polling for 8s total (32 x 250ms)
+                for (let attempt = 0; attempt < 32; attempt++) {
+                    const cards = Array.from(document.querySelectorAll('div')).filter(el => {
+                        const style = window.getComputedStyle(el);
+                        // IG Hovercards are ALWAYS floating (absolute/fixed)
+                        if (style.position !== 'absolute' && style.position !== 'fixed') return false;
+                        
                         const w = el.offsetWidth;
-                        if (w > 650 || w < 150) return false;
+                        if (w > 650 || w < 200) return false;
+                        
                         const t = (el.innerText || '').toLowerCase();
-                        return (t.includes('follower') || t.includes('post')) && (t.includes('following') || t.includes('message'));
+                        // v23.0: TRIPLE CHECK - Must contain all three to be a profile card
+                        return t.includes('posts') && t.includes('follower') && t.includes('following');
                     });
-                };
-
-                const hovercard = findHovercard();
+                    
+                    if (cards.length > 0) {
+                        // Pick the one with the highest z-index or most likely candidate
+                        hovercard = cards.sort((a,b) => {
+                            const zA = parseInt(window.getComputedStyle(a).zIndex) || 0;
+                            const zB = parseInt(window.getComputedStyle(b).zIndex) || 0;
+                            return zB - zA;
+                        })[0];
+                        
+                        updateDiag(\`Card detected! (\${hovercard.className.split(' ').slice(0,2).join('.')})\`);
+                        break;
+                    }
+                    await sleep(250);
+                    if (attempt % 4 === 0) updateDiag(\`Polling... (\${Math.round(attempt/4)}s)\`);
+                }
                 if (hovercard) {
-                    const hText = (hovercard.innerText || '').toLowerCase();
-                    let status = (hText.includes('private') || hText.includes('follow to see')) ? 'Private' : 'Public';
-                    let followers = hText.match(/([\\d.,KMB]+)\\s+followers?/i)?.[1] || '';
-                    for (let [key, val] of allUniqueComments) {
-                        if (val.user.toLowerCase() === username.toLowerCase()) {
-                            val.followers = followers;
-                            val.status = status;
+                    const cleanText = (str) => (str || '').replace(/[\\u200B\\u00A0\\t\\n\\r]+/g, ' ').replace(/\\s+/g, ' ').trim();
+                    const rawText = hovercard.innerText || '';
+                    const normalized = cleanText(rawText);
+                    updateDiag(\`Card: "\${normalized.substring(0, 60)}..."\`);
+                    
+                    hovercard.style.border = '3px solid #6366f1';
+                    
+                    const hText = normalized.toLowerCase();
+                    const usernameFound = hText.includes(username.toLowerCase());
+                    
+                    // Stricter Privacy Detect
+                    let isPrivate = hText.includes('private') || 
+                                    hText.includes('follow to see') || 
+                                    hText.includes('requested') || 
+                                    hText.includes('this account is private');
+                    let status = isPrivate ? 'Private' : 'Public';
+                    
+                    let followers = '';
+                    // 1. Try anchored match on full text first
+                    const anchorMatch = normalized.match(/([\\d.,KMB]+)(?=\\s*followers?)/i);
+                    if (anchorMatch) {
+                        followers = anchorMatch[1];
+                    } else {
+                        // 2. Fallback: Search children for the word "followers" and look at its specific context
+                        const leafNodes = Array.from(hovercard.querySelectorAll('*')).filter(el => el.children.length === 0);
+                        for (let node of leafNodes) {
+                            const nText = cleanText(node.innerText);
+                            if (/^followers?$/i.test(nText)) {
+                                // Word "followers" found. Check its parent's full content for numbers.
+                                const context = cleanText(node.parentElement?.innerText || '');
+                                const contextMatch = context.match(/([\\d.,KMB]+)/);
+                                if (contextMatch) {
+                                    followers = contextMatch[1];
+                                    break;
+                                }
+                            }
                         }
                     }
+
+                    for (let [key, val] of allUniqueComments) {
+                        if (val.user.toLowerCase() === username.toLowerCase()) {
+                            val.followers = followers || val.followers || '';
+                            val.status = status || val.status || '';
+                        }
+                    }
+                    updateDiag(\`Captured: \${followers || '???'} [\${status}] \${usernameFound ? '' : '(!)'}\`);
+                    await sleep(400);
+                    hovercard.style.border = '';
+                } else {
+                    updateDiag(\`X Failed: No card appeared for \${username}\`);
                 }
                 link.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
-            } catch(e) {}
-            await sleep(100);
+            } catch(e) {
+                updateDiag(\`Error: \${e.message}\`);
+            }
+            await sleep(400);
         }
     } else {
         document.querySelectorAll('div[role="article"]').forEach(article => {
@@ -826,7 +969,6 @@
             const empty = document.getElementById('empty-state');
             const count = document.getElementById('results-count');
             const downloadBtn = document.getElementById('download-btn');
-            const answer = document.getElementById('correct-answer').value.trim();
             const sensitive = document.getElementById('case-sensitive').checked;
 
             if (results.length === 0) {
@@ -842,9 +984,9 @@
             results.forEach((res, idx) => {
                 const row = document.createElement('tr');
                 let matchText = '---';
-                if (answer) {
+                if (patterns.length > 0) {
                     const c = res.comment || '';
-                    const isMatch = sensitive ? c.includes(answer) : c.toLowerCase().includes(answer.toLowerCase());
+                    const isMatch = patterns.some(p => sensitive ? c.includes(p) : c.toLowerCase().includes(p.toLowerCase()));
                     matchText = isMatch ? '✅ Yes' : 'No';
                 }
                 const usr = res.user || '';
@@ -877,15 +1019,14 @@
 
         function downloadCSV() {
             if (allResults.length === 0) return;
-            const answer = document.getElementById('correct-answer').value.trim();
             const sensitive = document.getElementById('case-sensitive').checked;
             
             const headers = ["User", "Date", "Comment", "Match", "Followers", "Status", "Tag 1", "Tag 2", "Tag 3"];
             const rows = allResults.map(r => {
                 let matchStatus = '---';
-                if (answer) {
+                if (patterns.length > 0) {
                     const c = r.comment || '';
-                    const isMatch = sensitive ? c.includes(answer) : c.toLowerCase().includes(answer.toLowerCase());
+                    const isMatch = patterns.some(p => sensitive ? c.includes(p) : c.toLowerCase().includes(p.toLowerCase()));
                     matchStatus = isMatch ? 'Yes' : 'No';
                 }
                 return [r.user, r.datetime, r.comment, matchStatus, r.followers, r.status, r.tag_1, r.tag_2, r.tag_3];
