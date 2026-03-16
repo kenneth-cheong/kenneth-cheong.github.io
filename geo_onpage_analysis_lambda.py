@@ -73,7 +73,8 @@ Output your analysis in strictly JSON format:
   "page_metadata": {{
     "existing_canonical_url": "URL from PAGE METADATA",
     "existing_meta_title": "Title from PAGE METADATA",
-    "existing_meta_description": "Description from PAGE METADATA"
+    "existing_meta_description": "Description from PAGE METADATA",
+    "existing_schema_types": "List of EXISTING SCHEMA TYPES from PAGE METADATA"
   }},
   "proposed_meta_title": "An SEO-optimized title (max 60 chars)",
   "proposed_meta_description": "An SEO-optimized description including target keywords (max 160 chars)",
@@ -86,37 +87,45 @@ Output your analysis in strictly JSON format:
     "semantic_coverage": integer (0-100, how well current content matches target prompts semantically),
     "recommended_terms": ["exact phrase 1 to add to content", "exact phrase 2", ...],
     "topic_clusters": ["specific topic cluster phrase 1", "specific topic cluster phrase 2", ...],
-    "missing_elements": [{{"text": "specific missing element or gap", "positive": false}}, ...],
-    "strengths": [{{"text": "specific strength found on page", "positive": true}}, ...]
+    "missing_elements": [{{"text": "specific missing element or gap", "positive": false}}],
+    "strengths": [{{"text": "specific strength found on page", "positive": true}}]
   }},
   "entity_optimization": {{
     "score": integer,
-    "entities": [{{"name": "exact entity name found or needed", "type": "Organization|Product|Service|Place|Person|Event|SoftwareApplication", "status": "found|missing"}}, ...],
-    "eeat_signals": [{{"signal": "Author credentials", "present": true or false}}, {{"signal": "Publication dates", "present": true or false}}, {{"signal": "Source citations", "present": true or false}}, {{"signal": "Expert quotes", "present": true or false}}, {{"signal": "Trust badges or awards", "present": true or false}}],
-    "insights": [{{"text": "specific actionable recommendation", "positive": true or false}}, ...]
+    "entities": [{{"name": "exact entity name found or needed", "type": "Organization|Product|Service|Place|Person|Event|SoftwareApplication", "status": "found|missing"}}],
+    "eeat_signals": [{{"signal": "Author credentials", "present": true}}, {{"signal": "Publication dates", "present": true}}, {{"signal": "Source citations", "present": true}}, {{"signal": "Expert quotes", "present": true}}, {{"signal": "Trust badges or awards", "present": true}}],
+    "insights": [{{"text": "specific actionable recommendation", "positive": true}}]
   }},
   "content_structure": {{
     "score": integer,
-    "heading_hierarchy": "Use the HEADINGS FOUND ON PAGE list above as your source of truth. Include ALL of them with status 'found'. Then add any recommended new headings with status 'recommended'. Format: [{{"level": "H1", "text": "exact heading text", "status": "found"}}, ...]",
-    "faq_suggestions": [{{"question": "exact FAQ question to add", "answer_preview": "brief answer summary"}}, ...],
-    "insights": [{{"text": "specific structural recommendation", "positive": true or false}}, ...]
+    "heading_hierarchy": "Use the HEADINGS FOUND ON PAGE list above as your source of truth. Include ALL of them with status 'found'. Then add any recommended new headings with status 'recommended'. Format: [{{\"level\": \"H1\", \"text\": \"exact heading text\", \"status\": \"found\"}}, ...]",
+    "faq_suggestions": [{{"question": "exact FAQ question to add", "answer_preview": "brief answer summary"}}],
+    "insights": [{{"text": "specific structural recommendation", "positive": true}}]
   }},
   "internal_linking": {{
     "score": integer,
-    "linking_table": [{{"anchor_text": "exact anchor text to use", "target_url": "suggested target URL path (PRIORITIZE EXISTING)", "context": "brief reason"}}, ...],
-    "insights": [{{"text": "specific linking recommendation", "positive": true or false}}, ...]
+    "linking_table": [{{"anchor_text": "exact anchor text to use", "target_url": "suggested target URL path (PRIORITIZE EXISTING)", "context": "brief reason"}}],
+    "insights": [{{"text": "specific linking recommendation", "positive": true}}]
   }},
   "citation_worthiness": {{
     "score": integer,
-    "quotable_statements": [{{"statement": "exact quotable sentence to add to the page that AI would cite", "topic": "what topic this covers"}}, ...],
-    "insights": [{{"text": "specific citation recommendation", "positive": true or false}}, ...]
+    "quotable_statements": [{{"statement": "exact quotable sentence to add to the page that AI would cite", "topic": "what topic this covers"}}],
+    "insights": [{{"text": "specific citation recommendation", "positive": true}}]
   }},
   "optimized_chunks": [
-    {{"original": "The exact original text chunk from the ORIGINAL TEXT CHUNKS list above", "optimized": "The AI-rewritten version of that same chunk, optimized for GEO impact. Use the exact brand name, include target prompt keywords, and write in a citation-worthy style."}},
-    ...(one entry per chunk from the ORIGINAL TEXT CHUNKS list)
+    {{
+      "original": "The exact original text chunk from ORIGINAL TEXT CHUNKS.",
+      "optimized": "The GEO-optimized, citation-worthy version."
+    }}
   ],
-  "optimized_content": "The full consolidated optimized text combining all optimized chunks above into one continuous piece.",
-  "schema_markup": [{{a complete valid JSON-LD schema object for EACH applicable type, e.g. Organization, WebPage, LocalBusiness, FAQPage, BreadcrumbList, Product, Service, etc. Include as many distinct @type schemas as are relevant to this page.}}, ...]
+  "optimized_content": "Final consolidated optimized content.",
+  "schema_markup": [
+    {{
+       "status": "existing|improved|new",
+       "schema_type": "The @type of the schema",
+       "json_ld": {{ "a": "full", "valid": "JSON-LD", "object": "here" }}
+    }}
+  ]
 }}
 """
 
@@ -216,7 +225,8 @@ def scrape_page(url):
     metadata = {
         "existing_meta_title": "",
         "existing_meta_description": "",
-        "existing_canonical_url": ""
+        "existing_canonical_url": "",
+        "existing_schema_types": []
     }
     if soup.title and soup.title.string:
         metadata["existing_meta_title"] = soup.title.string.strip()
@@ -228,6 +238,29 @@ def scrape_page(url):
     can_tag = soup.find("link", rel="canonical")
     if can_tag:
         metadata["existing_canonical_url"] = can_tag.get("href", "").strip()
+
+    # Extract existing schema types
+    for script in soup.find_all("script", type="application/ld+json"):
+        if script.string:
+            try:
+                schema_data = json.loads(script.string)
+                def find_types(obj):
+                    if isinstance(obj, dict):
+                        tipo = obj.get("@type")
+                        if tipo:
+                            if isinstance(tipo, list):
+                                metadata["existing_schema_types"].extend(tipo)
+                            else:
+                                metadata["existing_schema_types"].append(tipo)
+                        for k, v in obj.items():
+                            find_types(v)
+                    elif isinstance(obj, list):
+                        for item in obj:
+                            find_types(item)
+                find_types(schema_data)
+            except:
+                pass
+    metadata["existing_schema_types"] = sorted(list(set(metadata["existing_schema_types"])))
 
     # Extract images (cap to 15 to save tokens)
     images = []

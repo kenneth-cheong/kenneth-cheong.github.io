@@ -5061,9 +5061,105 @@
         }
 
         .keywords-collapsible {
-            min-width: 100%;
+            background: #fff;
+            color: #1e293b;
+            cursor: pointer;
+            padding: 16px 20px;
+            width: 100%;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
             text-align: left;
-            margin: 1px;
+            outline: none;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .keywords-collapsible:hover {
+            border-color: #3b82f6;
+            background: #f8faff;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
+            transform: translateY(-1px);
+        }
+
+        .keywords-active {
+            background: #f1f5f9 !important;
+            border-color: #3b82f6 !important;
+            border-bottom-left-radius: 0 !important;
+            border-bottom-right-radius: 0 !important;
+            margin-bottom: 0 !important;
+        }
+
+        .kw-title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .kw-icon {
+            color: #3b82f6;
+            background: #eff6ff;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .kw-action-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .kw-copy-badge {
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            background: #f1f5f9;
+            padding: 4px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .kw-copy-badge:hover {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+
+        .kw-chevron {
+            color: #94a3b8;
+            transition: transform 0.3s ease;
+            font-size: 14px;
+        }
+
+        .keywords-active .kw-chevron {
+            transform: rotate(90deg);
+            color: #3b82f6;
+        }
+
+        .keywords-content {
+            padding: 24px;
+            display: none;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-top: none;
+            border-bottom-left-radius: 12px;
+            border-bottom-right-radius: 12px;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
         }
 
         .time-to-rank-0-3 {
@@ -18253,7 +18349,15 @@
                 const cleanedMarkup = deepParse(markup);
                 const markupArray = Array.isArray(cleanedMarkup) ? cleanedMarkup : [cleanedMarkup];
 
-                const prettyJson = JSON.stringify(markupArray, null, 2);
+                // If the array contains status-based objects, extract the json_ld for formatting
+                let displayJsonLD = [];
+                if (markupArray.length > 0 && markupArray[0].json_ld) {
+                    displayJsonLD = markupArray.map(item => item.json_ld);
+                } else {
+                    displayJsonLD = markupArray;
+                }
+
+                const prettyJson = JSON.stringify(displayJsonLD, null, 2);
                 schemaField.innerHTML = syntaxHighlightJson(prettyJson);
 
                 renderSchemaChips(markupArray);
@@ -18321,32 +18425,65 @@
             }
         }
 
-        function renderSchemaChips(jsonObj) {
+        function renderSchemaChips(markupArray) {
             const container = document.getElementById('geoOnPageSchemaChips');
             container.innerHTML = "";
-            const types = [];
+            
+            // Check if items have status
+            const hasStatus = markupArray.length > 0 && markupArray[0].status;
 
-            function findTypes(obj) {
-                if (!obj || typeof obj !== 'object') return;
-                if (obj['@type']) {
-                    if (Array.isArray(obj['@type'])) {
-                        obj['@type'].forEach(t => { if (!types.includes(t)) types.push(t); });
-                    } else if (!types.includes(obj['@type'])) {
-                        types.push(obj['@type']);
+            if (hasStatus) {
+                markupArray.forEach(item => {
+                    const status = (item.status || 'new').toLowerCase();
+                    const type = item.schema_type || (item.json_ld && item.json_ld['@type']) || 'Unknown';
+                    const displayType = Array.isArray(type) ? type[0] : type;
+                    
+                    const chip = document.createElement('div');
+                    chip.className = 'schema-chip';
+                    
+                    if (status === 'existing') {
+                        chip.style.background = '#f1f5f9';
+                        chip.style.color = '#64748b';
+                        chip.style.borderColor = '#e2e8f0';
+                        chip.innerHTML = `<i class="fas fa-check-circle"></i> Existing: ${displayType}`;
+                    } else if (status === 'improved') {
+                        chip.style.background = '#f0f9ff';
+                        chip.style.color = '#0369a1';
+                        chip.style.borderColor = '#bae6fd';
+                        chip.innerHTML = `<i class="fas fa-sync-alt"></i> Improved: ${displayType}`;
+                    } else {
+                        chip.style.background = '#f0fdf4';
+                        chip.style.color = '#166534';
+                        chip.style.borderColor = '#bbf7d0';
+                        chip.innerHTML = `<i class="fas fa-plus-circle"></i> New: ${displayType}`;
                     }
+                    
+                    chip.onclick = () => highlightSpecificSchemaType(displayType, chip);
+                    container.appendChild(chip);
+                });
+            } else {
+                // Fallback to old characterisation
+                const types = [];
+                function findTypes(obj) {
+                    if (!obj || typeof obj !== 'object') return;
+                    if (obj['@type']) {
+                        if (Array.isArray(obj['@type'])) {
+                            obj['@type'].forEach(t => { if (!types.includes(t)) types.push(t); });
+                        } else if (!types.includes(obj['@type'])) {
+                            types.push(obj['@type']);
+                        }
+                    }
+                    Object.values(obj).forEach(val => findTypes(val));
                 }
-                Object.values(obj).forEach(val => findTypes(val));
+                findTypes(markupArray);
+                types.forEach(type => {
+                    const chip = document.createElement('div');
+                    chip.className = 'schema-chip';
+                    chip.innerHTML = `<i class="fas fa-tag"></i> ${type}`;
+                    chip.onclick = () => highlightSpecificSchemaType(type, chip);
+                    container.appendChild(chip);
+                });
             }
-
-            findTypes(jsonObj);
-
-            types.forEach(type => {
-                const chip = document.createElement('div');
-                chip.className = 'schema-chip';
-                chip.innerHTML = `<i class="fas fa-tag"></i> ${type}`;
-                chip.onclick = () => highlightSpecificSchemaType(type, chip);
-                container.appendChild(chip);
-            });
         }
 
         function syntaxHighlightJson(json) {
@@ -27104,78 +27241,48 @@ ${selectedText}
 
             document.getElementById("keywordAnalysisBtn").style.backgroundColor = "#004c9d";
 
+            function getKeywordHeaderHtml(keyword, keywordContentId, targetContentTableContainerId, resultsContainerId, recommendationsContainerId) {
+                return `
+                    <button type="button" class="keywords-collapsible">
+                        <span class="kw-title-group">
+                            <span class="kw-icon"><i class="fas fa-key"></i></span>
+                            <span class="kw-label">${keyword}</span>
+                        </span>
+                        <span class="kw-action-group">
+                            <span class="kw-copy-badge" onclick="event.stopPropagation(); copyKeywordToClipboard('${keyword.replace(/'/g, "\\'")}', this)">
+                                <i class="far fa-copy"></i> Copy
+                            </span>
+                            <i class="fas fa-chevron-right kw-chevron"></i>
+                        </span>
+                    </button>
+                    <div class="keywords-content" id="${keywordContentId}">
+                        <div id="${targetContentTableContainerId}"></div>
+                        <div id="${resultsContainerId}"></div>
+                        <div id="${recommendationsContainerId}"></div>
+                    </div>
+                `;
+            }
+
             let collapsibleSection = document.getElementById(keywordContainerId);
 
             if (collapsibleSection) {
-                // Keyword section exists, overwrite the content
                 console.log(`Overwriting existing collapsible section for keyword: ${keyword}`);
-                const keywordContent = document.getElementById(keywordContentId);
-                if (keywordContent) {
-                    keywordContent.innerHTML = `
-            <div id="${targetContentTableContainerId}"></div>
-            <div id="${resultsContainerId}"></div>
-            <div id="${recommendationsContainerId}"></div>
-          `;
-                } else {
-                    console.warn(`Keyword content element not found: ${keywordContentId}`);
-                    // Recreate the content container if it's missing.  This shouldn't normally happen.
-                    collapsibleSection.innerHTML = `
-            <button type="button" class="keywords-collapsible">${keyword}</button>
-            <div class="keywords-content" id="${keywordContentId}">
-                <div id="${targetContentTableContainerId}"></div>
-                <div id="${resultsContainerId}"></div>
-                <div id="${recommendationsContainerId}"></div>
-            </div>
-          `;
-
-                    const collapsibles = document.querySelectorAll('.keywords-collapsible');
-
-                    collapsibles.forEach(collapsible => {
-                        collapsible.addEventListener('click', function () {
-                            this.classList.toggle('keywords-active');
-                            const content = this.nextElementSibling;
-
-                            // Toggle the display style of the content
-                            if (content.style.display === 'block') {
-                                content.style.display = 'none';
-                            } else {
-                                content.style.display = 'block';
-                            }
-                        });
-                    });
-                }
-
+                collapsibleSection.innerHTML = getKeywordHeaderHtml(keyword, keywordContentId, targetContentTableContainerId, resultsContainerId, recommendationsContainerId);
             } else {
-                // Keyword section doesn't exist, create a new one
                 console.log(`Creating new collapsible section for keyword: ${keyword}`);
                 collapsibleSection = document.createElement('div');
                 collapsibleSection.id = keywordContainerId;
-                collapsibleSection.innerHTML = `
-            <button type="button" class="keywords-collapsible">${keyword}</button>
-            <div class="keywords-content" id="${keywordContentId}">
-                <div id="${targetContentTableContainerId}"></div>
-                <div id="${resultsContainerId}"></div>
-                <div id="${recommendationsContainerId}"></div>
-            </div>
-        `;
+                collapsibleSection.innerHTML = getKeywordHeaderHtml(keyword, keywordContentId, targetContentTableContainerId, resultsContainerId, recommendationsContainerId);
                 analysisResultsContainer.appendChild(collapsibleSection);
-
-                const collapsibles = document.querySelectorAll('.keywords-collapsible');
-
-                collapsibles.forEach(collapsible => {
-                    collapsible.addEventListener('click', function () {
-                        this.classList.toggle('keywords-active');
-                        const content = this.nextElementSibling;
-
-                        // Toggle the display style of the content
-                        if (content.style.display === 'block') {
-                            content.style.display = 'none';
-                        } else {
-                            content.style.display = 'block';
-                        }
-                    });
-                });
             }
+
+            // Bind events (using delegation or fresh selection)
+            const btn = collapsibleSection.querySelector('.keywords-collapsible');
+            btn.addEventListener('click', function() {
+                this.classList.toggle('keywords-active');
+                const content = this.nextElementSibling;
+                content.style.display = content.style.display === 'block' ? 'none' : 'block';
+            });
 
             try {
                 const serpEndpoint = 'https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite';
@@ -30956,24 +31063,6 @@ ${selectedText}
             closeQueriesModal(); // Close modal after loading
         }
 
-        // Delegate the event listener to the document
-        document.addEventListener('DOMContentLoaded', function () {
-            const collapsibles = document.querySelectorAll('.keywords-collapsible');
-
-            collapsibles.forEach(collapsible => {
-                collapsible.addEventListener('click', function () {
-                    this.classList.toggle('keywords-active');
-                    const content = this.nextElementSibling;
-
-                    // Toggle the display style of the content
-                    if (content.style.display === 'block') {
-                        content.style.display = 'none';
-                    } else {
-                        content.style.display = 'block';
-                    }
-                });
-            });
-        });
 
         async function loadTimeToRankQueryData(id, collection) {
             showLoadingModal();
@@ -34420,8 +34509,7 @@ Return ONLY valid JSON in this exact format:
 
             try {
                 const successful = document.execCommand('copy');
-                if (successful) {
-                    // Find the button that triggered this
+                if (successful && event) {
                     const btn = event.currentTarget;
                     const originalHTML = btn.innerHTML;
                     btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
@@ -34434,6 +34522,26 @@ Return ONLY valid JSON in this exact format:
             } finally {
                 selection.removeAllRanges();
             }
+        }
+
+        function copyKeywordToClipboard(text, badge) {
+            const tempInput = document.createElement('input');
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+
+            const originalHtml = badge.innerHTML;
+            badge.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            badge.style.background = '#22c55e';
+            badge.style.color = '#fff';
+
+            setTimeout(() => {
+                badge.innerHTML = originalHtml;
+                badge.style.background = '';
+                badge.style.color = '';
+            }, 2000);
         }
 
         function formatMarkdownToHTML(md) {
