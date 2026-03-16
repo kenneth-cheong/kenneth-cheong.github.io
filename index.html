@@ -36465,22 +36465,115 @@ INSTRUCTIONS:
             }
         }
 
-        async function runGapAnalysisWithTopics(flow) {
+        function checkGapAnalysisPrerequisites(flow) {
+            const missing = [];
+            
+            // 1. Personas
+            if (!getPersonaData()) {
+                missing.push({ id: 'personas', label: 'Research Target Personas', desc: 'Define your audience to tailor the content suggestions.' });
+            }
+            
+            // 2. Guidelines
+            const listId = flow === 'optimise' ? 'complianceGuidelinesList-Optimise' : 'complianceGuidelinesList';
+            const checkedGuidelines = document.querySelectorAll(`#${listId} input[type="checkbox"]:checked`);
+            if (checkedGuidelines.length === 0) {
+                missing.push({ id: 'guidelines', label: 'Scan Guidelines', desc: 'Check for regulatory requirements and compliance standards.' });
+            }
+            
+            // 3. Deep Compare
+            // Check if global deepCompareCache exists and has entries
+            if (typeof deepCompareCache !== 'undefined' && Object.keys(deepCompareCache).length === 0) {
+                missing.push({ id: 'deep-compare', label: 'Deep Compare Gap Analysis', desc: 'Perform a detailed competitive analysis for deeper insights.' });
+            }
+            
+            // 4. Topics
             const textAreaId = flow === 'optimise' ? 'selectedTopicsText-Optimise' : 'selectedTopicsText';
-            const selectedTopicsText = document.getElementById(textAreaId).value.trim();
-            const keywordId = flow === 'optimise' ? 'primaryKeyword' : 'primaryKeywordNew';
-            const keyword = document.getElementById(keywordId).value.trim();
+            const topicsVal = document.getElementById(textAreaId).value.trim();
+            if (!topicsVal) {
+                missing.push({ id: 'topics', label: 'Select Topics', desc: 'Cherry-pick specific topics from competitors to guide the AI.' });
+            }
+            
+            return missing;
+        }
 
-            // Collect all current analysis data for context
-            const gridId = flow === 'optimise' ? 'competitorInsightsGrid-Optimise' : 'competitorInsightsGrid';
-            const gridRows = document.querySelectorAll(`#${gridId} .competitor-card`);
+        function showGapPrerequisiteModal(flow, missingSteps, onConfirm) {
+            let modal = document.getElementById('gapPrerequisiteModal');
+            if (modal) modal.remove();
 
-            if (flow === 'optimise') {
-                // Manually trigger the existing gap analysis logic but with prioritised topics
-                await runTargetedGapAnalysisOptimise(selectedTopicsText, keyword);
+            modal = document.createElement('div');
+            modal.id = 'gapPrerequisiteModal';
+            modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15, 23, 42, 0.85); backdrop-filter:blur(4px); z-index:10000; display:flex; justify-content:center; align-items:center;';
+            
+            const stepsHtml = missingSteps.map(step => `
+                <div style="display:flex; gap:15px; margin-bottom:15px; padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; text-align: left;">
+                    <div style="width:30px; height:30px; background:#fee2e2; color:#ef4444; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                        <i class="fas fa-exclamation-circle" style="font-size: 14px;"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight:700; color:#1e293b; font-size:0.9rem;">${step.label}</div>
+                        <div style="font-size:0.8rem; color:#64748b; margin-top:2px; line-height:1.4;">${step.desc}</div>
+                    </div>
+                </div>
+            `).join('');
+
+            modal.innerHTML = `
+                <div style="background:#fff; width:95%; max-width:480px; border-radius:16px; padding:30px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); position:relative; overflow:hidden;">
+                    <div style="position:absolute; top:0; left:0; width:100%; height:4px; background:linear-gradient(90deg, #34a853, #1a73e8);"></div>
+                    
+                    <h3 style="margin:0 0 12px 0; color:#1e293b; font-size:1.2rem; font-weight:800; display:flex; align-items:center; gap:10px;">
+                        <i class="fas fa-wand-sparkles" style="color:#1a73e8;"></i> Optimization Check
+                    </h3>
+                    <p style="font-size:0.9rem; color:#64748b; margin-bottom:20px; line-height:1.5;">
+                        To get the most accurate AI analysis, it is recommended to complete these steps first:
+                    </p>
+                    
+                    <div style="max-height:300px; overflow-y:auto; margin-bottom:25px; padding-right: 5px;">
+                        ${stepsHtml}
+                    </div>
+                    
+                    <div style="display:flex; gap:12px;">
+                        <button id="btnProceedGapAnyway" style="flex:1; padding:12px; background:#1e293b; color:#fff; border:none; border-radius:8px; font-weight:700; font-size:0.9rem; cursor:pointer; transition:all 0.2s;">
+                            Proceed Anyway
+                        </button>
+                        <button id="btnCancelGapPrereq" style="flex:1; padding:12px; background:#f1f5f9; color:#475569; border:none; border-radius:8px; font-weight:700; font-size:0.9rem; cursor:pointer; transition:all 0.2s;">
+                            Go Back
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            document.getElementById('btnProceedGapAnyway').onclick = () => {
+                modal.remove();
+                onConfirm();
+            };
+            
+            document.getElementById('btnCancelGapPrereq').onclick = () => {
+                modal.remove();
+            };
+        }
+
+        async function runGapAnalysisWithTopics(flow) {
+            const missing = checkGapAnalysisPrerequisites(flow);
+            
+            const startAnalysis = async () => {
+                const textAreaId = flow === 'optimise' ? 'selectedTopicsText-Optimise' : 'selectedTopicsText';
+                const selectedTopicsText = document.getElementById(textAreaId).value.trim();
+                const keywordId = flow === 'optimise' ? 'primaryKeyword' : 'primaryKeywordNew';
+                const keyword = document.getElementById(keywordId).value.trim();
+
+                if (flow === 'optimise') {
+                    await runTargetedGapAnalysisOptimise(selectedTopicsText, keyword);
+                } else {
+                    await runTargetedOutlineGeneration(selectedTopicsText, keyword);
+                }
+            };
+
+            if (missing.length > 0) {
+                showGapPrerequisiteModal(flow, missing, startAnalysis);
             } else {
-                // For 'new' flow, we update the outline based on topics
-                await runTargetedOutlineGeneration(selectedTopicsText, keyword);
+                await startAnalysis();
             }
         }
 
