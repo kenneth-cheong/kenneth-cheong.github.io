@@ -3608,6 +3608,25 @@
             border-color: #b8cced;
         }
 
+        .toolbar-select {
+            background: #fff;
+            border: 1px solid #dce4f2;
+            border-radius: 8px;
+            padding: 4px 8px;
+            cursor: pointer;
+            color: #444;
+            font-size: 13px;
+            height: 36px;
+            outline: none;
+            transition: all 0.2s;
+            margin-right: 5px;
+        }
+
+        .toolbar-select:hover {
+            border-color: #c8d6f0;
+            background-color: #f8fafd;
+        }
+
         .editor-content {
             padding: 25px 30px;
             height: 700px;
@@ -12092,12 +12111,16 @@
                                                 title="Align Right"><i class="fas fa-align-right"></i></button>
                                         </div>
                                         <div class="toolbar-group">
-                                            <button class="toolbar-btn" onclick="execCmd('formatBlock', 'H1')"
-                                                title="Heading 1">H1</button>
-                                            <button class="toolbar-btn" onclick="execCmd('formatBlock', 'H2')"
-                                                title="Heading 2">H2</button>
-                                            <button class="toolbar-btn" onclick="execCmd('formatBlock', 'H3')"
-                                                title="Heading 3">H3</button>
+                                            <select id="editorFormatSelect" class="toolbar-select" onchange="if(this.value) execCmd('formatBlock', this.value);" title="Text Format">
+                                                <option value="" disabled selected>Format</option>
+                                                <option value="P">Paragraph</option>
+                                                <option value="H1">Heading 1</option>
+                                                <option value="H2">Heading 2</option>
+                                                <option value="H3">Heading 3</option>
+                                                <option value="H4">Heading 4</option>
+                                                <option value="H5">Heading 5</option>
+                                                <option value="H6">Heading 6</option>
+                                            </select>
                                         </div>
                                         <div class="toolbar-group">
                                             <button class="toolbar-btn" onclick="execCmd('insertUnorderedList')"
@@ -12134,7 +12157,7 @@
                                     </div>
                                 </div>
                                 <div id="editorContent" class="editor-content" contenteditable="true"
-                                    oninput="updateEditorMetrics()">
+                                    oninput="updateEditorMetrics()" onmouseup="syncEditorToolbar()" onkeyup="syncEditorToolbar()">
                                     <p><br></p>
                                 </div>
 
@@ -13887,6 +13910,33 @@
 
                         <!-- Main Chart -->
                         <div class="koda-chart-container">
+                            <div style="display: flex; justify-content: flex-end; gap: 15px; margin-bottom: 15px; padding: 5px 10px 0;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Primary Metric</span>
+                                    <select id="adsChartMetricPrimary" onchange="reRenderAdsChart()" 
+                                        style="padding: 5px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px; color: #475569; outline: none; background: #f8fafc; font-weight: 600; cursor: pointer; min-width: 120px;">
+                                        <option value="metrics.clicks" selected>Clicks</option>
+                                        <option value="metrics.impressions">Impressions</option>
+                                        <option value="metrics.conversions">Conversions</option>
+                                        <option value="metrics.cost_micros">Cost</option>
+                                        <option value="metrics.ctr">CTR</option>
+                                        <option value="metrics.average_cpc">Avg. CPC</option>
+                                    </select>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Secondary Metric</span>
+                                    <select id="adsChartMetricSecondary" onchange="reRenderAdsChart()" 
+                                        style="padding: 5px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px; color: #475569; outline: none; background: #f8fafc; font-weight: 600; cursor: pointer; min-width: 120px;">
+                                        <option value="none">None</option>
+                                        <option value="metrics.clicks">Clicks</option>
+                                        <option value="metrics.impressions">Impressions</option>
+                                        <option value="metrics.conversions" selected>Conversions</option>
+                                        <option value="metrics.cost_micros">Cost</option>
+                                        <option value="metrics.ctr">CTR</option>
+                                        <option value="metrics.average_cpc">Avg. CPC</option>
+                                    </select>
+                                </div>
+                            </div>
                             <div style="height: 350px;">
                                 <canvas id="adsPerformanceChart"
                                     style="width: 100%; height: 100%; display: none;"></canvas>
@@ -14378,11 +14428,24 @@
                 if (account.isManager) continue;
 
                 try {
+                    // NEW: Filter by selected account and campaigns
+                    const selectedAccountId = document.getElementById('adsSiteList').value;
+                    const selectedCampaignIds = adsSelectedCampaignIds || [];
+
+                    if (selectedAccountId && account.id !== selectedAccountId) continue;
+
+                    let campaignFilter = "";
+                    if (selectedCampaignIds.length > 0) {
+                        const idsStr = selectedCampaignIds.map(id => `'${id}'`).join(', ');
+                        campaignFilter = ` AND campaign.id IN (${idsStr})`;
+                    }
+
                     // 1. Fetch Google Recommendations
                     const recQuery = `
                         SELECT recommendation.type, recommendation.impact, recommendation.campaign, 
                                recommendation.recommendation_text, recommendation.description, campaign.name
-                        FROM recommendation WHERE recommendation.status = 'ACTIVE'
+                        FROM recommendation 
+                        WHERE recommendation.status = 'ACTIVE' ${campaignFilter}
                     `;
                     const recResults = await fetchAdsGAQL(account.id, account.loginCustomerId, account.developerToken, recQuery);
 
@@ -14391,7 +14454,8 @@
                         SELECT campaign.name, campaign.status, campaign.bidding_strategy_type,
                                metrics.impressions, metrics.clicks, metrics.conversions, metrics.cost_micros, metrics.ctr,
                                metrics.search_budget_lost_impression_share, metrics.search_rank_lost_impression_share
-                        FROM campaign WHERE segments.date DURING LAST_30_DAYS
+                        FROM campaign 
+                        WHERE segments.date DURING LAST_30_DAYS ${campaignFilter}
                     `;
                     const campaignResults = await fetchAdsGAQL(account.id, account.loginCustomerId, account.developerToken, campaignQuery);
                     const customFlags = detectCampaignAuditFlags(campaignResults);
@@ -18892,6 +18956,48 @@
         function execCmd(command, value = null) {
             document.execCommand(command, false, value);
             document.getElementById('editorContent').focus();
+            syncEditorToolbar();
+        }
+
+        function syncEditorToolbar() {
+            const select = document.getElementById('editorFormatSelect');
+            if (!select) return;
+
+            // Get the block format of the current selection
+            try {
+                const format = document.queryCommandValue('formatBlock');
+                if (format) {
+                    const val = format.toUpperCase();
+                    // Map common formats to our select values
+                    // document.queryCommandValue returns things like 'h1', 'p', etc.
+                    const options = Array.from(select.options).map(o => o.value.toUpperCase());
+                    if (options.includes(val)) {
+                        select.value = val;
+                    } else if (val === 'NORMAL') {
+                        select.value = 'P';
+                    } else {
+                        // If no direct match, check parent hierarchy for block elements
+                        const selection = window.getSelection();
+                        if (selection.rangeCount > 0) {
+                            let node = selection.getRangeAt(0).startContainer;
+                            if (node.nodeType === 3) node = node.parentNode;
+                            
+                            while (node && node.id !== 'editorContent') {
+                                const tag = node.tagName ? node.tagName.toUpperCase() : '';
+                                if (['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(tag)) {
+                                    select.value = tag;
+                                    return;
+                                }
+                                node = node.parentNode;
+                            }
+                        }
+                        // Default to Format placeholder if nothing found
+                        select.selectedIndex = 0;
+                    }
+                }
+            } catch (e) {
+                console.error("Sync toolbar error:", e);
+            }
         }
 
         function insertLink() {
@@ -21603,6 +21709,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             updateHierarchyChipLabels();
             updateAdsColumnAvailability();
             updateSelectedAdsProperty(true);
+            refreshAdsRecommendations();
         }
 
         function clearHierarchyLevel(level) {
@@ -21643,6 +21750,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             updateHierarchyChipLabels();
             updateAdsColumnAvailability();
             updateSelectedAdsProperty(true);
+            refreshAdsRecommendations();
         }
 
         function toggleAdsHierarchyDropdown(level) {
@@ -21673,10 +21781,15 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             }
         }
 
-        function applyAdsHierarchySelection(level) {
-            // Close the dropdown
+        function applyAdsHierarchySelection(level, closeDropdown = true) {
+            // Close the dropdown if requested
+            if (closeDropdown) {
+                if (level === 'campaign') document.getElementById('adsCampaignDropdownMenu').style.display = 'none';
+                else if (level === 'ad_group') document.getElementById('adsAdGroupDropdownMenu').style.display = 'none';
+                else if (level === 'ad') document.getElementById('adsAdDropdownMenu').style.display = 'none';
+            }
+
             if (level === 'campaign') {
-                document.getElementById('adsCampaignDropdownMenu').style.display = 'none';
                 if (adsSelectedCampaignIds.length > 0) {
                     adsCurrentLevel = 'ad_group';
                     if (adsSelectedCampaignIds.length === 1) {
@@ -21690,7 +21803,6 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     document.getElementById('adsCurrentViewLabel').textContent = 'Campaigns';
                 }
             } else if (level === 'ad_group') {
-                document.getElementById('adsAdGroupDropdownMenu').style.display = 'none';
                 if (adsSelectedAdGroupIds.length > 0) {
                     adsCurrentLevel = 'ad';
                     if (adsSelectedAdGroupIds.length === 1) {
@@ -21704,7 +21816,6 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     document.getElementById('adsCurrentViewLabel').textContent = 'Ad Groups';
                 }
             } else if (level === 'ad') {
-                document.getElementById('adsAdDropdownMenu').style.display = 'none';
                 // Stay on 'ad' level
                 adsCurrentLevel = 'ad';
                 if (adsSelectedAdIds.length === 1) {
@@ -21716,6 +21827,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             }
             // Trigger refresh
             updateSelectedAdsProperty(true);
+            refreshAdsRecommendations();
         }
 
         function toggleHierarchySelection(level, id) {
@@ -21742,12 +21854,44 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
             const index = selArr.indexOf(id);
             if (index > -1) {
-                selArr.splice(index, 1);
+                // If checking/unchecking results in empty array, but we were using an explicit list,
+                // we actually stay on the explicit list unless it's the last item being removed.
+                // Wait, if it's currently empty (All) and we click one, we subtract it from the total list.
+                if (selArr.length === 0) {
+                    // Start with all IDs except the one clicked
+                    const allIds = dataList.map(i => i.id);
+                    const filtered = allIds.filter(fid => String(fid) !== String(id));
+                    if (level === 'campaign') adsSelectedCampaignIds = filtered;
+                    else if (level === 'ad_group') adsSelectedAdGroupIds = filtered;
+                    else if (level === 'ad') adsSelectedAdIds = filtered;
+                } else {
+                    selArr.splice(index, 1);
+                }
             } else {
-                selArr.push(id);
+                if (selArr.length === 0) {
+                    // Technically "All" is active, clicking an item that's already visually checked means we want to UNCHECK it.
+                    // This case is handled by the index > -1 check if we initialize selArr correctly.
+                    // But if selArr is [], then index is -1. So we add it.
+                    // THIS IS TRICKY. If selArr is empty, all are visually checked. 
+                    // Clicking an item should uncheck it.
+                    const allIds = dataList.map(i => i.id);
+                    const filtered = allIds.filter(fid => String(fid) !== String(id));
+                    if (level === 'campaign') adsSelectedCampaignIds = filtered;
+                    else if (level === 'ad_group') adsSelectedAdGroupIds = filtered;
+                    else if (level === 'ad') adsSelectedAdIds = filtered;
+                } else {
+                    selArr.push(id);
+                    // If we just added the last missing item, reset to [] (All)
+                    if (selArr.length === dataList.length) {
+                        if (level === 'campaign') adsSelectedCampaignIds = [];
+                        else if (level === 'ad_group') adsSelectedAdGroupIds = [];
+                        else if (level === 'ad') adsSelectedAdIds = [];
+                    }
+                }
             }
 
             updateHierarchyChipLabels();
+            applyAdsHierarchySelection(level, false);
         }
 
         function updateHierarchyChipLabels() {
@@ -21769,7 +21913,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             if (hasAccount) {
                 campChip.style.display = 'flex';
                 if (adsSelectedCampaignIds.length === 0) {
-                    campLabelObj.textContent = 'Select Campaign...';
+                    campLabelObj.textContent = 'All Campaigns';
                     campClear.style.display = 'none';
                 } else if (adsSelectedCampaignIds.length === 1) {
                     campLabelObj.textContent = adsCampaignNameMap[adsSelectedCampaignIds[0]] || 'Loading...';
@@ -21786,7 +21930,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             if (adsSelectedCampaignIds.length > 0) {
                 adgChip.style.display = 'flex';
                 if (adsSelectedAdGroupIds.length === 0) {
-                    adgLabelObj.textContent = 'Select Ad Group...';
+                    adgLabelObj.textContent = 'All Ad Groups';
                     adgClear.style.display = 'none';
                 } else if (adsSelectedAdGroupIds.length === 1) {
                     adgLabelObj.textContent = adsAdGroupNameMap[adsSelectedAdGroupIds[0]] || 'Loading...';
@@ -21807,7 +21951,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             if (adsSelectedAdGroupIds.length > 0) {
                 adChip.style.display = 'flex';
                 if (adsSelectedAdIds.length === 0) {
-                    adLabelObj.textContent = 'Select Ad...';
+                    adLabelObj.textContent = 'All Ads';
                     adClear.style.display = 'none';
                 } else if (adsSelectedAdIds.length === 1) {
                     adLabelObj.textContent = adsAdNameMap[adsSelectedAdIds[0]] || 'Loading...';
@@ -21850,18 +21994,13 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
             html += `<div class="dropdown-list-items" style="display: flex; flex-direction: column; gap: 2px;">`;
             dataList.forEach(item => {
-                const isSelected = selectedIds.includes(item.id);
+                const isSelected = selectedIds.length === 0 || selectedIds.includes(item.id);
                 html += `<label style="display: flex; align-items: flex-start; gap: 8px; padding: 6px; font-size: 12px; cursor: pointer; border-radius: 4px; color: #334155; word-break: break-word;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'" class="dropdown-item">
                             <input type="checkbox" onchange="toggleHierarchySelection('${level}', '${item.id}')" ${isSelected ? 'checked' : ''} style="margin-top: 2px;">
                             <span class="item-name">${item.name}</span>
                         </label>`;
             });
             html += `</div>`;
-
-            // Add Apply Button at the bottom
-            html += `<div style="padding: 8px 4px 4px; border-top: 1px solid #f1f5f9; margin-top: 8px; display: flex; justify-content: flex-end;">
-                        <button onclick="applyAdsHierarchySelection('${level}')" style="background: #0f9d58; color: white; border: none; padding: 6px 15px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;">Apply Selection</button>
-                     </div>`;
 
             container.innerHTML = html;
         }
@@ -22302,20 +22441,16 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             reRenderAdsChart(); // Sync chart with filtered table
         }
 
-        /**
-         * Dynamically re-aggregates raw daily data based on active filters
-         * and updates the performance chart.
-         */
         function reRenderAdsChart() {
             if (!lastFetchedAdsRawData || lastFetchedAdsRawData.length === 0) return;
 
+            const primaryMetric = document.getElementById('adsChartMetricPrimary').value;
+            const secondaryMetric = document.getElementById('adsChartMetricSecondary').value;
             const filterText = document.getElementById('adsCampaignFilter')?.value.toLowerCase() || '';
             const dailyData = {};
 
             // 1. Identify which item IDs pass the filters (match the table logic)
-            // Note: We filter rows, so if a row's parent ID passes filters, we include its daily metrics.
             lastFetchedAdsRawData.forEach(row => {
-                // Determine ID and Name based on current level
                 let id = "";
                 let name = "";
                 if (adsCurrentLevel === 'campaign') {
@@ -22330,16 +22465,10 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 }
 
                 if (!id) return;
-
-                // Check text search
                 const nameMatch = name.toLowerCase().includes(filterText);
                 if (!nameMatch) return;
 
-                // Check advanced filters
-                // To reuse matchesAdvancedFilters, we need an object format similar to what campaignData holds
-                // Since raw rows have slightly different structures, we construct a temp item
                 const tempItem = { name: name, extra: {} };
-                // Extract fields for filtering
                 Object.keys(adsAdvancedFilters).forEach(field => {
                     const parts = field.split('.');
                     let val = row;
@@ -22362,16 +22491,44 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 const formattedDate = `${dateStr.substring(5, 7)}/${dateStr.substring(8, 10)}`;
 
                 if (!dailyData[formattedDate]) {
-                    dailyData[formattedDate] = { clicks: 0, conversions: 0 };
+                    dailyData[formattedDate] = { imps: 0, clicks: 0, convs: 0, cost: 0 };
                 }
+                dailyData[formattedDate].imps += (parseInt(row.metrics?.impressions) || 0);
                 dailyData[formattedDate].clicks += (parseInt(row.metrics?.clicks) || 0);
-                dailyData[formattedDate].conversions += (parseFloat(row.metrics?.conversions) || 0);
+                dailyData[formattedDate].convs += (parseFloat(row.metrics?.conversions) || 0);
+                dailyData[formattedDate].cost += (parseInt(row.metrics?.costMicros) || 0) / 1000000;
             });
 
             // 3. Prepare Chart Arrays
             const chartDates = Object.keys(dailyData).sort();
-            const chartClicks = chartDates.map(d => dailyData[d].clicks);
-            const chartConversions = chartDates.map(d => dailyData[d].conversions);
+            
+            const getMetricData = (metric, dates) => {
+                return dates.map(d => {
+                    const day = dailyData[d];
+                    if (metric === 'metrics.clicks') return day.clicks;
+                    if (metric === 'metrics.impressions') return day.imps;
+                    if (metric === 'metrics.conversions') return day.convs;
+                    if (metric === 'metrics.cost_micros') return day.cost;
+                    if (metric === 'metrics.ctr') return day.imps > 0 ? (day.clicks / day.imps) * 100 : 0;
+                    if (metric === 'metrics.average_cpc') return day.clicks > 0 ? day.cost / day.clicks : 0;
+                    return 0;
+                });
+            };
+
+            const datasets = [];
+            datasets.push({
+                label: document.querySelector(`#adsChartMetricPrimary option[value="${primaryMetric}"]`).text,
+                data: getMetricData(primaryMetric, chartDates),
+                metric: primaryMetric
+            });
+
+            if (secondaryMetric !== 'none') {
+                datasets.push({
+                    label: document.querySelector(`#adsChartMetricSecondary option[value="${secondaryMetric}"]`).text,
+                    data: getMetricData(secondaryMetric, chartDates),
+                    metric: secondaryMetric
+                });
+            }
 
             // 4. Dynamic Title
             const dateSelect = document.getElementById('adsDateRange');
@@ -22384,7 +22541,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 }
             }
 
-            renderAdsChart(chartDates, chartClicks, chartConversions, chartTitle);
+            renderAdsChart(chartDates, datasets, chartTitle);
         }
 
         /**
@@ -22826,7 +22983,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             tfoot.innerHTML = (filteredList.length > 0) ? footHtml : '';
         }
 
-        function renderAdsChart(labels, clicks, conversions, titleText = "Performance Overview") {
+        function renderAdsChart(labels, dynamicDatasets, titleText = "Performance Overview") {
             const canvas = document.getElementById('adsPerformanceChart');
             canvas.style.display = 'block';
 
@@ -22836,46 +22993,41 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
             const ctx = canvas.getContext('2d');
 
-            const clickGradient = ctx.createLinearGradient(0, 0, 0, 300);
-            clickGradient.addColorStop(0, 'rgba(15, 157, 88, 0.4)'); // Google Green
-            clickGradient.addColorStop(1, 'rgba(15, 157, 88, 0.0)');
+            const colorMap = {
+                'metrics.clicks': { color: '#0f9d58', bg: 'rgba(15, 157, 88, 0.4)' }, // Green
+                'metrics.conversions': { color: '#ea4335', bg: 'rgba(234, 67, 53, 0.4)' }, // Red
+                'metrics.impressions': { color: '#4285f4', bg: 'rgba(66, 133, 244, 0.4)' }, // Blue
+                'metrics.cost_micros': { color: '#fbbc04', bg: 'rgba(251, 188, 4, 0.4)' }, // Yellow/Orange
+                'metrics.ctr': { color: '#a142f4', bg: 'rgba(161, 66, 244, 0.4)' }, // Purple
+                'metrics.average_cpc': { color: '#00acc1', bg: 'rgba(0, 172, 193, 0.4)' } // Cyan
+            };
 
-            const convGradient = ctx.createLinearGradient(0, 0, 0, 300);
-            convGradient.addColorStop(0, 'rgba(234, 67, 53, 0.4)'); // Google Red
-            convGradient.addColorStop(1, 'rgba(234, 67, 53, 0.0)');
+            const datasets = dynamicDatasets.map((ds, idx) => {
+                const colors = colorMap[ds.metric] || { color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.4)' };
+                const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+                gradient.addColorStop(0, colors.bg);
+                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+                return {
+                    label: ds.label,
+                    data: ds.data,
+                    borderColor: colors.color,
+                    backgroundColor: gradient,
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: colors.color,
+                    yAxisID: idx === 0 ? 'y' : 'y1'
+                };
+            });
 
             adsChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
-                    datasets: [
-                        {
-                            label: 'Clicks',
-                            data: clicks,
-                            borderColor: '#0f9d58',
-                            backgroundColor: clickGradient,
-                            borderWidth: 2,
-                            fill: true,
-                            tension: 0.4,
-                            pointRadius: 3,
-                            pointBackgroundColor: '#fff',
-                            pointBorderColor: '#0f9d58',
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: 'Conversions',
-                            data: conversions,
-                            borderColor: '#ea4335',
-                            backgroundColor: convGradient,
-                            borderWidth: 2,
-                            fill: true,
-                            tension: 0.4,
-                            pointRadius: 3,
-                            pointBackgroundColor: '#fff',
-                            pointBorderColor: '#ea4335',
-                            yAxisID: 'y1'
-                        }
-                    ]
+                    datasets: datasets
                 },
                 options: {
                     responsive: true,
@@ -22908,33 +23060,32 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     },
                     scales: {
                         x: {
-                            grid: {
-                                display: false,
-                                drawBorder: false
-                            },
-                            ticks: {
-                                maxTicksLimit: 15
-                            }
+                            grid: { display: false, drawBorder: false },
+                            ticks: { maxTicksLimit: 15 }
                         },
                         y: {
                             type: 'linear',
                             display: true,
                             position: 'left',
-                            grid: {
-                                color: '#f0f0f0',
-                                drawBorder: false
-                            },
-                            beginAtZero: true
+                            grid: { color: '#f0f0f0', drawBorder: false },
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: dynamicDatasets[0].label,
+                                font: { size: 10, weight: '700' }
+                            }
                         },
                         y1: {
                             type: 'linear',
-                            display: true,
+                            display: dynamicDatasets.length > 1,
                             position: 'right',
-                            grid: {
-                                drawOnChartArea: false, // only want the grid lines for one axis to show up
-                                drawBorder: false
-                            },
-                            beginAtZero: true
+                            grid: { drawOnChartArea: false, drawBorder: false },
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: dynamicDatasets[1]?.label || '',
+                                font: { size: 10, weight: '700' }
+                            }
                         }
                     }
                 }
