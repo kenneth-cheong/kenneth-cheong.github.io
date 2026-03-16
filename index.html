@@ -9008,6 +9008,27 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Gemini AI Card -->
+                <div class="geo-card cockpit-card" id="card-gemini" style="height: auto !important; min-height: auto !important;">
+                    <div class="geo-card-header" style="justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9;">
+                        <h3 style="margin: 0; font-size: 1.1em; color: #1a73e8; display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-wand-sparkles" style="color: #1a73e8;"></i>
+                            Gemini AI
+                        </h3>
+                        <a href="https://gemini.google.com/app" target="_blank" class="discovery-btn-run" 
+                           style="padding: 6px 16px; font-size: 0.85rem; background: #1a73e8; color: #fff; border: none; text-decoration: none; display: flex; align-items: center; gap: 8px; border-radius: 8px; box-shadow: 0 2px 4px rgba(26, 115, 232, 0.2);">
+                            <i class="fas fa-external-link-alt"></i> Open Gemini
+                        </a>
+                    </div>
+                    <div style="background: #f8fafc; padding: 20px; border-radius: 0 0 12px 12px; font-size: 0.95rem; color: #475569; display: flex; flex-direction: column; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 10px; color: #1a73e8;">
+                            <i class="fas fa-lightbulb"></i>
+                            <span style="font-weight: 600;">Pro Tip: Use Google Extensions</span>
+                        </div>
+                        <p style="margin: 0; line-height: 1.5;">Type <strong>@Gmail</strong> or <strong>@Google Drive</strong> to reference your Google services directly in your query for deep contextual analysis.</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -27051,6 +27072,9 @@ ${selectedText}
                 })
                 .then(data => {
                     console.log(data);
+                    if (!data || data.statusCode !== 200 || !data.body || Object.keys(data.body).length === 0) {
+                        throw new Error(data?.body?.error || "No similar keywords found or backend error.");
+                    }
                     updateCollapsibleState('keyword_suggestions', 'success');
                     document.getElementById('rankingError').innerText = "";
                     displaySimilarKeywords(data);
@@ -27073,8 +27097,9 @@ ${selectedText}
                 .catch(error => {
                     console.error("Error fetching data:", error);
                     updateCollapsibleState('keyword_suggestions', 'error');
-                    document.getElementById("keyword_suggestions").style.backgroundColor = "#004c9d";
-                    document.getElementById('keyword_suggestions').innerText = "Keyword Suggestions (Similar Keywords / SERPs)";
+                    document.getElementById("keyword_suggestions").style.backgroundColor = "#dc3545"; // Red for error
+                    document.getElementById('keyword_suggestions').innerText = "Error: " + error.message;
+                    document.getElementById('keywordList').innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: #dc3545;">Failed to generate similar keywords. Please try again later.</td></tr>`;
                 });
             const tooltip = event.target.querySelector('span');  // Get the tooltip span
             if (tooltip) { // Check if the span element exists
@@ -27557,6 +27582,12 @@ ${selectedText}
         function displaySimilarKeywords(keywordsData) {
             const keywordList = document.getElementById('keywordList');
             keywordList.innerHTML = ''; // Clear previous keywords
+
+            if (!keywordsData || !keywordsData.body) {
+                console.error("Invalid keywordsData format:", keywordsData);
+                keywordList.innerHTML = '<tr><td colspan="5" style="text-align:center;">No data available.</td></tr>';
+                return;
+            }
 
             // 1. Transform the data:
             const keywordsArray = Object.entries(keywordsData.body).map(([keyword, data]) => ({

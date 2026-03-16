@@ -1,7 +1,5 @@
 import json
 import os
-import asyncio
-import httpx
 import requests
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
@@ -74,17 +72,17 @@ language_ids = {
     'Thai': 1044, 'Turkish': 1037, 'Ukrainian': 1036, 'Urdu': 1041, 'Vietnamese': 1040
 }
 
-async def fetch_mangools_keyword(client, kw, location_id, language_id, headers):
+def fetch_mangools_keyword(kw, location_id, language_id, headers):
     try:
         api_url = f'https://api.mangools.com/v3/kwfinder/related-keywords?kw={kw}&location_id={location_id}&language_id={language_id}'
-        response = await client.get(api_url, headers=headers, timeout=30.0)
+        response = requests.get(api_url, headers=headers, timeout=30.0)
         if response.status_code == 200:
             return kw, response.json()
     except Exception as e:
         print(f"Error fetching from Mangools for keyword '{kw}': {e}")
     return kw, None
 
-async def run_analysis(event):
+def run_analysis(event):
     print("Received event:", event)
     pacific = timezone("Asia/Singapore")
     local_datetime = pacific.localize(datetime.today())
@@ -106,7 +104,7 @@ async def run_analysis(event):
     suggestions_result = {}
     document_list = []
 
-    # 1. Try Mangools Integration (CONCURRENT)
+    # 1. Try Mangools Integration (Synchronous loop for reliability in current env)
     try:
         mangools_success = False
         headers = {
@@ -118,36 +116,33 @@ async def run_analysis(event):
         language_id = language_ids.get(language_name)
 
         if location_id and language_id:
-            async with httpx.AsyncClient() as client_http:
-                tasks = [fetch_mangools_keyword(client_http, kw, location_id, language_id, headers) for kw in keywords_input]
-                responses = await asyncio.gather(*tasks)
+            for kw in keywords_input:
+                kw, kw_data = fetch_mangools_keyword(kw, location_id, language_id, headers)
+                if kw_data and 'keywords' in kw_data:
+                    mangools_success = True
+                    for suggestion in kw_data['keywords']:
+                        kw_name = suggestion['kw']
+                        seo = suggestion['seo']
+                        
+                        # Competition text logic
+                        if 0 <= seo <= 14: text = "easy"
+                        elif 15 <= seo <= 29: text = "still easy"
+                        elif 30 <= seo <= 49: text = "possible"
+                        elif 50 <= seo <= 69: text = "hard"
+                        elif 70 <= seo <= 84: text = "very hard"
+                        else: text = "don't do it"
 
-                for kw, kw_data in responses:
-                    if kw_data and 'keywords' in kw_data:
-                        mangools_success = True
-                        for suggestion in kw_data['keywords']:
-                            kw_name = suggestion['kw']
-                            seo = suggestion['seo']
-                            
-                            # Competition text logic
-                            if 0 <= seo <= 14: text = "easy"
-                            elif 15 <= seo <= 29: text = "still easy"
-                            elif 30 <= seo <= 49: text = "possible"
-                            elif 50 <= seo <= 69: text = "hard"
-                            elif 70 <= seo <= 84: text = "very hard"
-                            else: text = "don't do it"
+                        data_obj = {
+                            'search_volume': suggestion['sv'],
+                            'cpc': suggestion.get('cpc'),
+                            'competition': suggestion['seo'],
+                            'competition_text': text
+                        }
 
-                            data_obj = {
-                                'search_volume': suggestion['sv'],
-                                'cpc': suggestion.get('cpc'),
-                                'competition': suggestion['seo'],
-                                'competition_text': text
-                            }
-
-                            if kw_name.lower() in [k.lower() for k in keywords_input]:
-                                priority_result[kw_name] = data_obj
-                            elif kw_name not in priority_result and kw_name not in suggestions_result:
-                                suggestions_result[kw_name] = data_obj
+                        if kw_name.lower() in [k.lower() for k in keywords_input]:
+                            priority_result[kw_name] = data_obj
+                        elif kw_name not in priority_result and kw_name not in suggestions_result:
+                            suggestions_result[kw_name] = data_obj
 
         if mangools_success:
             final_result = {**priority_result, **suggestions_result}
@@ -231,24 +226,29 @@ async def run_analysis(event):
             }
             
             gpt_resp = requests.post(gpt_url, headers=gpt_headers, json=gpt_payload)
-            gpt_text = gpt_resp.json()['choices'][0]['message']['content']
-            gpt_kw_list = gpt_text.replace('[','').replace(']','').split(',')
-            gpt_kw_list = [k.strip() for k in gpt_kw_list if k.strip()]
+            gpt_json = gpt_resp.json()
 
-            if gpt_kw_list:
-                payload[0]['keywords'] = gpt_kw_list
-                response = requests.post(api_url, headers=headers, json=payload)
-                resp_json = response.json()
-                if 'tasks' in resp_json and resp_json['tasks'][0]['result']:
-                    for suggestion in resp_json['tasks'][0]['result']:
-                        kw_name = suggestion['keyword']
-                        data_obj = {
-                            'competition': suggestion.get('competition'),
-                            'search_volume': suggestion.get("search_volume"),
-                            'cpc': suggestion.get("cpc")
-                        }
-                        if kw_name not in priority_result and kw_name not in suggestions_result:
-                            suggestions_result[kw_name] = data_obj
+            if gpt_resp.status_code == 200 and 'choices' in gpt_json:
+                gpt_text = gpt_json['choices'][0]['message']['content']
+                gpt_kw_list = gpt_text.replace('[','').replace(']','').split(',')
+                gpt_kw_list = [k.strip() for k in gpt_kw_list if k.strip()]
+
+                if gpt_kw_list:
+                    payload[0]['keywords'] = gpt_kw_list
+                    response = requests.post(api_url, headers=headers, json=payload)
+                    resp_json = response.json()
+                    if 'tasks' in resp_json and resp_json['tasks'][0]['result']:
+                        for suggestion in resp_json['tasks'][0]['result']:
+                            kw_name = suggestion['keyword']
+                            data_obj = {
+                                'competition': suggestion.get('competition'),
+                                'search_volume': suggestion.get("search_volume"),
+                                'cpc': suggestion.get("cpc")
+                            }
+                            if kw_name not in priority_result and kw_name not in suggestions_result:
+                                suggestions_result[kw_name] = data_obj
+            else:
+                print("GPT Expansion failed or returned no choices:", gpt_json.get('error', 'Unknown error'))
 
         final_result = {**priority_result, **suggestions_result}
         for kw, data in final_result.items():
@@ -273,4 +273,4 @@ async def run_analysis(event):
         return {'statusCode': 500, 'body': {'error': str(e)}}
 
 def lambda_handler(event, context):
-    return asyncio.run(run_analysis(event))
+    return run_analysis(event)
