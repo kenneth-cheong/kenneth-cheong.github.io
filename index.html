@@ -113,6 +113,9 @@
                 initializeJourneyCollapsibles();
                 //loadFromLocalStorage();
 
+                // Auto-load Cockpit Data in the background
+                refreshCockpitData();
+
             } catch (error) {
                 console.error('Error fetching or parsing thread ID:', error);
                 const threadElem = document.getElementById('threadId');
@@ -172,6 +175,74 @@
             --radius-xl: 20px;
             --shadow-premium: 0 4px 12px rgba(0, 0, 0, 0.05);
         }
+
+        /* Cockpit Expandable Cards */
+        .cockpit-card {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+        }
+
+        .cockpit-card.collapsed {
+            height: 350px !important;
+            min-height: 350px !important;
+        }
+
+        .cockpit-card.expanded {
+            grid-column: 1 / -1;
+            height: calc(100vh - 180px) !important;
+            z-index: 100;
+            cursor: default;
+        }
+
+        .cockpit-card .minimize-card-btn,
+        .cockpit-card .expand-card-btn {
+            display: none;
+            background: #f1f5f9;
+            border: none;
+            border-radius: 6px;
+            width: 32px;
+            height: 32px;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #64748b;
+            transition: all 0.2s;
+        }
+
+        .cockpit-card .minimize-card-btn:hover,
+        .cockpit-card .expand-card-btn:hover {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+
+        .cockpit-card.collapsed .expand-card-btn {
+            display: flex;
+        }
+
+        .cockpit-card.expanded .minimize-card-btn {
+            display: flex;
+        }
+
+        .cockpit-card.expanded .minimize-card-btn {
+            display: flex;
+        }
+
+        .cockpit-card.collapsed .switch-account-btn {
+            display: none;
+        }
+
+        .cockpit-card-header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        /* Discovery Audit Styles - Updated for Consistency */
 
         /* Discovery Audit Styles - Updated for Consistency */
         .discovery-audit-wrapper {
@@ -8598,24 +8669,37 @@
             <div class="discovery-platform-list"
                 style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 15px; width: 100%;">
                 <!-- Monday.com Card -->
-                <div class="geo-card"
-                    style="display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 500px; margin-bottom: 0;">
+                <div class="geo-card cockpit-card collapsed" id="card-monday-tasks">
                     <div class="geo-card-header" style="flex-direction: column; align-items: stretch; gap: 12px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
                                 <img src="https://monday.com/favicon.ico" alt="Monday.com" style="height: 24px;">
                                 Monday Tasks
                             </h3>
-                            <div style="display: flex; gap: 10px; align-items: center;">
-                                <button onclick="refreshMondayTasks()" class="discovery-btn-run"
-                                    style="padding: 4px 12px; font-size: 0.8rem;">
-                                    <i class="fas fa-sync-alt"></i> Refresh
-                                </button>
-                                <span id="cockpit-monday-count" class="badge-action"
-                                    style="font-size: 14px; padding: 5px 10px;">Loading...</span>
-                            </div>
+                            <button onclick="toggleCardFilters('card-monday-tasks')" class="discovery-btn-run"
+                                style="padding: 4px 8px; font-size: 0.8rem; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;"
+                                title="Toggle Filters">
+                                <i class="fas fa-filter"></i>
+                            </button>
+                            <button onclick="refreshMondayTasks()" class="discovery-btn-run"
+                                style="padding: 4px 12px; font-size: 0.8rem;">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <span id="cockpit-monday-count" class="badge-action"
+                                style="font-size: 14px; padding: 5px 10px;">Loading...</span>
+                            <button class="expand-card-btn" onclick="expandCockpitCard(this.closest('.geo-card'))"
+                                title="Expand">
+                                <i class="fas fa-expand-alt"></i>
+                            </button>
+                            <button class="minimize-card-btn"
+                                onclick="collapseCockpitCard(this.closest('.geo-card'), event)" title="Minimize">
+                                <i class="fas fa-compress-alt"></i>
+                            </button>
                         </div>
-                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    </div>
+                    <div id="filters-card-monday-tasks"
+                        style="display: none; padding-bottom: 5px; border-bottom: 1px solid #f1f5f9; margin-bottom: 5px;">
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;" onclick="event.stopPropagation()">
                             <!-- User Multi-select -->
                             <div id="user-filter-container" style="position: relative; flex: 1; min-width: 140px;">
                                 <button onclick="toggleFilterDropdown('user-dropdown')" class="filter-btn"
@@ -8664,24 +8748,37 @@
                 </div>
 
                 <!-- Monday Updates Card -->
-                <div class="geo-card"
-                    style="display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 500px; margin-bottom: 0;">
+                <div class="geo-card cockpit-card collapsed" id="card-monday-updates">
                     <div class="geo-card-header" style="flex-direction: column; align-items: stretch; gap: 12px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
                                 <i class="fas fa-comment-dots" style="color: #6366f1;"></i>
                                 Latest Item Updates
                             </h3>
-                            <div style="display: flex; gap: 10px; align-items: center;">
-                                <button onclick="refreshMondayUpdates()" class="discovery-btn-run"
-                                    style="padding: 4px 12px; font-size: 0.8rem;">
-                                    <i class="fas fa-sync-alt"></i> Refresh
-                                </button>
-                                <span id="cockpit-updates-count" class="badge-action"
-                                    style="font-size: 14px; padding: 5px 10px; background: rgba(99, 102, 241, 0.1); color: #6366f1;">-</span>
-                            </div>
+                            <button onclick="toggleCardFilters('card-monday-updates')" class="discovery-btn-run"
+                                style="padding: 4px 8px; font-size: 0.8rem; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;"
+                                title="Toggle Filters">
+                                <i class="fas fa-filter"></i>
+                            </button>
+                            <button onclick="refreshMondayUpdates()" class="discovery-btn-run"
+                                style="padding: 4px 12px; font-size: 0.8rem;">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <span id="cockpit-updates-count" class="badge-action"
+                                style="font-size: 14px; padding: 5px 10px; background: rgba(99, 102, 241, 0.1); color: #6366f1;">-</span>
+                            <button class="expand-card-btn" onclick="expandCockpitCard(this.closest('.geo-card'))"
+                                title="Expand">
+                                <i class="fas fa-expand-alt"></i>
+                            </button>
+                            <button class="minimize-card-btn"
+                                onclick="collapseCockpitCard(this.closest('.geo-card'), event)" title="Minimize">
+                                <i class="fas fa-compress-alt"></i>
+                            </button>
                         </div>
-                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    </div>
+                    <div id="filters-card-monday-updates"
+                        style="display: none; padding-bottom: 5px; border-bottom: 1px solid #f1f5f9; margin-bottom: 5px;">
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;" onclick="event.stopPropagation()">
                             <!-- Said By Multi-select -->
                             <div id="author-filter-container" style="position: relative; flex: 1; min-width: 140px;">
                                 <button onclick="toggleFilterDropdown('author-dropdown')" class="filter-btn"
@@ -8715,19 +8812,26 @@
                 </div>
 
                 <!-- SE Ranking Card -->
-                <div class="geo-card"
-                    style="display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 500px; margin-bottom: 0;">
+                <div class="geo-card cockpit-card collapsed" id="card-seranking">
                     <div class="geo-card-header" style="justify-content: space-between; align-items: center;">
                         <h3
                             style="margin: 0; font-size: 1.1em; color: #3b82f6; display: flex; align-items: center; gap: 10px;">
                             <i class="fas fa-chart-line"></i> Global Top Movers
                         </h3>
-                        <div style="display: flex; gap: 10px; align-items: center;">
+                        <div class="cockpit-card-header-actions">
                             <button onclick="refreshSERankingMovers()" class="discovery-btn-run"
                                 style="padding: 4px 12px; font-size: 0.8rem;">
                                 <i class="fas fa-sync-alt"></i> Refresh
                             </button>
                             <span id="seranking-sync-status" style="font-size: 0.85em; color: #64748b;">Ready</span>
+                            <button class="expand-card-btn" onclick="expandCockpitCard(this.closest('.geo-card'))"
+                                title="Expand">
+                                <i class="fas fa-expand-alt"></i>
+                            </button>
+                            <button class="minimize-card-btn"
+                                onclick="collapseCockpitCard(this.closest('.geo-card'), event)" title="Minimize">
+                                <i class="fas fa-compress-alt"></i>
+                            </button>
                         </div>
                     </div>
                     <div id="cockpit-seranking-content" style="flex: 1; overflow-y: auto;">
@@ -8739,20 +8843,31 @@
                 </div>
 
                 <!-- Google Ads Recommendations Card -->
-                <div class="geo-card"
-                    style="display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 500px; margin-bottom: 0;">
+                <div class="geo-card cockpit-card collapsed" id="card-ads">
                     <div class="geo-card-header" style="justify-content: space-between; align-items: center;">
                         <h3
                             style="margin: 0; font-size: 1.1em; color: #ea4335; display: flex; align-items: center; gap: 10px;">
                             <i class="fas fa-lightbulb"></i> Google Ads Strategic Recommendations
                         </h3>
-                        <div style="display: flex; gap: 10px; align-items: center;">
+                        <div class="cockpit-card-header-actions">
                             <button onclick="refreshAdsRecommendations()" class="discovery-btn-run"
                                 style="padding: 4px 12px; font-size: 0.8rem; background: #ea4335; color: #fff; border: none;">
                                 <i class="fas fa-sync-alt"></i> Refresh
                             </button>
+                            <button onclick="connectGoogleTools()" class="discovery-btn-run switch-account-btn"
+                                style="padding: 4px 12px; font-size: 0.8rem; background: #fff; color: #ea4335; border: 1px solid #ea4335;">
+                                <i class="fas fa-user-friends"></i> Switch Account
+                            </button>
                             <span id="cockpit-ads-rec-count" class="badge-action"
                                 style="font-size: 14px; padding: 5px 10px; background: rgba(234, 67, 53, 0.1); color: #ea4335;">-</span>
+                            <button class="expand-card-btn" onclick="expandCockpitCard(this.closest('.geo-card'))"
+                                title="Expand">
+                                <i class="fas fa-expand-alt"></i>
+                            </button>
+                            <button class="minimize-card-btn"
+                                onclick="collapseCockpitCard(this.closest('.geo-card'), event)" title="Minimize">
+                                <i class="fas fa-compress-alt"></i>
+                            </button>
                         </div>
                     </div>
                     <div id="cockpit-ads-recommendations-content" style="flex: 1; overflow-y: auto; padding: 15px;">
@@ -8764,20 +8879,60 @@
                 </div>
 
                 <!-- Google Search Console Recommendations Card -->
-                <div class="geo-card"
-                    style="display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 500px; margin-bottom: 0;">
+                <div class="geo-card cockpit-card collapsed" id="card-gsc">
                     <div class="geo-card-header" style="justify-content: space-between; align-items: center;">
                         <h3
                             style="margin: 0; font-size: 1.1em; color: #1a73e8; display: flex; align-items: center; gap: 10px;">
                             <i class="fas fa-search"></i> Google Search Console Strategic Recommendations
                         </h3>
-                        <div style="display: flex; gap: 10px; align-items: center;">
+                        <div class="cockpit-card-header-actions">
+                            <button onclick="toggleCardFilters('card-gsc')" class="discovery-btn-run"
+                                style="padding: 4px 8px; font-size: 0.8rem; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;"
+                                title="Toggle Filters">
+                                <i class="fas fa-filter"></i>
+                            </button>
                             <button onclick="refreshGscRecommendations()" class="discovery-btn-run"
                                 style="padding: 4px 12px; font-size: 0.8rem; background: #1a73e8; color: #fff; border: none;">
                                 <i class="fas fa-sync-alt"></i> Refresh
                             </button>
+                            <button onclick="connectGoogleTools()" class="discovery-btn-run switch-account-btn"
+                                style="padding: 4px 12px; font-size: 0.8rem; background: #fff; color: #1a73e8; border: 1px solid #1a73e8;">
+                                <i class="fas fa-user-friends"></i> Switch Account
+                            </button>
                             <span id="cockpit-gsc-rec-count" class="badge-action"
                                 style="font-size: 14px; padding: 5px 10px; background: rgba(26, 115, 232, 0.1); color: #1a73e8;">-</span>
+                            <button class="expand-card-btn" onclick="expandCockpitCard(this.closest('.geo-card'))"
+                                title="Expand">
+                                <i class="fas fa-expand-alt"></i>
+                            </button>
+                            <button class="minimize-card-btn"
+                                onclick="collapseCockpitCard(this.closest('.geo-card'), event)" title="Minimize">
+                                <i class="fas fa-compress-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="filters-card-gsc" style="display: none; padding: 10px; border-bottom: 1px solid #f1f5f9; background: #f8fafc;">
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <!-- GSC Domain Search -->
+                            <div style="position: relative; flex: 1.5; min-width: 200px;">
+                                <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 0.85rem;"></i>
+                                <input type="text" 
+                                       placeholder="Search domains..." 
+                                       oninput="cockpitState.gscSearchQuery = this.value.toLowerCase(); renderGscRecommendations();"
+                                       style="width: 100%; padding: 8px 12px 8px 35px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.85rem; outline: none; background: #fff;">
+                            </div>
+                            <!-- GSC Domain Multi-select -->
+                            <div style="position: relative; flex: 1; min-width: 160px;">
+                                <button onclick="toggleGscFilterDropdown('gsc-domain-dropdown')" class="filter-btn"
+                                    style="width: 100%; text-align: left; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; font-size: 0.8rem; color: #1e293b; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                                    <span id="gsc-domain-filter-label">All Domains</span>
+                                    <i class="fas fa-chevron-down" style="font-size: 0.7rem;"></i>
+                                </button>
+                                <div id="gsc-domain-dropdown" class="filter-dropdown-content"
+                                    style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; margin-top: 4px; max-height: 250px; overflow-y: auto; padding: 10px;">
+                                    <div id="gsc-domain-options-list"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div id="cockpit-gsc-recommendations-content" style="flex: 1; overflow-y: auto; padding: 15px;">
@@ -8790,20 +8945,60 @@
                 </div>
 
                 <!-- GA4 Strategic Recommendations Card -->
-                <div class="geo-card"
-                    style="display: flex; flex-direction: column; height: calc(100vh - 150px); min-height: 500px; margin-bottom: 0;">
+                <div class="geo-card cockpit-card collapsed" id="card-ga4">
                     <div class="geo-card-header" style="justify-content: space-between; align-items: center;">
                         <h3
                             style="margin: 0; font-size: 1.1em; color: #f4b400; display: flex; align-items: center; gap: 10px;">
                             <i class="fas fa-chart-pie"></i> Google Analytics 4 Strategic Recommendations
                         </h3>
-                        <div style="display: flex; gap: 10px; align-items: center;">
+                        <div class="cockpit-card-header-actions">
+                            <button onclick="toggleCardFilters('card-ga4')" class="discovery-btn-run"
+                                style="padding: 4px 8px; font-size: 0.8rem; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0;"
+                                title="Toggle Filters">
+                                <i class="fas fa-filter"></i>
+                            </button>
                             <button onclick="refreshGa4Recommendations()" class="discovery-btn-run"
                                 style="padding: 4px 12px; font-size: 0.8rem; background: #f4b400; color: #fff; border: none;">
                                 <i class="fas fa-sync-alt"></i> Refresh
                             </button>
+                            <button onclick="connectGoogleTools()" class="discovery-btn-run switch-account-btn"
+                                style="padding: 4px 12px; font-size: 0.8rem; background: #fff; color: #f4b400; border: 1px solid #f4b400;">
+                                <i class="fas fa-user-friends"></i> Switch Account
+                            </button>
                             <span id="cockpit-ga4-rec-count" class="badge-action"
                                 style="font-size: 14px; padding: 5px 10px; background: rgba(244, 180, 0, 0.1); color: #f4b400;">-</span>
+                            <button class="expand-card-btn" onclick="expandCockpitCard(this.closest('.geo-card'))"
+                                title="Expand">
+                                <i class="fas fa-expand-alt"></i>
+                            </button>
+                            <button class="minimize-card-btn"
+                                onclick="collapseCockpitCard(this.closest('.geo-card'), event)" title="Minimize">
+                                <i class="fas fa-compress-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="filters-card-ga4" style="display: none; padding: 10px; border-bottom: 1px solid #f1f5f9; background: #f8fafc;">
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <!-- GA4 Property Search -->
+                            <div style="position: relative; flex: 1.5; min-width: 200px;">
+                                <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 0.85rem;"></i>
+                                <input type="text" 
+                                       placeholder="Search GA4 properties..." 
+                                       oninput="cockpitState.ga4SearchQuery = this.value.toLowerCase(); renderGa4Recommendations();"
+                                       style="width: 100%; padding: 8px 12px 8px 35px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.85rem; outline: none; background: #fff;">
+                            </div>
+                            <!-- GA4 Property Multi-select -->
+                            <div style="position: relative; flex: 1; min-width: 160px;">
+                                <button onclick="toggleGa4FilterDropdown('ga4-property-dropdown')" class="filter-btn"
+                                    style="width: 100%; text-align: left; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; font-size: 0.8rem; color: #1e293b; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                                    <span id="ga4-property-filter-label">All Properties</span>
+                                    <i class="fas fa-chevron-down" style="font-size: 0.7rem;"></i>
+                                </button>
+                                <div id="ga4-property-dropdown" class="filter-dropdown-content"
+                                    style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; margin-top: 4px; max-height: 250px; overflow-y: auto; padding: 10px;">
+                                    <div id="ga4-property-options-list"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div id="cockpit-ga4-recommendations-content" style="flex: 1; overflow-y: auto; padding: 15px;">
@@ -14470,11 +14665,24 @@
             selectedUsers: new Set(),
             selectedStatuses: new Set(),
             selectedUpdateAuthors: new Set(),
-            selectedUpdateMentions: new Set(),
-            mondayStartDate: '',
-            mondayEndDate: defaultDeadlineDate,
-            filtersInitialized: false // To handle default selection once
+            filtersInitialized: false, // To handle default selection once
+            moversChart: null, // Global reference for SE Ranking Movers chart
+            moversView: 'graph', // 'graph' or 'table'
+            lastMoversData: [], // Store results for tab switching without re-fetch
+            gscRecommendations: [], // Grouped GSC insights
+            gscSearchQuery: '', // Filter for GSC properties
+            selectedGscDomains: new Set(), // Filter by domain
+            ga4Recommendations: [], // Grouped GA4 insights
+            ga4SearchQuery: '', // Filter for GA4 properties
+            selectedGa4Properties: new Set(), // Filter by GA4 property
+            ga4ScannedProperties: new Set(), // Track which properties have been audited
+            ga4ScanningInProgress: new Set() // Track properties currently being scanned
         };
+
+        function switchMoversView(view) {
+            cockpitState.moversView = view;
+            renderMoversContent();
+        }
 
         function refreshMondayTasks() {
             fetchCockpitMonday();
@@ -14510,6 +14718,7 @@
                 return;
             }
 
+            cockpitState.adsRecommendations = []; // Reset on refresh
             container.innerHTML = `
                 <div id="ads-recs-loading" style="text-align: center; color: #64748b; padding: 20px;">
                     <i class="fas fa-spinner fa-spin"></i>
@@ -14526,12 +14735,12 @@
             const loadingEl = document.getElementById('ads-recs-loading');
             const badge = document.getElementById('cockpit-ads-rec-count');
             let totalFound = 0;
+            let allRecs = [];
 
             for (const account of adsCustomerList) {
                 if (account.isManager) continue;
 
                 try {
-                    // NEW: Filter by selected account and campaigns
                     const selectedAccountId = document.getElementById('adsSiteList').value;
                     const selectedCampaignIds = adsSelectedCampaignIds || [];
 
@@ -14563,11 +14772,10 @@
                     const campaignResults = await fetchAdsGAQL(account.id, account.loginCustomerId, account.developerToken, campaignQuery);
                     const customFlags = detectCampaignAuditFlags(campaignResults);
 
-                    // Render Results progressively
+                    const propertyRecs = [];
                     if (recResults && recResults.length > 0) {
                         recResults.forEach(res => {
-                            totalFound++;
-                            renderAdsRecItem(listContainer, {
+                            propertyRecs.push({
                                 type: 'GOOGLE',
                                 title: res.recommendation.recommendationText || res.recommendation.type,
                                 desc: res.recommendation.description,
@@ -14580,8 +14788,7 @@
 
                     if (customFlags && customFlags.length > 0) {
                         customFlags.forEach(flag => {
-                            totalFound++;
-                            renderAdsRecItem(listContainer, {
+                            propertyRecs.push({
                                 type: 'AUDIT',
                                 title: flag.title,
                                 desc: flag.desc,
@@ -14592,7 +14799,13 @@
                         });
                     }
 
-                    if (totalFound > 0) badge.textContent = totalFound;
+                    if (propertyRecs.length > 0) {
+                        allRecs = allRecs.concat(propertyRecs);
+                        cockpitState.adsRecommendations = allRecs;
+                        totalFound += propertyRecs.length;
+                        badge.textContent = totalFound;
+                        renderAdsRecommendations(); // Render progressively
+                    }
 
                 } catch (err) {
                     console.error(`Error scanning ${account.id}:`, err);
@@ -14639,31 +14852,72 @@
             return flags;
         }
 
-        function renderAdsRecItem(container, data) {
-            const recEl = document.createElement('div');
-            recEl.className = 'geo-card';
-            recEl.style.margin = '0 0 12px 0';
-            recEl.style.padding = '12px';
-            recEl.style.borderLeft = data.impact === 'HIGH' ? '4px solid #ea4335' : '4px solid #34a853';
-            recEl.style.background = '#f8fafc';
+        function renderAdsRecommendations() {
+            const listContainer = document.getElementById('ads-recs-list');
+            if (!listContainer) return;
 
-            recEl.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                    <span style="font-size: 0.65rem; font-weight: 700; color: white; background: ${data.type === 'AUDIT' ? '#6366f1' : '#ea4335'}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
-                        ${data.type === 'AUDIT' ? 'Account Audit' : 'Google Rec'}
-                    </span>
-                    <span style="font-size: 0.7rem; color: #64748b; background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">
-                        ${data.account}
-                    </span>
-                </div>
-                <div style="font-weight: 600; font-size: 0.9rem; color: #1e293b; margin-bottom: 4px;">${data.title}</div>
-                <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px;">${data.desc}</div>
-                <div style="display: flex; align-items: center; gap: 5px; font-size: 0.75rem; color: #94a3b8;">
-                    <i class="fas fa-bullseye"></i>
-                    <span>Campaign: ${data.campaign}</span>
+            const makeSafeId = (str) => {
+                if (!str) return 'unknown';
+                return str.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+            };
+
+            const expandedIds = new Set();
+            listContainer.querySelectorAll('div[id^="ads-prop-"]').forEach(el => {
+                if (el.style.display === 'block') expandedIds.add(el.id);
+            });
+
+            // Group recommendations by account
+            const grouped = cockpitState.adsRecommendations.reduce((acc, rec) => {
+                const accountName = rec.account || 'Unknown Account';
+                if (!acc[accountName]) acc[accountName] = [];
+                acc[accountName].push(rec);
+                return acc;
+            }, {});
+
+            const sortedAccounts = Object.keys(grouped).sort((a, b) => grouped[b].length - grouped[a].length);
+
+            listContainer.innerHTML = sortedAccounts.map(accountName => {
+                const recs = grouped[accountName];
+                const safeId = makeSafeId(accountName);
+                const isExpanded = expandedIds.has(`ads-prop-${safeId}`);
+
+                return `
+                    <div class="cockpit-prop-group" style="margin-bottom: 15px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #fff;">
+                        <div onclick="toggleCockpitPropGroup('ads-prop-${safeId}', this)" 
+                             style="padding: 12px 15px; background: #f8fafc; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-ad" style="color: #ea4335;"></i>
+                                <span style="font-weight: 700; color: #1e293b; font-size: 0.95rem;">${accountName}</span>
+                                <span style="background: rgba(234, 67, 53, 0.1); color: #ea4335; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;">
+                                    ${recs.length}
+                                </span>
+                            </div>
+                            <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; color: #64748b; transition: transform 0.2s; transform: ${isExpanded ? 'rotate(180deg)' : 'rotate(0deg)'}"></i>
+                        </div>
+                        <div id="ads-prop-${safeId}" style="display: ${isExpanded ? 'block' : 'none'}; padding: 15px; background: #fff;">
+                            ${recs.map(rec => renderAdsRecItem(rec)).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderAdsRecItem(data) {
+            return `
+                <div class="geo-card" style="margin: 0 0 12px 0; padding: 12px; border-left: ${data.impact === 'HIGH' ? '4px solid #ea4335' : '4px solid #34a853'}; background: #fdfdfd; border: 1px solid #f1f5f9; border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                        <span style="font-size: 0.65rem; font-weight: 700; color: white; background: ${data.type === 'AUDIT' ? '#6366f1' : '#ea4335'}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
+                            ${data.type === 'AUDIT' ? 'Account Audit' : 'Google Rec'}
+                        </span>
+                    </div>
+                    <div style="font-weight: 600; font-size: 0.9rem; color: #1e293b; margin-bottom: 4px;">${data.title}</div>
+                    <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px;">${data.desc}</div>
+                    <div style="display: flex; align-items: center; gap: 5px; font-size: 0.75rem; color: #94a3b8;">
+                        <i class="fas fa-bullseye"></i>
+                        <span>Campaign: ${data.campaign}</span>
+                    </div>
                 </div>
             `;
-            container.appendChild(recEl);
         }
 
         async function refreshGscRecommendations() {
@@ -14683,6 +14937,10 @@
                 return;
             }
 
+            cockpitState.gscSearchQuery = ''; // Reset search on refresh
+            cockpitState.selectedGscDomains = new Set(); // Reset domain filter
+            document.getElementById('gsc-domain-filter-label').innerText = 'All Domains';
+
             container.innerHTML = `
                 <div id="gsc-recs-loading" style="text-align: center; color: #64748b; padding: 20px;">
                     <i class="fas fa-spinner fa-spin"></i>
@@ -14701,13 +14959,13 @@
             let totalFound = 0;
 
             if (gscPropertyList.length === 0) {
-                // Try to fetch properties if empty
                 await fetchGscProperties();
             }
 
+            let allRecommendations = [];
+
             for (const prop of gscPropertyList) {
                 try {
-                    // Fetch data for the property (Simplified Audit)
                     const today = new Date();
                     const endDate = today.toISOString().split('T')[0];
                     const startDate7 = new Date(today);
@@ -14715,31 +14973,23 @@
                     const startDate14 = new Date(today);
                     startDate14.setDate(today.getDate() - 14);
 
-                    // We need a helper that doesn't depend on global selectedGscProperty
                     const currentRows = await fetchGscDataForUrl(prop.siteUrl, startDate7.toISOString().split('T')[0], endDate);
                     const prevRows = await fetchGscDataForUrl(prop.siteUrl, startDate14.toISOString().split('T')[0], startDate7.toISOString().split('T')[0]);
 
                     const findings = analyzeGscAuditData(currentRows, prevRows);
 
-                    // Flatten findings
-                    const allFindings = [
-                        ...findings.critical.map(f => ({ ...f, impact: 'HIGH' })),
-                        ...findings.high.map(f => ({ ...f, impact: 'HIGH' })),
-                        ...findings.medium.map(f => ({ ...f, impact: 'MEDIUM' }))
+                    const propertyRecs = [
+                        ...findings.critical.map(f => ({ ...f, impact: 'HIGH', property: prop.siteUrl })),
+                        ...findings.high.map(f => ({ ...f, impact: 'HIGH', property: prop.siteUrl })),
+                        ...findings.medium.map(f => ({ ...f, impact: 'MEDIUM', property: prop.siteUrl }))
                     ];
 
-                    if (allFindings.length > 0) {
-                        allFindings.forEach(f => {
-                            totalFound++;
-                            renderGscRecItem(listContainer, {
-                                title: f.title,
-                                desc: f.desc,
-                                impact: f.impact,
-                                property: prop.siteUrl,
-                                icon: f.icon || 'fa-search'
-                            });
-                        });
+                    if (propertyRecs.length > 0) {
+                        allRecommendations = allRecommendations.concat(propertyRecs);
+                        cockpitState.gscRecommendations = allRecommendations;
+                        totalFound += propertyRecs.length;
                         badge.textContent = totalFound;
+                        renderGscRecommendations(); // Render progressively
                     }
 
                 } catch (err) {
@@ -14747,15 +14997,157 @@
                 }
             }
 
-            if (loadingEl) loadingEl.remove();
+            if (loadingEl) loadingEl.style.display = 'none';
+            cockpitState.gscRecommendations = allRecommendations;
+            renderGscRecommendations();
+
             if (totalFound === 0) {
                 listContainer.innerHTML = `
-                    <div style="text-align: center; color: #64748b; padding: 20px;">
-                        <i class="fas fa-check-circle" style="color: #34a853; margin-bottom: 10px; font-size: 1.5rem;"></i>
-                        <p>No high-priority GSC issues found across your properties!</p>
+                    <div style="text-align: center; color: #64748b; padding: 40px;">
+                        <i class="fas fa-check-circle" style="color: #34a853; margin-bottom: 15px; font-size: 2rem;"></i>
+                        <p>No major GSC issues found across your properties!</p>
                     </div>`;
                 badge.textContent = '0';
             }
+        }
+
+        function renderGscRecItem(rec) {
+            const impactColor = rec.impact === 'HIGH' ? '#ea4335' : '#3b82f6';
+            return `
+                <div style="padding: 12px; border: 1px solid #f1f5f9; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid ${impactColor}; background: #fdfdfd;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                        <span style="font-size: 0.65rem; font-weight: 700; color: white; background: ${impactColor}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
+                            ${rec.impact} Impact
+                        </span>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: flex-start;">
+                        <i class="fas ${rec.icon || 'fa-search'}" style="color: #64748b; margin-top: 3px;"></i>
+                        <div>
+                            <div style="font-weight: 600; font-size: 0.9rem; color: #1e293b; margin-bottom: 4px;">${rec.title}</div>
+                            <div style="font-size: 0.8rem; color: #64748b; line-height: 1.4;">${rec.desc}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderGscRecommendations() {
+            const listContainer = document.getElementById('gsc-recs-list');
+            const domainDropdownList = document.getElementById('gsc-domain-options-list');
+            if (!listContainer) return;
+
+            const makeSafeId = (str) => {
+                if (!str) return 'unknown';
+                return str.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+            };
+
+            const expandedIds = new Set();
+            listContainer.querySelectorAll('div[id^="gsc-prop-"]').forEach(el => {
+                if (el.style.display === 'block') expandedIds.add(el.id);
+            });
+
+            // Group recommendations by property
+            const grouped = cockpitState.gscRecommendations.reduce((acc, rec) => {
+                if (!acc[rec.property]) acc[rec.property] = [];
+                acc[rec.property].push(rec);
+                return acc;
+            }, {});
+
+            const sortedDomains = Object.keys(grouped).sort((a, b) => grouped[b].length - grouped[a].length);
+
+            // Populate Dropdown
+            if (domainDropdownList && sortedDomains.length > 0) {
+                domainDropdownList.innerHTML = sortedDomains.map(domain => {
+                    const cleanDomain = domain.replace('sc-domain:', '').replace(/\/$/, '');
+                    return `
+                    <label style="display: flex; align-items: center; gap: 10px; padding: 6px 4px; cursor: pointer; font-size: 0.85rem; color: #334155;">
+                        <input type="checkbox" value="${domain}" 
+                               ${cockpitState.selectedGscDomains.has(domain) ? 'checked' : ''}
+                               onchange="updateGscDomainFilter(this.value, this.checked)" style="width: 14px; height: 14px;">
+                        ${cleanDomain}
+                    </label>`;
+                }).join('');
+            }
+
+            // Filter domains based on search query AND checkboxes
+            const filteredDomains = sortedDomains.filter(domain => {
+                const searchMatch = domain.toLowerCase().includes(cockpitState.gscSearchQuery);
+                const checkboxMatch = cockpitState.selectedGscDomains.size === 0 || cockpitState.selectedGscDomains.has(domain);
+                return searchMatch && checkboxMatch;
+            });
+
+            if (filteredDomains.length === 0) {
+                listContainer.innerHTML = `
+                    <div style="text-align: center; color: #64748b; padding: 20px;">
+                        <p style="font-size: 0.85rem;">No properties match your filters.</p>
+                    </div>`;
+                return;
+            }
+
+            listContainer.innerHTML = filteredDomains.map(domain => {
+                const recs = grouped[domain];
+                const cleanDomain = domain.replace('sc-domain:', '').replace(/\/$/, '');
+                const propId = makeSafeId(domain);
+                const isOpen = expandedIds.has(`gsc-prop-${propId}`);
+
+                return `
+                    <div style="margin-bottom: 12px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #fff;">
+                        <div onclick="toggleCockpitPropGroup('gsc-prop-${propId}', this)"
+                             style="padding: 12px 16px; background: #f8fafc; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s;"
+                             onmouseover="this.style.background='#f1f5f9'"
+                             onmouseout="this.style.background='#f8fafc'">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <i class="fas fa-globe" style="color: #1a73e8;"></i>
+                                <span style="font-weight: 600; font-size: 0.9rem; color: #1e293b;">${cleanDomain}</span>
+                                <span style="font-size: 0.75rem; background: #e2e8f0; color: #475569; padding: 2px 8px; border-radius: 10px;">${recs.length} insights</span>
+                            </div>
+                            <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; color: #64748b; transition: transform 0.2s; transform: ${isOpen ? 'rotate(180deg)' : 'rotate(0deg)'}"></i>
+                        </div>
+                        <div id="gsc-prop-${propId}" style="display: ${isOpen ? 'block' : 'none'}; padding: 5px 15px 15px; border-top: 1px solid #f1f5f9; background: #fff;">
+                            ${recs.map(rec => renderGscRecItem(rec)).join('')}
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function updateGscDomainFilter(domain, checked) {
+            if (checked) {
+                cockpitState.selectedGscDomains.add(domain);
+            } else {
+                cockpitState.selectedGscDomains.delete(domain);
+            }
+
+            const label = document.getElementById('gsc-domain-filter-label');
+            if (label) {
+                const size = cockpitState.selectedGscDomains.size;
+                if (size === 0) {
+                    label.innerText = 'All Domains';
+                } else if (size === 1) {
+                    const first = Array.from(cockpitState.selectedGscDomains)[0];
+                    label.innerText = first.replace('sc-domain:', '').replace(/\/$/, '');
+                } else {
+                    label.innerText = `${size} Domains`;
+                }
+            }
+
+            renderGscRecommendations();
+        }
+
+        function toggleGscFilterDropdown(id) {
+            const dropdown = document.getElementById(id);
+            if (!dropdown) return;
+            const isVisible = dropdown.style.display === 'block';
+
+            document.querySelectorAll('.filter-dropdown-content').forEach(d => d.style.display = 'none');
+            dropdown.style.display = isVisible ? 'none' : 'block';
+
+            const closeDropdown = (e) => {
+                if (!dropdown.contains(e.target) && !e.target.closest('.filter-btn')) {
+                    dropdown.style.display = 'none';
+                    document.removeEventListener('click', closeDropdown);
+                }
+            };
+            if (!isVisible) setTimeout(() => document.addEventListener('click', closeDropdown), 0);
         }
 
         async function fetchGscDataForUrl(siteUrl, startDate, endDate) {
@@ -14776,34 +15168,6 @@
             return data.rows || [];
         }
 
-        function renderGscRecItem(container, data) {
-            const recEl = document.createElement('div');
-            recEl.className = 'geo-card';
-            recEl.style.margin = '0 0 12px 0';
-            recEl.style.padding = '12px';
-            recEl.style.borderLeft = data.impact === 'HIGH' ? '4px solid #ea4335' : '4px solid #3b82f6';
-            recEl.style.background = '#f8fafc';
-
-            recEl.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                    <span style="font-size: 0.65rem; font-weight: 700; color: white; background: ${data.impact === 'HIGH' ? '#ea4335' : '#3b82f6'}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
-                        ${data.impact} Impact
-                    </span>
-                    <span style="font-size: 0.7rem; color: #64748b; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        ${data.property}
-                    </span>
-                </div>
-                <div style="display: flex; gap: 10px; align-items: flex-start;">
-                    <i class="fas ${data.icon}" style="color: #64748b; margin-top: 3px;"></i>
-                    <div>
-                        <div style="font-weight: 600; font-size: 0.9rem; color: #1e293b; margin-bottom: 4px;">${data.title}</div>
-                        <div style="font-size: 0.8rem; color: #64748b;">${data.desc}</div>
-                    </div>
-                </div>
-            `;
-            container.appendChild(recEl);
-        }
-
         async function refreshGa4Recommendations() {
             const container = document.getElementById('cockpit-ga4-recommendations-content');
             const badge = document.getElementById('cockpit-ga4-rec-count');
@@ -14821,124 +15185,348 @@
                 return;
             }
 
+            cockpitState.ga4Recommendations = []; // Reset on refresh
+            cockpitState.ga4ScannedProperties.clear();
+            cockpitState.ga4ScanningInProgress.clear();
+            
             container.innerHTML = `
                 <div id="ga4-recs-loading" style="text-align: center; color: #64748b; padding: 20px;">
                     <i class="fas fa-spinner fa-spin"></i>
-                    <p style="font-size: 0.85rem; margin-top: 5px;">Analyzing GA4 properties...</p>
+                    <p style="font-size: 0.85rem; margin-top: 5px;">Fetching property list...</p>
                 </div>
                 <div id="ga4-recs-list"></div>`;
-            badge.textContent = 'Scanning...';
-
-            fetchProgressiveGa4Recommendations();
-        }
-
-        async function fetchProgressiveGa4Recommendations() {
-            const listContainer = document.getElementById('ga4-recs-list');
-            const loadingEl = document.getElementById('ga4-recs-loading');
-            const badge = document.getElementById('cockpit-ga4-rec-count');
-            let totalFound = 0;
+            badge.textContent = 'Listing...';
 
             if (ga4PropertyList.length === 0) {
                 await fetchGa4Properties();
             }
-
-            for (const prop of ga4PropertyList) {
-                try {
-                    const currentPeriod = { startDate: '28daysAgo', endDate: 'today' };
-                    const previousPeriod = { startDate: '56daysAgo', endDate: '29daysAgo' };
-
-                    const fetchParams = (period, dims, metrics) => ({
-                        action: 'ga4RunReport',
-                        propertyId: prop.property,
-                        access_token: googleAccessToken,
-                        payload: {
-                            dateRanges: [period],
-                            dimensions: dims.map(d => ({ name: d })),
-                            metrics: metrics.map(m => ({ name: m }))
-                        }
-                    });
-
-                    // For cockpit, we do a slightly faster subset of checks
-                    const [currChannels, prevChannels, currDevices, currAttribution] = await Promise.all([
-                        fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, { method: 'POST', body: JSON.stringify(fetchParams(currentPeriod, ['sessionDefaultChannelGroup'], ['sessions', 'conversions'])) }).then(r => r.json()),
-                        fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, { method: 'POST', body: JSON.stringify(fetchParams(previousPeriod, ['sessionDefaultChannelGroup'], ['sessions', 'conversions'])) }).then(r => r.json()),
-                        fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, { method: 'POST', body: JSON.stringify(fetchParams(currentPeriod, ['deviceCategory'], ['sessions', 'conversions'])) }).then(r => r.json()),
-                        fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, { method: 'POST', body: JSON.stringify(fetchParams(currentPeriod, ['sessionSourceMedium'], ['sessions', 'conversions'])) }).then(r => r.json())
-                    ]);
-
-                    const findings = analyzeGa4AuditData({
-                        channels: { curr: parseLambdaResponse(currChannels), prev: parseLambdaResponse(prevChannels) },
-                        pages: { rows: [] }, // Skip pages for speed in cockpit
-                        devices: parseLambdaResponse(currDevices),
-                        attribution: parseLambdaResponse(currAttribution)
-                    }, true); // Pass true to only return findings
-
-                    if (findings && findings.length > 0) {
-                        findings.forEach(f => {
-                            totalFound++;
-                            renderGa4RecItem(listContainer, {
-                                title: f.label,
-                                desc: f.desc,
-                                priority: f.priority,
-                                value: f.value,
-                                property: prop.displayName,
-                                icon: f.icon || 'fa-chart-pie'
-                            });
-                        });
-                        badge.textContent = totalFound;
-                    }
-                } catch (err) {
-                    console.error(`Error scanning GA4 ${prop.property}:`, err);
-                }
-            }
-
+            
+            const loadingEl = document.getElementById('ga4-recs-loading');
             if (loadingEl) loadingEl.remove();
-            if (totalFound === 0) {
-                listContainer.innerHTML = `
-                    <div style="text-align: center; color: #64748b; padding: 20px;">
-                        <i class="fas fa-check-circle" style="color: #34a853; margin-bottom: 10px; font-size: 1.5rem;"></i>
-                        <p>No high-priority GA4 flags found across your properties.</p>
-                    </div>`;
-                badge.textContent = '0';
+            
+            badge.textContent = '0';
+            renderGa4Recommendations(); // Show full dropdown immediately
+            fetchProgressiveGa4Recommendations(); // Start background scan
+        }
+
+        async function fetchSingleGa4PropertyAudit(prop) {
+            if (cockpitState.ga4ScannedProperties.has(prop.displayName) || 
+                cockpitState.ga4ScanningInProgress.has(prop.displayName)) return;
+
+            cockpitState.ga4ScanningInProgress.add(prop.displayName);
+            renderGa4Recommendations();
+            const badge = document.getElementById('cockpit-ga4-rec-count');
+
+            try {
+                const currentPeriod = { startDate: '28daysAgo', endDate: 'today' };
+                const previousPeriod = { startDate: '56daysAgo', endDate: '29daysAgo' };
+
+                const fetchParams = (period, dims, metrics) => ({
+                    action: 'ga4RunReport',
+                    propertyId: prop.property,
+                    access_token: googleAccessToken,
+                    payload: {
+                        dateRanges: [period],
+                        dimensions: dims.map(d => ({ name: d })),
+                        metrics: metrics.map(m => ({ name: m }))
+                    }
+                });
+
+                // For cockpit, we do a slightly faster subset of checks
+                const [currChannels, prevChannels, currDevices, currAttribution] = await Promise.all([
+                    fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, { method: 'POST', body: JSON.stringify(fetchParams(currentPeriod, ['sessionDefaultChannelGroup'], ['sessions', 'conversions'])) }).then(r => r.json()),
+                    fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, { method: 'POST', body: JSON.stringify(fetchParams(previousPeriod, ['sessionDefaultChannelGroup'], ['sessions', 'conversions'])) }).then(r => r.json()),
+                    fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, { method: 'POST', body: JSON.stringify(fetchParams(currentPeriod, ['deviceCategory'], ['sessions', 'conversions'])) }).then(r => r.json()),
+                    fetch(OPTIMISER_ENDPOINTS.GSC_INTEGRATION, { method: 'POST', body: JSON.stringify(fetchParams(currentPeriod, ['sessionSourceMedium'], ['sessions', 'conversions'])) }).then(r => r.json())
+                ]);
+
+                const findings = analyzeGa4AuditData({
+                    channels: { curr: parseLambdaResponse(currChannels), prev: parseLambdaResponse(prevChannels) },
+                    pages: { rows: [] }, // Skip pages for speed in cockpit
+                    devices: parseLambdaResponse(currDevices),
+                    attribution: parseLambdaResponse(currAttribution)
+                }, true);
+
+                if (findings && findings.length > 0) {
+                    const propertyFindings = findings.map(f => ({
+                        title: f.label,
+                        desc: f.desc,
+                        priority: f.priority,
+                        value: f.value,
+                        property: prop.displayName,
+                        icon: f.icon || 'fa-chart-pie'
+                    }));
+                    cockpitState.ga4Recommendations = cockpitState.ga4Recommendations.concat(propertyFindings);
+                    if (badge) badge.textContent = cockpitState.ga4Recommendations.length;
+                }
+                cockpitState.ga4ScannedProperties.add(prop.displayName);
+            } catch (err) {
+                console.error(`Error scanning GA4 ${prop.property}:`, err);
+            } finally {
+                cockpitState.ga4ScanningInProgress.delete(prop.displayName);
+                renderGa4Recommendations();
             }
         }
 
-        function renderGa4RecItem(container, data) {
-            const recEl = document.createElement('div');
-            recEl.className = 'geo-card';
-            recEl.style.margin = '0 0 12px 0';
-            recEl.style.padding = '12px';
-            const priorityColor = data.priority === 'Critical' ? '#ea4335' : (data.priority === 'High' ? '#f4b400' : '#3b82f6');
-            recEl.style.borderLeft = `4px solid ${priorityColor}`;
-            recEl.style.background = '#f8fafc';
+        async function fetchProgressiveGa4Recommendations() {
+            for (const prop of ga4PropertyList) {
+                await fetchSingleGa4PropertyAudit(prop);
+            }
+        }
 
-            recEl.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                    <span style="font-size: 0.65rem; font-weight: 700; color: white; background: ${priorityColor}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
-                        ${data.priority} Impact
-                    </span>
-                    <span style="font-size: 0.7rem; color: #64748b; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        ${data.property}
-                    </span>
-                </div>
-                <div style="display: flex; gap: 10px; align-items: flex-start;">
-                    <i class="fas ${data.icon}" style="color: ${priorityColor}; margin-top: 3px;"></i>
-                    <div>
-                        <div style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">${data.title}</div>
-                        <div style="font-weight: 800; font-size: 0.8rem; color: #475569; margin-top: 2px;">${data.value}</div>
-                        <div style="font-size: 0.75rem; color: #64748b; line-height: 1.4; margin-top: 4px;">${data.desc}</div>
+        function renderGa4Recommendations() {
+            const listContainer = document.getElementById('ga4-recs-list');
+            const propertyDropdownList = document.getElementById('ga4-property-options-list');
+            if (!listContainer) return;
+
+            const makeSafeId = (str) => {
+                if (!str) return 'unknown';
+                return str.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+            };
+
+            const expandedIds = new Set();
+            listContainer.querySelectorAll('div[id^="ga4-prop-"]').forEach(el => {
+                if (el.style.display === 'block') expandedIds.add(el.id);
+            });
+
+            // Group existing findings by property
+            const grouped = cockpitState.ga4Recommendations.reduce((acc, rec) => {
+                const propName = rec.property || 'Unknown Property';
+                if (!acc[propName]) acc[propName] = [];
+                acc[propName].push(rec);
+                return acc;
+            }, {});
+
+            // Populate Dropdown from the FULL property list
+            if (propertyDropdownList && ga4PropertyList.length > 0) {
+                const sortedAllProps = [...ga4PropertyList].sort((a, b) => a.displayName.localeCompare(b.displayName));
+                propertyDropdownList.innerHTML = sortedAllProps.map(prop => {
+                    const name = prop.displayName;
+                    return `
+                    <label style="display: flex; align-items: center; gap: 10px; padding: 6px 4px; cursor: pointer; font-size: 0.85rem; color: #334155;">
+                        <input type="checkbox" value="${name}" 
+                               ${cockpitState.selectedGa4Properties.has(name) ? 'checked' : ''}
+                               onchange="updateGa4PropertyFilter(this.value, this.checked)" style="width: 14px; height: 14px;">
+                        ${name}
+                    </label>`;
+                }).join('');
+            }
+
+            // Determine which properties to show in the list
+            let displayPropNames = new Set();
+            
+            if (cockpitState.selectedGa4Properties.size > 0) {
+                // If user selected specific properties, show ONLY those
+                cockpitState.selectedGa4Properties.forEach(name => displayPropNames.add(name));
+            } else {
+                // Otherwise, show properties with findings OR properties currently scanning
+                Object.keys(grouped).forEach(name => displayPropNames.add(name));
+                cockpitState.ga4ScanningInProgress.forEach(name => displayPropNames.add(name));
+            }
+
+            // Apply Search Filter and sort
+            const filteredProps = Array.from(displayPropNames)
+                .filter(name => name.toLowerCase().includes(cockpitState.ga4SearchQuery))
+                .sort((a, b) => {
+                    // Sort order: Scanning first, then findings count, then alphabetical
+                    const isScanningA = cockpitState.ga4ScanningInProgress.has(a);
+                    const isScanningB = cockpitState.ga4ScanningInProgress.has(b);
+                    if (isScanningA !== isScanningB) return isScanningA ? -1 : 1;
+                    
+                    const countA = (grouped[a] || []).length;
+                    const countB = (grouped[b] || []).length;
+                    if (countA !== countB) return countB - countA;
+                    
+                    return a.localeCompare(b);
+                });
+
+            if (filteredProps.length === 0) {
+                if (cockpitState.selectedGa4Properties.size === 0 && cockpitState.ga4ScannedProperties.size === ga4PropertyList.length) {
+                    listContainer.innerHTML = `
+                        <div style="text-align: center; color: #64748b; padding: 20px;">
+                            <i class="fas fa-check-circle" style="color: #34a853; margin-bottom: 10px; font-size: 1.5rem;"></i>
+                            <p style="font-size: 0.85rem;">All scans complete. No high-priority flags found.</p>
+                        </div>`;
+                } else {
+                    listContainer.innerHTML = `
+                        <div style="text-align: center; color: #64748b; padding: 20px;">
+                            <p style="font-size: 0.85rem;">No properties match your filters.</p>
+                        </div>`;
+                }
+                return;
+            }
+
+            listContainer.innerHTML = filteredProps.map(propName => {
+                const recs = grouped[propName] || [];
+                const safeId = makeSafeId(propName);
+                const isExpanded = expandedIds.has(`ga4-prop-${safeId}`);
+                const isScanning = cockpitState.ga4ScanningInProgress.has(propName);
+                const isScanned = cockpitState.ga4ScannedProperties.has(propName);
+
+                return `
+                    <div class="cockpit-prop-group" style="margin-bottom: 15px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #fff;">
+                        <div onclick="toggleCockpitPropGroup('ga4-prop-${safeId}', this)" 
+                             style="padding: 12px 15px; background: #f8fafc; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <i class="fas ${isScanning ? 'fa-spinner fa-spin' : 'fa-chart-line'}" style="color: ${isScanning ? '#3b82f6' : '#f4b400'};"></i>
+                                <span style="font-weight: 700; color: #1e293b; font-size: 0.95rem;">${propName}</span>
+                                ${isScanning ? `
+                                    <span style="background: rgba(59, 130, 246, 0.1); color: #3b82f6; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">Scanning...</span>
+                                ` : (recs.length > 0 ? `
+                                    <span style="background: rgba(244, 180, 0, 0.1); color: #f4b400; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;">${recs.length}</span>
+                                ` : (isScanned ? `<span style="color: #34a853; font-size: 0.75rem;"><i class="fas fa-check-circle"></i> No issues</span>` : ''))}
+                            </div>
+                            <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; color: #64748b; transition: transform 0.2s; transform: ${isExpanded ? 'rotate(180deg)' : 'rotate(0deg)'}"></i>
+                        </div>
+                        <div id="ga4-prop-${safeId}" style="display: ${isExpanded ? 'block' : 'none'}; padding: 15px; background: #fff;">
+                            ${isScanning ? `
+                                <div style="text-align: center; color: #94a3b8; padding: 10px; font-size: 0.8rem;">
+                                    <i class="fas fa-spinner fa-spin" style="margin-right: 5px;"></i> Analyzing property technical metrics...
+                                </div>
+                            ` : (recs.length > 0 ? recs.map(rec => renderGa4RecItem(rec)).join('') : `
+                                <div style="text-align: center; color: #94a3b8; padding: 10px; font-size: 0.8rem;">
+                                    <i class="fas fa-check-circle" style="color: #34a853; margin-right: 5px;"></i> No high-priority setup issues detected.
+                                </div>
+                            `)}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderGa4RecItem(data) {
+            const priorityColor = data.priority === 'Critical' ? '#ea4335' : (data.priority === 'High' ? '#f4b400' : '#3b82f6');
+            return `
+                <div class="geo-card" style="margin: 0 0 12px 0; padding: 12px; border-left: 4px solid ${priorityColor}; background: #fdfdfd; border: 1px solid #f1f5f9; border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                        <span style="font-size: 0.65rem; font-weight: 700; color: white; background: ${priorityColor}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
+                            ${data.priority} Impact
+                        </span>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: flex-start;">
+                        <i class="fas ${data.icon}" style="color: ${priorityColor}; margin-top: 3px;"></i>
+                        <div>
+                            <div style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">${data.title}</div>
+                            <div style="font-weight: 800; font-size: 0.8rem; color: #475569; margin-top: 2px;">${data.value}</div>
+                            <div style="font-size: 0.75rem; color: #64748b; line-height: 1.4; margin-top: 4px;">${data.desc}</div>
+                        </div>
                     </div>
                 </div>`;
-            container.appendChild(recEl);
+        }
+
+        // --- Cockpit Expandable Card Functions ---
+        function expandCockpitCard(card) {
+            if (card.classList.contains('expanded')) return;
+
+            // Collapse any other cards first
+            document.querySelectorAll('.cockpit-card.expanded').forEach(other => {
+                other.classList.remove('expanded');
+                other.classList.add('collapsed');
+            });
+
+            card.classList.remove('collapsed');
+            card.classList.add('expanded');
+
+            // Scroll to the top of the expanded card
+            setTimeout(() => {
+                card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 400);
+        }
+
+        function collapseCockpitCard(btn, event) {
+            if (event) event.stopPropagation();
+            const card = btn.closest('.cockpit-card');
+            if (card) {
+                card.classList.remove('expanded');
+                card.classList.add('collapsed');
+            }
+        }
+
+        function expandCockpitCard(card) {
+            if (card.classList.contains('expanded')) return;
+
+            // Show filters automatically when expanding for better focus UX
+            const filtersEl = document.getElementById(`filters-${card.id}`);
+            if (filtersEl) filtersEl.style.display = 'block';
+
+            card.classList.remove('collapsed');
+            card.classList.add('expanded');
+        }
+
+        function toggleCardFilters(cardId) {
+            const filtersEl = document.getElementById(`filters-${cardId}`);
+            if (filtersEl) {
+                filtersEl.style.display = filtersEl.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        function toggleCockpitPropGroup(groupId, headerEl) {
+            const content = document.getElementById(groupId);
+            const icon = headerEl.querySelector('.toggle-icon');
+            if (content) {
+                const isHidden = content.style.display === 'none';
+                content.style.display = isHidden ? 'block' : 'none';
+                if (icon) {
+                    icon.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+                }
+            }
+        }
+
+        function toggleGa4FilterDropdown(dropdownId) {
+            const dropdown = document.getElementById(dropdownId);
+            const allDropdowns = document.querySelectorAll('.filter-dropdown-content');
+            
+            // Close others
+            allDropdowns.forEach(d => {
+                if (d.id !== dropdownId) d.style.display = 'none';
+            });
+
+            if (dropdown) {
+                dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        function updateGa4PropertyFilter(propName, checked) {
+            if (checked) {
+                cockpitState.selectedGa4Properties.add(propName);
+                // Priority scan if not already done
+                if (!cockpitState.ga4ScannedProperties.has(propName)) {
+                    const propObj = ga4PropertyList.find(p => p.displayName === propName);
+                    if (propObj) fetchSingleGa4PropertyAudit(propObj);
+                }
+            } else {
+                cockpitState.selectedGa4Properties.delete(propName);
+            }
+
+            const label = document.getElementById('ga4-property-filter-label');
+            if (label) {
+                const size = cockpitState.selectedGa4Properties.size;
+                if (size === 0) {
+                    label.innerText = 'All Properties';
+                } else if (size === 1) {
+                    label.innerText = Array.from(cockpitState.selectedGa4Properties)[0];
+                } else {
+                    label.innerText = `${size} Properties`;
+                }
+            }
+            renderGa4Recommendations();
         }
 
         function refreshCockpitData() {
-            refreshMondayTasks();
-            refreshMondayUpdates();
-            refreshSERankingMovers();
-            refreshAdsRecommendations();
-            refreshGscRecommendations();
-            refreshGa4Recommendations();
+            console.log("Refreshing Cockpit Data...");
+            const wrap = (fn) => {
+                try {
+                    fn();
+                } catch (e) {
+                    console.error("Cockpit refresh error:", e);
+                }
+            };
+            wrap(refreshMondayTasks);
+            wrap(refreshMondayUpdates);
+            wrap(refreshSERankingMovers);
+            wrap(refreshAdsRecommendations);
+            wrap(refreshGscRecommendations);
+            wrap(refreshGa4Recommendations);
         }
 
         function toggleFilterDropdown(id) {
@@ -14974,6 +15562,25 @@
                 const count = btn.getAttribute('data-count');
                 btn.innerHTML = `<i class="fas fa-comments"></i> Show ${count} ${count == 1 ? 'Reply' : 'Replies'}`;
                 btn.style.background = '#f1f5f9';
+            }
+        }
+
+        function toggleMondayGroup(event, id) {
+            if (event) event.stopPropagation();
+            const el = document.getElementById(id);
+            const icon = event.currentTarget.querySelector('.collapse-icon');
+            if (el.style.display === 'none') {
+                el.style.display = 'block';
+                if (icon) {
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-up');
+                }
+            } else {
+                el.style.display = 'none';
+                if (icon) {
+                    icon.classList.remove('fa-chevron-up');
+                    icon.classList.add('fa-chevron-down');
+                }
             }
         }
 
@@ -15018,10 +15625,6 @@
                 } while (cursor && page < 20); // Safety limit
 
                 cockpitState.mondayItems = allItems;
-
-                // Reset multi-selects on fresh fetch
-                cockpitState.selectedUsers.clear();
-                cockpitState.selectedStatuses.clear();
 
                 populateMondayFilters(allItems);
                 renderMondayTasks();
@@ -15069,7 +15672,7 @@
 
             if (statusList) {
                 // Handle Default Selection on First Load
-                if (!cockpitState.filtersInitialized && cockpitState.selectedStatuses.size === 0) {
+                if (!cockpitState.filtersInitialized) {
                     statuses.forEach(s => {
                         if (!doneLikes.includes(s)) cockpitState.selectedStatuses.add(s);
                     });
@@ -15122,7 +15725,7 @@
                 const statusLabel = document.getElementById('status-filter-label');
 
                 if (userLabel) userLabel.innerText = cockpitState.selectedUsers.size === 0 ? 'All Users' : cockpitState.selectedUsers.size === 1 ? Array.from(cockpitState.selectedUsers)[0] : `${cockpitState.selectedUsers.size} Selected`;
-                if (statusLabel) statusLabel.innerText = cockpitState.selectedStatuses.size === 0 ? 'All Status' : cockpitState.selectedStatuses.size === 1 ? Array.from(cockpitState.selectedStatuses)[0] : `${cockpitState.selectedStatuses.size} Selected`;
+                if (statusLabel) statusLabel.innerText = cockpitState.selectedStatuses.size === 0 ? '0 Selected' : cockpitState.selectedStatuses.size === 1 ? Array.from(cockpitState.selectedStatuses)[0] : `${cockpitState.selectedStatuses.size} Selected`;
             } else if (context === 'updates') {
                 const authorLabel = document.getElementById('author-filter-label');
 
@@ -15155,8 +15758,22 @@
             const mondayEl = document.getElementById('cockpit-monday-content');
             const badgeEl = document.getElementById('cockpit-monday-count');
 
+            const makeSafeId = (str) => {
+                if (!str) return 'unknown';
+                return str.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+            };
+
+            const expandedIds = new Set();
+            if (mondayEl) {
+                mondayEl.querySelectorAll('div[id^="board-tsk-"]').forEach(el => {
+                    if (el.style.display === 'block') expandedIds.add(el.id);
+                });
+            }
+
             let html = '<ul style="list-style: none; padding: 0; margin: 0;">';
             let validCount = 0;
+
+            const groups = {}; // boardName -> tasks
 
             cockpitState.mondayItems.forEach(item => {
                 if (!item.name) return;
@@ -15191,8 +15808,7 @@
                     assigneeList.some(name => cockpitState.selectedUsers.has(name)) ||
                     (assigneeList.length === 0 && cockpitState.selectedUsers.has('Unassigned'));
 
-                const statusMatch = cockpitState.selectedStatuses.size === 0 ||
-                    cockpitState.selectedStatuses.has(status);
+                const statusMatch = cockpitState.selectedStatuses.has(status);
 
                 // Date Filtering
                 let dateMatch = true;
@@ -15223,34 +15839,78 @@
 
                 let itemLink = item.relative_link ? 'https://mediaone-business-group-pte-ltd.monday.com' + item.relative_link : '#';
 
-                html += `
-                    <li style="padding: 15px; border-bottom: 1px solid #e2e8f0;">
-                        <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: #6366f1; margin-bottom: 4px; letter-spacing: 0.05em;">
-                            ${boardName}
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                            <a href="${itemLink}" target="_blank" style="font-weight: 500; color: #1e293b; text-decoration: none; max-width: 70%; line-height: 1.4; font-size: 0.95rem;">
-                                ${item.name}
-                            </a>
-                            <span style="${statusColor} color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; white-space: nowrap;">
-                                ${status}
-                            </span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #64748b;">
-                            <div style="display: flex; align-items: center; gap: 6px;">
-                                <i class="fas fa-user-circle"></i> ${assignee}
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 6px;">
-                                <i class="far fa-calendar-alt"></i> Due: ${dueDate}
-                            </div>
-                        </div>
-                    </li>
-                `;
+                if (!groups[boardName]) groups[boardName] = [];
+                groups[boardName].push({
+                    name: item.name,
+                    status: status,
+                    assignee: assignee,
+                    dueDate: dueDate,
+                    statusColor: statusColor,
+                    itemLink: itemLink
+                });
                 validCount++;
             });
 
+            if (validCount === 0) {
+                mondayEl.innerHTML = '<div style="padding: 40px; text-align: center; color: #64748b;">No tasks match your filters.</div>';
+                badgeEl.textContent = "0";
+                return;
+            }
+
+            const sortedBoards = Object.keys(groups).sort();
+
+            sortedBoards.forEach(boardName => {
+                const tasks = groups[boardName];
+                const boardId = 'board-tsk-' + makeSafeId(boardName);
+                const boardIsExpanded = expandedIds.has(boardId);
+
+                html += `
+                    <li style="padding: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 10px;">
+                        <!-- Board Header -->
+                        <div onclick="toggleMondayGroup(event, '${boardId}')" style="cursor: pointer; padding: 12px 15px; background: #f8fafc; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: #6366f1; letter-spacing: 0.05em; display: flex; justify-content: space-between; align-items: center; border-radius: 6px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-folder"></i> ${boardName}
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="font-size: 0.75rem; color: #64748b; background: #e2e8f0; padding: 3px 8px; border-radius: 12px; white-space: nowrap;">
+                                    ${tasks.length} Task${tasks.length > 1 ? 's' : ''}
+                                </div>
+                                <i class="fas fa-chevron-${boardIsExpanded ? 'up' : 'down'} collapse-icon" style="font-size: 0.9em; color: #94a3b8;"></i>
+                            </div>
+                        </div>
+                        <div id="${boardId}" style="display: ${boardIsExpanded ? 'block' : 'none'}; padding-left: 0;">
+                `;
+
+                tasks.forEach(t => {
+                    html += `
+                        <div style="padding: 15px; border-top: 1px solid #e2e8f0; background: #ffffff;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                                <a href="${t.itemLink}" target="_blank" style="font-weight: 500; color: #1e293b; text-decoration: none; max-width: 70%; line-height: 1.4; font-size: 0.95rem;">
+                                    ${t.name}
+                                </a>
+                                <span style="${t.statusColor} color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; white-space: nowrap;">
+                                    ${t.status}
+                                </span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #64748b;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <i class="fas fa-user-circle"></i> ${t.assignee}
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <i class="far fa-calendar-alt"></i> Due: ${t.dueDate}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </li>
+                `;
+            });
+
             html += '</ul>';
-            if (validCount === 0) html = '<div style="padding: 40px; text-align: center; color: #64748b;">No tasks match your filters.</div>';
 
             mondayEl.innerHTML = html;
             badgeEl.textContent = validCount.toString();
@@ -15368,7 +16028,17 @@
             const updatesEl = document.getElementById('cockpit-updates-content');
             const badgeEl = document.getElementById('cockpit-updates-count');
 
+            const makeSafeId = (str) => {
+                if (!str) return 'unknown';
+                return str.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+            };
 
+            const expandedIds = new Set();
+            if (updatesEl) {
+                updatesEl.querySelectorAll('div[id^="board-upd-"], div[id^="item-upd-"], div[id^="replies-"]').forEach(el => {
+                    if (el.style.display === 'block') expandedIds.add(el.id);
+                });
+            }
 
             let html = '<ul style="list-style: none; padding: 0; margin: 0;">';
             let validCount = 0;
@@ -15385,12 +16055,9 @@
                 return latest;
             };
 
-            // Explicit sorting: Latest Activity first
-            const sortedUpdates = [...cockpitState.mondayUpdates].sort((a, b) => {
-                return getLatestActivity(b) - getLatestActivity(a);
-            });
+            const groups = {}; // boardName -> items -> itemName -> updates
 
-            sortedUpdates.forEach(upd => {
+            cockpitState.mondayUpdates.forEach(upd => {
                 const author = upd.creator?.name || 'Unknown User';
                 const text = upd.text_body || upd.body || '';
 
@@ -15407,70 +16074,152 @@
                 const itemName = upd.item?.name || 'Unknown Item';
                 const itemUrl = upd.item?.url || '#';
                 const boardName = upd.item?.board?.name || 'Monday Board';
-                const createdAt = upd.created_at ? new Date(upd.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Recent';
 
-                let repliesHtml = '';
-                if (upd.replies && Array.isArray(upd.replies) && upd.replies.length > 0) {
-                    const replyCount = upd.replies.length;
-                    const nestedReplies = upd.replies.map(reply => {
-                        const replyAuthor = reply.creator?.name || 'Unknown User';
-                        const replyText = reply.text_body || '';
-                        const replyAt = reply.created_at ? new Date(reply.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '';
-                        return `
-                            <div style="margin-bottom: 12px;">
-                                <div style="font-size: 0.75rem; color: #64748b; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                    <b>${replyAuthor}</b>
-                                    <span style="font-size: 0.7rem;">${replyAt}</span>
+                if (!groups[boardName]) groups[boardName] = { items: {}, latestActivity: 0 };
+                if (!groups[boardName].items[itemName]) groups[boardName].items[itemName] = {
+                    itemUrl: itemUrl,
+                    latestActivity: 0,
+                    updates: []
+                };
+
+                const updActivity = getLatestActivity(upd);
+                if (updActivity > groups[boardName].latestActivity) groups[boardName].latestActivity = updActivity;
+                if (updActivity > groups[boardName].items[itemName].latestActivity) groups[boardName].items[itemName].latestActivity = updActivity;
+
+                groups[boardName].items[itemName].updates.push(upd);
+                validCount++;
+            });
+
+            if (validCount === 0) {
+                updatesEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No matching updates found.</div>';
+                badgeEl.textContent = "0";
+                return;
+            }
+
+            // Sort boards by latest activity
+            const sortedBoards = Object.keys(groups).sort((a, b) => groups[b].latestActivity - groups[a].latestActivity);
+
+            sortedBoards.forEach((boardName, bIdx) => {
+                const board = groups[boardName];
+                const boardId = 'board-upd-' + makeSafeId(boardName);
+                const boardIsExpanded = expandedIds.has(boardId);
+
+                html += `
+                    <li style="padding: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 10px;">
+                        <!-- Board Header -->
+                        <div onclick="toggleMondayGroup(event, '${boardId}')" style="cursor: pointer; padding: 12px 15px; background: #f8fafc; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: #6366f1; letter-spacing: 0.05em; display: flex; justify-content: space-between; align-items: center; border-radius: 6px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-folder"></i> ${boardName}
+                            </div>
+                            <i class="fas fa-chevron-${boardIsExpanded ? 'up' : 'down'} collapse-icon" style="font-size: 0.9em; color: #94a3b8;"></i>
+                        </div>
+                        <div id="${boardId}" style="display: ${boardIsExpanded ? 'block' : 'none'}; padding-left: 0;">
+                `;
+
+                // Sort items by latest activity
+                const sortedItems = Object.keys(board.items).sort((a, b) => board.items[b].latestActivity - board.items[a].latestActivity);
+
+                sortedItems.forEach((itemName, iIdx) => {
+                    const item = board.items[itemName];
+                    const itemId = 'item-upd-' + makeSafeId(boardName) + '-' + makeSafeId(itemName);
+                    const itemIsExpanded = expandedIds.has(itemId);
+
+                    html += `
+                        <div style="border-top: 1px solid #e2e8f0; background: #ffffff;">
+                            <!-- Item Header -->
+                            <div onclick="toggleMondayGroup(event, '${itemId}')" style="cursor: pointer; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center;">
+                                <div style="font-weight: 600; color: #1e293b; font-size: 0.9rem; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fas fa-tasks" style="color: #94a3b8;"></i>
+                                    ${itemName} 
+                                    <a href="${item.itemUrl}" target="_blank" style="margin-left: 5px; color: #94a3b8; font-size: 0.8em;" onclick="event.stopPropagation();">
+                                        <i class="fas fa-external-link-alt"></i>
+                                    </a>
                                 </div>
-                                <div style="font-size: 0.8rem; color: #475569; line-height: 1.4; white-space: pre-wrap;">${replyText}</div>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <div style="font-size: 0.75rem; color: #64748b; background: #f1f5f9; padding: 3px 8px; border-radius: 12px; white-space: nowrap;">
+                                        ${item.updates.length} Update${item.updates.length > 1 ? 's' : ''}
+                                    </div>
+                                    <i class="fas fa-chevron-${itemIsExpanded ? 'up' : 'down'} collapse-icon" style="font-size: 0.8em; color: #cbd5e1;"></i>
+                                </div>
+                            </div>
+
+                            <!-- Updates Container -->
+                            <div id="${itemId}" style="display: ${itemIsExpanded ? 'block' : 'none'}; padding: 0 15px 15px 15px;">
+                                <div style="border-left: 2px solid #e2e8f0; padding-left: 15px; margin-left: 5px;">
+                    `;
+
+                    // Sort updates within item by latest activity
+                    const sortedUpds = item.updates.sort((a, b) => getLatestActivity(b) - getLatestActivity(a));
+
+                    sortedUpds.forEach((upd, uIdx) => {
+                        const author = upd.creator?.name || 'Unknown User';
+                        const text = upd.text_body || upd.body || '';
+                        const createdAt = upd.created_at ? new Date(upd.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'Recent';
+
+                        let repliesHtml = '';
+                        if (upd.replies && Array.isArray(upd.replies) && upd.replies.length > 0) {
+                            const replyCount = upd.replies.length;
+                            const replyId = 'replies-' + upd.id;
+                            const replyIsExpanded = expandedIds.has(replyId);
+                            const nestedReplies = upd.replies.map(reply => {
+                                const replyAuthor = reply.creator?.name || 'Unknown User';
+                                const replyText = reply.text_body || '';
+                                const replyAt = reply.created_at ? new Date(reply.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '';
+                                return `
+                                    <div style="margin-bottom: 12px;">
+                                        <div style="font-size: 0.75rem; color: #64748b; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                            <b>${replyAuthor}</b>
+                                            <span style="font-size: 0.7rem;">${replyAt}</span>
+                                        </div>
+                                        <div style="font-size: 0.8rem; color: #475569; line-height: 1.4; white-space: pre-wrap;">${replyText}</div>
+                                    </div>
+                                `;
+                            }).join('');
+
+                            repliesHtml = `
+                                <div style="margin-top: 10px;">
+                                    <button onclick="toggleMondayReplies(event, '${replyId}')" data-count="${replyCount}"
+                                            style="background: ${replyIsExpanded ? '#e2e8f0' : '#f1f5f9'}; border: 1px solid #e2e8f0; color: #4f46e5; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                                        <i class="fas fa-comments"></i> ${replyIsExpanded ? 'Hide Replies' : `Show ${replyCount} ${replyCount === 1 ? 'Reply' : 'Replies'}`}
+                                    </button>
+                                    <div id="${replyId}" style="display: ${replyIsExpanded ? 'block' : 'none'}; margin-left: 15px; margin-top: 12px; border-left: 2px solid #e2e8f0; padding-left: 15px;">
+                                        ${nestedReplies}
+                                    </div>
+                                </div>
+                            `;
+                        }
+
+                        html += `
+                            <div style="${uIdx > 0 ? 'margin-top: 15px; padding-top: 15px; border-top: 1px dashed #e2e8f0;' : 'margin-top: 10px;'}">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <div style="font-size: 0.75rem; color: #475569;">
+                                        <i class="fas fa-user-edit" style="color: #94a3b8; margin-right: 4px;"></i><b>${author}</b>
+                                    </div>
+                                    <div style="font-size: 0.75rem; color: #64748b;">${createdAt}</div>
+                                </div>
+                                <div style="background: #f8fafc; padding: 12px; border-radius: 8px; font-size: 0.85rem; color: #334155; line-height: 1.5; border-left: 3px solid #cbd5e1; white-space: pre-wrap;">${text}</div>
+                                ${repliesHtml}
                             </div>
                         `;
-                    }).join('');
+                    });
 
-                    repliesHtml = `
-                        <div style="margin-top: 10px;">
-                            <button onclick="toggleMondayReplies(event, 'replies-${upd.id}')" data-count="${replyCount}"
-                                    style="background: #f1f5f9; border: 1px solid #e2e8f0; color: #4f46e5; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
-                                <i class="fas fa-comments"></i> Show ${replyCount} ${replyCount === 1 ? 'Reply' : 'Replies'}
-                            </button>
-                            <div id="replies-${upd.id}" style="display: none; margin-left: 15px; margin-top: 12px; border-left: 2px solid #e2e8f0; padding-left: 15px;">
-                                ${nestedReplies}
+                    html += `
+                                </div>
                             </div>
                         </div>
                     `;
-                }
+                });
 
                 html += `
-                    <li style="padding: 15px; border-bottom: 1px solid #e2e8f0;">
-                        <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: #6366f1; margin-bottom: 4px; letter-spacing: 0.05em;">
-                            ${boardName}
                         </div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.8rem;">
-                            <a href="${itemUrl}" target="_blank" style="font-weight: 700; color: #1e293b; text-decoration: none; display: flex; align-items: center; gap: 5px;">
-                                ${itemName} <i class="fas fa-external-link-alt" style="font-size: 0.7em; color: #94a3b8;"></i>
-                            </a>
-                            <span style="color: #64748b; white-space: nowrap;">${createdAt}</span>
-                        </div>
-                        <div style="background: #f8fafc; padding: 10px; border-radius: 8px; font-size: 0.85rem; color: #334155; line-height: 1.5; margin-bottom: 8px; border-left: 3px solid #e2e8f0; white-space: pre-wrap;">${text}</div>
-                        <div style="font-size: 0.75rem; color: #64748b; display: flex; align-items: center; gap: 5px; margin-bottom: 5px;">
-                            <i class="fas fa-user-edit"></i> <b>${author}</b>
-                        </div>
-                        ${repliesHtml}
                     </li>
                 `;
-                validCount++;
             });
 
             html += '</ul>';
 
-            if (validCount === 0) {
-                html = '<div style="padding: 20px; text-align: center; color: #64748b;">No matching updates found.</div>';
-            }
-
             updatesEl.innerHTML = html;
             badgeEl.textContent = validCount.toString();
-
-
         }
 
         async function fetchGlobalSERankingMovers() {
@@ -15625,46 +16374,9 @@
                 // Sort movers by absolute change (biggest movers first)
                 allMovers.sort((a, b) => b.absChange - a.absChange);
                 // Keep top 100
-                allMovers = allMovers.slice(0, 100);
+                cockpitState.lastMoversData = allMovers.slice(0, 100);
 
-                if (allMovers.length === 0) {
-                    contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No recent rank changes found across any sites.</div>';
-                    syncStatus.innerHTML = 'Complete';
-                    return;
-                }
-
-                let html = '<ul style="list-style: none; padding: 0; margin: 0;">';
-                allMovers.forEach(item => {
-                    let changeColor = '#64748b';
-                    let changeIcon = '';
-
-                    if (item.change > 0) { // e.g. 5 -> 2. old=5, new=2. diff=3.
-                        changeColor = '#22c55e';
-                        changeIcon = '<i class="fas fa-arrow-up"></i>';
-                    } else if (item.change < 0) {
-                        changeColor = '#ef4444';
-                        changeIcon = '<i class="fas fa-arrow-down"></i>';
-                    }
-
-                    html += `
-                        <li style="padding: 15px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
-                            <div style="flex: 1; padding-right: 15px;">
-                                <div style="font-weight: 500; color: #1e293b;">${item.keyword}</div>
-                                <div style="font-size: 0.8em; color: #64748b; margin-top: 3px;">
-                                    ${item.siteName} <span style="margin: 0 4px; opacity: 0.5;">|</span> ${item.timeframe}
-                                </div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div style="font-size: 1.1em; font-weight: 600; color: #0f172a;">#${item.newRank} <span style="font-size: 0.7em; color: #94a3b8; font-weight: 400;">from #${item.oldRank}</span></div>
-                                <div style="font-size: 0.85em; color: ${changeColor}; font-weight: 500; margin-top: 2px;">
-                                    ${changeIcon} ${item.absChange}
-                                </div>
-                            </div>
-                        </li>
-                    `;
-                });
-                html += '</ul>';
-                contentEl.innerHTML = html;
+                renderMoversContent();
                 syncStatus.innerHTML = `Complete (${sites.length} sites checked)`;
 
             } catch (e) {
@@ -15672,6 +16384,147 @@
                 contentEl.innerHTML = '<div style="padding: 20px; color: #ef4444;">Error loading rank changes from SE Ranking.</div>';
                 syncStatus.innerHTML = 'Error';
             }
+        }
+
+
+
+        function renderMoversContent() {
+            const contentEl = document.getElementById('cockpit-seranking-content');
+            const data = cockpitState.lastMoversData;
+
+            if (!data || data.length === 0) {
+                contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No recent rank changes found across any sites.</div>';
+                return;
+            }
+
+            const isGraph = cockpitState.moversView === 'graph';
+
+            contentEl.innerHTML = `
+                <div style="height: 100%; display: flex; flex-direction: column;">
+                    <!-- Tab Switcher -->
+                    <div style="display: flex; gap: 4px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">
+                        <button onclick="switchMoversView('graph')" style="flex: 1; padding: 6px 12px; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; ${isGraph ? 'background: #fff; color: #6366f1; box-shadow: 0 1px 2px rgba(0,0,0,0.05);' : 'background: transparent; color: #64748b;'}">
+                            <i class="fas fa-chart-line"></i> Graph View
+                        </button>
+                        <button onclick="switchMoversView('table')" style="flex: 1; padding: 6px 12px; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; ${!isGraph ? 'background: #fff; color: #6366f1; box-shadow: 0 1px 2px rgba(0,0,0,0.05);' : 'background: transparent; color: #64748b;'}">
+                            <i class="fas fa-list"></i> Table View
+                        </button>
+                    </div>
+
+                    <div id="movers-render-area" style="flex: 1; overflow-y: auto;">
+                        ${isGraph ? '<div style="height: 100%; display: flex; flex-direction: column;"><div style="padding: 10px; font-size: 0.75rem; color: #94a3b8; text-align: center;">X: Old Rank | Y: New Rank</div><div style="flex: 1; position: relative; padding: 10px;"><canvas id="moversScatterChart"></canvas></div></div>' : renderMoversTable(data)}
+                    </div>
+                </div>
+            `;
+
+            if (isGraph) {
+                initMoversChart(data);
+            }
+        }
+
+        function renderMoversTable(data) {
+            let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; background: #fff;">';
+            html += `
+                <thead>
+                    <tr style="background: #f8fafc; text-align: left; border-bottom: 1px solid #e2e8f0;">
+                        <th style="padding: 12px 15px; color: #64748b; font-weight: 600;">Keyword / Site</th>
+                        <th style="padding: 12px 15px; color: #64748b; font-weight: 600; text-align: right;">Old</th>
+                        <th style="padding: 12px 15px; color: #64748b; font-weight: 600; text-align: right;">New</th>
+                        <th style="padding: 12px 15px; color: #64748b; font-weight: 600; text-align: right;">Change</th>
+                    </tr>
+                </thead>
+                <tbody>
+            `;
+
+            data.forEach(item => {
+                const color = item.change > 0 ? '#10b981' : '#f43f5e';
+                const icon = item.change > 0 ? 'fa-arrow-up' : 'fa-arrow-down';
+
+                html += `
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 12px 15px;">
+                            <div style="font-weight: 500; color: #1e293b;">${item.keyword}</div>
+                            <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">${item.siteName}</div>
+                        </td>
+                        <td style="padding: 12px 15px; text-align: right; color: #64748b;">#${item.oldRank}</td>
+                        <td style="padding: 12px 15px; text-align: right; color: #0f172a; font-weight: 600;">#${item.newRank}</td>
+                        <td style="padding: 12px 15px; text-align: right; color: ${color}; font-weight: 600;">
+                            <i class="fas ${icon}" style="font-size: 0.7rem;"></i> ${Math.abs(item.change)}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            return html;
+        }
+
+        function initMoversChart(data) {
+            const ctx = document.getElementById('moversScatterChart').getContext('2d');
+
+            if (cockpitState.moversChart) {
+                cockpitState.moversChart.destroy();
+            }
+
+            const improvements = data.filter(m => m.change > 0);
+            const declines = data.filter(m => m.change <= 0);
+
+            cockpitState.moversChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Improvements',
+                            data: improvements.map(m => ({ x: m.oldRank, y: m.newRank, keyword: m.keyword, siteName: m.siteName, change: m.change })),
+                            backgroundColor: 'rgba(34, 197, 94, 0.6)',
+                            borderColor: '#22c55e',
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        },
+                        {
+                            label: 'Declines',
+                            data: declines.map(m => ({ x: m.oldRank, y: m.newRank, keyword: m.keyword, siteName: m.siteName, change: m.change })),
+                            backgroundColor: 'rgba(244, 63, 94, 0.6)',
+                            borderColor: '#f43f5e',
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Previous Rank', font: { weight: 'bold' } },
+                            min: 1,
+                            max: 100,
+                            reverse: false
+                        },
+                        y: {
+                            title: { display: true, text: 'Current Rank', font: { weight: 'bold' } },
+                            min: 1,
+                            max: 100,
+                            reverse: true // Inverse because rank 1 is top
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    const p = context.raw;
+                                    return [
+                                        `${p.keyword}`,
+                                        `${p.siteName}`,
+                                        `Rank: #${p.x} → #${p.y} (${p.change > 0 ? '+' : ''}${p.change})`
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         function showSeoOnly(event) {
