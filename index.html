@@ -14258,10 +14258,10 @@
                                             <label
                                                 style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
                                                     type="checkbox" onchange="reRenderAdsTable()"
-                                                    value="metrics.impressions"> Impressions</label>
+                                                    value="metrics.impressions" checked> Impressions</label>
                                             <label
                                                 style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                    type="checkbox" onchange="reRenderAdsTable()" value="metrics.clicks">
+                                                    type="checkbox" onchange="reRenderAdsTable()" value="metrics.clicks" checked>
                                                 Clicks</label>
                                             <label
                                                 style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
@@ -14278,7 +14278,7 @@
                                             <label
                                                 style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
                                                     type="checkbox" onchange="reRenderAdsTable()"
-                                                    value="metrics.cost_micros"> Cost</label>
+                                                    value="metrics.cost_micros" checked> Cost</label>
 
                                             <div
                                                 style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
@@ -22673,7 +22673,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         function formatAdsValue(field, val) {
             if (val === null || val === undefined) return '-';
             if (field.includes('cost_micros') || field.includes('average_cpc') || field.includes('average_cpm') || field.includes('conversions_value') || field.includes('cost_per_conversion')) {
-                let amount = field.includes('micros') ? val / 1000000 : val;
+                let amount = (field.includes('micros') || field.includes('average_cpc') || field.includes('average_cpm') || field.includes('cost_per_conversion')) ? val / 1000000 : val;
                 return '$' + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             }
             if (field.includes('ctr') || field.includes('rate')) {
@@ -24011,9 +24011,12 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     if (f.includes('.name')) return;
                     let val = item.extra[f];
                     if (f === 'metrics.impressions') val = item.imps;
-                    if (f === 'metrics.clicks') val = item.clicks;
-                    if (f === 'metrics.conversions') val = item.convs;
-                    if (f === 'metrics.cost_micros') val = item.cost * 1000000;
+                    else if (f === 'metrics.clicks') val = item.clicks;
+                    else if (f === 'metrics.conversions') val = item.convs;
+                    else if (f === 'metrics.cost_micros') val = item.cost * 1000000;
+                    else if (f === 'metrics.cost_per_conversion') val = (item.cost * 1000000 / item.convs) || 0;
+                    else if (f === 'metrics.ctr') val = (item.clicks / item.imps) || 0;
+                    else if (f === 'metrics.average_cpc') val = (item.cost * 1000000 / item.clicks) || 0;
 
                     html += `<td>${formatAdsValue(f, val)}</td>`;
                 });
@@ -24027,9 +24030,18 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 if (f.includes('.name')) return;
                 let totalVal = '-';
                 if (f === 'metrics.impressions') totalVal = fImps.toLocaleString();
-                if (f === 'metrics.clicks') totalVal = fClicks.toLocaleString();
-                if (f === 'metrics.conversions') totalVal = fConvs.toLocaleString();
-                if (f === 'metrics.cost_micros') totalVal = '$' + fCost.toLocaleString(undefined, { minimumFractionDigits: 2 });
+                else if (f === 'metrics.clicks') totalVal = fClicks.toLocaleString();
+                else if (f === 'metrics.conversions') totalVal = fConvs.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                else if (f === 'metrics.cost_micros') totalVal = '$' + fCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                else if (f === 'metrics.ctr') totalVal = fCtr.toFixed(2) + '%';
+                else if (f === 'metrics.cost_per_conversion') {
+                    let totalCostConv = (fCost / fConvs) || 0;
+                    totalVal = '$' + totalCostConv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
+                else if (f === 'metrics.average_cpc') totalVal = '$' + fAvgCpc.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                else if (f === 'metrics.bounce_rate' || f.includes('rate')) {
+                    // Placeholder or calculate if we had total bounces
+                }
 
                 footHtml += `<td style="font-weight: 700;">${totalVal}</td>`;
             });
