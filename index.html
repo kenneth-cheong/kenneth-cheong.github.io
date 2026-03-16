@@ -8260,6 +8260,50 @@
         .audit-table th.sortable.active .sort-icon {
             color: #004c9d;
         }
+
+        /* Ads Loading Overlay */
+        #adsLoadingOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(2px);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        #adsLoadingOverlay .loader-content {
+            text-align: center;
+            background: white;
+            padding: 30px 50px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        #adsLoadingOverlay .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #0f9d58;
+            border-radius: 50%;
+            animation: ads-spin 1s linear infinite;
+        }
+
+        @keyframes ads-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 
@@ -13677,7 +13721,15 @@
             <div id="adsIntegrationSection">
                 <button class="collapsible" id="adsIntegrationBtn"><i class="fas fa-plus-square"></i><i
                         class="fas fa-ad"></i>Google Ads</button>
-                <div class="content" id="adsContent" style="display: none; padding: 20px;">
+                <div class="content" id="adsContent" style="display: none; padding: 20px; position: relative;">
+                    <!-- Ads Loading Overlay -->
+                    <div id="adsLoadingOverlay">
+                        <div class="loader-content">
+                            <div class="spinner"></div>
+                            <p style="margin: 0; color: #1e293b; font-weight: 600; font-size: 15px;">Updating Ads Data...</p>
+                            <p style="margin: 0; color: #64748b; font-size: 12px;">This may take a few moments depending on account size.</p>
+                        </div>
+                    </div>
                     <div id="adsAuthSection"
                         style="margin-bottom: 20px; padding: 15px; background: #e6f4ea; border-radius: 8px; border: 1px solid #ceead6;">
                         <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -13773,127 +13825,6 @@
                                     <input type="text" id="adsCampaignFilter" placeholder="Filter campaigns..."
                                         oninput="reRenderAdsTable()"
                                         style="padding: 8px 12px 8px 32px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; width: 220px;">
-                                </div>
-                                <button onclick="exportAdsTableToCSV()"
-                                    style="padding: 8px 15px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; font-size: 13px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 8px;"
-                                    title="Export the current table view to CSV">
-                                    <i class="fas fa-file-csv"></i> Export CSV
-                                </button>
-
-                                <div style="position: relative;" id="adsColumnDropdownWrapper">
-                                    <button
-                                        onclick="document.getElementById('adsColumnMenu').style.display = document.getElementById('adsColumnMenu').style.display === 'block' ? 'none' : 'block'"
-                                        style="padding: 8px 15px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; font-size: 13px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 8px;">
-                                        <i class="fas fa-columns"></i> Columns <i class="fas fa-caret-down"
-                                            style="font-size: 10px;"></i>
-                                    </button>
-                                    <div id="adsColumnMenu"
-                                        style="display: none; position: absolute; right: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 15px; width: 300px; z-index: 100; max-height: 400px; overflow-y: auto;">
-                                        <div
-                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
-                                            Primary Info</div>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="reRenderAdsTable()" value="campaign.name"
-                                                checked disabled> Campaign Name</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()" value="campaign.status">
-                                            Status</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="campaign.start_date"> Start Date</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()" value="campaign.end_date">
-                                            End Date</label>
-
-                                        <div
-                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
-                                            Hierarchy & Segments</div>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()" value="ad_group.name">
-                                            Ad Group Name</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="ad_group_ad.ad.name"> Ad Name</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()" value="segments.device">
-                                            Device</label>
-
-                                        <div
-                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
-                                            Core Metrics</div>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="reRenderAdsTable()"
-                                                value="metrics.impressions" checked> Impressions</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="reRenderAdsTable()" value="metrics.clicks"
-                                                checked> Clicks</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="reRenderAdsTable()" value="metrics.ctr">
-                                            CTR</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.average_cpc"> Avg. CPC</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.average_cpm"> Avg. CPM</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="reRenderAdsTable()"
-                                                value="metrics.cost_micros" checked> Cost</label>
-
-                                        <div
-                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
-                                            Conversions</div>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="reRenderAdsTable()"
-                                                value="metrics.conversions" checked> Conversions</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.conversions_value"> Conv. Value</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.cost_per_conversion"> Cost / Conv.</label>
-
-                                        <div
-                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
-                                            Video Perf.</div>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.average_video_watch_time_duration_millis"> Avg. Watch
-                                            Time</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.video_quartile_p25_rate"> 25% View Rate</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.video_quartile_p50_rate"> 50% View Rate</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.video_quartile_p75_rate"> 75% View Rate</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.video_quartile_p100_rate"> 100% View Rate</label>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -14269,6 +14200,129 @@
                                 <h3 class="koda-section-title" style="margin: 0;">Campaigns <a href="#"
                                         style="font-size: 11px; font-weight: 400; color: #1a73e8; margin-left: 10px;">View
                                         campaign details</a></h3>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <button onclick="exportAdsTableToCSV()"
+                                        style="padding: 8px 15px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; font-size: 13px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 8px;"
+                                        title="Export the current table view to CSV">
+                                        <i class="fas fa-file-csv"></i> Export CSV
+                                    </button>
+
+                                    <div style="position: relative;" id="adsColumnDropdownWrapper">
+                                        <button
+                                            onclick="document.getElementById('adsColumnMenu').style.display = document.getElementById('adsColumnMenu').style.display === 'block' ? 'none' : 'block'"
+                                            style="padding: 8px 15px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; font-size: 13px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 8px;">
+                                            <i class="fas fa-columns"></i> Columns <i class="fas fa-caret-down"
+                                                style="font-size: 10px;"></i>
+                                        </button>
+                                        <div id="adsColumnMenu"
+                                            style="display: none; position: absolute; right: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 15px; width: 300px; z-index: 100; max-height: 400px; overflow-y: auto;">
+                                            <div
+                                                style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
+                                                Primary Info</div>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="reRenderAdsTable()" value="campaign.name"
+                                                    checked disabled> Campaign Name</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="adsFieldChanged()" value="campaign.status">
+                                                Status</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="adsFieldChanged()"
+                                                    value="campaign.start_date"> Start Date</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="adsFieldChanged()" value="campaign.end_date">
+                                                End Date</label>
+
+                                            <div
+                                                style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
+                                                Hierarchy & Segments</div>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="adsFieldChanged()" value="ad_group.name">
+                                                Ad Group Name</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="adsFieldChanged()"
+                                                    value="ad_group_ad.ad.name"> Ad Name</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="adsFieldChanged()" value="segments.device">
+                                                Device</label>
+
+                                            <div
+                                                style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
+                                                Core Metrics</div>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="reRenderAdsTable()"
+                                                    value="metrics.impressions"> Impressions</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="reRenderAdsTable()" value="metrics.clicks">
+                                                Clicks</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="reRenderAdsTable()" value="metrics.ctr">
+                                                CTR</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="adsFieldChanged()"
+                                                    value="metrics.average_cpc"> Avg. CPC</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="adsFieldChanged()"
+                                                    value="metrics.average_cpm"> Avg. CPM</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="reRenderAdsTable()"
+                                                    value="metrics.cost_micros"> Cost</label>
+
+                                            <div
+                                                style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
+                                                Conversions</div>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="reRenderAdsTable()"
+                                                    value="metrics.conversions"> Conversions</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="adsFieldChanged()"
+                                                    value="metrics.conversions_value"> Conv. Value</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="reRenderAdsTable()"
+                                                    value="metrics.cost_per_conversion" checked> Cost / Conv.</label>
+
+                                            <div
+                                                style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
+                                                Video Perf.</div>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="adsFieldChanged()"
+                                                    value="metrics.average_video_watch_time_duration_millis"> Avg. Watch
+                                                Time</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="adsFieldChanged()"
+                                                    value="metrics.video_quartile_p25_rate"> 25% View Rate</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="adsFieldChanged()"
+                                                    value="metrics.video_quartile_p50_rate"> 50% View Rate</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="adsFieldChanged()"
+                                                    value="metrics.video_quartile_p75_rate"> 75% View Rate</label>
+                                            <label
+                                                style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                    type="checkbox" onchange="adsFieldChanged()"
+                                                    value="metrics.video_quartile_p100_rate"> 100% View Rate</label>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <div style="overflow-x: auto;">
                                 <table class="koda-table">
@@ -22872,40 +22926,9 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
             const index = selArr.indexOf(id);
             if (index > -1) {
-                // If checking/unchecking results in empty array, but we were using an explicit list,
-                // we actually stay on the explicit list unless it's the last item being removed.
-                // Wait, if it's currently empty (All) and we click one, we subtract it from the total list.
-                if (selArr.length === 0) {
-                    // Start with all IDs except the one clicked
-                    const allIds = dataList.map(i => i.id);
-                    const filtered = allIds.filter(fid => String(fid) !== String(id));
-                    if (level === 'campaign') adsSelectedCampaignIds = filtered;
-                    else if (level === 'ad_group') adsSelectedAdGroupIds = filtered;
-                    else if (level === 'ad') adsSelectedAdIds = filtered;
-                } else {
-                    selArr.splice(index, 1);
-                }
+                selArr.splice(index, 1);
             } else {
-                if (selArr.length === 0) {
-                    // Technically "All" is active, clicking an item that's already visually checked means we want to UNCHECK it.
-                    // This case is handled by the index > -1 check if we initialize selArr correctly.
-                    // But if selArr is [], then index is -1. So we add it.
-                    // THIS IS TRICKY. If selArr is empty, all are visually checked. 
-                    // Clicking an item should uncheck it.
-                    const allIds = dataList.map(i => i.id);
-                    const filtered = allIds.filter(fid => String(fid) !== String(id));
-                    if (level === 'campaign') adsSelectedCampaignIds = filtered;
-                    else if (level === 'ad_group') adsSelectedAdGroupIds = filtered;
-                    else if (level === 'ad') adsSelectedAdIds = filtered;
-                } else {
-                    selArr.push(id);
-                    // If we just added the last missing item, reset to [] (All)
-                    if (selArr.length === dataList.length) {
-                        if (level === 'campaign') adsSelectedCampaignIds = [];
-                        else if (level === 'ad_group') adsSelectedAdGroupIds = [];
-                        else if (level === 'ad') adsSelectedAdIds = [];
-                    }
-                }
+                selArr.push(id);
             }
 
             updateHierarchyChipLabels();
@@ -23012,7 +23035,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
             html += `<div class="dropdown-list-items" style="display: flex; flex-direction: column; gap: 2px;">`;
             dataList.forEach(item => {
-                const isSelected = selectedIds.length === 0 || selectedIds.includes(item.id);
+                const isSelected = selectedIds.includes(item.id);
                 html += `<label style="display: flex; align-items: flex-start; gap: 8px; padding: 6px; font-size: 12px; cursor: pointer; border-radius: 4px; color: #334155; word-break: break-word;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'" class="dropdown-item">
                             <input type="checkbox" onchange="toggleHierarchySelection('${level}', '${item.id}')" ${isSelected ? 'checked' : ''} style="margin-top: 2px;">
                             <span class="item-name">${item.name}</span>
@@ -23100,6 +23123,9 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         }
 
         async function fetchAdsInsights(customerId, loginCustomerId = null, developerToken = null, isRefresh = false) {
+            const overlay = document.getElementById('adsLoadingOverlay');
+            if (overlay) overlay.style.display = 'flex';
+
             try {
                 if (isRefresh) {
                     document.getElementById('adsCampaignsTableBody').innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading ' + adsCurrentLevel.replace('_', ' ') + 's...</td></tr>';
@@ -23128,7 +23154,14 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 }
 
                 // Always select IDs for navigation and date for chart, plus status fields for filtering
-                const mandatorySelects = ['segments.date'];
+                // MANDATORY: Core metrics are always pulled for KPI cards regardless of column selection
+                const mandatorySelects = [
+                    'segments.date', 
+                    'metrics.impressions', 
+                    'metrics.clicks', 
+                    'metrics.conversions', 
+                    'metrics.cost_micros'
+                ];
                 if (adsCurrentLevel === 'campaign') mandatorySelects.push('campaign.id', 'campaign.status');
                 if (adsCurrentLevel === 'ad_group') mandatorySelects.push('ad_group.id', 'ad_group.status', 'campaign.status');
                 if (adsCurrentLevel === 'ad') mandatorySelects.push('ad_group_ad.ad.id', 'ad_group_ad.status', 'ad_group.status', 'campaign.status');
@@ -23451,6 +23484,9 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 reRenderAdsTable();
                 updateHierarchyChipLabels();
                 console.log("Rendered dynamic mock data fallback for Ads.");
+            } finally {
+                const overlay = document.getElementById('adsLoadingOverlay');
+                if (overlay) overlay.style.display = 'none';
             }
         }
 
@@ -23684,7 +23720,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
             section.style.display = 'block';
             grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x" style="color: #ea4335;"></i><p style="margin-top:15px; color:#64748b;">Scanning account data for diagnostics...</p></div>';
-            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Removed forceful scroll to center
 
             try {
                 // Fetch Data needed for Audit
