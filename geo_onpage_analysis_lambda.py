@@ -68,6 +68,13 @@ Be EXTREMELY SPECIFIC and ACTIONABLE. Provide exact phrases, exact terms, exact 
 
 CRITICAL: For internal linking suggestions, strictly PRIORITIZE using existing URLs found on the website. Only suggest new URLs if absolutely necessary for the user's goals.
 
+SCHEMA MAXIMIZATION: You must suggest EVERY relevant schema type possible for this page. 
+- Identify existing schema from PAGE METADATA. 
+- Suggest 'improved' versions of existing schema if they lack detail.
+- Suggest 'new' schema for any entity or content type found on the page.
+- Consider this checklist: Organization, Product, Service, FAQPage, HowTo, LocalBusiness, BreadcrumbList, Article, VideoObject, ImageObject, Review, AggregateRating, SoftwareApplication, Event, Person, JobPosting.
+- Use nested relationships (e.g., 'mainEntity', 'itemListElement', 'hasPart') where appropriate to create a rich semantic graph.
+
 Output your analysis in strictly JSON format:
 {{
   "page_metadata": {{
@@ -122,7 +129,7 @@ Output your analysis in strictly JSON format:
   "schema_markup": [
     {{
        "status": "existing|improved|new",
-       "schema_type": "The @type of the schema",
+       "schema_type": "The @type of the schema (e.g., FAQPage, LocalBusiness, etc.)",
        "json_ld": {{ "a": "full", "valid": "JSON-LD", "object": "here" }}
     }}
   ]
