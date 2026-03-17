@@ -3151,16 +3151,16 @@
 
             if (!confirm(`Are you sure you want to assign ${selectedIds.length} candidates to ${assignee}?`)) return;
 
-            showLoading(true);
+            toggleLoading(true);
             try {
                 // Batch updates
                 await Promise.all(selectedIds.map(id =>
-                    persistenceApiCall('upsert_candidate', { id: String(id), pendingBy: assignee })
+                    persistenceApiCall('upsert_candidate', { id: String(id), pendingBy: assignee }, true)
                 ));
 
                 // Update local state
                 selectedIds.forEach(id => {
-                    const cand = state.candidates.find(c => c.id.toString() === id.toString());
+                    const cand = state.candidates.find(c => String(c.id) === String(id));
                     if (cand) cand.pendingBy = assignee;
                 });
 
@@ -3171,7 +3171,7 @@
                 console.error("Bulk assign error:", error);
                 alert("An error occurred during bulk assignment. Some updates may not have completed.");
             } finally {
-                showLoading(false);
+                toggleLoading(false);
             }
         }
 
