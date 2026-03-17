@@ -3144,12 +3144,12 @@
             const assignee = document.getElementById(selectId).value;
 
             if (selectedIds.length === 0) return;
-            if (!assignee) {
-                alert("Please select a user to assign to.");
-                return;
-            }
+            
+            const confirmMsg = assignee 
+                ? `Are you sure you want to assign ${selectedIds.length} candidates to ${assignee}?`
+                : `Are you sure you want to UNASSIGN ${selectedIds.length} candidates?`;
 
-            if (!confirm(`Are you sure you want to assign ${selectedIds.length} candidates to ${assignee}?`)) return;
+            if (!confirm(confirmMsg)) return;
 
             toggleLoading(true);
             try {
@@ -3164,7 +3164,11 @@
                     if (cand) cand.pendingBy = assignee;
                 });
 
-                alert(`Successfully assigned ${selectedIds.length} candidates to ${assignee}.`);
+                const successMsg = assignee
+                    ? `Successfully assigned ${selectedIds.length} candidates to ${assignee}.`
+                    : `Successfully unassigned ${selectedIds.length} candidates.`;
+                
+                alert(successMsg);
                 renderCandidates();
                 filterCandidatesRepo();
             } catch (error) {
