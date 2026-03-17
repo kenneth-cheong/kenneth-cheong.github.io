@@ -8622,6 +8622,66 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* Sticky Loading Indicator */
+        .sticky-analysis-loader {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 16px 24px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+            z-index: 10000;
+            display: none;
+            align-items: center;
+            gap: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(0);
+            pointer-events: none;
+        }
+
+        .sticky-analysis-loader.active {
+            display: flex;
+            animation: slideUpFade 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes slideUpFade {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .loader-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(99, 102, 241, 0.2);
+            border-top: 3px solid #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loader-text {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .loader-subtext {
+            display: block;
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 500;
+            margin-top: 2px;
+        }
     </style>
 </head>
 
@@ -8696,8 +8756,10 @@
                 <a href="#personaContent" onclick="openPersona(event)">Persona Generator</a>
                 <a href="#mediaplan" onclick="openMediaPlan(event)">Media Plan</a>
                 <a href="#" onclick="openContentCheck(event)">Content Check</a>
-                <a href="#" onclick="openLandingPageAudit(event)">Landing Page Audit</a>
-                <a href="#" onclick="openAiContentOptimiser(event)">AI Content Optimiser</a>
+                <a href="#landingPageAudit" onclick="openLandingPageAudit(event)">Landing Page Audit</a>
+                <a href="#aiContentOptimiser" onclick="openAiContentOptimiser(event)">AI Content Optimiser</a>
+                <a href="/uat.html" target="_blank">UAT</a>
+                <a href="#" onclick="exportToPdf(event)">PDF Export</a>
             </div>
         </div>
 
@@ -8705,13 +8767,6 @@
             <a href="#" onclick="showCockpitOnly(event)">Cockpit</a>
         </div>
 
-        <div class="nav-item" id="uat">
-            <a href="/uat.html" target="_blank">UAT</a>
-        </div>
-
-        <div class="nav-item" id="exporPdf">
-            <a href="#" onclick="exportToPdf(event)">PDF</a>
-        </div>
 
         <div class="nav-item" id="mangoolsQuota">
             <a href="#" onclick="checkMangoolsQuota(event)">Credits</a>
@@ -28131,6 +28186,8 @@ ${selectedText}
 
             await fetchKeywordMetrics(keywords, location, language);
 
+            updateKeywordAnalysisLoader("In-depth SEO Analysis", `Processing ${keywords.length} keywords...`, true);
+
             // **AWAIT ALL `keywordAnalysis` CALLS**
             await Promise.all(keywords.map(async keyword => {
                 try {
@@ -28148,6 +28205,7 @@ ${selectedText}
             // **NOW, displayOverallSummaryTable AFTER `keywordAnalysis` IS DONE for all keywords**
             await displayOverallSummaryTable(keywords, location, language, domain);
             await timeToRankToDatabase();
+            updateKeywordAnalysisLoader("", "", false);
         }
 
         function displayTargetContentTable(targetContent, containerId) {
@@ -28319,6 +28377,17 @@ ${selectedText}
                     return '';
                 };
 
+                const getPillHtml = (val) => {
+                    const normalized = String(val).toLowerCase().trim();
+                    if (normalized === 'yes' || normalized === 'true') {
+                        return `<span class="premium-badge premium-badge-good">${val}</span>`;
+                    }
+                    if (normalized === 'no') {
+                        return `<span class="premium-badge premium-badge-bad">${val}</span>`;
+                    }
+                    return val || 'N/A';
+                };
+
                 const daPremiumClass = getPremiumBadgeClass(daClass);
                 const clsPremiumClass = getPremiumBadgeClass(clsClass);
                 const lcpPremiumClass = getPremiumBadgeClass(lcpClass);
@@ -28340,16 +28409,16 @@ ${selectedText}
                         <td class="premium-td" style="text-align: center;"><span class="premium-badge ${clsPremiumClass}">${result.cls || 'N/A'}</span></td>
                         <td class="premium-td" style="text-align: center;"><span class="premium-badge ${lcpPremiumClass}">${result.lcp || 'N/A'}</span></td>
                         <td class="premium-td" style="text-align: center;"><span class="premium-badge ${fidPremiumClass}">${result.fid || 'N/A'}</span></td>
-                        <td class="premium-td" style="text-align: center;">${result.schema || 'N/A'}</td>
+                        <td class="premium-td" style="text-align: center;">${getPillHtml(result.schema)}</td>
                         <td class="premium-td" style="text-align: center;">${result.readability || 'N/A'}</td>
                         <td class="premium-td" style="text-align: right; font-weight: 600;">${result.word_count || 'N/A'}</td>
-                        <td class="premium-td" style="text-align: center; font-weight: 700;">${result.eval?.kw_in_url || 'N/A'}</td>
-                        <td class="premium-td" style="text-align: center; font-weight: 700;">${result.eval?.kw_in_title || 'N/A'}</td>
-                        <td class="premium-td" style="text-align: center; font-weight: 700;">${result.eval?.kw_in_desc || 'N/A'}</td>
-                        <td class="premium-td" style="text-align: center; font-weight: 700;">${result.eval?.kw_in_h1 || 'N/A'}</td>
-                        <td class="premium-td" style="text-align: center; font-weight: 700;">${result.eval?.kw_in_h2 || 'N/A'}</td>
-                        <td class="premium-td" style="text-align: center; font-weight: 700;">${result.eval?.kw_in_alt || 'N/A'}</td>
-                        <td class="premium-td" style="text-align: center; font-weight: 700;">${result.eval?.kw_in_text || 'N/A'}</td>
+                        <td class="premium-td" style="text-align: center; font-weight: 700;">${getPillHtml(result.eval?.kw_in_url)}</td>
+                        <td class="premium-td" style="text-align: center; font-weight: 700;">${getPillHtml(result.eval?.kw_in_title)}</td>
+                        <td class="premium-td" style="text-align: center; font-weight: 700;">${getPillHtml(result.eval?.kw_in_desc)}</td>
+                        <td class="premium-td" style="text-align: center; font-weight: 700;">${getPillHtml(result.eval?.kw_in_h1)}</td>
+                        <td class="premium-td" style="text-align: center; font-weight: 700;">${getPillHtml(result.eval?.kw_in_h2)}</td>
+                        <td class="premium-td" style="text-align: center; font-weight: 700;">${getPillHtml(result.eval?.kw_in_alt)}</td>
+                        <td class="premium-td" style="text-align: center; font-weight: 700;">${getPillHtml(result.eval?.kw_in_text)}</td>
                     </tr>
                 `;
             });
@@ -28540,6 +28609,20 @@ ${selectedText}
             }
         }
 
+        function updateKeywordAnalysisLoader(mainText, subText, isVisible = true) {
+            const loader = document.getElementById('keyword-analysis-loader');
+            const mainTextElem = document.getElementById('loader-main-text');
+            const subTextElem = document.getElementById('loader-sub-text');
+            if (!loader) return;
+            if (isVisible) {
+                if (mainText) mainTextElem.innerText = mainText;
+                if (subText) subTextElem.innerText = subText;
+                loader.classList.add('active');
+            } else {
+                loader.classList.remove('active');
+            }
+        }
+
         async function keywordAnalysis(keyword, language, location, target) {
             user = JSON.parse(localStorage.getItem('googleUser')).email;
             const analysisResultsContainer = document.getElementById('keyword-analysis-results');
@@ -28560,9 +28643,6 @@ ${selectedText}
                             <span class="kw-label">${keyword}</span>
                         </span>
                         <span class="kw-action-group">
-                            <span class="kw-copy-badge" onclick="event.stopPropagation(); copyKeywordToClipboard('${keyword.replace(/'/g, "\\'")}', this)">
-                                <i class="far fa-copy"></i> Copy
-                            </span>
                             <i class="fas fa-chevron-right kw-chevron"></i>
                         </span>
                     </button>
@@ -28596,6 +28676,7 @@ ${selectedText}
             });
 
             try {
+                updateKeywordAnalysisLoader(`Analyzing "${keyword}"`, "Fetching SERP results...");
                 const serpEndpoint = 'https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite';
                 const serpResponse = await fetch(serpEndpoint, {
                     method: 'POST',
@@ -28624,6 +28705,7 @@ ${selectedText}
                 const serp_dict = serpData.body;
 
                 // Fetch domain metrics for SERP results and then display them
+                updateKeywordAnalysisLoader(`Analyzing "${keyword}"`, `Fetching metrics for ${Object.keys(serp_dict).length} results...`);
                 const serpResultsWithMetrics = await Promise.all(
                     Object.entries(serp_dict).map(async ([rank, result]) => {
                         const domainMetrics = await getDomainMetrics(result.url, keyword);
@@ -28637,6 +28719,7 @@ ${selectedText}
 
                 displaySerpResults(serpResultsWithMetrics, resultsContainerId);
 
+                updateKeywordAnalysisLoader(`Analyzing "${keyword}"`, "Generating AI recommendations...");
                 keywordRecommendations = await getKeywordRecommendations(keyword, language, location, target, serp_dict)
 
                 // Await the keyword recommendations
@@ -53493,6 +53576,13 @@ Move-In</h3>
             XLSX.writeFile(wb, filename);
         }
     </script>
+    <div id="keyword-analysis-loader" class="sticky-analysis-loader">
+        <div class="loader-spinner"></div>
+        <div>
+            <span class="loader-text" id="loader-main-text">Analyzing Keyword...</span>
+            <span class="loader-subtext" id="loader-sub-text">Please wait while we fetch the latest data.</span>
+        </div>
+    </div>
 </body>
 
 </html>
