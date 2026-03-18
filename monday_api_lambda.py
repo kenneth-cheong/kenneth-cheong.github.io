@@ -1,6 +1,7 @@
 import json
 import requests
 import os
+import base64
 
 MONDAY_API_KEY = os.environ.get('MONDAY_API_KEY')
 MONDAY_API_URL = "https://api.monday.com/v2"
@@ -58,69 +59,141 @@ def lambda_handler(event, context):
             return response(200, {"updates": updates})
         
         elif fetch_type == 'all_campaigns':
-            # Target folders to draw project boards from
-            target_folders = [
-                'PSG V3 Campaigns', '9. PSG Campaigns', '9. Regular Campaigns',
-                '9. After-PSG Campaigns', 'Regular Campaign in Old Board', 'SaaS Campaign'
-            ]
+            # Compound cursor: { "b_idx": int, "i_cur": str, "b_ids": [str] }
+            cursor_obj = {}
+            if cursor:
+                try:
+                    cursor_obj = json.loads(base64.b64decode(cursor).decode('utf-8'))
+                except:
+                    pass
             
-            # 1. Fetch Folders
-            q_folders = '{ folders (limit: 100) {name id} }'
-            f_res = requests.post(MONDAY_API_URL, headers=headers, json={"query": q_folders}).json()
-            folders_data = f_res.get('data', {}).get('folders', [])
-            folder_ids = {str(f['id']) for f in folders_data if f['name'] in target_folders}
+            board_index = cursor_obj.get('b_idx', 0)
+            item_cursor = cursor_obj.get('i_cur')
+            board_ids = cursor_obj.get('b_ids')
             
-            # 2. Fetch Boards
-            q_boards = '{ boards (limit: 1000) {board_folder_id name id} }'
-            b_res = requests.post(MONDAY_API_URL, headers=headers, json={"query": q_boards}).json()
-            boards_data = b_res.get('data', {}).get('boards', [])
+            if not board_ids:
+                # 1. Fetch ALL Boards
+                q_boards = '{ boards (limit: 1000) { id } }'
+                b_res = requests.post(MONDAY_API_URL, headers=headers, json={"query": q_boards}).json()
+                boards_data = b_res.get('data', {}).get('boards', [])
+                board_ids = [str(b['id']) for b in boards_data]
             
-            # Filter targeted boards
-            target_board_dict = {str(b['id']): b['name'] for b in boards_data if str(b.get('board_folder_id')) in folder_ids}
-            target_board_ids = list(target_board_dict.keys())
+            flat_items = []
+            new_item_cursor = None
+            new_board_index = board_index
             
-            # 3. Batch Query Items Across Boards (Limit to 50 target boards and 10 items each to prevent timeout/complexity issues)
-            # You can paginate or parallelize this in the future if limits are hit
-            boards_query_list = ",".join(target_board_ids) 
-            
-            all_campaign_query = f'''
-            {{
-              boards (ids: [{boards_query_list}]) {{
-                id
-                name
-                items_page (limit: 100) {{
-                  items {{
-                    id
-                    name
-                    relative_link
-                    column_values {{
+            # If we have an item cursor, we MUST finish fetching items from the current board first
+            if item_cursor and board_index < len(board_ids):
+                q_items = f'''
+                {{
+                  next_items_page (limit: 100, cursor: "{item_cursor}") {{
+                    cursor
+                    items {{
                       id
-                      text
-                      column {{ id title }}
+                      name
+                      relative_link
+                      column_values {{
+                        id
+                        text
+                        column {{ id title }}
+                      }}
                     }}
                   }}
                 }}
-              }}
-            }}
-            '''
-            
-            c_res = requests.post(MONDAY_API_URL, headers=headers, json={"query": all_campaign_query})
-            c_data = c_res.json()
-            if 'errors' in c_data:
-                return response(400, c_data)
+                '''
+                i_res = requests.post(MONDAY_API_URL, headers=headers, json={"query": q_items}).json()
+                data = i_res.get('data', {}).get('next_items_page', {})
                 
-            # Aggregate items into a flat list, preserving board names
-            flat_items = []
-            for board in c_data.get('data', {}).get('boards', []):
-                board_name = board['name']
-                b_items = board.get('items_page', {}).get('items', [])
-                for itm in b_items:
-                    itm['board'] = {"name": board_name, "id": board['id']}
+                # Fetch board name for current board_id
+                current_board_id = board_ids[board_index]
+                q_board_info = f'{{ boards (ids: [{current_board_id}]) {{ name }} }}'
+                bi_res = requests.post(MONDAY_API_URL, headers=headers, json={"query": q_board_info}).json()
+                board_name = bi_res.get('data', {}).get('boards', [{}])[0].get('name', 'Unknown')
+                
+                for itm in data.get('items', []):
+                    itm['board'] = {"name": board_name, "id": current_board_id}
                     flat_items.append(itm)
+                
+                new_item_cursor = data.get('cursor')
+                if not new_item_cursor:
+                    new_board_index += 1
+                
+                next_cursor_str = None
+                if new_board_index < len(board_ids) or new_item_cursor:
+                    next_cursor_str = base64.b64encode(json.dumps({
+                        "b_idx": new_board_index,
+                        "i_cur": new_item_cursor,
+                        "b_ids": board_ids
+                    }).encode('utf-8')).decode('utf-8')
+                
+                return response(200, {"items": flat_items, "cursor": next_cursor_str})
+
+            # Process boards in batches
+            batch_size = 20
+            max_boards_per_call = 40
+            boards_processed = 0
+            
+            while new_board_index < len(board_ids) and boards_processed < max_boards_per_call:
+                current_batch = board_ids[new_board_index : new_board_index + batch_size]
+                boards_query_list = ",".join(current_batch)
+                
+                q_batch = f'''
+                {{
+                  boards (ids: [{boards_query_list}]) {{
+                    id
+                    name
+                    items_page (limit: 100) {{
+                      cursor
+                      items {{
+                        id
+                        name
+                        relative_link
+                        column_values {{
+                          id
+                          text
+                          column {{ id title }}
+                        }}
+                      }}
+                    }}
+                  }}
+                }}
+                '''
+                b_batch_res = requests.post(MONDAY_API_URL, headers=headers, json={"query": q_batch}).json()
+                
+                if 'errors' in b_batch_res:
+                    break
                     
-            return response(200, {
-                "items": flat_items
-            })
+                boards_in_res = b_batch_res.get('data', {}).get('boards', [])
+                for b in boards_in_res:
+                    board_name = b['name']
+                    board_id = b['id']
+                    items_pg = b.get('items_page', {})
+                    
+                    for itm in items_pg.get('items', []):
+                        itm['board'] = {"name": board_name, "id": board_id}
+                        flat_items.append(itm)
+                    
+                    if items_pg.get('cursor'):
+                        new_item_cursor = items_pg['cursor']
+                        next_cursor_str = base64.b64encode(json.dumps({
+                            "b_idx": new_board_index,
+                            "i_cur": new_item_cursor,
+                            "b_ids": board_ids
+                        }).encode('utf-8')).decode('utf-8')
+                        return response(200, {"items": flat_items, "cursor": next_cursor_str})
+                    
+                    new_board_index += 1
+                    boards_processed += 1
+
+            next_cursor_str = None
+            if new_board_index < len(board_ids):
+                next_cursor_str = base64.b64encode(json.dumps({
+                    "b_idx": new_board_index,
+                    "i_cur": None,
+                    "b_ids": board_ids
+                }).encode('utf-8')).decode('utf-8')
+
+            return response(200, {"items": flat_items, "cursor": next_cursor_str})
             
         else:
             board_id = '2845615047'

@@ -20559,10 +20559,10 @@
         }
 
         function generateLlmsTxt() {
-            const title = document.getElementById('llmSiteTitle').value || 'Site Title';
-            const desc = document.getElementById('llmDescription').value || '';
-            const highlights = document.getElementById('llmHighlights').value || '';
-            const geoPrompts = document.getElementById('llmGeoPrompts').value || '';
+            const title = (document.getElementById('llmSiteTitle')?.value || 'Site Title').trim();
+            const desc = (document.getElementById('llmDescription')?.value || '').trim();
+            const highlights = (document.getElementById('llmHighlights')?.value || '').trim();
+            const geoPrompts = (document.getElementById('llmGeoPrompts')?.value || '').trim();
 
             let content = `# ${title}\n\n`;
             if (desc) content += `> ${desc}\n\n`;
@@ -20578,17 +20578,23 @@
 
             if (highlights) content += `${highlights}\n\n`;
 
-            // Process Documentation Sections
-            const sections = document.querySelectorAll('.geo-section-item');
+            // Process Documentation Sections - Scoped to llmDynamicSections
+            const sections = document.querySelectorAll('#llmDynamicSections .geo-section-item');
             sections.forEach(sec => {
-                const secTitle = sec.querySelector('.geo-section-title').value;
+                const titleInput = sec.querySelector('.geo-section-title');
+                const secTitle = titleInput ? titleInput.value.trim() : '';
                 if (secTitle) content += `## ${secTitle}\n\n`;
 
                 const links = sec.querySelectorAll('.geo-link-item');
                 links.forEach(link => {
-                    const label = link.querySelector('.geo-link-label').value;
-                    const url = link.querySelector('.geo-link-url').value;
-                    const lDesc = link.querySelector('.geo-link-desc').value;
+                    const labelInput = link.querySelector('.geo-link-label');
+                    const urlInput = link.querySelector('.geo-link-url');
+                    const descInput = link.querySelector('.geo-link-desc');
+                    
+                    const label = labelInput ? labelInput.value.trim() : '';
+                    const url = urlInput ? urlInput.value.trim() : '';
+                    const lDesc = descInput ? descInput.value.trim() : '';
+                    
                     if (label && url) {
                         content += `- [${label}](${url})${lDesc ? ': ' + lDesc : ''}\n`;
                     }
@@ -20601,9 +20607,14 @@
             if (externalLinks.length > 0) {
                 content += `## Additional Resources (External)\n\n`;
                 externalLinks.forEach(link => {
-                    const label = link.querySelector('.geo-link-label').value;
-                    const url = link.querySelector('.geo-link-url').value;
-                    const lDesc = link.querySelector('.geo-link-desc').value;
+                    const labelInput = link.querySelector('.geo-link-label');
+                    const urlInput = link.querySelector('.geo-link-url');
+                    const descInput = link.querySelector('.geo-link-desc');
+                    
+                    const label = labelInput ? labelInput.value.trim() : '';
+                    const url = urlInput ? urlInput.value.trim() : '';
+                    const lDesc = descInput ? descInput.value.trim() : '';
+                    
                     if (label && url) {
                         content += `- [${label}](${url})${lDesc ? ': ' + lDesc : ''}\n`;
                     }
@@ -20616,9 +20627,14 @@
             if (optionalLinks.length > 0) {
                 content += `## Optional\n\n`;
                 optionalLinks.forEach(link => {
-                    const label = link.querySelector('.geo-link-label').value;
-                    const url = link.querySelector('.geo-link-url').value;
-                    const lDesc = link.querySelector('.geo-link-desc').value;
+                    const labelInput = link.querySelector('.geo-link-label');
+                    const urlInput = link.querySelector('.geo-link-url');
+                    const descInput = link.querySelector('.geo-link-desc');
+                    
+                    const label = labelInput ? labelInput.value.trim() : '';
+                    const url = urlInput ? urlInput.value.trim() : '';
+                    const lDesc = descInput ? descInput.value.trim() : '';
+                    
                     if (label && url) {
                         content += `- [${label}](${url})${lDesc ? ': ' + lDesc : ''}\n`;
                     }
@@ -20626,7 +20642,7 @@
                 content += `\n`;
             }
 
-            content += `\n# Generated using llms-full.txt by Extra Space Asia | Specification: https://llmstxt.org\n`;
+            content += `\n# Generated using llms.txt by Extra Space Asia | Specification: https://llmstxt.org\n`;
 
             geoState.llms = content;
             showGeoPreview('llms.txt', content);
@@ -20634,10 +20650,10 @@
         }
 
         function generateLlmsFullTxt() {
-            const title = document.getElementById('llmSiteTitle').value || 'Site Title';
-            const desc = document.getElementById('llmDescription').value || '';
-            const highlights = document.getElementById('llmHighlights').value || '';
-            const geoPrompts = document.getElementById('llmGeoPrompts').value || '';
+            const title = (document.getElementById('llmSiteTitle')?.value || 'Site Title').trim();
+            const desc = (document.getElementById('llmDescription')?.value || '').trim();
+            const highlights = (document.getElementById('llmHighlights')?.value || '').trim();
+            const geoPrompts = (document.getElementById('llmGeoPrompts')?.value || '').trim();
 
             let content = `# ${title}\n\n`;
             if (desc) content += `> ${desc}\n\n`;
@@ -20653,17 +20669,23 @@
 
             if (highlights) content += `${highlights}\n\n`;
 
-            // Process Sections
-            const sections = document.querySelectorAll('.geo-section-item');
+            // Process Sections - Scoped to llmDynamicSections
+            const sections = document.querySelectorAll('#llmDynamicSections .geo-section-item');
             sections.forEach(sec => {
-                const secTitle = sec.querySelector('.geo-section-title').value;
+                const titleInput = sec.querySelector('.geo-section-title');
+                const secTitle = titleInput ? titleInput.value.trim() : '';
                 if (secTitle) {
                     content += `---\n\n## ${secTitle}\n\n`;
                     const links = sec.querySelectorAll('.geo-link-item');
                     links.forEach(item => {
-                        const label = item.querySelector('.geo-link-label').value;
-                        const url = item.querySelector('.geo-link-url').value;
-                        const lDesc = item.querySelector('.geo-link-desc').value;
+                        const labelInput = item.querySelector('.geo-link-label');
+                        const urlInput = item.querySelector('.geo-link-url');
+                        const descInput = item.querySelector('.geo-link-desc');
+                        
+                        const label = labelInput ? labelInput.value.trim() : '';
+                        const url = urlInput ? urlInput.value.trim() : '';
+                        const lDesc = descInput ? descInput.value.trim() : '';
+                        
                         if (label && url) {
                             content += `### ${label}\n\n`;
                             if (lDesc) content += `> ${lDesc}\n\n`;
@@ -20679,20 +20701,22 @@
             if (optionalLinks.length > 0) {
                 content += `## Optional Resources\n\n`;
                 optionalLinks.forEach(item => {
-                    const label = item.querySelector('.geo-link-label').value;
-                    const url = item.querySelector('.geo-link-url').value;
-                    const lDesc = item.querySelector('.geo-link-desc').value;
+                    const labelInput = item.querySelector('.geo-link-label');
+                    const urlInput = item.querySelector('.geo-link-url');
+                    const descInput = item.querySelector('.geo-link-desc');
+                    
+                    const label = labelInput ? labelInput.value.trim() : '';
+                    const url = urlInput ? urlInput.value.trim() : '';
+                    const lDesc = descInput ? descInput.value.trim() : '';
+                    
                     if (label && url) {
                         content += `### ${label}\n\n`;
                         if (lDesc) content += `> ${lDesc}\n\n`;
                         content += `**Source**: ${url}\n\n`;
-
                     }
                 });
                 content += `---\n\n`;
             }
-
-
 
             content += `\n# Generated using llms-full.txt by Extra Space Asia | Specification: https://llmstxt.org\n`;
 
