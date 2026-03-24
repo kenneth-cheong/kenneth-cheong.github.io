@@ -9007,7 +9007,7 @@
             <div class="dropdown-content">
                 <a href="#socialMediaStrategy" onclick="openSocialMediaStrategy(event)">Social Media Strategy House</a>
                 <a href="#pillarFrameworkContent" onclick="openPillarFramework(event)">Content Pillar Framework</a>
-                <a href="#contentGenerator" onclick="openContentGenerator(event)">Social Media Content Generator</a>
+                <a href="#contentGenerator" onclick="openContentGenerator(event)">Caption Generator</a>
                 <a href="#responseGenerator" onclick="openResponseGenerator(event)">Social Media Response Generator</a>
             </div>
         </div>
@@ -11067,7 +11067,7 @@
             </div>
 
             <button class="collapsible" id="contentGeneratorButton">
-                <i class="fas fa-plus-square"></i><i class="fas fa-magic"></i> Social Media Content Generator
+                <i class="fas fa-plus-square"></i><i class="fas fa-magic"></i> Caption Generator
             </button>
             <div class="content" id="contentGenerator">
                 <form id="content-form">
@@ -11244,7 +11244,7 @@
                         Generated Content:</div>
                     <div id="content-output-text" style="line-height: 1.6; color: #1e293b; white-space: pre-wrap;">
                     </div>
-                    <button onclick="copyToClipboard('content-output-text')"
+                    <button onclick="copyGeneratedContent(event)"
                         style="position: absolute; top: 15px; right: 15px; background: #f1f5f9; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8em; color: #475569; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
                         <i class="fas fa-copy"></i> Copy
                     </button>
@@ -27200,7 +27200,14 @@ ${selectedText}
                 // Display the API response or error
                 const outputText = document.getElementById('content-output-text');
                 if (response.ok) {
-                    outputText.innerText = data;
+                    let content = typeof data === 'object' ? (data.body || JSON.stringify(data)) : data;
+                    const contentType = document.getElementById('content-type').value;
+
+                    if (contentType === 'blog-post') {
+                        outputText.innerHTML = content;
+                    } else {
+                        outputText.innerText = content;
+                    }
                     generatedContentDiv.style.display = "block";
                     updateCollapsibleState('smm', 'success');
                     updateCollapsibleState('contentGeneratorButton', 'success');
@@ -36001,6 +36008,39 @@ Return ONLY valid JSON in this exact format:
                 badge.style.background = '';
                 badge.style.color = '';
             }, 2000);
+        }
+
+        async function copyGeneratedContent(event) {
+            const outputText = document.getElementById('content-output-text');
+            const contentType = document.getElementById('content-type').value;
+            const btn = event.currentTarget;
+            
+            // If blog post, copy HTML source; otherwise copy plain text
+            let textToCopy = (contentType === 'blog-post') ? outputText.innerHTML : outputText.innerText;
+            
+            try {
+                await navigator.clipboard.writeText(textToCopy);
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy: ', err);
+                // Fallback for older browsers or if navigator.clipboard fails
+                const tempTextArea = document.createElement('textarea');
+                tempTextArea.value = textToCopy;
+                document.body.appendChild(tempTextArea);
+                tempTextArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempTextArea);
+                
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                }, 2000);
+            }
         }
 
         function formatMarkdownToHTML(md) {
