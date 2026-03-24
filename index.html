@@ -1340,6 +1340,105 @@
             box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
         }
 
+        /* Schema Generator Workflow Styles */
+        .workflow-container {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            display: none; /* Hidden until schemas are added */
+        }
+
+        .workflow-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 0.9em;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .validation-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .validation-badge.valid {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .validation-badge.invalid {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .validation-messages {
+            margin-top: 8px;
+            font-size: 0.8em;
+            color: #ef4444;
+            display: none;
+            padding: 8px;
+            background: #fff5f5;
+            border-radius: 6px;
+            border-left: 3px solid #ef4444;
+        }
+
+        .schema-workflow-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .workflow-chip {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .workflow-chip:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            transform: translateY(-1px);
+        }
+
+        .workflow-chip.active {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        .workflow-chip .remove-chip {
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .workflow-chip .remove-chip:hover {
+            color: #ef4444;
+            background: #fee2e2;
+        }
+
         .schema-json-field {
             width: 100%;
             height: 600px;
@@ -2013,7 +2112,16 @@
         .preview-actions {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .view-toggle {
+            display: flex;
+            background: #374151;
+            padding: 3px;
+            border-radius: 8px;
+            gap: 2px;
         }
 
         .preview-toggle {
@@ -10510,6 +10618,19 @@
                             <!-- Cards injected by JS -->
                         </div>
 
+                        <!-- Schema Workflow Collection -->
+                        <div id="schema-workflow-container" class="workflow-container">
+                            <div class="workflow-header">
+                                <span><i class="fas fa-layer-group"></i> Your Schema Collection</span>
+                                <button class="preview-btn" onclick="clearWorkflow()" style="font-size: 0.8em; padding: 4px 10px;">
+                                    <i class="fas fa-trash-alt"></i> Clear All
+                                </button>
+                            </div>
+                            <div id="schema-workflow-chips" class="schema-workflow-chips">
+                                <!-- Chips added dynamically -->
+                            </div>
+                        </div>
+
                         <!-- Step 3 & 4: Configure and Preview -->
                         <div class="editor-container">
                             <div class="editor-pane">
@@ -10536,10 +10657,15 @@
                             <div class="preview-pane">
                                 <div class="preview-header">
                                     <span><i class="fas fa-code"></i> JSON-LD Preview</span>
+                                    <div id="schema-validation-status" class="validation-badge"></div>
                                     <div class="preview-actions">
                                         <div class="preview-toggle" id="mode-toggle">
                                             <div class="toggle-opt" data-mode="json">JSON</div>
                                             <div class="toggle-opt active" data-mode="snippet">Snippet</div>
+                                        </div>
+                                        <div class="view-toggle" id="view-mode-toggle" title="Switch between active schema and your entire collection">
+                                            <div class="toggle-opt active" data-view="single">Single</div>
+                                            <div class="toggle-opt" data-view="collection">Collection</div>
                                         </div>
                                         <button class="preview-btn" onclick="copySchemaJson()">
                                             <i class="fas fa-copy"></i> Copy
@@ -10547,8 +10673,12 @@
                                         <button class="preview-btn primary" onclick="openRichResultsTest()">
                                             <i class="fas fa-external-link-alt"></i> Test
                                         </button>
+                                        <button class="preview-btn primary" id="add-to-workflow-btn" onclick="addToWorkflow()" style="background: linear-gradient(135deg, #10a37f, #0d8a6b);">
+                                            <i class="fas fa-save"></i> Add to Workflow
+                                        </button>
                                     </div>
                                 </div>
+                                <div id="validation-messages" class="validation-messages"></div>
                                 <pre id="schema-output" class="code-block"></pre>
                             </div>
                         </div>
@@ -11521,7 +11651,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
+
 
             <div id="llmPathwayContainer" style="display: none;">
                 <button id="backToLlmDecision" class="geo-btn-add" onclick="switchLlmFlow('reset')"
@@ -11675,6 +11805,7 @@
                         </div>
                     </div>
                 </div>
+            </div>
             </div>
             <!-- AI Discovery Audit Section -->
             <button class="collapsible" id="discoveryAuditBtn" onclick="toggleCollapsible(this)">
@@ -27388,143 +27519,148 @@ ${selectedText}
             schemaTypeSelect.dispatchEvent(new Event('change'));
         }
 
-        function updateSchema() {
-            const selectedType = schemaTypeSelect.value;
-            const data = {};
+        let workflowSchemas = [];
+        try {
+            const saved = localStorage.getItem('schemaWorkflow');
+            if (saved) {
+                workflowSchemas = JSON.parse(saved);
+                document.addEventListener('DOMContentLoaded', () => setTimeout(renderWorkflowChips, 100));
+            }
+        } catch (e) {
+            console.error("Error loading workflow:", e);
+        }
 
-            // Gather all input values
-            const inputs = inputFieldsDiv.querySelectorAll('input, select, textarea');
-            inputs.forEach(input => {
-                if (input.type === 'checkbox') {
-                    data[input.id] = input.checked;
-                } else {
-                    data[input.id] = input.value;
-                }
-            });
+        function validateSchema(schema) {
+            const errors = [];
+            const type = schema["@type"];
 
-            try {
-                let schema = {
-                    "@context": "https://schema.org",
-                    "@type": selectedType
-                };
-
-                // Helper to set nested values
-                const setNestedValue = (obj, path, value) => {
-                    const keys = path.split('_');
-                    let current = obj;
-                    for (let i = 0; i < keys.length - 1; i++) {
-                        if (!current[keys[i]]) current[keys[i]] = {};
-                        current = current[keys[i]];
-                    }
-                    current[keys[keys.length - 1]] = value;
-                };
-
-                // Process all data fields
-                Object.keys(data).forEach(id => {
-                    const val = data[id];
-                    if (!val || val === "") return;
-
-                    // Skip numeric/date IDs that are handled specifically in lists
-                    if (/^(name|url|question|answer)\d+$/.test(id)) return;
-
-                    if (id.includes('_')) {
-                        setNestedValue(schema, id, val);
-                    } else if (id === "sameAs" || id === "recipeInstructions" || (selectedType === "HowToSource" && (id === "supply" || id === "step"))) {
-                        // Special handling for potential arrays/serialised JSON
-                        if (id === "sameAs") {
-                            const urls = val.split('\n').map(u => u.trim()).filter(u => u !== "");
-                            schema[id] = urls.length === 1 ? urls[0] : urls;
-                        } else if (id === "recipeInstructions") {
-                            try {
-                                schema[id] = JSON.parse(val);
-                            } catch (e) {
-                                schema[id] = val; // fallback to string
-                            }
-                        } else {
-                            schema[id] = val;
-                        }
-                    } else {
-                        schema[id] = val;
+            const checkRequired = (fields) => {
+                fields.forEach(field => {
+                    if (!schema[field]) {
+                        errors.push(`Missing field: <strong>${field}</strong>`);
                     }
                 });
+            };
 
-                // Post-process specific types with list items
-                if (selectedType === "BreadcrumbList") {
-                    const itemListElement = [];
-                    for (let i = 1; i <= breadcrumbItemCount; i++) {
-                        const name = document.getElementById(`name${i}`);
-                        const url = document.getElementById(`url${i}`);
-                        if (name && url && name.value && url.value) {
-                            itemListElement.push({
-                                "@type": "ListItem",
-                                "position": i,
-                                "name": name.value,
-                                "item": url.value
-                            });
+            switch (type) {
+                case "Organization":
+                case "LocalBusiness":
+                case "ProfessionalService":
+                    checkRequired(["name", "url"]);
+                    break;
+                case "Person":
+                case "Product":
+                case "Service":
+                case "Course":
+                case "SoftwareApplication":
+                    checkRequired(["name"]);
+                    break;
+                case "Article":
+                    checkRequired(["headline", "author"]);
+                    break;
+                case "BreadcrumbList":
+                    if (!schema.itemListElement || schema.itemListElement.length === 0) {
+                        errors.push("BreadcrumbList needs at least one item.");
+                    }
+                    break;
+                case "FAQPage":
+                    if (!schema.mainEntity || schema.mainEntity.length === 0) {
+                        errors.push("FAQPage needs at least one question.");
+                    }
+                    break;
+                case "Event":
+                    checkRequired(["name", "startDate", "location"]);
+                    break;
+                case "Recipe":
+                    checkRequired(["name", "author"]);
+                    break;
+            }
+
+            return errors;
+        }
+
+        function renderWorkflowChips() {
+            const container = document.getElementById('schema-workflow-chips');
+            const workflowContainer = document.getElementById('schema-workflow-container');
+
+            if (!container || !workflowContainer) return;
+
+            if (workflowSchemas.length === 0) {
+                workflowContainer.style.display = 'none';
+                return;
+            }
+
+            workflowContainer.style.display = 'block';
+            container.innerHTML = '';
+
+            workflowSchemas.forEach((s, idx) => {
+                const chip = document.createElement('div');
+                chip.className = 'workflow-chip';
+                chip.innerHTML = `
+                    <i class="fas fa-file-code" style="color: #3b82f6;"></i>
+                    <span style="font-weight: 600;">${Array.isArray(s["@type"]) ? s["@type"][0] : s["@type"]}</span>
+                    <div class="remove-chip" onclick="removeFromWorkflow(event, ${idx})">
+                        <i class="fas fa-times"></i>
+                    </div>
+                `;
+                chip.title = "View in collection (click 'Copy' to get all)";
+                container.appendChild(chip);
+            });
+        }
+
+        function addToWorkflow() {
+            const schemaText = document.getElementById('schema-output').innerText || document.getElementById('schema-output').textContent;
+            // More robust regex to match JSON-LD content
+            const match = schemaText.match(/(?:<script[^>]*>)?\s*(\{[\s\S]*\})\s*(?:<\/script>)?/i);
+            if (match && match[1]) {
+                try {
+                    const schema = JSON.parse(match[1]);
+                    
+                    // Optional: Prevent adding invalid schemas if you want strictness
+                    if (typeof validateSchema === 'function') {
+                        const errors = validateSchema(schema);
+                        if (errors.length > 0 && !confirm("This schema has validation warnings. Add it anyway?")) {
+                            return;
                         }
                     }
-                    if (itemListElement.length > 0) schema.itemListElement = itemListElement;
-                }
 
-                if (selectedType === "FAQPage") {
-                    const mainEntity = [];
-                    for (let i = 1; document.getElementById(`question${i}`); i++) {
-                        const q = document.getElementById(`question${i}`).value;
-                        const a = document.getElementById(`answer${i}`).value;
-                        if (q && a) {
-                            mainEntity.push({
-                                "@type": "Question",
-                                "name": q,
-                                "acceptedAnswer": {
-                                    "@type": "Answer",
-                                    "text": a
-                                }
-                            });
-                        }
-                    }
-                    if (mainEntity.length > 0) schema.mainEntity = mainEntity;
-                }
+                    workflowSchemas.push(schema);
+                    localStorage.setItem('schemaWorkflow', JSON.stringify(workflowSchemas));
+                    renderWorkflowChips();
+                    
+                    // Visual feedback
+                    const btn = document.getElementById('add-to-workflow-btn');
+                    const origHtml = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-check"></i> Added!';
+                    btn.style.background = '#166534';
+                    setTimeout(() => {
+                        btn.innerHTML = origHtml;
+                        btn.style.background = 'linear-gradient(135deg, #10a37f, #0d8a6b)';
+                    }, 2000);
 
-                // Final cleanup for nested objects that might be empty or need @type
-                if (schema.offers && !schema.offers["@type"]) {
-                    schema.offers["@type"] = "Offer";
+                } catch (e) {
+                    alert("Error parsing schema: " + e.message);
                 }
-                if (schema.reviewRating && !schema.reviewRating["@type"]) {
-                    schema.reviewRating["@type"] = "Rating";
-                }
-                if (schema.aggregateRating && !schema.aggregateRating["@type"]) {
-                    schema.aggregateRating["@type"] = "AggregateRating";
-                }
-                if (schema.publisher && !schema.publisher["@type"]) {
-                    schema.publisher["@type"] = "Organization";
-                    if (schema.publisher.logo) {
-                        schema.publisher.logo = {
-                            "@type": "ImageObject",
-                            "url": schema.publisher.logo
-                        };
-                    }
-                }
-                if (schema.contactPoint && !schema.contactPoint["@type"]) {
-                    schema.contactPoint["@type"] = "ContactPoint";
-                }
-                if (schema.provider && !schema.provider["@type"]) {
-                    schema.provider["@type"] = "Organization";
-                }
-                if (schema.itemReviewed && !schema.itemReviewed["@type"]) {
-                    schema.itemReviewed["@type"] = "Thing"; // Generic fallback
-                }
-
-                if (schemaOutputDiv) {
-                    schemaOutputDiv.textContent = '<script type="application/ld+json">\n' + JSON.stringify(schema, null, 2) + '\n<\/script>';
-                }
-
-            } catch (error) {
-                if (schemaOutputDiv) {
-                    schemaOutputDiv.textContent = "Error generating schema. Check console.";
-                }
-                console.error("Schema Generation Error:", error);
+            } else {
+                alert("Please complete the schema fields first.");
             }
         }
+
+        function removeFromWorkflow(event, index) {
+            event.stopPropagation();
+            workflowSchemas.splice(index, 1);
+            localStorage.setItem('schemaWorkflow', JSON.stringify(workflowSchemas));
+            renderWorkflowChips();
+        }
+
+        function clearWorkflow() {
+            if (confirm("Clear all saved schemas?")) {
+                workflowSchemas = [];
+                localStorage.removeItem('schemaWorkflow');
+                renderWorkflowChips();
+            }
+        }
+
 
         function similarKeywords() {
             const keywordsInput = document.getElementById('keywords').value.split(/[\n,]+/).map(k => k.trim());
@@ -38569,7 +38705,10 @@ CRITICAL CONTENT GUIDELINES (EEAT):
             "VideoObject": { "name": "How to Bake Bread", "duration": "PT10M", "description": "Easy sourdough recipe.", "thumbnailUrl": "https://example.com/thumbnail.jpg", "uploadDate": "2024-01-01" },
             "JobPosting": { "title": "Storage Advisor", "baseSalary_value": "4500", "baseSalary_currency": "SGD", "hiringOrganization_name": "Extra Space Asia" },
             "Article": { "headline": "Top 10 Tips for Efficient Home Storage", "author_name": "Space Expert", "publisher_name": "Extra Space Blog" },
-            "Website": { "name": "My Awesome Site", "url": "https://example.com" }
+            "Website": { "name": "My Awesome Site", "url": "https://example.com" },
+            "BreadcrumbList": { "_isList": true, "items": [{ "name": "Home", "url": "https://example.com" }, { "name": "Products", "url": "https://example.com/products" }, { "name": "Wireless Mouse", "url": "https://example.com/products/wireless-mouse" }] },
+            "Person": { "name": "Jane Smith", "jobTitle": "Senior Software Architect", "url": "https://janesmith.com", "image": "https://janesmith.com/photo.jpg", "sameAs": "https://linkedin.com/in/janesmith\nhttps://twitter.com/janesmith" },
+            "Recipe": { "name": "Classic Chocolate Lava Cake", "author": "Chef Ramsay", "prepTime": "PT20M", "cookTime": "PT15M", "recipeYield": "4 servings", "recipeCategory": "Dessert", "recipeInstructions": '[{"@type": "HowToStep", "text": "Preheat oven to 220°C (425°F)."}, {"@type": "HowToStep", "text": "Melt 150g dark chocolate with 100g butter."}, {"@type": "HowToStep", "text": "Whisk 2 eggs with 50g sugar until fluffy."}, {"@type": "HowToStep", "text": "Fold chocolate mixture into eggs, add 30g flour."}, {"@type": "HowToStep", "text": "Pour into greased ramekins and bake 12-14 minutes."}]', "image": "https://example.com/lava-cake.jpg" }
         };
 
         let selectedInd = "all";
@@ -38603,6 +38742,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                 const isRec = recommended.includes(st.id) && selectedInd !== 'all';
                 return `
                         <div class="selection-card ${st.id === selectedType ? 'active' : ''} ${isRec ? 'recommended' : ''}" 
+                             data-id="${st.id}"
                              onclick="selectSchemaType('${st.id}')">
                             <i class="fas ${st.icon}"></i>
                             <span>${st.name}</span>
@@ -38644,6 +38784,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
         }
 
         let previewMode = 'snippet';
+        let viewMode = 'single'; // 'single' or 'collection'
 
         function updateSchema() {
             const selectedType = document.getElementById('schema-cards')?.querySelector('.active')?.dataset?.id || 'LocalBusiness';
@@ -38660,6 +38801,10 @@ CRITICAL CONTENT GUIDELINES (EEAT):
 
             Object.keys(data).forEach(key => {
                 if (!data[key]) return;
+                
+                // Skip specific list-based IDs handled below
+                if (/^(name|url|question|answer)\d+$/.test(key)) return;
+
                 if (key.includes('_')) {
                     const [parent, child] = key.split('_');
                     if (!schema[parent]) schema[parent] = { "@type": parent.charAt(0).toUpperCase() + parent.slice(1) };
@@ -38667,11 +38812,34 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                     if (parent === 'reviewRating') schema[parent]['@type'] = 'Rating';
                     if (parent === 'author') schema[parent]['@type'] = 'Person';
                     if (parent === 'geo') schema[parent]['@type'] = 'GeoCoordinates';
+                    if (parent === 'publisher') schema[parent]['@type'] = 'Organization';
+                    if (parent === 'provider') schema[parent]['@type'] = 'Organization';
                     schema[parent][child] = data[key];
+                } else if (key === "sameAs") {
+                    const urls = data[key].split('\n').map(u => u.trim()).filter(u => u !== "");
+                    schema[key] = urls.length === 1 ? urls[0] : urls;
                 } else {
                     schema[key] = data[key];
                 }
             });
+
+            if (selectedType === "BreadcrumbList") {
+                const itemListElement = [];
+                // Look for pairs of name1/url1, name2/url2, etc.
+                for (let i = 1; i <= 20; i++) {
+                    const name = data[`name${i}`];
+                    const url = data[`url${i}`];
+                    if (name && url) {
+                        itemListElement.push({
+                            "@type": "ListItem",
+                            "position": i,
+                            "name": name,
+                            "item": url
+                        });
+                    }
+                }
+                if (itemListElement.length > 0) schema.itemListElement = itemListElement;
+            }
 
             if (selectedType === "FAQPage") {
                 const questions = Array.from(document.querySelectorAll('.faq-item input[placeholder*="Question"]')).map(i => i.value);
@@ -38681,6 +38849,23 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                     "name": q,
                     "acceptedAnswer": { "@type": "Answer", "text": answers[i] }
                 })).filter(q => q.name && q.acceptedAnswer.text);
+                
+                // Fallback for numbered inputs if selector fails
+                if (!schema.mainEntity || schema.mainEntity.length === 0) {
+                    const mainEntity = [];
+                    for (let i = 1; data[`question${i}`]; i++) {
+                        const q = data[`question${i}`];
+                        const a = data[`answer${i}`];
+                        if (q && a) {
+                            mainEntity.push({
+                                "@type": "Question",
+                                "name": q,
+                                "acceptedAnswer": { "@type": "Answer", "text": a }
+                            });
+                        }
+                    }
+                    if (mainEntity.length > 0) schema.mainEntity = mainEntity;
+                }
             }
 
             if (selectedType === "HowTo") {
@@ -38693,9 +38878,30 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                 }
             }
 
+            if (schema.publisher && schema.publisher.logo && typeof schema.publisher.logo === 'string') {
+                schema.publisher.logo = {
+                    "@type": "ImageObject",
+                    "url": schema.publisher.logo
+                };
+            }
+
             const out = document.getElementById("schema-output");
+            const addBtn = document.getElementById("add-to-workflow-btn");
             if (out) {
-                const json = JSON.stringify(schema, null, 2);
+                let finalSchema = schema;
+                if (viewMode === 'collection') {
+                    // Combine current schema with workflow schemas
+                    finalSchema = [...workflowSchemas];
+                    // If current schema has some data, include it too
+                    if (Object.keys(schema).length > 2) { // more than just @context and @type
+                        finalSchema.push(schema);
+                    }
+                    if (addBtn) addBtn.style.display = 'none';
+                } else {
+                    if (addBtn) addBtn.style.display = 'inline-block';
+                }
+
+                const json = JSON.stringify(finalSchema, null, 2);
                 const highlighted = syntaxHighlight(json);
                 if (previewMode === 'snippet') {
                     out.innerHTML = '<span class="json-tag">&lt;script type="application/ld+json"&gt;</span>\n' +
@@ -38705,6 +38911,8 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                     out.innerHTML = highlighted;
                 }
             }
+
+            // Validation disabled for now
         }
 
         function syntaxHighlight(json) {
@@ -38732,7 +38940,36 @@ CRITICAL CONTENT GUIDELINES (EEAT):
         }
 
         function copySchemaJson() {
-            const text = document.getElementById("schema-output").textContent;
+            let text = document.getElementById("schema-output").innerText || document.getElementById("schema-output").textContent;
+            
+            // If viewing collection, don't ask, just copy what is shown
+            if (viewMode === 'collection') {
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        const btn = document.querySelector('.preview-btn[onclick="copySchemaJson()"]');
+                        const orig = btn.innerHTML;
+                        btn.innerHTML = '<i class="fas fa-check"></i> Copied Collection!';
+                        setTimeout(() => btn.innerHTML = orig, 2000);
+                    });
+                }
+                return;
+            }
+
+            if (workflowSchemas.length > 0) {
+                if (confirm("You have " + workflowSchemas.length + " schemas in your collection. Copy the entire collection (including the current one)?")) {
+                    try {
+                        const match = text.match(/<script type="application\/ld\+json">\n([\s\S]*)\n<\/script>/);
+                        if (match && match[1]) {
+                            const current = JSON.parse(match[1]);
+                            const combined = [...workflowSchemas, current];
+                            text = '<script type="application/ld+json">\n' + JSON.stringify(combined, null, 2) + '\n<\/script>';
+                        }
+                    } catch (e) {
+                        console.error("Error combining schemas for copy:", e);
+                    }
+                }
+            }
+
             navigator.clipboard.writeText(text).then(() => {
                 const btn = document.querySelector('.preview-btn');
                 if (btn) {
@@ -38784,6 +39021,22 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                             const el = document.getElementById('step');
                             if (el) el.value = JSON.stringify(data.steps, null, 2);
                         }
+                        if (selectedType === "BreadcrumbList" && data.items) {
+                            const container = document.getElementById('breadcrumb-items');
+                            if (container) {
+                                container.innerHTML = '';
+                                breadcrumbItemCount = 0;
+                                data.items.forEach((item, idx) => {
+                                    if (typeof addItem === 'function') {
+                                        addItem();
+                                        const nameEl = document.getElementById('name' + (idx + 1));
+                                        const urlEl = document.getElementById('url' + (idx + 1));
+                                        if (nameEl) nameEl.value = item.name;
+                                        if (urlEl) urlEl.value = item.url;
+                                    }
+                                });
+                            }
+                        }
                         updateSchema();
                     });
                 }
@@ -38796,6 +39049,18 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         modeToggle.querySelectorAll('.toggle-opt').forEach(el => el.classList.remove('active'));
                         opt.classList.add('active');
                         previewMode = opt.dataset.mode;
+                        updateSchema();
+                    });
+                }
+
+                const viewToggle = document.getElementById('view-mode-toggle');
+                if (viewToggle) {
+                    viewToggle.addEventListener('click', (e) => {
+                        const opt = e.target.closest('.toggle-opt');
+                        if (!opt) return;
+                        viewToggle.querySelectorAll('.toggle-opt').forEach(el => el.classList.remove('active'));
+                        opt.classList.add('active');
+                        viewMode = opt.dataset.view;
                         updateSchema();
                     });
                 }
