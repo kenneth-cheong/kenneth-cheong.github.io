@@ -2544,7 +2544,8 @@
                 Example: [{"metric": "...", "question": "...", "goodAnswer": "...", "redFlags": "..."}]`;
 
                 const payload = {
-                    prompt: prompt,
+                    prompt: prompt,            // For the updated Lambda
+                    post_info: prompt,         // Fallback for the current Lambda
                     content_type: "plain-text",
                     action: "generate"
                 };
@@ -4244,10 +4245,12 @@
                 return;
             }
 
-            // Sync with local state if needed (optional, but keeps state consistent)
+            // Sync with local state
             const localIdx = state.candidates.findIndex(cand => String(cand.id) === String(id));
             if (localIdx !== -1) {
                 state.candidates[localIdx] = { ...state.candidates[localIdx], ...c };
+            } else {
+                state.candidates.push(c);
             }
 
             document.getElementById('detailName').innerText = c.name;

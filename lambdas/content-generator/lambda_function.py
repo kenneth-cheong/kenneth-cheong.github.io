@@ -31,8 +31,13 @@ def lambda_handler(event, context):
     language = event.get('language', "English") # Default to English
 
     # --- Build the Prompt ---
-    # Start with Persona and Language
-    prompt = f"You are an expert digital marketer. Write a {content_type} in {language}. "
+    custom_prompt = event.get('custom_prompt') or event.get('prompt')
+    
+    if custom_prompt:
+        prompt = custom_prompt
+    else:
+        # Start with Persona and Language
+        prompt = f"You are an expert digital marketer. Write a {content_type} in {language}. "
 
     # Strategic Context
     if post_role:
