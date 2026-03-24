@@ -12159,7 +12159,20 @@
                         class="fas fa-users"></i>Persona
                     Generator</button>
                 <div class="content" id="persona_content">
-                    <div class="sem-step-card">
+                    <!-- Pathway Switcher -->
+                    <div class="sem-step-card" style="padding: 10px; margin-bottom: 20px; background: rgba(37, 99, 235, 0.05); border: 1px dashed rgba(37, 99, 235, 0.3);">
+                        <div style="display: flex; gap: 10px; justify-content: center;">
+                            <button id="btnPersonaGenerate" class="btn-action" style="margin: 0; flex: 1; background: var(--primary-blue);" onclick="switchPersonaPathway('generate')">
+                                <i class="fas fa-magic"></i> Generate New
+                            </button>
+                            <button id="btnPersonaFilter" class="btn-action" style="margin: 0; flex: 1; background: #64748b;" onclick="switchPersonaPathway('filter')">
+                                <i class="fas fa-filter"></i> Filter Database
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="personaGeneratePathway">
+                        <div class="sem-step-card">
                         <div class="sem-card-title"><i class="fas fa-id-card"></i> Persona Context</div>
                         <div class="sem-input-item">
                             <label for="persona_webpages">Company / Product Webpages (comma or newline
@@ -12182,14 +12195,69 @@
                         <div style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
                             <button id="generatePersonaBtn" class="config-btn-highlight" style="margin: 0;"
                                 onclick="generatePersona()">Generate 10 Personas</button>
-                            <button type="button" onclick="initPersonaTour()" class="config-btn-highlight"
-                                style="background: transparent; border: 2px solid #34a853; color: #34a853; margin: 0; box-shadow: none; padding: 11px 22px; cursor: pointer; transition: all 0.2s ease-in-out;"
-                                onmouseover="this.style.background='#34a853'; this.style.color='white'; this.style.boxShadow='0 4px 12px rgba(52, 168, 83, 0.3)';"
-                                onmouseout="this.style.background='transparent'; this.style.color='#34a853'; this.style.boxShadow='none';">
-                                <i class="fas fa-question-circle"></i> Help
-                            </button>
                         </div>
-                    </div>
+                    </div></div><!-- End personaGeneratePathway -->
+
+                    <div id="personaFilterPathway" style="display: none;">
+                        <div class="sem-step-card">
+                            <div class="sem-card-title"><i class="fas fa-filter"></i> Persona Filter Database</div>
+                            <div id="personaFilterContainer" style="margin-top: 15px;">
+                                <div class="persona-filter-row" style="display: flex; gap: 10px; margin-bottom: 15px; align-items: center; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                                    <div style="flex: 1;">
+                                        <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Field</label>
+                                        <select class="filter-field premium-reason-textarea" style="width: 100%; margin-top: 5px;">
+                                            <option value="any">Any Field</option>
+                                            <option value="industry">Industry</option>
+                                            <option value="occupation">Occupation</option>
+                                            <option value="planning_area">Planning Area</option>
+                                            <option value="sex">Sex</option>
+                                            <option value="marital_status">Marital Status</option>
+                                            <option value="education_level">Education Level</option>
+                                            <option value="age">Age</option>
+                                            <option value="professional_persona">Bio Keyword</option>
+                                            <option value="skills_and_expertise_list">Skills</option>
+                                            <option value="hobbies_and_interests_list">Hobbies</option>
+                                            <option value="career_goals_and_ambitions">Career Goals</option>
+                                        </select>
+                                    </div>
+                                    <div style="flex: 0.5;">
+                                        <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Op</label>
+                                        <select class="filter-op premium-reason-textarea" style="width: 100%; margin-top: 5px;">
+                                            <option value="=">=</option>
+                                            <option value="contains">Contains</option>
+                                            <option value=">">&gt;</option>
+                                            <option value="<">&lt;</option>
+                                        </select>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Value</label>
+                                        <input type="text" class="filter-value premium-reason-textarea" style="width: 100%; margin-top: 5px;" placeholder="Value...">
+                                    </div>
+                                    <button class="btn-action" style="margin: 0; margin-top: 18px; width: 32px; height: 32px; border-radius: 8px; background: #ef4444; display: flex; align-items: center; justify-content: center;" onclick="removePersonaFilterRow(this)">
+                                        <i class="fas fa-trash" style="font-size: 12px;"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 15px; margin-top: 25px; align-items: center; flex-wrap: wrap;">
+                                <button class="btn-action" style="margin: 0; width: auto; background: #64748b; padding: 11px 22px;" onclick="addPersonaFilterRow()">
+                                    <i class="fas fa-plus"></i> Add Filter
+                                </button>
+                                <div style="flex-grow: 1;"></div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Limit:</label>
+                                    <select id="personaFilterLimit" class="premium-reason-textarea" style="width: 80px; padding: 5px; margin: 0;">
+                                        <option value="12">12</option>
+                                        <option value="25">25</option>
+                                        <option value="50">50</option>
+                                        <option value="100">100</option>
+                                    </select>
+                                </div>
+                                <button id="runPersonaFilterBtn" class="config-btn-highlight" style="margin: 0; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);" onclick="runPersonaFilter()">
+                                    <i class="fas fa-search"></i> Run Filter
+                                </button>
+                            </div>
+                        </div>
+                    </div><!-- End personaFilterPathway -->
                     <div id="undo-bar-persona" class="undo-bar" style="display: none;">
                         <button class="btn-undo" onclick="undoDeletion()">
                             <i class="fas fa-undo-alt"></i> Undo Deletion
@@ -30057,6 +30125,234 @@ ${selectedText}
                 returnBtn.style.display = "block";
                 returnBtn.innerText = `Return to ${personaOriginPathway === 'createNewFlow' ? 'Develop' : 'Optimise'} Content`;
             }
+        }
+
+        function switchPersonaPathway(pathway) {
+            const genBtn = document.getElementById('btnPersonaGenerate');
+            const filBtn = document.getElementById('btnPersonaFilter');
+            const genPath = document.getElementById('personaGeneratePathway');
+            const filPath = document.getElementById('personaFilterPathway');
+
+            if (pathway === 'generate') {
+                genBtn.style.background = 'var(--primary-blue)';
+                filBtn.style.background = '#64748b';
+                genPath.style.display = 'block';
+                filPath.style.display = 'none';
+            } else {
+                genBtn.style.background = '#64748b';
+                filBtn.style.background = '#2563eb';
+                genPath.style.display = 'none';
+                filPath.style.display = 'block';
+            }
+        }
+
+        function addPersonaFilterRow() {
+            const container = document.getElementById('personaFilterContainer');
+            const row = document.createElement('div');
+            row.className = 'persona-filter-row';
+            row.style.cssText = 'display: flex; gap: 10px; margin-bottom: 15px; align-items: center; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;';
+            row.innerHTML = `
+                <div style="flex: 1;">
+                    <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Field</label>
+                    <select class="filter-field premium-reason-textarea" style="width: 100%; margin-top: 5px;">
+                        <option value="any">Any Field</option>
+                        <option value="industry">Industry</option>
+                        <option value="occupation">Occupation</option>
+                        <option value="planning_area">Planning Area</option>
+                        <option value="sex">Sex</option>
+                        <option value="marital_status">Marital Status</option>
+                        <option value="education_level">Education Level</option>
+                        <option value="age">Age</option>
+                        <option value="professional_persona">Bio Keyword</option>
+                        <option value="skills_and_expertise_list">Skills</option>
+                        <option value="hobbies_and_interests_list">Hobbies</option>
+                        <option value="career_goals_and_ambitions">Career Goals</option>
+                    </select>
+                </div>
+                <div style="flex: 0.5;">
+                    <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Op</label>
+                    <select class="filter-op premium-reason-textarea" style="width: 100%; margin-top: 5px;">
+                        <option value="=">=</option>
+                        <option value="contains">Contains</option>
+                        <option value=">">&gt;</option>
+                        <option value="<">&lt;</option>
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Value</label>
+                    <input type="text" class="filter-value premium-reason-textarea" style="width: 100%; margin-top: 5px;" placeholder="Value...">
+                </div>
+                <button class="btn-action" style="margin: 0; margin-top: 18px; width: 32px; height: 32px; border-radius: 8px; background: #ef4444; display: flex; align-items: center; justify-content: center;" onclick="removePersonaFilterRow(this)">
+                    <i class="fas fa-trash" style="font-size: 12px;"></i>
+                </button>
+            `;
+            container.appendChild(row);
+        }
+
+        function removePersonaFilterRow(btn) {
+            const row = btn.closest('.persona-filter-row');
+            if (document.querySelectorAll('.persona-filter-row').length > 1) {
+                row.remove();
+            } else {
+                alert("At least one filter row is required.");
+            }
+        }
+
+        async function runPersonaFilter() {
+            const btn = document.getElementById('runPersonaFilterBtn');
+            const resultsDiv = document.getElementById('persona-results');
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Filtering...';
+            btn.disabled = true;
+
+            const filters = [];
+            document.querySelectorAll('.persona-filter-row').forEach(row => {
+                const field = row.querySelector('.filter-field').value;
+                const op = row.querySelector('.filter-op').value;
+                const value = row.querySelector('.filter-value').value;
+                if (value.trim()) {
+                    filters.push({ field, op, value: value.trim() });
+                }
+            });
+
+            if (filters.length === 0) {
+                alert("Please add at least one filter value.");
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                return;
+            }
+
+            const limit = document.getElementById('personaFilterLimit').value || 12;
+            try {
+                // IMPORTANT: Replace with the actual Lambda endpoint once deployed.
+                const response = await fetch('https://tyqj3fni7h.execute-api.ap-southeast-1.amazonaws.com/personaGenerator/personaFilter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filters: filters, limit: parseInt(limit) })
+                });
+
+                if (!response.ok) throw new Error(`Filter API error: ${response.status}`);
+                
+                const data = await response.json();
+                renderFilteredPersonas(data);
+                
+                document.getElementById("persona-instruction").style.display = "block";
+                document.getElementById("persona-instruction").innerHTML = `
+                    <i class="fas fa-info-circle"></i> <strong>Results:</strong> Found ${data.length} persona records matching your criteria.
+                `;
+
+            } catch (err) {
+                resultsDiv.innerHTML = `<p style="color: red;">Error: ${err.message}. Ensure the filter endpoint is configured.</p>`;
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                updateCollapsibleState('persona', 'success');
+            }
+        }
+
+        function renderFilteredPersonas(personas) {
+            const container = document.getElementById('persona-results');
+            container.innerHTML = '';
+
+            if (personas.length === 0) {
+                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #64748b;">No matching personas found in the database.</div>';
+                return;
+            }
+
+            personas.forEach((p, idx) => {
+                const uniqueId = `filtered-persona-${Date.now()}-${idx}`;
+                const card = document.createElement('div');
+                card.className = 'persona-card';
+                card.id = uniqueId;
+                card.setAttribute('contenteditable', 'true');
+
+                // Generate a name if missing (the DB doesn't have names, it has UUIDs)
+                const namePart = p.professional_persona ? p.professional_persona.split(',')[0].substring(0, 30) : "Database Persona";
+
+                // Helper to render pills for list items
+                const renderPills = (list, title) => {
+                    if (!list) return '';
+                    let items = [];
+                    try {
+                        let rawList = list;
+                        if (typeof rawList === 'string') {
+                            // Strip outer brackets and quotes if they exist (common in JSON-like strings from DB)
+                            rawList = rawList.trim();
+                            if (rawList.startsWith('[') && rawList.endsWith(']')) {
+                                rawList = rawList.substring(1, rawList.length - 1);
+                            }
+                            // Clean up individual items by splitting and then stripping quotes
+                            items = rawList.split(',').map(s => {
+                                let cleaned = s.trim();
+                                if ((cleaned.startsWith("'") && cleaned.endsWith("'")) || 
+                                    (cleaned.startsWith('"') && cleaned.endsWith('"'))) {
+                                    cleaned = cleaned.substring(1, cleaned.length - 1);
+                                }
+                                return cleaned;
+                            }).filter(s => s !== '' && s !== 'null');
+                        } else if (Array.isArray(rawList)) {
+                            items = rawList;
+                        } else {
+                            items = [rawList];
+                        }
+                    } catch(e) { 
+                        items = [list]; 
+                    }
+
+                    // Refinement: Ensure every item is its OWN string (no commas inside)
+                    items = items.flatMap(item => {
+                        if (typeof item === 'string') return item.split(',').map(s => s.trim());
+                        return item;
+                    }).filter(s => s !== '');
+
+                    if (items.length === 0) return '';
+                    return `
+                        <div class="persona-section" style="margin-top: 10px;">
+                            <strong>${title}:</strong>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;">
+                                ${items.map(item => `<span style="background: rgba(37, 99, 235, 0.08); color: #2563eb; padding: 3px 12px; border-radius: 999px; font-size: 10px; font-weight: 600; border: 1px solid rgba(37, 99, 235, 0.15);">${item}</span>`).join('')}
+                            </div>
+                        </div>
+                    `;
+                };
+
+                card.innerHTML = `
+                    <button class="btn-delete-persona" style="top: 15px; left: 15px;" onclick="deletePersonaCard(this)"><i class="fas fa-trash"></i></button>
+                    <div class="persona-header">
+                        <h3>${namePart}</h3>
+                        <p class="persona-age">Age: ${p.age} | ${p.sex} | ${[p.education_level].filter(v => v && v !== 'null').join('') || 'N/A'}</p>
+                    </div>
+                    <div class="persona-body">
+                        <div class="persona-section"><strong>Demographics & Location:</strong>
+                            <p>${[p.industry, p.occupation, p.marital_status].filter(v => v && v !== 'null').join(' | ')}<br>${p.planning_area || ''}, Singapore</p>
+                        </div>
+                        <div class="persona-section"><strong>Professional Bio:</strong>
+                            <p>${p.professional_persona}</p>
+                        </div>
+                        
+                        ${renderPills(p.skills_and_expertise_list, "Skills & Expertise")}
+                        ${renderPills(p.hobbies_and_interests_list, "Hobbies & Interests")}
+                        
+                        ${p.career_goals_and_ambitions ? `<div class="persona-section"><strong>Career Goals & Ambition:</strong><p>${p.career_goals_and_ambitions}</p></div>` : ''}
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px;">
+                            ${p.sports_persona ? `<div class="persona-section"><strong>Sports & Fitness:</strong><p>${p.sports_persona}</p></div>` : ''}
+                            ${p.arts_persona ? `<div class="persona-section"><strong>Arts & Interests:</strong><p>${p.arts_persona}</p></div>` : ''}
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            ${p.culinary_persona ? `<div class="persona-section"><strong>Culinary Lifestyle:</strong><p>${p.culinary_persona}</p></div>` : ''}
+                            ${p.cultural_background ? `<div class="persona-section"><strong>Cultural Background:</strong><p>${p.cultural_background}</p></div>` : ''}
+                        </div>
+                        ${p.persona ? `<div class="persona-section"><strong>General Personality:</strong><p>${p.persona}</p></div>` : ''}
+                    </div>
+                    <div class="persona-rationale">
+                        <strong>Source:</strong>
+                        <p>Retrieved from Nemotron Persona Database (S3). UUID: ${p.uuid}</p>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
         }
 
         function navigateToPersonas(pathway) {

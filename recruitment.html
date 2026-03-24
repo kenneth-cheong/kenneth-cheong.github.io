@@ -10,6 +10,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
+    <link rel="icon" href="/MO_Logo2.png" sizes="32x32">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -375,16 +376,17 @@
             transform: scale(1.02);
         }
 
-        /* Table */
         .table-container {
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 24px;
-            /* overflow: hidden; Removed as it breaks position: sticky */
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         table {
-            width: 100%;
+            width: auto;
+            min-width: 100%;
             border-collapse: collapse;
         }
 
@@ -400,12 +402,74 @@
             color: var(--text-dim);
             border-bottom: 1px solid var(--border);
             z-index: 10;
+            white-space: nowrap;
+        }
+
+        /* Sticky Columns */
+        .table-container th:nth-child(1),
+        .table-container td:nth-child(1) {
+            position: sticky;
+            left: 0;
+            z-index: 20;
+            background: var(--bg-card);
+        }
+
+        .table-container th:nth-child(2),
+        .table-container td:nth-child(2) {
+            position: sticky;
+            left: 40px;
+            z-index: 20;
+            background: var(--bg-card);
+            border-right: 2px solid var(--border);
+        }
+
+        .table-container th:nth-child(1),
+        .table-container th:nth-child(2) {
+            z-index: 30;
+        }
+
+        .resizer {
+            position: absolute;
+            top: 0;
+            right: -2px;
+            bottom: 0;
+            width: 8px;
+            background: transparent;
+            cursor: col-resize;
+            user-select: none;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .resizer-handle {
+            width: 4px;
+            height: 24px;
+            background: var(--primary-light);
+            border-radius: 4px;
+            opacity: 0;
+            transition: all 0.2s;
+        }
+
+        th:hover .resizer-handle {
+            opacity: 0.6;
+        }
+
+        .resizer:hover .resizer-handle,
+        .resizer.resizing .resizer-handle {
+            opacity: 1 !important;
+            height: 100%;
+            width: 6px;
+            background: var(--primary);
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
         }
 
         td {
             padding: 16px 24px;
             border-bottom: 1px solid var(--border);
             font-size: 0.875rem;
+            white-space: nowrap;
         }
 
         tr:last-child td {
@@ -549,6 +613,103 @@
 
         ::-webkit-scrollbar-thumb:hover {
             background: var(--text-dim);
+        }
+
+        /* Interview Card Styles */
+        .interview-cards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .interview-card {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .interview-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--primary-light);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .interview-card .metric-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: rgba(99, 102, 241, 0.2);
+            color: var(--primary-light);
+            border-radius: 100px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            width: fit-content;
+        }
+
+        .interview-card .question-text {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-main);
+            line-height: 1.4;
+        }
+
+        .interview-card .guidelines {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: rgba(15, 23, 42, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .interview-card .guideline-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .interview-card .guideline-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .interview-card .guideline-content {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            line-height: 1.5;
+        }
+
+        .interview-card .good-answer .guideline-label { color: #4ade80; }
+        .interview-card .red-flags .guideline-label { color: #fb7185; }
+
+        .interview-card .card-footer {
+            margin-top: auto;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .interview-card .delete-btn {
+            color: var(--accent);
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+        }
+
+        .interview-card .delete-btn:hover {
+            opacity: 1;
         }
 
         /* Animations */
@@ -1079,6 +1240,8 @@
                                         class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortJobCandidates('score')" style="cursor: pointer;">AI Score <i
                                         class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortJobCandidates('bestFit')" style="cursor: pointer;">Best Fit <i
+                                        class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortJobCandidates('interviewerScore')" style="cursor: pointer;">Interviewer
                                     Score <i class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortJobCandidates('hopper')" style="cursor: pointer;">Job Hopper <i
@@ -1136,7 +1299,7 @@
                 </div>
 
                 <div class="card" style="margin-bottom: 24px;">
-                    <div class="config-grid" style="margin-top: 0; grid-template-columns: repeat(4, 1fr);">
+                    <div class="config-grid" style="margin-top: 0; grid-template-columns: repeat(5, 1fr);">
                         <div class="form-group">
                             <label>Search Name</label>
                             <input type="text" id="searchCand" placeholder="Filter by name..."
@@ -1145,6 +1308,13 @@
                         <div class="form-group">
                             <label>Position Applied</label>
                             <select id="filterPosition" onchange="filterCandidatesRepo()"
+                                style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: white; outline: none;">
+                                <option value="">All Positions</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Best Fit Position</label>
+                            <select id="filterBestFit" onchange="filterCandidatesRepo()"
                                 style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: white; outline: none;">
                                 <option value="">All Positions</option>
                             </select>
@@ -1189,6 +1359,8 @@
                                 <th onclick="sortRepoTable('date')" style="cursor: pointer;">Date Applied <i
                                         class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortRepoTable('score')" style="cursor: pointer;">AI Score <i
+                                        class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortRepoTable('bestFit')" style="cursor: pointer;">Best Fit <i
                                         class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortRepoTable('interviewerScore')" style="cursor: pointer;">Interviewer
                                     Score <i class="fas fa-sort ms-1"></i></th>
@@ -1261,9 +1433,13 @@
             <div class="modal-content">
                 <h2 id="modalTitle">Create New Job Advertisement</h2>
                 <div class="config-grid">
-                    <div class="form-group" style="grid-column: span 2;">
+                    <div class="form-group" style="grid-column: span 1;">
                         <label>Job Title</label>
                         <input type="text" id="jobTitle" placeholder="e.g. Senior Frontend Developer">
+                    </div>
+                    <div class="form-group" style="grid-column: span 1;">
+                        <label>Job URL</label>
+                        <input type="text" id="jobUrl" placeholder="e.g. https://linkedin.com/jobs/view/...">
                     </div>
                     <div class="form-group">
                         <label>Job Description</label>
@@ -1314,10 +1490,16 @@
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin: 32px 0 16px;">
                     <h3 style="margin: 0;">Standard Interview Questions</h3>
-                    <button class="btn btn-primary" onclick="addJobQuestion()"
-                        style="padding: 8px 16px; font-size: 0.85rem;">
-                        <i class="fas fa-plus"></i> Add Question
-                    </button>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn btn-primary" id="generateQuestionsBtn" onclick="generateAIQuestions()"
+                            style="padding: 8px 16px; font-size: 0.85rem; background: var(--secondary);">
+                            <i class="fas fa-magic"></i> Generate Questions based on JD
+                        </button>
+                        <button class="btn btn-primary" onclick="addJobQuestion()"
+                            style="padding: 8px 16px; font-size: 0.85rem;">
+                            <i class="fas fa-plus"></i> Add Question
+                        </button>
+                    </div>
                 </div>
                 <div class="table-container" style="margin-bottom: 24px;">
                     <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem;">
@@ -1509,38 +1691,8 @@
                                     <i class="fas fa-plus"></i> Add Question
                                 </button>
                             </div>
-                            <div style="max-height: 600px; overflow-y: auto;">
-                                <table
-                                    style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem;">
-                                    <thead>
-                                        <tr style="background: rgba(15, 23, 42, 0.3);">
-                                            <th
-                                                style="text-align: center; padding: 12px; color: var(--accent); border-bottom: 1px solid var(--border); width: 30px;">
-                                            </th>
-                                            <th
-                                                style="text-align: left; padding: 12px 24px; color: var(--text-dim); border-bottom: 1px solid var(--border); width: 15%;">
-                                                Metric</th>
-                                            <th
-                                                style="text-align: left; padding: 12px; color: var(--text-dim); border-bottom: 1px solid var(--border); width: 25%;">
-                                                Question</th>
-                                            <th
-                                                style="text-align: left; padding: 12px; color: var(--secondary); border-bottom: 1px solid var(--border); width: 25%;">
-                                                Good Answer</th>
-                                            <th
-                                                style="text-align: left; padding: 12px; color: var(--accent); border-bottom: 1px solid var(--border); width: 20%;">
-                                                Red Flags</th>
-                                            <th
-                                                style="text-align: center; padding: 12px; color: var(--primary-light); border-bottom: 1px solid var(--border); width: 15%;">
-                                                Rating</th>
-                                            <th
-                                                style="text-align: center; padding: 12px; color: var(--accent); border-bottom: 1px solid var(--border); width: 50px;">
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="cheatSheetBody">
-                                        <!-- Unified persistable rows injected by JS -->
-                                    </tbody>
-                                </table>
+                            <div id="cheatSheetBody" class="interview-cards-container">
+                                <!-- Card-based interview guide injected by JS -->
                             </div>
                         </div>
 
@@ -2212,6 +2364,7 @@
             await loadCandidatesPage();
 
             updatePositionFilter();
+            makeTableResizable('repoTable');
         }
 
         function showUsers() {
@@ -2242,6 +2395,7 @@
 
             // Reset fields
             document.getElementById('jobTitle').value = '';
+            document.getElementById('jobUrl').value = '';
             document.getElementById('jobDesc').value = '';
             document.getElementById('jobKpi').value = '';
             state.jobCriteria = [
@@ -2270,6 +2424,7 @@
             document.getElementById('saveJobBtn').innerText = 'Update Job';
 
             document.getElementById('jobTitle').value = job.title;
+            document.getElementById('jobUrl').value = job.jobUrl || '';
             document.getElementById('jobDesc').value = job.desc || '';
             document.getElementById('jobKpi').value = job.kpi || '';
             state.jobCriteria = job.evaluationCriteria || [];
@@ -2316,16 +2471,23 @@
             }
 
             const jobData = {
-                title, desc, kpi,
+                title, jobUrl: document.getElementById('jobUrl').value, desc, kpi,
                 evaluationCriteria: state.jobCriteria,
                 interviewQuestions: state.jobQuestions,
-                status: 'Open',
-                applicants: 0,
-                shortlisted: 0
+                status: 'Open'
             };
 
             if (state.editingJobId) {
                 jobData.id = state.editingJobId;
+                // Preserve stats when editing
+                const existingJob = state.jobs.find(j => String(j.id) === String(state.editingJobId));
+                if (existingJob) {
+                    jobData.applicants = existingJob.applicants || 0;
+                    jobData.shortlisted = existingJob.shortlisted || 0;
+                }
+            } else {
+                jobData.applicants = 0;
+                jobData.shortlisted = 0;
             }
 
             const result = await persistenceApiCall('upsert_job', jobData);
@@ -2345,6 +2507,101 @@
                 alert("Failed to save job to database. Check console for details.");
             }
         }
+        async function generateAIQuestions() {
+            const jd = document.getElementById('jobDesc').value.trim();
+            const kpi = document.getElementById('jobKpi').value.trim();
+            const title = document.getElementById('jobTitle').value.trim();
+
+            if (!jd) {
+                alert("Please provide a job description first.");
+                return;
+            }
+
+            const btn = document.getElementById('generateQuestionsBtn');
+            const originalBtnHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+
+            try {
+                const prompt = `Based on the following Job Description and KPIs for the role of "${title}", generate 5-8 highly relevant interview questions.
+                
+                JOB DESCRIPTION:
+                ${jd}
+                
+                KPIs & RESPONSIBILITIES:
+                ${kpi}
+                
+                For each question, provide:
+                1. Metric: The skill or attribute being tested (e.g., Technical Proficiency, Leadership, Conflict Resolution).
+                2. Question: The actual interview question.
+                3. Good Answer: Indicators of a high-quality response.
+                4. Red Flags: Warning signs in a candidate's response.
+                
+                Return THE RESULT ONLY as a valid JSON array of objects.
+                DO NOT USE MARKDOWN BLOCKS (\`\`\`json).
+                ONLY THE RAW JSON ARRAY.
+                JSON Keys: "metric", "question", "goodAnswer", "redFlags"
+                Example: [{"metric": "...", "question": "...", "goodAnswer": "...", "redFlags": "..."}]`;
+
+                const payload = {
+                    prompt: prompt,
+                    content_type: "plain-text",
+                    action: "generate"
+                };
+
+                const response = await fetch('https://panc0eazwj.execute-api.ap-southeast-1.amazonaws.com/content-generator', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error("AI Generation failed");
+                
+                const data = await response.json();
+                let content = typeof data === 'object' ? (data.body || data.result || JSON.stringify(data)) : data;
+                
+                console.log("AI Raw Response:", content); // Debug log
+
+                // Extract JSON array more reliably
+                const jsonMatch = content.match(/\[\s*\{.*\}\s*\]/s);
+                if (jsonMatch) {
+                    content = jsonMatch[0];
+                } else {
+                    // Fallback to indices if regex fails
+                    const startIdx = content.indexOf('[');
+                    const endIdx = content.lastIndexOf(']');
+                    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+                        content = content.substring(startIdx, endIdx + 1);
+                    }
+                }
+                
+                const questions = JSON.parse(content);
+
+                if (Array.isArray(questions)) {
+                    if (!state.jobQuestions) state.jobQuestions = [];
+                    questions.forEach(q => {
+                        state.jobQuestions.push({
+                            id: 'q_' + Math.random().toString(36).substr(2, 9),
+                            metric: q.metric || "AI Metric",
+                            q: q.question || "AI Question",
+                            good: q.goodAnswer || "Good answer indicators",
+                            bad: q.redFlags || "Red flag indicators"
+                        });
+                    });
+                    renderJobQuestions();
+                } else {
+                    throw new Error("Invalid response format from AI");
+                }
+
+            } catch (error) {
+                console.error("Error generating questions:", error);
+                alert("Failed to generate questions. Please ensure the Job Description is detailed enough.");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalBtnHtml;
+            }
+        }
+
         function addJobQuestion() {
             if (!state.jobQuestions) state.jobQuestions = [];
             state.jobQuestions.push({
@@ -2518,6 +2775,16 @@
             if (job) job.status = newStatus;
         }
 
+        async function updateCandidateJob(candId, newJobId) {
+            const cand = state.candidates.find(c => String(c.id) === String(candId));
+            if (cand) {
+                cand.jobId = newJobId;
+                // The jobTitle is recalculated in filterCandidatesRepo, so we just need to alert the persistence API
+                await persistenceApiCall('upsert_candidate', { id: candId, jobId: newJobId });
+                filterCandidatesRepo();
+            }
+        }
+
         async function updateCandidateStatus(candId, newStatus) {
             const cand = state.candidates.find(c => String(c.id) === String(candId));
             if (cand) {
@@ -2665,6 +2932,7 @@
             document.getElementById('resultsSection').style.display = 'block';
 
             await loadCandidatesPage(id);
+            makeTableResizable('candidateTable');
         }
 
         // User Management Logic
@@ -2757,9 +3025,14 @@
         // Candidates Repository Logic
         function updatePositionFilter() {
             const select = document.getElementById('filterPosition');
+            const bestFitSelect = document.getElementById('filterBestFit');
             const positions = [...new Set(state.jobs.map(j => j.title))];
-            select.innerHTML = '<option value="">All Positions</option>' +
+            
+            const options = '<option value="">All Positions</option>' + 
                 positions.map(p => `<option value="${p}">${p}</option>`).join('');
+                
+            select.innerHTML = options;
+            bestFitSelect.innerHTML = options;
         }
 
         function filterCandidatesRepo() {
@@ -2771,6 +3044,7 @@
 
             const search = document.getElementById('searchCand')?.value.toLowerCase() || "";
             const pos = document.getElementById('filterPosition')?.value || "";
+            const bestFitPos = document.getElementById('filterBestFit')?.value || "";
             const status = document.getElementById('filterStatus')?.value || "";
             const startStr = document.getElementById('dateStart')?.value || "";
             const endStr = document.getElementById('dateEnd')?.value || "";
@@ -2783,6 +3057,7 @@
 
             if (search) filtered = filtered.filter(c => c.name.toLowerCase().includes(search));
             if (pos) filtered = filtered.filter(c => c.jobTitle === pos);
+            if (bestFitPos) filtered = filtered.filter(c => c.bestFit?.jobTitle === bestFitPos);
             if (status) filtered = filtered.filter(c => c.status === status);
 
             // Handle Deleted Logic
@@ -2801,6 +3076,7 @@
                 else if (repoSort.field === 'job') { valA = a.jobTitle; valB = b.jobTitle; }
                 else if (repoSort.field === 'date') { valA = new Date(ensureUTC(a.date)); valB = new Date(ensureUTC(b.date)); }
                 else if (repoSort.field === 'score') { valA = a.aiScore; valB = b.aiScore; }
+                else if (repoSort.field === 'bestFit') { valA = a.bestFit?.score || 0; valB = b.bestFit?.score || 0; }
                 else if (repoSort.field === 'interviewerScore') { valA = a.interviewerScore || 0; valB = b.interviewerScore || 0; }
                 else if (repoSort.field === 'pendingBy') { valA = a.pendingBy; valB = b.pendingBy; }
                 else if (repoSort.field === 'status') { valA = a.status; valB = b.status; }
@@ -2847,7 +3123,12 @@
                         <input type="checkbox" class="repo-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('repoTable')">
                     </td>
                     <td style="font-weight: 600;">${c.name}</td>
-                    <td>${c.jobTitle}</td>
+                    <td>
+                        <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%; max-width: 140px;" 
+                            onclick="event.stopPropagation()" onchange="updateCandidateJob('${c.id}', this.value)">
+                            ${getJobOptions(c.jobId)}
+                        </select>
+                    </td>
                     <td>${formatDate8(c.date)}</td>
                     <td>
                         <div style="display: flex; align-items: center; gap: 8px;">
@@ -2856,6 +3137,13 @@
                     `<span style="font-weight: 700; color: var(--secondary);">${c.aiScore}%</span>`
                 }
                         </div>
+                    </td>
+                    <td>
+                        ${c.bestFit && c.bestFit.score > c.aiScore ?
+                    `<div style="font-size: 0.75rem; color: var(--accent); font-weight: 600;">${c.bestFit.jobTitle}</div>
+                             <div style="font-weight: 700; color: var(--accent);">${c.bestFit.score}%</div>` :
+                    `<span style="font-size: 0.75rem; color: var(--text-dim);">Applied is Best</span>`
+                }
                     </td>
                     <td><span style="font-weight: 700; color: var(--secondary);">${c.interviewerScore || 0}%</span></td>
                     <td>
@@ -3001,12 +3289,24 @@
                     const analysis = await callAIAnalysis(item, text);
                     console.log(`[Batch] Received AI Analysis for ${item.name}: `, analysis);
 
-                    if (!analysis || typeof analysis !== 'object') {
-                        throw new Error(`Invalid analysis result for ${item.name}`);
+                    const cvDataBase64 = await toBase64(item.blob);
+                    
+                    // Evaluate for all other jobs (Best Fit)
+                    console.log(`[Batch] Starting Best Fit evaluation for ${item.name}...`);
+                    const allScores = await evaluateCandidateForAllJobs(item, text, cvDataBase64);
+                    
+                    // Conflict Resolution Logic
+                    const appliedJobId = state.activeJobId || item.jobId;
+                    const sameJobEvaluation = allScores.find(s => String(s.jobId) === String(appliedJobId));
+                    if (sameJobEvaluation && sameJobEvaluation.score > analysis.score) {
+                        analysis.score = sameJobEvaluation.score;
                     }
 
-                    const cvDataBase64 = await toBase64(item.blob);
-                    const success = await addCandidate(item.name, analysis, cvDataBase64, text, true);
+                    // Filter out current job for Best Fit calculation
+                    const otherJobs = allScores.filter(s => String(s.jobId) !== String(appliedJobId));
+                    const bestFit = otherJobs.reduce((best, current) => (current.score > best.score) ? current : best, { score: 0, jobTitle: 'Applied is Best' });
+                    
+                    const success = await addCandidate(item.name, { ...analysis, bestFit, allScores }, cvDataBase64, text, true);
                     if (!success) {
                         throw new Error(`Failed to save candidate "${item.name}" to database`);
                     }
@@ -3094,6 +3394,52 @@
             } else {
                 alert("Failed to restore candidates.");
             }
+        }
+
+        function makeTableResizable(tableId) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+
+            // Avoid adding multiple resizers
+            if (table.dataset.resizable === 'true') return;
+            table.dataset.resizable = 'true';
+
+            const cols = table.querySelectorAll('th');
+            cols.forEach((col, index) => {
+                // Skip checkbox and actions
+                if (index === 0 || col.innerText === 'Actions' || col.classList.contains('no-resize')) return;
+
+                const resizer = document.createElement('div');
+                resizer.classList.add('resizer');
+                const handle = document.createElement('div');
+                handle.classList.add('resizer-handle');
+                resizer.appendChild(handle);
+                col.appendChild(resizer);
+
+                resizer.addEventListener('mousedown', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const startX = e.pageX;
+                    const startWidth = col.offsetWidth;
+                    resizer.classList.add('resizing');
+
+                    const onMouseMove = (e) => {
+                        const newWidth = Math.max(80, startWidth + (e.pageX - startX));
+                        col.style.width = newWidth + 'px';
+                        col.style.minWidth = newWidth + 'px';
+                    };
+
+                    const onMouseUp = () => {
+                        resizer.classList.remove('resizing');
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                    };
+
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
+            });
         }
 
         function toggleSelectAll(tableId) {
@@ -3382,6 +3728,61 @@
             }
         }
 
+        function getJobLocation(title) {
+            const match = title.match(/\b(SG|MY|PH|ID|TH|VN)\b/i);
+            return match ? match[0].toUpperCase() : null;
+        }
+
+        async function evaluateCandidateForAllJobs(item, text, cvDataBase64) {
+            const appliedJob = state.jobs.find(j => String(j.id) === String(state.activeJobId || item.jobId));
+            const appliedLocation = appliedJob ? getJobLocation(appliedJob.title) : null;
+
+            const results = await Promise.all(state.jobs.map(async (job) => {
+                try {
+                    // Item could be a staged file object OR a candidate object
+
+                    // Filter by location if applied job has a country code
+                    if (appliedLocation) {
+                        const jobLocation = getJobLocation(job.title);
+                        if (jobLocation !== appliedLocation) return null;
+                    }
+
+                    const analysis = await callAIAnalysisForJob(item, text, job, cvDataBase64);
+                    return { jobId: job.id, jobTitle: job.title, score: parseInt(analysis.score) || 0 };
+                } catch (e) {
+                    console.error(`Failed to evaluate candidate for job ${job.title}:`, e);
+                    return null;
+                }
+            }));
+            return results.filter(r => r !== null);
+        }
+
+        async function callAIAnalysisForJob(item, text, job, cvDataBase64) {
+            const fileName = item.name || item.fileName || 'unknown';
+            const ext = fileName.split('.').pop().toLowerCase();
+            const isImage = ['jpg', 'png', 'jpeg'].includes(ext);
+            const lambdaUrl = 'https://1sv1emfmnl.execute-api.ap-southeast-1.amazonaws.com/recruitmentAnalysis';
+
+            const payload = {
+                cv_text: isImage ? '' : text,
+                image_base64: isImage ? (cvDataBase64 || (item.blob ? await toBase64(item.blob) : '')) : '',
+                image_ext: ext,
+                job_desc: job.desc,
+                job_kpi: job.kpi,
+                evaluation_criteria: job.evaluationCriteria || [],
+                api_key: state.apiKey
+            };
+
+            const response = await fetch(lambdaUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) throw new Error(`Lambda failed for ${job.title}`);
+            return await response.json();
+        }
+
         async function callAIAnalysis(item, text) {
             const job = state.jobs.find(j => j.id === state.activeJobId);
             const ext = item.name.split('.').pop().toLowerCase();
@@ -3480,10 +3881,27 @@
 
             const analysis = await response.json();
 
+            // Best Fit Evaluation
+            console.log(`[Re-eval] Starting Best Fit evaluation for ${candidate.name}...`);
+            const allScores = await evaluateCandidateForAllJobs(candidate, candidate.fullText, candidate.cvData);
             // Update candidate object
             const contactScans = scanTextForContacts(candidate.fullText);
             candidate.name = cleanCandidateName(analysis.name, candidate.fileName);
+            
+            // Conflict Resolution Logic
+            const appliedJobId = candidate.jobId;
+            const sameJobEvaluation = allScores.find(s => String(s.jobId) === String(appliedJobId));
+            if (sameJobEvaluation && sameJobEvaluation.score > analysis.score) {
+                analysis.score = sameJobEvaluation.score;
+            }
+
+            // Filter out current job for Best Fit calculation
+            const otherJobs = allScores.filter(s => String(s.jobId) !== String(appliedJobId));
+            const bestFitResult = otherJobs.reduce((best, current) => (current.score > best.score) ? current : best, { score: 0, jobTitle: 'Applied is Best' });
+
             candidate.aiScore = analysis.score;
+            candidate.bestFit = bestFitResult;
+            candidate.allScores = allScores;
             candidate.email = analysis.email || contactScans.email || candidate.email;
             candidate.phone = analysis.phone || contactScans.phone || candidate.phone;
             candidate.breakdown = analysis.breakdown;
@@ -3661,6 +4079,10 @@
             }
         }
 
+        function getJobOptions(currentJobId) {
+            return state.jobs.map(j => `<option value="${j.id}" ${String(j.id) === String(currentJobId) ? 'selected' : ''}>${j.title}</option>`).join('');
+        }
+
         function getAssigneeOptions(currentVal) {
             const users = state.users.filter(u => u.status === 'Active');
             return '<option value="">Unassigned</option>' +
@@ -3683,6 +4105,7 @@
                 if (jobDetailsSort.field === 'name') { valA = a.name; valB = b.name; }
                 else if (jobDetailsSort.field === 'date') { valA = new Date(ensureUTC(a.date)); valB = new Date(ensureUTC(b.date)); }
                 else if (jobDetailsSort.field === 'score') { valA = a.aiScore; valB = b.aiScore; }
+                else if (jobDetailsSort.field === 'bestFit') { valA = a.bestFit?.score || 0; valB = b.bestFit?.score || 0; }
                 else if (jobDetailsSort.field === 'interviewerScore') { valA = a.interviewerScore || 0; valB = b.interviewerScore || 0; }
                 else if (jobDetailsSort.field === 'status') { valA = a.status; valB = b.status; }
                 else if (jobDetailsSort.field === 'hopper') { valA = a.isHopper; valB = b.isHopper; }
@@ -3717,13 +4140,20 @@
                             ${c.isReEvaluating ?
                     `<span style="font-size: 0.8rem; color: var(--accent);"><i class="fas fa-spinner fa-spin me-1"></i> Analyzing...</span>` :
                     `
-                                <span style="font-weight: 700; color: ${c.aiScore > 75 ? 'var(--secondary)' : 'white'}">${c.aiScore}</span>
+                                <span style="font-weight: 700; color: ${c.aiScore > 75 ? 'var(--secondary)' : 'white'}">${c.aiScore}%</span>
                                 <div style="width: 60px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;">
                                     <div style="width: ${c.aiScore}%; height: 100%; background: var(--gradient);"></div>
                                 </div>
                                 `
                 }
                         </div>
+                    </td>
+                    <td>
+                        ${c.bestFit && c.bestFit.score > c.aiScore ?
+                    `<div style="font-size: 0.75rem; color: var(--accent); font-weight: 600;">${c.bestFit.jobTitle}</div>
+                             <div style="font-weight: 700; color: var(--accent);">${c.bestFit.score}%</div>` :
+                    `<span style="font-size: 0.75rem; color: var(--text-dim);">Applied is Best</span>`
+                }
                     </td>
                     <td><span style="font-weight: 700; color: var(--secondary);">${c.interviewerScore || 0}%</span></td>
                     <td>
@@ -4175,124 +4605,83 @@
         function renderCheatSheet(job, cand) {
             let html = '';
 
-            // 1. Render Job-Level Questions (ReadOnly text)
+            // 1. Render Job-Level Questions
             if (job && job.interviewQuestions && job.interviewQuestions.length > 0) {
-                html += `
-                    <tr style="background: rgba(99, 102, 241, 0.15);">
-                        <td colspan="6" style="padding: 10px 24px; font-weight: 700; color: var(--primary-light); font-size: 0.8rem; letter-spacing: 0.05em;">
-                            <i class="fas fa-briefcase me-2"></i> JOB STANDARD QUESTIONS (Read-Only Templates)
-                        </td>
-                    </tr>
-                `;
-                // Determine display order: candidate override > job default
+                // Determine order
                 let orderedQuestions = job.interviewQuestions;
                 if (cand.jobQuestionOrder && Array.isArray(cand.jobQuestionOrder) && cand.jobQuestionOrder.length > 0) {
-                    // Reorder based on candidate's saved order (by question ID)
                     const ordered = [];
                     cand.jobQuestionOrder.forEach(qId => {
                         const found = job.interviewQuestions.find(q => String(q.id) === String(qId));
                         if (found) ordered.push(found);
                     });
-                    // Append any new questions not in the saved order
                     job.interviewQuestions.forEach(q => {
                         if (!ordered.find(o => String(o.id) === String(q.id))) ordered.push(q);
                     });
                     orderedQuestions = ordered;
                 }
 
-                html += orderedQuestions.map((row, jIdx) => {
+                html += orderedQuestions.map((row) => {
                     const rating = (cand.jobRatings && cand.jobRatings[row.id]) || 0;
                     return `
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); opacity: 0.9;" data-type="job" data-id="${jIdx}" data-qid="${row.id}">
-                        <td style="padding: 12px; vertical-align: top; text-align: center; color: var(--primary-light); cursor: grab;" class="drag-handle">
-                            <i class="fas fa-grip-vertical"></i>
-                        </td>
-                        <td style="padding: 12px 24px; vertical-align: top;">
-                            <div style="color: var(--text-main); font-weight: 600; padding: 2px 4px;">${row.metric}</div>
-                        </td>
-                        <td style="padding: 12px; vertical-align: top;">
-                            <div style="color: var(--text-main); padding: 2px 4px;">${row.q}</div>
-                        </td>
-                        <td style="padding: 12px; vertical-align: top;">
-                            <div style="color: var(--text-dim); font-size: 0.8rem; padding: 2px 4px;">${row.good}</div>
-                        </td>
-                        <td style="padding: 12px; vertical-align: top;">
-                            <div style="color: var(--text-dim); font-size: 0.8rem; padding: 2px 4px;">${row.bad}</div>
-                        </td>
-                        <td style="padding: 12px; vertical-align: top; text-align: center;">
-                            <div class="rating-stars" style="justify-content: center;">
+                    <div class="interview-card" data-type="job" data-qid="${row.id}">
+                        <div class="metric-badge">${row.metric}</div>
+                        <div class="question-text">${row.q}</div>
+                        <div class="guidelines">
+                            <div class="guideline-item good-answer">
+                                <span class="guideline-label"><i class="fas fa-check-circle"></i> Good Answer</span>
+                                <div class="guideline-content">${row.good}</div>
+                            </div>
+                            <div class="guideline-item red-flags">
+                                <span class="guideline-label"><i class="fas fa-exclamation-triangle"></i> Red Flags</span>
+                                <div class="guideline-content">${row.bad}</div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="rating-stars">
                                 ${[1, 2, 3, 4, 5].map(v => `
                                     <span class="star ${v <= rating ? 'active' : ''}" 
                                           onclick="setJobQuestionRating('${row.id}', ${v})">★</span>
                                 `).join('')}
                             </div>
-                        </td>
-                        <td></td>
-                    </tr>
+                            <span style="font-size: 0.7rem; color: var(--text-dim);">Standard Item</span>
+                        </div>
+                    </div>
                     `;
                 }).join('');
             }
 
-            // 2. Render Custom Candidate Questions (Fully Editable)
-            html += `
-                <tr style="background: rgba(6, 182, 212, 0.15);">
-                    <td colspan="6" style="padding: 10px 24px; font-weight: 700; color: var(--secondary); font-size: 0.8rem; letter-spacing: 0.05em;">
-                        <i class="fas fa-user-edit me-2"></i> CUSTOM CANDIDATE QUESTIONS (Editable)
-                    </td>
-                </tr>
-            `;
-
-            if (!cand.customInterviewGuide || cand.customInterviewGuide.length === 0) {
-                html += `<tr><td colspan="6" style="padding: 20px 24px; text-align: center; color: var(--text-dim);">No custom questions.</td></tr>`;
-            } else {
+            // 2. Render Custom Candidate Questions
+            if (cand.customInterviewGuide && cand.customInterviewGuide.length > 0) {
                 html += cand.customInterviewGuide.map((row, idx) => `
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);" data-type="custom" data-id="${idx}">
-                        <td style="padding: 12px; vertical-align: top; text-align: center; color: var(--primary-light); cursor: grab;" class="drag-handle">
-                            <i class="fas fa-grip-vertical"></i>
-                        </td>
-                        <td style="padding: 12px 24px; vertical-align: top;">
-                            <div contenteditable="true" onblur="updateCustomGuideContent(${idx}, 'metric', this.innerText)"
-                                 style="color: var(--text-main); font-weight: 600; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
-                                 onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
-                                 ${row.metric}
+                    <div class="interview-card" data-type="custom" data-id="${idx}">
+                        <div class="metric-badge" style="background: rgba(6, 182, 212, 0.2); color: var(--secondary);">${row.metric}</div>
+                        <div class="question-text" contenteditable="true" onblur="updateCustomGuideContent(${idx}, 'q', this.innerText)">${row.q}</div>
+                        <div class="guidelines">
+                            <div class="guideline-item good-answer">
+                                <span class="guideline-label"><i class="fas fa-check-circle"></i> Good Answer</span>
+                                <div class="guideline-content" contenteditable="true" onblur="updateCustomGuideContent(${idx}, 'good', this.innerText)">${row.good}</div>
                             </div>
-                        </td>
-                        <td style="padding: 12px; vertical-align: top;">
-                            <div contenteditable="true" onblur="updateCustomGuideContent(${idx}, 'q', this.innerText)"
-                                 style="color: var(--text-main); outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
-                                 onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
-                                 ${row.q}
+                            <div class="guideline-item red-flags">
+                                <span class="guideline-label"><i class="fas fa-exclamation-triangle"></i> Red Flags</span>
+                                <div class="guideline-content" contenteditable="true" onblur="updateCustomGuideContent(${idx}, 'bad', this.innerText)">${row.bad}</div>
                             </div>
-                        </td>
-                        <td style="padding: 12px; vertical-align: top;">
-                            <div contenteditable="true" onblur="updateCustomGuideContent(${idx}, 'good', this.innerText)"
-                                 style="color: var(--text-dim); font-size: 0.8rem; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
-                                 onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
-                                 ${row.good}
-                            </div>
-                        </td>
-                        <td style="padding: 12px; vertical-align: top;">
-                            <div contenteditable="true" onblur="updateCustomGuideContent(${idx}, 'bad', this.innerText)"
-                                 style="color: var(--text-dim); font-size: 0.8rem; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
-                                 onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
-                                 ${row.bad}
-                            </div>
-                        </td>
-                        <td style="padding: 12px; vertical-align: top; text-align: center;">
-                            <div class="rating-stars" style="justify-content: center;">
+                        </div>
+                        <div class="card-footer">
+                            <div class="rating-stars">
                                 ${[1, 2, 3, 4, 5].map(v => `
                                     <span class="star ${v <= (row.rating || 0) ? 'active' : ''}" 
                                           onclick="setCustomQuestionRating(${idx}, ${v})">★</span>
                                 `).join('')}
                             </div>
-                        </td>
-                        <td style="padding: 12px; vertical-align: top; text-align: center;">
-                            <button class="btn" style="background: var(--accent); color: white; padding: 6px 12px; font-size: 0.9rem;" onclick="deleteCustomQuestion(${idx})">
-                                <i class="fas fa-ban"></i>
-                            </button>
-                        </td>
-                    </tr>
+                            <i class="fas fa-trash delete-btn" onclick="deleteCustomQuestion(${idx})"></i>
+                        </div>
+                    </div>
                 `).join('');
+            }
+
+            if (html === '') {
+                html = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-dim);">No questions defined. Use "Generate Questions" in the Job Settings to get started.</div>';
             }
 
             return html;
@@ -4308,55 +4697,33 @@
             }
 
             cheatSheetSortable = new Sortable(el, {
-                handle: '.drag-handle',
                 animation: 150,
-                filter: 'tr[style*="background: rgba"]', // Exclude section header rows
+                ghostClass: 'sortable-ghost',
                 onEnd: async function () {
                     const job = state.jobs.find(j => String(j.id) === String(cand.jobId));
+                    const cards = Array.from(el.querySelectorAll('.interview-card'));
+                    
+                    // 1. Update Job Question Order
+                    const jobCards = cards.filter(c => c.getAttribute('data-type') === 'job');
+                    const newJobOrder = jobCards.map(c => c.getAttribute('data-qid'));
+                    cand.jobQuestionOrder = newJobOrder;
 
-                    // Rebuild job questions order
-                    const jobRows = Array.from(el.querySelectorAll('tr[data-type="job"]'));
-                    if (job && job.interviewQuestions && jobRows.length > 0) {
-                        // Get the new order by question ID
-                        const newJobQuestionOrder = jobRows.map(row => row.getAttribute('data-qid'));
+                    // 2. Update Custom Question Order
+                    const customCards = cards.filter(c => c.getAttribute('data-type') === 'custom');
+                    const newCustomGuide = customCards.map(c => {
+                        const idx = parseInt(c.getAttribute('data-id'));
+                        return cand.customInterviewGuide[idx];
+                    });
+                    cand.customInterviewGuide = newCustomGuide;
 
-                        // Update the job's default order
-                        const newJobQuestions = newJobQuestionOrder.map(qid =>
-                            job.interviewQuestions.find(q => String(q.id) === String(qid))
-                        ).filter(Boolean);
-                        job.interviewQuestions = newJobQuestions;
+                    // Persist
+                    await persistenceApiCall('upsert_candidate', {
+                        id: cand.id,
+                        jobQuestionOrder: newJobOrder,
+                        customInterviewGuide: newCustomGuide
+                    });
 
-                        // Save candidate-level override
-                        cand.jobQuestionOrder = newJobQuestionOrder;
-
-                        // Persist both
-                        await persistenceApiCall('upsert_job', {
-                            id: job.id,
-                            interviewQuestions: job.interviewQuestions
-                        });
-                        await persistenceApiCall('upsert_candidate', {
-                            id: cand.id,
-                            jobQuestionOrder: cand.jobQuestionOrder
-                        });
-                    }
-
-                    // Rebuild custom questions order
-                    const customRows = Array.from(el.querySelectorAll('tr[data-type="custom"]'));
-                    if (cand.customInterviewGuide && customRows.length > 0) {
-                        const newGuide = customRows.map(row => {
-                            const origIdx = parseInt(row.getAttribute('data-id'));
-                            return cand.customInterviewGuide[origIdx];
-                        });
-                        cand.customInterviewGuide = newGuide;
-
-                        // Persist custom question order
-                        await persistenceApiCall('upsert_candidate', {
-                            id: cand.id,
-                            customInterviewGuide: cand.customInterviewGuide
-                        });
-                    }
-
-                    // Re-render to refresh data-id attributes
+                    // Re-render to refresh data-id indices
                     el.innerHTML = renderCheatSheet(job, cand);
                     initCheatSheetSortable(cand);
                 }
@@ -4379,6 +4746,7 @@
             });
 
             document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(job, cand);
+            initCheatSheetSortable(cand);
             await persistenceApiCall('upsert_candidate', { id: cand.id, customInterviewGuide: cand.customInterviewGuide });
         }
 
@@ -4389,6 +4757,7 @@
 
             cand.customInterviewGuide.splice(idx, 1);
             document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(job, cand);
+            initCheatSheetSortable(cand);
             await persistenceApiCall('upsert_candidate', { id: cand.id, customInterviewGuide: cand.customInterviewGuide });
         }
 
@@ -4433,6 +4802,7 @@
             if (scoreDisplay) scoreDisplay.value = newScore;
 
             document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(job, cand);
+            initCheatSheetSortable(cand);
             await persistenceApiCall('upsert_candidate', {
                 id: cand.id,
                 customInterviewGuide: cand.customInterviewGuide,
@@ -4456,6 +4826,7 @@
             if (scoreDisplay) scoreDisplay.value = newScore;
 
             document.getElementById('cheatSheetBody').innerHTML = renderCheatSheet(job, cand);
+            initCheatSheetSortable(cand);
             await persistenceApiCall('upsert_candidate', {
                 id: cand.id,
                 jobRatings: cand.jobRatings,
