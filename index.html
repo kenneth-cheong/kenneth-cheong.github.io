@@ -21424,6 +21424,15 @@
             }
         }
 
+        function debounce(func, wait) {
+            let timeout;
+            return function (...args) {
+                const context = this;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(context, args), wait);
+            };
+        }
+
         // Configuration for AI Content Optimiser Lambda Endpoints
         const OPTIMISER_ENDPOINTS = {
             SEO_ANALYSIS: 'https://diyjtwnt4l.execute-api.ap-southeast-1.amazonaws.com/seoContentAnalysisScore',
@@ -37232,6 +37241,11 @@ INSTRUCTIONS:
                     // If card is fully loaded (not error), trigger the keyword fetch in the background
                     if (item && !item.loading && !item.error && item.url) {
                         fetchAndRenderKeywords(card.id, item.url);
+                        
+                        // AUTO-TRIGGER TRANSLATION FOR NON-ENGLISH LOCALES
+                        if (isNonEnglishLocale()) {
+                            translateCardTopics(card.id);
+                        }
                     }
                 });
 
@@ -37544,6 +37558,12 @@ INSTRUCTIONS:
             // Update textarea
             if (textArea) {
                 textArea.value = Array.from(set).join('\n');
+                
+                // AUTO-TRIGGER SELECTION TRANSLATION
+                if (isNonEnglishLocale()) {
+                    const targetId = flow === 'optimise' ? 'selectedTopicsText-Optimise-EN' : 'selectedTopicsText-EN';
+                    debounce(() => translateTextArea(textArea.id, targetId), 1000)();
+                }
             }
         }
 
@@ -37571,6 +37591,12 @@ INSTRUCTIONS:
             const textArea = document.getElementById(textId);
             if (textArea) {
                 textArea.value = Array.from(set).join('\n');
+                
+                // AUTO-TRIGGER SELECTION TRANSLATION
+                if (isNonEnglishLocale()) {
+                    const targetId = flow === 'optimise' ? 'selectedTopicsText-Optimise-EN' : 'selectedTopicsText-EN';
+                    translateTextArea(textArea.id, targetId);
+                }
             }
         }
 
@@ -38186,6 +38212,9 @@ INSTRUCTIONS:
             const sections = parseOutlineIntoSections(outline);
             let fullWrittenContent = "";
             if (editor) editor.innerHTML = ""; // Clear for progressive start
+            
+            const transPane = document.getElementById('editorTranslation');
+            if (transPane) transPane.innerHTML = "";
 
             // NEW: Feed Deep Compare Data into prompt for each section
             let deepCompareContext = "";
@@ -38260,6 +38289,16 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                         updateEditorMetrics();
                         // Scroll editor to bottom to show new content
                         editor.scrollTop = editor.scrollHeight;
+
+                        // Parallel Translation Streaming
+                        if (isNonEnglishLocale() && transPane) {
+                            translateToEnglish(sectionMarkdown).then(translated => {
+                                if (translated) {
+                                    transPane.innerHTML += formatMarkdown(translated);
+                                    transPane.scrollTop = transPane.scrollHeight;
+                                }
+                            });
+                        }
 
                         // Auto-fill title from H1 if present (usually in the first section)
                         if (i === 0) {
