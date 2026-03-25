@@ -1347,7 +1347,8 @@
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 12px;
-            display: none; /* Hidden until schemas are added */
+            display: none;
+            /* Hidden until schemas are added */
         }
 
         .workflow-header {
@@ -1409,7 +1410,7 @@
             gap: 8px;
             cursor: pointer;
             transition: all 0.2s;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
         }
 
         .workflow-chip:hover {
@@ -2116,6 +2117,7 @@
             flex-wrap: wrap;
             justify-content: flex-end;
         }
+
         .view-toggle {
             display: flex;
             background: #374151;
@@ -4348,7 +4350,64 @@
 
         .editor-content:focus {
             background-color: #fff;
-            box-shadow: inset 0 0 10px rgba(0, 76, 157, 0.03);
+            border-color: #e2e8f0;
+            box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.02);
+        }
+
+        /* Side-by-Side Translation Styles */
+        .translation-side-by-side {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .translation-pane {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 0.9em;
+            color: #475569;
+            min-height: 100px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            position: relative;
+        }
+
+        .translation-label {
+            display: block;
+            font-size: 10px;
+            font-weight: 800;
+            color: #94a3b8;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .editor-side-by-side {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            border-top: 1px solid #eee;
+        }
+
+        .editor-side-by-side>div {
+            border-right: 1px solid #eee;
+        }
+
+        .editor-side-by-side>div:last-child {
+            border-right: none;
+            background-color: #f8fafc;
+        }
+
+        @media (max-width: 1024px) {
+
+            .translation-side-by-side,
+            .editor-side-by-side {
+                grid-template-columns: 1fr;
+            }
         }
 
         /* Diff Highlights */
@@ -10622,7 +10681,8 @@
                         <div id="schema-workflow-container" class="workflow-container">
                             <div class="workflow-header">
                                 <span><i class="fas fa-layer-group"></i> Your Schema Collection</span>
-                                <button class="preview-btn" onclick="clearWorkflow()" style="font-size: 0.8em; padding: 4px 10px;">
+                                <button class="preview-btn" onclick="clearWorkflow()"
+                                    style="font-size: 0.8em; padding: 4px 10px;">
                                     <i class="fas fa-trash-alt"></i> Clear All
                                 </button>
                             </div>
@@ -10663,7 +10723,8 @@
                                             <div class="toggle-opt" data-mode="json">JSON</div>
                                             <div class="toggle-opt active" data-mode="snippet">Snippet</div>
                                         </div>
-                                        <div class="view-toggle" id="view-mode-toggle" title="Switch between active schema and your entire collection">
+                                        <div class="view-toggle" id="view-mode-toggle"
+                                            title="Switch between active schema and your entire collection">
                                             <div class="toggle-opt active" data-view="single">Single</div>
                                             <div class="toggle-opt" data-view="collection">Collection</div>
                                         </div>
@@ -10673,7 +10734,9 @@
                                         <button class="preview-btn primary" onclick="openRichResultsTest()">
                                             <i class="fas fa-external-link-alt"></i> Test
                                         </button>
-                                        <button class="preview-btn primary" id="add-to-workflow-btn" onclick="addToWorkflow()" style="background: linear-gradient(135deg, #10a37f, #0d8a6b);">
+                                        <button class="preview-btn primary" id="add-to-workflow-btn"
+                                            onclick="addToWorkflow()"
+                                            style="background: linear-gradient(135deg, #10a37f, #0d8a6b);">
                                             <i class="fas fa-save"></i> Add to Workflow
                                         </button>
                                     </div>
@@ -11653,159 +11716,159 @@
                 </div>
 
 
-            <div id="llmPathwayContainer" style="display: none;">
-                <button id="backToLlmDecision" class="geo-btn-add" onclick="switchLlmFlow('reset')"
-                    style="margin-bottom: 20px; border-style: solid !important;">
-                    <i class="fas fa-arrow-left"></i> Change Pathway
-                </button>
+                <div id="llmPathwayContainer" style="display: none;">
+                    <button id="backToLlmDecision" class="geo-btn-add" onclick="switchLlmFlow('reset')"
+                        style="margin-bottom: 20px; border-style: solid !important;">
+                        <i class="fas fa-arrow-left"></i> Change Pathway
+                    </button>
 
-                <div class="geo-layout">
-                    <!-- Left: Inputs -->
-                    <div class="geo-inputs">
-                        <!-- Project Information -->
-                        <div class="geo-card">
-                            <div class="geo-card-header">
-                                <div class="geo-card-title"><i class="fas fa-info-circle"></i> Project
-                                    Information</div>
-                                <button class="geo-btn-add" onclick="fillLlmSampleData()"
-                                    style="border-style: solid !important;">
-                                    <i class="fas fa-magic"></i> Fill Sample Data
-                                </button>
-                            </div>
-                            <div class="geo-input-group">
-                                <div class="geo-input-item">
-                                    <label>Project Name *</label>
-                                    <input type="text" id="llmSiteTitle" placeholder="e.g., Extra Space Asia">
+                    <div class="geo-layout">
+                        <!-- Left: Inputs -->
+                        <div class="geo-inputs">
+                            <!-- Project Information -->
+                            <div class="geo-card">
+                                <div class="geo-card-header">
+                                    <div class="geo-card-title"><i class="fas fa-info-circle"></i> Project
+                                        Information</div>
+                                    <button class="geo-btn-add" onclick="fillLlmSampleData()"
+                                        style="border-style: solid !important;">
+                                        <i class="fas fa-magic"></i> Fill Sample Data
+                                    </button>
                                 </div>
-                                <div class="geo-input-item">
-                                    <label>Summary (Blockquote)</label>
-                                    <textarea id="llmDescription" style="height: 80px"
-                                        placeholder="e.g., Extra Space Asia is the region's leading self-storage provider..."></textarea>
-                                </div>
-                                <div id="llmFullSpecificInfo" style="display: none;">
+                                <div class="geo-input-group">
                                     <div class="geo-input-item">
-                                        <label>Additional Details (GEO Highlights)</label>
-                                        <textarea id="llmHighlights" style="height: 100px"
-                                            placeholder="e.g., Key services and expertise:&#10;- Personal Storage: Climate controlled, 24/7 access&#10;- Business Storage: Document archiving, inventory management&#10;- Wine Storage: Professional-grade climate control"></textarea>
+                                        <label>Project Name *</label>
+                                        <input type="text" id="llmSiteTitle" placeholder="e.g., Extra Space Asia">
                                     </div>
                                     <div class="geo-input-item">
-                                        <label>GEO Target Prompts (One per line)</label>
-                                        <textarea id="llmGeoPrompts" style="height: 100px"
-                                            placeholder="What makes Extra Space Asia the best storage choice?&#10;How does self-storage help businesses scale?"></textarea>
+                                        <label>Summary (Blockquote)</label>
+                                        <textarea id="llmDescription" style="height: 80px"
+                                            placeholder="e.g., Extra Space Asia is the region's leading self-storage provider..."></textarea>
+                                    </div>
+                                    <div id="llmFullSpecificInfo" style="display: none;">
+                                        <div class="geo-input-item">
+                                            <label>Additional Details (GEO Highlights)</label>
+                                            <textarea id="llmHighlights" style="height: 100px"
+                                                placeholder="e.g., Key services and expertise:&#10;- Personal Storage: Climate controlled, 24/7 access&#10;- Business Storage: Document archiving, inventory management&#10;- Wine Storage: Professional-grade climate control"></textarea>
+                                        </div>
+                                        <div class="geo-input-item">
+                                            <label>GEO Target Prompts (One per line)</label>
+                                            <textarea id="llmGeoPrompts" style="height: 100px"
+                                                placeholder="What makes Extra Space Asia the best storage choice?&#10;How does self-storage help businesses scale?"></textarea>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <!-- Documentation Sections -->
-                        <div class="geo-card">
-                            <div class="geo-card-header">
-                                <div class="geo-card-title"><i class="fas fa-folder-open"></i> Documentation
-                                    Sections</div>
-                                <div style="display: flex; gap: 10px; align-items: center;">
-                                    <select id="llmSectionType" class="geo-section-title"
-                                        style="width: auto; padding: 4px 8px; font-size: 0.9em; height: 35px; border-radius: 6px; border: 1px solid #ddd;">
-                                        <option value="Services">Services</option>
-                                        <option value="Products">Products</option>
-                                        <option value="Resources">Resources</option>
-                                        <option value="Company">Company</option>
-                                    </select>
-                                    <button class="geo-btn-add" onclick="addLlmPredefinedSection()"
-                                        style="border-style: solid !important; height: 35px; padding: 0 12px;">
-                                        <i class="fas fa-plus"></i> Add
+                            <!-- Documentation Sections -->
+                            <div class="geo-card">
+                                <div class="geo-card-header">
+                                    <div class="geo-card-title"><i class="fas fa-folder-open"></i> Documentation
+                                        Sections</div>
+                                    <div style="display: flex; gap: 10px; align-items: center;">
+                                        <select id="llmSectionType" class="geo-section-title"
+                                            style="width: auto; padding: 4px 8px; font-size: 0.9em; height: 35px; border-radius: 6px; border: 1px solid #ddd;">
+                                            <option value="Services">Services</option>
+                                            <option value="Products">Products</option>
+                                            <option value="Resources">Resources</option>
+                                            <option value="Company">Company</option>
+                                        </select>
+                                        <button class="geo-btn-add" onclick="addLlmPredefinedSection()"
+                                            style="border-style: solid !important; height: 35px; padding: 0 12px;">
+                                            <i class="fas fa-plus"></i> Add
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="llmDynamicSections">
+                                    <!-- Dynamic sections will be injected here -->
+                                </div>
+                                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #eee;">
+                                    <button class="geo-btn-add" onclick="addNewGeoSection()"
+                                        style="width: 100%; border-style: dashed !important;">
+                                        <i class="fas fa-plus-circle"></i> Add Custom Section
                                     </button>
                                 </div>
                             </div>
-                            <div id="llmDynamicSections">
-                                <!-- Dynamic sections will be injected here -->
+
+                            <!-- External Resources (Standard Only) -->
+                            <div id="llmExternalResourcesCard" class="geo-card" style="display: none;">
+                                <div class="geo-card-header">
+                                    <div class="geo-card-title"><i class="fas fa-external-link-alt"></i>
+                                        Additional Resources (External)</div>
+                                    <button class="geo-btn-add" onclick="addNewGeoLink('llmExternalList')"
+                                        style="border-style: solid !important;">
+                                        <i class="fas fa-plus"></i> Add Link
+                                    </button>
+                                </div>
+                                <div id="llmExternalList">
+                                    <!-- External links injected here -->
+                                </div>
                             </div>
-                            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #eee;">
-                                <button class="geo-btn-add" onclick="addNewGeoSection()"
-                                    style="width: 100%; border-style: dashed !important;">
-                                    <i class="fas fa-plus-circle"></i> Add Custom Section
+
+                            <!-- Optional Section -->
+                            <div class="geo-card">
+                                <div class="geo-card-header">
+                                    <div class="geo-card-title"><i class="fas fa-bookmark"></i> Optional / USP
+                                        Section</div>
+                                    <button class="geo-btn-add" onclick="addNewGeoLink('llmOptionalList')"
+                                        style="border-style: solid !important;">
+                                        <i class="fas fa-plus"></i> Add Info link
+                                    </button>
+                                </div>
+                                <div id="llmOptionalList">
+                                    <!-- Optional links injected here -->
+                                </div>
+                            </div>
+
+                            <div class="geo-main-actions"
+                                style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
+                                <button class="config-btn-highlight" id="generateLlmBtn"
+                                    onclick="generateLlmsTxtByPathway()"
+                                    style="background: #004c9d; border: none; height: 45px; font-weight: 700; flex: 1;">
+                                    <i class="fas fa-file-alt"></i> Generate llms.txt
+                                </button>
+                                <button type="button" onclick="initLlmsTour()" class="config-btn-highlight"
+                                    style="background: transparent; border: 2px solid #34a853; color: #34a853; margin: 0; box-shadow: none; padding: 11px 22px; cursor: pointer; transition: all 0.2s ease-in-out; height: 45px;"
+                                    onmouseover="this.style.background='#34a853'; this.style.color='white'; this.style.boxShadow='0 4px 12px rgba(52, 168, 83, 0.3)';"
+                                    onmouseout="this.style.background='transparent'; this.style.color='#34a853'; this.style.boxShadow='none';">
+                                    <i class="fas fa-question-circle"></i> Help
                                 </button>
                             </div>
                         </div>
 
-                        <!-- External Resources (Standard Only) -->
-                        <div id="llmExternalResourcesCard" class="geo-card" style="display: none;">
-                            <div class="geo-card-header">
-                                <div class="geo-card-title"><i class="fas fa-external-link-alt"></i>
-                                    Additional Resources (External)</div>
-                                <button class="geo-btn-add" onclick="addNewGeoLink('llmExternalList')"
-                                    style="border-style: solid !important;">
-                                    <i class="fas fa-plus"></i> Add Link
-                                </button>
+                        <!-- Right: Preview Area -->
+                        <div class="geo-preview-panel" id="geoFilePreview" style="display: none;">
+                            <div class="geo-preview-tabs">
+                                <div class="geo-tab active" id="tab-llms" onclick="switchGeoTab('llms')">
+                                    <i class="fas fa-file-alt"></i> llms.txt
+                                </div>
+                                <div class="geo-tab" id="tab-llms-full" onclick="switchGeoTab('llms-full')"
+                                    style="display: none;">
+                                    <i class="fas fa-file-medical"></i> llms-full.txt
+                                </div>
                             </div>
-                            <div id="llmExternalList">
-                                <!-- External links injected here -->
+                            <div class="geo-preview-body">
+                                <div class="geo-preview-meta">
+                                    <div id="previewTitle">Preview: llms.txt</div>
+                                    <div id="previewStats">0 characters | 0 words | 0 lines</div>
+                                </div>
+                                <div class="geo-preview-actions" style="margin-top: 15px;">
+                                    <button class="geo-btn-add" onclick="copyGeoPreview()"
+                                        style="border-style: solid !important;">
+                                        <i class="fas fa-copy"></i> Copy
+                                    </button>
+                                    <button class="geo-btn-add" onclick="downloadGeoPreview()"
+                                        style="border-style: solid !important;">
+                                        <i class="fas fa-download"></i> Download
+                                    </button>
+                                </div>
+                                <textarea id="geoPreviewText" class="keyword-input-textarea"
+                                    style="height: 500px; font-family: 'Courier New', monospace; font-size: 0.9em; background: #fafafa;"
+                                    readonly></textarea>
                             </div>
-                        </div>
-
-                        <!-- Optional Section -->
-                        <div class="geo-card">
-                            <div class="geo-card-header">
-                                <div class="geo-card-title"><i class="fas fa-bookmark"></i> Optional / USP
-                                    Section</div>
-                                <button class="geo-btn-add" onclick="addNewGeoLink('llmOptionalList')"
-                                    style="border-style: solid !important;">
-                                    <i class="fas fa-plus"></i> Add Info link
-                                </button>
-                            </div>
-                            <div id="llmOptionalList">
-                                <!-- Optional links injected here -->
-                            </div>
-                        </div>
-
-                        <div class="geo-main-actions"
-                            style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
-                            <button class="config-btn-highlight" id="generateLlmBtn"
-                                onclick="generateLlmsTxtByPathway()"
-                                style="background: #004c9d; border: none; height: 45px; font-weight: 700; flex: 1;">
-                                <i class="fas fa-file-alt"></i> Generate llms.txt
-                            </button>
-                            <button type="button" onclick="initLlmsTour()" class="config-btn-highlight"
-                                style="background: transparent; border: 2px solid #34a853; color: #34a853; margin: 0; box-shadow: none; padding: 11px 22px; cursor: pointer; transition: all 0.2s ease-in-out; height: 45px;"
-                                onmouseover="this.style.background='#34a853'; this.style.color='white'; this.style.boxShadow='0 4px 12px rgba(52, 168, 83, 0.3)';"
-                                onmouseout="this.style.background='transparent'; this.style.color='#34a853'; this.style.boxShadow='none';">
-                                <i class="fas fa-question-circle"></i> Help
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Right: Preview Area -->
-                    <div class="geo-preview-panel" id="geoFilePreview" style="display: none;">
-                        <div class="geo-preview-tabs">
-                            <div class="geo-tab active" id="tab-llms" onclick="switchGeoTab('llms')">
-                                <i class="fas fa-file-alt"></i> llms.txt
-                            </div>
-                            <div class="geo-tab" id="tab-llms-full" onclick="switchGeoTab('llms-full')"
-                                style="display: none;">
-                                <i class="fas fa-file-medical"></i> llms-full.txt
-                            </div>
-                        </div>
-                        <div class="geo-preview-body">
-                            <div class="geo-preview-meta">
-                                <div id="previewTitle">Preview: llms.txt</div>
-                                <div id="previewStats">0 characters | 0 words | 0 lines</div>
-                            </div>
-                            <div class="geo-preview-actions" style="margin-top: 15px;">
-                                <button class="geo-btn-add" onclick="copyGeoPreview()"
-                                    style="border-style: solid !important;">
-                                    <i class="fas fa-copy"></i> Copy
-                                </button>
-                                <button class="geo-btn-add" onclick="downloadGeoPreview()"
-                                    style="border-style: solid !important;">
-                                    <i class="fas fa-download"></i> Download
-                                </button>
-                            </div>
-                            <textarea id="geoPreviewText" class="keyword-input-textarea"
-                                style="height: 500px; font-family: 'Courier New', monospace; font-size: 0.9em; background: #fafafa;"
-                                readonly></textarea>
                         </div>
                     </div>
                 </div>
-            </div>
             </div>
             <!-- AI Discovery Audit Section -->
             <button class="collapsible" id="discoveryAuditBtn" onclick="toggleCollapsible(this)">
@@ -12291,12 +12354,17 @@
                     Generator</button>
                 <div class="content" id="persona_content">
                     <!-- Pathway Switcher -->
-                    <div class="sem-step-card" style="padding: 10px; margin-bottom: 20px; background: rgba(37, 99, 235, 0.05); border: 1px dashed rgba(37, 99, 235, 0.3);">
+                    <div class="sem-step-card"
+                        style="padding: 10px; margin-bottom: 20px; background: rgba(37, 99, 235, 0.05); border: 1px dashed rgba(37, 99, 235, 0.3);">
                         <div style="display: flex; gap: 10px; justify-content: center;">
-                            <button id="btnPersonaGenerate" class="btn-action" style="margin: 0; flex: 1; background: var(--primary-blue);" onclick="switchPersonaPathway('generate')">
+                            <button id="btnPersonaGenerate" class="btn-action"
+                                style="margin: 0; flex: 1; background: var(--primary-blue);"
+                                onclick="switchPersonaPathway('generate')">
                                 <i class="fas fa-magic"></i> Generate New
                             </button>
-                            <button id="btnPersonaFilter" class="btn-action" style="margin: 0; flex: 1; background: #64748b;" onclick="switchPersonaPathway('filter')">
+                            <button id="btnPersonaFilter" class="btn-action"
+                                style="margin: 0; flex: 1; background: #64748b;"
+                                onclick="switchPersonaPathway('filter')">
                                 <i class="fas fa-filter"></i> Filter Database
                             </button>
                         </div>
@@ -12304,39 +12372,43 @@
 
                     <div id="personaGeneratePathway">
                         <div class="sem-step-card">
-                        <div class="sem-card-title"><i class="fas fa-id-card"></i> Persona Context</div>
-                        <div class="sem-input-item">
-                            <label for="persona_webpages">Company / Product Webpages (comma or newline
-                                separated):</label>
-                            <textarea id="persona_webpages"
-                                placeholder="https://example.com, https://another-example.com"></textarea>
+                            <div class="sem-card-title"><i class="fas fa-id-card"></i> Persona Context</div>
+                            <div class="sem-input-item">
+                                <label for="persona_webpages">Company / Product Webpages (comma or newline
+                                    separated):</label>
+                                <textarea id="persona_webpages"
+                                    placeholder="https://example.com, https://another-example.com"></textarea>
+                            </div>
+                            <div class="sem-input-item" style="margin-top: 15px;">
+                                <label for="persona_manual">Any other information (optional):</label>
+                                <textarea id="persona_manual" placeholder="Focus on this product."></textarea>
+                            </div>
+                            <button id="researchPersonaBtn" class="btn-action" style="margin-top: 15px;"
+                                onclick="researchPersonaProducts()">Research Product Offerings</button>
+                            <div id="persona_products_container" class="sem-input-item"
+                                style="margin-top: 15px; display: none;">
+                                <label for="persona_products">Verified Product Offerings (Edit if needed):</label>
+                                <textarea id="persona_products" rows="6"
+                                    placeholder="The AI will fill this, or you can type here..."></textarea>
+                            </div>
+                            <div style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
+                                <button id="generatePersonaBtn" class="config-btn-highlight" style="margin: 0;"
+                                    onclick="generatePersona()">Generate 10 Personas</button>
+                            </div>
                         </div>
-                        <div class="sem-input-item" style="margin-top: 15px;">
-                            <label for="persona_manual">Any other information (optional):</label>
-                            <textarea id="persona_manual" placeholder="Focus on this product."></textarea>
-                        </div>
-                        <button id="researchPersonaBtn" class="btn-action" style="margin-top: 15px;"
-                            onclick="researchPersonaProducts()">Research Product Offerings</button>
-                        <div id="persona_products_container" class="sem-input-item"
-                            style="margin-top: 15px; display: none;">
-                            <label for="persona_products">Verified Product Offerings (Edit if needed):</label>
-                            <textarea id="persona_products" rows="6"
-                                placeholder="The AI will fill this, or you can type here..."></textarea>
-                        </div>
-                        <div style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
-                            <button id="generatePersonaBtn" class="config-btn-highlight" style="margin: 0;"
-                                onclick="generatePersona()">Generate 10 Personas</button>
-                        </div>
-                    </div></div><!-- End personaGeneratePathway -->
+                    </div><!-- End personaGeneratePathway -->
 
                     <div id="personaFilterPathway" style="display: none;">
                         <div class="sem-step-card">
                             <div class="sem-card-title"><i class="fas fa-filter"></i> Persona Filter Database</div>
                             <div id="personaFilterContainer" style="margin-top: 15px;">
-                                <div class="persona-filter-row" style="display: flex; gap: 10px; margin-bottom: 15px; align-items: center; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                                <div class="persona-filter-row"
+                                    style="display: flex; gap: 10px; margin-bottom: 15px; align-items: center; background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0;">
                                     <div style="flex: 1;">
-                                        <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Field</label>
-                                        <select class="filter-field premium-reason-textarea" style="width: 100%; margin-top: 5px;">
+                                        <label
+                                            style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Field</label>
+                                        <select class="filter-field premium-reason-textarea"
+                                            style="width: 100%; margin-top: 5px;">
                                             <option value="any">Any Field</option>
                                             <option value="industry">Industry</option>
                                             <option value="occupation">Occupation</option>
@@ -12352,8 +12424,10 @@
                                         </select>
                                     </div>
                                     <div style="flex: 0.5;">
-                                        <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Op</label>
-                                        <select class="filter-op premium-reason-textarea" style="width: 100%; margin-top: 5px;">
+                                        <label
+                                            style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Op</label>
+                                        <select class="filter-op premium-reason-textarea"
+                                            style="width: 100%; margin-top: 5px;">
                                             <option value="=">=</option>
                                             <option value="contains">Contains</option>
                                             <option value=">">&gt;</option>
@@ -12361,29 +12435,40 @@
                                         </select>
                                     </div>
                                     <div style="flex: 1;">
-                                        <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Value</label>
-                                        <input type="text" class="filter-value premium-reason-textarea" style="width: 100%; margin-top: 5px;" placeholder="Value...">
+                                        <label
+                                            style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Value</label>
+                                        <input type="text" class="filter-value premium-reason-textarea"
+                                            style="width: 100%; margin-top: 5px;" placeholder="Value...">
                                     </div>
-                                    <button class="btn-action" style="margin: 0; margin-top: 18px; width: 32px; height: 32px; border-radius: 8px; background: #ef4444; display: flex; align-items: center; justify-content: center;" onclick="removePersonaFilterRow(this)">
+                                    <button class="btn-action"
+                                        style="margin: 0; margin-top: 18px; width: 32px; height: 32px; border-radius: 8px; background: #ef4444; display: flex; align-items: center; justify-content: center;"
+                                        onclick="removePersonaFilterRow(this)">
                                         <i class="fas fa-trash" style="font-size: 12px;"></i>
                                     </button>
                                 </div>
                             </div>
-                            <div style="display: flex; gap: 15px; margin-top: 25px; align-items: center; flex-wrap: wrap;">
-                                <button class="btn-action" style="margin: 0; width: auto; background: #64748b; padding: 11px 22px;" onclick="addPersonaFilterRow()">
+                            <div
+                                style="display: flex; gap: 15px; margin-top: 25px; align-items: center; flex-wrap: wrap;">
+                                <button class="btn-action"
+                                    style="margin: 0; width: auto; background: #64748b; padding: 11px 22px;"
+                                    onclick="addPersonaFilterRow()">
                                     <i class="fas fa-plus"></i> Add Filter
                                 </button>
                                 <div style="flex-grow: 1;"></div>
                                 <div style="display: flex; align-items: center; gap: 8px;">
-                                    <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Limit:</label>
-                                    <select id="personaFilterLimit" class="premium-reason-textarea" style="width: 80px; padding: 5px; margin: 0;">
+                                    <label
+                                        style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Limit:</label>
+                                    <select id="personaFilterLimit" class="premium-reason-textarea"
+                                        style="width: 80px; padding: 5px; margin: 0;">
                                         <option value="12">12</option>
                                         <option value="25">25</option>
                                         <option value="50">50</option>
                                         <option value="100">100</option>
                                     </select>
                                 </div>
-                                <button id="runPersonaFilterBtn" class="config-btn-highlight" style="margin: 0; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);" onclick="runPersonaFilter()">
+                                <button id="runPersonaFilterBtn" class="config-btn-highlight"
+                                    style="margin: 0; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);"
+                                    onclick="runPersonaFilter()">
                                     <i class="fas fa-search"></i> Run Filter
                                 </button>
                             </div>
@@ -13040,9 +13125,27 @@
                                     edit these
                                     manually.
                                 </p>
-                                <textarea id="selectedTopicsText"
-                                    style="width: 100%; min-height: 100px; padding: 12px; border-radius: 8px; border: 1px solid #b8daff; box-sizing: border-box; font-size: 0.9em; line-height: 1.5;"
-                                    placeholder="Selected topics will appear here..."></textarea>
+                                <div class="translation-side-by-side" id="topicsWrapper-New">
+                                    <div>
+                                        <label class="translation-label">Selected Topics</label>
+                                        <textarea id="selectedTopicsText"
+                                            style="width: 100%; min-height: 100px; padding: 12px; border-radius: 8px; border: 1px solid #b8daff; box-sizing: border-box; font-size: 0.9em; line-height: 1.5;"
+                                            placeholder="Selected topics will appear here..."></textarea>
+                                    </div>
+                                    <div id="selectedTopicsEnWrapper-New" style="display: none;">
+                                        <label class="translation-label">English Reference</label>
+                                        <textarea id="selectedTopicsText-EN"
+                                            style="width: 100%; min-height: 100px; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; box-sizing: border-box; font-size: 0.9em; line-height: 1.5; background: #f8fafc;"
+                                            placeholder="English translation will appear here..." readonly></textarea>
+                                    </div>
+                                </div>
+
+                                <div style="display: flex; gap: 10px; margin-top: 10px; justify-content: flex-end;">
+                                    <button id="btnTranslateTopics-New" class="btn-action" style="display: none;"
+                                        onclick="translateTextArea('selectedTopicsText', 'selectedTopicsText-EN')">
+                                        <i class="fas fa-language"></i> Translate Topics to English
+                                    </button>
+                                </div>
 
                                 <div style="text-align: right; margin-top: 15px;">
                                     <button id="btnRunAnalysisFromTopics" class="btn-gradient"
@@ -13289,9 +13392,27 @@
                                     edit these
                                     manually.
                                 </p>
-                                <textarea id="selectedTopicsText-Optimise"
-                                    style="width: 100%; min-height: 100px; padding: 12px; border-radius: 8px; border: 1px solid #b8daff; box-sizing: border-box; font-size: 0.9em; line-height: 1.5;"
-                                    placeholder="Selected topics will appear here..."></textarea>
+                                <div class="translation-side-by-side" id="topicsWrapper-Optimise">
+                                    <div>
+                                        <label class="translation-label">Selected Topics</label>
+                                        <textarea id="selectedTopicsText-Optimise"
+                                            style="width: 100%; min-height: 100px; padding: 12px; border-radius: 8px; border: 1px solid #b8daff; box-sizing: border-box; font-size: 0.9em; line-height: 1.5;"
+                                            placeholder="Selected topics will appear here..."></textarea>
+                                    </div>
+                                    <div id="selectedTopicsEnWrapper-Optimise" style="display: none;">
+                                        <label class="translation-label">English Reference</label>
+                                        <textarea id="selectedTopicsText-Optimise-EN"
+                                            style="width: 100%; min-height: 100px; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; box-sizing: border-box; font-size: 0.9em; line-height: 1.5; background: #f8fafc;"
+                                            placeholder="English translation will appear here..." readonly></textarea>
+                                    </div>
+                                </div>
+
+                                <div style="display: flex; gap: 10px; margin-top: 10px; justify-content: flex-end;">
+                                    <button id="btnTranslateTopics-Optimise" class="btn-action" style="display: none;"
+                                        onclick="translateTextArea('selectedTopicsText-Optimise', 'selectedTopicsText-Optimise-EN')">
+                                        <i class="fas fa-language"></i> Translate Topics to English
+                                    </button>
+                                </div>
 
                                 <div style="text-align: right; margin-top: 15px;">
                                     <button id="btnRunGapAnalysisFromTopics" class="btn-gradient"
@@ -13433,10 +13554,21 @@
                                             All</button>
                                     </div>
                                 </div>
-                                <div id="editorContent" class="editor-content" contenteditable="true"
-                                    oninput="updateEditorMetrics()" onmouseup="syncEditorToolbar()"
-                                    onkeyup="syncEditorToolbar()">
-                                    <p><br></p>
+                                <div id="editorSideBySideWrapper" class="">
+                                    <div id="editorContent" class="editor-content" contenteditable="true"
+                                        oninput="updateEditorMetrics()" onmouseup="syncEditorToolbar()"
+                                        onkeyup="syncEditorToolbar()">
+                                        <p><br></p>
+                                    </div>
+                                    <div id="editorTranslationWrapper" style="display: none;">
+                                        <div class="translation-label"
+                                            style="padding: 10px 30px 0; background: #f8fafc; margin: 0; border-bottom: 1px solid #eee;">
+                                            English Translation (Auto-generated)</div>
+                                        <div id="editorTranslation" class="editor-content translation-editor"
+                                            contenteditable="false" style="background-color: #f8fafc !important;">
+                                            <p><br></p>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div id="editorBottomActions"
@@ -13461,8 +13593,8 @@
                                                 class="fas fa-compress-alt"></i>
                                             Shorten</button>
                                         <div class="st-separator"></div>
-                                        <button class="st-settings" onclick="openAiSettingsModal()"><i
-                                                class="fas fa-cog"></i></button>
+                                        <button class="st-settings" onclick="openAiSettingsModal()"
+                                            title="Full Optimiser Configuration"><i class="fas fa-cog"></i></button>
                                     </div>
                                 </div>
                             </div>
@@ -26102,6 +26234,114 @@ ${content}
                 console.error("Error parsing saved AI settings", e);
             }
         }
+        // Helpers for Translation
+        function isNonEnglishLocale() {
+            return aiContentSettings.locale && !aiContentSettings.locale.startsWith('en');
+        }
+
+        async function translateToEnglish(text) {
+            if (!text || !text.trim()) return "";
+            try {
+                const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'generate',
+                        prompt: `Translate the following content to English. Maintain all structural elements (Markdown headers, lists, etc.) and original meaning precisely.\n\nCONTENT:\n${text}`,
+                        settings: { ...aiContentSettings, locale: 'en-US' }
+                    })
+                });
+                const data = await response.json();
+                const result = parseLambdaResponse(data);
+                return result.result;
+            } catch (e) {
+                console.error("Translation error:", e);
+                return "Translation failed.";
+            }
+        }
+
+        async function translateTextArea(sourceId, targetId) {
+            const sourceEl = document.getElementById(sourceId);
+            const targetEl = document.getElementById(targetId);
+            const btn = event.currentTarget;
+            if (!sourceEl || !targetEl || !sourceEl.value.trim()) return;
+
+            const originalBtnHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Translating...';
+            btn.disabled = true;
+
+            try {
+                const translated = await translateToEnglish(sourceEl.value);
+                targetEl.value = translated;
+            } finally {
+                btn.innerHTML = originalBtnHtml;
+                btn.disabled = false;
+            }
+        }
+
+        async function translateCardTopics(cardId) {
+            const card = document.getElementById(cardId);
+            if (!card) return;
+            const rows = card.querySelectorAll('.competitor-table tbody tr');
+            const btn = card.querySelector('.btn-action');
+            if (btn) {
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Translating...';
+                btn.disabled = true;
+
+                try {
+                    for (const row of rows) {
+                        const transDiv = row.querySelector('.topic-translation');
+                        if (transDiv && transDiv.dataset.original) {
+                            const translated = await translateToEnglish(transDiv.dataset.original);
+                            transDiv.innerHTML = translated;
+                        }
+                    }
+                } finally {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        function updateTranslationVisibility() {
+            const isNonEn = isNonEnglishLocale();
+            const ids = [
+                'selectedTopicsEnWrapper-New', 'btnTranslateTopics-New',
+                'selectedTopicsEnWrapper-Optimise', 'btnTranslateTopics-Optimise',
+                'outlineEnWrapper', 'btnTranslateOutline'
+            ];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = isNonEn ? 'block' : 'none';
+            });
+
+            // Adjust grid columns
+            const containers = ['topicsWrapper-New', 'topicsWrapper-Optimise', 'outlineWrapper'];
+            containers.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.display = 'grid';
+                    el.style.gridTemplateColumns = isNonEn ? '1fr 1fr' : '1fr';
+                    el.style.gap = isNonEn ? '20px' : '0';
+                }
+            });
+
+            // Editor Side-by-Side
+            const editorWrapper = document.getElementById('editorSideBySideWrapper');
+            if (editorWrapper) {
+                if (isNonEn) {
+                    editorWrapper.classList.add('editor-side-by-side');
+                } else {
+                    editorWrapper.classList.remove('editor-side-by-side');
+                }
+                const transPane = document.getElementById('editorTranslationWrapper');
+                if (transPane) transPane.style.display = isNonEn ? 'block' : 'none';
+            }
+        }
+
+        // Initialize on load
+        updateTranslationVisibility();
 
         // Initialize external link toggle UI
         // We defer this slightly to ensure DOM is ready if script runs early, 
@@ -26178,6 +26418,7 @@ ${content}
                 suggestExternalLinks: document.getElementById('setSuggestExternalLinks').checked
             };
             localStorage.setItem('aiContentSettings', JSON.stringify(aiContentSettings));
+            updateTranslationVisibility();
             closeAiSettingsModal();
         }
 
@@ -27546,7 +27787,13 @@ ${selectedText}
                 case "Organization":
                 case "LocalBusiness":
                 case "ProfessionalService":
-                    checkRequired(["name", "url"]);
+                // Fallback for all new subtypes
+                default:
+                    if (schema["@type"] && schema["@type"] !== "LocalBusiness" && schema["@type"] !== "Organization") {
+                        checkRequired(["name", "url"]);
+                    } else {
+                        checkRequired(["name", "url"]);
+                    }
                     break;
                 case "Person":
                 case "Product":
@@ -27615,7 +27862,7 @@ ${selectedText}
             if (match && match[1]) {
                 try {
                     const schema = JSON.parse(match[1]);
-                    
+
                     // Optional: Prevent adding invalid schemas if you want strictness
                     if (typeof validateSchema === 'function') {
                         const errors = validateSchema(schema);
@@ -27627,7 +27874,7 @@ ${selectedText}
                     workflowSchemas.push(schema);
                     localStorage.setItem('schemaWorkflow', JSON.stringify(workflowSchemas));
                     renderWorkflowChips();
-                    
+
                     // Visual feedback
                     const btn = document.getElementById('add-to-workflow-btn');
                     const origHtml = btn.innerHTML;
@@ -30338,7 +30585,7 @@ ${selectedText}
             const btn = document.getElementById('runPersonaFilterBtn');
             const resultsDiv = document.getElementById('persona-results');
             const originalText = btn.innerHTML;
-            
+
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Filtering...';
             btn.disabled = true;
 
@@ -30369,10 +30616,10 @@ ${selectedText}
                 });
 
                 if (!response.ok) throw new Error(`Filter API error: ${response.status}`);
-                
+
                 const data = await response.json();
                 renderFilteredPersonas(data);
-                
+
                 document.getElementById("persona-instruction").style.display = "block";
                 document.getElementById("persona-instruction").innerHTML = `
                     <i class="fas fa-info-circle"></i> <strong>Results:</strong> Found ${data.length} persona records matching your criteria.
@@ -30421,7 +30668,7 @@ ${selectedText}
                             // Clean up individual items by splitting and then stripping quotes
                             items = rawList.split(',').map(s => {
                                 let cleaned = s.trim();
-                                if ((cleaned.startsWith("'") && cleaned.endsWith("'")) || 
+                                if ((cleaned.startsWith("'") && cleaned.endsWith("'")) ||
                                     (cleaned.startsWith('"') && cleaned.endsWith('"'))) {
                                     cleaned = cleaned.substring(1, cleaned.length - 1);
                                 }
@@ -30432,8 +30679,8 @@ ${selectedText}
                         } else {
                             items = [rawList];
                         }
-                    } catch(e) { 
-                        items = [list]; 
+                    } catch (e) {
+                        items = [list];
                     }
 
                     // Refinement: Ensure every item is its OWN string (no commas inside)
@@ -36446,10 +36693,10 @@ Return ONLY valid JSON in this exact format:
             const outputText = document.getElementById('content-output-text');
             const contentType = document.getElementById('content-type').value;
             const btn = event.currentTarget;
-            
+
             // If blog post, copy HTML source; otherwise copy plain text
             let textToCopy = (contentType === 'blog-post') ? outputText.innerHTML : outputText.innerText;
-            
+
             try {
                 await navigator.clipboard.writeText(textToCopy);
                 const originalHTML = btn.innerHTML;
@@ -36466,7 +36713,7 @@ Return ONLY valid JSON in this exact format:
                 tempTextArea.select();
                 document.execCommand('copy');
                 document.body.removeChild(tempTextArea);
-                
+
                 const originalHTML = btn.innerHTML;
                 btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
                 setTimeout(() => {
@@ -37052,20 +37299,32 @@ INSTRUCTIONS:
                         <table class="competitor-table">
                             <thead>
                                 <tr>
-                                    <th>Topic</th>
+                                    <th>Topic ${isNonEnglishLocale() ? '<small style="font-weight:normal; opacity:0.6;">(EN Translation)</small>' : ''}</th>
                                     <th style="text-align: right;">Words</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${topicEntries.map(([topic, count]) => `
-                                    <tr onclick="toggleTopicSelection(this, '${topic.replace(/'/g, "\\'")}', '${cardId.includes('Optimise') ? 'optimise' : 'new'}')">
-                                        <td>${topic}</td>
+                                ${topicEntries.map(([topic, count]) => {
+                    const cleanTopic = topic.replace(/'/g, "\\'");
+                    const flow = cardId.includes('Optimise') ? 'optimise' : 'new';
+                    return `
+                                    <tr onclick="toggleTopicSelection(this, '${cleanTopic}', '${flow}')">
+                                        <td>
+                                            <div class="topic-text">${topic}</div>
+                                            ${isNonEnglishLocale() ? `<div class="topic-translation" style="font-size:0.8em; color:#64748b; font-style:italic; margin-top:2px;" data-original="${topic}">Loading translation...</div>` : ''}
+                                        </td>
                                         <td class="word-count-cell">${count.toLocaleString()}</td>
                                     </tr>
-                                `).join('')}
+                                    `;
+                }).join('')}
                                 ${topicEntries.length === 0 ? '<tr><td colspan="2" style="text-align:center; color:#999; padding: 10px;">No content data available.</td></tr>' : ''}
                             </tbody>
                         </table>
+                        ${isNonEnglishLocale() ? `
+                            <button class="btn-action" style="margin-top:10px; font-size:11px; padding:4px 8px;" onclick="translateCardTopics('${cardId}')">
+                                <i class="fas fa-language"></i> Translate All Topics to English
+                            </button>
+                        ` : ''}
                     </div>
 
                     <div class="tab-content design-tab" style="display: none;">
@@ -37856,6 +38115,35 @@ INSTRUCTIONS:
             }
         }
 
+        function parseOutlineIntoSections(outline) {
+            const lines = outline.split('\n');
+            const sections = [];
+            let currentSection = { header: '', content: [] };
+
+            for (let line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+
+                // Look for markdown headers
+                if (trimmed.startsWith('#')) {
+                    if (currentSection.header || currentSection.content.length > 0) {
+                        sections.push(currentSection);
+                    }
+                    currentSection = { header: trimmed, content: [] };
+                } else {
+                    currentSection.content.push(line);
+                }
+            }
+            if (currentSection.header || currentSection.content.length > 0) {
+                sections.push(currentSection);
+            }
+
+            if (sections.length === 0 && outline.trim()) {
+                sections.push({ header: 'Introduction', content: [outline] });
+            }
+            return sections;
+        }
+
         async function generateNewArticle() {
             const topic = document.getElementById('newArticleTopic').value.trim();
             const primaryKeyword = document.getElementById('primaryKeywordNew').value.trim();
@@ -37871,8 +38159,6 @@ INSTRUCTIONS:
 
             btn.disabled = true;
             const originalBtnHtml = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Writing Full Article...';
-            updateKeywordAnalysisLoader("AI Content Optimiser", "Writing full article content...");
 
             // Sync keywords back to main state
             const pk = document.getElementById('primaryKeywordNew').value.trim();
@@ -37890,19 +38176,55 @@ INSTRUCTIONS:
                 ? `\n\nTARGET AUDIENCE PERSONAS:\n${personaContext}\n(Ensure the tone, examples, and solutions are specifically relevant to these individuals.)`
                 : "";
 
-            // EEAT and SEO Guidelines
-            const eeatPrompt = `
-Generate a comprehensive, structured SEO article based on the following APPROVED OUTLINE and GUIDELINES.
+            // Reveal the layout early so user sees progress
+            if (optimiserLayout) {
+                optimiserLayout.style.display = 'flex';
+                optimiserLayout.scrollIntoView({ behavior: 'smooth' });
+            }
 
+            // Parse outline into sections
+            const sections = parseOutlineIntoSections(outline);
+            let fullWrittenContent = "";
+            if (editor) editor.innerHTML = ""; // Clear for progressive start
+
+            // NEW: Feed Deep Compare Data into prompt for each section
+            let deepCompareContext = "";
+            if (typeof deepCompareCache !== 'undefined' && Object.keys(deepCompareCache).length > 0) {
+                deepCompareContext = "\nDEEP COMPETITOR COMPARISON RESEARCH (INCORPORATE THESE INSIGHTS/GAPS):\n";
+                Object.values(deepCompareCache).forEach((data, idx) => {
+                    const cleanData = JSON.parse(JSON.stringify(data));
+                    deepCompareContext += `--- Research Insight ${idx + 1} ---\n${JSON.stringify(cleanData, null, 2)}\n`;
+                });
+            }
+
+            try {
+                for (let i = 0; i < sections.length; i++) {
+                    const section = sections[i];
+                    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Writing Section ${i + 1}/${sections.length}...`;
+                    updateKeywordAnalysisLoader("AI Content Optimiser", `Writing: ${section.header || 'Section ' + (i + 1)}...`);
+
+                    const sectionContext = section.content.join('\n');
+                    const recentContent = fullWrittenContent.slice(-2000); // Last ~400 words for transition context
+
+                    const prompt = `
+Generate only the following section of a comprehensive, structured SEO article.
 TOPIC: "${topic}"
 PRIMARY KEYWORD: "${primaryKeyword}"
 SECONDARY KEYWORDS: "${secondaryKeywords}"
 ${complianceInstruction}${personaInstruction}
+${deepCompareContext}
 
-APPROVED OUTLINE:
+FULL APPROVED OUTLINE (FOR FLOW CONTEXT):
 ${outline}
 
-REFERENCE URLS:
+PREVIOUSLY WRITTEN CONTENT (DO NOT REPEAT, USE FOR TRANSITION):
+${recentContent || "None (This is the start of the article)"}
+
+CURRENT SECTION TO WRITE:
+${section.header}
+${sectionContext}
+
+REFERENCE URLS (IF APPLICABLE):
 ${refUrls || "None provided"}
 
 CRITICAL CONTENT GUIDELINES (EEAT):
@@ -37912,48 +38234,49 @@ CRITICAL CONTENT GUIDELINES (EEAT):
 4. READABILITY: Grade-school level. Simple language, short sentences.
 5. USEFULNESS: Include FAQs, Definitions, and Media Placeholders [IMAGE: Description].
 6. UNIQUENESS: Maintain the unique POV proposed in the outline.
-7. FORMATTING: Strict Header hierarchy (H2, H3), bulleted lists, and Markdown tables.
+7. FORMATTING: Use Markdown for headers (H2, H3), bulleted lists, and tables.
+8. FLOW: Ensure it transitions perfectly from the previously written content.
 `.trim();
 
-            try {
-                const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'generate',
-                        prompt: eeatPrompt,
-                        settings: aiContentSettings
-                    })
-                });
+                    const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'generate',
+                            prompt: prompt,
+                            settings: aiContentSettings
+                        })
+                    });
 
-                const data = await response.json();
-                const result = parseLambdaResponse(data);
+                    const data = await response.json();
+                    const result = parseLambdaResponse(data);
+                    const sectionMarkdown = result.result;
 
-                if (editor) {
-                    const html = formatMarkdown(result.result);
-                    editor.innerHTML = html;
-                    updateEditorMetrics();
+                    fullWrittenContent += "\n\n" + sectionMarkdown;
 
-                    // Auto-fill title from H1 if present
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = html;
-                    const h1Result = tempDiv.querySelector('h1');
-                    if (h1Result && editorTitle) {
-                        editorTitle.value = h1Result.innerText.trim();
-                    } else if (editorTitle) {
-                        editorTitle.value = topic;
+                    if (editor) {
+                        const sectionHtml = formatMarkdown(sectionMarkdown);
+                        editor.innerHTML += sectionHtml;
+                        updateEditorMetrics();
+                        // Scroll editor to bottom to show new content
+                        editor.scrollTop = editor.scrollHeight;
+
+                        // Auto-fill title from H1 if present (usually in the first section)
+                        if (i === 0) {
+                            const tempDiv = document.createElement('div');
+                            tempDiv.innerHTML = sectionHtml;
+                            const h1Result = tempDiv.querySelector('h1');
+                            if (h1Result && editorTitle) {
+                                editorTitle.value = h1Result.innerText.trim();
+                            } else if (editorTitle) {
+                                editorTitle.value = topic;
+                            }
+                        }
                     }
                 }
-
-                // Reveal the layout
-                if (optimiserLayout) {
-                    optimiserLayout.style.display = 'flex';
-                    optimiserLayout.scrollIntoView({ behavior: 'smooth' });
-                }
-
             } catch (error) {
                 console.error("Article generation error:", error);
-                alert("Failed to generate article. Please check your connection and try again.");
+                alert("Failed to generate article section. Please check your connection and try again.");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalBtnHtml;
@@ -38483,7 +38806,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
     <div id="aiSettingsModal" class="feedback-modal">
         <div class="ai-settings-modal-content">
             <div class="modal-header">
-                <h2>Article Optimiser</h2>
+                <h2>Article Optimiser Configuration</h2>
                 <span class="close-modal" onclick="closeAiSettingsModal()">&times;</span>
             </div>
 
@@ -38552,11 +38875,58 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                     <h3>Locale & Style</h3>
                     <div class="form-row">
                         <div class="form-group half">
-                            <label>Locale:</label>
+                            <label>Locale & Language:</label>
                             <select id="setLocale">
                                 <option value="en-SG">English (Singapore)</option>
-                                <option value="en-US">English (US)</option>
-                                <option value="en-GB">English (UK)</option>
+                                <option value="en-US">English (United States)</option>
+                                <option value="en-GB">English (United Kingdom)</option>
+                                <option value="en-AU">English (Australia)</option>
+                                <option value="en-CA">English (Canada)</option>
+                                <option value="en-NZ">English (New Zealand)</option>
+                                <option value="en-IN">English (India)</option>
+                                <option value="en-IE">English (Ireland)</option>
+                                <option value="en-ZA">English (South Africa)</option>
+                                <option value="en-PH">English (Philippines)</option>
+                                <option value="en-NG">English (Nigeria)</option>
+                                <option value="es-ES">Spanish (Spain)</option>
+                                <option value="es-MX">Spanish (Mexico)</option>
+                                <option value="es-US">Spanish (United States)</option>
+                                <option value="es-AR">Spanish (Argentina)</option>
+                                <option value="es-CO">Spanish (Colombia)</option>
+                                <option value="fr-FR">French (France)</option>
+                                <option value="fr-CA">French (Canada)</option>
+                                <option value="fr-BE">French (Belgium)</option>
+                                <option value="de-DE">German (Germany)</option>
+                                <option value="de-AT">German (Austria)</option>
+                                <option value="de-CH">German (Switzerland)</option>
+                                <option value="it-IT">Italian (Italy)</option>
+                                <option value="pt-PT">Portuguese (Portugal)</option>
+                                <option value="pt-BR">Portuguese (Brazil)</option>
+                                <option value="nl-NL">Dutch (Netherlands)</option>
+                                <option value="nl-BE">Dutch (Belgium)</option>
+                                <option value="ru-RU">Russian (Russia)</option>
+                                <option value="ja-JP">Japanese (Japan)</option>
+                                <option value="ko-KR">Korean (South Korea)</option>
+                                <option value="zh-CN">Chinese (Simplified, China)</option>
+                                <option value="zh-TW">Chinese (Traditional, Taiwan)</option>
+                                <option value="zh-HK">Chinese (Traditional, Hong Kong)</option>
+                                <option value="ar-SA">Arabic (Saudi Arabia)</option>
+                                <option value="ar-AE">Arabic (UAE)</option>
+                                <option value="ar-EG">Arabic (Egypt)</option>
+                                <option value="hi-IN">Hindi (India)</option>
+                                <option value="bn-IN">Bengali (India/Bangladesh)</option>
+                                <option value="th-TH">Thai (Thailand)</option>
+                                <option value="vi-VN">Vietnamese (Vietnam)</option>
+                                <option value="id-ID">Indonesian (Indonesia)</option>
+                                <option value="ms-MY">Malay (Malaysia)</option>
+                                <option value="tr-TR">Turkish (Turkey)</option>
+                                <option value="pl-PL">Polish (Poland)</option>
+                                <option value="sv-SE">Swedish (Sweden)</option>
+                                <option value="nb-NO">Norwegian (Norway)</option>
+                                <option value="da-DK">Danish (Denmark)</option>
+                                <option value="fi-FI">Finnish (Finland)</option>
+                                <option value="el-GR">Greek (Greece)</option>
+                                <option value="he-IL">Hebrew (Israel)</option>
                             </select>
                         </div>
                         <div class="form-group half">
@@ -38638,7 +39008,20 @@ CRITICAL CONTENT GUIDELINES (EEAT):
             { id: "Logistics", name: "Logistics", icon: "fa-truck" },
             { id: "Legal", name: "Legal Services", icon: "fa-gavel" },
             { id: "Construction", name: "Construction", icon: "fa-tools" },
-            { id: "Media", name: "Media / Ent.", icon: "fa-film" }
+            { id: "Media", name: "Media / Ent.", icon: "fa-film" },
+            { id: "Automotive", name: "Automotive", icon: "fa-car" },
+            { id: "Emergency", name: "Emergency Services", icon: "fa-heartbeat" },
+            { id: "Entertainment", name: "Entertainment", icon: "fa-theater-masks" },
+            { id: "FinancialService", name: "Financial Services", icon: "fa-university" },
+            { id: "FoodEstablishment", name: "Food & Beverage", icon: "fa-pizza-slice" },
+            { id: "Government", name: "Government", icon: "fa-building-columns" },
+            { id: "HealthBeauty", name: "Health & Beauty", icon: "fa-spa" },
+            { id: "HomeConstruction", name: "Home & Construction", icon: "fa-tools" },
+            { id: "Lodging", name: "Lodging / Travel", icon: "fa-bed" },
+            { id: "Medical", name: "Medical Business", icon: "fa-notes-medical" },
+            { id: "Sports", name: "Sports & Recreation", icon: "fa-running" },
+            { id: "Store", name: "Retail & Stores", icon: "fa-shopping-bag" },
+            { id: "OrgBranches", name: "Organization Branches", icon: "fa-sitemap" }
         ];
 
         const schemaTypeList = [
@@ -38659,7 +39042,205 @@ CRITICAL CONTENT GUIDELINES (EEAT):
             { id: "Recipe", name: "Recipe", icon: "fa-mitten" },
             { id: "Course", name: "Course", icon: "fa-book" },
             { id: "Service", name: "Service", icon: "fa-concierge-bell" },
-            { id: "ProfessionalService", name: "Professional Services", icon: "fa-user-tie" }
+            { id: "ProfessionalService", name: "Professional Services", icon: "fa-user-tie" },
+            // General
+            { id: "AnimalShelter", name: "Animal Shelter", icon: "fa-paw" },
+            { id: "ArchiveOrganization", name: "Archive Organization", icon: "fa-archive" },
+            { id: "ChildCare", name: "Child Care", icon: "fa-baby" },
+            { id: "Dentist", name: "Dentist", icon: "fa-tooth" },
+            { id: "DryCleaningOrLaundry", name: "Dry Cleaning", icon: "fa-tshirt" },
+            { id: "EmploymentAgency", name: "Employment Agency", icon: "fa-user-tie" },
+            { id: "InternetCafe", name: "Internet Cafe", icon: "fa-wifi" },
+            { id: "Library", name: "Library", icon: "fa-book" },
+            { id: "RadioStation", name: "Radio Station", icon: "fa-broadcast-tower" },
+            { id: "RealEstateAgent", name: "Real Estate Agent", icon: "fa-house" },
+            { id: "RecyclingCenter", name: "Recycling Center", icon: "fa-recycle" },
+            { id: "SelfStorage", name: "Self Storage", icon: "fa-warehouse" },
+            { id: "ShoppingCenter", name: "Shopping Center", icon: "fa-shopping-cart" },
+            { id: "TelevisionStation", name: "Television Station", icon: "fa-tv" },
+            { id: "TouristInformationCenter", name: "Tourist Information", icon: "fa-info-circle" },
+            { id: "TravelAgency", name: "Travel Agency", icon: "fa-plane" },
+            // Automotive
+            { id: "AutoBodyShop", name: "Auto Body Shop", icon: "fa-car-crash" },
+            { id: "AutoDealer", name: "Auto Dealer", icon: "fa-car-side" },
+            { id: "AutoPartsStore", name: "Auto Parts Store", icon: "fa-cogs" },
+            { id: "AutoRental", name: "Auto Rental", icon: "fa-car-rental" },
+            { id: "AutoRepair", name: "Auto Repair", icon: "fa-tools" },
+            { id: "AutoWash", name: "Auto Wash", icon: "fa-soap" },
+            { id: "GasStation", name: "Gas Station", icon: "fa-gas-pump" },
+            { id: "MotorcycleDealer", name: "Motorcycle Dealer", icon: "fa-motorcycle" },
+            { id: "MotorcycleRepair", name: "Motorcycle Repair", icon: "fa-motorcycle" },
+            // Emergency
+            { id: "EmergencyService", name: "Emergency Service", icon: "fa-ambulance" },
+            { id: "FireStation", name: "Fire Station", icon: "fa-fire-extinguisher" },
+            { id: "Hospital", name: "Hospital", icon: "fa-hospital" },
+            { id: "PoliceStation", name: "Police Station", icon: "fa-shield-alt" },
+            // Entertainment
+            { id: "EntertainmentBusiness", name: "Entertainment Business", icon: "fa-theater-masks" },
+            { id: "AdultEntertainment", name: "Adult Entertainment", icon: "fa-pepper-hot" },
+            { id: "AmusementPark", name: "Amusement Park", icon: "fa-umbrella" },
+            { id: "ArtGallery", name: "Art Gallery", icon: "fa-palette" },
+            { id: "Casino", name: "Casino", icon: "fa-dice" },
+            { id: "ComedyClub", name: "Comedy Club", icon: "fa-laugh" },
+            { id: "MovieTheater", name: "Movie Theater", icon: "fa-film" },
+            { id: "NightClub", name: "Night Club", icon: "fa-glass-cheers" },
+            // Financial
+            { id: "FinancialService", name: "Financial Service", icon: "fa-money-bill-wave" },
+            { id: "AccountingService", name: "Accounting Service", icon: "fa-calculator" },
+            { id: "AutomatedTeller", name: "ATM", icon: "fa-credit-card" },
+            { id: "BankOrCreditUnion", name: "Bank/Credit Union", icon: "fa-university" },
+            { id: "InsuranceAgency", name: "Insurance Agency", icon: "fa-shield-alt" },
+            // Food
+            { id: "FoodEstablishment", name: "Food Establishment", icon: "fa-hamburger" },
+            { id: "Bakery", name: "Bakery", icon: "fa-bread-slice" },
+            { id: "BarOrPub", name: "Bar/Pub", icon: "fa-beer" },
+            { id: "Brewery", name: "Brewery", icon: "fa-beer" },
+            { id: "CafeOrCoffeeShop", name: "Cafe/Coffee Shop", icon: "fa-coffee" },
+            { id: "Distillery", name: "Distillery", icon: "fa-wine-bottle" },
+            { id: "FastFoodRestaurant", name: "Fast Food", icon: "fa-hamburger" },
+            { id: "IceCreamShop", name: "Ice Cream Shop", icon: "fa-ice-cream" },
+            { id: "Restaurant", name: "Restaurant", icon: "fa-utensils" },
+            { id: "Winery", name: "Winery", icon: "fa-wine-glass" },
+            // Government
+            { id: "GovernmentOffice", name: "Government Office", icon: "fa-building" },
+            { id: "PostOffice", name: "Post Office", icon: "fa-envelope-open-text" },
+            // Health & Beauty
+            { id: "HealthAndBeautyBusiness", name: "Health/Beauty", icon: "fa-heart" },
+            { id: "BeautySalon", name: "Beauty Salon", icon: "fa-spray-can" },
+            { id: "DaySpa", name: "Day Spa", icon: "fa-spa" },
+            { id: "HairSalon", name: "Hair Salon", icon: "fa-cut" },
+            { id: "HealthClub", name: "Health Club", icon: "fa-dumbbell" },
+            { id: "NailSalon", name: "Nail Salon", icon: "fa-hand-sparkles" },
+            { id: "TattooParlor", name: "Tattoo Parlor", icon: "fa-pen-nib" },
+            // Home & Construction
+            { id: "HomeAndConstructionBusiness", name: "Home/Construction", icon: "fa-tools" },
+            { id: "Electrician", name: "Electrician", icon: "fa-bolt" },
+            { id: "GeneralContractor", name: "General Contractor", icon: "fa-hammer" },
+            { id: "HVACBusiness", name: "HVAC Business", icon: "fa-fan" },
+            { id: "HousePainter", name: "House Painter", icon: "fa-paint-roller" },
+            { id: "Locksmith", name: "Locksmith", icon: "fa-key" },
+            { id: "MovingCompany", "name": "Moving Company", icon: "fa-truck-moving" },
+            { id: "Plumber", name: "Plumber", icon: "fa-wrench" },
+            { id: "RoofingContractor", name: "Roofing Contractor", icon: "fa-home" },
+            // Legal
+            { id: "LegalService", name: "Legal Service", icon: "fa-gavel" },
+            { id: "Attorney", name: "Attorney", icon: "fa-user-tie" },
+            { id: "Notary", name: "Notary", icon: "fa-stamp" },
+            // Lodging
+            { id: "LodgingBusiness", name: "Lodging Business", icon: "fa-bed" },
+            { id: "BedAndBreakfast", name: "Bed & Breakfast", icon: "fa-coffee" },
+            { id: "Campground", name: "Campground", icon: "fa-campground" },
+            { id: "Hostel", name: "Hostel", icon: "fa-bed" },
+            { id: "Hotel", name: "Hotel", icon: "fa-hotel" },
+            { id: "Motel", name: "Motel", icon: "fa-hotel" },
+            { id: "Resort", name: "Resort", icon: "fa-umbrella-beach" },
+            { id: "SkiResort", name: "Ski Resort", icon: "fa-skiing" },
+            { id: "VacationRental", name: "Vacation Rental", icon: "fa-home" },
+            // Medical
+            { id: "MedicalBusiness", name: "Medical Business", icon: "fa-briefcase-medical" },
+            { id: "CommunityHealth", name: "Community Health", icon: "fa-users" },
+            { id: "Dermatology", name: "Dermatology", icon: "fa-stethoscope" },
+            { id: "DietNutrition", name: "Diet/Nutrition", icon: "fa-apple-alt" },
+            { id: "Emergency", name: "Emergency", icon: "fa-ambulance" },
+            { id: "Geriatric", name: "Geriatric", icon: "fa-user-friends" },
+            { id: "Gynecologic", name: "Gynecologic", icon: "fa-female" },
+            { id: "MedicalClinic", name: "Medical Clinic", icon: "fa-clinic-medical" },
+            { id: "CovidTestingFacility", name: "Covid Testing", icon: "fa-vial" },
+            { id: "Midwifery", name: "Midwifery", icon: "fa-baby" },
+            { id: "Nursing", name: "Nursing", icon: "fa-user-nurse" },
+            { id: "Obstetric", name: "Obstetric", icon: "fa-baby" },
+            { id: "Oncologic", name: "Oncologic", icon: "fa-ribbon" },
+            { id: "Optician", name: "Optician", icon: "fa-glasses" },
+            { id: "Optometric", name: "Optometric", icon: "fa-eye" },
+            { id: "Otolaryngologic", name: "Ear/Nose/Throat", icon: "fa-head-side-hearing" },
+            { id: "Pediatric", name: "Pediatric", icon: "fa-child" },
+            { id: "Pharmacy", name: "Pharmacy", icon: "fa-pills" },
+            { id: "Physician", name: "Physician", icon: "fa-user-md" },
+            { id: "IndividualPhysician", name: "Indiv. Physician", icon: "fa-user-md" },
+            { id: "PhysiciansOffice", name: "Physician's Office", icon: "fa-hospital-alt" },
+            { id: "Physiotherapy", name: "Physiotherapy", icon: "fa-accessibility" },
+            { id: "PlasticSurgery", name: "Plastic Surgery", icon: "fa-syringe" },
+            { id: "Podiatric", name: "Podiatric", icon: "fa-shoe-prints" },
+            { id: "PrimaryCare", name: "Primary Care", icon: "fa-stethoscope" },
+            { id: "Psychiatric", name: "Psychiatric", icon: "fa-brain" },
+            { id: "PublicHealth", name: "Public Health", icon: "fa-globe" },
+            // Sports
+            { id: "SportsActivityLocation", name: "Sports Location", icon: "fa-running" },
+            { id: "BowlingAlley", name: "Bowling Alley", icon: "fa-bowling-ball" },
+            { id: "ExerciseGym", name: "Exercise Gym", icon: "fa-dumbbell" },
+            { id: "GolfCourse", name: "Golf Course", icon: "fa-golf-ball" },
+            { id: "PublicSwimmingPool", name: "Public Pool", icon: "fa-swimmer" },
+            { id: "SportsClub", name: "Sports Club", icon: "fa-running" },
+            { id: "StadiumOrArena", name: "Stadium/Arena", icon: "fa-stadium" },
+            { id: "TennisComplex", name: "Tennis Complex", icon: "fa-table-tennis" },
+            // Store
+            { id: "Store", name: "Store", icon: "fa-shopping-bag" },
+            { id: "BikeStore", name: "Bike Store", icon: "fa-bicycle" },
+            { id: "BookStore", name: "Book Store", icon: "fa-book" },
+            { id: "ClothingStore", name: "Clothing Store", icon: "fa-tshirt" },
+            { id: "ComputerStore", name: "Computer Store", icon: "fa-laptop" },
+            { id: "ConvenienceStore", name: "Convenience Store", icon: "fa-store" },
+            { id: "DepartmentStore", name: "Department Store", icon: "fa-shopping-bag" },
+            { id: "ElectronicsStore", name: "Electronics Store", icon: "fa-mobile-alt" },
+            { id: "Florist", name: "Florist", icon: "fa-flower" },
+            { id: "FurnitureStore", name: "Furniture Store", icon: "fa-couch" },
+            { id: "GardenStore", name: "Garden Store", icon: "fa-leaf" },
+            { id: "GroceryStore", name: "Grocery Store", icon: "fa-shopping-basket" },
+            { id: "HardwareStore", name: "Hardware Store", icon: "fa-hammer" },
+            { id: "HobbyShop", name: "Hobby Shop", icon: "fa-chess" },
+            { id: "HomeGoodsStore", name: "Home Goods Store", icon: "fa-home" },
+            { id: "JewelryStore", name: "Jewelry Store", icon: "fa-gem" },
+            { id: "LiquorStore", name: "Liquor Store", icon: "fa-wine-bottle" },
+            { id: "MensClothingStore", name: "Mens Clothing", icon: "fa-user-tie" },
+            { id: "MobilePhoneStore", name: "Phone Store", icon: "fa-mobile-alt" },
+            { id: "MovieRentalStore", name: "Movie Rental", icon: "fa-video" },
+            { id: "MusicStore", name: "Music Store", icon: "fa-music" },
+            { id: "OfficeEquipmentStore", name: "Office Equip.", icon: "fa-print" },
+            { id: "OutletStore", name: "Outlet Store", icon: "fa-store" },
+            { id: "PawnShop", name: "Pawn Shop", icon: "fa-hand-holding-usd" },
+            { id: "PetStore", name: "Pet Store", icon: "fa-paw" },
+            { id: "ShoeStore", name: "Shoe Store", icon: "fa-shoe-prints" },
+            { id: "SportingGoodsStore", name: "Sporting Goods", icon: "fa-running" },
+            { id: "TireShop", name: "Tire Shop", icon: "fa-circle" },
+            { id: "ToyStore", name: "Toy Store", icon: "fa-robot" },
+            { id: "WholesaleStore", name: "Wholesale Store", icon: "fa-warehouse" },
+            // Core Organizations
+            { id: "Airline", name: "Airline", icon: "fa-plane" },
+            { id: "Consortium", name: "Consortium", icon: "fa-handshake" },
+            { id: "Corporation", name: "Corporation", icon: "fa-building" },
+            { id: "EducationalOrganization", name: "Educational Org.", icon: "fa-graduation-cap" },
+            { id: "FundingScheme", name: "Funding Scheme", icon: "fa-money-bill" },
+            { id: "GovernmentOrganization", name: "Govt. Organization", icon: "fa-university" },
+            { id: "LibrarySystem", name: "Library System", icon: "fa-book-reader" },
+            { id: "MedicalOrganization", name: "Medical Org.", icon: "fa-hospital-user" },
+            { id: "NGO", name: "NGO", icon: "fa-hand-holding-heart" },
+            { id: "NewsMediaOrganization", name: "News/Media Org.", icon: "fa-newspaper" },
+            { id: "OnlineBusiness", name: "Online Business", icon: "fa-globe" },
+            { id: "PerformingGroup", name: "Performing Group", icon: "fa-theater-masks" },
+            { id: "Project", name: "Project", icon: "fa-project-diagram" },
+            { id: "ResearchOrganization", name: "Research Org.", icon: "fa-flask" },
+            { id: "SportsOrganization", name: "Sports Org.", icon: "fa-trophy" },
+            { id: "WorkersUnion", name: "Workers Union", icon: "fa-users-cog" },
+            // Educational Nested
+            { id: "CollegeOrUniversity", name: "College/Univ.", icon: "fa-graduation-cap" },
+            { id: "ElementarySchool", name: "Elem. School", icon: "fa-school" },
+            { id: "HighSchool", name: "High School", icon: "fa-school" },
+            { id: "MiddleSchool", name: "Middle School", icon: "fa-school" },
+            { id: "Preschool", name: "Preschool", icon: "fa-school" },
+            { id: "School", name: "School", icon: "fa-school" },
+            // Government Nested
+            { id: "FundingAgency", name: "Funding Agency", icon: "fa-landmark" },
+            // Medical Nested
+            { id: "DiagnosticLab", name: "Diagnostic Lab", icon: "fa-microscope" },
+            { id: "VeterinaryCare", name: "Veterinary Care", icon: "fa-paw" },
+            // Online Nested
+            { id: "OnlineStore", name: "Online Store", icon: "fa-shopping-cart" },
+            // Performing Nested
+            { id: "DanceGroup", name: "Dance Group", icon: "fa-shoe-prints" },
+            { id: "MusicGroup", name: "Music Group", icon: "fa-music" },
+            { id: "TheaterGroup", name: "Theater Group", icon: "fa-theater-masks" },
+            // Sports Nested
+            { id: "SportsTeam", name: "Sports Team", icon: "fa-users" }
         ];
 
         const industrySchemasMap = {
@@ -38678,7 +39259,21 @@ CRITICAL CONTENT GUIDELINES (EEAT):
             "Logistics": ["Organization", "Service", "LocalBusiness"],
             "Legal": ["LocalBusiness", "Service", "Review", "ProfessionalService"],
             "Construction": ["LocalBusiness", "Service", "Review", "ProfessionalService"],
-            "Media": ["VideoObject", "Review", "Article", "Event"]
+            "Media": ["VideoObject", "Review", "Article", "Event"],
+            "Automotive": ["AutoBodyShop", "AutoDealer", "AutoPartsStore", "AutoRental", "AutoRepair", "AutoWash", "GasStation", "MotorcycleDealer", "MotorcycleRepair"],
+            "Emergency": ["EmergencyService", "FireStation", "Hospital", "PoliceStation"],
+            "Entertainment": ["EntertainmentBusiness", "AdultEntertainment", "AmusementPark", "ArtGallery", "Casino", "ComedyClub", "MovieTheater", "NightClub"],
+            "FinancialService": ["FinancialService", "AccountingService", "AutomatedTeller", "BankOrCreditUnion", "InsuranceAgency"],
+            "FoodEstablishment": ["FoodEstablishment", "Bakery", "BarOrPub", "Brewery", "CafeOrCoffeeShop", "Distillery", "FastFoodRestaurant", "IceCreamShop", "Restaurant", "Winery"],
+            "Government": ["GovernmentOffice", "PostOffice", "FundingAgency"],
+            "HealthBeauty": ["HealthAndBeautyBusiness", "BeautySalon", "DaySpa", "HairSalon", "HealthClub", "NailSalon", "TattooParlor"],
+            "HomeConstruction": ["HomeAndConstructionBusiness", "Electrician", "GeneralContractor", "HVACBusiness", "HousePainter", "Locksmith", "MovingCompany", "Plumber", "RoofingContractor"],
+            "Legal": ["LegalService", "Attorney", "Notary"],
+            "Lodging": ["LodgingBusiness", "BedAndBreakfast", "Campground", "Hostel", "Hotel", "Motel", "Resort", "SkiResort", "VacationRental"],
+            "Medical": ["MedicalBusiness", "CommunityHealth", "Dentist", "Dermatology", "DietNutrition", "Emergency", "Geriatric", "Gynecologic", "MedicalClinic", "CovidTestingFacility", "Midwifery", "Nursing", "Obstetric", "Oncologic", "Optician", "Optometric", "Otolaryngologic", "Pediatric", "Pharmacy", "Physician", "IndividualPhysician", "PhysiciansOffice", "Physiotherapy", "PlasticSurgery", "Podiatric", "PrimaryCare", "Psychiatric", "PublicHealth"],
+            "Sports": ["SportsActivityLocation", "BowlingAlley", "ExerciseGym", "GolfCourse", "PublicSwimmingPool", "SportsClub", "StadiumOrArena", "TennisComplex"],
+            "Store": ["Store", "AutoPartsStore", "BikeStore", "BookStore", "ClothingStore", "ComputerStore", "ConvenienceStore", "DepartmentStore", "ElectronicsStore", "Florist", "FurnitureStore", "GardenStore", "GroceryStore", "HardwareStore", "HobbyShop", "HomeGoodsStore", "JewelryStore", "LiquorStore", "MensClothingStore", "MobilePhoneStore", "MovieRentalStore", "MusicStore", "OfficeEquipmentStore", "OutletStore", "PawnShop", "PetStore", "ShoeStore", "SportingGoodsStore", "TireShop", "ToyStore", "WholesaleStore"],
+            "OrgBranches": ["Airline", "Consortium", "Corporation", "EducationalOrganization", "FundingScheme", "GovernmentOrganization", "LibrarySystem", "LocalBusiness", "MedicalOrganization", "NGO", "NewsMediaOrganization", "OnlineBusiness", "PerformingGroup", "Project", "ResearchOrganization", "SportsOrganization", "WorkersUnion", "CollegeOrUniversity", "ElementarySchool", "HighSchool", "MiddleSchool", "Preschool", "School", "FundingAgency", "DiagnosticLab", "VeterinaryCare", "OnlineStore", "DanceGroup", "MusicGroup", "TheaterGroup", "SportsTeam"]
         };
 
         const sampleDataMap = {
@@ -38772,7 +39367,27 @@ CRITICAL CONTENT GUIDELINES (EEAT):
         function renderEditor() {
             const container = document.getElementById("input-fields");
             if (!container) return;
-            const template = typeof templates !== 'undefined' ? templates[selectedType] : null;
+
+            let template = typeof templates !== 'undefined' ? templates[selectedType] : null;
+
+            // Fallback for many new types
+            if (!template && typeof templates !== 'undefined') {
+                const orgTypes = [
+                    "Airline", "Consortium", "Corporation", "EducationalOrganization", "FundingScheme",
+                    "GovernmentOrganization", "LibrarySystem", "MedicalOrganization", "NGO",
+                    "NewsMediaOrganization", "PerformingGroup", "Project", "ResearchOrganization",
+                    "SportsOrganization", "WorkersUnion", "CollegeOrUniversity", "ElementarySchool",
+                    "HighSchool", "MiddleSchool", "Preschool", "School", "FundingAgency",
+                    "DiagnosticLab", "VeterinaryCare", "DanceGroup", "MusicGroup", "TheaterGroup",
+                    "SportsTeam", "Hospital", "MedicalClinic", "MedicalBusiness", "GovernmentOffice"
+                ];
+                if (orgTypes.includes(selectedType)) {
+                    template = templates["Organization"];
+                } else {
+                    template = templates["LocalBusiness"];
+                }
+            }
+
             if (template) {
                 container.innerHTML = template({});
                 container.querySelectorAll('input, textarea, select').forEach(el => {
@@ -38801,7 +39416,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
 
             Object.keys(data).forEach(key => {
                 if (!data[key]) return;
-                
+
                 // Skip specific list-based IDs handled below
                 if (/^(name|url|question|answer)\d+$/.test(key)) return;
 
@@ -38849,7 +39464,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
                     "name": q,
                     "acceptedAnswer": { "@type": "Answer", "text": answers[i] }
                 })).filter(q => q.name && q.acceptedAnswer.text);
-                
+
                 // Fallback for numbered inputs if selector fails
                 if (!schema.mainEntity || schema.mainEntity.length === 0) {
                     const mainEntity = [];
@@ -38941,7 +39556,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
 
         function copySchemaJson() {
             let text = document.getElementById("schema-output").innerText || document.getElementById("schema-output").textContent;
-            
+
             // If viewing collection, don't ask, just copy what is shown
             if (viewMode === 'collection') {
                 if (navigator.clipboard) {
