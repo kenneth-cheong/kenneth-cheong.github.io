@@ -1458,11 +1458,17 @@
                 </div>
 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin: 24px 0 16px;">
-                    <h3 style="margin: 0;">Evaluation Criteria & Weights (%)</h3>
-                    <button class="btn btn-primary" onclick="addJobCriteria()"
-                        style="padding: 8px 16px; font-size: 0.85rem;">
-                        <i class="fas fa-plus"></i> Add Criteria
-                    </button>
+                    <h3 style="margin: 0;">AI Evaluation Criteria & Weights (%)</h3>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn btn-primary" id="generateCriteriaBtn" onclick="generateAICriteria()"
+                            style="padding: 8px 16px; font-size: 0.85rem; background: var(--secondary);">
+                            <i class="fas fa-magic"></i> Generate AI Criteria
+                        </button>
+                        <button class="btn btn-primary" onclick="addJobCriteria()"
+                            style="padding: 8px 16px; font-size: 0.85rem;">
+                            <i class="fas fa-plus"></i> Add Criteria
+                        </button>
+                    </div>
                 </div>
                 <div class="table-container" style="margin-bottom: 24px;">
                     <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem;">
@@ -2548,8 +2554,8 @@
                 For each question, provide:
                 1. Metric: The skill or attribute being tested (e.g., Technical Proficiency, Leadership, Conflict Resolution).
                 2. Question: The actual interview question.
-                3. Good Answer: Indicators of a high-quality response.
-                4. Red Flags: Warning signs in a candidate's response.
+                3. Good Answer: Indicators of a high-quality response. Do NOT include filler phrases like "The candidate..." or "The response should...". Use direct bullet points or descriptions.
+                4. Red Flags: Warning signs in a candidate's response. Do NOT include filler phrases like "The candidate...".
                 
                 Return THE RESULT ONLY as a valid JSON array of objects.
                 DO NOT USE MARKDOWN BLOCKS (\`\`\`json).
@@ -2599,8 +2605,9 @@
                             id: 'q_' + Math.random().toString(36).substr(2, 9),
                             metric: q.metric || "AI Metric",
                             q: q.question || "AI Question",
-                            good: q.goodAnswer || "Good answer indicators",
-                            bad: q.redFlags || "Red flag indicators"
+                            good: (q.goodAnswer || "Good answer indicators").replace(/^(The candidate|Candidate)\s+/i, ''),
+                            bad: (q.redFlags || "Red flag indicators").replace(/^(The candidate|Candidate)\s+/i, ''),
+                            isAi: true
                         });
                     });
                     renderJobQuestions();
@@ -2611,6 +2618,91 @@
             } catch (error) {
                 console.error("Error generating questions:", error);
                 alert("Failed to generate questions. Please ensure the Job Description is detailed enough.");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalBtnHtml;
+            }
+        }
+
+        async function generateAICriteria() {
+            const jd = document.getElementById('jobDesc').value.trim();
+            const kpi = document.getElementById('jobKpi').value.trim();
+            const title = document.getElementById('jobTitle').value.trim();
+
+            if (!jd) {
+                alert("Please provide a job description first.");
+                return;
+            }
+
+            const btn = document.getElementById('generateCriteriaBtn');
+            const originalBtnHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+
+            try {
+                const existingCriteria = (state.jobCriteria || []).map(c => c.text).join(", ");
+                const prompt = `Based on the following Job Description and KPIs for the role of "${title}", suggest 4-6 highly relevant evaluation criteria for AI candidate scoring.
+                
+                ${existingCriteria ? `CURRENT CRITERIA ALREADY DEFINED: ${existingCriteria}. Please suggest COMPLEMENTARY criteria that are not already covered.` : ''}
+
+                JOB DESCRIPTION:
+                ${jd}
+                
+                KPIs & RESPONSIBILITIES:
+                ${kpi}
+                
+                For each criterion:
+                1. Text: A clear, descriptive criterion (e.g., "Deep experience with React and state management").
+                2. Weight: A suggested percentage weight (e.g., 15).
+                
+                Return THE RESULT ONLY as a valid JSON array of objects.
+                DO NOT USE MARKDOWN BLOCKS (\`\`\`json).
+                ONLY THE RAW JSON ARRAY.
+                JSON Keys: "text", "weight"
+                Example: [{"text": "...", "weight": 20}, {"text": "...", "weight": 15}, ...]`;
+
+                const payload = {
+                    prompt: prompt,
+                    post_info: prompt,
+                    content_type: "plain-text",
+                    action: "generate"
+                };
+
+                const response = await fetch('https://panc0eazwj.execute-api.ap-southeast-1.amazonaws.com/content-generator', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error("AI Generation failed");
+
+                const data = await response.json();
+                let content = typeof data === 'object' ? (data.body || data.result || JSON.stringify(data)) : data;
+
+                const jsonMatch = content.match(/\[\s*\{.*\}\s*\]/s);
+                if (jsonMatch) {
+                    content = jsonMatch[0];
+                }
+
+                const criteria = JSON.parse(content);
+
+                if (Array.isArray(criteria)) {
+                    if (!state.jobCriteria) state.jobCriteria = [];
+                    const newCriteria = criteria.map(c => ({
+                        text: c.text,
+                        weight: parseInt(c.weight) || 10,
+                        isAi: true
+                    }));
+                    state.jobCriteria = [...state.jobCriteria, ...newCriteria];
+                    rebalanceWeights();
+                    renderJobCriteria();
+                } else {
+                    throw new Error("Invalid response format from AI");
+                }
+
+            } catch (error) {
+                console.error("Error generating criteria:", error);
+                alert("Failed to generate criteria. Please ensure the Job Description is detailed.");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalBtnHtml;
@@ -2647,14 +2739,15 @@
                 return;
             }
             body.innerHTML = state.jobQuestions.map((row, idx) => `
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);" data-id="${idx}">
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); ${row.isAi ? 'background: rgba(99, 102, 241, 0.05);' : ''}" data-id="${idx}">
                     <td style="padding: 12px; vertical-align: top; text-align: center; color: var(--primary-light); cursor: grab;" class="drag-handle">
                         <i class="fas fa-grip-vertical"></i>
                     </td>
                     <td style="padding: 12px 24px; vertical-align: top;">
                         <div contenteditable="true" onblur="updateJobQuestionContent(${idx}, 'metric', this.innerText)"
-                             style="color: var(--text-main); font-weight: 600; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
+                             style="color: var(--text-main); font-weight: 600; outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px; display: flex; align-items: center;"
                              onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
+                             ${row.isAi ? '<span style="font-size: 0.65rem; background: var(--secondary); color: white; padding: 2px 6px; border-radius: 4px; margin-right: 8px; flex-shrink: 0;">AI</span>' : ''}
                              ${row.metric}
                         </div>
                     </td>
@@ -2712,7 +2805,8 @@
             if (!state.jobCriteria) state.jobCriteria = [];
             state.jobCriteria.push({
                 text: "New Criterion",
-                weight: 0
+                weight: 0,
+                isAi: false
             });
             renderJobCriteria();
         }
@@ -2734,7 +2828,28 @@
             const display = document.getElementById('totalCriteriaWeight');
             if (display) {
                 display.innerText = `${total}%`;
-                display.style.color = total > 100 ? 'var(--accent)' : 'var(--secondary)';
+                display.style.color = (total > 100 || total < 100) ? 'var(--accent)' : 'var(--secondary)';
+            }
+        }
+
+        function rebalanceWeights() {
+            if (!state.jobCriteria || state.jobCriteria.length === 0) return;
+
+            const total = state.jobCriteria.reduce((sum, c) => sum + Math.abs(c.weight || 0), 0);
+            if (total === 0) {
+                const equiv = Math.floor(100 / state.jobCriteria.length);
+                state.jobCriteria.forEach(c => c.weight = equiv);
+            } else {
+                const factor = 100 / total;
+                let currentSum = 0;
+                state.jobCriteria.forEach((c, i) => {
+                    if (i === state.jobCriteria.length - 1) {
+                        c.weight = 100 - currentSum;
+                    } else {
+                        c.weight = Math.round((c.weight || 0) * factor);
+                        currentSum += c.weight;
+                    }
+                });
             }
         }
 
@@ -2746,11 +2861,12 @@
                 return;
             }
             body.innerHTML = state.jobCriteria.map((row, idx) => `
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); ${row.isAi ? 'background: rgba(99, 102, 241, 0.05);' : ''}">
                     <td style="padding: 12px 24px; vertical-align: top;">
                         <div contenteditable="true" onblur="updateJobCriteriaContent(${idx}, 'text', this.innerText)"
-                             style="color: var(--text-main); outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px;"
+                             style="color: var(--text-main); outline: none; border: 1px solid transparent; padding: 2px 4px; border-radius: 4px; display: flex; align-items: center;"
                              onmouseover="this.style.borderColor='rgba(99, 102, 241, 0.3)'" onmouseout="this.style.borderColor='transparent'">
+                             ${row.isAi ? '<span style="font-size: 0.65rem; background: var(--secondary); color: white; padding: 2px 6px; border-radius: 4px; margin-right: 8px; flex-shrink: 0;">AI</span>' : ''}
                              ${row.text}
                         </div>
                     </td>
@@ -4649,7 +4765,10 @@
                     const rating = (cand.jobRatings && cand.jobRatings[row.id]) || 0;
                     return `
                     <div class="interview-card" data-type="job" data-qid="${row.id}">
-                        <div class="metric-badge">${row.metric}</div>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                            <div class="metric-badge">${row.metric}</div>
+                            ${row.isAi ? '<span style="font-size: 0.65rem; color: var(--secondary); font-weight: 600; background: rgba(99, 102, 241, 0.1); padding: 2px 8px; border-radius: 6px;">AI-Generated</span>' : ''}
+                        </div>
                         <div class="question-text">${row.q}</div>
                         <div class="guidelines">
                             <div class="guideline-item good-answer">
