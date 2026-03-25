@@ -13174,8 +13174,24 @@
                                     article outline...
                                 </p>
                             </div>
-                            <textarea id="editableOutline"
-                                style="width: 100%; padding: 15px; box-sizing: border-box; border-radius: 8px; border: 1px solid #004c9d; min-height: 250px; font-family: monospace; line-height: 1.6;"></textarea>
+                            <div id="outlineWrapper" style="display: grid; grid-template-columns: 1fr; gap: 20px;">
+                                <div id="outlineSourceWrapper">
+                                    <textarea id="editableOutline"
+                                        style="width: 100%; padding: 15px; box-sizing: border-box; border-radius: 8px; border: 1px solid #004c9d; min-height: 250px; font-family: monospace; line-height: 1.6;"></textarea>
+                                </div>
+                                <div id="outlineEnWrapper" style="display: none;">
+                                    <label style="font-weight: bold; display: block; margin-bottom: 5px; font-size: 0.9em; color: #666;">English Translation:</label>
+                                    <textarea id="outlineEn" readonly
+                                        style="width: 100%; padding: 15px; box-sizing: border-box; border-radius: 8px; border: 1px solid #ccc; background: #f9f9f9; min-height: 250px; font-family: monospace; line-height: 1.6;"
+                                        placeholder="English translation will appear here..."></textarea>
+                                </div>
+                            </div>
+
+                            <button id="btnTranslateOutline" class="btn-action" 
+                                style="margin-top: 10px; display: none;" 
+                                onclick="translateOutline()">
+                                <i class="fas fa-language"></i> Translate Outline to English
+                            </button>
 
                             <button id="btnGenerateNewArticle" class="btn-gradient"
                                 style="background: #28a745; margin-top: 15px; padding: 15px 30px; font-size: 1.1em; display: inline-block; width: auto; min-width: 250px; border-radius: 8px;"
@@ -26248,6 +26264,38 @@ ${content}
             return aiContentSettings.locale && !aiContentSettings.locale.startsWith('en');
         }
 
+        async function translateOutline() {
+            const sourceEl = document.getElementById('editableOutline');
+            const targetEl = document.getElementById('outlineEn');
+            const targetWrapper = document.getElementById('outlineEnWrapper');
+            const container = document.getElementById('outlineWrapper');
+            const btn = document.getElementById('btnTranslateOutline');
+
+            if (!sourceEl || !sourceEl.value.trim()) {
+                alert("Please generate or enter an outline first.");
+                return;
+            }
+
+            const originalBtnHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Translating Outline...';
+            btn.disabled = true;
+
+            try {
+                const translated = await translateToEnglish(sourceEl.value);
+                if (targetEl) targetEl.value = translated;
+                if (targetWrapper) targetWrapper.style.display = 'block';
+                if (container) {
+                    container.style.gridTemplateColumns = '1fr 1fr';
+                }
+            } catch (e) {
+                console.error("Outline translation error:", e);
+                alert("Failed to translate outline. Please try again.");
+            } finally {
+                btn.innerHTML = originalBtnHtml;
+                btn.disabled = false;
+            }
+        }
+
         async function translateToEnglish(text) {
             if (!text || !text.trim()) return "";
             try {
@@ -37331,7 +37379,7 @@ INSTRUCTIONS:
                                     <tr onclick="toggleTopicSelection(this, '${cleanTopic}', '${flow}')">
                                         <td>
                                             <div class="topic-text">${topic}</div>
-                                            ${isNonEnglishLocale() ? `<div class="topic-translation" style="font-size:0.8em; color:#64748b; font-style:italic; margin-top:2px;" data-original="${topic}">Loading translation...</div>` : ''}
+                                            ${isNonEnglishLocale() ? `<div class="topic-translation" style="font-size:0.8em; color:#64748b; font-style:italic; margin-top:2px;" data-original="${topic}">Click 'Translate All' below</div>` : ''}
                                         </td>
                                         <td class="word-count-cell">${count.toLocaleString()}</td>
                                     </tr>
