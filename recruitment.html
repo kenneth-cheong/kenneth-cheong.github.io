@@ -381,6 +381,8 @@
             border: 1px solid var(--border);
             border-radius: 24px;
             overflow-x: auto;
+            overflow-y: auto;
+            max-height: calc(100vh - 250px);
             -webkit-overflow-scrolling: touch;
         }
 
@@ -1141,8 +1143,8 @@
                 <div class="upload-area" id="dropZone">
                     <div class="upload-icon">📁</div>
                     <h3>Drop your ZIP file or multiple CVs here</h3>
-                    <p style="color: var(--text-dim);">Supported formats: PDF, DOCX, Images, ZIP</p>
-                    <input type="file" id="fileInput" multiple accept=".zip,.pdf,.docx,.jpg,.png"
+                    <p style="color: var(--text-dim);">Supported formats: PDF, DOC, DOCX, Images, ZIP</p>
+                    <input type="file" id="fileInput" multiple accept=".zip,.pdf,.doc,.docx,.jpg,.png"
                         style="display: none;">
                     <div style="margin-top: 20px;">
                         <button class="btn btn-primary"
@@ -1718,6 +1720,10 @@
                             <div class="card" style="background: rgba(15, 23, 42, 0.4); border-color: var(--border);">
                                 <h4 style="margin-bottom: 12px; font-size: 0.875rem; color: var(--text-dim);">Actions
                                 </h4>
+                                <button class="btn" style="width: 100%; justify-content: center; background: rgba(244, 63, 94, 0.1); color: var(--accent); margin-bottom: 12px;"
+                                    onclick="deleteCurrentCandidate()">
+                                    <i class="fas fa-trash"></i> Delete Candidate
+                                </button>
                                 <button class="btn btn-primary" style="width: 100%; justify-content: center;"
                                     onclick="viewCV()">
                                     <i class="fas fa-eye"></i> View CV
@@ -1745,6 +1751,10 @@
                     <button class="btn btn-primary" onclick="viewCV()">View Original CV</button>
                     <button class="btn" style="background: rgba(244, 63, 94, 0.1); color: var(--accent);"
                         onclick="rejectCurrentCandidate()">Reject Candidate</button>
+                    <button class="btn" style="background: rgba(244, 63, 94, 0.1); color: var(--accent);"
+                        onclick="deleteCurrentCandidate()">
+                        <i class="fas fa-trash"></i> Delete Candidate
+                    </button>
                 </div>
             </div>
         </div>
@@ -3123,7 +3133,7 @@
                     <td style="text-align: center;" onclick="event.stopPropagation()">
                         <input type="checkbox" class="repo-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('repoTable')">
                     </td>
-                    <td style="font-weight: 600;">${c.name}</td>
+                    <td style="font-weight: 600; cursor: pointer; color: var(--primary-light);" onclick="event.stopPropagation(); viewCandidate('${c.id}')">${c.name}</td>
                     <td>
                         <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%; max-width: 140px;" 
                             onclick="event.stopPropagation()" onchange="updateCandidateJob('${c.id}', this.value)">
@@ -3266,7 +3276,7 @@
 
         function isSupported(name) {
             const ext = name.split('.').pop().toLowerCase();
-            return ['pdf', 'docx', 'txt', 'jpg', 'png', 'jpeg'].includes(ext);
+            return ['pdf', 'doc', 'docx', 'txt', 'jpg', 'png', 'jpeg'].includes(ext);
         }
 
         async function processBatch(list) {
@@ -4131,8 +4141,8 @@
                     <td style="text-align: center;" onclick="event.stopPropagation()">
                         <input type="checkbox" class="cand-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('candidateTable')">
                     </td>
-                    <td>
-                        <div style="font-weight: 600;">${c.name}</div>
+                    <td style="cursor: pointer;" onclick="event.stopPropagation(); viewCandidate('${c.id}')">
+                        <div style="font-weight: 600; color: var(--primary-light);">${c.name}</div>
                         <div style="font-size: 0.7rem; color: var(--text-dim);">${c.fileName}</div>
                     </td>
                     <td>${formatDate8(c.date)}</td>
@@ -4423,6 +4433,13 @@
                 closeDetailModal();
                 renderCandidates();
                 filterCandidatesRepo();
+            }
+        }
+
+        function deleteCurrentCandidate() {
+            if (editingCandId && confirm('Are you sure you want to permanently delete this candidate?')) {
+                deleteCandidate(editingCandId);
+                closeDetailModal();
             }
         }
 
