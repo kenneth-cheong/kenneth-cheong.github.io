@@ -104,6 +104,8 @@ CRITICAL CONTENT GUIDELINES:
 4. OUTPUT: Return the full content with links inserted as a valid HTML fragment. Content: {content}"""
         elif action == "translate":
             user_msg = f"Translate the following content to English. Maintain all structural elements (Markdown headers, lists, etc.) and original meaning precisely.\n\nCONTENT:\n{content if content else prompt_override}"
+        elif action == "outline":
+            user_msg = f"Generate a detailed article outline consisting of hierarchical headers (H2, H3) and descriptive bullet points only. DO NOT write full paragraphs, introductions, or FAQs unless specifically requested. Focus on structure and key points for each section. Topic: {prompt_override}"
         else:
             return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid action'})}
 
