@@ -26255,8 +26255,8 @@ ${content}
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        action: 'generate',
-                        prompt: `Translate the following content to English. Maintain all structural elements (Markdown headers, lists, etc.) and original meaning precisely.\n\nCONTENT:\n${text}`,
+                        action: 'translate',
+                        content: text,
                         settings: { ...aiContentSettings, locale: 'en-US' }
                     })
                 });
@@ -26303,13 +26303,14 @@ ${content}
             }
 
             try {
-                for (const row of rows) {
+                const translationPromises = Array.from(rows).map(async (row) => {
                     const transDiv = row.querySelector('.topic-translation');
                     if (transDiv && transDiv.dataset.original) {
                         const translated = await translateToEnglish(transDiv.dataset.original);
                         transDiv.innerHTML = translated;
                     }
-                }
+                });
+                await Promise.all(translationPromises);
             } finally {
                 if (btn && originalBtnText !== null) {
                     btn.innerHTML = originalBtnText;

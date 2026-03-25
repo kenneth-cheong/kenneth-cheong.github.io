@@ -69,6 +69,8 @@ CRITICAL CONTENT GUIDELINES:
             user_msg = f"Simplify the language of this content for a grade-school level: {content}"
         elif action == "continue":
             user_msg = f"Continue writing this content, ensuring the next sections follow all formatting and EEAT rules: {content}"
+        elif action == "translate":
+            user_msg = f"Translate the following content to English. Maintain all structural elements (Markdown headers, lists, etc.) and original meaning precisely.\n\nCONTENT:\n{content if content else prompt_override}"
         else:
             return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid action'})}
 
@@ -79,12 +81,12 @@ CRITICAL CONTENT GUIDELINES:
             json={
                 "model": "gpt-4o-mini",
                 "messages": [
-                    {"role": "system", "content": system_msg},
+                    {"role": "system", "content": system_msg if action != "translate" else "You are a professional translator."},
                     {"role": "user", "content": user_msg}
                 ],
-                "temperature": 0.7
+                "temperature": 0.3 if action == "translate" else 0.7
             },
-            timeout=25
+            timeout=30
         )
 
         resp_json = response.json()

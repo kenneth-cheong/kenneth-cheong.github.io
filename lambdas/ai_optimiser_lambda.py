@@ -102,6 +102,8 @@ CRITICAL CONTENT GUIDELINES:
    - DO NOT append bracketed sources. Embed the link directly into the sentence structure.
 3. RULES: Strictly follow the EXTERNAL LINKING STRATEGY and COMPETITOR AVOIDANCE rules. 
 4. OUTPUT: Return the full content with links inserted as a valid HTML fragment. Content: {content}"""
+        elif action == "translate":
+            user_msg = f"Translate the following content to English. Maintain all structural elements (Markdown headers, lists, etc.) and original meaning precisely.\n\nCONTENT:\n{content if content else prompt_override}"
         else:
             return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid action'})}
 
@@ -112,10 +114,12 @@ CRITICAL CONTENT GUIDELINES:
             json={
                 "model": "gpt-4o-mini",
                 "messages": [
-                    {"role": "system", "content": system_msg},
+                    {"role": "system", "content": system_msg if action != "translate" else "You are a professional translator."},
                     {"role": "user", "content": user_msg}
-                ]
-            }
+                ],
+                "temperature": 0.3 if action == "translate" else 0.7
+            },
+            timeout=30
         )
 
         resp_json = response.json()
