@@ -26293,21 +26293,26 @@ ${content}
             if (!card) return;
             const rows = card.querySelectorAll('.competitor-table tbody tr');
             const btn = card.querySelector('.btn-action');
+
+            // Optionally show button loading state
+            let originalBtnText = null;
             if (btn) {
-                const originalText = btn.innerHTML;
+                originalBtnText = btn.innerHTML;
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Translating...';
                 btn.disabled = true;
+            }
 
-                try {
-                    for (const row of rows) {
-                        const transDiv = row.querySelector('.topic-translation');
-                        if (transDiv && transDiv.dataset.original) {
-                            const translated = await translateToEnglish(transDiv.dataset.original);
-                            transDiv.innerHTML = translated;
-                        }
+            try {
+                for (const row of rows) {
+                    const transDiv = row.querySelector('.topic-translation');
+                    if (transDiv && transDiv.dataset.original) {
+                        const translated = await translateToEnglish(transDiv.dataset.original);
+                        transDiv.innerHTML = translated;
                     }
-                } finally {
-                    btn.innerHTML = originalText;
+                }
+            } finally {
+                if (btn && originalBtnText !== null) {
+                    btn.innerHTML = originalBtnText;
                     btn.disabled = false;
                 }
             }
