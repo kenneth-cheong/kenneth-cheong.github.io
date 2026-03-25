@@ -381,8 +381,6 @@
             border: 1px solid var(--border);
             border-radius: 24px;
             overflow-x: auto;
-            overflow-y: auto;
-            max-height: calc(100vh - 250px);
             -webkit-overflow-scrolling: touch;
         }
 
@@ -691,8 +689,13 @@
             line-height: 1.5;
         }
 
-        .interview-card .good-answer .guideline-label { color: #4ade80; }
-        .interview-card .red-flags .guideline-label { color: #fb7185; }
+        .interview-card .good-answer .guideline-label {
+            color: #4ade80;
+        }
+
+        .interview-card .red-flags .guideline-label {
+            color: #fb7185;
+        }
 
         .interview-card .card-footer {
             margin-top: auto;
@@ -1720,7 +1723,8 @@
                             <div class="card" style="background: rgba(15, 23, 42, 0.4); border-color: var(--border);">
                                 <h4 style="margin-bottom: 12px; font-size: 0.875rem; color: var(--text-dim);">Actions
                                 </h4>
-                                <button class="btn" style="width: 100%; justify-content: center; background: rgba(244, 63, 94, 0.1); color: var(--accent); margin-bottom: 12px;"
+                                <button class="btn"
+                                    style="width: 100%; justify-content: center; background: rgba(244, 63, 94, 0.1); color: var(--accent); margin-bottom: 12px;"
                                     onclick="deleteCurrentCandidate()">
                                     <i class="fas fa-trash"></i> Delete Candidate
                                 </button>
@@ -2567,10 +2571,10 @@
                 });
 
                 if (!response.ok) throw new Error("AI Generation failed");
-                
+
                 const data = await response.json();
                 let content = typeof data === 'object' ? (data.body || data.result || JSON.stringify(data)) : data;
-                
+
                 console.log("AI Raw Response:", content); // Debug log
 
                 // Extract JSON array more reliably
@@ -2585,7 +2589,7 @@
                         content = content.substring(startIdx, endIdx + 1);
                     }
                 }
-                
+
                 const questions = JSON.parse(content);
 
                 if (Array.isArray(questions)) {
@@ -3038,10 +3042,10 @@
             const select = document.getElementById('filterPosition');
             const bestFitSelect = document.getElementById('filterBestFit');
             const positions = [...new Set(state.jobs.map(j => j.title))];
-            
-            const options = '<option value="">All Positions</option>' + 
+
+            const options = '<option value="">All Positions</option>' +
                 positions.map(p => `<option value="${p}">${p}</option>`).join('');
-                
+
             select.innerHTML = options;
             bestFitSelect.innerHTML = options;
         }
@@ -3133,7 +3137,7 @@
                     <td style="text-align: center;" onclick="event.stopPropagation()">
                         <input type="checkbox" class="repo-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('repoTable')">
                     </td>
-                    <td style="font-weight: 600; cursor: pointer; color: var(--primary-light);" onclick="event.stopPropagation(); viewCandidate('${c.id}')">${c.name}</td>
+                    <td style="font-weight: 600;">${c.name}</td>
                     <td>
                         <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%; max-width: 140px;" 
                             onclick="event.stopPropagation()" onchange="updateCandidateJob('${c.id}', this.value)">
@@ -3301,11 +3305,11 @@
                     console.log(`[Batch] Received AI Analysis for ${item.name}: `, analysis);
 
                     const cvDataBase64 = await toBase64(item.blob);
-                    
+
                     // Evaluate for all other jobs (Best Fit)
                     console.log(`[Batch] Starting Best Fit evaluation for ${item.name}...`);
                     const allScores = await evaluateCandidateForAllJobs(item, text, cvDataBase64);
-                    
+
                     // Conflict Resolution Logic
                     const appliedJobId = state.activeJobId || item.jobId;
                     const sameJobEvaluation = allScores.find(s => String(s.jobId) === String(appliedJobId));
@@ -3316,7 +3320,7 @@
                     // Filter out current job for Best Fit calculation
                     const otherJobs = allScores.filter(s => String(s.jobId) !== String(appliedJobId));
                     const bestFit = otherJobs.reduce((best, current) => (current.score > best.score) ? current : best, { score: 0, jobTitle: 'Applied is Best' });
-                    
+
                     const success = await addCandidate(item.name, { ...analysis, bestFit, allScores }, cvDataBase64, text, true);
                     if (!success) {
                         throw new Error(`Failed to save candidate "${item.name}" to database`);
@@ -3501,8 +3505,8 @@
             const assignee = document.getElementById(selectId).value;
 
             if (selectedIds.length === 0) return;
-            
-            const confirmMsg = assignee 
+
+            const confirmMsg = assignee
                 ? `Are you sure you want to assign ${selectedIds.length} candidates to ${assignee}?`
                 : `Are you sure you want to UNASSIGN ${selectedIds.length} candidates?`;
 
@@ -3524,7 +3528,7 @@
                 const successMsg = assignee
                     ? `Successfully assigned ${selectedIds.length} candidates to ${assignee}.`
                     : `Successfully unassigned ${selectedIds.length} candidates.`;
-                
+
                 alert(successMsg);
                 renderCandidates();
                 filterCandidatesRepo();
@@ -3898,7 +3902,7 @@
             // Update candidate object
             const contactScans = scanTextForContacts(candidate.fullText);
             candidate.name = cleanCandidateName(analysis.name, candidate.fileName);
-            
+
             // Conflict Resolution Logic
             const appliedJobId = candidate.jobId;
             const sameJobEvaluation = allScores.find(s => String(s.jobId) === String(appliedJobId));
@@ -4141,8 +4145,8 @@
                     <td style="text-align: center;" onclick="event.stopPropagation()">
                         <input type="checkbox" class="cand-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('candidateTable')">
                     </td>
-                    <td style="cursor: pointer;" onclick="event.stopPropagation(); viewCandidate('${c.id}')">
-                        <div style="font-weight: 600; color: var(--primary-light);">${c.name}</div>
+                    <td>
+                        <div style="font-weight: 600;">${c.name}</div>
                         <div style="font-size: 0.7rem; color: var(--text-dim);">${c.fileName}</div>
                     </td>
                     <td>${formatDate8(c.date)}</td>
@@ -4443,7 +4447,7 @@
             }
         }
 
-        async function viewCV() {
+        function viewCV() {
             const cand = state.candidates.find(c => c.id.toString() === editingCandId.toString());
             if (!cand || !cand.cvData) return alert('No file data available to view.');
 
@@ -4485,39 +4489,23 @@
                         img.src = url;
                         viewerContent.appendChild(img);
                     }
-                } else if (ext === 'docx') {
-                    try {
-                        const result = await mammoth.convertToHtml({ arrayBuffer: byteArray.buffer });
-                        viewerContent.innerHTML = `
-                            <div style="padding: 40px; background: white; color: black; line-height: 1.6; overflow-y: auto; height: 100%; text-align: left;">
-                                ${result.value || '<p>No content found in document.</p>'}
-                            </div>
-                        `;
-                    } catch (err) {
-                        console.error("Mammoth conversion failed:", err);
-                        showFallback(ext, cand.fileName);
-                    }
                 } else {
-                    showFallback(ext, cand.fileName);
+                    // Fallback for docx or other formats
+                    viewerContent.innerHTML = `
+                        <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--bg-dark); padding: 20px; text-align: center;">
+                            <i class="fas fa-file-word" style="font-size: 4rem; color: #2b579a; margin-bottom: 20px;"></i>
+                            <h3>Viewing not supported for .${ext} files</h3>
+                            <p style="margin-top: 10px;">Please download the file to view it.</p>
+                            <button class="btn btn-primary" style="margin-top: 20px;" onclick="downloadOriginalCV()">
+                                <i class="fas fa-download"></i> Download ${cand.fileName}
+                            </button>
+                        </div>
+                    `;
                 }
             } catch (e) {
                 console.error("Error creating viewer blob:", e);
                 alert("Error processing file data for viewing.");
             }
-        }
-
-        function showFallback(ext, fileName) {
-            const viewerContent = document.getElementById('cvViewerContent');
-            viewerContent.innerHTML = `
-                <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #1e293b; padding: 20px; text-align: center; background: #f8fafc;">
-                    <i class="fas ${ext === 'doc' || ext === 'docx' ? 'fa-file-word' : 'fa-file-alt'}" style="font-size: 4rem; color: #2b579a; margin-bottom: 20px;"></i>
-                    <h3>Viewing not supported for .${ext} files</h3>
-                    <p style="margin-top: 10px;">Please download the file to view it.</p>
-                    <button class="btn btn-primary" style="margin-top: 20px;" onclick="downloadOriginalCV()">
-                        <i class="fas fa-download"></i> Download ${fileName}
-                    </button>
-                </div>
-            `;
         }
 
         function closeCVViewer() {
@@ -4738,7 +4726,7 @@
                 onEnd: async function () {
                     const job = state.jobs.find(j => String(j.id) === String(cand.jobId));
                     const cards = Array.from(el.querySelectorAll('.interview-card'));
-                    
+
                     // 1. Update Job Question Order
                     const jobCards = cards.filter(c => c.getAttribute('data-type') === 'job');
                     const newJobOrder = jobCards.map(c => c.getAttribute('data-qid'));
