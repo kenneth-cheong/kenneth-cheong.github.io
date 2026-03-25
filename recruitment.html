@@ -4443,7 +4443,7 @@
             }
         }
 
-        function viewCV() {
+        async function viewCV() {
             const cand = state.candidates.find(c => c.id.toString() === editingCandId.toString());
             if (!cand || !cand.cvData) return alert('No file data available to view.');
 
@@ -4485,23 +4485,39 @@
                         img.src = url;
                         viewerContent.appendChild(img);
                     }
+                } else if (ext === 'docx') {
+                    try {
+                        const result = await mammoth.convertToHtml({ arrayBuffer: byteArray.buffer });
+                        viewerContent.innerHTML = `
+                            <div style="padding: 40px; background: white; color: black; line-height: 1.6; overflow-y: auto; height: 100%; text-align: left;">
+                                ${result.value || '<p>No content found in document.</p>'}
+                            </div>
+                        `;
+                    } catch (err) {
+                        console.error("Mammoth conversion failed:", err);
+                        showFallback(ext, cand.fileName);
+                    }
                 } else {
-                    // Fallback for docx or other formats
-                    viewerContent.innerHTML = `
-                        <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--bg-dark); padding: 20px; text-align: center;">
-                            <i class="fas fa-file-word" style="font-size: 4rem; color: #2b579a; margin-bottom: 20px;"></i>
-                            <h3>Viewing not supported for .${ext} files</h3>
-                            <p style="margin-top: 10px;">Please download the file to view it.</p>
-                            <button class="btn btn-primary" style="margin-top: 20px;" onclick="downloadOriginalCV()">
-                                <i class="fas fa-download"></i> Download ${cand.fileName}
-                            </button>
-                        </div>
-                    `;
+                    showFallback(ext, cand.fileName);
                 }
             } catch (e) {
                 console.error("Error creating viewer blob:", e);
                 alert("Error processing file data for viewing.");
             }
+        }
+
+        function showFallback(ext, fileName) {
+            const viewerContent = document.getElementById('cvViewerContent');
+            viewerContent.innerHTML = `
+                <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #1e293b; padding: 20px; text-align: center; background: #f8fafc;">
+                    <i class="fas ${ext === 'doc' || ext === 'docx' ? 'fa-file-word' : 'fa-file-alt'}" style="font-size: 4rem; color: #2b579a; margin-bottom: 20px;"></i>
+                    <h3>Viewing not supported for .${ext} files</h3>
+                    <p style="margin-top: 10px;">Please download the file to view it.</p>
+                    <button class="btn btn-primary" style="margin-top: 20px;" onclick="downloadOriginalCV()">
+                        <i class="fas fa-download"></i> Download ${fileName}
+                    </button>
+                </div>
+            `;
         }
 
         function closeCVViewer() {
