@@ -21144,7 +21144,7 @@
 
         function updateGeoStats(content) {
             const chars = content.length;
-            const words = content.trim().split(/\s+/).filter(w => w.length > 0).length;
+            const words = countWords(content);
             const lines = content.split('\n').length;
             document.getElementById('previewStats').textContent = `${chars.toLocaleString()} characters | ${words.toLocaleString()} words | ${lines.toLocaleString()} lines`;
         }
@@ -21274,11 +21274,30 @@
             if (content) content.classList.add('active');
         }
 
+        /**
+         * Universal word counter that handles CJK (Chinese, Japanese, Korean) languages.
+         * CJK characters are each counted as one word since these languages don't use spaces.
+         * For Latin/space-delimited languages, words are split by whitespace as usual.
+         */
+        function countWords(text) {
+            if (!text || !text.trim()) return 0;
+            // Match CJK Unified Ideographs, Hiragana, Katakana, Hangul, and CJK extensions
+            const cjkRegex = /[\u3000-\u9fff\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/g;
+            const cjkMatches = text.match(cjkRegex);
+            const cjkCount = cjkMatches ? cjkMatches.length : 0;
+
+            // Remove CJK characters, then count remaining space-delimited words
+            const nonCjkText = text.replace(cjkRegex, ' ').trim();
+            const nonCjkWords = nonCjkText ? nonCjkText.split(/\s+/).filter(w => w.length > 0).length : 0;
+
+            return cjkCount + nonCjkWords;
+        }
+
         function updateEditorMetrics() {
             const editor = document.getElementById('editorContent');
             const text = editor.innerText || "";
             const charCount = text.length;
-            const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+            const wordCount = countWords(text);
             const tokenCount = Math.ceil(wordCount * 1.3);
 
             if (document.getElementById('editorHeaderWordCount')) document.getElementById('editorHeaderWordCount').innerText = wordCount;
@@ -22142,7 +22161,7 @@
             keywords.push(...secondaryKws);
 
             const listContainer = document.getElementById('keywordFrequencyList');
-            const totalWords = content.trim() ? content.trim().split(/\s+/).length : 0;
+            const totalWords = countWords(content);
 
             if (keywords.length === 0) {
                 alert("Please enter at least a primary focus keyword.");
@@ -26252,7 +26271,7 @@ ${content}
 
                 const score = result.originality_score !== undefined ? result.originality_score : 100;
                 scoreDisp.innerText = Math.round(score) + "%";
-                metaDisp.innerText = `${result.word_count || content.split(/\s+/).length} words • ${result.total_matches || 0} match(es)`;
+                metaDisp.innerText = `${result.word_count || countWords(content)} words • ${result.total_matches || 0} match(es)`;
 
                 let sourcesHtml = "";
                 if (result.matched_sources && result.matched_sources.length > 0) {
@@ -38243,6 +38262,7 @@ INSTRUCTIONS:
 2. Cover the cherry-picked topics comprehensively.
 3. Account for EEAT principles.
 4. Include a single consolidated "Frequently Asked Questions (FAQ)" as the LAST H2 section with 4-6 relevant questions as H3 sub-items. Do NOT scatter FAQ-style content across other sections.
+6. The Conclusion/Summary section MUST be the SECOND-TO-LAST H2, appearing right before the FAQ. Do NOT place any conclusion/wrap-up content in the middle of the outline.
 5. Output in a clear, editable text format.
 
 LOCALE: "${aiContentSettings.locale}"
@@ -38460,6 +38480,7 @@ CRITICAL CONTENT GUIDELINES (EEAT):
 6. UNIQUENESS: Maintain the unique POV proposed in the outline.
 7. FORMATTING: Use Markdown for headers (H2, H3), bulleted lists, and tables.
 8. FLOW: Ensure it transitions perfectly from the previously written content.
+9. NO PREMATURE CONCLUSIONS: Do NOT add a conclusion, summary, wrap-up, or "final thoughts" to this section UNLESS this is explicitly the LAST section in the outline (the designated conclusion section). Each section should END with content that naturally leads INTO the next section — not with a summarising or concluding paragraph.
 
 LOCALE: "${aiContentSettings.locale}"
 Write content nuanced for this locale: use local spelling, terminology, cultural references, and units of measurement.
@@ -38472,7 +38493,7 @@ ${_sectionTarget > 0 ? `\nREMINDER: This section MUST be at least ${_sectionTarg
                     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
                         const isRetry = attempt > 0;
                         const currentPrompt = isRetry
-                            ? `Your previous output for this section was only ${sectionMarkdown.split(/\s+/).filter(Boolean).length} words, which is below the required minimum of ${_sectionTarget} words.\n\nPlease REWRITE and EXPAND this section to meet the word count target. Add more depth, examples, analysis, case studies, and detail. Do NOT simply pad — add genuinely useful content.\n\nYour previous output:\n${sectionMarkdown}\n\n---\n\nOriginal instructions:\n${prompt}`
+                            ? `Your previous output for this section was only ${countWords(sectionMarkdown)} words, which is below the required minimum of ${_sectionTarget} words.\n\nPlease REWRITE and EXPAND this section to meet the word count target. Add more depth, examples, analysis, case studies, and detail. Do NOT simply pad — add genuinely useful content.\n\nYour previous output:\n${sectionMarkdown}\n\n---\n\nOriginal instructions:\n${prompt}`
                             : prompt;
 
                         if (isRetry) {
@@ -38496,7 +38517,7 @@ ${_sectionTarget > 0 ? `\nREMINDER: This section MUST be at least ${_sectionTarg
 
                         // Check word count — skip validation if no target or if close enough
                         if (_sectionTarget <= 0) break;
-                        const actualWords = sectionMarkdown.split(/\s+/).filter(Boolean).length;
+                        const actualWords = countWords(sectionMarkdown);
                         const ratio = actualWords / _sectionTarget;
                         if (ratio >= 0.8 || attempt >= MAX_RETRIES) break;
                         console.log(`Section ${i + 1} word count: ${actualWords}/${_sectionTarget} (${Math.round(ratio * 100)}%) — retrying...`);
