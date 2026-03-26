@@ -13100,6 +13100,10 @@
                                     style="background: #fff1f0; color: #ff4d4f; border: 1px solid #ffa39e; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">
                                     <i class="fas fa-times-circle"></i> Deselect All
                                 </button>
+                                <button id="btnTranslateAllCardTopics-New" onclick="translateAllCardTopics('new')"
+                                    style="background: #f0f5ff; color: #2f54eb; border: 1px solid #adc6ff; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; cursor: pointer; display: none; align-items: center; gap: 8px; transition: all 0.2s;">
+                                    <i class="fas fa-language"></i> Translate All Card Topics
+                                </button>
                                 <div class="topic-legend" style="width: 100%; margin-top: 5px;">
                                     <div class="legend-item">
                                         <div class="legend-color" style="background: #1a73e8;"></div>
@@ -13396,6 +13400,10 @@
                                 <button onclick="deselectAllTopics('optimise')"
                                     style="background: #fff1f0; color: #ff4d4f; border: 1px solid #ffa39e; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">
                                     <i class="fas fa-times-circle"></i> Deselect All
+                                </button>
+                                <button id="btnTranslateAllCardTopics-Optimise" onclick="translateAllCardTopics('optimise')"
+                                    style="background: #f0f5ff; color: #2f54eb; border: 1px solid #adc6ff; padding: 8px 16px; border-radius: 8px; font-size: 0.9em; cursor: pointer; display: none; align-items: center; gap: 8px; transition: all 0.2s;">
+                                    <i class="fas fa-language"></i> Translate All Card Topics
                                 </button>
                                 <div class="topic-legend" style="width: 100%; margin-top: 5px;">
                                     <div class="legend-item">
@@ -26397,22 +26405,30 @@ ${content}
             }
         }
 
-        async function translateTextArea(sourceId, targetId) {
+        async function translateTextArea(sourceId, targetId, btnOrEvent) {
             const sourceEl = document.getElementById(sourceId);
             const targetEl = document.getElementById(targetId);
-            const btn = event.currentTarget;
+            // Support: direct button element, DOM event (onclick), or no button (programmatic/debounce call)
+            const btn = btnOrEvent instanceof HTMLElement ? btnOrEvent
+                      : (btnOrEvent && btnOrEvent.currentTarget) ? btnOrEvent.currentTarget
+                      : (typeof event !== 'undefined' && event && event.currentTarget) ? event.currentTarget
+                      : null;
             if (!sourceEl || !targetEl || !sourceEl.value.trim()) return;
 
-            const originalBtnHtml = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Translating...';
-            btn.disabled = true;
+            const originalBtnHtml = btn ? btn.innerHTML : null;
+            if (btn) {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Translating...';
+                btn.disabled = true;
+            }
 
             try {
                 const translated = await translateToEnglish(sourceEl.value);
                 targetEl.value = translated;
             } finally {
-                btn.innerHTML = originalBtnHtml;
-                btn.disabled = false;
+                if (btn && originalBtnHtml !== null) {
+                    btn.innerHTML = originalBtnHtml;
+                    btn.disabled = false;
+                }
             }
         }
 
@@ -26447,16 +26463,44 @@ ${content}
             }
         }
 
+        async function translateAllCardTopics(flow) {
+            const gridId = flow === 'optimise' ? 'competitorInsightsGrid-Optimise' : 'competitorInsightsGrid';
+            const btnId = flow === 'optimise' ? 'btnTranslateAllCardTopics-Optimise' : 'btnTranslateAllCardTopics-New';
+            const grid = document.getElementById(gridId);
+            const btn = document.getElementById(btnId);
+            if (!grid) return;
+
+            // Show global loading state
+            let originalBtnHtml = null;
+            if (btn) {
+                originalBtnHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Translating All Card Topics...';
+                btn.disabled = true;
+            }
+
+            try {
+                const cards = grid.querySelectorAll('.competitor-card');
+                const translationPromises = Array.from(cards).map(card => translateCardTopics(card.id));
+                await Promise.all(translationPromises);
+            } finally {
+                if (btn && originalBtnHtml !== null) {
+                    btn.innerHTML = originalBtnHtml;
+                    btn.disabled = false;
+                }
+            }
+        }
+
         function updateTranslationVisibility() {
             const isNonEn = isNonEnglishLocale();
             const ids = [
                 'selectedTopicsEnWrapper-New', 'btnTranslateTopics-New',
                 'selectedTopicsEnWrapper-Optimise', 'btnTranslateTopics-Optimise',
-                'outlineEnWrapper', 'btnTranslateOutline'
+                'outlineEnWrapper', 'btnTranslateOutline',
+                'btnTranslateAllCardTopics-New', 'btnTranslateAllCardTopics-Optimise'
             ];
             ids.forEach(id => {
                 const el = document.getElementById(id);
-                if (el) el.style.display = isNonEn ? 'block' : 'none';
+                if (el) el.style.display = isNonEn ? 'flex' : 'none';
             });
 
             // Adjust grid columns
@@ -38193,7 +38237,7 @@ ${selectedTopics}
 TOPIC: "${topic}"
 PRIMARY KEYWORD: "${keyword}"
 
-${(() => { const t = document.getElementById('targetWordCountInput'); const v = t ? (parseInt(t.value) || parseInt(t.placeholder) || 0) : 0; return v > 0 ? `TARGET WORD COUNT: ~${v} words. Plan the outline depth and number of sections to achieve this word count.\n` : ''; })()}
+${(() => { const t = document.getElementById('targetWordCountInput'); const v = t ? (parseInt(t.value) || parseInt(t.placeholder) || 0) : 0; return v > 0 ? `⚠️ MANDATORY TARGET WORD COUNT: ${v} words. You MUST plan enough sections and depth to achieve this word count. Each section should average ~${Math.round(v / 8)} words. If the target is high, add more H2 sections and deeper H3 sub-topics. This is a hard requirement.\n` : ''; })()}
 INSTRUCTIONS:
 1. Ensure the outline is unique and high-value.
 2. Cover the cherry-picked topics comprehensively.
@@ -38380,6 +38424,11 @@ Write content nuanced for this locale: use local spelling, terminology, cultural
                     const sectionContext = section.content.join('\n');
                     const recentContent = fullWrittenContent.slice(-2000); // Last ~400 words for transition context
 
+                    // Calculate per-section word target
+                    const _twcInput = document.getElementById('targetWordCountInput');
+                    const _totalTarget = _twcInput ? (parseInt(_twcInput.value) || parseInt(_twcInput.placeholder) || 0) : 0;
+                    const _sectionTarget = _totalTarget > 0 ? Math.round(_totalTarget / sections.length) : 0;
+
                     const prompt = `
 Generate only the following section of a comprehensive, structured SEO article.
 TOPIC: "${topic}"
@@ -38388,7 +38437,7 @@ SECONDARY KEYWORDS: "${secondaryKeywords}"
 ${complianceInstruction}${personaInstruction}
 ${deepCompareContext}
 
-${(() => { const t = document.getElementById('targetWordCountInput'); const v = t ? (parseInt(t.value) || parseInt(t.placeholder) || 0) : 0; return v > 0 ? `TARGET ARTICLE WORD COUNT: ~${v} words total across ${sections.length} sections. Aim for roughly ~${Math.round(v / sections.length)} words in this section (section ${i + 1} of ${sections.length}). Adjust proportionally based on section complexity.\n` : ''; })()}
+${_sectionTarget > 0 ? `⚠️ MANDATORY WORD COUNT REQUIREMENT: You MUST write AT LEAST ${_sectionTarget} words for this section (section ${i + 1} of ${sections.length}). The total article target is ${_totalTarget} words. This is a HARD MINIMUM — if your output is shorter, it will be rejected and you will be asked to rewrite. Write comprehensive, in-depth content to meet this target. Do NOT pad with filler — add genuine depth, examples, analysis, and detail.\n` : ''}
 FULL APPROVED OUTLINE (FOR FLOW CONTEXT):
 ${outline}
 
@@ -38414,21 +38463,44 @@ CRITICAL CONTENT GUIDELINES (EEAT):
 
 LOCALE: "${aiContentSettings.locale}"
 Write content nuanced for this locale: use local spelling, terminology, cultural references, and units of measurement.
+${_sectionTarget > 0 ? `\nREMINDER: This section MUST be at least ${_sectionTarget} words. Write thorough, substantive content.` : ''}
 `.trim();
 
-                    const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'generate',
-                            prompt: prompt,
-                            settings: aiContentSettings
-                        })
-                    });
+                    // --- Fetch with word-count validation loop (max 1 retry) ---
+                    let sectionMarkdown = '';
+                    const MAX_RETRIES = 1;
+                    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                        const isRetry = attempt > 0;
+                        const currentPrompt = isRetry
+                            ? `Your previous output for this section was only ${sectionMarkdown.split(/\s+/).filter(Boolean).length} words, which is below the required minimum of ${_sectionTarget} words.\n\nPlease REWRITE and EXPAND this section to meet the word count target. Add more depth, examples, analysis, case studies, and detail. Do NOT simply pad — add genuinely useful content.\n\nYour previous output:\n${sectionMarkdown}\n\n---\n\nOriginal instructions:\n${prompt}`
+                            : prompt;
 
-                    const data = await response.json();
-                    const result = parseLambdaResponse(data);
-                    const sectionMarkdown = result.result;
+                        if (isRetry) {
+                            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Expanding Section ${i + 1}/${sections.length}...`;
+                            updateKeywordAnalysisLoader("AI Content Optimiser", `Expanding: ${section.header || 'Section ' + (i + 1)} (below word target)...`);
+                        }
+
+                        const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'generate',
+                                prompt: currentPrompt,
+                                settings: aiContentSettings
+                            })
+                        });
+
+                        const data = await response.json();
+                        const result = parseLambdaResponse(data);
+                        sectionMarkdown = result.result;
+
+                        // Check word count — skip validation if no target or if close enough
+                        if (_sectionTarget <= 0) break;
+                        const actualWords = sectionMarkdown.split(/\s+/).filter(Boolean).length;
+                        const ratio = actualWords / _sectionTarget;
+                        if (ratio >= 0.8 || attempt >= MAX_RETRIES) break;
+                        console.log(`Section ${i + 1} word count: ${actualWords}/${_sectionTarget} (${Math.round(ratio * 100)}%) — retrying...`);
+                    }
 
                     fullWrittenContent += "\n\n" + sectionMarkdown;
 

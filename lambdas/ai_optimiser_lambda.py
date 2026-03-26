@@ -121,7 +121,7 @@ CRITICAL CONTENT GUIDELINES:
                 ],
                 "temperature": 0.3 if action == "translate" else 0.7
             },
-            timeout=30
+            timeout=90
         )
 
         resp_json = response.json()
