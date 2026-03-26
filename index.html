@@ -13176,6 +13176,22 @@
                                 Based on competitive analysis, here is a suggested structure. Amend it as
                                 needed.
                             </p>
+                            <div id="targetWordCountRow" style="display:none; margin: 0 0 12px 0; padding: 10px 15px; background: linear-gradient(135deg, #f0f4ff, #e8f5e9); border-radius: 8px; border: 1px solid #c8d6e5; align-items: center; gap: 12px; flex-wrap: wrap;">
+                                <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+                                    <i class="fas fa-chart-bar" style="color: #004c9d;"></i>
+                                    <span style="font-size: 0.9em; color: #333;">
+                                        <b>Recommended Word Count:</b>
+                                        <span id="aiWordCountRange" style="color: #28a745; font-weight: bold;">—</span>
+                                        <small style="color: #999; margin-left: 5px;">(SERP median ±15%)</small>
+                                    </span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <label style="font-size: 0.8em; color: #666;">Target:</label>
+                                    <input type="number" id="targetWordCountInput" placeholder="Auto" 
+                                        oninput="updateEditorMetrics()"
+                                        style="width: 80px; padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.85em; text-align: center;">
+                                </div>
+                            </div>
                             <div id="outlineLoading-New"
                                 style="display: none; padding: 20px; text-align: center; color: #004c9d; font-size: 0.9em;">
                                 <i class="fas fa-spinner fa-spin fa-2x"></i>
@@ -13494,8 +13510,11 @@
                                         <input type="text" id="editorTitle" class="editor-title-input" value=""
                                             placeholder="Enter post title..." style="padding: 5px 10px; flex-grow: 1;">
                                     </div>
-                                    <div class="editor-metrics" style="padding-top: 5px;">
-                                        <span>Word Count: <span id="editorHeaderWordCount">0</span></span>
+                                    <div class="editor-metrics" style="padding-top: 5px; display: flex; align-items: center; gap: 12px;">
+                                        <span>Word Count: <span id="editorHeaderWordCount">0</span><span id="editorTargetLabel" style="display:none; color: #888;"> / <span id="editorTargetValue">0</span></span></span>
+                                        <div id="wordCountProgressWrapper" style="display:none; flex: 1; max-width: 120px; height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden;">
+                                            <div id="wordCountProgressBar" style="height: 100%; width: 0%; border-radius: 3px; transition: width 0.3s, background 0.3s;"></div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="editor-toolbar">
@@ -21258,10 +21277,56 @@
             document.getElementById('wordCount').innerText = wordCount;
             document.getElementById('tokenCount').innerText = tokenCount;
 
+            // Target word count progress bar
+            const targetInput = document.getElementById('targetWordCountInput');
+            const target = targetInput ? (parseInt(targetInput.value) || parseInt(targetInput.placeholder) || 0) : 0;
+            const bar = document.getElementById('wordCountProgressBar');
+            const wrapper = document.getElementById('wordCountProgressWrapper');
+            const targetLabel = document.getElementById('editorTargetLabel');
+            const targetValue = document.getElementById('editorTargetValue');
+
+            if (target > 0) {
+                if (wrapper) wrapper.style.display = 'block';
+                if (targetLabel) { targetLabel.style.display = 'inline'; }
+                if (targetValue) targetValue.innerText = target.toLocaleString();
+                if (bar) {
+                    const pct = Math.min(100, Math.round((wordCount / target) * 100));
+                    bar.style.width = pct + '%';
+                    bar.style.background = pct >= 90 ? '#28a745' : pct >= 60 ? '#ffc107' : '#dc3545';
+                }
+            }
+
             // Update keyword frequency list if we have aggregated data
             if (Object.keys(competitorKeywordsAggregator).length > 0) {
                 renderKeywordAggregation();
             }
+        }
+
+        function calculateTargetWordCount(gridId) {
+            const cards = document.querySelectorAll(`#${gridId} .competitor-card`);
+            const wordCounts = [];
+            cards.forEach(card => {
+                const cells = card.querySelectorAll('.word-count-cell');
+                let total = 0;
+                cells.forEach(cell => { total += parseInt(cell.innerText.replace(/,/g, '')) || 0; });
+                if (total > 0) wordCounts.push(total);
+            });
+            if (wordCounts.length === 0) return null;
+
+            wordCounts.sort((a, b) => a - b);
+            const median = wordCounts[Math.floor(wordCounts.length / 2)];
+            const low = Math.round(median * 0.85 / 50) * 50;
+            const high = Math.round(median * 1.15 / 50) * 50;
+
+            const rangeEl = document.getElementById('aiWordCountRange');
+            const targetInput = document.getElementById('targetWordCountInput');
+            const row = document.getElementById('targetWordCountRow');
+
+            if (rangeEl) rangeEl.innerText = `${low.toLocaleString()} – ${high.toLocaleString()}`;
+            if (targetInput && !targetInput.value) targetInput.placeholder = median;
+            if (row) row.style.display = 'flex';
+
+            return { low, median, high };
         }
         function showToast(message, type = 'info', duration = 3000) {
             let container = document.querySelector('.toast-container');
@@ -37074,6 +37139,9 @@ Return ONLY valid JSON in this exact format:
                 await Promise.all(analysisPromises);
                 updateCollapsibleState('aiContentOptimiserBtn', 'success');
 
+                // Calculate and display recommended word count from competitor data
+                calculateTargetWordCount('competitorInsightsGrid');
+
                 // Auto-activate all content tabs to sync with AI suggestions
                 autoActivateAllContentTabs('competitorInsightsGrid');
 
@@ -38125,11 +38193,16 @@ ${selectedTopics}
 TOPIC: "${topic}"
 PRIMARY KEYWORD: "${keyword}"
 
+${(() => { const t = document.getElementById('targetWordCountInput'); const v = t ? (parseInt(t.value) || parseInt(t.placeholder) || 0) : 0; return v > 0 ? `TARGET WORD COUNT: ~${v} words. Plan the outline depth and number of sections to achieve this word count.\n` : ''; })()}
 INSTRUCTIONS:
 1. Ensure the outline is unique and high-value.
 2. Cover the cherry-picked topics comprehensively.
 3. Account for EEAT principles.
-4. Output in a clear, editable text format.
+4. Include a single consolidated "Frequently Asked Questions (FAQ)" as the LAST H2 section with 4-6 relevant questions as H3 sub-items. Do NOT scatter FAQ-style content across other sections.
+5. Output in a clear, editable text format.
+
+LOCALE: "${aiContentSettings.locale}"
+Write content nuanced for this locale: use local spelling, terminology, cultural references, and units of measurement.
                 `.trim();
 
                 const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
@@ -38315,6 +38388,7 @@ SECONDARY KEYWORDS: "${secondaryKeywords}"
 ${complianceInstruction}${personaInstruction}
 ${deepCompareContext}
 
+${(() => { const t = document.getElementById('targetWordCountInput'); const v = t ? (parseInt(t.value) || parseInt(t.placeholder) || 0) : 0; return v > 0 ? `TARGET ARTICLE WORD COUNT: ~${v} words total across ${sections.length} sections. Aim for roughly ~${Math.round(v / sections.length)} words in this section (section ${i + 1} of ${sections.length}). Adjust proportionally based on section complexity.\n` : ''; })()}
 FULL APPROVED OUTLINE (FOR FLOW CONTEXT):
 ${outline}
 
@@ -38333,10 +38407,13 @@ CRITICAL CONTENT GUIDELINES (EEAT):
 2. EXPERTISE (E): Provide deep, focused coverage of the intent.
 3. AUTHORITATIVENESS (A): Reference credible sources (placeholders like [Source: Name]).
 4. READABILITY: Grade-school level. Simple language, short sentences.
-5. USEFULNESS: Include FAQs, Definitions, and Media Placeholders [IMAGE: Description].
+5. USEFULNESS: Include Definitions and Media Placeholders [IMAGE: Description]. Do NOT add FAQ content unless this section is the designated FAQ section in the outline.
 6. UNIQUENESS: Maintain the unique POV proposed in the outline.
 7. FORMATTING: Use Markdown for headers (H2, H3), bulleted lists, and tables.
 8. FLOW: Ensure it transitions perfectly from the previously written content.
+
+LOCALE: "${aiContentSettings.locale}"
+Write content nuanced for this locale: use local spelling, terminology, cultural references, and units of measurement.
 `.trim();
 
                     const response = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {

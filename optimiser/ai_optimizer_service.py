@@ -30,7 +30,17 @@ def lambda_handler(event, context):
         # Construct settings context
         settings_context = ""
         if settings:
-            settings_context = f"\nTARGET AUDIENCE: {settings.get('audience', 'General')}\nTONE: {settings.get('brandTone', 'Professional')}"
+            locale = settings.get('locale', 'en-US')
+            settings_context = (
+                f"\nTARGET AUDIENCE: {settings.get('audience', 'General')}"
+                f"\nTONE: {settings.get('brandTone', 'Professional')}"
+                f"\nTARGET LOCALE: {locale}"
+                f"\nLOCALE INSTRUCTIONS: Write content specifically for the '{locale}' market. "
+                f"Use local spelling conventions (e.g. 'colour' for en-GB/en-AU/en-SG, 'color' for en-US), "
+                f"local terminology, units of measurement, culturally relevant examples and references, "
+                f"and local regulatory/legal context where applicable. "
+                f"If the locale is non-English (e.g. ja-JP, zh-CN), write the ENTIRE article in that language."
+            )
 
         # Core SEO Guidelines based on EEAT and User Satisfaction
         seo_guidelines = """
@@ -41,7 +51,7 @@ CRITICAL CONTENT GUIDELINES:
 4. READABILITY: Write for a grade-school student. Use simple language, avoid jargon, and keep sentences/paragraphs short.
 5. USEFULNESS: 
     - Include Definitions and "How/Where/Why/What" treatments.
-    - Include a "Frequently Asked Questions" (FAQ) section.
+    - Include FAQ questions ONLY if this section is explicitly designated as the FAQ section in the outline.
     - Include media placeholders in square brackets: [IMAGE: Description], [INFOGRAPHIC: Complex data map], [VIDEO: Process illustration].
 6. UNIQUENESS: 
     - Provide a unique point of view (POV) to satisfy Google's Diversity/Uniqueness requirement (source from trends, news, or 1st party perspectives).
@@ -72,7 +82,7 @@ CRITICAL CONTENT GUIDELINES:
         elif action == "translate":
             user_msg = f"Translate the following content to English. Maintain all structural elements (Markdown headers, lists, etc.) and original meaning precisely.\n\nCONTENT:\n{content if content else prompt_override}"
         elif action == "outline":
-            user_msg = f"Generate a detailed article outline consisting of hierarchical headers (H2, H3) and descriptive bullet points only. DO NOT write full paragraphs, introductions, or FAQs unless specifically requested. Focus on structure and key points for each section. Topic: {prompt_override}"
+            user_msg = f"Generate a detailed article outline consisting of hierarchical headers (H2, H3) and descriptive bullet points only. DO NOT write full paragraphs or introductions. Always include a single 'Frequently Asked Questions (FAQ)' as the final H2 section with 4-6 relevant questions as H3 sub-items. Focus on structure and key points for each section. Topic: {prompt_override}"
         else:
             return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid action'})}
 
