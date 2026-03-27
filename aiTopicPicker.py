@@ -29,13 +29,13 @@ Here are the topics found across competitors, with their frequency of occurrence
 
 Your task:
 1. Perform a HOLISTIC analysis of all topics. Do not just pick from the top of the list.
-2. Identify and consolidate similar or near-identical topics into a single, most representative topic.
+2. Identify and consolidate highly similar or near-identical topics into a single, most representative topic. However, keep distinct sub-topics and nuanced variations as separate entries to ensure comprehensive coverage.
 3. Weigh topics by their frequency across the competitive landscape. High-frequency topics are "Must-Haves".
-4. Cherry-pick the most important 4-10 topics for a comprehensive content strategy for SEO ranking purposes.
-5. Use the web_search tool to verify current SEO trends for this keyword to improve your selection.
+4. Cherry-pick the most important 10-20 topics for a comprehensive content strategy for SEO ranking purposes. Ensure a mix of common "Must-Have" topics and unique "Differentiator" topics found in successful competitors.
+5. Use the web_search tool to verify current SEO trends for this keyword to improve your selection and identify missing high-growth topics.
 6. Return ONLY a JSON list of the selected topic strings. No explanations.
 
-Format: ["Consolidated Topic A", "Must-Have Topic B", ...]"""
+Format: ["Consolidated Topic A", "Must-Have Topic B", "Unique Insight C", ...]"""
 
     data = {
         "model": "gpt-4o-mini",

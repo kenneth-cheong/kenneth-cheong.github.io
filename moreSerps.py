@@ -146,8 +146,8 @@ def lambda_handler(event, context):
             final_dict = output_dict
         else:
             for key, value in output_dict.items():
-                p_type = value.get('type', '').lower()
-                if any(t.lower() in p_type for t in normalized_types):
+                p_type = value.get('type', '').lower().replace('-', ' ')
+                if any(t.lower().replace('-', ' ') in p_type for t in normalized_types):
                     final_dict[key] = value
         
         # If filtering returned nothing, fallback to first N unfiltered

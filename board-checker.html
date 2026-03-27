@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monday.com Board Auditor</title>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --surface: #ffffff;
+      --border: #e2e6ea;
+      --primary: #0073ea;
+      --primary-h: #0060c7;
+      --success: #00c875;
+      --danger: #e44258;
+      --warning: #fdab3d;
+      --muted: #676879;
+      --text: #323338;
+      --radius: 8px;
+      --shadow: 0 2px 8px rgba(0, 0, 0, .08);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow);
+    }
+
+    header .logo {
+      font-size: 22px;
+    }
+
+    header h1 {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    header .subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      margin-left: 4px;
+    }
+
+    /* ── Layout ── */
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 28px 24px;
+    }
+
+    /* ── Config card ── */
+    .config-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+    }
+
+    .config-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 700px) {
+      .config-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .field label {
+      display: block;
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    .field .hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    input[type="password"],
+    input[type="text"],
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--text);
+      background: #fafbfc;
+      transition: border-color .15s;
+      outline: none;
+    }
+
+    input[type="password"]:focus,
+    input[type="text"]:focus,
+    textarea:focus {
+      border-color: var(--primary);
+      background: #fff;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 110px;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    button.run-btn {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 26px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      transition: background .15s;
+    }
+
+    button.run-btn:hover:not(:disabled) {
+      background: var(--primary-h);
+    }
+
+    button.run-btn:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    button.clear-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 18px;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--muted);
+      transition: border-color .15s, color .15s;
+    }
+
+    button.clear-btn:hover {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    /* ── Progress ── */
+    #progress {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      display: none;
+      box-shadow: var(--shadow);
+    }
+
+    .progress-title {
+      font-weight: 600;
+      margin-bottom: 12px;
+      font-size: 13px;
+    }
+
+    .progress-bar-wrap {
+      background: var(--bg);
+      border-radius: 20px;
+      height: 8px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: var(--primary);
+      border-radius: 20px;
+      transition: width .3s;
+      width: 0%;
+    }
+
+    .progress-log {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.7;
+      max-height: 80px;
+      overflow-y: auto;
+    }
+
+    /* ── Summary cards ── */
+    #summary {
+      display: none;
+      margin-bottom: 24px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+    }
+
+    .summary-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+
+    .summary-card .val {
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .summary-card .lbl {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .summary-card.green .val {
+      color: var(--success);
+    }
+
+    .summary-card.red .val {
+      color: var(--danger);
+    }
+
+    .summary-card.blue .val {
+      color: var(--primary);
+    }
+
+    .summary-card.orange .val {
+      color: var(--warning);
+    }
+
+    /* ── Tabs ── */
+    #results {
+      display: none;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 20px;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      padding: 10px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--muted);
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      border-radius: 4px 4px 0 0;
+      transition: color .15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tab-btn:hover {
+      color: var(--primary);
+    }
+
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+      background: #f0f6ff;
+    }
+
+    .tab-badge {
+      background: var(--danger);
+      color: #fff;
+      border-radius: 20px;
+      padding: 1px 7px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .tab-badge.ok {
+      background: var(--success);
+    }
+
+    .tab-pane {
+      display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    /* ── Tables ── */
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead th {
+      background: #f8f9fb;
+      padding: 11px 16px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background .1s;
+    }
+
+    tbody tr:last-child {
+      border-bottom: none;
+    }
+
+    tbody tr:hover {
+      background: #fafbff;
+    }
+
+    tbody td {
+      padding: 11px 16px;
+      vertical-align: top;
+      font-size: 13px;
+    }
+
+    tbody tr.detail-row {
+      background: #f8f9fb;
+    }
+
+    tbody tr.detail-row td {
+      padding: 0;
+    }
+
+    .detail-inner {
+      padding: 14px 20px 14px 40px;
+    }
+
+    .expand-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--primary);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 0;
+      font-weight: 500;
+    }
+
+    .expand-btn .arrow {
+      transition: transform .2s;
+      display: inline-block;
+    }
+
+    .expand-btn.open .arrow {
+      transform: rotate(90deg);
+    }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .badge-green {
+      background: #e3faf0;
+      color: #007a47;
+    }
+
+    .badge-red {
+      background: #fde8ea;
+      color: #b02030;
+    }
+
+    .badge-orange {
+      background: #fff4e0;
+      color: #a06000;
+    }
+
+    .badge-blue {
+      background: #e5f0ff;
+      color: #0055b3;
+    }
+
+    .badge-gray {
+      background: #f0f0f3;
+      color: #555;
+    }
+
+    .badge-purple {
+      background: #f0eaff;
+      color: #5c2d8a;
+    }
+
+    /* ── Issue list ── */
+    .issue-list {
+      list-style: none;
+    }
+
+    .issue-list li {
+      padding: 4px 0;
+      font-size: 12px;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      color: var(--text);
+      display: flex;
+      gap: 6px;
+    }
+
+    .issue-list li .tag {
+      font-weight: 700;
+      min-width: 72px;
+    }
+
+    .tag-missing {
+      color: var(--danger);
+    }
+
+    .tag-mismatch {
+      color: var(--warning);
+    }
+
+    .tag-extra {
+      color: var(--primary);
+    }
+
+    /* ── Webhook detail ── */
+    .wh-item {
+      background: #f0f6ff;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+
+    .wh-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .wh-item .wh-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 2px;
+    }
+
+    .wh-item .wh-key {
+      color: var(--muted);
+      min-width: 80px;
+      font-weight: 600;
+    }
+
+    .wh-item .wh-val {
+      word-break: break-all;
+    }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .empty .icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+
+    /* ── Section title ── */
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 10px;
+    }
+
+    .col-name {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .board-id {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, .4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* ── Filter row ── */
+    .filter-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .filter-row input {
+      width: 260px;
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .filter-row input:focus {
+      border-color: var(--primary);
+    }
+
+    .filter-toggle {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--muted);
+      transition: all .15s;
+    }
+
+    .filter-toggle.active {
+      background: var(--danger);
+      border-color: var(--danger);
+      color: #fff;
+    }
+
+    .filter-toggle.active-ok {
+      background: var(--success);
+      border-color: var(--success);
+      color: #fff;
+    }
+
+    .error-banner {
+      background: #fde8ea;
+      border: 1px solid #f5b8be;
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      color: #b02030;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <span class="logo">📋</span>
+    <h1>Monday.com Board Auditor</h1>
+    <span class="subtitle">— Status Labels · Webhooks · Shareability</span>
+  </header>
+
+  <div class="page">
+
+    <!-- Config -->
+    <div class="config-card">
+      <div class="config-grid">
+        <div class="field">
+          <label>🔑 API Key</label>
+          <input type="password" id="apiKey" placeholder="Paste your Monday.com API token…">
+          <div class="hint">Your key is never stored or sent anywhere except Monday's API.</div>
+        </div>
+        <div class="field">
+          <label>📋 Board IDs</label>
+          <textarea id="boardIds"
+            placeholder="One ID per line, or comma/space separated:&#10;10089035252&#10;18082779733&#10;9815073344"></textarea>
+          <div class="hint">Duplicates are automatically removed.</div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="run-btn" id="runBtn" onclick="runAudit()">
+          <span id="btnIcon">▶</span> Run Audit
+        </button>
+        <button class="clear-btn" onclick="clearResults()">✕ Clear</button>
+        <span id="boardCount" style="font-size:12px;color:var(--muted);margin-left:6px;"></span>
+      </div>
+    </div>
+
+    <div class="error-banner" id="errorBanner"></div>
+
+    <!-- Progress -->
+    <div id="progress">
+      <div class="progress-title" id="progressTitle">Fetching data…</div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <div class="progress-log" id="progressLog"></div>
+    </div>
+
+    <!-- Summary -->
+    <div id="summary">
+      <div class="summary-grid">
+        <div class="summary-card blue">
+          <div class="val" id="sumTotal">0</div>
+          <div class="lbl">Boards Checked</div>
+        </div>
+        <div class="summary-card" id="sumStatusCard">
+          <div class="val" id="sumStatusOk">0</div>
+          <div class="lbl">Status Compliant</div>
+        </div>
+        <div class="summary-card red">
+          <div class="val" id="sumStatusFail">0</div>
+          <div class="lbl">Status Issues</div>
+        </div>
+        <div class="summary-card green">
+          <div class="val" id="sumWebhooks">0</div>
+          <div class="lbl">Boards with Webhooks</div>
+        </div>
+        <div class="summary-card orange">
+          <div class="val" id="sumNoWebhook">0</div>
+          <div class="lbl">No Webhooks</div>
+        </div>
+        <div class="summary-card purple">
+          <div class="val" id="sumShare">0</div>
+          <div class="lbl">Shareable Boards</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="results">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('status', this)">
+          🏷️ Status Labels <span class="tab-badge" id="badgeStatus">0</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('webhooks', this)">
+          🔗 Webhooks <span class="tab-badge" id="badgeWebhooks">0</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('sharing', this)">
+          🌐 Shareability <span class="tab-badge ok" id="badgeSharing">0</span>
+        </button>
+      </div>
+
+      <!-- STATUS TAB -->
+      <div class="tab-pane active" id="tab-status">
+        <div class="filter-row">
+          <input type="text" id="filterStatus" placeholder="🔍  Filter by board name…" oninput="filterTable('status')">
+          <button class="filter-toggle" id="toggleStatusIssues" onclick="toggleIssuesOnly('status')">⚠️ Issues
+            only</button>
+        </div>
+        <div class="table-wrap">
+          <table id="tableStatus">
+            <thead>
+              <tr>
+                <th style="width:36px"></th>
+                <th>Board</th>
+                <th>Status Column(s)</th>
+                <th>Compliance</th>
+                <th>Issues</th>
+              </tr>
+            </thead>
+            <tbody id="bodyStatus"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- WEBHOOKS TAB -->
+      <div class="tab-pane" id="tab-webhooks">
+        <div class="filter-row">
+          <input type="text" id="filterWebhooks" placeholder="🔍  Filter by board name…"
+            oninput="filterTable('webhooks')">
+          <button class="filter-toggle active" id="toggleWebhookIssues" onclick="toggleIssuesOnly('webhooks')">⚠️ Issues
+            only</button>
+        </div>
+        <div class="table-wrap">
+          <table id="tableWebhooks">
+            <thead>
+              <tr>
+                <th style="width:36px"></th>
+                <th>Board</th>
+                <th>Webhooks</th>
+                <th>Events</th>
+              </tr>
+            </thead>
+            <tbody id="bodyWebhooks"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SHARING TAB -->
+      <div class="tab-pane" id="tab-sharing">
+        <div class="filter-row">
+          <input type="text" id="filterSharing" placeholder="🔍  Filter by board name…"
+            oninput="filterTable('sharing')">
+          <button class="filter-toggle" id="toggleSharingIssues" onclick="toggleIssuesOnly('sharing')">🔗 Shareable
+            only</button>
+        </div>
+        <div class="table-wrap">
+          <table id="tableSharing">
+            <thead>
+              <tr>
+                <th>Board</th>
+                <th>Kind</th>
+                <th>Shareable?</th>
+                <th>Permissions</th>
+              </tr>
+            </thead>
+            <tbody id="bodySharing"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /results -->
+  </div><!-- /page -->
+
+  <script>
+    // ─────────────────────────────────────────────────────────────────────────────
+    // REQUIRED LABELS STANDARD
+    // ─────────────────────────────────────────────────────────────────────────────
+    const REQUIRED_LABELS = {
+      '0': '[MO] Working On It',
+      '1': '[MO] Done',
+      '2': 'Pending Approval/Feedback',
+      '3': '[MO] CSM Checking',
+      '4': '[MO] Team Lead Review',
+      '5': 'Not Started',
+      '6': 'Pending Payment',
+      '7': '[MO] Pending 1st Draft',
+      '8': 'Partial Payment',
+      '9': "Client's Card",
+      '10': '[MO] Pending 2nd Draft',
+      '11': "MO's Card",
+      '12': 'Full Payment',
+      '13': '[MO] Pending Final Draft',
+      '14': '[MO] Pending Removal',
+      '15': 'Client Approve',
+      '16': 'Client Comment',
+      '17': 'Pending Access',
+      '18': 'Archive',
+      '110': '[MO] Not Needed',
+    };
+
+    const API_URL = 'https://api.monday.com/v2';
+    const BOARD_BATCH = 5;
+    const WH_BATCH = 10;
+    const STATUS_TYPES = new Set(['color', 'status']);
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // UTILITIES
+    // ─────────────────────────────────────────────────────────────────────────────
+    function chunks(arr, n) {
+      const out = [];
+      for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+      return out;
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    function parseBoardIds(raw) {
+      const ids = raw.split(/[\s,\n]+/).map(s => s.trim()).filter(s => /^\d+$/.test(s));
+      return [...new Set(ids)];   // deduplicate
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // API HELPER
+    // ─────────────────────────────────────────────────────────────────────────────
+    async function gql(query, retries = 4, backoff = 2000) {
+      const apiKey = document.getElementById('apiKey').value.trim();
+      for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+          const res = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+              'Authorization': apiKey,
+              'Content-Type': 'application/json',
+              'API-Version': '2025-04',
+            },
+            body: JSON.stringify({ query }),
+          });
+          const data = await res.json();
+          if (data.errors) {
+            const codes = data.errors.map(e => e?.extensions?.code || '');
+            if (codes.some(c => ['REQUEST_TIMEOUT', 'COMPLEXITY_BUDGET_EXHAUSTED'].includes(c))) {
+              const wait = backoff * Math.pow(2, attempt);
+              log(`  ⏳ Rate-limited, retrying in ${(wait / 1000).toFixed(1)}s…`);
+              await sleep(wait);
+              continue;
+            }
+          }
+          return data;
+        } catch (err) {
+          if (attempt < retries - 1) await sleep(backoff * Math.pow(2, attempt));
+        }
+      }
+      return { data: null, errors: [{ message: 'max retries exceeded' }] };
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // PROGRESS
+    // ─────────────────────────────────────────────────────────────────────────────
+    let progressSteps = 0;
+    let progressDone = 0;
+
+    function log(msg) {
+      const el = document.getElementById('progressLog');
+      el.innerHTML += msg + '<br>';
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function setProgress(pct, title) {
+      document.getElementById('progressBar').style.width = pct + '%';
+      if (title) document.getElementById('progressTitle').textContent = title;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // COMPLIANCE CHECKER
+    // ─────────────────────────────────────────────────────────────────────────────
+    function checkCompliance(labels) {
+      const issues = [];
+      for (const [idx, reqLabel] of Object.entries(REQUIRED_LABELS)) {
+        if (!(idx in labels)) {
+          issues.push({ type: 'MISSING', idx, msg: `Expected "${reqLabel}"` });
+        } else if (labels[idx] !== reqLabel) {
+          issues.push({ type: 'MISMATCH', idx, msg: `Found "${labels[idx]}" — expected "${reqLabel}"` });
+        }
+      }
+      for (const [idx, label] of Object.entries(labels)) {
+        if (!(idx in REQUIRED_LABELS)) {
+          issues.push({ type: 'EXTRA', idx, msg: `"${label}"` });
+        }
+      }
+      return issues;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // MAIN AUDIT
+    // ─────────────────────────────────────────────────────────────────────────────
+    let auditData = null;
+    let issuesOnlyState = { status: false, webhooks: true, sharing: false };
+
+    async function runAudit() {
+      const apiKey = document.getElementById('apiKey').value.trim();
+      const raw = document.getElementById('boardIds').value.trim();
+
+      hideError();
+      clearResults();
+
+      if (!apiKey) { showError('Please enter your Monday.com API key.'); return; }
+      if (!raw) { showError('Please enter at least one board ID.'); return; }
+
+      const boardIds = parseBoardIds(raw);
+      if (!boardIds.length) { showError('No valid board IDs found. IDs must be numeric.'); return; }
+
+      // UI: start
+      const btn = document.getElementById('runBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Running…';
+      document.getElementById('progress').style.display = 'block';
+      document.getElementById('summary').style.display = 'none';
+      document.getElementById('results').style.display = 'none';
+      document.getElementById('progressLog').innerHTML = '';
+      setProgress(0, `Auditing ${boardIds.length} board(s)…`);
+
+      log(`📋 ${boardIds.length} unique board(s) queued`);
+
+      const totalBatches = chunks(boardIds, BOARD_BATCH).length + chunks(boardIds, WH_BATCH).length;
+      let batchesDone = 0;
+
+      function tick(label) {
+        batchesDone++;
+        const pct = Math.round((batchesDone / totalBatches) * 90);
+        setProgress(pct, label);
+      }
+
+      // ── Fetch boards (columns + shareability) ──────────────────────────────────
+      const boardMap = {};  // id -> board object
+
+      log('🔍 Fetching board data (columns + shareability)…');
+      for (const batch of chunks(boardIds, BOARD_BATCH)) {
+        const idsGql = batch.join(', ');
+        const q = `{
+      boards(ids: [${idsGql}], limit: ${batch.length}) {
+        id name board_kind permissions
+        columns { id title type settings_str }
+      }
+    }`;
+        const data = await gql(q);
+        if (data?.data?.boards) {
+          for (const b of data.data.boards) boardMap[b.id] = b;
+        } else {
+          log(`  ⚠️ Batch error: ${JSON.stringify(data?.errors)}`);
+        }
+        tick('Fetching board data…');
+        await sleep(300);
+      }
+      log(`  ✅ ${Object.keys(boardMap).length} boards retrieved`);
+
+      // ── Fetch webhooks ──────────────────────────────────────────────────────────
+      const webhookMap = {};  // id -> [webhooks]
+
+      log('🔗 Fetching webhooks…');
+      for (const batch of chunks(boardIds, WH_BATCH)) {
+        const aliases = batch.map(bid => `b_${bid}: webhooks(board_id: ${bid}) { id event config }`).join('\n');
+        const q = `{ ${aliases} }`;
+        const data = await gql(q);
+        if (data?.data) {
+          for (const bid of batch) {
+            webhookMap[bid] = data.data[`b_${bid}`] || [];
+          }
+        } else {
+          log(`  ⚠️ Webhook batch error: ${JSON.stringify(data?.errors)}`);
+        }
+        tick('Fetching webhooks…');
+        await sleep(200);
+      }
+      log(`  ✅ Webhooks fetched`);
+
+      setProgress(95, 'Processing results…');
+
+      // ── Process ────────────────────────────────────────────────────────────────
+      auditData = { boardIds, boardMap, webhookMap };
+      renderAll();
+
+      setProgress(100, 'Done!');
+      log('🎉 Audit complete');
+
+      btn.disabled = false;
+      btn.innerHTML = '▶ Run Audit';
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // RENDER
+    // ─────────────────────────────────────────────────────────────────────────────
+    function renderAll() {
+      const { boardIds, boardMap, webhookMap } = auditData;
+
+      let statusIssueCount = 0;
+      let statusOkCount = 0;
+      let webhookOkCount = 0;
+      let webhookMissCount = 0;
+      let shareableCount = 0;
+
+      const statusRows = [];
+      const webhookRows = [];
+      const sharingRows = [];
+
+      for (const bid of boardIds) {
+        const board = boardMap[bid];
+        const hooks = webhookMap[bid] || [];
+        const boardName = board ? board.name : `Board ${bid}`;
+
+        // ── STATUS ──────────────────────────────────────────────────────────────
+        if (!board) {
+          statusRows.push({ bid, name: boardName, found: false, statusCols: [], hasIssues: true });
+        } else {
+          const statusCols = board.columns.filter(c => STATUS_TYPES.has(c.type));
+          const colResults = [];
+          let boardHasIssues = false;
+
+          if (!statusCols.length) {
+            colResults.push({ title: '(none)', issues: [{ type: 'MISSING', idx: '-', msg: 'No status column on this board' }] });
+            boardHasIssues = true;
+          } else {
+            for (const col of statusCols) {
+              let labels = {};
+              try { const s = JSON.parse(col.settings_str); labels = s.labels || {}; } catch { }
+              const issues = checkCompliance(labels);
+              if (issues.length) boardHasIssues = true;
+              colResults.push({ title: col.title, colId: col.id, issues });
+            }
+          }
+
+          if (boardHasIssues) statusIssueCount++; else statusOkCount++;
+          statusRows.push({ bid, name: boardName, found: true, statusCols: colResults, hasIssues: boardHasIssues });
+        }
+
+        // ── WEBHOOKS ─────────────────────────────────────────────────────────────
+        if (hooks.length) {
+          webhookOkCount++;
+        } else {
+          webhookMissCount++;
+        }
+        webhookRows.push({ bid, name: boardName, hooks });
+
+        // ── SHARING ──────────────────────────────────────────────────────────────
+        if (board) {
+          if (board.board_kind === 'share') shareableCount++;
+          sharingRows.push({ bid, name: boardName, kind: board.board_kind, permissions: board.permissions });
+        } else {
+          sharingRows.push({ bid, name: boardName, kind: 'unknown', permissions: '—' });
+        }
+      }
+
+      // Summary cards
+      document.getElementById('sumTotal').textContent = boardIds.length;
+      document.getElementById('sumStatusOk').textContent = statusOkCount;
+      document.getElementById('sumStatusFail').textContent = statusIssueCount;
+      document.getElementById('sumWebhooks').textContent = webhookOkCount;
+      document.getElementById('sumNoWebhook').textContent = webhookMissCount;
+      document.getElementById('sumShare').textContent = shareableCount;
+
+      const sc = document.getElementById('sumStatusCard');
+      sc.className = 'summary-card ' + (statusIssueCount === 0 ? 'green' : 'green');
+
+      // Tab badges
+      document.getElementById('badgeStatus').textContent = statusIssueCount;
+      document.getElementById('badgeStatus').className = 'tab-badge' + (statusIssueCount ? '' : ' ok');
+      document.getElementById('badgeWebhooks').textContent = webhookMissCount;
+      document.getElementById('badgeWebhooks').className = 'tab-badge' + (webhookMissCount ? '' : ' ok');
+      document.getElementById('badgeSharing').textContent = shareableCount;
+
+      // Store rows globally for filtering
+      window._statusRows = statusRows;
+      window._webhookRows = webhookRows;
+      window._sharingRows = sharingRows;
+
+      renderStatusTable(statusRows);
+      renderWebhookTable(webhookRows);
+      renderSharingTable(sharingRows);
+
+      document.getElementById('summary').style.display = 'block';
+      document.getElementById('results').style.display = 'block';
+    }
+
+    // ── STATUS TABLE ─────────────────────────────────────────────────────────────
+    function renderStatusTable(rows) {
+      const tbody = document.getElementById('bodyStatus');
+      const issuesOnly = issuesOnlyState.status;
+      const filter = document.getElementById('filterStatus').value.toLowerCase();
+
+      tbody.innerHTML = '';
+      let shown = 0;
+
+      for (const row of rows) {
+        if (filter && !row.name.toLowerCase().includes(filter)) continue;
+        if (issuesOnly && !row.hasIssues) continue;
+        shown++;
+
+        const rowId = `sr_${row.bid}`;
+        const detailId = `sd_${row.bid}`;
+
+        const totalIssues = row.statusCols.reduce((s, c) => s + c.issues.length, 0);
+        const badge = row.hasIssues
+          ? `<span class="badge badge-red">⚠️ ${totalIssues} issue${totalIssues !== 1 ? 's' : ''}</span>`
+          : `<span class="badge badge-green">✅ Compliant</span>`;
+
+        const colNames = row.statusCols.length
+          ? row.statusCols.map(c => `<span style="font-size:12px;color:var(--muted)">${escHtml(c.title)}</span>`).join('<br>')
+          : '<span class="badge badge-gray">None</span>';
+
+        const tr = document.createElement('tr');
+        tr.dataset.issues = row.hasIssues ? '1' : '0';
+        tr.innerHTML = `
+      <td>
+        ${row.hasIssues ? `<button class="expand-btn" id="btn_${rowId}" onclick="toggleDetail('${detailId}','btn_${rowId}')">
+          <span class="arrow">▶</span>
+        </button>` : ''}
+      </td>
+      <td>
+        <span class="col-name">${escHtml(row.name)}</span><br>
+        <span class="board-id">${row.bid}</span>
+      </td>
+      <td>${colNames}</td>
+      <td>${badge}</td>
+      <td style="font-size:12px;color:var(--muted)">
+        ${row.hasIssues
+            ? row.statusCols.map(c => {
+              const m = c.issues.filter(i => i.type === 'MISSING').length;
+              const x = c.issues.filter(i => i.type === 'MISMATCH').length;
+              const e = c.issues.filter(i => i.type === 'EXTRA').length;
+              const parts = [];
+              if (m) parts.push(`<span style="color:var(--danger)">${m} missing</span>`);
+              if (x) parts.push(`<span style="color:var(--warning)">${x} mismatch</span>`);
+              if (e) parts.push(`<span style="color:var(--primary)">${e} extra</span>`);
+              return parts.length ? `<b>${escHtml(c.title)}:</b> ` + parts.join(', ') : '';
+            }).filter(Boolean).join('<br>')
+            : '—'}
+      </td>`;
+        tbody.appendChild(tr);
+
+        // Detail row
+        if (row.hasIssues) {
+          const dtag = document.createElement('tr');
+          dtag.className = 'detail-row';
+          dtag.id = detailId;
+          dtag.style.display = 'none';
+
+          let html = '<td colspan="5"><div class="detail-inner">';
+          for (const col of row.statusCols) {
+            if (!col.issues.length) continue;
+            html += `<div style="margin-bottom:12px">
+          <div class="section-title">Column: "${escHtml(col.title)}"</div>
+          <ul class="issue-list">`;
+            for (const iss of col.issues) {
+              const cls = iss.type === 'MISSING' ? 'tag-missing' : iss.type === 'MISMATCH' ? 'tag-mismatch' : 'tag-extra';
+              html += `<li><span class="tag ${cls}">${iss.type}</span><span>idx ${iss.idx} — ${escHtml(iss.msg)}</span></li>`;
+            }
+            html += `</ul></div>`;
+          }
+          html += '</div></td>';
+          dtag.innerHTML = html;
+          tbody.appendChild(dtag);
+        }
+      }
+
+      if (!shown) {
+        tbody.innerHTML = `<tr><td colspan="5"><div class="empty"><div class="icon">✅</div>No issues found${issuesOnly ? ' — all boards comply' : ''}.</div></td></tr>`;
+      }
+    }
+
+    // ── WEBHOOK TABLE ─────────────────────────────────────────────────────────────
+    function renderWebhookTable(rows) {
+      const tbody = document.getElementById('bodyWebhooks');
+      const issuesOnly = issuesOnlyState.webhooks;
+      const filter = document.getElementById('filterWebhooks').value.toLowerCase();
+
+      tbody.innerHTML = '';
+      let shown = 0;
+
+      for (const row of rows) {
+        if (filter && !row.name.toLowerCase().includes(filter)) continue;
+        const noHooks = row.hooks.length === 0;
+        if (issuesOnly && !noHooks) continue;
+        shown++;
+
+        const rowId = `wr_${row.bid}`;
+        const detailId = `wd_${row.bid}`;
+
+        const badge = noHooks
+          ? `<span class="badge badge-red">❌ None</span>`
+          : `<span class="badge badge-green">✅ ${row.hooks.length}</span>`;
+
+        const events = row.hooks.length
+          ? [...new Set(row.hooks.map(h => h.event))].map(e => `<span class="badge badge-blue" style="margin:2px">${escHtml(e)}</span>`).join(' ')
+          : '—';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+      <td>
+        ${!noHooks ? `<button class="expand-btn" id="btn_${rowId}" onclick="toggleDetail('${detailId}','btn_${rowId}')">
+          <span class="arrow">▶</span>
+        </button>` : ''}
+      </td>
+      <td>
+        <span class="col-name">${escHtml(row.name)}</span><br>
+        <span class="board-id">${row.bid}</span>
+      </td>
+      <td>${badge}</td>
+      <td style="font-size:12px">${events}</td>`;
+        tbody.appendChild(tr);
+
+        if (!noHooks) {
+          const dtag = document.createElement('tr');
+          dtag.className = 'detail-row';
+          dtag.id = detailId;
+          dtag.style.display = 'none';
+
+          let html = '<td colspan="4"><div class="detail-inner">';
+          for (const wh of row.hooks) {
+            let cfg = {};
+            try { cfg = wh.config ? JSON.parse(wh.config) : {}; } catch { }
+            const urlKeys = Object.entries(cfg).filter(([k, v]) => k.toLowerCase().includes('url') && typeof v === 'string');
+
+            html += `<div class="wh-item">
+          <div class="wh-row"><span class="wh-key">Webhook ID</span><span class="wh-val">${escHtml(wh.id)}</span></div>
+          <div class="wh-row"><span class="wh-key">Event</span><span class="wh-val"><span class="badge badge-blue">${escHtml(wh.event)}</span></span></div>`;
+            if (urlKeys.length) {
+              for (const [k, v] of urlKeys) {
+                html += `<div class="wh-row"><span class="wh-key">${escHtml(k)}</span><span class="wh-val"><a href="${escHtml(v)}" target="_blank" style="color:var(--primary)">${escHtml(v)}</a></span></div>`;
+              }
+            } else if (Object.keys(cfg).length) {
+              html += `<div class="wh-row"><span class="wh-key">Config</span><span class="wh-val" style="color:var(--muted)">${escHtml(JSON.stringify(cfg))}</span></div>`;
+            }
+            html += `</div>`;
+          }
+          html += '</div></td>';
+          dtag.innerHTML = html;
+          tbody.appendChild(dtag);
+        }
+      }
+
+      if (!shown) {
+        tbody.innerHTML = `<tr><td colspan="4"><div class="empty"><div class="icon">${issuesOnly ? '✅' : '🔗'}</div>${issuesOnly ? 'All boards have webhooks.' : 'No boards found.'}</div></td></tr>`;
+      }
+    }
+
+    // ── SHARING TABLE ─────────────────────────────────────────────────────────────
+    function renderSharingTable(rows) {
+      const tbody = document.getElementById('bodySharing');
+      const shareOnly = issuesOnlyState.sharing;
+      const filter = document.getElementById('filterSharing').value.toLowerCase();
+
+      tbody.innerHTML = '';
+      let shown = 0;
+
+      const KIND_BADGE = {
+        public: `<span class="badge badge-orange">🌐 public</span>`,
+        private: `<span class="badge badge-gray">🔒 private</span>`,
+        share: `<span class="badge badge-purple">🔗 share</span>`,
+      };
+      const SHAREABLE = {
+        public: { yes: false, text: 'No — all account members, no external guests' },
+        private: { yes: false, text: 'No — invited members only' },
+        share: { yes: true, text: 'Yes — external guests can be invited' },
+        unknown: { yes: false, text: '—' },
+      };
+
+      for (const row of rows) {
+        if (filter && !row.name.toLowerCase().includes(filter)) continue;
+        const sh = SHAREABLE[row.kind] || SHAREABLE.unknown;
+        if (shareOnly && !sh.yes) continue;
+        shown++;
+
+        const shareableBadge = sh.yes
+          ? `<span class="badge badge-green">✅ Yes</span>`
+          : `<span class="badge badge-gray">No</span>`;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+      <td>
+        <span class="col-name">${escHtml(row.name)}</span><br>
+        <span class="board-id">${row.bid}</span>
+      </td>
+      <td>${KIND_BADGE[row.kind] || `<span class="badge badge-gray">${escHtml(row.kind)}</span>`}</td>
+      <td>${shareableBadge}</td>
+      <td style="font-size:12px;color:var(--muted)">${escHtml(sh.text)}</td>`;
+        tbody.appendChild(tr);
+      }
+
+      if (!shown) {
+        tbody.innerHTML = `<tr><td colspan="4"><div class="empty"><div class="icon">🌐</div>No boards match the current filter.</div></td></tr>`;
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // UI HELPERS
+    // ─────────────────────────────────────────────────────────────────────────────
+    function toggleDetail(detailId, btnId) {
+      const detail = document.getElementById(detailId);
+      const btn = document.getElementById(btnId);
+      const open = detail.style.display === 'table-row';
+      detail.style.display = open ? 'none' : 'table-row';
+      btn.classList.toggle('open', !open);
+    }
+
+    function switchTab(name, el) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById('tab-' + name).classList.add('active');
+    }
+
+    function filterTable(tab) {
+      if (tab === 'status') renderStatusTable(window._statusRows || []);
+      if (tab === 'webhooks') renderWebhookTable(window._webhookRows || []);
+      if (tab === 'sharing') renderSharingTable(window._sharingRows || []);
+    }
+
+    function toggleIssuesOnly(tab) {
+      issuesOnlyState[tab] = !issuesOnlyState[tab];
+      const btnMap = { status: 'toggleStatusIssues', webhooks: 'toggleWebhookIssues', sharing: 'toggleSharingIssues' };
+      const btn = document.getElementById(btnMap[tab]);
+      btn.classList.toggle('active', issuesOnlyState[tab]);
+      filterTable(tab);
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('errorBanner');
+      el.textContent = '⚠️  ' + msg;
+      el.style.display = 'block';
+    }
+    function hideError() {
+      document.getElementById('errorBanner').style.display = 'none';
+    }
+
+    function clearResults() {
+      document.getElementById('progress').style.display = 'none';
+      document.getElementById('summary').style.display = 'none';
+      document.getElementById('results').style.display = 'none';
+      document.getElementById('progressLog').innerHTML = '';
+      document.getElementById('progressBar').style.width = '0%';
+      ['bodyStatus', 'bodyWebhooks', 'bodySharing'].forEach(id => {
+        document.getElementById(id).innerHTML = '';
+      });
+      auditData = null;
+    }
+
+    function escHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // Live board count preview
+    document.getElementById('boardIds').addEventListener('input', function () {
+      const ids = parseBoardIds(this.value);
+      const el = document.getElementById('boardCount');
+      el.textContent = ids.length ? `${ids.length} unique board${ids.length !== 1 ? 's' : ''} detected` : '';
+    });
+  </script>
+</body>
+
+</html>

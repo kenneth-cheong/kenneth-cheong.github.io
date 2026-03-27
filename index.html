@@ -12976,7 +12976,7 @@
                                         <label class="column-checkbox-item"><input type="checkbox"
                                                 name="target-page-type-new" value="blog article"> Blog Article</label>
                                         <label class="column-checkbox-item"><input type="checkbox"
-                                                name="target-page-type-new" value="product/service-page">
+                                                name="target-page-type-new" value="product/service page">
                                             Product/Service
                                             Page</label>
                                         <label class="column-checkbox-item"><input type="checkbox"
@@ -13299,7 +13299,7 @@
                                     <label class="column-checkbox-item"><input type="checkbox"
                                             name="target-page-type-optimise" value="blog article"> Blog Article</label>
                                     <label class="column-checkbox-item"><input type="checkbox"
-                                            name="target-page-type-optimise" value="product/service-page">
+                                            name="target-page-type-optimise" value="product/service page">
                                         Product/Service
                                         Page</label>
                                     <label class="column-checkbox-item"><input type="checkbox"
@@ -26352,6 +26352,7 @@ ${content}
             doNotUseWords: "",
             focusProducts: "",
             schemaType: "Article",
+            pageType: "Any",
             complianceDisclaimers: false,
             suggestExternalLinks: false
         };
@@ -26573,7 +26574,10 @@ ${content}
             document.getElementById('setDoNotUseWords').value = aiContentSettings.doNotUseWords;
             document.getElementById('setFocusProducts').value = aiContentSettings.focusProducts;
             document.getElementById('setSchemaType').value = aiContentSettings.schemaType;
-            document.getElementById('setSchemaType').value = aiContentSettings.schemaType;
+            
+            // Handle page type selection in modal if exists (though currently it's in the main flow)
+            // But let's ensure aiContentSettings stays in sync
+            
             document.getElementById('setComplianceDisclaimers').checked = aiContentSettings.complianceDisclaimers;
             document.getElementById('setSuggestExternalLinks').checked = aiContentSettings.suggestExternalLinks || false;
 
@@ -26600,6 +26604,7 @@ ${content}
                 doNotUseWords: "",
                 focusProducts: "",
                 schemaType: "Article",
+                pageType: "Any",
                 complianceDisclaimers: false
             };
             openAiSettingsModal(); // Refresh UI
@@ -26620,6 +26625,7 @@ ${content}
                 doNotUseWords: document.getElementById('setDoNotUseWords').value,
                 focusProducts: document.getElementById('setFocusProducts').value,
                 schemaType: document.getElementById('setSchemaType').value,
+                pageType: aiContentSettings.pageType, // Keep current value from flow
                 complianceDisclaimers: document.getElementById('setComplianceDisclaimers').checked,
                 suggestExternalLinks: document.getElementById('setSuggestExternalLinks').checked
             };
@@ -38173,8 +38179,12 @@ INSTRUCTIONS:
                     });
                 }
 
+                const pageTypes = Array.from(document.querySelectorAll("input[name=\"target-page-type-optimise\"]:checked")).map(checkbox => checkbox.value);
+                const pageTypeContext = pageTypes.length > 0 ? pageTypes.join(', ') : "Any";
+
                 const gapPrompt = `
 ANALYSE THE FOLLOWING DATA FOR CONTENT GAPS AND IMPROVEMENT SUGGESTIONS.
+TARGET PAGE TYPE: ${pageTypeContext}
 ${personaContext ? "STRICTLY ADHERE TO THE FOLLOWING TARGET PERSONAS:\n" + personaContext : ""}
 ${deepCompareContext}
 PRIORITIZE ANALYSING THESE SPECIFIC TOPICS CHOSEN BY THE USER:
@@ -38246,8 +38256,12 @@ INSTRUCTIONS:
                     });
                 }
 
+                const pageTypes = Array.from(document.querySelectorAll("input[name=\"target-page-type-new\"]:checked")).map(checkbox => checkbox.value);
+                const pageTypeContext = pageTypes.length > 0 ? pageTypes.join(', ') : "Any";
+
                 const prompt = `
 Generate a structured article outline (H1, H2, H3) for the following topic and keyword.
+TARGET PAGE TYPE: ${pageTypeContext}
 ${personaContext ? "THE OUTLINE MUST BE SPECIFICALLY TAILORED TO THESE PERSONAS:\n" + personaContext : ""}
 ${deepCompareContext}
 PRIORITIZE INCLUDING THESE CHERRY-PICKED TOPICS IDENTIFIED FROM COMPETITOR RESEARCH:
@@ -38449,8 +38463,12 @@ Write content nuanced for this locale: use local spelling, terminology, cultural
                     const _totalTarget = _twcInput ? (parseInt(_twcInput.value) || parseInt(_twcInput.placeholder) || 0) : 0;
                     const _sectionTarget = _totalTarget > 0 ? Math.round(_totalTarget / sections.length) : 0;
 
-                    const prompt = `
+                const pageTypes = Array.from(document.querySelectorAll("input[name=\"target-page-type-new\"]:checked")).map(checkbox => checkbox.value);
+                const pageTypeContext = pageTypes.length > 0 ? pageTypes.join(', ') : "Any";
+
+                const prompt = `
 Generate only the following section of a comprehensive, structured SEO article.
+TARGET PAGE TYPE: ${pageTypeContext}
 TOPIC: "${topic}"
 PRIMARY KEYWORD: "${primaryKeyword}"
 SECONDARY KEYWORDS: "${secondaryKeywords}"
