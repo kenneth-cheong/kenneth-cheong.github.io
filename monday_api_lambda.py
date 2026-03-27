@@ -13,6 +13,17 @@ def lambda_handler(event, context):
         "Content-Type": "application/json"
     }
 
+    def safe_post(url, headers, query):
+        try:
+            r = requests.post(url, headers=headers, json={"query": query}, timeout=30)
+            if r.status_code != 200:
+                print(f"Non-200 status from Monday: {r.status_code} - {r.text}")
+                return None
+            return r.json()
+        except Exception as e:
+            print(f"safe_post encountered error: {str(e)}")
+            return None
+
     try:
         body = event
         action = body.get('action')
@@ -50,10 +61,9 @@ def lambda_handler(event, context):
               }}
             }}
             '''
-            u_res = requests.post(MONDAY_API_URL, headers=headers, json={"query": updates_query})
-            u_data = u_res.json()
-            if 'errors' in u_data:
-                return response(400, u_data)
+            u_data = safe_post(MONDAY_API_URL, headers, updates_query)
+            if not u_data or 'errors' in u_data:
+                return response(400, u_data or {"error": "Failed to fetch updates"})
             
             updates = u_data.get('data', {}).get('updates', [])
             return response(200, {"updates": updates})
@@ -74,9 +84,12 @@ def lambda_handler(event, context):
             if not board_ids:
                 # 1. Fetch ALL Boards
                 q_boards = '{ boards (limit: 1000) { id } }'
-                b_res = requests.post(MONDAY_API_URL, headers=headers, json={"query": q_boards}).json()
+                b_res = safe_post(MONDAY_API_URL, headers, q_boards)
+                if not b_res:
+                    return response(500, {"error": "Failed to fetch boards from Monday API"})
+                
                 boards_data = b_res.get('data', {}).get('boards', [])
-                board_ids = [str(b['id']) for b in boards_data]
+                board_ids = [str(b.get('id')) for b in boards_data if b.get('id')]
             
             flat_items = []
             new_item_cursor = None
@@ -101,14 +114,20 @@ def lambda_handler(event, context):
                   }}
                 }}
                 '''
-                i_res = requests.post(MONDAY_API_URL, headers=headers, json={"query": q_items}).json()
+                i_res = safe_post(MONDAY_API_URL, headers, q_items)
+                if not i_res:
+                    return response(500, {"error": "Failed to fetch page items"})
                 data = i_res.get('data', {}).get('next_items_page', {})
                 
                 # Fetch board name for current board_id
                 current_board_id = board_ids[board_index]
                 q_board_info = f'{{ boards (ids: [{current_board_id}]) {{ name }} }}'
-                bi_res = requests.post(MONDAY_API_URL, headers=headers, json={"query": q_board_info}).json()
-                board_name = bi_res.get('data', {}).get('boards', [{}])[0].get('name', 'Unknown')
+                bi_res = safe_post(MONDAY_API_URL, headers, q_board_info)
+                board_name = 'Unknown'
+                if bi_res:
+                    boards = bi_res.get('data', {}).get('boards', [])
+                    if boards:
+                        board_name = boards[0].get('name', 'Unknown')
                 
                 for itm in data.get('items', []):
                     itm['board'] = {"name": board_name, "id": current_board_id}
@@ -158,20 +177,21 @@ def lambda_handler(event, context):
                   }}
                 }}
                 '''
-                b_batch_res = requests.post(MONDAY_API_URL, headers=headers, json={"query": q_batch}).json()
+                b_batch_res = safe_post(MONDAY_API_URL, headers, q_batch)
                 
-                if 'errors' in b_batch_res:
+                if not b_batch_res or 'errors' in b_batch_res:
                     break
                     
                 boards_in_res = b_batch_res.get('data', {}).get('boards', [])
                 for b in boards_in_res:
-                    board_name = b['name']
-                    board_id = b['id']
+                    board_name = b.get('name', 'Unknown')
+                    board_id = b.get('id')
                     items_pg = b.get('items_page', {})
                     
-                    for itm in items_pg.get('items', []):
-                        itm['board'] = {"name": board_name, "id": board_id}
-                        flat_items.append(itm)
+                    if board_id:
+                        for itm in items_pg.get('items', []):
+                            itm['board'] = {"name": board_name, "id": board_id}
+                            flat_items.append(itm)
                     
                     if items_pg.get('cursor'):
                         new_item_cursor = items_pg['cursor']
@@ -217,15 +237,16 @@ def lambda_handler(event, context):
                   }}
                 }}
                 '''
-                res = requests.post(MONDAY_API_URL, headers=headers, json={"query": query})
-                data = res.json()
-                if 'errors' in data: return response(400, data)
+                data = safe_post(MONDAY_API_URL, headers, query)
+                if not data or 'errors' in data: return response(400, data or {"error": "Failed to fetch board"})
                 
-                board = data['data']['boards'][0]
-                items_res = board['items_page']
+                board_list = data.get('data', {}).get('boards', [])
+                if not board_list: return response(404, {"error": "Board not found"})
+                board = board_list[0]
+                items_res = board.get('items_page', {})
                 return response(200, {
-                    "boardName": board['name'],
-                    "items": items_res['items'],
+                    "boardName": board.get('name', 'Unknown'),
+                    "items": items_res.get('items', []),
                     "cursor": items_res.get('cursor')
                 })
             else:
@@ -246,14 +267,13 @@ def lambda_handler(event, context):
                   }}
                 }}
                 '''
-                res = requests.post(MONDAY_API_URL, headers=headers, json={"query": query})
-                data = res.json()
-                if 'errors' in data or 'data' not in data or 'next_items_page' not in data['data']:
-                    return response(400, {"error": "Failed to fetch next page", "data": data})
+                data = safe_post(MONDAY_API_URL, headers, query)
+                if not data or 'errors' in data or 'data' not in data or 'next_items_page' not in data['data']:
+                    return response(400, {"error": "Failed to fetch next page", "data": data or {}})
                     
                 items_res = data['data']['next_items_page']
                 return response(200, {
-                    "items": items_res['items'],
+                    "items": items_res.get('items', []),
                     "cursor": items_res.get('cursor')
                 })
 
@@ -261,6 +281,8 @@ def lambda_handler(event, context):
         return response(500, {"error": str(e)})
 
 def response(status, body):
+    if not isinstance(body, str):
+        body = json.dumps(body)
     return {
         'statusCode': status,
         'body': body,

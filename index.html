@@ -19,6 +19,8 @@
     <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://unpkg.com/html-docx-js/dist/html-docx.js"></script>
 
     <script>
         // Google Sign-In variables (global scope)
@@ -13630,7 +13632,11 @@
                                 </div>
 
                                 <div id="editorBottomActions"
-                                    style="padding: 10px; border-top: 1px solid #eee; display: flex; justify-content: flex-end;">
+                                    style="padding: 10px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px;">
+                                    <button id="btnDownloadDocx" class="btn-gradient" onclick="downloadEditorDocx()"
+                                        style="height: 32px; padding: 0 15px; font-size: 12px; background: #004c9d; border-radius: 6px;">
+                                        <i class="fas fa-file-word"></i> Download .DOCX
+                                    </button>
                                     <button id="btnCopyHtml" class="btn-gradient" onclick="copyEditorHtml()"
                                         style="height: 32px; padding: 0 15px; font-size: 12px; background: var(--success-emerald); border-radius: 6px;">
                                         <i class="fas fa-code"></i> Copy HTML Code
@@ -21449,6 +21455,43 @@
                 console.error('Failed to copy: ', err);
             });
         }
+        
+        function downloadEditorDocx() {
+            const editor = document.getElementById('editorContent');
+            const title = document.getElementById('editorTitle')?.value || 'Optimised_Content';
+            if (!editor) return;
+
+            // Simple HTML wrapper for docx conversion
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <title>${title}</title>
+                    <style>
+                        body { font-family: 'Times New Roman', serif; }
+                        table { border-collapse: collapse; width: 100%; }
+                        td, th { border: 1px solid black; padding: 5px; }
+                        h1, h2, h3, h4, h5, h6 { font-family: 'Arial', sans-serif; }
+                    </style>
+                </head>
+                <body>
+                    ${editor.innerHTML}
+                </body>
+                </html>
+            `;
+
+            try {
+                // html-docx-js provides asBlob method
+                const converted = htmlDocx.asBlob(htmlContent);
+                // FileSaver.js provides saveAs method
+                saveAs(converted, `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.docx`);
+                showToast("Downloading .docx...", "success");
+            } catch (err) {
+                console.error('Failed to generate .docx:', err);
+                alert('Failed to generate .docx. Please ensure the content is valid.');
+            }
+        }
 
         function updateKeywordFrequencyList() {
             renderKeywordAggregation();
@@ -26354,7 +26397,9 @@ ${content}
             schemaType: "Article",
             pageType: "Any",
             complianceDisclaimers: false,
-            suggestExternalLinks: false
+            suggestExternalLinks: false,
+            contentType: "general",
+            targetReader: "General public"
         };
 
         // Load saved settings if available
@@ -26574,6 +26619,8 @@ ${content}
             document.getElementById('setDoNotUseWords').value = aiContentSettings.doNotUseWords;
             document.getElementById('setFocusProducts').value = aiContentSettings.focusProducts;
             document.getElementById('setSchemaType').value = aiContentSettings.schemaType;
+            document.getElementById('setContentType').value = aiContentSettings.contentType || 'general';
+            document.getElementById('setTargetReader').value = aiContentSettings.targetReader || 'General public';
             
             // Handle page type selection in modal if exists (though currently it's in the main flow)
             // But let's ensure aiContentSettings stays in sync
@@ -26605,7 +26652,9 @@ ${content}
                 focusProducts: "",
                 schemaType: "Article",
                 pageType: "Any",
-                complianceDisclaimers: false
+                complianceDisclaimers: false,
+                contentType: "general",
+                targetReader: "General public"
             };
             openAiSettingsModal(); // Refresh UI
         }
@@ -26627,7 +26676,9 @@ ${content}
                 schemaType: document.getElementById('setSchemaType').value,
                 pageType: aiContentSettings.pageType, // Keep current value from flow
                 complianceDisclaimers: document.getElementById('setComplianceDisclaimers').checked,
-                suggestExternalLinks: document.getElementById('setSuggestExternalLinks').checked
+                suggestExternalLinks: document.getElementById('setSuggestExternalLinks').checked,
+                contentType: document.getElementById('setContentType').value,
+                targetReader: document.getElementById('setTargetReader').value
             };
             localStorage.setItem('aiContentSettings', JSON.stringify(aiContentSettings));
             updateTranslationVisibility();
@@ -39171,6 +39222,27 @@ ${fullWrittenContent}
                                 <option value="Commercial">Commercial</option>
                                 <option value="Transactional">Transactional</option>
                             </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group half">
+                            <label>Content Type:</label>
+                            <select id="setContentType">
+                                <option value="general">General</option>
+                                <option value="hardware">Hardware</option>
+                                <option value="software">Software</option>
+                                <option value="service">Service</option>
+                                <option value="educational">Educational</option>
+                                <option value="fnb">F&B</option>
+                                <option value="healthcare">Healthcare</option>
+                                <option value="travel">Travel</option>
+                                <option value="ecommerce">E-Commerce</option>
+                            </select>
+                        </div>
+                        <div class="form-group half">
+                            <label>Target Reader:</label>
+                            <input type="text" id="setTargetReader" value="General public"
+                                placeholder="e.g., Homeowners aged 30-50 in Singapore">
                         </div>
                     </div>
                 </div>

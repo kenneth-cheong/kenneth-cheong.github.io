@@ -1,151 +1,502 @@
 import json
 import os
+import re
 import requests
+
+# ==============================================================================
+# SYSTEM MESSAGE 1: STATIC CONSTITUTION
+# This never changes between requests. It defines the AI's identity,
+# universal quality standards, and absolute rules.
+# ==============================================================================
+SYSTEM_MSG_CONSTITUTION = """
+You are an expert SEO & GEO content editor trained on the latest Search Quality 
+Rater Guidelines (E-E-A-T). Your goal is to create high-quality, authoritative 
+content that genuinely serves readers while being optimized for both traditional 
+search engines and AI-powered search (ChatGPT, Gemini, Perplexity).
+
+IMPORTANT OUTPUT RULE:
+DO NOT wrap your response in markdown code blocks like ```markdown or ```.
+Return raw text/markdown content only.
+
+================================================================
+UNIVERSAL QUALITY STANDARDS
+================================================================
+
+TONE & VOICE RULES (apply to ALL content types):
+- Write in third-person, objective language by default
+- In conversational formats (lifestyle, food, parenting), a warmer tone 
+  is acceptable — but never fabricate first-person anecdotes or personal 
+  experience claims to simulate authority
+- Never invent statistics, ratings, or performance figures without a 
+  cited, verifiable source. If no source exists, rephrase as general 
+  market context or remove the claim entirely
+- Maintain consistent tone throughout — do not shift between formal 
+  technical writing and casual blog writing within the same article
+- Eliminate filler phrases that carry no real informational value:
+    * "This is very important for many people"
+    * "In today's fast-paced world..."
+    * "More and more people are choosing..."
+    * "This is a must-have for anyone who..."
+    * "In conclusion, [TOPIC] is very important for everyone"
+
+================================================================
+REQUIRED STRUCTURAL ELEMENTS (adapt to content type)
+================================================================
+
+Every article must include the following, adapted to suit the topic:
+
+1. DEFINITION & OVERVIEW
+   - Precise definition or description of what the topic is
+   - Who it is for and what problem it solves
+   - Bulleted list of primary features, functions, or offerings
+   - Scope boundaries: what it is NOT or does NOT cover
+
+2. HOW IT WORKS / WHAT TO EXPECT
+   - For products: operating principle or underlying technology
+   - For services: step-by-step service delivery or customer journey
+   - For experiences (restaurants, travel): flow from arrival to completion
+   - Break into sub-types if the process differs significantly between variants
+
+3. TYPES, VARIANTS, OR TIERS
+   - Use recognized industry/market classifications only
+   - For each type: what it is, who it suits, advantages, limitations
+   - Do NOT invent classification categories
+
+4. COMPARISON TABLE
+   - 4–6 leading options, providers, brands, or variants
+   - Consistent columns relevant to the content type
+   - Flag indicative values that are subject to change
+   - Do NOT fabricate reviews, ratings, or scores
+
+5. SELECTION / HOW TO CHOOSE GUIDE
+   - Numbered, decision-oriented steps
+   - Frame each step as a question the reader should ask themselves
+   - Include at least one reference table, checklist, or decision framework
+   - Address contextual factors: budget, location, use case, environment
+
+6. PRACTICAL GUIDE (installation / onboarding / visit tips)
+   - Numbered steps for sequential processes
+   - Bullet points for non-sequential tips or precautions
+
+7. TROUBLESHOOTING / COMMON ISSUES TABLE
+   - Minimum 5–6 entries
+   - Three columns adapted to content type:
+     * Products:     Symptom | Probable Cause | Recommended Action
+     * Services:     Common Concern | Why It Happens | What To Do
+     * Experiences:  Common Disappointment | Likely Reason | How To Avoid
+
+8. STANDARDS, ACCREDITATIONS, OR CREDENTIALS (where applicable)
+   - Table format: Standard/Body | Region | What It Means for the Reader
+   - Explain certifications in plain terms
+   - Note that requirements vary by market
+
+9. FAQ SECTION
+   - Minimum 10 questions using natural language phrasing
+   - Must include at least:
+     * One question about cost or pricing expectations
+     * One question about a common misconception
+     * One question about evaluating quality or making the right choice
+     * One question about what happens when things go wrong
+     * One question about an edge case or exception
+
+================================================================
+TECHNICAL ACCURACY RULES
+================================================================
+
+- Only use classifications recognized within the relevant industry
+- Where behavior or quality varies by provider/model/location, 
+  state this explicitly rather than generalizing
+- Distinguish between what is universal/standard vs. provider-dependent
+- Do not overstate capabilities, guarantees, or outcomes
+- Note limitations and exceptions honestly
+- Describe mechanism chains accurately 
+  (cause → physical/process effect → detection → response)
+  rather than oversimplifying to "sensor detects and triggers"
+
+================================================================
+E-E-A-T CONTENT GUIDELINES
+================================================================
+
+1. EXPERIENCE: Include reviews, use cases, or anecdotal evidence 
+   where possible. Use phrases like "Based on reported findings" 
+   or "In documented cases" — never fabricated personal claims.
+2. EXPERTISE: Provide deep, focused subject matter coverage 
+   confined to the intent of the keyword/topic.
+3. AUTHORITATIVENESS: Reference credible sources and cite them 
+   using absolute HTML hyperlinks (<a href="URL">text</a>).
+   Do NOT use bracketed placeholders like [Source: Name].
+4. TRUSTWORTHINESS: Be honest about limitations, scope boundaries,
+   and where professional advice should be sought.
+5. READABILITY: Write for clarity. Use simple language, avoid 
+   unnecessary jargon, and keep sentences and paragraphs short.
+
+================================================================
+FORMATTING RULES
+================================================================
+
+- Use clear header hierarchy: H2 for major sections, H3 for subsections
+- Use bulleted lists for unordered items, numbered lists for steps
+- Use Markdown tables for comparisons and structured data
+- Include media placeholders with descriptive captions:
+    [IMAGE: description of what the image should show]
+    [INFOGRAPHIC: description of data to visualize]
+    [VIDEO: description of process to demonstrate]
+- Avoid multiple empty lines between sections
+- Every article must include at minimum:
+    * 1 comparison table
+    * 1 selection reference table or decision checklist
+    * 1 troubleshooting or common issues table
+
+================================================================
+SEO & GEO OPTIMIZATION RULES
+================================================================
+
+- Place the primary focus keyword in the H1 title
+- Use long-tail keyword variants naturally in H2/H3 subheadings, 
+  FAQ phrasing, and opening/closing of major sections
+- Do NOT keyword-stuff — every instance must serve the reader first
+- Write FAQ entries as full natural-language questions that mirror 
+  how people actually search (voice search friendly)
+- Write to function as pillar/cornerstone content: comprehensive 
+  enough to be cited by AI systems as an authoritative source
+- The Definition/Overview section must be self-contained enough 
+  to be used as a direct answer snippet
+
+================================================================
+ABSOLUTE PROHIBITIONS
+================================================================
+
+Never include the following regardless of content type:
+- First-person anecdotes presented as fact or expertise
+- Unverified statistics or outcome figures
+- Classification categories not recognized by the relevant industry
+- Vague advice without specific, actionable guidance
+- Filler sentences that restate the obvious
+- Redundant section summaries that only repeat what was just said
+- Hype language without evidence: "world-class", "revolutionary", 
+  "unparalleled", "best-in-class"
+- Content that reads like it was written to fill word count 
+  rather than answer a real reader question
+"""
+
+
+def build_dynamic_system_msg(
+    content_type, target_reader, tone_register,
+    primary_keyword, secondary_keywords,
+    settings, linking_guidelines
+):
+    """
+    SYSTEM MESSAGE 2: DYNAMIC ASSIGNMENT BRIEF
+    Built per-request. Tells the AI what KIND of content it is writing,
+    who it is writing for, and what the keyword/commercial context is.
+    This separates the stable rules (Message 1) from the variable
+    parameters (Message 2).
+    """
+
+    content_type_guidance = {
+        "hardware":     "Apply full technical depth. Use IEC/ISO/ANSI/UL/JIS standards where relevant. Include formulas, spec tables, and wiring/installation guidance.",
+        "software":     "Focus on use cases, integration steps, pricing tiers, and compatibility. Avoid over-technical implementation detail unless audience is developer-level.",
+        "service":      "Focus on service delivery process, provider comparison, onboarding steps, and outcome expectations. Avoid fabricated testimonials.",
+        "educational":  "Focus on curriculum, teaching methodology, student outcomes, enrolment process, and how to evaluate quality. Address both student and parent perspectives.",
+        "fnb":          "Focus on cuisine, dining experience, menu highlights, ambience, and practical visit planning. Include dietary options and reservation tips.",
+        "healthcare":   "Maintain clinical accuracy. Avoid making diagnostic or treatment claims. Always recommend consulting a qualified professional for individual cases.",
+        "travel":       "Focus on practical logistics, experience quality, and situational advice. Include seasonal considerations and accessibility notes.",
+        "ecommerce":    "Focus on product specifications, use cases, buyer considerations, and return/warranty policies. Avoid fabricated reviews.",
+        "general":      "Apply universal quality standards. Match depth and vocabulary to the specified target reader and tone register."
+    }.get(content_type.lower(), "Apply universal quality standards appropriate to the content type.")
+
+    msg = f"""
+================================================================
+ASSIGNMENT BRIEF FOR THIS REQUEST
+================================================================
+
+CONTENT TYPE: {content_type}
+CONTENT TYPE GUIDANCE: {content_type_guidance}
+
+TARGET READER: {target_reader}
+TONE REGISTER: {tone_register}
+
+KEYWORD TARGETING:
+{f"- PRIMARY FOCUS KEYWORD: '{primary_keyword}' — prioritize in H1, definition section, FAQ phrasing, and section openings." if primary_keyword else "- No primary keyword specified. Write for topical authority and reader value."}
+{f"- SECONDARY KEYWORDS: {secondary_keywords} — include naturally only where they serve the reader. Do not force them." if secondary_keywords else ""}
+
+AUDIENCE CONTEXT:
+- Target Audience: {settings.get('audience', 'General')}
+- Brand Tone: {settings.get('brandTone', 'Professional')}
+- Target Market / Locale: {settings.get('locale', 'Global')}
+- Industry: {settings.get('industry', 'General')}
+
+{linking_guidelines}
+"""
+    return msg.strip()
+
+
+def build_linking_guidelines(settings, action):
+    """Builds the external linking strategy block if applicable."""
+    if not (settings.get('suggestExternalLinks', False) or action == "add_links"):
+        return ""
+
+    target_locale   = settings.get('locale', 'Global')
+    target_industry = settings.get('industry', 'General')
+
+    return f"""
+EXTERNAL LINKING STRATEGY:
+1. CITATIONS: Proactively suggest links to credible external sources 
+   to back up claims, statistics, or statements.
+   - PREFERRED SOURCES: Government (.gov), Educational (.edu), 
+     Major News Outlets, and established Industry Authorities.
+2. COMPETITOR AVOIDANCE:
+   - Target Market: {target_locale}
+   - Industry: {target_industry}
+   - RULE: Do NOT link to commercial entities that are direct 
+     competitors in the {target_industry} space within {target_locale}.
+   - ACCEPTABLE: You MAY link to commercial sources if they are 
+     clearly NOT direct competitors in the target market 
+     (e.g. tools, complementary services, or global brands 
+     if targeting a local audience).
+"""
+
+
+def build_user_msg(action, content, prompt_override):
+    """
+    USER MESSAGE: Task instruction only.
+    Kept deliberately lean — all quality rules and context
+    live in the system messages above.
+    """
+    if action == "generate":
+        if "CURRENT CONTENT:" in prompt_override:
+            return (
+                f"Task: Generate ONLY the specific additions required by "
+                f"this SEO recommendation:\n\n{prompt_override}\n\n"
+                f"RULES:\n"
+                f"1. Do NOT return the entire article.\n"
+                f"2. Do NOT duplicate existing content.\n"
+                f"3. Return ONLY the new HTML fragment.\n"
+                f"4. Ensure the style matches the provided context "
+                f"but acts as a standalone addition."
+            )
+        return (
+            f"Generate comprehensive, structured content following all "
+            f"the guidelines above based on this prompt:\n\n{prompt_override}"
+        )
+
+    elif action == "rewrite":
+        return (
+            f"Rewrite the following content to strictly follow all quality, "
+            f"E-E-A-T, and formatting guidelines above:\n\n{content}"
+        )
+
+    elif action == "expand":
+        return (
+            f"Expand the following content with greater depth, additional "
+            f"sections where missing (refer to required structure above), "
+            f"media placeholders, and a fuller FAQ section:\n\n{content}"
+        )
+
+    elif action == "shorten":
+        return (
+            f"Shorten the following content while preserving all E-E-A-T "
+            f"principles, key facts, and grade-school readability. "
+            f"Remove filler and redundancy first:\n\n{content}"
+        )
+
+    elif action == "simplify":
+        return (
+            f"Simplify the language of the following content for a "
+            f"grade-school reading level. Preserve all factual accuracy, "
+            f"structure, and meaning:\n\n{content}"
+        )
+
+    elif action == "continue":
+        return (
+            f"Continue writing the following content. The next sections "
+            f"must follow all required structural elements and formatting "
+            f"rules defined above. Do not repeat what has already been "
+            f"written:\n\n{content}"
+        )
+
+    elif action == "add_links":
+        return (
+            f"Review the following HTML content and insert credible "
+            f"external citations following the linking strategy above.\n\n"
+            f"RULES:\n"
+            f"1. PRESERVE all existing HTML tags exactly as they are.\n"
+            f"2. INSERT at least 3–10 real, credible external links "
+            f"embedded directly into sentence structure.\n"
+            f"3. FORMAT: <a href=\"URL\" title=\"URL\">anchor text</a>\n"
+            f"4. Do NOT append bracketed sources.\n"
+            f"5. Return the full content as a valid HTML fragment.\n\n"
+            f"CONTENT:\n{content}"
+        )
+
+    elif action == "translate":
+        return (
+            f"Translate the following content to English. Maintain all "
+            f"structural elements (Markdown headers, lists, tables) and "
+            f"original meaning precisely.\n\n"
+            f"CONTENT:\n{content if content else prompt_override}"
+        )
+
+    elif action == "outline":
+        return (
+            f"Generate a detailed article outline for the following topic. "
+            f"Use hierarchical headers (H2, H3) and descriptive bullet "
+            f"points only. Reference the required structural elements above "
+            f"to ensure no major section is missed. Do NOT write full "
+            f"paragraphs, introductions, or FAQs unless specifically "
+            f"requested.\n\nTOPIC: {prompt_override}"
+        )
+
+    return None
+
 
 def lambda_handler(event, context):
     try:
-        action = event.get('action', 'optimize')
-        content = event.get('content', '')
-        prompt_override = event.get('prompt', '')
-        settings = event.get('settings', {})
-        primary_keyword = event.get('primary_keyword', '')
+        # ── Input parsing ──────────────────────────────────────────────────
+        action             = event.get('action', 'optimize')
+        content            = event.get('content', '')
+        prompt_override    = event.get('prompt', '')
+        settings           = event.get('settings', {})
+        primary_keyword    = event.get('primary_keyword', '')
         secondary_keywords = event.get('secondary_keywords', '')
-        
+
+        # ── Read content_type, target_reader, tone_register from settings ──
+        # Frontend sends these inside the settings object (camelCase keys).
+        # Fallback to top-level event keys for backward compatibility,
+        # then to sensible defaults.
+        content_type = (
+            settings.get('contentType')
+            or event.get('content_type')
+            or 'general'
+        )
+        target_reader = (
+            settings.get('targetReader')
+            or event.get('target_reader')
+            or 'General public'
+        )
+        tone_register = (
+            event.get('tone_register')
+            or settings.get('brandTone', 'Professional')
+        )
+
+        # ── API key ────────────────────────────────────────────────────────
         api_key = os.environ.get('OPENAI_API_KEY')
         if not api_key:
-            return {'statusCode': 500, 'body': json.dumps({'error': 'API key not configured'})}
+            return {
+                'statusCode': 500,
+                'body': json.dumps({'error': 'API key not configured'})
+            }
 
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
 
-        # Construct keyword context
-        keyword_context = ""
-        if primary_keyword:
-            keyword_context += f"\n- PRIMARY FOCUS KEYWORD: '{primary_keyword}' (Prioritize this for targeting and density)."
-        if secondary_keywords:
-            keyword_context += f"\n- SECONDARY KEYWORDS: {secondary_keywords} (Include these only if they fit naturally without diluting the primary focus)."
+        # ── Build message layers ───────────────────────────────────────────
+        linking_guidelines = build_linking_guidelines(settings, action)
 
-        # Construct settings context
-        settings_context = ""
-        if settings:
-            settings_context = f"\nTARGET AUDIENCE: {settings.get('audience', 'General')}\nTONE: {settings.get('brandTone', 'Professional')}"
+        dynamic_system_msg = build_dynamic_system_msg(
+            content_type       = content_type,
+            target_reader      = target_reader,
+            tone_register      = tone_register,
+            primary_keyword    = primary_keyword,
+            secondary_keywords = secondary_keywords,
+            settings           = settings,
+            linking_guidelines = linking_guidelines
+        )
 
-        # External Linking Strategy
-        linking_guidelines = ""
-        # improved logic: include guidelines if setting is on OR if action is explicitly to add links
-        if settings.get('suggestExternalLinks', False) or action == "add_links":
-            target_locale = settings.get('locale', 'Global')
-            target_industry = settings.get('industry', 'General')
-            
-            linking_guidelines = f"""
-EXTERNAL LINKING STRATEGY:
-1. CITATIONS: Proactively suggest links to credible external sources to back up claims, statistics, or statements.
-   - PREFERRED SOURCES: Government (.gov), Educational (.edu), Major News Outlets, and established Industry Authorities.
-2. COMPETITOR AVOIDANCE:
-   - Target Market: {target_locale}
-   - Industry: {target_industry}
-   - RULE: Do NOT link to commercial entities that are direct competitors in the {target_industry} space within {target_locale}.
-   - ACCEPTABLE: You MAY link to commercial sources if they are useful and clearly NOT direct competitors in the target market (e.g. tools, complementary services, or global brands if targeting local).
-"""
+        user_msg = build_user_msg(action, content, prompt_override)
 
-        # Core SEO Guidelines based on EEAT and User Satisfaction
-        seo_guidelines = """
-CRITICAL CONTENT GUIDELINES:
-1. EXPERIENCE (E): Write with a first-person perspective or direct experience. Include reviews or anecdotal evidence where possible.
-2. EXPERTISE (E): Provide deep, focused subject matter coverage specifically confined to the intent of the keyword.
-3. AUTHORITATIVENESS (A): Reference credible sources and cite references directly using absolute HTML hyperlinks (<a href="URL">text</a>). Do NOT use bracketed placeholders like [Source: Name].
-4. READABILITY: Write for a grade-school student. Use simple language, avoid jargon, and keep sentences/paragraphs short.
-5. USEFULNESS: 
-    - Include Definitions and "How/Where/Why/What" treatments.
-    - Include a "Frequently Asked Questions" (FAQ) section.
-    - Include media placeholders in square brackets: [IMAGE: Description], [INFOGRAPHIC: Complex data map], [VIDEO: Process illustration].
-6. UNIQUENESS: 
-    - Provide a unique point of view (POV) to satisfy Google's Diversity/Uniqueness requirement (source from trends, news, or 1st party perspectives).
-    - Ensure content passes both human and AI plagiarism checks.
-7. STANDARDIZED SIGNALS:
-    - Use clear, recognized headings for signals. Prefer "About the Author" for bios and "Frequently Asked Questions" or "FAQ" for question sections.
-    - Use phrases like "In our tests" or "Based on our findings" for evidence of experience.
-8. FORMATTING: 
-    - Use clear Header hierarchy (H2, H3).
-    - Use bulleted lists for neat lists and ordered lists for listicles.
-    - Use Markdown tables for comparisons.
-    - SPACING: Use concise vertical spacing. Avoid multiple empty lines between sections.
-9. TOPIC DEPTH: Synthesize information commonly found in Top 10-20 search results while adding original insights.
-"""
+        if user_msg is None:
+            return {
+                'statusCode': 400,
+                'body': json.dumps({'error': f"Invalid action: '{action}'"})
+            }
 
-        system_msg = f"You are an expert SEO & content editor trained on the latest Search Quality Rater Guidelines (EEAT). Your goal is to create high-quality, targeted content that is both useful to readers and optimized for search engines. IMPORTANT: DO NOT wrap your entire response in markdown code blocks like ```markdown or ```. Return raw text/markdown content only.{seo_guidelines}{keyword_context}{settings_context}{linking_guidelines}"
-        
-        user_msg = ""
-        if action == "generate":
-            if "CURRENT CONTENT:" in prompt_override:
-                # This is a targeted recommendation execution
-                user_msg = f"Task: Generate ONLY the specific additions required by the SEO recommendation: {prompt_override}\n\nRULES:\n1. Do NOT return the entire article.\n2. Do NOT duplicate existing content.\n3. Return ONLY the new HTML fragment (e.g., if adding a bio, return only the bio div/paragraphs).\n4. Ensure the style matches the provided context but acts as a standalone addition."
-            else:
-                user_msg = f"Generate comprehensive, structured SEO content following all the guidelines above based on this prompt: {prompt_override}"
-        elif action == "rewrite":
-            user_msg = f"Rewrite this content to strictly follow the EEAT and formatting guidelines above: {content}"
-        elif action == "expand":
-            user_msg = f"Expand this content with more depth, media placeholders, and FAQs as per the guidelines: {content}"
-        elif action == "shorten":
-            user_msg = f"Shorten this content while maintaining all EEAT principles and grade-school readability: {content}"
-        elif action == "simplify":
-            user_msg = f"Simplify the language of this content for a grade-school level: {content}"
-        elif action == "continue":
-            user_msg = f"Continue writing this content, ensuring the next sections follow all formatting and EEAT rules: {content}"
-        elif action == "add_links":
-            user_msg = f"""Review the following content (provided in HTML format). 
-1. PRESERVE STRUCTURE: You MUST keep all existing HTML tags (like <h2>, <p>, <strong>, <ul>, etc.) exactly as they are. Do NOT change the wording unless necessary for a link.
-2. INSERT CITATIONS: Proactively find and insert at least 3-10 REAL, credible external links to back up key claims. 
-   - FORMAT: Use `<a href="https://example.com/source" title="https://example.com/source">relevant anchor text</a>`. 
-   - DO NOT append bracketed sources. Embed the link directly into the sentence structure.
-3. RULES: Strictly follow the EXTERNAL LINKING STRATEGY and COMPETITOR AVOIDANCE rules. 
-4. OUTPUT: Return the full content with links inserted as a valid HTML fragment. Content: {content}"""
-        elif action == "translate":
-            user_msg = f"Translate the following content to English. Maintain all structural elements (Markdown headers, lists, etc.) and original meaning precisely.\n\nCONTENT:\n{content if content else prompt_override}"
-        elif action == "outline":
-            user_msg = f"Generate a detailed article outline consisting of hierarchical headers (H2, H3) and descriptive bullet points only. DO NOT write full paragraphs, introductions, or FAQs unless specifically requested. Focus on structure and key points for each section. Topic: {prompt_override}"
+        # ── Compose message array ──────────────────────────────────────────
+        # Translate gets a lightweight override — no quality framework needed
+        if action == "translate":
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a professional translator. "
+                        "Translate content accurately while preserving "
+                        "all structural elements (Markdown headers, lists, "
+                        "tables, HTML tags). Do not add commentary."
+                    )
+                },
+                {"role": "user", "content": user_msg}
+            ]
         else:
-            return {'statusCode': 400, 'body': json.dumps({'error': 'Invalid action'})}
+            messages = [
+                # Layer 1: Static constitution — identity + universal standards
+                {
+                    "role": "system",
+                    "content": SYSTEM_MSG_CONSTITUTION
+                },
+                # Layer 2: Dynamic brief — content type, keywords, audience, tone
+                {
+                    "role": "system",
+                    "content": dynamic_system_msg
+                },
+                # Layer 3: The actual task
+                {
+                    "role": "user",
+                    "content": user_msg
+                }
+            ]
 
-        print(f"Sending request to OpenAI with action: {action}")
+        # ── Call OpenAI ────────────────────────────────────────────────────
+        print(f"Sending request to OpenAI — action: {action}, "
+              f"content_type: {content_type}, "
+              f"target_reader: {target_reader}")
+
         response = requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json={
                 "model": "gpt-4o-mini",
-                "messages": [
-                    {"role": "system", "content": system_msg if action != "translate" else "You are a professional translator."},
-                    {"role": "user", "content": user_msg}
-                ],
+                "messages": messages,
                 "temperature": 0.3 if action == "translate" else 0.7
             },
             timeout=90
         )
 
-        resp_json = response.json()
-        result_text = resp_json['choices'][0]['message']['content'] if 'choices' in resp_json else ""
+        resp_json   = response.json()
+        result_text = (
+            resp_json['choices'][0]['message']['content']
+            if 'choices' in resp_json else ""
+        )
 
-        # Post-processing: Remove everything that isn't the generated fragment if AI over-explains
+        # ── Post-processing for targeted fragment generation ───────────────
         if action == "generate" and "CURRENT CONTENT:" in prompt_override:
-            # Preserve placement tags if provided
-            placement_match = re.search(r'\[PLACEMENT:.*?\]', result_text, re.IGNORECASE)
-            placement_tag = placement_match.group(0) + "\n" if placement_match else ""
-            
-            # Simple heuristic to clean up any preamble/outro the AI might add
+            placement_match = re.search(
+                r'\[PLACEMENT:.*?\]', result_text, re.IGNORECASE
+            )
+            placement_tag = (
+                placement_match.group(0) + "\n" if placement_match else ""
+            )
             if "```" in result_text:
-                result_text = result_text.split("```html")[-1].split("```")[-1].split("```")[0].strip()
+                result_text = (
+                    result_text.split("```html")[-1]
+                               .split("```")[-1]
+                               .split("```")[0]
+                               .strip()
+                )
             else:
-                # If no code blocks, just remove the tag from the text body to get clean content
-                result_text = re.sub(r'\[PLACEMENT:.*?\]', '', result_text, flags=re.IGNORECASE).strip()
-            
+                result_text = re.sub(
+                    r'\[PLACEMENT:.*?\]', '', result_text,
+                    flags=re.IGNORECASE
+                ).strip()
+
             result_text = placement_tag + result_text
 
+        # ── Response ───────────────────────────────────────────────────────
         return {
             'statusCode': 200,
             'headers': {
-                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Origin':  '*',
                 'Access-Control-Allow-Headers': 'Content-Type',
                 'Access-Control-Allow-Methods': 'OPTIONS,POST'
             },
