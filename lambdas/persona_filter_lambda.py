@@ -38,6 +38,8 @@ def lambda_handler(event, context):
         body = response['Body']
         
         results = []
+        total_matches = 0
+        total_records = 0
         partial_line = ""
         
         # Stream the file in chunks to avoid memory issues
@@ -48,6 +50,8 @@ def lambda_handler(event, context):
             
             for line in lines:
                 if not line.strip(): continue
+                
+                total_records += 1
                 
                 # Fast string-based pre-filter if we have filters
                 match = True
@@ -105,20 +109,19 @@ def lambda_handler(event, context):
                             if not precise_match: break
                             
                         if precise_match:
-                            results.append(record)
-                            if len(results) >= limit:
-                                break
+                            total_matches += 1
+                            if len(results) < limit:
+                                results.append(record)
                     except: continue
-                    
-            if len(results) >= limit:
-                # Close the stream once we hit the limit
-                body.close()
-                break
                 
         return {
             'statusCode': 200,
             'headers': headers,
-            'body': json.dumps(results)
+            'body': json.dumps({
+                'data': results,
+                'total_matches': total_matches,
+                'total_records': total_records
+            })
         }
         
     except Exception as e:
