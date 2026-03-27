@@ -82,14 +82,15 @@ def lambda_handler(event, context):
             board_ids = cursor_obj.get('b_ids')
             
             if not board_ids:
-                # 1. Fetch ALL Boards
-                q_boards = '{ boards (limit: 1000) { id } }'
+                # 1. Fetch ALL Boards - added 'name' to the query for filtering
+                q_boards = '{ boards (limit: 1000) { id name } }'
                 b_res = safe_post(MONDAY_API_URL, headers, q_boards)
                 if not b_res:
                     return response(500, {"error": "Failed to fetch boards from Monday API"})
                 
                 boards_data = b_res.get('data', {}).get('boards', [])
-                board_ids = [str(b.get('id')) for b in boards_data if b.get('id')]
+                # Filter out 'Subitems' boards
+                board_ids = [str(b.get('id')) for b in boards_data if b.get('id') and 'Subitems' not in b.get('name', '')]
             
             flat_items = []
             new_item_cursor = None
@@ -185,6 +186,13 @@ def lambda_handler(event, context):
                 boards_in_res = b_batch_res.get('data', {}).get('boards', [])
                 for b in boards_in_res:
                     board_name = b.get('name', 'Unknown')
+                    
+                    # Exclude 'Subitems' boards
+                    if 'Subitems' in board_name:
+                        new_board_index += 1
+                        boards_processed += 1
+                        continue
+
                     board_id = b.get('id')
                     items_pg = b.get('items_page', {})
                     

@@ -16833,14 +16833,15 @@
 
                     allItems = allItems.concat(pageItems);
                     cursor = data.cursor || data.data?.boards?.[0]?.items_page?.cursor || null;
+
+                    // Progressive Rendering: Update state and UI immediately as pages arrive
+                    cockpitState.mondayItems = allItems;
+                    populateMondayFilters(allItems);
+                    renderMondayTasks();
+
                     page++;
 
                 } while (cursor && page < 20); // Safety limit
-
-                cockpitState.mondayItems = allItems;
-
-                populateMondayFilters(allItems);
-                renderMondayTasks();
 
             } catch (err) {
                 console.error('Monday error', err);
