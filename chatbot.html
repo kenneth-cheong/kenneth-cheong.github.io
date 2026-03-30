@@ -1,13 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monday x OpenAI Chatbot</title>
     <!-- Fonts & Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <style>
         :root {
             --primary-navy: #1a1f3c;
@@ -125,7 +128,7 @@
             width: 350px;
             height: calc(100% - 80px);
             background: #fff;
-            box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+            box-shadow: -10px 0 30px rgba(0, 0, 0, 0.1);
             z-index: 20;
             padding: 32px;
             display: flex;
@@ -179,7 +182,7 @@
             flex-direction: column;
             padding: 32px;
             overflow: hidden;
-            background: rgba(255,255,255,0.4);
+            background: rgba(255, 255, 255, 0.4);
         }
 
         #messageList {
@@ -195,8 +198,9 @@
         #messageList::-webkit-scrollbar {
             width: 6px;
         }
+
         #messageList::-webkit-scrollbar-thumb {
-            background: rgba(0,0,0,0.1);
+            background: rgba(0, 0, 0, 0.1);
             border-radius: 10px;
         }
 
@@ -211,8 +215,15 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .message.user {
@@ -229,7 +240,7 @@
             color: var(--text-main);
             border-bottom-left-radius: 4px;
             box-shadow: var(--shadow-md);
-            border: 1px solid rgba(0,0,0,0.05);
+            border: 1px solid rgba(0, 0, 0, 0.05);
         }
 
         .message .time {
@@ -250,7 +261,7 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            border: 1px solid rgba(0,0,0,0.05);
+            border: 1px solid rgba(0, 0, 0, 0.05);
         }
 
         .input-bar textarea {
@@ -312,6 +323,7 @@
             align-items: center;
             gap: 6px;
         }
+
         .status-badge.synced {
             background: #dcfce7;
             color: #166534;
@@ -319,11 +331,20 @@
 
         /* Mobile Adjustments */
         @media (max-width: 600px) {
-            .app-container { width: 100%; height: 100vh; border-radius: 0; }
-            .settings-sidebar { width: 100%; right: -100%; }
+            .app-container {
+                width: 100%;
+                height: 100vh;
+                border-radius: 0;
+            }
+
+            .settings-sidebar {
+                width: 100%;
+                right: -100%;
+            }
         }
     </style>
 </head>
+
 <body>
 
     <div class="app-container">
@@ -331,7 +352,7 @@
             <h1><i class="fas fa-robot"></i> Monday Chat AI</h1>
             <div class="controls">
                 <div id="syncStatus" class="status-badge">
-                    <i class="fas fa-circle-notch fa-spin" id="syncIcon"></i> 
+                    <i class="fas fa-circle-notch fa-spin" id="syncIcon"></i>
                     <span id="syncText">No Context</span>
                 </div>
                 <button class="btn btn-outline" onclick="toggleSettings()">
@@ -351,8 +372,25 @@
                 <input type="password" id="mondayKey" placeholder="ey...">
             </div>
             <div class="form-group">
-                <label>Monday Board ID</label>
-                <input type="text" id="boardId" placeholder="2845615047">
+                <label>Additional Monday Board ID(s)</label>
+                <input type="text" id="boardId" placeholder="e.g. 2845615047, 123456789">
+                <small style="font-size: 0.7rem; color: var(--text-muted);">Board 9340032409 is synced automatically.
+                    Add more IDs comma-separated.</small>
+            </div>
+            <div class="form-group">
+                <label>Context URLs (SeRanking/Looker Studio)</label>
+                <textarea id="contextUrls" placeholder="One URL per line..." rows="3"
+                    style="padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; font-size: 0.9rem; resize: vertical;"></textarea>
+            </div>
+            <div class="form-group"
+                style="display: flex; align-items: flex-start; gap: 10px; margin-top: 15px; padding: 10px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+                <input type="checkbox" id="autoSync" style="width: 18px; height: 18px; margin-top: 2px;">
+                <div>
+                    <label for="autoSync" style="font-weight: 600; margin-bottom: 2px;">Enable Auto-Sync (Every
+                        30m)</label>
+                    <small id="syncNextTime" style="display: block; font-size: 0.75rem; color: #64748b;">Syncs all
+                        boards & context in background.</small>
+                </div>
             </div>
             <button class="btn btn-primary" onclick="saveSettings()">
                 <i class="fas fa-save"></i> Save & Sync
@@ -365,7 +403,8 @@
         <main class="chat-area">
             <div id="messageList">
                 <div class="message bot">
-                    Hello! I'm your Monday.com assistant. Once you've added your API keys and Board ID in settings, I can help you analyze your board data and activity.
+                    Hello! I'm your Monday.com assistant. Once you've added your API keys and Board ID in settings, I
+                    can help you analyze your board data and activity.
                     <span class="time">Just now</span>
                 </div>
             </div>
@@ -391,10 +430,17 @@
         window.onload = () => {
             document.getElementById('openaiKey').value = localStorage.getItem('openaiKey') || "";
             document.getElementById('mondayKey').value = localStorage.getItem('mondayKey') || "";
+            document.getElementById('contextUrls').value = localStorage.getItem('contextUrls') || "";
             document.getElementById('boardId').value = localStorage.getItem('boardId') || "";
-            
+            document.getElementById('autoSync').checked = localStorage.getItem('autoSync') === "true";
+
             if (assistantId) {
                 updateSyncStatus("Assistant Ready", false, true);
+            }
+
+            // Start auto-sync if enabled
+            if (document.getElementById('autoSync').checked) {
+                startAutoSync();
             }
         };
 
@@ -407,65 +453,165 @@
             const openaiKey = document.getElementById('openaiKey').value;
             const mondayKey = document.getElementById('mondayKey').value;
             const boardId = document.getElementById('boardId').value;
+            const contextUrls = document.getElementById('contextUrls').value;
+            const autoSync = document.getElementById('autoSync').checked;
 
             localStorage.setItem('openaiKey', openaiKey);
             localStorage.setItem('mondayKey', mondayKey);
             localStorage.setItem('boardId', boardId);
+            localStorage.setItem('contextUrls', contextUrls);
+            localStorage.setItem('autoSync', autoSync);
+
+            if (autoSync) {
+                startAutoSync();
+            } else {
+                stopAutoSync();
+            }
 
             toggleSettings();
             await syncMondayToOpenAI();
         }
 
+        const SERANKING_LAMBDA_URL = 'https://u2u2ptqaxd.execute-api.ap-southeast-1.amazonaws.com/seRanking';
+        let autoSyncTimer = null;
+
+        function startAutoSync() {
+            if (autoSyncTimer) clearInterval(autoSyncTimer);
+            const interval = 30 * 60 * 1000;
+            const updateNextSyncDisplay = () => {
+                const nextTime = new Date(Date.now() + interval);
+                document.getElementById('syncNextTime').innerText = `Next sync: ${nextTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+            };
+            autoSyncTimer = setInterval(async () => {
+                await syncMondayToOpenAI();
+                updateNextSyncDisplay();
+            }, interval);
+            updateNextSyncDisplay();
+        }
+
+        function stopAutoSync() {
+            if (autoSyncTimer) clearInterval(autoSyncTimer);
+            document.getElementById('syncNextTime').innerText = "Syncing disabled.";
+        }
+
+        async function fetchSeRankingViaLambda(action, siteId, extraData = {}) {
+            try {
+                const res = await fetch(SERANKING_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: action, siteId: siteId, data: extraData })
+                });
+                if (!res.ok) throw new Error(`Lambda error: ${res.status}`);
+                const data = await res.json();
+                const body = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
+                return body;
+            } catch (e) {
+                console.error(`SeRanking Lambda Error (${action}):`, e);
+                return null;
+            }
+        }
+
         async function syncMondayToOpenAI() {
             if (isSyncing) return;
             const mondayKey = localStorage.getItem('mondayKey');
-            const boardId = localStorage.getItem('boardId');
+            const boardIdsStr = localStorage.getItem('boardId');
             const openaiKey = localStorage.getItem('openaiKey');
+            const contextUrlsStr = localStorage.getItem('contextUrls');
 
-            if (!mondayKey || !boardId || !openaiKey) {
+            if (!mondayKey || !openaiKey) {
                 updateSyncStatus("Missing Config", false);
                 return;
             }
 
             isSyncing = true;
-            updateSyncStatus("Fetching Monday...", true);
+            updateSyncStatus("Fetching Data...", true);
 
             try {
-                // 1. Fetch from Monday.com
-                const query = `
-                {
-                    boards(ids: [${boardId}]) {
-                        name
-                        items_page (limit: 500) {
-                            items {
-                                name
-                                column_values { text column { title } }
-                                updates (limit: 5) { text_body created_at creator { name } }
+                const combinedContext = {
+                    monday_boards: [],
+                    seo_live_rankings: [], // Flattened for better AI retrieval
+                    external_context: [],
+                    total_seo_rankings_count: 0,
+                    last_sync: new Date().toISOString()
+                };
+
+                // 1. Fetch from Monday.com Boards
+                let boardIds = boardIdsStr.split(',').map(id => id.trim()).filter(id => id);
+                for (const bId of boardIds) {
+                    updateSyncStatus(`Fetching Board ${bId}...`, true);
+                    const query = `{ boards(ids: [${bId}]) { name items_page (limit: 500) { items { name column_values { text column { title } } updates (limit: 5) { text_body created_at creator { name } } } } } }`;
+                    const mResponse = await fetch("https://api.monday.com/v2", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': mondayKey, 'API-Version': '2023-10' },
+                        body: JSON.stringify({ query })
+                    });
+                    const mData = await mResponse.json();
+                    if (mData.data?.boards?.[0]) combinedContext.monday_boards.push(mData.data.boards[0]);
+                }
+
+                // 2. Fetch External Context (SeRanking/Dashboards)
+                const urls = contextUrlsStr.split('\n').map(u => u.trim()).filter(u => u);
+                for (const url of urls) {
+                    let urlData = { url: url, type: 'unknown', source_label: 'External URL' };
+                    if (url.includes('seranking.com')) {
+                        const siteMatch = url.match(/site_id[=\-/](\d+)/i) || url.match(/site[=\-/](\d+)/i);
+                        if (siteMatch) {
+                            const siteId = siteMatch[1];
+                            updateSyncStatus(`Syncing Site ID ${siteId}...`, true);
+                            
+                            const groupsData = await fetchSeRankingViaLambda('get_groups', siteId);
+                            const keywordsData = await fetchSeRankingViaLambda('get_keywords', siteId);
+                            const positionsData = await fetchSeRankingViaLambda('get_positions', siteId);
+                            
+                            const groupMap = {};
+                            if (Array.isArray(groupsData)) groupsData.forEach(g => { groupMap[g.id] = g.name; });
+
+                            const posMap = {};
+                            if (Array.isArray(positionsData) && positionsData[0] && positionsData[0].keywords) {
+                                positionsData[0].keywords.forEach(p => { 
+                                    if (p.positions && p.positions.length > 0) {
+                                        const latest = p.positions[p.positions.length - 1];
+                                        posMap[p.id] = { pos: latest.pos, change: latest.change, date: latest.date };
+                                    }
+                                });
+                            }
+
+                            if (Array.isArray(keywordsData)) {
+                                let summaryText = "";
+                                const siteRankings = keywordsData.map((kw, index) => {
+                                    const rankingInfo = posMap[kw.id] || {};
+                                    const rank = rankingInfo.pos || "Not Ranked";
+                                    summaryText += `${index + 1}. ${kw.name} (Rank: ${rank})\n`;
+                                    return {
+                                        IDENTITY: "LIVE_SEO_KEYWORD_RANKING",
+                                        keyword_name: kw.name,
+                                        keyword_group: groupMap[kw.group_id] || "No Group",
+                                        rank_position: rank,
+                                        rank_change: rankingInfo.change !== undefined ? rankingInfo.change : "-",
+                                        last_verified_at: rankingInfo.date || "-",
+                                        target_site_id: siteId,
+                                        data_source: 'seranking_api'
+                                    };
+                                });
+                                combinedContext.seo_live_rankings.push(...siteRankings);
+                                combinedContext.total_seo_rankings_count = combinedContext.seo_live_rankings.length;
+                                combinedContext.full_keywords_text_list = (combinedContext.full_keywords_text_list || "") + summaryText;
+                                urlData.content = `Integrated into combinedContext (Total: ${siteRankings.length})`;
                             }
                         }
+                    } else {
+                        urlData.content = "URL: " + url;
                     }
-                }`;
+                    combinedContext.external_context.push(urlData);
+                }
 
-                const mResponse = await fetch("https://api.monday.com/v2", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': mondayKey,
-                        'API-Version': '2023-10'
-                    },
-                    body: JSON.stringify({ query })
-                });
+                console.log("FINAL COMBINED CONTEXT (FLAT):", combinedContext);
+                updateSyncStatus("Uploading To OpenAI...", true);
 
-                const mData = await mResponse.json();
-                if (mData.errors) throw new Error(mData.errors[0].message);
-                const board = mData.data.boards[0];
-                if (!board) throw new Error("Board not found.");
-
-                updateSyncStatus(`Uploading to OpenAI...`, true);
-
-                // 2. Upload to OpenAI Files
-                const blob = new Blob([JSON.stringify(board, null, 2)], { type: 'application/json' });
-                const file = new File([blob], `monday_board_${boardId}.json`);
+                updateSyncStatus("Uploading Clean Snapshot...", true);
+                const blob = new Blob([JSON.stringify(combinedContext, null, 2)], { type: 'application/json' });
+                const fileName = `latest_market_context_data.json`;
+                const file = new File([blob], fileName);
                 
                 const fd = new FormData();
                 fd.append('purpose', 'assistants');
@@ -480,79 +626,93 @@
                 if (fData.error) throw new Error(fData.error.message);
                 const fileId = fData.id;
 
-                updateSyncStatus(`Creating Vector Store...`, true);
-
-                // 3. Create Vector Store (or use existing)
-                if (!vectorStoreId) {
-                    const vsResponse = await fetch("https://api.openai.com/v1/vector_stores", {
+                // 3. Vector Store Management & TOTAL Purge
+                let currentVsId = localStorage.getItem('vectorStoreId');
+                if (!currentVsId) {
+                    updateSyncStatus("Creating Fresh Store...", true);
+                    const vsRes = await fetch("https://api.openai.com/v1/vector_stores", {
                         method: 'POST',
-                        headers: { 
-                            'Authorization': `Bearer ${openaiKey}`,
-                            'Content-Type': 'application/json',
-                            'OpenAI-Beta': 'assistants=v2'
-                        },
-                        body: JSON.stringify({ name: `Monday Board ${boardId} Store` })
+                        headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json', 'OpenAI-Beta': 'assistants=v2' },
+                        body: JSON.stringify({ name: "Clean Context Store" })
                     });
-                    const vsData = await vsResponse.json();
-                    vectorStoreId = vsData.id;
-                    localStorage.setItem('vectorStoreId', vectorStoreId);
+                    const vsData = await vsRes.json();
+                    currentVsId = vsData.id;
+                    localStorage.setItem('vectorStoreId', currentVsId);
                 }
 
-                // 4. Add File to Vector Store
-                await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
+                // FETCH ALL CURRENT FILES IN VS FOR TOTAL DELETION
+                updateSyncStatus("Purging Old Context...", true);
+                const vsFilesRes = await fetch(`https://api.openai.com/v1/vector_stores/${currentVsId}/files?limit=100`, {
+                    headers: { 'Authorization': `Bearer ${openaiKey}`, 'OpenAI-Beta': 'assistants=v2' }
+                });
+                const vsFilesData = await vsFilesRes.json();
+                const oldFileList = (vsFilesData.data || []).map(f => f.id);
+
+                // 5. Add New File
+                updateSyncStatus("Linking New Data...", true);
+                await fetch(`https://api.openai.com/v1/vector_stores/${currentVsId}/files`, {
                     method: 'POST',
-                    headers: { 
-                        'Authorization': `Bearer ${openaiKey}`,
-                        'Content-Type': 'application/json',
-                        'OpenAI-Beta': 'assistants=v2'
-                    },
+                    headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json', 'OpenAI-Beta': 'assistants=v2' },
                     body: JSON.stringify({ file_id: fileId })
                 });
 
-                updateSyncStatus(`Updating Assistant...`, true);
+                // 6. Delete Old Files from VS and OpenAI
+                for (const oldId of oldFileList) {
+                    try {
+                        // Remove from vector store
+                        await fetch(`https://api.openai.com/v1/vector_stores/${currentVsId}/files/${oldId}`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${openaiKey}`, 'OpenAI-Beta': 'assistants=v2' }
+                        });
+                        // Delete file completely from OpenAI
+                        await fetch(`https://api.openai.com/v1/files/${oldId}`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${openaiKey}` }
+                        });
+                    } catch (err) { console.warn("Cleanup error for", oldId, err); }
+                }
 
-                // 5. Create/Update Assistant
-                if (!assistantId) {
-                    const aResponse = await fetch("https://api.openai.com/v1/assistants", {
+                // 4. Hardened Assistant Update
+                const assistantPayload = {
+                    instructions: `You are the High-Precision Marketing Data Assistant. 
+The attached JSON file contains live data in 'seo_live_rankings', 'monday_boards', and a special field called 'full_keywords_text_list'.
+
+CRITICAL INSTRUCTIONS FOR KEYWORDS:
+1. Every targeted keyword in the SEO campaign is clearly labeled as 'IDENTITY: LIVE_SEO_KEYWORD_RANKING'.
+2. When asked for ALL keywords, you MUST look for the 'full_keywords_text_list' field first. 
+3. This field contains the complete, pre-formatted list. DO NOT summarize it; output the entire list.
+4. Verify the total count using 'total_seo_rankings_count'. If it says 25, ensure your list has 25 items.
+5. If you cannot find 'full_keywords_text_list', search the 'seo_live_rankings' array as a backup.`,
+                    model: "gpt-4o-mini",
+                    tools: [{ type: "file_search" }],
+                    tool_resources: { file_search: { vector_store_ids: [currentVsId] } }
+                };
+
+                let currentAsstId = localStorage.getItem('assistantId');
+                if (!currentAsstId) {
+                    const asstRes = await fetch("https://api.openai.com/v1/assistants", {
                         method: 'POST',
-                        headers: { 
-                            'Authorization': `Bearer ${openaiKey}`,
-                            'Content-Type': 'application/json',
-                            'OpenAI-Beta': 'assistants=v2'
-                        },
-                        body: JSON.stringify({
-                            name: `Monday AI Assistant`,
-                            instructions: "You are a specialized Assistant for Monday.com. Use the file_search tool to retrieve board data and answer user questions. Always reference the board data provided in the vector store.",
-                            model: "gpt-4o-mini",
-                            tools: [{ type: "file_search" }],
-                            tool_resources: { file_search: { vector_store_ids: [vectorStoreId] } }
-                        })
+                        headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json', 'OpenAI-Beta': 'assistants=v2' },
+                        body: JSON.stringify({ ...assistantPayload, name: "Monday Context Assistant" })
                     });
-                    const aData = await aResponse.json();
-                    assistantId = aData.id;
-                    localStorage.setItem('assistantId', assistantId);
+                    const asstData = await asstRes.json();
+                    currentAsstId = asstData.id;
+                    localStorage.setItem('assistantId', currentAsstId);
                 } else {
-                    // Update existing assistant with new vector store just in case
-                    await fetch(`https://api.openai.com/v1/assistants/${assistantId}`, {
+                    await fetch(`https://api.openai.com/v1/assistants/${currentAsstId}`, {
                         method: 'POST',
-                        headers: { 
-                            'Authorization': `Bearer ${openaiKey}`,
-                            'Content-Type': 'application/json',
-                            'OpenAI-Beta': 'assistants=v2'
-                        },
-                        body: JSON.stringify({
-                            tool_resources: { file_search: { vector_store_ids: [vectorStoreId] } }
-                        })
+                        headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json', 'OpenAI-Beta': 'assistants=v2' },
+                        body: JSON.stringify(assistantPayload)
                     });
                 }
 
-                updateSyncStatus(`Synced: ${board.name}`, false, true);
-                addMessage("bot", `Sync complete for board: **${board.name}**. I've uploaded the latest data and am ready to answer your questions!`);
+                updateSyncStatus("Sync Complete!", false, true);
+                addMessage("bot", `Sync complete! Successfully updated context from **${boardIds.length} Monday boards** and **${combinedContext.external_context.length} context sources**. Background sync is active.`);
 
             } catch (error) {
-                console.error("Assistant Sync Error:", error);
+                console.error("Sync error:", error);
                 updateSyncStatus("Sync Failed", false);
-                addMessage("bot", `I had trouble syncing your data to OpenAI: ${error.message}`);
+                addMessage("bot", `Sync failed: ${error.message}`);
             } finally {
                 isSyncing = false;
             }
@@ -590,7 +750,7 @@
                 if (!threadId) {
                     const tResponse = await fetch("https://api.openai.com/v1/threads", {
                         method: 'POST',
-                        headers: { 
+                        headers: {
                             'Authorization': `Bearer ${openaiKey}`,
                             'Content-Type': 'application/json',
                             'OpenAI-Beta': 'assistants=v2'
@@ -604,7 +764,7 @@
                 // 2. Add Message to Thread
                 await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
                     method: 'POST',
-                    headers: { 
+                    headers: {
                         'Authorization': `Bearer ${openaiKey}`,
                         'Content-Type': 'application/json',
                         'OpenAI-Beta': 'assistants=v2'
@@ -615,7 +775,7 @@
                 // 3. Create Run
                 const rResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
                     method: 'POST',
-                    headers: { 
+                    headers: {
                         'Authorization': `Bearer ${openaiKey}`,
                         'Content-Type': 'application/json',
                         'OpenAI-Beta': 'assistants=v2'
@@ -644,7 +804,7 @@
                 });
                 const mData = await mResponse.json();
                 const lastMsg = mData.data[0];
-                
+
                 if (lastMsg && lastMsg.role === "assistant") {
                     const reply = lastMsg.content[0].text.value;
                     addMessage("bot", reply);
@@ -662,14 +822,14 @@
             const list = document.getElementById('messageList');
             const msg = document.createElement('div');
             msg.className = `message ${sender}`;
-            
+
             // Format bold and list items
             const formattedText = text
                 .replace(/\n/g, '<br>')
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/^- (.*)/gm, '• $1');
 
-            msg.innerHTML = `${formattedText}<span class="time">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>`;
+            msg.innerHTML = `${formattedText}<span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
             list.appendChild(msg);
             list.scrollTop = list.scrollHeight;
         }
@@ -679,12 +839,12 @@
             document.getElementById('sendBtn').disabled = show;
         }
 
-        document.getElementById('userInput').addEventListener('input', function() {
+        document.getElementById('userInput').addEventListener('input', function () {
             this.style.height = 'auto';
             this.style.height = (this.scrollHeight) + 'px';
         });
 
-        document.getElementById('userInput').addEventListener('keydown', function(e) {
+        document.getElementById('userInput').addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleSendMessage();
@@ -692,4 +852,5 @@
         });
     </script>
 </body>
+
 </html>

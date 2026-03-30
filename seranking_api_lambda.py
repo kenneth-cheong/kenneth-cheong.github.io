@@ -51,6 +51,56 @@ def lambda_handler(event, context):
             if date_to: url += f"&date_to={date_to}"
             
             res = requests.get(url, headers=headers)
+        elif action == 'get_site_data':
+            if not site_id:
+                return response(400, {"error": "Missing siteId"})
+            
+            # 1. Fetch Groups
+            groups_url = f"{SERANKING_API_URL}/keyword-groups/{site_id}"
+            groups_res = requests.get(groups_url, headers=headers)
+            groups = groups_res.json() if groups_res.status_code == 200 else []
+            group_map = {str(g['id']): g['name'] for g in groups}
+
+            # 2. Fetch Keywords
+            keywords_url = f"{SERANKING_API_URL}/sites/{site_id}/keywords"
+            keywords_res = requests.get(keywords_url, headers=headers)
+            keywords = keywords_res.json() if keywords_res.status_code == 200 else []
+
+            # 3. Fetch Positions
+            positions_url = f"{SERANKING_API_URL}/sites/{site_id}/positions?with_landing_pages=1"
+            positions_res = requests.get(positions_url, headers=headers)
+            positions_data = positions_res.json() if positions_res.status_code == 200 else []
+            
+            pos_map = {}
+            if isinstance(positions_data, list) and len(positions_data) > 0:
+                # Assume first search engine if multiple exist
+                engine_data = positions_data[0]
+                if 'keywords' in engine_data:
+                    for p in engine_data['keywords']:
+                        if 'positions' in p and len(p['positions']) > 0:
+                            latest = p['positions'][-1]
+                            pos_map[str(p['id'])] = {
+                                "pos": latest.get('pos'),
+                                "change": latest.get('change'),
+                                "date": latest.get('date')
+                            }
+
+            # 4. Join Data
+            results = []
+            for kw in keywords:
+                kw_id = str(kw.get('id'))
+                ranking = pos_map.get(kw_id, {})
+                results.append({
+                    "keyword": kw.get('name'),
+                    "group": group_map.get(str(kw.get('group_id')), "No Group"),
+                    "current_ranking": ranking.get('pos', "Not Ranked"),
+                    "change": ranking.get('change', "-"),
+                    "last_checked": ranking.get('date', "-"),
+                    "site_id": site_id
+                })
+            
+            return response(200, results)
+
         elif action == 'get_search_engines':
             if not site_id:
                 return response(400, {"error": "Missing siteId"})
