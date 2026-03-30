@@ -364,6 +364,7 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            white-space: nowrap;
         }
 
         .btn-primary {
@@ -380,53 +381,33 @@
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 24px;
-            overflow-x: auto;
+            overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
         }
 
         table {
-            width: auto;
-            min-width: 100%;
+            width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
         }
 
         th {
             position: sticky;
             top: 0;
             background: var(--bg-card);
-            /* Opaque background for sticky header */
             text-align: left;
-            padding: 16px 24px;
+            padding: 12px 16px;
             font-weight: 600;
-            font-size: 0.875rem;
+            font-size: 0.825rem;
             color: var(--text-dim);
             border-bottom: 1px solid var(--border);
             z-index: 10;
-            white-space: nowrap;
+            white-space: normal;
+            vertical-align: top;
+            word-break: normal;
+            overflow-wrap: break-word;
         }
 
-        /* Sticky Columns */
-        .table-container th:nth-child(1),
-        .table-container td:nth-child(1) {
-            position: sticky;
-            left: 0;
-            z-index: 20;
-            background: var(--bg-card);
-        }
-
-        .table-container th:nth-child(2),
-        .table-container td:nth-child(2) {
-            position: sticky;
-            left: 40px;
-            z-index: 20;
-            background: var(--bg-card);
-            border-right: 2px solid var(--border);
-        }
-
-        .table-container th:nth-child(1),
-        .table-container th:nth-child(2) {
-            z-index: 30;
-        }
 
         .resizer {
             position: absolute;
@@ -466,10 +447,13 @@
         }
 
         td {
-            padding: 16px 24px;
+            padding: 12px 16px;
             border-bottom: 1px solid var(--border);
-            font-size: 0.875rem;
-            white-space: nowrap;
+            font-size: 0.825rem;
+            white-space: normal;
+            vertical-align: top;
+            word-break: normal;
+            overflow-wrap: break-word;
         }
 
         tr:last-child td {
@@ -1214,61 +1198,51 @@
 
             <section id="resultsSection" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                    <h2 style="margin: 0;">Top 5 Shortlist</h2>
-                    <div style="display: flex; gap: 12px; align-items: center;">
-                        <div id="bulkAssignContainer" style="display: none; align-items: center; gap: 8px;">
-                            <select id="bulkAssignSelect"
-                                style="padding: 10px; font-size: 0.875rem; border-radius: 12px; background: var(--bg-card); color: white; border: 1px solid var(--border); outline: none;">
-                                <!-- Populate via JS -->
-                            </select>
-                            <button class="btn btn-primary" style="padding: 10px 16px; font-size: 0.875rem;"
-                                onclick="bulkAssign('candidateTable')">Assign Selected</button>
-                        </div>
-                        <button id="bulkReEvaluateBtn" class="btn"
-                            style="display: none; background: var(--secondary); color: white;"
-                            onclick="bulkReEvaluate(event, 'candidateTable')">
-                            <i class="fas fa-sync-alt"></i> AI Re-evaluate Selected
-                        </button>
-                        <button id="bulkCopyBtn" class="btn"
-                            style="display: none; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
-                            onclick="bulkCopyUrls('candidateTable')">
-                            <i class="fas fa-copy"></i> Copy Links
-                        </button>
-                        <button id="bulkDeleteBtn" class="btn"
-                            style="display: none; background: var(--accent); color: white;"
-                            onclick="bulkDelete()">Delete Selected</button>
+                    <h2 id="manageJobTitle" style="margin: 0;">Job Details</h2>
+                    <div id="unifiedBulkActions" style="display: none; align-items: center; gap: 12px; background: rgba(255,255,255,0.03); padding: 8px 16px; border-radius: 16px; border: 1px solid var(--border);">
+                        <span style="font-size: 0.8rem; color: var(--text-dim); font-weight: 600;">Bulk Actions:</span>
+                        <select id="bulkActionSelect" onchange="handleBulkActionChange('candidateTable')"
+                            style="padding: 8px 12px; font-size: 0.875rem; border-radius: 10px; background: var(--bg-card); color: white; border: 1px solid var(--border); outline: none;">
+                            <option value="">Select Action...</option>
+                            <option value="assign">Assign Person</option>
+                            <option value="reassign">Reassign Position</option>
+                            <option value="reeval">AI Re-evaluate</option>
+                            <option value="copy">Copy Links</option>
+                            <option value="delete">Delete Selected</option>
+                        </select>
+                        <select id="bulkActionOptionSelect" style="display: none; padding: 8px 12px; font-size: 0.875rem; border-radius: 10px; background: var(--bg-card); color: white; border: 1px solid var(--border); outline: none;">
+                            <!-- Dynamic Options -->
+                        </select>
+                        <button class="btn btn-primary" style="padding: 8px 16px; font-size: 0.875rem;" onclick="executeBulkAction('candidateTable')">Apply</button>
                     </div>
-                </div>
-                <div class="top-shortlist" id="top5List">
-                    <!-- Shortlist cards will be injected here -->
                 </div>
 
                 <div class="table-container">
                     <table id="candidateTable">
                         <thead>
                             <tr>
-                                <th style="width: 40px; text-align: center;">
+                                <th style="width: 44px; text-align: center; min-width: 44px;">
                                     <input type="checkbox" id="selectAllCandidates"
                                         onclick="toggleSelectAll('candidateTable')">
                                 </th>
-                                <th onclick="sortJobCandidates('name')" style="cursor: pointer;">Name <i
+                                <th onclick="sortJobCandidates('name')" style="cursor: pointer; width: 12%;">Name <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortJobCandidates('date')" style="cursor: pointer;">Date Applied <i
+                                <th onclick="sortJobCandidates('job')" style="cursor: pointer; width: 14%;">Position <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortJobCandidates('score')" style="cursor: pointer;">AI Score <i
+                                <th onclick="sortJobCandidates('date')" style="cursor: pointer; width: 10%;">Date Applied <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortJobCandidates('bestFit')" style="cursor: pointer;">Best Fit <i
+                                <th onclick="sortJobCandidates('score')" style="cursor: pointer; width: 8%;">AI Score <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortJobCandidates('interviewerScore')" style="cursor: pointer;">Interviewer
-                                    Score <i class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortJobCandidates('hopper')" style="cursor: pointer;">Job Hopper <i
+                                <th onclick="sortJobCandidates('bestFit')" style="cursor: pointer; width: 12%;">Best Fit <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortJobCandidates('pendingBy')" style="cursor: pointer;">Pending action by
+                                <th onclick="sortJobCandidates('interviewerScore')" style="cursor: pointer; width: 8%;">AI Score <i
+                                        class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortJobCandidates('pendingBy')" style="cursor: pointer; width: 12%;">Pending action by
                                     <i class="fas fa-sort ms-1"></i>
                                 </th>
-                                <th onclick="sortJobCandidates('status')" style="cursor: pointer;">Status <i
+                                <th onclick="sortJobCandidates('status')" style="cursor: pointer; width: 10%;">Status <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th>Actions</th>
+                                <th style="width: 11%;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="candidateBody">
@@ -1282,31 +1256,25 @@
             <section id="candidatesSection" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                     <h2 style="margin: 0;">Candidates Repository</h2>
+                    <div id="unifiedBulkActionsRepo" style="display: none; align-items: center; gap: 12px; background: rgba(255,255,255,0.03); padding: 8px 16px; border-radius: 16px; border: 1px solid var(--border);">
+                        <span style="font-size: 0.8rem; color: var(--text-dim); font-weight: 600;">Bulk Actions:</span>
+                        <select id="bulkActionRepoSelect" onchange="handleBulkActionChange('repoTable')"
+                            style="padding: 8px 12px; font-size: 0.875rem; border-radius: 10px; background: var(--bg-card); color: white; border: 1px solid var(--border); outline: none;">
+                            <option value="">Select Action...</option>
+                            <option value="assign">Assign Person</option>
+                            <option value="reassign">Reassign Position</option>
+                            <option value="reeval">AI Re-evaluate</option>
+                            <option value="copy">Copy Links</option>
+                            <option value="delete">Delete Selected</option>
+                            <option value="restore">Restore Selected</option>
+                        </select>
+                        <select id="bulkActionOptionRepoSelect" style="display: none; padding: 8px 12px; font-size: 0.875rem; border-radius: 10px; background: var(--bg-card); color: white; border: 1px solid var(--border); outline: none;">
+                            <!-- Dynamic Options -->
+                        </select>
+                        <button class="btn btn-primary" style="padding: 8px 16px; font-size: 0.875rem;" onclick="executeBulkAction('repoTable')">Apply</button>
+                    </div>
+
                     <div style="display: flex; gap: 12px; align-items: center;">
-                        <div id="bulkAssignRepoContainer" style="display: none; align-items: center; gap: 8px;">
-                            <select id="bulkAssignRepoSelect"
-                                style="padding: 10px; font-size: 0.875rem; border-radius: 12px; background: var(--bg-card); color: white; border: 1px solid var(--border); outline: none;">
-                                <!-- Populate via JS -->
-                            </select>
-                            <button class="btn btn-primary" style="padding: 10px 16px; font-size: 0.875rem;"
-                                onclick="bulkAssign('repoTable')">Assign Selected</button>
-                        </div>
-                        <button id="bulkReEvaluateRepoBtn" class="btn"
-                            style="display: none; background: var(--secondary); color: white;"
-                            onclick="bulkReEvaluate(event, 'repoTable')">
-                            <i class="fas fa-sync-alt"></i> AI Re-evaluate Selected
-                        </button>
-                        <button id="bulkCopyRepoBtn" class="btn"
-                            style="display: none; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
-                            onclick="bulkCopyUrls('repoTable')">
-                            <i class="fas fa-copy"></i> Copy Links
-                        </button>
-                        <button id="bulkDeleteRepoBtn" class="btn"
-                            style="display: none; background: var(--accent); color: white;"
-                            onclick="bulkDeleteRepo()">Delete Selected</button>
-                        <button id="bulkRestoreRepoBtn" class="btn"
-                            style="display: none; background: var(--secondary); color: white;"
-                            onclick="bulkRestoreRepo()">Restore Selected</button>
                         <div class="form-group" style="margin: 0; display: flex; align-items: center; gap: 8px;">
                             <input type="checkbox" id="showDeletedRepo" onchange="filterCandidatesRepo()"
                                 style="width: 20px; height: 20px;">
@@ -1366,26 +1334,26 @@
                     <table id="repoTable">
                         <thead>
                             <tr>
-                                <th style="width: 40px; text-align: center;">
+                                <th style="width: 44px; text-align: center; min-width: 44px;">
                                     <input type="checkbox" id="selectAllRepo" onclick="toggleSelectAll('repoTable')">
                                 </th>
-                                <th onclick="sortRepoTable('name')" style="cursor: pointer;">Name <i
+                                <th onclick="sortRepoTable('name')" style="cursor: pointer; width: 12%;">Name <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortRepoTable('job')" style="cursor: pointer;">Position <i
+                                <th onclick="sortRepoTable('job')" style="cursor: pointer; width: 14%;">Position <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortRepoTable('date')" style="cursor: pointer;">Date Applied <i
+                                <th onclick="sortRepoTable('date')" style="cursor: pointer; width: 10%;">Date Applied <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortRepoTable('score')" style="cursor: pointer;">AI Score <i
+                                <th onclick="sortRepoTable('score')" style="cursor: pointer; width: 8%;">AI Score <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortRepoTable('bestFit')" style="cursor: pointer;">Best Fit <i
+                                <th onclick="sortRepoTable('bestFit')" style="cursor: pointer; width: 12%;">Best Fit <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortRepoTable('interviewerScore')" style="cursor: pointer;">Interviewer
-                                    Score <i class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortRepoTable('pendingBy')" style="cursor: pointer;">Pending action by <i
+                                <th onclick="sortRepoTable('interviewerScore')" style="cursor: pointer; width: 8%;">AI Score <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortRepoTable('status')" style="cursor: pointer;">Status <i
+                                <th onclick="sortRepoTable('pendingBy')" style="cursor: pointer; width: 12%;">Pending action by <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th>Actions</th>
+                                <th onclick="sortRepoTable('status')" style="cursor: pointer; width: 10%;">Status <i
+                                        class="fas fa-sort ms-1"></i></th>
+                                <th style="width: 11%;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="repoBody">
@@ -3147,9 +3115,27 @@
         function filterCandidatesRepo() {
             const showDeleted = document.getElementById('showDeletedRepo')?.checked || false;
 
-            // Show/Hide bulk action buttons based on mode
-            document.getElementById('bulkRestoreRepoBtn').style.display = showDeleted ? 'inline-flex' : 'none';
-            document.getElementById('bulkDeleteRepoBtn').style.display = showDeleted ? 'none' : 'inline-flex';
+            // Update unified bulk actions based on trash mode
+            const repoActionSelect = document.getElementById('bulkActionRepoSelect');
+            if (repoActionSelect) {
+                if (showDeleted) {
+                    repoActionSelect.innerHTML = `
+                        <option value="">Select Action...</option>
+                        <option value="restore">Restore Selected</option>
+                        <option value="reeval">AI Re-evaluate</option>
+                        <option value="copy">Copy Links</option>
+                    `;
+                } else {
+                    repoActionSelect.innerHTML = `
+                        <option value="">Select Action...</option>
+                        <option value="assign">Assign Person</option>
+                        <option value="reassign">Reassign Position</option>
+                        <option value="reeval">AI Re-evaluate</option>
+                        <option value="copy">Copy Links</option>
+                        <option value="delete">Delete Selected</option>
+                    `;
+                }
+            }
 
             const search = document.getElementById('searchCand')?.value.toLowerCase() || "";
             const pos = document.getElementById('filterPosition')?.value || "";
@@ -3233,7 +3219,7 @@
                     </td>
                     <td class="clickable-name" onclick="event.stopPropagation(); viewCandidate('${c.id}')">${c.name}</td>
                     <td>
-                        <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%; max-width: 140px;" 
+                        <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%;" 
                             onclick="event.stopPropagation()" onchange="updateCandidateJob('${c.id}', this.value)">
                             ${getJobOptions(c.jobId)}
                         </select>
@@ -3256,7 +3242,7 @@
                     </td>
                     <td><span style="font-weight: 700; color: var(--secondary);">${c.interviewerScore || 0}%</span></td>
                     <td>
-                        <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%; max-width: 140px;" 
+                        <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%;" 
                             onclick="event.stopPropagation()" onchange="updateCandidatePending('${c.id}', this.value)">
                             ${getAssigneeOptions(c.pendingBy)}
                         </select>
@@ -3268,8 +3254,7 @@
                         </select>
                     </td>
                     <td>
-                        <div style="display: flex; gap: 8px;">
-                            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white;" onclick="event.stopPropagation(); viewCandidate('${c.id}')">Review</button>
+                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                             <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);" 
                                 onclick="event.stopPropagation(); copyShareLink('${c.id}')">
                                 <i class="fas fa-share-alt"></i>
@@ -3534,9 +3519,13 @@
                     resizer.classList.add('resizing');
 
                     const onMouseMove = (e) => {
-                        const newWidth = Math.max(80, startWidth + (e.pageX - startX));
+                        // Limit resizing to ensure we stay within viewport
+                        const rect = table.getBoundingClientRect();
+                        const maxPossibleWidth = rect.width - 100; // Leave some space for other columns
+                        const newWidth = Math.max(50, Math.min(maxPossibleWidth, startWidth + (e.pageX - startX)));
+                        
                         col.style.width = newWidth + 'px';
-                        col.style.minWidth = newWidth + 'px';
+                        // No min-width here to allow flexible layout-fixed behavior
                     };
 
                     const onMouseUp = () => {
@@ -3563,24 +3552,124 @@
 
         function updateBulkDeleteVisibility(tableId) {
             const selector = tableId === 'candidateTable' ? '.cand-checkbox:checked' : '.repo-checkbox:checked';
-            const deleteBtnId = tableId === 'candidateTable' ? 'bulkDeleteBtn' : 'bulkDeleteRepoBtn';
-            const copyBtnId = tableId === 'candidateTable' ? 'bulkCopyBtn' : 'bulkCopyRepoBtn';
-            const reEvalBtnId = tableId === 'candidateTable' ? 'bulkReEvaluateBtn' : 'bulkReEvaluateRepoBtn';
-            const assignContainerId = tableId === 'candidateTable' ? 'bulkAssignContainer' : 'bulkAssignRepoContainer';
-
+            const containerId = tableId === 'candidateTable' ? 'unifiedBulkActions' : 'unifiedBulkActionsRepo';
             const checkedCount = document.querySelectorAll(selector).length;
-            const isAdmin = state.effectiveRole === 'Admin';
+            const container = document.getElementById(containerId);
+            
+            if (container) {
+                container.style.display = (checkedCount > 0) ? 'flex' : 'none';
+            }
+        }
 
-            document.getElementById(deleteBtnId).style.display = (checkedCount > 0) ? 'block' : 'none';
-            document.getElementById(copyBtnId).style.display = (checkedCount > 0) ? 'block' : 'none';
-            document.getElementById(reEvalBtnId).style.display = (checkedCount > 0) ? 'block' : 'none';
+        function handleBulkActionChange(tableId) {
+            const actionSelectId = tableId === 'candidateTable' ? 'bulkActionSelect' : 'bulkActionRepoSelect';
+            const optionSelectId = tableId === 'candidateTable' ? 'bulkActionOptionSelect' : 'bulkActionOptionRepoSelect';
+            const action = document.getElementById(actionSelectId).value;
+            const optionSelect = document.getElementById(optionSelectId);
 
-            const assignContainer = document.getElementById(assignContainerId);
-            if (assignContainer) {
-                assignContainer.style.display = (checkedCount > 0 && isAdmin) ? 'flex' : 'none';
-                if (checkedCount > 0 && isAdmin) {
-                    populateBulkAssignSelects();
-                }
+            if (action === 'assign') {
+                optionSelect.style.display = 'block';
+                optionSelect.innerHTML = '<option value="">Select Person...</option>' + getAssigneeOptions('');
+            } else if (action === 'reassign') {
+                optionSelect.style.display = 'block';
+                optionSelect.innerHTML = '<option value="">Select Position...</option>' + getJobOptions('');
+            } else {
+                optionSelect.style.display = 'none';
+                optionSelect.innerHTML = '';
+            }
+        }
+
+        async function executeBulkAction(tableId) {
+            const actionSelectId = tableId === 'candidateTable' ? 'bulkActionSelect' : 'bulkActionRepoSelect';
+            const optionSelectId = tableId === 'candidateTable' ? 'bulkActionOptionSelect' : 'bulkActionOptionRepoSelect';
+            const action = document.getElementById(actionSelectId).value;
+            const option = document.getElementById(optionSelectId).value;
+
+            if (!action) {
+                alert("Please select an action first.");
+                return;
+            }
+
+            if ((action === 'assign' || action === 'reassign') && !option) {
+                alert(`Please select a ${action === 'assign' ? 'person' : 'position'} first.`);
+                return;
+            }
+
+            // Call existing functions or implement logic here
+            if (action === 'assign') {
+                await bulkAssignUnified(tableId, option);
+            } else if (action === 'reassign') {
+                await bulkReassignJobUnified(tableId, option);
+            } else if (action === 'reeval') {
+                await bulkReEvaluate(null, tableId);
+            } else if (action === 'copy') {
+                bulkCopyUrls(tableId);
+            } else if (action === 'delete') {
+                if (tableId === 'candidateTable') await bulkDelete();
+                else await bulkDeleteRepo();
+            } else if (action === 'restore') {
+                await bulkRestoreRepo();
+            }
+            
+            // Reset selects
+            document.getElementById(actionSelectId).value = '';
+            handleBulkActionChange(tableId);
+        }
+
+        // Helper wrappers for unified logic
+        async function bulkAssignUnified(tableId, assignee) {
+            const selector = tableId === 'candidateTable' ? '.cand-checkbox:checked' : '.repo-checkbox:checked';
+            const selectedIds = Array.from(document.querySelectorAll(selector)).map(cb => cb.value);
+            if (selectedIds.length === 0) return;
+
+            const confirmMsg = assignee
+                ? `Assign ${selectedIds.length} candidates to ${assignee}?`
+                : `Unassign ${selectedIds.length} candidates?`;
+
+            if (!confirm(confirmMsg)) return;
+
+            toggleLoading(true);
+            try {
+                await Promise.all(selectedIds.map(id =>
+                    persistenceApiCall('upsert_candidate', { id: String(id), pendingBy: assignee }, true)
+                ));
+                selectedIds.forEach(id => {
+                    const cand = state.candidates.find(c => String(c.id) === String(id));
+                    if (cand) cand.pendingBy = assignee;
+                });
+                renderCandidates();
+                filterCandidatesRepo();
+            } catch (error) {
+                console.error("Bulk assign error:", error);
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        async function bulkReassignJobUnified(tableId, targetJobId) {
+            const selector = tableId === 'candidateTable' ? '.cand-checkbox:checked' : '.repo-checkbox:checked';
+            const selectedIds = Array.from(document.querySelectorAll(selector)).map(cb => cb.value);
+            if (selectedIds.length === 0 || !targetJobId) return;
+
+            const targetJob = state.jobs.find(j => String(j.id) === String(targetJobId));
+            if (!confirm(`Reassign ${selectedIds.length} candidates to "${targetJob?.title}"?`)) return;
+
+            toggleLoading(true);
+            try {
+                await Promise.all(selectedIds.map(id =>
+                    persistenceApiCall('upsert_candidate', { id: String(id), jobId: targetJobId }, true)
+                ));
+                selectedIds.forEach(id => {
+                    const cand = state.candidates.find(c => String(c.id) === String(id));
+                    if (cand) cand.jobId = targetJobId;
+                });
+                renderCandidates();
+                filterCandidatesRepo();
+                renderJobs();
+            } catch (error) {
+                console.error("Bulk reassign error:", error);
+            } finally {
+                toggleLoading(false);
             }
         }
 
@@ -3588,6 +3677,14 @@
             const options = getAssigneeOptions('');
             const s1 = document.getElementById('bulkAssignSelect');
             const s2 = document.getElementById('bulkAssignRepoSelect');
+            if (s1) s1.innerHTML = options;
+            if (s2) s2.innerHTML = options;
+        }
+
+        function populateBulkJobSelects() {
+            const options = '<option value="">Select Target Position...</option>' + getJobOptions('');
+            const s1 = document.getElementById('bulkReassignJobSelect');
+            const s2 = document.getElementById('bulkReassignJobRepoSelect');
             if (s1) s1.innerHTML = options;
             if (s2) s2.innerHTML = options;
         }
@@ -3629,6 +3726,55 @@
             } catch (error) {
                 console.error("Bulk assign error:", error);
                 alert("An error occurred during bulk assignment. Some updates may not have completed.");
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        async function bulkReassignJob(tableId) {
+            const selector = tableId === 'candidateTable' ? '.cand-checkbox:checked' : '.repo-checkbox:checked';
+            const selectId = tableId === 'candidateTable' ? 'bulkReassignJobSelect' : 'bulkReassignJobRepoSelect';
+            const selectedIds = Array.from(document.querySelectorAll(selector)).map(cb => cb.value);
+            const targetJobId = document.getElementById(selectId).value;
+
+            if (selectedIds.length === 0) return;
+            if (!targetJobId) {
+                alert("Please select a target position first.");
+                return;
+            }
+
+            const targetJob = state.jobs.find(j => String(j.id) === String(targetJobId));
+            const confirmMsg = `Are you sure you want to reassign ${selectedIds.length} candidates to "${targetJob?.title || 'Unknown'}"?`;
+
+            if (!confirm(confirmMsg)) return;
+
+            toggleLoading(true);
+            try {
+                // Batch updates
+                await Promise.all(selectedIds.map(id =>
+                    persistenceApiCall('upsert_candidate', { id: String(id), jobId: targetJobId }, true)
+                ));
+
+                // Update local state and trigger refresh
+                selectedIds.forEach(id => {
+                    const cand = state.candidates.find(c => String(c.id) === String(id));
+                    if (cand) cand.jobId = targetJobId;
+                });
+
+                alert(`Successfully reassigned ${selectedIds.length} candidates.`);
+                
+                // Clear selections
+                document.querySelectorAll(selector).forEach(cb => cb.checked = false);
+                const selectAllId = tableId === 'candidateTable' ? 'selectAllCandidates' : 'selectAllRepo';
+                document.getElementById(selectAllId).checked = false;
+                
+                updateBulkDeleteVisibility(tableId);
+                renderCandidates();
+                filterCandidatesRepo();
+                renderJobs(); // Update counts in Jobs Management
+            } catch (error) {
+                console.error("Bulk reassign error:", error);
+                alert("An error occurred during bulk reassignment.");
             } finally {
                 toggleLoading(false);
             }
@@ -4207,6 +4353,9 @@
             }
             console.log("Filtered candidates count:", filtered.length);
             const body = document.getElementById('candidateBody');
+            if (body.closest('table').querySelectorAll('th').length === 9) {
+                 // Adjust colspans etc if needed, but since we are removing a column, we should just ensure logic is sound.
+            }
 
             // Sorting
             filtered.sort((a, b) => {
@@ -4216,6 +4365,11 @@
                 else if (jobDetailsSort.field === 'score') { valA = a.aiScore; valB = b.aiScore; }
                 else if (jobDetailsSort.field === 'bestFit') { valA = a.bestFit?.score || 0; valB = b.bestFit?.score || 0; }
                 else if (jobDetailsSort.field === 'interviewerScore') { valA = a.interviewerScore || 0; valB = b.interviewerScore || 0; }
+                else if (jobDetailsSort.field === 'job') {
+                    const jobA = state.jobs.find(j => String(j.id) == String(a.jobId))?.title || '';
+                    const jobB = state.jobs.find(j => String(j.id) == String(b.jobId))?.title || '';
+                    valA = jobA; valB = jobB;
+                }
                 else if (jobDetailsSort.field === 'status') { valA = a.status; valB = b.status; }
                 else if (jobDetailsSort.field === 'hopper') { valA = a.isHopper; valB = b.isHopper; }
                 else if (jobDetailsSort.field === 'pendingBy') { valA = a.pendingBy; valB = b.pendingBy; }
@@ -4234,6 +4388,7 @@
                 return;
             }
 
+            // Render candidates table body
             body.innerHTML = sliced.map(c => `
                 <tr data-id="${c.id}" style="animation: fadeIn 0.3s ease forwards; ${c.isReEvaluating ? 'opacity: 0.7; pointer-events: none;' : ''}" onclick="toggleRowSelection(this)">
                     <td style="text-align: center;" onclick="event.stopPropagation()">
@@ -4243,17 +4398,18 @@
                         <div class="clickable-name" onclick="event.stopPropagation(); viewCandidate('${c.id}')">${c.name}</div>
                         <div style="font-size: 0.7rem; color: var(--text-dim);">${c.fileName}</div>
                     </td>
+                    <td>
+                        <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%;" 
+                            onclick="event.stopPropagation()" onchange="updateCandidateJob('${c.id}', this.value)">
+                            ${getJobOptions(c.jobId)}
+                        </select>
+                    </td>
                     <td>${formatDate8(c.date)}</td>
                     <td>
                         <div style="display: flex; align-items: center; gap: 8px;">
                             ${c.isReEvaluating ?
                     `<span style="font-size: 0.8rem; color: var(--accent);"><i class="fas fa-spinner fa-spin me-1"></i> Analyzing...</span>` :
-                    `
-                                <span style="font-weight: 700; color: ${c.aiScore > 75 ? 'var(--secondary)' : 'white'}">${c.aiScore}%</span>
-                                <div style="width: 60px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;">
-                                    <div style="width: ${c.aiScore}%; height: 100%; background: var(--gradient);"></div>
-                                </div>
-                                `
+                    `<span style="font-weight: 700; color: ${c.aiScore > 75 ? 'var(--secondary)' : 'white'}">${c.aiScore}%</span>`
                 }
                         </div>
                     </td>
@@ -4266,12 +4422,7 @@
                     </td>
                     <td><span style="font-weight: 700; color: var(--secondary);">${c.interviewerScore || 0}%</span></td>
                     <td>
-                        <span class="badge ${c.isHopper ? 'badge-error' : 'badge-success'}">
-                            ${c.isHopper ? 'Yes' : 'No'}
-                        </span>
-                    </td>
-                    <td>
-                        <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%; max-width: 140px;" 
+                        <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%;" 
                             onclick="event.stopPropagation()" onchange="updateCandidatePending('${c.id}', this.value)">
                             ${getAssigneeOptions(c.pendingBy)}
                         </select>
@@ -4283,8 +4434,7 @@
                         </select>
                     </td>
                     <td>
-                        <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem;" onclick="event.stopPropagation(); viewCandidate('${c.id}')">Details</button>
+                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                             <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);" 
                                 onclick="event.stopPropagation(); copyShareLink('${c.id}')">
                                 <i class="fas fa-share-alt"></i>
@@ -4294,8 +4444,6 @@
                     </td>
                 </tr>
             `).join('');
-
-            renderTop5(filtered);
         }
 
         function sortJobCandidates(field) {
@@ -4308,27 +4456,6 @@
             renderCandidates();
         }
 
-        function renderTop5(candidates) {
-            const top5 = [...candidates].sort((a, b) => b.aiScore - a.aiScore).slice(0, 5);
-            const container = document.getElementById('top5List');
-
-            if (top5.length === 0) {
-                container.innerHTML = '<p style="color: var(--text-dim); grid-column: span 5; text-align: center; padding: 20px;">No candidates processed yet.</p>';
-                return;
-            }
-
-            container.innerHTML = top5.map((c, i) => `
-                <div class="shortlist-card">
-                    <span class="rank-number">RANK #${i + 1}</span>
-                    <div class="clickable-name" style="margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" onclick="viewCandidate('${c.id}')">${c.name}</div>
-                    <div style="font-size: 1.25rem; font-weight: 800; color: var(--secondary); margin-bottom: 8px;">${c.aiScore}%</div>
-                    <button class="btn" style="background: var(--glass); color: var(--text-main); padding: 4px 8px; font-size: 0.7rem; width: 100%; border: 1px solid var(--border);" 
-                        onmouseover="this.style.background='rgba(255,255,255,0.1)'" 
-                        onmouseout="this.style.background='var(--glass)'"
-                        onclick="viewCandidate('${c.id}')">View Analysis</button>
-                </div>
-            `).join('');
-        }
 
         // Candidate Detail Modal
         let currentChart = null;
