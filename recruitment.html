@@ -746,6 +746,18 @@
             transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
+        .clickable-name {
+            cursor: pointer;
+            color: var(--primary-light);
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .clickable-name:hover {
+            color: var(--primary);
+            text-decoration: underline;
+        }
+
         /* CV Viewer Modal */
         #cvViewerModal {
             display: none;
@@ -1683,9 +1695,9 @@
                         <span style="font-size: 1.5rem;">📋</span> Interviewer Guide & Evaluation
                     </h3>
 
-                    <div style="display: grid; grid-template-columns: 3.5fr 1fr; gap: 32px; align-items: start;">
+                    <div style="display: block;">
                         <div class="card"
-                            style="background: rgba(99, 102, 241, 0.05); border-color: rgba(99, 102, 241, 0.1); padding: 0; overflow: hidden;">
+                            style="background: rgba(99, 102, 241, 0.05); border-color: rgba(99, 102, 241, 0.1); padding: 0; overflow: hidden; margin-bottom: 32px;">
                             <div
                                 style="padding: 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
                                 <div>
@@ -1704,40 +1716,6 @@
                             </div>
                             <div id="cheatSheetBody" class="interview-cards-container">
                                 <!-- Card-based interview guide injected by JS -->
-                            </div>
-                        </div>
-
-                        <div style="display: flex; flex-direction: column; gap: 24px;">
-                            <div class="card" style="background: rgba(15, 23, 42, 0.4); border-color: var(--border);">
-                                <h4 style="margin-bottom: 12px; font-size: 0.875rem; color: var(--text-dim);">Quick
-                                    Prompts
-                                </h4>
-                                <div class="quick-prompts">
-                                    <span class="prompt-chip"
-                                        onclick="addQuickComment('Highly recommended for next stage')">Next Stage</span>
-                                    <span class="prompt-chip" onclick="addQuickComment('Strong technical depth')">Strong
-                                        Tech</span>
-                                    <span class="prompt-chip" onclick="addQuickComment('Good Comm Skills')">Good
-                                        Comm</span>
-                                    <span class="prompt-chip" onclick="addQuickComment('Tech Gaps observed')">Tech
-                                        Gaps</span>
-                                    <span class="prompt-chip" onclick="addQuickComment('Cultural Fit')">Culture
-                                        Fit</span>
-                                </div>
-                            </div>
-
-                            <div class="card" style="background: rgba(15, 23, 42, 0.4); border-color: var(--border);">
-                                <h4 style="margin-bottom: 12px; font-size: 0.875rem; color: var(--text-dim);">Actions
-                                </h4>
-                                <button class="btn"
-                                    style="width: 100%; justify-content: center; background: rgba(244, 63, 94, 0.1); color: var(--accent); margin-bottom: 12px;"
-                                    onclick="deleteCurrentCandidate()">
-                                    <i class="fas fa-trash"></i> Delete Candidate
-                                </button>
-                                <button class="btn btn-primary" style="width: 100%; justify-content: center;"
-                                    onclick="viewCV()">
-                                    <i class="fas fa-eye"></i> View CV
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -2944,7 +2922,7 @@
             }
             container.innerHTML = accessibleJobs.map(job => `
                 <tr style="cursor: pointer; transition: background 0.2s ease;">
-                    <td style="font-weight: 600;">${job.title}</td>
+                    <td class="clickable-name" onclick="openJobDetails('${job.id}')">${job.title}</td>
                     <td style="font-size: 0.75rem; color: var(--text-dim);">${formatDateTime8(job.createdAt)}</td>
                     <td>${job.applicants || 0}</td>
                     <td>${job.shortlisted || 0}</td>
@@ -3253,7 +3231,7 @@
                     <td style="text-align: center;" onclick="event.stopPropagation()">
                         <input type="checkbox" class="repo-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('repoTable')">
                     </td>
-                    <td style="font-weight: 600;">${c.name}</td>
+                    <td class="clickable-name" onclick="event.stopPropagation(); viewCandidate('${c.id}')">${c.name}</td>
                     <td>
                         <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%; max-width: 140px;" 
                             onclick="event.stopPropagation()" onchange="updateCandidateJob('${c.id}', this.value)">
@@ -4262,7 +4240,7 @@
                         <input type="checkbox" class="cand-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('candidateTable')">
                     </td>
                     <td>
-                        <div style="font-weight: 600;">${c.name}</div>
+                        <div class="clickable-name" onclick="event.stopPropagation(); viewCandidate('${c.id}')">${c.name}</div>
                         <div style="font-size: 0.7rem; color: var(--text-dim);">${c.fileName}</div>
                     </td>
                     <td>${formatDate8(c.date)}</td>
@@ -4342,7 +4320,7 @@
             container.innerHTML = top5.map((c, i) => `
                 <div class="shortlist-card">
                     <span class="rank-number">RANK #${i + 1}</span>
-                    <div style="font-weight: 700; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${c.name}</div>
+                    <div class="clickable-name" style="margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" onclick="viewCandidate('${c.id}')">${c.name}</div>
                     <div style="font-size: 1.25rem; font-weight: 800; color: var(--secondary); margin-bottom: 8px;">${c.aiScore}%</div>
                     <button class="btn" style="background: var(--glass); color: var(--text-main); padding: 4px 8px; font-size: 0.7rem; width: 100%; border: 1px solid var(--border);" 
                         onmouseover="this.style.background='rgba(255,255,255,0.1)'" 

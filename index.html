@@ -6840,11 +6840,103 @@
         }
 
         /* Persona Card Styles */
+        .persona-bulk-actions {
+            display: none;
+            align-items: center;
+            gap: 20px;
+            background: #ffffff;
+            padding: 15px 25px;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            margin-top: 25px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border-left: 5px solid #004c9d;
+        }
+
+        .persona-bulk-actions-content {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+        .persona-select-all-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            color: #1e293b;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .persona-select-all-container input {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #004c9d;
+        }
+
+        .selection-status {
+            font-size: 0.9em;
+            color: #64748b;
+            font-weight: 500;
+            margin-right: auto;
+        }
+
+        .selection-count-badge {
+            background: #004c9d;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 0.85em;
+            font-weight: 700;
+            margin-left: 5px;
+        }
+
         #persona-results {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
             gap: 25px;
+            margin-top: 15px;
+        }
+
+        .persona-bulk-actions {
+            display: none; /* Hidden by default, shown when items are selected */
+            align-items: center;
+            justify-content: space-between;
+            background: #f8fafc;
+            padding: 18px 25px;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
             margin-top: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            border-left: 6px solid #004c9d;
+            animation: slideInDown 0.3s ease-out;
+            position: sticky;
+            top: 20px;
+            z-index: 100;
+        }
+
+        .persona-bulk-actions-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .persona-bulk-actions-btns {
+            display: flex;
+            gap: 10px;
+        }
+
+        @keyframes slideInDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .persona-card {
@@ -6860,6 +6952,25 @@
             border-top: 6px solid #004c9d;
             position: relative;
             overflow: hidden;
+            cursor: pointer; /* Encourage clicking */
+        }
+
+        .persona-card.selected {
+            border-top: 6px solid #10b981;
+            background: #f0fdf4;
+            box-shadow: 0 0 0 2px #10b981, 0 8px 24px rgba(16, 185, 129, 0.15);
+        }
+
+        .persona-card-checkbox {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            z-index: 10;
+            accent-color: #004c9d;
+            border-radius: 4px;
         }
 
         .persona-card::before {
@@ -12506,15 +12617,29 @@
                             </button>
                         </div>
                     </div>
+                    <div class="persona-bulk-actions">
+                        <div class="persona-bulk-actions-info">
+                            <i class="fas fa-check-circle" style="color: #004c9d; font-size: 1.2rem;"></i>
+                            <span id="selected-persona-count">0 personas selected</span>
+                        </div>
+                        <div class="persona-bulk-actions-btns">
+                            <button class="btn-action" style="background: #64748b; margin: 0; width: auto;" onclick="selectAllPersonas()">
+                                <i class="fas fa-check-double"></i> Select All
+                            </button>
+                            <button class="btn-action" style="background: #94a3b8; margin: 0; width: auto;" onclick="deselectAllPersonas()">
+                                <i class="fas fa-times"></i> Deselect All
+                            </button>
+                            <button class="btn-action" style="background: #2563eb; margin: 0; width: auto;" onclick="copySelectedPersonas()">
+                                <i class="fas fa-copy"></i> Copy Selected
+                            </button>
+                        </div>
+                    </div>
                     <div id="persona-results"></div>
-                    <button type="button" id="copy-persona-results-button" class="tooltip"
-                        style="display:none; margin-right: 10px;" onclick="copyPersonaResults(event)">Copy to
-                        clipboard<span>Click to copy the persona
-                            results
-                            to
-                            your
-                            clipboard.</span>
-                    </button>
+                        <button type="button" id="copy-persona-results-button" class="btn-action"
+                            style="display:none; width: auto; background: #6366f1;" onclick="copyPersonaResults(event)">
+                            <i class="fas fa-copy"></i> Copy All to Clipboard
+                        </button>
+                    </div>
 
                 </div>
             </div>
@@ -30789,7 +30914,28 @@ ${selectedText}
                     cards.forEach((card, index) => {
                         const uniqueId = `persona-card-${Date.now()}-${index}`;
                         card.id = uniqueId;
+                        card.classList.add('persona-card'); // Ensure class is present
                         card.setAttribute('contenteditable', 'true');
+                        
+                        // Checkbox for selection
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.className = 'persona-card-checkbox';
+                        checkbox.setAttribute('contenteditable', 'false');
+                        checkbox.onclick = (e) => {
+                            e.stopPropagation();
+                            togglePersonaSelection(uniqueId);
+                        };
+                        card.prepend(checkbox);
+
+                        // Card click to toggle selection
+                        card.onclick = (e) => {
+                            // If user is editing text, don't toggle selection
+                            if (e.target.hasAttribute('contenteditable') || e.target.closest('[contenteditable="true"]') && e.target !== card) {
+                                return;
+                            }
+                            togglePersonaSelection(uniqueId);
+                        };
 
                         // Add delete button if not already present
                         if (!card.querySelector('.card-delete-btn')) {
@@ -30824,7 +30970,6 @@ ${selectedText}
                 document.getElementById("persona").style.backgroundColor = "green";
                 updateCollapsibleState('persona', 'success');
                 document.getElementById("copy-persona-results-button").style.display = "inline-block";
-                document.getElementById("export-persona-results-button").style.display = "inline-block";
                 document.getElementById("persona-instruction").style.display = "block";
             }
 
@@ -30968,6 +31113,8 @@ ${selectedText}
                 btn.innerHTML = originalText;
                 btn.disabled = false;
                 updateCollapsibleState('persona', 'success');
+                // Show the copy and export buttons for filter results
+                document.getElementById("copy-persona-results-button").style.display = "inline-block";
             }
         }
 
@@ -31346,6 +31493,74 @@ ${selectedText}
                     updateCollapsibleState('mediaPlanBtn', 'error');
                 }
             }
+        }
+
+        function togglePersonaSelection(cardId) {
+            const card = document.getElementById(cardId);
+            if (!card) return;
+            
+            card.classList.toggle('selected');
+            const checkbox = card.querySelector('.persona-card-checkbox');
+            if (checkbox) {
+                checkbox.checked = card.classList.contains('selected');
+            }
+            updatePersonaSelectionCount();
+        }
+
+        function updatePersonaSelectionCount() {
+            const selectedCount = document.querySelectorAll('.persona-card.selected').length;
+            const statusElement = document.getElementById('selected-persona-count');
+            if (statusElement) {
+                statusElement.textContent = `${selectedCount} persona${selectedCount === 1 ? '' : 's'} selected`;
+            }
+        }
+
+        function selectAllPersonas() {
+            const cards = document.querySelectorAll('.persona-card');
+            cards.forEach(card => {
+                if (card.style.display !== 'none') { // Only visible ones
+                    card.classList.add('selected');
+                    const checkbox = card.querySelector('.persona-card-checkbox');
+                    if (checkbox) checkbox.checked = true;
+                }
+            });
+            updatePersonaSelectionCount();
+        }
+
+        function deselectAllPersonas() {
+            const cards = document.querySelectorAll('.persona-card.selected');
+            cards.forEach(card => {
+                card.classList.remove('selected');
+                const checkbox = card.querySelector('.persona-card-checkbox');
+                if (checkbox) checkbox.checked = false;
+            });
+            updatePersonaSelectionCount();
+        }
+
+        function copySelectedPersonas() {
+            const selectedCards = document.querySelectorAll('.persona-card.selected');
+            if (selectedCards.length === 0) {
+                showToast("Please select at least one persona to copy.");
+                return;
+            }
+
+            let fullText = "";
+            selectedCards.forEach((card, index) => {
+                // Get text excluding UI buttons/checkboxes
+                const clone = card.cloneNode(true);
+                const toRemove = clone.querySelectorAll('.card-delete-btn, .persona-card-checkbox');
+                toRemove.forEach(el => el.remove());
+                
+                const cardText = clone.innerText.trim();
+                fullText += `--- Persona ${index + 1} ---\n${cardText}\n\n`;
+            });
+
+            navigator.clipboard.writeText(fullText.trim()).then(() => {
+                showToast(`Copied ${selectedCards.length} persona${selectedCards.length === 1 ? '' : 's'} to clipboard!`);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                showToast("Failed to copy to clipboard.");
+            });
         }
 
         async function auditLandingPageDirectWeb() {
@@ -32250,7 +32465,6 @@ ${selectedText}
             range.selectNodeContents(tempElement);
             selection.addRange(range);
 
-
             try {
                 const successful = document.execCommand('copy');
                 if (successful) {
@@ -32269,46 +32483,67 @@ ${selectedText}
         }
 
         function copyPersonaResults() {
-            const resultsDiv = document.getElementById("persona-results");
+            const cards = document.querySelectorAll('#persona-results .persona-card');
 
-            if (!resultsDiv) {
-                console.warn("No element with id 'persona-results' found.");
-                alert("Perosna results not found.");
+            if (cards.length === 0) {
+                alert("No personas found to copy.");
                 return;
             }
 
-            // Create a temporary element for copying.  This ensures we get ALL the content, including hidden parts.
-            const tempElement = document.createElement("div");
-            tempElement.innerHTML = resultsDiv.innerHTML; //copy innerHTML (preserves formatting)
-            tempElement.style.whiteSpace = "pre-wrap";  // Preserve line breaks and spaces.  Crucial!
-            tempElement.style.userSelect = "auto"; // Allow text selection
+            let textToCopy = "";
 
-            document.body.appendChild(tempElement); // Add to the DOM
+            cards.forEach((card, index) => {
+                // Try to extract text sections logically
+                const name = card.querySelector('h3') ? card.querySelector('h3').innerText : "Persona " + (index + 1);
+                const ageInfo = card.querySelector('.persona-age') ? card.querySelector('.persona-age').innerText : "";
+                
+                textToCopy += `-------------------------------------------\n`;
+                textToCopy += `PERSONA: ${name}\n`;
+                if (ageInfo) textToCopy += `${ageInfo}\n`;
+                textToCopy += `-------------------------------------------\n\n`;
 
-            // Select the text in the temporary element
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            const range = document.createRange();
-            range.selectNodeContents(tempElement);
-            selection.addRange(range);
+                const sections = card.querySelectorAll('.persona-section');
+                sections.forEach(section => {
+                    const title = section.querySelector('strong') ? section.querySelector('strong').innerText : "";
+                    const content = section.querySelector('p') ? section.querySelector('p').innerText : 
+                                   section.querySelector('div') ? Array.from(section.querySelectorAll('span')).map(s => s.innerText).join(', ') : "";
+                    
+                    if (title && content) {
+                        textToCopy += `${title} ${content}\n\n`;
+                    }
+                });
 
+                const rationale = card.querySelector('.persona-rationale');
+                if (rationale) {
+                    textToCopy += `Source: ${rationale.innerText.replace('Source:', '').trim()}\n`;
+                }
 
+                textToCopy += `\n\n`;
+            });
+
+            const textarea = document.createElement("textarea");
+            textarea.value = textToCopy;
+            document.body.appendChild(textarea);
+            textarea.select();
             try {
                 const successful = document.execCommand('copy');
                 if (successful) {
-                    alert("Personas copied to clipboard!.");
+                    const btn = document.getElementById("copy-persona-results-button");
+                    const originalHTML = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                    setTimeout(() => {
+                        btn.innerHTML = originalHTML;
+                    }, 2000);
                 } else {
-                    console.error("Failed to copy text.");
-                    alert("Failed to copy.  Please try again or manually select and copy the text.");
+                    alert("Copy failed. Please try manual copy.");
                 }
             } catch (err) {
-                console.error('Unable to copy: ' + err);
-                alert("An error occurred while copying.  Please try again or manually select and copy the text.");
-            } finally {
-                document.body.removeChild(tempElement);  // Remove the temporary element
-                selection.removeAllRanges(); // Deselect everything
+                console.error("Copy error:", err);
+                alert("Unable to copy.");
             }
+            document.body.removeChild(textarea);
         }
+
 
 
         // Get the modal
