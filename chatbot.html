@@ -4,7 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monday x OpenAI Chatbot</title>
+    <title>AI Client Portal Chatbot</title>
+    <!-- External Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- Fonts & Icons -->
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap"
@@ -407,10 +411,54 @@
         .message.bot {
             align-self: flex-start;
             background: #fff;
-            color: var(--text-main);
+            color: #1e293b;
+            border: 1px solid #e2e8f0;
             border-bottom-left-radius: 4px;
             box-shadow: var(--shadow-md);
-            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        /* --- Markdown Table Styles --- */
+        .message table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+            font-size: 0.85rem;
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+
+        .message th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 700;
+            text-align: left;
+            padding: 10px 12px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .message td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #1e293b;
+        }
+
+        .message tr:last-child td {
+            border-bottom: none;
+        }
+
+        .message tr:nth-child(even) {
+            background: #fdfdfd;
+        }
+
+        .message p {
+            margin-bottom: 8px;
+        }
+
+        .message ul, .message ol {
+            margin-bottom: 8px;
+            padding-left: 20px;
         }
 
         .message .time {
@@ -512,6 +560,34 @@
                 right: -100%;
             }
         }
+        .contact-agent-container {
+            margin-top: 12px;
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .contact-agent-btn {
+            background: var(--primary-navy);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .contact-agent-btn:hover {
+            background: #1a3a5f;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            color: white;
+        }
     </style>
 </head>
 
@@ -578,8 +654,9 @@
                 <div id="boardsList" style="display: flex; flex-direction: column; gap: 8px;">
                     <!-- Rows will be injected here -->
                 </div>
-                <small style="font-size: 0.7rem; color: var(--text-muted); margin-top: 8px; display: block;">Board
-                    9340032409 is synced automatically.</small>
+                <small style="font-size: 0.7rem; color: var(--text-muted); margin-top: 8px; display: block;">
+                    Only items marked <strong>'Yes'</strong> in <strong>'Portal View'</strong> column will be synced.
+                </small>
             </div>
 
             <!-- Context URLs -->
@@ -837,7 +914,6 @@
         async function saveSettings() {
             const openaiKey = document.getElementById('openaiKey').value;
             const mondayKey = document.getElementById('mondayKey').value;
-            const boardId = document.getElementById('boardId').value;
             const contextUrls = document.getElementById('contextUrls').value;
             const autoSync = document.getElementById('autoSync').checked;
 
@@ -882,6 +958,7 @@
         }
 
         const SERANKING_LAMBDA_URL = 'https://u2u2ptqaxd.execute-api.ap-southeast-1.amazonaws.com/seRanking';
+        const MONDAY_LAMBDA_URL = 'https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday';
         let autoSyncTimer = null;
 
         function startAutoSync() {
@@ -920,6 +997,32 @@
             }
         }
 
+        async function downloadFileViaLambda(fileUrl) {
+            try {
+                const res = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'download_file', fileUrl: fileUrl })
+                });
+                if (!res.ok) throw new Error(`Lambda file error: ${res.status}`);
+                const data = await res.json();
+                const body = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
+                
+                if (body.error) throw new Error(body.error);
+                
+                // Convert base64 back to Blob
+                const binaryString = atob(body.content);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                return new Blob([bytes], { type: body.contentType || 'application/octet-stream' });
+            } catch (e) {
+                console.error("Download Proxy Error:", e);
+                return null;
+            }
+        }
+
         async function syncMondayToOpenAI() {
             if (isSyncing) return;
             const mondayKey = localStorage.getItem('mondayKey');
@@ -945,17 +1048,75 @@
                 };
 
                 // 1. Fetch from Monday.com Boards
+                const mondayFileIds = [];
                 let boardIds = boardIdsStr.split(',').map(id => id.trim()).filter(id => id);
                 for (const bId of boardIds) {
                     updateSyncStatus(`Fetching Board ${bId}...`, true);
-                    const query = `{ boards(ids: [${bId}]) { name items_page (limit: 500) { items { name column_values { text column { title } } updates (limit: 5) { text_body created_at creator { name } } } } } }`;
+                    const query = `{ boards(ids: [${bId}]) { name items_page (limit: 500) { items { name column_values { text column { title } } updates (limit: 5) { text_body created_at creator { name } assets { id name public_url } } } } } }`;
                     const mResponse = await fetch("https://api.monday.com/v2", {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': mondayKey, 'API-Version': '2023-10' },
                         body: JSON.stringify({ query })
                     });
-                    const mData = await mResponse.json();
-                    if (mData.data?.boards?.[0]) combinedContext.monday_boards.push(mData.data.boards[0]);
+                        const mData = await mResponse.json();
+                        if (mData.data?.boards?.[0]) {
+                            const board = mData.data.boards[0];
+                            console.log(`[DEBUG] Syncing Board: ${board.name} (${bId})`);
+                            
+                            // Filter items: Only include if 'Portal View' column is 'Yes' (Case-Insensitive)
+                            if (board.items_page && board.items_page.items) {
+                                const originalCount = board.items_page.items.length;
+                                board.items_page.items = board.items_page.items.filter(item => {
+                                    const hasPortalView = (item.column_values || []).some(cv => {
+                                        const titleMatch = cv.column && cv.column.title && 
+                                                         cv.column.title.toLowerCase().trim() === 'portal view';
+                                        const valueMatch = cv.text && cv.text.toLowerCase().trim() === 'yes';
+                                        
+                                        if (titleMatch) {
+                                            console.log(`  - Item: "${item.name}", Column: "${cv.column.title}", Value: "${cv.text}", Match: ${valueMatch}`);
+                                        }
+                                        return titleMatch && valueMatch;
+                                    });
+                                    return hasPortalView;
+                                });
+                                console.log(`  -> Board ${bId}: Filtered ${originalCount} -> ${board.items_page.items.length} (Portal View: Yes)`);
+
+                                // --- ASSET SYNC LOGIC ---
+                                const assetsToSync = [];
+                                board.items_page.items.forEach(item => {
+                                    (item.updates || []).forEach(update => {
+                                        (update.assets || []).forEach(asset => {
+                                            assetsToSync.push({ item_name: item.name, ...asset });
+                                        });
+                                    });
+                                });
+
+                                for (const asset of assetsToSync) {
+                                    updateSyncStatus(`Syncing File: ${asset.name}...`, true);
+                                    try {
+                                        // Use Lambda Bridge to bypass CORS
+                                        const blob = await downloadFileViaLambda(asset.public_url);
+                                        if (!blob) throw new Error("Could not download file via proxy");
+                                        
+                                        const file = new File([blob], asset.name);
+                                        const fd = new FormData();
+                                        fd.append('purpose', 'assistants');
+                                        fd.append('file', file);
+                                        const uRes = await fetch("https://api.openai.com/v1/files", {
+                                            method: 'POST',
+                                            headers: { 'Authorization': `Bearer ${openaiKey}` },
+                                            body: fd
+                                        });
+                                        const uData = await uRes.json();
+                                        if (uData.id) {
+                                            mondayFileIds.push(uData.id);
+                                            console.log(`  [FILE SYNC] Linked "${asset.name}" to OpenAI: ${uData.id}`);
+                                        }
+                                    } catch (e) { console.warn(`  [FILE SYNC ERROR] ${asset.name}:`, e); }
+                                }
+                            }
+                            combinedContext.monday_boards.push(board);
+                        }
                 }
 
                 // 2. Fetch External Context (SeRanking/Dashboards)
@@ -1015,6 +1176,8 @@
                 }
 
                 console.log("FINAL COMBINED CONTEXT (FLAT):", combinedContext);
+                console.log("MONDAY BOARDS DATA SENT TO OPENAI:", JSON.stringify(combinedContext.monday_boards, null, 2));
+                
                 updateSyncStatus("Uploading To OpenAI...", true);
 
                 updateSyncStatus("Uploading Clean Snapshot...", true);
@@ -1057,12 +1220,13 @@
                 const vsFilesData = await vsFilesRes.json();
                 const oldFileList = (vsFilesData.data || []).map(f => f.id);
 
-                // 5. Add New File
-                updateSyncStatus("Linking New Data...", true);
-                await fetch(`https://api.openai.com/v1/vector_stores/${currentVsId}/files`, {
+                // 5. Add All Files to Vector Store (Batch)
+                updateSyncStatus("Linking Vector Store...", true);
+                const allFileIds = [fileId, ...mondayFileIds];
+                await fetch(`https://api.openai.com/v1/vector_stores/${currentVsId}/file_batches`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json', 'OpenAI-Beta': 'assistants=v2' },
-                    body: JSON.stringify({ file_id: fileId })
+                    body: JSON.stringify({ file_ids: allFileIds })
                 });
 
                 // 6. Delete Old Files from VS and OpenAI
@@ -1109,7 +1273,16 @@ CRITICAL INSTRUCTIONS FOR KEYWORDS:
 2. When asked for ALL keywords, you MUST look for the 'full_keywords_text_list' field first. 
 3. This field contains the complete, pre-formatted list. DO NOT summarize it; output the entire list.
 4. Verify the total count using 'total_seo_rankings_count'. If it says 25, ensure your list has 25 items.
-5. If you cannot find 'full_keywords_text_list', search the 'seo_live_rankings' array as a backup.`,
+5. If you cannot find 'full_keywords_text_list', search the 'seo_live_rankings' array as a backup.
+
+CRITICAL FORMATTING RULE: 
+- Whenever you present a list of tasks from Monday.com, SEO keyword rankings from SeRanking, or any structured data, ALWAYS format it as a Markdown table.
+- Tables should have clear, bold headings.
+- Be concise in your table cells.
+- If there is only one item, a table is still preferred for consistency.
+
+CRITICAL CONTACT RULE:
+- If the user asks to speak to a live agent, contact a consultant, or reach a CS manager, ALWAYS respond politely and include the exact marker "[ACTION: CONTACT_CONSULTANT]" at the very end of your message. DO NOT include any text after this marker. This is a system instruction to trigger the UI button.`,
                     model: "gpt-4o-mini",
                     tools: tools,
                     tool_resources: { file_search: { vector_store_ids: [currentVsId] } }
@@ -1250,19 +1423,34 @@ CRITICAL INSTRUCTIONS FOR KEYWORDS:
             const msg = document.createElement('div');
             msg.className = `message ${sender}`;
 
-            // Format bold and list items
-            const div = document.createElement('div');
-            div.className = `message ${role}`;
-
             // Clean OpenAI source citations (e.g., 【82:0†source】)
             const cleanText = text.replace(/【\d+:\d+†source】/g, '').trim();
 
-            div.innerHTML = `
-                ${cleanText}
+            // Render Markdown (using marked.js)
+            let htmlContent = marked.parse(cleanText);
+
+            // Handle [ACTION: CONTACT_CONSULTANT] marker
+            if (sender === 'bot' && htmlContent.includes('[ACTION: CONTACT_CONSULTANT]')) {
+                htmlContent = htmlContent.replace('[ACTION: CONTACT_CONSULTANT]', `
+                    <div class="contact-agent-container">
+                        <button class="contact-agent-btn" onclick="openContactEmail()">
+                            <i class="fas fa-envelope"></i> Contact My Consultant
+                        </button>
+                    </div>
+                `);
+            }
+
+            msg.innerHTML = `
+                <div class="msg-content">${htmlContent}</div>
                 <span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             `;
-            list.appendChild(div);
+            list.appendChild(msg);
             list.scrollTop = list.scrollHeight;
+        }
+
+        function openContactEmail() {
+            // Standard mailto link - prompts the user's default email client
+            window.location.href = "mailto:support@yourdomain.com?subject=Client%20Portal%20Contact%20Request";
         }
 
         function showTyping(show) {
