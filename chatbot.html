@@ -130,15 +130,20 @@
             background: #fff;
             box-shadow: -10px 0 30px rgba(0, 0, 0, 0.1);
             z-index: 20;
-            padding: 32px;
+            padding: 32px 32px 0 32px;
+            /* Bottom padding removed to allow button to sit flush */
             display: flex;
             flex-direction: column;
             gap: 20px;
             transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
         .settings-sidebar.active {
             right: 0;
+            overflow-y: auto;
+            /* Ensure sidebar itself is scrollable */
         }
 
         .settings-sidebar h2 {
@@ -146,6 +151,171 @@
             margin: 0;
             font-size: 1.25rem;
             color: var(--primary-navy);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .section-header h3 {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .btn-sidebar {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: var(--primary-navy);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: var(--transition);
+        }
+
+        .btn-sidebar:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .collapsible-section {
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+
+        .collapsible-header {
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            background: #fff;
+            user-select: none;
+        }
+
+        .collapsible-content {
+            display: none;
+            padding: 20px;
+            border-top: 1px solid #e2e8f0;
+            background: #f8fafc;
+            min-height: 150px;
+            /* Force minimum height when shown */
+        }
+
+        .collapsible-section.active {
+            height: auto !important;
+            max-height: none !important;
+        }
+
+        .collapsible-section.active .collapsible-content {
+            display: block !important;
+            visibility: visible !important;
+        }
+
+        .collapsible-section .toggle-icon {
+            transition: transform 0.3s ease;
+        }
+
+        .collapsible-section.active .toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .function-row {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .f-row-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0;
+            cursor: pointer;
+            padding: 4px 0;
+        }
+
+        .f-row-header h4 {
+            font-size: 0.8rem;
+            margin: 0;
+            color: var(--primary-navy);
+        }
+
+        .f-details {
+            display: none;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dotted #e2e8f0;
+        }
+
+        .f-row-active .f-details {
+            display: block;
+        }
+
+        .f-row-active .toggle-icon {
+            transform: rotate(90deg);
+        }
+
+        .function-row .f-controls {
+            position: absolute;
+            top: 10px;
+            right: 12px;
+            display: flex;
+            gap: 8px;
+            opacity: 0.6;
+            transition: var(--transition);
+        }
+
+        .function-row:hover .f-controls {
+            opacity: 1;
+        }
+
+        .f-control-btn {
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .f-control-btn:hover {
+            color: var(--primary-navy);
+        }
+
+        .f-control-btn.delete:hover {
+            color: #ef4444;
+        }
+
+        .function-row input,
+        .function-row textarea {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 0.8rem;
+            margin-bottom: 8px;
+        }
+
+        .function-row textarea {
+            min-height: 50px;
+            font-family: monospace;
         }
 
         .form-group {
@@ -349,7 +519,7 @@
 
     <div class="app-container">
         <header>
-            <h1><i class="fas fa-robot"></i> Monday Chat AI</h1>
+            <h1><i class="fas fa-robot"></i> Client Portal Chatbot Testing</h1>
             <div class="controls">
                 <div id="syncStatus" class="status-badge">
                     <i class="fas fa-circle-notch fa-spin" id="syncIcon"></i>
@@ -362,42 +532,104 @@
         </header>
 
         <aside class="settings-sidebar" id="settingsSidebar">
-            <h2>Settings</h2>
-            <div class="form-group">
-                <label>OpenAI API Key</label>
-                <input type="password" id="openaiKey" placeholder="sk-...">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h2 style="margin:0;">Settings</h2>
+                <button class="btn btn-outline" onclick="toggleSettings()"
+                    style="padding: 5px 10px; border-color: #e2e8f0; color: var(--primary-navy);">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
-            <div class="form-group">
-                <label>Monday API Key</label>
-                <input type="password" id="mondayKey" placeholder="ey...">
-            </div>
-            <div class="form-group">
-                <label>Additional Monday Board ID(s)</label>
-                <input type="text" id="boardId" placeholder="e.g. 2845615047, 123456789">
-                <small style="font-size: 0.7rem; color: var(--text-muted);">Board 9340032409 is synced automatically.
-                    Add more IDs comma-separated.</small>
-            </div>
-            <div class="form-group">
-                <label>Context URLs (SeRanking/Looker Studio)</label>
-                <textarea id="contextUrls" placeholder="One URL per line..." rows="3"
-                    style="padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; font-size: 0.9rem; resize: vertical;"></textarea>
-            </div>
-            <div class="form-group"
-                style="display: flex; align-items: flex-start; gap: 10px; margin-top: 15px; padding: 10px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
-                <input type="checkbox" id="autoSync" style="width: 18px; height: 18px; margin-top: 2px;">
-                <div>
-                    <label for="autoSync" style="font-weight: 600; margin-bottom: 2px;">Enable Auto-Sync (Every
-                        30m)</label>
-                    <small id="syncNextTime" style="display: block; font-size: 0.75rem; color: #64748b;">Syncs all
-                        boards & context in background.</small>
+
+            <!-- API Credentials Section -->
+            <div class="collapsible-section" id="credentialSection">
+                <div class="collapsible-header"
+                    onclick="this.closest('.collapsible-section').classList.toggle('active')">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i
+                            class="fas fa-key" style="margin-right: 8px; opacity: 0.5;"></i> API Credentials</span>
+                    <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
+                </div>
+                <div class="collapsible-content">
+                    <div class="form-group"
+                        style="display: flex !important; flex-direction: column !important; margin-bottom: 20px !important;">
+                        <label
+                            style="color: var(--primary-navy) !important; display: block !important; margin-bottom: 8px !important; font-size: 0.8rem !important; font-weight: 700 !important;">OpenAI
+                            API Key</label>
+                        <input type="password" id="openaiKey" placeholder="sk-..."
+                            style="display: block !important; width: 100% !important; padding: 12px !important; border-radius: 10px !important; border: 1px solid #cbd5e1 !important;">
+                    </div>
+                    <div class="form-group" style="display: flex !important; flex-direction: column !important;">
+                        <label
+                            style="color: var(--primary-navy) !important; display: block !important; margin-bottom: 8px !important; font-size: 0.8rem !important; font-weight: 700 !important;">Monday
+                            API Key</label>
+                        <input type="password" id="mondayKey" placeholder="ey..."
+                            style="display: block !important; width: 100% !important; padding: 12px !important; border-radius: 10px !important; border: 1px solid #cbd5e1 !important;">
+                    </div>
                 </div>
             </div>
-            <button class="btn btn-primary" onclick="saveSettings()">
-                <i class="fas fa-save"></i> Save & Sync
-            </button>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: auto;">
-                Note: Keys are saved in your browser's local storage for convenience.
-            </p>
+
+            <!-- Dynamic Board Manager -->
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label style="margin:0;">Monday Boards</label>
+                    <button class="btn-sidebar" onclick="addBoardRow('')" style="padding: 2px 8px; font-size: 0.7rem;">
+                        <i class="fas fa-plus"></i> Add Board
+                    </button>
+                </div>
+                <div id="boardsList" style="display: flex; flex-direction: column; gap: 8px;">
+                    <!-- Rows will be injected here -->
+                </div>
+                <small style="font-size: 0.7rem; color: var(--text-muted); margin-top: 8px; display: block;">Board
+                    9340032409 is synced automatically.</small>
+            </div>
+
+            <!-- Context URLs -->
+            <div class="form-group">
+                <label>Context URLs</label>
+                <textarea id="contextUrls" placeholder="One URL per line..." rows="2"
+                    style="padding: 10px; border-radius: 12px; border: 1px solid #e2e8f0; font-size: 0.85rem; resize: vertical; min-height: 50px; width: 100%; font-family: inherit; background: #f8fafc;"></textarea>
+            </div>
+
+            <!-- Compact Auto-Sync Toggle -->
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 10px 14px; border-radius: 12px; border: 1px solid #e2e8f0; margin-top: 10px;">
+                <div style="display: flex; flex-direction: column;">
+                    <label for="autoSync"
+                        style="font-weight: 700; font-size: 0.8rem; color: var(--primary-navy); margin: 0; cursor: pointer;">Auto-Sync</label>
+                    <small id="syncNextTime"
+                        style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">Offline</small>
+                </div>
+                <input type="checkbox" id="autoSync"
+                    style="width: 20px; height: 20px; cursor: pointer; accent-color: var(--accent-blue);">
+            </div>
+
+            <div class="section-header" style="margin-top: 24px;">
+                <h3>Custom Functions</h3>
+            </div>
+
+            <div class="global-actions" style="display: flex; gap: 8px; margin-bottom: 16px;">
+                <button class="btn-sidebar" onclick="addFunctionRow()">
+                    <i class="fas fa-plus"></i> Add New
+                </button>
+                <button class="btn-sidebar" onclick="toggleAllFunctions(true)">
+                    <i class="fas fa-expand-alt"></i> Expand
+                </button>
+                <button class="btn-sidebar" onclick="clearAllFunctions()" style="color: #ef4444;">
+                    <i class="fas fa-trash-alt"></i> Clear
+                </button>
+            </div>
+
+            <div id="functionsList" style="margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px;">
+            </div>
+
+            <div style="min-height: 80px;"></div> <!-- Spacer for scrollable content -->
+
+            <div
+                style="position: sticky; bottom: 0; left: -32px; right: -32px; margin: auto -32px 0 -32px; padding: 20px 32px; background: #fff; border-top: 1px solid #e2e8f0; z-index: 10; box-shadow: 0 -10px 20px rgba(0,0,0,0.05);">
+                <button class="btn btn-primary" onclick="saveSettings()"
+                    style="width: 100%; border-radius: 12px; height: 50px; font-weight: 700; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);">
+                    <i class="fas fa-save" style="margin-right: 8px;"></i> Save & Sync
+                </button>
+            </div>
         </aside>
 
         <main class="chat-area">
@@ -431,8 +663,22 @@
             document.getElementById('openaiKey').value = localStorage.getItem('openaiKey') || "";
             document.getElementById('mondayKey').value = localStorage.getItem('mondayKey') || "";
             document.getElementById('contextUrls').value = localStorage.getItem('contextUrls') || "";
-            document.getElementById('boardId').value = localStorage.getItem('boardId') || "";
             document.getElementById('autoSync').checked = localStorage.getItem('autoSync') === "true";
+
+            // Load Boards
+            const savedBoards = JSON.parse(localStorage.getItem('boardIds_v2') || '[]');
+            if (savedBoards.length === 0) {
+                const legacyId = localStorage.getItem('boardId');
+                if (legacyId) {
+                    legacyId.split(',').forEach(id => addBoardRow(id.trim()));
+                } else {
+                    addBoardRow(''); // Start with one empty row
+                }
+            } else {
+                savedBoards.forEach(b => addBoardRow(b.id, b.name));
+            }
+
+            renderFunctions();
 
             if (assistantId) {
                 updateSyncStatus("Assistant Ready", false, true);
@@ -449,6 +695,145 @@
             sidebar.classList.toggle('active');
         }
 
+        // Dynamic Board Row Management
+        function addBoardRow(id = '', name = '') {
+            const list = document.getElementById('boardsList');
+            const row = document.createElement('div');
+            row.className = 'board-row';
+            row.style = "display: flex; align-items: center; gap: 8px; background: #f8fafc; padding: 8px; border-radius: 10px; border: 1px solid #e2e8f0;";
+            row.dataset.id = id;
+            row.dataset.name = name;
+
+            renderBoardRowContent(row);
+            list.appendChild(row);
+        }
+
+        function renderBoardRowContent(row) {
+            const id = row.dataset.id;
+            const name = row.dataset.name;
+
+            if (name) {
+                row.innerHTML = `
+                    <div style="flex: 1; display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                        <i class="fas fa-check-circle" style="color: #166534; font-size: 0.8rem;"></i>
+                        <span style="font-size: 0.6rem; font-weight: 600; white-space: nowrap; ">${name}</span>
+                        <span style="font-size: 0.65rem; color: #64748b; background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">${id}</span>
+                    </div>
+                    <button class="f-control-btn delete" onclick="this.closest('.board-row').remove()" style="border:none; background:none;">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                `;
+            } else {
+                row.innerHTML = `
+                    <input type="text" value="${id}" placeholder="Board ID" class="row-board-id" style="flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.8rem;">
+                    <button class="btn-sidebar" onclick="verifyIndividualBoard(this.closest('.board-row'))" style="padding: 4px 8px;">Verify</button>
+                    <button class="f-control-btn delete" onclick="this.closest('.board-row').remove()" style="border:none; background:none;">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                `;
+            }
+        }
+
+        async function verifyIndividualBoard(row) {
+            const input = row.querySelector('.row-board-id');
+            const bId = input.value.trim();
+            if (!bId) return;
+
+            const mondayKey = document.getElementById('mondayKey').value;
+            if (!mondayKey) {
+                alert('Please enter Monday API Key first.');
+                return;
+            }
+
+            const btn = row.querySelector('button');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
+            btn.disabled = true;
+
+            try {
+                const query = `{ boards(ids: [${bId}]) { name } }`;
+                const response = await fetch('https://api.monday.com/v2', {
+                    method: 'POST',
+                    headers: { 'Authorization': mondayKey, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+                const result = await response.json();
+                if (result.data && result.data.boards && result.data.boards.length > 0) {
+                    row.dataset.id = bId;
+                    row.dataset.name = result.data.boards[0].name;
+                    renderBoardRowContent(row);
+                } else {
+                    alert('Board not found.');
+                }
+            } catch (e) {
+                alert('Verification failed.');
+            } finally {
+                if (btn) {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        // Functions UI Management
+        function addFunctionRow(data = { name: '', desc: '', params: '{\n  "type": "object",\n  "properties": {}\n}' }) {
+            const list = document.getElementById('functionsList');
+            const row = document.createElement('div');
+            row.className = 'function-row f-row-active';
+            row.innerHTML = `
+                <div class="f-row-header" onclick="this.parentElement.classList.toggle('f-row-active')">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-chevron-right toggle-icon" style="font-size: 0.7rem; opacity: 0.5;"></i>
+                        <h4 class="f-title-display" style="font-weight: 700;">${data.name || 'New Function'}</h4>
+                    </div>
+                </div>
+                <div class="f-controls">
+                    <i class="fas fa-copy f-control-btn" title="Duplicate" onclick="duplicateFunction(this); event.stopPropagation();"></i>
+                    <i class="fas fa-trash f-control-btn delete" title="Delete" onclick="this.closest('.function-row').remove(); event.stopPropagation();"></i>
+                </div>
+                <div class="f-details">
+                    <input type="text" placeholder="Function Name" value="${data.name}" class="f-name" oninput="updateRowTitle(this)">
+                    <textarea placeholder="Description" class="f-desc">${data.desc}</textarea>
+                    <textarea placeholder="Parameters JSON" class="f-params">${data.params}</textarea>
+                </div>
+            `;
+            list.appendChild(row);
+        }
+
+        function updateRowTitle(input) {
+            input.closest('.function-row').querySelector('.f-title-display').innerText = input.value || 'New Function';
+        }
+
+        function duplicateFunction(btn) {
+            const row = btn.closest('.function-row');
+            const data = {
+                name: row.querySelector('.f-name').value + '_copy',
+                desc: row.querySelector('.f-desc').value,
+                params: row.querySelector('.f-params').value
+            };
+            addFunctionRow(data);
+        }
+
+        function toggleAllFunctions(expand) {
+            document.querySelectorAll('.function-row').forEach(row => {
+                if (expand) row.classList.add('f-row-active');
+                else row.classList.remove('f-row-active');
+            });
+        }
+
+        function clearAllFunctions() {
+            if (confirm("Clear all custom functions?")) {
+                document.getElementById('functionsList').innerHTML = '';
+            }
+        }
+
+        function renderFunctions() {
+            const list = document.getElementById('functionsList');
+            list.innerHTML = '';
+            const functions = JSON.parse(localStorage.getItem('customFunctions') || '[]');
+            functions.forEach(f => addFunctionRow(f));
+        }
+
         async function saveSettings() {
             const openaiKey = document.getElementById('openaiKey').value;
             const mondayKey = document.getElementById('mondayKey').value;
@@ -456,11 +841,35 @@
             const contextUrls = document.getElementById('contextUrls').value;
             const autoSync = document.getElementById('autoSync').checked;
 
-            localStorage.setItem('openaiKey', openaiKey);
+            // Collect functions
+            const functions = [];
+            document.querySelectorAll('.function-row').forEach(row => {
+                functions.push({
+                    name: row.querySelector('.f-name').value,
+                    desc: row.querySelector('.f-desc').value,
+                    params: row.querySelector('.f-params').value
+                });
+            });
+
             localStorage.setItem('mondayKey', mondayKey);
-            localStorage.setItem('boardId', boardId);
+            localStorage.setItem('openaiKey', openaiKey);
             localStorage.setItem('contextUrls', contextUrls);
             localStorage.setItem('autoSync', autoSync);
+
+            // Collect Boards
+            const boards = [];
+            document.querySelectorAll('.board-row').forEach(row => {
+                const input = row.querySelector('.row-board-id');
+                const id = input ? input.value.trim() : row.dataset.id;
+                const name = row.dataset.name || '';
+                if (id) {
+                    boards.push({ id, name });
+                }
+            });
+            localStorage.setItem('boardIds_v2', JSON.stringify(boards));
+            // Keep legacy field for compatibility with existing sync logic
+            localStorage.setItem('boardId', boards.map(b => b.id).join(','));
+            localStorage.setItem('customFunctions', JSON.stringify(functions));
 
             if (autoSync) {
                 startAutoSync();
@@ -558,17 +967,17 @@
                         if (siteMatch) {
                             const siteId = siteMatch[1];
                             updateSyncStatus(`Syncing Site ID ${siteId}...`, true);
-                            
+
                             const groupsData = await fetchSeRankingViaLambda('get_groups', siteId);
                             const keywordsData = await fetchSeRankingViaLambda('get_keywords', siteId);
                             const positionsData = await fetchSeRankingViaLambda('get_positions', siteId);
-                            
+
                             const groupMap = {};
                             if (Array.isArray(groupsData)) groupsData.forEach(g => { groupMap[g.id] = g.name; });
 
                             const posMap = {};
                             if (Array.isArray(positionsData) && positionsData[0] && positionsData[0].keywords) {
-                                positionsData[0].keywords.forEach(p => { 
+                                positionsData[0].keywords.forEach(p => {
                                     if (p.positions && p.positions.length > 0) {
                                         const latest = p.positions[p.positions.length - 1];
                                         posMap[p.id] = { pos: latest.pos, change: latest.change, date: latest.date };
@@ -612,7 +1021,7 @@
                 const blob = new Blob([JSON.stringify(combinedContext, null, 2)], { type: 'application/json' });
                 const fileName = `latest_market_context_data.json`;
                 const file = new File([blob], fileName);
-                
+
                 const fd = new FormData();
                 fd.append('purpose', 'assistants');
                 fd.append('file', file);
@@ -673,6 +1082,24 @@
                 }
 
                 // 4. Hardened Assistant Update
+                const customFunctions = JSON.parse(localStorage.getItem('customFunctions') || '[]');
+                const tools = [{ type: "file_search" }];
+
+                customFunctions.forEach(f => {
+                    if (f.name && f.params) {
+                        try {
+                            tools.push({
+                                type: "function",
+                                function: {
+                                    name: f.name,
+                                    description: f.desc,
+                                    parameters: JSON.parse(f.params)
+                                }
+                            });
+                        } catch (err) { console.error("Invalid Tool Schema for", f.name); }
+                    }
+                });
+
                 const assistantPayload = {
                     instructions: `You are the High-Precision Marketing Data Assistant. 
 The attached JSON file contains live data in 'seo_live_rankings', 'monday_boards', and a special field called 'full_keywords_text_list'.
@@ -684,7 +1111,7 @@ CRITICAL INSTRUCTIONS FOR KEYWORDS:
 4. Verify the total count using 'total_seo_rankings_count'. If it says 25, ensure your list has 25 items.
 5. If you cannot find 'full_keywords_text_list', search the 'seo_live_rankings' array as a backup.`,
                     model: "gpt-4o-mini",
-                    tools: [{ type: "file_search" }],
+                    tools: tools,
                     tool_resources: { file_search: { vector_store_ids: [currentVsId] } }
                 };
 
@@ -824,13 +1251,17 @@ CRITICAL INSTRUCTIONS FOR KEYWORDS:
             msg.className = `message ${sender}`;
 
             // Format bold and list items
-            const formattedText = text
-                .replace(/\n/g, '<br>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/^- (.*)/gm, '• $1');
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
 
-            msg.innerHTML = `${formattedText}<span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
-            list.appendChild(msg);
+            // Clean OpenAI source citations (e.g., 【82:0†source】)
+            const cleanText = text.replace(/【\d+:\d+†source】/g, '').trim();
+
+            div.innerHTML = `
+                ${cleanText}
+                <span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            `;
+            list.appendChild(div);
             list.scrollTop = list.scrollHeight;
         }
 
