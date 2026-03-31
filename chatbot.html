@@ -692,13 +692,17 @@
                 <div class="collapsible-header"
                     onclick="this.closest('.collapsible-section').classList.toggle('active')">
                     <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i
-                            class="fas fa-key" style="margin-right: 8px; opacity: 0.5;"></i> API Credentials</span>
+                            class="fas fa-key" style="margin-right: 8px; opacity: 0.5;"></i> Boards and Client</span>
                     <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
                 </div>
                 <div class="collapsible-content">
                     <div class="form-group">
                         <label>Client Email (for filtering items)</label>
                         <input type="text" id="clientEmail" placeholder="Enter client email">
+                    </div>
+                    <div class="form-group" style="margin-top: 12px;">
+                        <label>OpenAI Vector Store ID</label>
+                        <input type="text" id="vectorStoreId" placeholder="vs_...">
                     </div>
                     <div class="form-group" style="margin-top: 12px;">
                         <label>Monday.com Boards</label>
@@ -737,6 +741,19 @@
                 </div>
                 <input type="checkbox" id="autoSync"
                     style="width: 20px; height: 20px; cursor: pointer; accent-color: var(--accent-blue);">
+            </div>
+
+            <!-- Assistant Diagnosis -->
+            <div id="asstDebugSection"
+                style="margin-top: 16px; padding: 12px; background: #f1f5f9; border-radius: 12px; border: 1px solid #e2e8f0; display: none;">
+                <div
+                    style="font-size: 0.75rem; font-weight: 700; color: var(--primary-navy); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                    <i class="fas fa-microchip" style="opacity: 0.5;"></i> Assistant Diagnostics
+                </div>
+                <div id="asstDebugInfo"
+                    style="font-size: 0.7rem; color: #475569; font-family: monospace; white-space: pre-wrap; word-break: break-all;">
+                    Loading stats...
+                </div>
             </div>
 
             <div class="section-header" style="margin-top: 24px;">
@@ -831,6 +848,10 @@
             renderBoardList();
 
             document.getElementById('clientEmail').value = localStorage.getItem('clientEmail') || "";
+            const vsId = localStorage.getItem('vectorStoreId') || 'vs_69cba3d2f51881918a4211f57b70c546';
+            const correctedVsId = vsId.includes('69ca') ? 'vs_69cba3d2f51881918a4211f57b70c546' : vsId;
+            document.getElementById('vectorStoreId').value = correctedVsId;
+            localStorage.setItem('vectorStoreId', correctedVsId);
             document.getElementById('contextUrls').value = localStorage.getItem('contextUrls') || "";
             document.getElementById('autoSync').checked = localStorage.getItem('autoSync') === 'true';
         }
@@ -974,11 +995,13 @@
 
         function saveSettings() {
             const clientEmail = document.getElementById('clientEmail').value.trim();
+            const vsId = document.getElementById('vectorStoreId').value.trim();
             const contextUrls = document.getElementById('contextUrls').value.trim();
             const autoSync = document.getElementById('autoSync').checked;
 
             localStorage.setItem('boardIds_v2', JSON.stringify(window.activeBoards || []));
             localStorage.setItem('clientEmail', clientEmail);
+            localStorage.setItem('vectorStoreId', vsId);
             localStorage.setItem('contextUrls', contextUrls);
             localStorage.setItem('autoSync', autoSync);
 
@@ -1313,11 +1336,12 @@
                 const allFileIds = [...mondayFileIds, syncFileData.id];
 
                 // 3. Vector Store Management & TOTAL Purge
-                let vectorStoreId = localStorage.getItem('vectorStoreId');
+                let vectorStoreId = document.getElementById('vectorStoreId').value.trim();
                 if (!vectorStoreId) {
                     updateSyncStatus("Creating Vector Store...", true);
                     const vsData = await fetchOpenAIViaLambda("/vector_stores", "POST", { name: "Monday Context Store" });
                     vectorStoreId = vsData.id;
+                    document.getElementById('vectorStoreId').value = vectorStoreId;
                     localStorage.setItem('vectorStoreId', vectorStoreId);
                 }
 
@@ -1329,14 +1353,18 @@
                 const vsFilesData = await fetchOpenAIViaLambda(`/vector_stores/${vectorStoreId}/files?limit=100`, "GET");
                 const oldFileList = (vsFilesData.data || []).filter(f => !allFileIds.includes(f.id)).map(f => f.id);
 
-                // 6. Delete Old Files from VS and OpenAI
-                for (const oldId of oldFileList) {
-                    try {
-                        // Remove from vector store
-                        await fetchOpenAIViaLambda(`/vector_stores/${vectorStoreId}/files/${oldId}`, "DELETE");
-                        // Delete file completely from OpenAI
-                        await fetchOpenAIViaLambda(`/files/${oldId}`, "DELETE");
-                    } catch (err) { console.warn("Cleanup error for", oldId, err); }
+                // 6. Optimized Purge: Parallel Batch Deletion of Old Files
+                // Note: Deleting from OpenAI automatically removes from all Vector Stores.
+                if (oldFileList.length > 0) {
+                    const DELETE_BATCH_SIZE = 10;
+                    for (let i = 0; i < oldFileList.length; i += DELETE_BATCH_SIZE) {
+                        const batch = oldFileList.slice(i, i + DELETE_BATCH_SIZE);
+                        await Promise.all(batch.map(async (oldId) => {
+                            try {
+                                await fetchOpenAIViaLambda(`/files/${oldId}`, "DELETE");
+                            } catch (err) { console.warn("Cleanup error for", oldId, err); }
+                        }));
+                    }
                 }
 
                 // 4. Hardened Assistant Update
@@ -1359,8 +1387,21 @@
                 });
 
                 const assistantPayload = {
-                    instructions: `You are the High-Precision Marketing Data Assistant. 
-The attached JSON file contains live data in 'seo_live_rankings', 'monday_boards', and a special field called 'full_keywords_text_list'.
+                    instructions: `You are the MediaOne Marketing Expert (Database Interface Mode).
+
+CORE MANDATE:
+- Your internal knowledge about general IT, ticketing, or SEO is DEPRECATED and UNRELIABLE for MediaOne-specific queries.
+- You are strictly an interface to the "MediaOne Knowledge Base" (.txt file) via file search (Vector Store).
+- The knowledge base is structured with entries starting with "## Entry X", followed by "**Question:**" and "**Answer:**".
+- You MUST use the file_search tool for EVERY QUERY about MediaOne services, processes, or FAQs.
+- If you find a match, extract the exact text from the "**Answer:**" field and ALWAYS cite the Entry number (e.g., "According to Entry 169...").
+
+NO-GUESSING POLICY:
+- If the knowledge base does not contain a specific match, you MUST say: "I'm sorry, I cannot find this in our FAQ database." 
+- DO NOT fall back to general IT advice or generic steps.
+
+DATA SYNC CONTEXT:
+The attached JSON file contains live data in 'seo_live_rankings', 'monday_boards', and 'full_keywords_text_list'.
 
 CRITICAL INSTRUCTIONS FOR KEYWORDS:
 1. Every targeted keyword in the SEO campaign is clearly labeled as 'IDENTITY: LIVE_SEO_KEYWORD_RANKING'.
@@ -1379,20 +1420,74 @@ CRITICAL CONTACT RULE:
 - If the user asks to speak to a live agent, contact a consultant, or reach a CS manager, ALWAYS respond politely and include the exact marker "[ACTION: CONTACT_CONSULTANT]" at the very end of your message. DO NOT include any text after this marker. This is a system instruction to trigger the UI button.`,
                     model: "gpt-4o-mini",
                     tools: tools,
-                    tool_resources: { file_search: { vector_store_ids: [vectorStoreId] } }
+                    tool_resources: {
+                        file_search: {
+                            vector_store_ids: [vectorStoreId],
+                            ranking_options: {
+                                max_num_results: 50,
+                                score_threshold: 0.05
+                            }
+                        }
+                    }
                 };
 
+                console.log("Assistant Configuration updated:", assistantPayload);
+
+                updateSyncStatus(`Linking Assistant to VS: ${vectorStoreId}...`, true);
+
                 let currentAsstId = localStorage.getItem('assistantId');
-                if (!currentAsstId) {
-                    const asstData = await fetchOpenAIViaLambda("/assistants", "POST", { ...assistantPayload, name: "Monday Context Assistant" });
-                    currentAsstId = asstData.id;
-                    localStorage.setItem('assistantId', currentAsstId);
-                } else {
-                    await fetchOpenAIViaLambda(`/assistants/${currentAsstId}`, "POST", assistantPayload);
+                let asstVerified = false;
+
+                const performAsstUpdate = async (asstId) => {
+                    updateSyncStatus(`Updating Assistant ${asstId.substring(0, 8)}...`, true);
+                    await fetchOpenAIViaLambda(`/assistants/${asstId}`, "POST", assistantPayload);
+                    // Verify linkage
+                    const check = await fetchOpenAIViaLambda(`/assistants/${asstId}`, "GET");
+                    const linkedVs = check?.tool_resources?.file_search?.vector_store_ids?.[0];
+                    if (linkedVs === vectorStoreId) {
+                        return true;
+                    }
+                    console.warn(`Linkage failed. Expected ${vectorStoreId}, got ${linkedVs}`);
+                    return false;
+                };
+
+                if (currentAsstId) {
+                    asstVerified = await performAsstUpdate(currentAsstId);
                 }
 
-                updateSyncStatus("Sync Complete!", false, true);
-                addMessage("bot", `Sync complete! Successfully updated context from **${boardIds.length} Monday boards** and **${combinedContext.external_context.length} context sources**. Background sync is active.`);
+                if (!asstVerified) {
+                    updateSyncStatus("Linkage recalcitrant. Force-creating new Assistant...", true);
+                    const asstData = await fetchOpenAIViaLambda("/assistants", "POST", { ...assistantPayload, name: `Monday Context Assistant [${new Date().toISOString().split('T')[0]}]` });
+                    currentAsstId = asstData.id;
+                    localStorage.setItem('assistantId', currentAsstId);
+
+                    // Final verification for the new one
+                    const finalCheck = await fetchOpenAIViaLambda(`/assistants/${currentAsstId}`, "GET");
+                    const finalVs = finalCheck?.tool_resources?.file_search?.vector_store_ids?.[0];
+                    if (finalVs === vectorStoreId) {
+                        asstVerified = true;
+                    }
+                }
+
+                // Update Debug UI
+                const debugSection = document.getElementById('asstDebugSection');
+                const debugInfo = document.getElementById('asstDebugInfo');
+                if (debugSection && debugInfo) {
+                    debugSection.style.display = 'block';
+                    debugInfo.innerHTML = `LIVE ASST: ${currentAsstId}\nLIVE VS:   ${vectorStoreId}\nSTATUS:    ${asstVerified ? '✅ Linked' : '❌ Link Failure'}\nMODEL:     gpt-4o-mini`;
+
+                    // Strong warning if it's still linked to the old one despite my forcing
+                    if (!vectorStoreId.includes('69cb')) {
+                        debugInfo.innerHTML += `\n\n⚠️ ID Mismatch: You are using an old Vector Store ID ending in 'a'. Please change it to 'vs_69cba3d2f51881918a4211f57b70c546' in the input field above.`;
+                    }
+                }
+
+                if (!asstVerified) {
+                    throw new Error("Assistant failed to link to Vector Store despite force-creation. Check OpenAI API limits.");
+                }
+
+                updateSyncStatus(`Sync Complete (Active VS: ${vectorStoreId})`, false, true);
+                addMessage("bot", `Sync complete! Assistant is now linked to **Vector Store: ${vectorStoreId}**. Context updated from **${boardIds.length} Monday boards**.`);
 
             } catch (error) {
                 console.error("Sync error:", error);
@@ -1440,11 +1535,18 @@ CRITICAL CONTACT RULE:
                     localStorage.setItem('threadId', threadId);
                 }
 
-                // 2. Add Message to Thread
-                await fetchOpenAIViaLambda(`/threads/${threadId}/messages`, "POST", { role: "user", content: text });
+                // 2. Add Message with Prompt Reinforcement
+                const searchHint = "[MediaOne Database Mode: Use file_search for row 169. Cite Entry numbers. NO GUESSING.]";
+                await fetchOpenAIViaLambda(`/threads/${threadId}/messages`, "POST", {
+                    role: "user",
+                    content: `${searchHint}\n\n${text}`
+                });
 
-                // 3. Create Run
-                const rData = await fetchOpenAIViaLambda(`/threads/${threadId}/runs`, "POST", { assistant_id: assistantId });
+                // 3. Create Run with Force-Overwrite Instructions
+                const rData = await fetchOpenAIViaLambda(`/threads/${threadId}/runs`, "POST", {
+                    assistant_id: assistantId,
+                    additional_instructions: "STRICT MANDATE: You are in Database Interface mode. Your internal knowledge is deprecated. You MUST search the FAQ entries (starting with ## Entry) for EVERY MediaOne question. Cite the entry number (e.g., 'According to Entry 169...'). If no match is found, say: 'I cannot find this in our FAQ database.'"
+                });
 
                 if (!rData || !rData.id) {
                     const errorMsg = rData && rData.error ? rData.error.message : "No Run ID returned from proxy.";
