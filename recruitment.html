@@ -1618,10 +1618,16 @@
                             <button class="btn" style="background: var(--glass); color: white;"
                                 onclick="closeDetailModal()">Close</button>
                         </div>
+                        <div style="display: flex; align-items: center; gap: 8px; background: var(--glass); padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border);">
+                            <label style="font-size: 0.75rem; color: var(--text-dim); font-weight: 600;">Status:</label>
+                            <select id="modalStatus" style="background: transparent; border: none; color: white; font-size: 0.875rem; outline: none; padding: 0;" 
+                                onchange="updateCandidateStatus(editingCandId, this.value)">
+                                <!-- Status injected by JS -->
+                            </select>
+                        </div>
                         <div
                             style="display: flex; align-items: center; gap: 8px; background: var(--glass); padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border);">
-                            <label style="font-size: 0.75rem; color: var(--text-dim); font-weight: 600;">Assign
-                                to:</label>
+                            <label style="font-size: 0.75rem; color: var(--text-dim); font-weight: 600;">Assign to:</label>
                             <select id="modalAssignee"
                                 style="background: transparent; border: none; color: white; font-size: 0.875rem; outline: none; padding: 0;"
                                 onchange="updateCandidatePending(editingCandId, this.value)">
@@ -2869,7 +2875,15 @@
             if (cand) {
                 cand.status = newStatus;
                 await persistenceApiCall('upsert_candidate', { id: candId, status: newStatus });
+                
+                // If modal is open for this candidate, keep it in sync
+                const modalStatus = document.getElementById('modalStatus');
+                if (editingCandId === candId && modalStatus) {
+                    modalStatus.value = newStatus;
+                }
+
                 renderCandidates();
+                filterCandidatesRepo(); // Important: sync repository view as well
             }
         }
 
@@ -4499,10 +4513,14 @@
             document.getElementById('detailSummary').innerText = c.summary;
 
 
-            // Populating Assignee options in Modal
+            // Populating Assignee & Status options in Modal
             const assigneeSelect = document.getElementById('modalAssignee');
             if (assigneeSelect) {
                 assigneeSelect.innerHTML = getAssigneeOptions(c.pendingBy);
+            }
+            const modalStatus = document.getElementById('modalStatus');
+            if (modalStatus) {
+                modalStatus.innerHTML = getStatusOptions(c.status);
             }
 
             renderComments(c);
