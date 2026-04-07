@@ -4683,7 +4683,21 @@
                 `Yours Sincerely,`
             );
 
-            window.location.href = `mailto:${c.email}?subject=${subject}&body=${body}`;
+            const mailtoUrl = `mailto:${c.email}?subject=${subject}&body=${body}`;
+
+            // Use a temporary hidden link to trigger the mailto without navigating the current page
+            const link = document.createElement('a');
+            link.href = mailtoUrl;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+
+            // Clean up the temporary element
+            setTimeout(() => {
+                if (document.body.contains(link)) {
+                    document.body.removeChild(link);
+                }
+            }, 500);
         }
 
         function rejectCurrentCandidate() {
