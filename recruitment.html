@@ -759,8 +759,8 @@
         }
 
         .cv-viewer-container {
-            width: 100%;
-            max-width: 1000px;
+            width: 95%;
+            max-width: 1800px;
             height: 100%;
             background: var(--bg-card);
             border-radius: 24px;
@@ -1947,10 +1947,12 @@
         let repoSort = { field: 'date', direction: 'desc' };
 
         // --- RBAC Helpers ---
-        function getAccessibleCandidates() {
-            if (state.effectiveRole === 'Admin') return state.candidates;
-            // Team Lead: only candidates assigned to them
-            return state.candidates.filter(c => c.pendingBy === state.currentUser);
+        function getAccessibleCandidates(includeDeleted = false) {
+            let filtered = state.effectiveRole === 'Admin' ? state.candidates : state.candidates.filter(c => c.pendingBy === state.currentUser);
+            if (!includeDeleted) {
+                filtered = filtered.filter(c => !c.deleted);
+            }
+            return filtered;
         }
 
         function getAccessibleJobs() {
@@ -2984,7 +2986,7 @@
 
         async function updateStats() {
             const accessibleJobs = getAccessibleJobs();
-            const accessibleCandidates = getAccessibleCandidates();
+            const accessibleCandidates = getAccessibleCandidates(); // Now defaults to exclude deleted
 
             const totalApplicants = accessibleJobs.reduce((sum, j) => sum + (parseInt(j.applicants) || 0), 0);
             const highQuality = accessibleCandidates.filter(c => c.aiScore > 80).length;
@@ -3144,7 +3146,7 @@
             const startStr = document.getElementById('dateStart')?.value || "";
             const endStr = document.getElementById('dateEnd')?.value || "";
 
-            const accessibleCandidates = getAccessibleCandidates();
+            const accessibleCandidates = getAccessibleCandidates(true); // Include all so we can filter for trash vs active below
             let filtered = accessibleCandidates.map(c => {
                 const job = state.jobs.find(j => String(j.id) == String(c.jobId));
                 return { ...c, jobTitle: job ? job.title : 'Unknown' };
@@ -3947,6 +3949,7 @@
                 });
 
                 // Remove from state
+                const idsSet = new Set(ids.map(String));
                 state.candidates.forEach(c => {
                     if (idsSet.has(String(c.id))) c.deleted = true;
                 });
@@ -4347,7 +4350,7 @@
         function renderCandidates() {
             console.log("renderCandidates called. ActiveJobId:", state.activeJobId, "Candidates count:", state.candidates.length);
             // If we have an active job, filter by it. Otherwise show all accessible in state.
-            let filtered = getAccessibleCandidates();
+            let filtered = getAccessibleCandidates(); // Now defaults to exclude deleted
             if (state.activeJobId) {
                 filtered = filtered.filter(c => String(c.jobId) == String(state.activeJobId));
             }
@@ -4646,8 +4649,21 @@
                 return;
             }
             const job = state.jobs.find(j => String(j.id) === String(c.jobId));
-            const subject = encodeURIComponent(`Application Update: ${job ? job.title : 'Position'} - ${c.name}`);
-            const body = encodeURIComponent(`Hi ${c.name},\n\nI hope this email finds you well.\n\n[Add your message here regarding their application for ${job ? job.title : 'the position'}]\n\nBest regards,\n${state.currentUser}`);
+
+            // Construct reference URL
+            const url = new URL(window.location.href);
+            url.searchParams.set('candidateId', c.id);
+            const candidateBoardUrl = url.toString();
+
+            const subject = encodeURIComponent(`Interview Invitation: ${job ? job.title : 'Position'} - ${c.name}`);
+            const body = encodeURIComponent(
+                `Ref: ${candidateBoardUrl}\n\n` +
+                `Dear ${c.name},\n\n` +
+                `Thank you for applying for ${job ? job.title : 'the position'}.\n\n` +
+                `I would like to invite you to schedule a Zoom interview here:\n` +
+                `https://calendly.com/tom-mediaone/45mins\n\n` +
+                `Yours Sincerely,\n${state.currentUser}`
+            );
 
             window.location.href = `mailto:${c.email}?subject=${subject}&body=${body}`;
         }
