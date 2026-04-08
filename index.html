@@ -9329,6 +9329,38 @@
             font-weight: 500;
             margin-top: 2px;
         }
+
+        .geo-btn-reorder {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #64748b;
+            transition: all 0.2s;
+            margin-right: 5px;
+        }
+
+        .geo-btn-reorder:hover {
+            background: #f1f5f9;
+            color: #1e293b;
+            border-color: #cbd5e1;
+            transform: translateY(-1px);
+        }
+
+        .geo-btn-reorder:active {
+            transform: translateY(0);
+        }
+
+        .geo-reorder-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
     </style>
 </head>
 
@@ -21215,10 +21247,18 @@
             const sectionHtml = `
                 <div class="geo-section-item" id="${sectionId}">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                        <input type="text" class="geo-section-title" style="font-weight: 700; border: none; background: transparent; color: #333; font-size: 1.05em; width: 100%;" placeholder="Section Title (e.g., Services)" value="${title}">
-                        <button class="geo-btn-delete" onclick="document.getElementById('${sectionId}').remove()" style="height: auto; width: auto; padding: 0 0 0 10px;">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        <input type="text" class="geo-section-title" style="font-weight: 700; border: none; background: transparent; color: #333; font-size: 1.05em; width: 100%;" placeholder="Section Title (e.g., Services)" value="${title}" oninput="generateLlmsTxtByPathway()">
+                        <div class="geo-reorder-group">
+                            <button class="geo-btn-reorder" onclick="moveGeoItem('${sectionId}', 'up')">
+                                <i class="fas fa-arrow-up"></i>
+                            </button>
+                            <button class="geo-btn-reorder" onclick="moveGeoItem('${sectionId}', 'down')">
+                                <i class="fas fa-arrow-down"></i>
+                            </button>
+                            <button class="geo-btn-delete" onclick="document.getElementById('${sectionId}').remove(); generateLlmsTxtByPathway();" style="height: auto; width: auto; padding: 0 0 0 10px;">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="geo-links-container" id="links_${sectionId}"></div>
                     <button class="geo-btn-add" style="margin-top: 15px;" onclick="addNewGeoLink('links_${sectionId}')">
@@ -21230,17 +21270,39 @@
             return 'links_' + sectionId;
         }
 
+        function moveGeoItem(id, direction) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const parent = el.parentElement;
+            if (direction === 'up' && el.previousElementSibling) {
+                parent.insertBefore(el, el.previousElementSibling);
+            } else if (direction === 'down' && el.nextElementSibling) {
+                parent.insertBefore(el.nextElementSibling, el);
+            }
+            generateLlmsTxtByPathway();
+        }
+
         function addNewGeoLink(containerId, data = { label: '', url: '', desc: '' }) {
             const container = document.getElementById(containerId);
             const linkId = 'link_' + Date.now() + Math.random().toString(36).substr(2, 5);
             const linkHtml = `
                 <div class="geo-link-item" id="${linkId}">
-                    <input type="text" class="geo-link-label" placeholder="Link Label" value="${data.label}">
-                    <input type="text" class="geo-link-url" placeholder="https://" value="${data.url}">
-                    <button class="geo-btn-delete" onclick="document.getElementById('${linkId}').remove()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                    <textarea class="geo-link-desc" placeholder="Summary / Description" rows="2">${data.desc}</textarea>
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                        <input type="text" class="geo-link-label" placeholder="Link Label" value="${data.label}" oninput="generateLlmsTxtByPathway()" style="flex: 1;">
+                        <input type="text" class="geo-link-url" placeholder="https://" value="${data.url}" oninput="generateLlmsTxtByPathway()" style="flex: 1;">
+                        <div class="geo-reorder-group">
+                            <button class="geo-btn-reorder" onclick="moveGeoItem('${linkId}', 'up')" style="width: 24px; height: 24px; font-size: 10px;">
+                                <i class="fas fa-arrow-up"></i>
+                            </button>
+                            <button class="geo-btn-reorder" onclick="moveGeoItem('${linkId}', 'down')" style="width: 24px; height: 24px; font-size: 10px;">
+                                <i class="fas fa-arrow-down"></i>
+                            </button>
+                            <button class="geo-btn-delete" onclick="document.getElementById('${linkId}').remove(); generateLlmsTxtByPathway();" style="height: 24px; width: 24px; padding: 0; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-times" style="font-size: 10px;"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <textarea class="geo-link-desc" placeholder="Summary / Description" rows="2" oninput="generateLlmsTxtByPathway()">${data.desc}</textarea>
                 </div>
             `;
             container.insertAdjacentHTML('beforeend', linkHtml);
