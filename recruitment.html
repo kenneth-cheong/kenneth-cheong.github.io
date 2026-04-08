@@ -1058,6 +1058,9 @@
                 <a href="#" class="nav-item" onclick="showAuditLogs()" id="nav-audit">
                     <span class="nav-icon"><i class="fas fa-clipboard-list"></i></span> <span>Activity Log</span>
                 </a>
+                <a href="#" class="nav-item" onclick="showSettings()" id="nav-settings">
+                    <span class="nav-icon"><i class="fas fa-cog"></i></span> <span>App Settings</span>
+                </a>
             </nav>
 
             <!-- User Profile Section -->
@@ -1411,6 +1414,52 @@
                     </table>
                 </div>
             </section>
+            
+            <section id="settingsSection" style="display: none;">
+                <div class="header">
+                    <div>
+                        <h1>App Settings</h1>
+                        <p style="color: var(--text-dim);">Configure global application settings and templates.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="showDashboard()">Back to Dashboard</button>
+                </div>
+
+                <div class="card" style="max-width: 800px;">
+                    <div class="card-title">Email Invitation Template <i class="fas fa-envelope"></i></div>
+                    <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 20px;">
+                        Customize the email sent to candidates when inviting them for an interview.
+                    </p>
+                    
+                    <div class="form-group">
+                        <label>Email Subject</label>
+                        <input type="text" id="settingEmailSubject" placeholder="Enter subject template...">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Email Body</label>
+                        <textarea id="settingEmailBody" rows="12" placeholder="Enter email body template..."></textarea>
+                    </div>
+
+                    <div style="background: rgba(99, 102, 241, 0.1); border-radius: 12px; padding: 16px; margin-bottom: 24px; border: 1px solid rgba(99, 102, 241, 0.2);">
+                        <h4 style="font-size: 0.8rem; color: var(--primary-light); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">Available Placeholders</h4>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 0.8rem;">
+                            <div><code>{{candidate_name}}</code> - Candidate's Full Name</div>
+                            <div><code>{{job_title}}</code> - Title of the Job</div>
+                            <div><code>{{reference_url}}</code> - Unique link to candidate profile</div>
+                            <div><code>{{sender_name}}</code> - Your name (current user)</div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn btn-primary" onclick="saveEmailSettings()">
+                            <i class="fas fa-save"></i> Save Settings
+                        </button>
+                        <button class="btn" style="background: var(--glass); color: var(--text-main); border: 1px solid var(--border);" onclick="resetEmailSettings()">
+                            <i class="fas fa-undo"></i> Reset to Default
+                        </button>
+                    </div>
+                </div>
+            </section>
         </main>
 
         <!-- Create/Edit Job Modal -->
@@ -1742,6 +1791,9 @@
         const GOOGLE_CLIENT_ID = '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com';
         const VERIFY_ENDPOINT = 'https://ts9k398yn8.execute-api.ap-southeast-1.amazonaws.com/googleLogin';
 
+        const DEFAULT_EMAIL_SUBJECT = "Interview Invitation: {{job_title}} - {{candidate_name}}";
+        const DEFAULT_EMAIL_BODY = `Ref: {{reference_url}}\n\nDear {{candidate_name}},\n\nThank you for applying for {{job_title}}.\n\nI would like to invite you to schedule a Zoom interview here:\nhttps://calendly.com/tom-mediaone/45mins\n\nYours Sincerely,\n{{sender_name}}`;
+
         let state = {
             jobs: [],
             activeJobId: null,
@@ -1761,7 +1813,11 @@
                 limit: 100,
                 total: 0
             },
-            isFetchingCandidates: false
+            isFetchingCandidates: false,
+            emailTemplate: {
+                subject: localStorage.getItem('recruitment_email_subject') || DEFAULT_EMAIL_SUBJECT,
+                body: localStorage.getItem('recruitment_email_body') || DEFAULT_EMAIL_BODY
+            }
         };
 
         async function handleCredentialResponse(response) {
@@ -2349,11 +2405,53 @@
         }
 
         function hideAllSections() {
-            const sections = ['dashboardSection', 'jobsSection', 'resultsSection', 'uploadPanel', 'candidatesSection', 'usersSection', 'activityLogSection'];
+            const sections = ['dashboardSection', 'jobsSection', 'resultsSection', 'uploadPanel', 'candidatesSection', 'usersSection', 'activityLogSection', 'settingsSection'];
             sections.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = 'none';
             });
+        }
+
+        function showSettings() {
+            hideAllSections();
+            document.getElementById('settingsSection').style.display = 'block';
+            setActiveNavItem('nav-settings');
+            
+            // Load current templates into inputs
+            document.getElementById('settingEmailSubject').value = state.emailTemplate.subject;
+            document.getElementById('settingEmailBody').value = state.emailTemplate.body;
+        }
+
+        function saveEmailSettings() {
+            const subject = document.getElementById('settingEmailSubject').value.trim();
+            const body = document.getElementById('settingEmailBody').value.trim();
+            
+            if (!subject || !body) {
+                return showToast("Subject and Body cannot be empty", "error");
+            }
+            
+            state.emailTemplate.subject = subject;
+            state.emailTemplate.body = body;
+            
+            localStorage.setItem('recruitment_email_subject', subject);
+            localStorage.setItem('recruitment_email_body', body);
+            
+            showToast("Email settings saved successfully", "success");
+        }
+
+        function resetEmailSettings() {
+            if (!confirm("Are you sure you want to reset the email template to defaults?")) return;
+            
+            state.emailTemplate.subject = DEFAULT_EMAIL_SUBJECT;
+            state.emailTemplate.body = DEFAULT_EMAIL_BODY;
+            
+            document.getElementById('settingEmailSubject').value = DEFAULT_EMAIL_SUBJECT;
+            document.getElementById('settingEmailBody').value = DEFAULT_EMAIL_BODY;
+            
+            localStorage.removeItem('recruitment_email_subject');
+            localStorage.removeItem('recruitment_email_body');
+            
+            showToast("Templates reset to default", "info");
         }
 
         function setActiveNavItem(id) {
@@ -4673,15 +4771,19 @@
             url.searchParams.set('candidateId', c.id);
             const candidateBoardUrl = url.toString();
 
-            const subject = encodeURIComponent(`Interview Invitation: ${job ? job.title : 'Position'} - ${c.name}`);
-            const body = encodeURIComponent(
-                `Ref: ${candidateBoardUrl}\n\n` +
-                `Dear ${c.name},\n\n` +
-                `Thank you for applying for ${job ? job.title : 'the position'}.\n\n` +
-                `I would like to invite you to schedule a Zoom interview here:\n` +
-                `https://calendly.com/tom-mediaone/45mins\n\n` +
-                `Yours Sincerely,`
-            );
+            const subjectRaw = state.emailTemplate.subject;
+            const bodyRaw = state.emailTemplate.body;
+
+            const replacer = (text) => {
+                return text
+                    .replace(/{{candidate_name}}/g, c.name)
+                    .replace(/{{job_title}}/g, job ? job.title : 'Position')
+                    .replace(/{{reference_url}}/g, candidateBoardUrl)
+                    .replace(/{{sender_name}}/g, state.currentUser || 'Recruitment Team');
+            };
+
+            const subject = encodeURIComponent(replacer(subjectRaw));
+            const body = encodeURIComponent(replacer(bodyRaw));
 
             const mailtoUrl = `mailto:${c.email}?subject=${subject}&body=${body}`;
 
