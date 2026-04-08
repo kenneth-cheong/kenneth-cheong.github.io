@@ -1813,12 +1813,27 @@
                 limit: 100,
                 total: 0
             },
-            isFetchingCandidates: false,
             emailTemplate: {
-                subject: localStorage.getItem('recruitment_email_subject') || DEFAULT_EMAIL_SUBJECT,
-                body: localStorage.getItem('recruitment_email_body') || DEFAULT_EMAIL_BODY
+                subject: DEFAULT_EMAIL_SUBJECT,
+                body: DEFAULT_EMAIL_BODY
             }
         };
+
+        function loadUserEmailTemplates() {
+            if (!state.loggedUserId || !Array.isArray(state.users)) return;
+            const userId = String(state.loggedUserId);
+            const user = state.users.find(u => String(u.id) === userId);
+            
+            if (user && user.emailTemplateSubject && user.emailTemplateBody) {
+                console.log("Loading email template from database for user:", userId);
+                state.emailTemplate.subject = user.emailTemplateSubject;
+                state.emailTemplate.body = user.emailTemplateBody;
+            } else {
+                console.log("No database template found; checking localStorage or defaults for user:", userId);
+                state.emailTemplate.subject = localStorage.getItem(`recruitment_email_subject_${userId}`) || DEFAULT_EMAIL_SUBJECT;
+                state.emailTemplate.body = localStorage.getItem(`recruitment_email_body_${userId}`) || DEFAULT_EMAIL_BODY;
+            }
+        }
 
         async function handleCredentialResponse(response) {
             const errorEl = document.getElementById('loginError');
@@ -1909,6 +1924,7 @@
             app.style.display = 'flex';
             app.classList.add('active'); // Supporting the new CSS class too
             updateUserUI();
+            loadUserEmailTemplates(); // Load user-specific templates
             initApp();
         }
 
@@ -2132,7 +2148,11 @@
 
                 if (Array.isArray(jobs)) state.jobs = jobs;
                 if (Array.isArray(candidates)) state.candidates = candidates;
-                if (Array.isArray(users)) state.users = users;
+                if (Array.isArray(users)) {
+                    state.users = users;
+                    // Now that users are loaded, we can fetch the user-specific templates
+                    loadUserEmailTemplates();
+                }
 
                 renderJobs();
                 await updateStats();
@@ -2422,36 +2442,95 @@
             document.getElementById('settingEmailBody').value = state.emailTemplate.body;
         }
 
-        function saveEmailSettings() {
+        async function saveEmailSettings() {
             const subject = document.getElementById('settingEmailSubject').value.trim();
             const body = document.getElementById('settingEmailBody').value.trim();
             
             if (!subject || !body) {
                 return showToast("Subject and Body cannot be empty", "error");
             }
+
+            if (!state.loggedUserId) {
+                return showToast("User not identified. Save failed.", "error");
+            }
+
+            const currentUserObj = state.users.find(u => String(u.id) === String(state.loggedUserId));
+            if (!currentUserObj) return showToast("User session configuration not found", "error");
+
+            // Prepare user update for database
+            const updatedUser = {
+                ...currentUserObj,
+                emailTemplateSubject: subject,
+                emailTemplateBody: body
+            };
             
-            state.emailTemplate.subject = subject;
-            state.emailTemplate.body = body;
-            
-            localStorage.setItem('recruitment_email_subject', subject);
-            localStorage.setItem('recruitment_email_body', body);
-            
-            showToast("Email settings saved successfully", "success");
+            try {
+                toggleLoading(true);
+                // Call database to save persistently
+                const result = await persistenceApiCall('upsert_user', updatedUser);
+                
+                if (result && result.success) {
+                    state.emailTemplate.subject = subject;
+                    state.emailTemplate.body = body;
+                    currentUserObj.emailTemplateSubject = subject;
+                    currentUserObj.emailTemplateBody = body;
+                    
+                    // Also save locally as a redundant cache
+                    localStorage.setItem(`recruitment_email_subject_${state.loggedUserId}`, subject);
+                    localStorage.setItem(`recruitment_email_body_${state.loggedUserId}`, body);
+                    
+                    showToast("Templates saved securely to database", "success");
+                } else {
+                    throw new Error("Persistence error");
+                }
+            } catch (err) {
+                console.error("Save Setting Error:", err);
+                showToast("Server error. Saved locally for now.", "warning");
+                // Fallback to purely local persistence
+                localStorage.setItem(`recruitment_email_subject_${state.loggedUserId}`, subject);
+                localStorage.setItem(`recruitment_email_body_${state.loggedUserId}`, body);
+            } finally {
+                toggleLoading(false);
+            }
         }
 
-        function resetEmailSettings() {
-            if (!confirm("Are you sure you want to reset the email template to defaults?")) return;
+        async function resetEmailSettings() {
+            if (!confirm("Are you sure you want to reset the email template to defaults across all sessions?")) return;
             
-            state.emailTemplate.subject = DEFAULT_EMAIL_SUBJECT;
-            state.emailTemplate.body = DEFAULT_EMAIL_BODY;
+            const currentUserObj = state.users.find(u => String(u.id) === String(state.loggedUserId));
             
-            document.getElementById('settingEmailSubject').value = DEFAULT_EMAIL_SUBJECT;
-            document.getElementById('settingEmailBody').value = DEFAULT_EMAIL_BODY;
-            
-            localStorage.removeItem('recruitment_email_subject');
-            localStorage.removeItem('recruitment_email_body');
-            
-            showToast("Templates reset to default", "info");
+            try {
+                toggleLoading(true);
+                
+                if (currentUserObj) {
+                    const updatedUser = {
+                        ...currentUserObj,
+                        emailTemplateSubject: null,
+                        emailTemplateBody: null
+                    };
+                    await persistenceApiCall('upsert_user', updatedUser);
+                    currentUserObj.emailTemplateSubject = null;
+                    currentUserObj.emailTemplateBody = null;
+                }
+
+                state.emailTemplate.subject = DEFAULT_EMAIL_SUBJECT;
+                state.emailTemplate.body = DEFAULT_EMAIL_BODY;
+                
+                document.getElementById('settingEmailSubject').value = DEFAULT_EMAIL_SUBJECT;
+                document.getElementById('settingEmailBody').value = DEFAULT_EMAIL_BODY;
+                
+                if (state.loggedUserId) {
+                    localStorage.removeItem(`recruitment_email_subject_${state.loggedUserId}`);
+                    localStorage.removeItem(`recruitment_email_body_${state.loggedUserId}`);
+                }
+                
+                showToast("Templates reset to default", "info");
+            } catch (err) {
+                console.error("Reset Error:", err);
+                showToast("Failed to sync reset to database.", "error");
+            } finally {
+                toggleLoading(false);
+            }
         }
 
         function setActiveNavItem(id) {
