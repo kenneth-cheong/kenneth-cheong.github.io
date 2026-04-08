@@ -653,6 +653,9 @@
           <span id="btnIcon">▶</span> Run Audit
         </button>
         <button class="clear-btn" onclick="clearResults()">✕ Clear</button>
+        <button class="run-btn" id="exportChatBtn" onclick="exportToGoogleChat()" style="background:#34a853;">
+          <span id="exportBtnIcon">💬</span> Export to Google Chat
+        </button>
         <span id="boardCount" style="font-size:12px;color:var(--muted);margin-left:6px;"></span>
       </div>
     </div>
@@ -1362,6 +1365,129 @@
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // EXPORT TO GOOGLE CHAT
+    // ─────────────────────────────────────────────────────────────────────────────
+    const GOOGLE_CHAT_WEBHOOK = 'https://chat.googleapis.com/v1/spaces/AAQAo3v_HrI/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=A1degdC_DC8MfFlTWWNXRzB9LfDWKQNYL-QUmiDKBcQ';
+
+    function buildChatMessage() {
+      if (!auditData) return null;
+
+      const { boardIds, boardMap, webhookMap } = auditData;
+      const statusRows = window._statusRows || [];
+      const webhookRows = window._webhookRows || [];
+      const sharingRows = window._sharingRows || [];
+
+      // ── Summary counts ──
+      const totalBoards = boardIds.length;
+      const statusOk = statusRows.filter(r => !r.hasIssues).length;
+      const statusFail = statusRows.filter(r => r.hasIssues).length;
+      const whOk = webhookRows.filter(r => r.hooks.length > 0).length;
+      const whMiss = webhookRows.filter(r => r.hooks.length === 0).length;
+      const shareable = sharingRows.filter(r => r.kind === 'share').length;
+
+      // ── Build text sections ──
+      let text = '';
+
+      // Header
+      text += `*📋 Monday.com Board Audit Report*\n`;
+      text += `_${new Date().toLocaleString()}_\n\n`;
+
+      // Summary
+      text += `*── Summary ──*\n`;
+      text += `• Boards Checked: *${totalBoards}*\n`;
+      text += `• Status Compliant: *${statusOk}* ✅\n`;
+      text += `• Status Issues: *${statusFail}* ${statusFail ? '⚠️' : ''}\n`;
+      text += `• Boards with Webhooks: *${whOk}* ✅\n`;
+      text += `• No Webhooks: *${whMiss}* ${whMiss ? '⚠️' : ''}\n`;
+      text += `• Shareable Boards: *${shareable}*\n\n`;
+
+      // ── Status Issues Detail ──
+      const issueBoards = statusRows.filter(r => r.hasIssues);
+      if (issueBoards.length) {
+        text += `*── 🏷️ Status Label Issues (${issueBoards.length} board${issueBoards.length !== 1 ? 's' : ''}) ──*\n`;
+        for (const row of issueBoards) {
+          const totalIssues = row.statusCols.reduce((s, c) => s + c.issues.length, 0);
+          text += `\n*${row.name}* (ID: ${row.bid}) — ${totalIssues} issue${totalIssues !== 1 ? 's' : ''}\n`;
+          for (const col of row.statusCols) {
+            if (!col.issues.length) continue;
+            text += `  _Column: "${col.title}"_\n`;
+            for (const iss of col.issues) {
+              const icon = iss.type === 'MISSING' ? '❌' : iss.type === 'MISMATCH' ? '🔶' : '🔵';
+              text += `    ${icon} ${iss.type} idx ${iss.idx} — ${iss.msg}\n`;
+            }
+          }
+        }
+        text += `\n`;
+      } else {
+        text += `*── 🏷️ Status Labels ──*\n✅ All boards are compliant.\n\n`;
+      }
+
+      // ── Webhook Gaps ──
+      const noWebhookBoards = webhookRows.filter(r => r.hooks.length === 0);
+      if (noWebhookBoards.length) {
+        text += `*── 🔗 Boards Without Webhooks (${noWebhookBoards.length}) ──*\n`;
+        for (const row of noWebhookBoards) {
+          text += `• ${row.name} (ID: ${row.bid})\n`;
+        }
+        text += `\n`;
+      } else {
+        text += `*── 🔗 Webhooks ──*\n✅ All boards have webhooks.\n\n`;
+      }
+
+      // ── Shareable Boards ──
+      const shareBoards = sharingRows.filter(r => r.kind === 'share');
+      if (shareBoards.length) {
+        text += `*── 🌐 Shareable Boards (${shareBoards.length}) ──*\n`;
+        for (const row of shareBoards) {
+          text += `• ${row.name} (ID: ${row.bid}) — external guests can be invited\n`;
+        }
+      } else {
+        text += `*── 🌐 Shareability ──*\nNo shareable boards found.\n`;
+      }
+
+      return text;
+    }
+
+    async function exportToGoogleChat() {
+      if (!auditData) {
+        showError('Please run an audit first before exporting.');
+        return;
+      }
+
+      const btn = document.getElementById('exportChatBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Sending…';
+
+      const text = buildChatMessage();
+
+      try {
+        const res = await fetch(GOOGLE_CHAT_WEBHOOK, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+          body: JSON.stringify({ text }),
+        });
+
+        if (res.ok) {
+          btn.innerHTML = '✅ Sent!';
+          btn.style.background = '#34a853';
+          setTimeout(() => {
+            btn.innerHTML = '<span>💬</span> Export to Google Chat';
+            btn.disabled = false;
+          }, 3000);
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          showError(`Google Chat export failed: ${errData.error?.message || res.statusText}`);
+          btn.innerHTML = '<span>💬</span> Export to Google Chat';
+          btn.disabled = false;
+        }
+      } catch (err) {
+        showError(`Google Chat export failed: ${err.message}`);
+        btn.innerHTML = '<span>💬</span> Export to Google Chat';
+        btn.disabled = false;
+      }
     }
 
     // Live board count preview

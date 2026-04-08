@@ -1369,7 +1369,16 @@
 
                 // 4. Hardened Assistant Update
                 const customFunctions = JSON.parse(localStorage.getItem('customFunctions') || '[]');
-                const tools = [{ type: "file_search" }];
+                const tools = [{
+                    type: "file_search",
+                    file_search: {
+                        max_num_results: 50,
+                        ranking_options: {
+                            ranker: "default_2024_08_21",
+                            score_threshold: 0.0
+                        }
+                    }
+                }];
 
                 customFunctions.forEach(f => {
                     if (f.name && f.params) {
@@ -1444,14 +1453,14 @@ CRITICAL CONTACT RULE:
                     if (!asstId) return false;
                     updateSyncStatus(`Updating Assistant ${asstId.substring(0, 8)}...`, true);
                     const updateResult = await fetchOpenAIViaLambda(`/assistants/${asstId}`, "POST", assistantPayload);
-                    
+
                     // Check if the update itself returned an error (e.g., assistant was deleted)
                     if (!updateResult || updateResult.error) {
                         const errMsg = updateResult?.error?.message || 'Unknown update error';
                         console.warn(`Assistant update failed for ${asstId}: ${errMsg}`);
                         return false;
                     }
-                    
+
                     // Verify linkage
                     const check = await fetchOpenAIViaLambda(`/assistants/${asstId}`, "GET");
                     if (!check || check.error) {
@@ -1475,25 +1484,25 @@ CRITICAL CONTACT RULE:
                     const MAX_RETRIES = 2;
                     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                         updateSyncStatus(`Force-creating new Assistant (attempt ${attempt}/${MAX_RETRIES})...`, true);
-                        
+
                         // Brief delay before retry to avoid rate limits
                         if (attempt > 1) {
                             await new Promise(r => setTimeout(r, 3000 * attempt));
                         }
-                        
+
                         const asstData = await fetchOpenAIViaLambda("/assistants", "POST", { ...assistantPayload, name: `Monday Context Assistant [${new Date().toISOString().split('T')[0]}]` });
-                        
+
                         // Check if creation actually succeeded
                         if (!asstData || asstData.error || !asstData.id) {
                             const errDetail = asstData?.error?.message || asstData?.error?.type || 'No assistant ID returned';
                             console.error(`[SYNC] Assistant creation attempt ${attempt} failed: ${errDetail}`);
-                            
+
                             if (attempt === MAX_RETRIES) {
                                 throw new Error(`Assistant creation failed after ${MAX_RETRIES} attempts: ${errDetail}`);
                             }
                             continue; // retry
                         }
-                        
+
                         currentAsstId = asstData.id;
                         localStorage.setItem('assistantId', currentAsstId);
 
@@ -1506,7 +1515,7 @@ CRITICAL CONTACT RULE:
                                 break; // success, exit retry loop
                             }
                         }
-                        
+
                         console.warn(`[SYNC] Attempt ${attempt}: Created assistant ${currentAsstId} but VS linkage verification failed.`);
                     }
                 }
