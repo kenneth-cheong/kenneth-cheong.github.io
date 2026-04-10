@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Fonts & Icons -->
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap"
@@ -773,7 +774,8 @@
             position: relative;
         }
 
-        .filter-grid .filter-field label {
+        .filter-grid .filter-field label,
+        .internal-filter-panel .filter-field label {
             font-size: 0.7rem;
             font-weight: 700;
             color: #92400e;
@@ -1203,6 +1205,31 @@
                 </div>
             </div>
 
+            <!-- Google Chat Integration -->
+            <div class="collapsible-section" id="googleChatSection">
+                <div class="collapsible-header"
+                    onclick="this.closest('.collapsible-section').classList.toggle('active')">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i
+                            class="fab fa-google" style="margin-right: 8px; opacity: 0.5;"></i> Google Chat</span>
+                    <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
+                </div>
+                <div class="collapsible-content">
+                    <div class="form-group">
+                        <label>Google Cloud Client ID</label>
+                        <input type="text" id="googleClientId" placeholder="xxxxxxx.apps.googleusercontent.com" style="font-size: 0.75rem;">
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 10px;">
+                        <button class="btn-sidebar" id="gchatConnectBtn" onclick="connectGoogleChat()" style="flex:1; border-color: #34a853; color: #34a853;">
+                            <i class="fab fa-google"></i> Connect
+                        </button>
+                        <button class="btn-sidebar" id="gchatDisconnectBtn" onclick="disconnectGoogleChat()" style="flex:1; border-color: #ef4444; color: #ef4444; display:none;">
+                            <i class="fas fa-unlink"></i> Disconnect
+                        </button>
+                    </div>
+                    <div id="gchatStatus" style="font-size: 0.7rem; color: #64748b; margin-top: 8px; text-align: center;"></div>
+                </div>
+            </div>
+
             <!-- Context URLs -->
             <div class="form-group">
                 <label>Context URLs</label>
@@ -1282,7 +1309,7 @@
                     </button>
                 </div>
 
-                <div class="filter-grid">
+                <div class="filter-grid" id="summaryBoardFilters" style="display:none;">
                     <div class="filter-field">
                         <label>Campaign / Item Name</label>
                         <div class="ms-dropdown" id="msItemDropdown">
@@ -1368,11 +1395,60 @@
                         </div>
                     </div>
                 </div>
+                <!-- Campaign Boards Dropdown (full width below the 2x2 grid) -->
+                <div style="margin-top: 12px; margin-bottom: 16px;">
+                    <div class="filter-field">
+                        <label><i class="fas fa-th-large" style="margin-right:4px; opacity:0.6;"></i> Campaign Boards</label>
+                        <div class="ms-dropdown" id="msBoardDropdown">
+                            <div class="ms-trigger" onclick="toggleMsPanel('msBoardDropdown')">
+                                <span class="ms-placeholder">Loading board registry...</span>
+                            </div>
+                            <div class="ms-panel">
+                                <div class="ms-search">
+                                    <i class="fas fa-search"></i>
+                                    <input type="text" placeholder="Search boards..." oninput="filterMsOptions('msBoardDropdown', this.value)">
+                                </div>
+                                <div class="ms-bulk-actions">
+                                    <button onclick="msSelectAll('msBoardDropdown')">✓ All</button>
+                                    <button onclick="msUnselectAll('msBoardDropdown')">✗ None</button>
+                                </div>
+                                <div class="ms-options">
+                                    <div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Waiting for board registry...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Google Chat Spaces Dropdown -->
+                <div id="gchatSpacesSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
+                    <div class="filter-field">
+                        <label><i class="fab fa-google" style="margin-right:4px; opacity:0.6;"></i> Google Chat Spaces</label>
+                        <div class="ms-dropdown" id="msChatSpaceDropdown">
+                            <div class="ms-trigger" onclick="toggleMsPanel('msChatSpaceDropdown')">
+                                <span class="ms-placeholder">Connect Google Chat in Settings...</span>
+                            </div>
+                            <div class="ms-panel">
+                                <div class="ms-search">
+                                    <i class="fas fa-search"></i>
+                                    <input type="text" placeholder="Search spaces..." oninput="filterMsOptions('msChatSpaceDropdown', this.value)">
+                                </div>
+                                <div class="ms-bulk-actions">
+                                    <button onclick="msSelectAll('msChatSpaceDropdown')">✓ All</button>
+                                    <button onclick="msUnselectAll('msChatSpaceDropdown')">✗ None</button>
+                                </div>
+                                <div class="ms-options">
+                                    <div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Connect Google Chat first...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div class="filter-actions">
                     <button class="btn-amber" id="internalSyncBtn" onclick="syncInternalMode()">
                         <i class="fas fa-bolt"></i> Load Data
                     </button>
                     <span class="filter-hint" id="internalFilterHint">Default: Excludes Completed, Abandoned, Expired, Terminated</span>
+                    <span id="boardRegistryBadge" style="display:none; font-size:0.7rem; background:#dbeafe; color:#1e40af; padding:3px 10px; border-radius:20px; font-weight:600; margin-left:8px; white-space:nowrap;"><i class="fas fa-th-large" style="margin-right:4px;"></i><span id="boardRegistryCount">0</span> boards discovered</span>
                 </div>
                 </div>
             </div>
@@ -1406,6 +1482,14 @@
         let currentMode = localStorage.getItem('chatbotMode') || 'client'; // 'client' or 'internal'
 
         const INTERNAL_CAMPAIGN_BOARD_ID = '2845615047';
+
+        // Board Registry: All active boards in the Monday.com workspace
+        window.mondayBoardRegistry = [];
+        let isFetchingBoardRegistry = false;
+
+        // Google Chat state
+        window.gchatAccessToken = sessionStorage.getItem('gchat_access_token') || null;
+        window.gchatSpaces = [];
 
         // Configure Markdown Renderer for New Windows
         const renderer = new marked.Renderer();
@@ -1480,6 +1564,9 @@
                 if (!hasCache) {
                     fetchFilterOptions();
                 }
+                // Load board registry (from cache or API)
+                loadBoardRegistry();
+                updateSummaryFilterVisibility();
             } else {
                 document.body.classList.remove('internal-mode');
                 filterPanel.classList.remove('visible');
@@ -1549,6 +1636,7 @@
             }
             window.activeBoards = boards;
             renderBoardList();
+            updateSummaryFilterVisibility();
 
             document.getElementById('clientEmail').value = localStorage.getItem('clientEmail') || "";
             const vsId = localStorage.getItem('vectorStoreId') || 'vs_69cba3d2f51881918a4211f57b70c546';
@@ -1557,6 +1645,12 @@
             localStorage.setItem('vectorStoreId', correctedVsId);
             document.getElementById('contextUrls').value = localStorage.getItem('contextUrls') || "";
             document.getElementById('autoSync').checked = localStorage.getItem('autoSync') === 'true';
+            document.getElementById('googleClientId').value = localStorage.getItem('googleClientId') || '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com';
+            // Restore Google Chat connection state
+            if (window.gchatAccessToken) {
+                updateGchatUI(true);
+                fetchGoogleChatSpaces();
+            }
         }
 
         // Board List UI Logic
@@ -1567,6 +1661,7 @@
 
             if (window.activeBoards.length === 0) {
                 container.innerHTML = '<div style="text-align: center; color: #94a3b8; font-size: 0.75rem; padding: 20px; border: 1px dashed #e2e8f0; border-radius: 10px;">No boards added.</div>';
+                updateSummaryFilterVisibility();
                 return;
             }
 
@@ -1582,6 +1677,17 @@
                 `;
                 container.appendChild(item);
             });
+        }
+
+        function updateSummaryFilterVisibility() {
+            const grid = document.getElementById('summaryBoardFilters');
+            if (!grid) return;
+            const selected = msState.msBoardDropdown?.selected || [];
+            const hasSummaryBoard = selected.some(b => {
+                const id = typeof b === 'object' ? b.id : b;
+                return String(id) === INTERNAL_CAMPAIGN_BOARD_ID;
+            });
+            grid.style.display = hasSummaryBoard ? '' : 'none';
         }
 
         async function handleAddBoard() {
@@ -1619,6 +1725,7 @@
                     window.activeBoards.push({ id: boardId, name: name });
                     input.value = "";
                     renderBoardList();
+                    updateSummaryFilterVisibility();
                 } else {
                     alert("Could not verify board. Please check the ID or permissions.");
                 }
@@ -1635,6 +1742,7 @@
         function deleteBoard(index) {
             window.activeBoards.splice(index, 1);
             renderBoardList();
+            updateSummaryFilterVisibility();
         }
 
         // Functions UI Management
@@ -1706,6 +1814,7 @@
             localStorage.setItem('clientEmail', clientEmail);
             localStorage.setItem('vectorStoreId', vsId);
             localStorage.setItem('contextUrls', contextUrls);
+            localStorage.setItem('googleClientId', document.getElementById('googleClientId').value.trim());
             localStorage.setItem('autoSync', autoSync);
 
             // Collect functions
@@ -1891,7 +2000,9 @@
             msItemDropdown: { options: [], selected: [], active: false },
             msStaffDropdown: { options: [], selected: [], active: false },
             msStatusDropdown: { options: [], selected: [], active: false },
-            msProjectTypeDropdown: { options: [], selected: [], active: false }
+            msProjectTypeDropdown: { options: [], selected: [], active: false },
+            msBoardDropdown: { options: [], selected: [], active: false },
+            msChatSpaceDropdown: { options: [], selected: [], active: false }
         };
 
         window.allPrefetchedItems = []; 
@@ -1950,6 +2061,7 @@
             renderMsOptions(dropdownId);
             renderMsTrigger(dropdownId);
             refineFilteredOptions();
+            if (dropdownId === 'msBoardDropdown') updateSummaryFilterVisibility();
         }
 
         function msUnselectAll(dropdownId) {
@@ -1975,6 +2087,7 @@
             renderMsOptions(dropdownId);
             renderMsTrigger(dropdownId);
             refineFilteredOptions();
+            if (dropdownId === 'msBoardDropdown') updateSummaryFilterVisibility();
         }
 
         function toggleMsPanel(dropdownId) {
@@ -2052,6 +2165,7 @@
             if (window.allPrefetchedItems && window.allPrefetchedItems.length > 0) {
                 refineFilteredOptions();
             }
+            if (dropdownId === 'msBoardDropdown') updateSummaryFilterVisibility();
         }
 
         function removeMsSelection(dropdownId, optionId, event) {
@@ -2067,6 +2181,7 @@
             if (window.allPrefetchedItems && window.allPrefetchedItems.length > 0) {
                 refineFilteredOptions();
             }
+            if (dropdownId === 'msBoardDropdown') updateSummaryFilterVisibility();
         }
 
         function renderMsTrigger(dropdownId) {
@@ -2235,6 +2350,351 @@
                 if (window.allPrefetchedItems && window.allPrefetchedItems.length > 0) {
                     saveInternalCache();
                 }
+            }
+        }
+
+        // ---- Board Registry: Fetch ALL active boards from Monday.com workspace ----
+        async function fetchAllWorkspaceBoards() {
+            if (isFetchingBoardRegistry) return;
+            isFetchingBoardRegistry = true;
+            console.log('[BOARD REGISTRY] Fetching all workspace boards...');
+
+            try {
+                let allBoards = [];
+                let page = 1;
+                const SAFETY_LIMIT = 20; // Max 20 pages × 200 = 4000 boards
+
+                while (page <= SAFETY_LIMIT) {
+                    const query = `{ boards (limit: 200, page: ${page}, state: active) { id name board_kind state } }`;
+                    const res = await fetch(MONDAY_LAMBDA_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'get_monday_data', query })
+                    });
+                    const r = await res.json();
+                    const mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
+
+                    if (mData.errors) {
+                        console.error('[BOARD REGISTRY] API Error:', mData.errors);
+                        break;
+                    }
+
+                    const boards = mData.data?.boards || [];
+                    if (boards.length === 0) break;
+
+                    // Filter out sub-item boards, private boards, and boards with 'Subitems' in name
+                    const filtered = boards.filter(b => b.board_kind !== 'sub_items_board' && !(b.name || '').toLowerCase().includes('subitems'));
+                    allBoards = allBoards.concat(filtered);
+                    console.log(`[BOARD REGISTRY] Page ${page}: ${boards.length} boards (${filtered.length} after filter), total: ${allBoards.length}`);
+
+                    if (boards.length < 200) break; // Last page
+                    page++;
+                }
+
+                window.mondayBoardRegistry = allBoards;
+                console.log(`[BOARD REGISTRY] Complete: ${allBoards.length} active boards discovered.`);
+
+                // Cache to localStorage
+                try {
+                    localStorage.setItem('internal_board_registry_cache', JSON.stringify({
+                        boards: allBoards,
+                        timestamp: Date.now()
+                    }));
+                } catch (e) {
+                    console.warn('[BOARD REGISTRY] Cache save failed:', e);
+                }
+
+                updateBoardRegistryBadge();
+            } catch (e) {
+                console.error('[BOARD REGISTRY] Fetch failed:', e);
+            } finally {
+                isFetchingBoardRegistry = false;
+            }
+        }
+
+        function loadBoardRegistry() {
+            // Try loading from cache first
+            try {
+                const raw = localStorage.getItem('internal_board_registry_cache');
+                if (raw) {
+                    const data = JSON.parse(raw);
+                    const ageMs = Date.now() - (data.timestamp || 0);
+                    const MAX_AGE = 60 * 60 * 1000; // 1 hour cache
+                    if (data.boards && data.boards.length > 0 && ageMs < MAX_AGE) {
+                        window.mondayBoardRegistry = data.boards;
+                        console.log(`[BOARD REGISTRY] Loaded ${data.boards.length} boards from cache (${Math.round(ageMs/60000)}min old).`);
+                        updateBoardRegistryBadge();
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('[BOARD REGISTRY] Cache load error:', e);
+            }
+            // Fetch fresh if no valid cache
+            fetchAllWorkspaceBoards();
+        }
+
+        function updateBoardRegistryBadge() {
+            const badge = document.getElementById('boardRegistryBadge');
+            const countEl = document.getElementById('boardRegistryCount');
+            if (badge && countEl && window.mondayBoardRegistry.length > 0) {
+                countEl.textContent = window.mondayBoardRegistry.length;
+                badge.style.display = 'inline-flex';
+            }
+            // Populate the board dropdown
+            if (window.mondayBoardRegistry.length > 0) {
+                const boardOptions = window.mondayBoardRegistry
+                    .filter(b => !(b.name || '').toLowerCase().includes('subitems'))
+                    .map(b => ({ id: b.id, name: b.name }))
+                    .sort((a, b) => a.name.localeCompare(b.name));
+                msState.msBoardDropdown.options = boardOptions;
+                renderMsOptions('msBoardDropdown');
+                renderMsTrigger('msBoardDropdown');
+            }
+        }
+
+        // ========== GOOGLE CHAT INTEGRATION ==========
+        
+        function updateGchatUI(connected) {
+            const connectBtn = document.getElementById('gchatConnectBtn');
+            const disconnectBtn = document.getElementById('gchatDisconnectBtn');
+            const statusEl = document.getElementById('gchatStatus');
+            const spacesSection = document.getElementById('gchatSpacesSection');
+            
+            if (connected) {
+                if (connectBtn) connectBtn.style.display = 'none';
+                if (disconnectBtn) disconnectBtn.style.display = 'flex';
+                if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#34a853;"></i> Connected';
+                if (spacesSection) spacesSection.style.display = 'block';
+            } else {
+                if (connectBtn) connectBtn.style.display = 'flex';
+                if (disconnectBtn) disconnectBtn.style.display = 'none';
+                if (statusEl) statusEl.innerHTML = '';
+                if (spacesSection) spacesSection.style.display = 'none';
+            }
+        }
+
+        function connectGoogleChat() {
+            const clientId = document.getElementById('googleClientId').value.trim();
+            if (!clientId) {
+                showToast('Enter your Google Cloud Client ID first', 'error');
+                return;
+            }
+            localStorage.setItem('googleClientId', clientId);
+
+            // Check if GIS library is loaded
+            if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+                showToast('Google Identity Services SDK not loaded. Check your internet connection.', 'error');
+                return;
+            }
+
+            const codeClient = google.accounts.oauth2.initCodeClient({
+                client_id: clientId,
+                scope: 'https://www.googleapis.com/auth/chat.spaces.readonly https://www.googleapis.com/auth/chat.messages.readonly',
+                ux_mode: 'popup',
+                callback: async (response) => {
+                    if (response.error) {
+                        console.error('[GCHAT] OAuth error:', response);
+                        showToast(`Google Chat auth failed: ${response.error}`, 'error');
+                        return;
+                    }
+                    
+                    showToast('Exchanging auth code...', 'loading', 5000);
+                    try {
+                        // Exchange auth code for access token via Lambda
+                        const tokenRes = await fetch(MONDAY_LAMBDA_URL, {
+                            method: 'POST',
+                            headers: { 'Content-type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'google_token_exchange',
+                                code: response.code,
+                                client_id: clientId,
+                                redirect_uri: 'postmessage'
+                            })
+                        }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
+
+                        if (tokenRes.error) {
+                            throw new Error(tokenRes.error_description || tokenRes.error);
+                        }
+
+                        window.gchatAccessToken = tokenRes.access_token;
+                        sessionStorage.setItem('gchat_access_token', tokenRes.access_token);
+                        
+                        updateGchatUI(true);
+                        showToast('Google Chat connected!', 'success');
+                        
+                        // Fetch spaces
+                        await fetchGoogleChatSpaces();
+                    } catch (err) {
+                        console.error('[GCHAT] Token exchange failed:', err);
+                        showToast(`Token exchange failed: ${err.message}`, 'error');
+                    }
+                }
+            });
+
+            codeClient.requestCode();
+        }
+
+        function disconnectGoogleChat() {
+            window.gchatAccessToken = null;
+            window.gchatSpaces = [];
+            sessionStorage.removeItem('gchat_access_token');
+            msState.msChatSpaceDropdown.options = [];
+            msState.msChatSpaceDropdown.selected = [];
+            renderMsOptions('msChatSpaceDropdown');
+            renderMsTrigger('msChatSpaceDropdown');
+            updateGchatUI(false);
+            showToast('Google Chat disconnected', 'success');
+        }
+
+        async function fetchGoogleChatSpaces() {
+            if (!window.gchatAccessToken) return;
+
+            try {
+                const res = await fetch('https://chat.googleapis.com/v1/spaces?pageSize=100&filter=spaceType%3D%22SPACE%22', {
+                    headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` }
+                });
+
+                if (res.status === 401) {
+                    // Token expired
+                    disconnectGoogleChat();
+                    showToast('Google Chat session expired, please reconnect', 'error');
+                    return;
+                }
+
+                const data = await res.json();
+                const spaces = (data.spaces || []).map(s => ({
+                    id: s.name, // e.g. "spaces/AAAA..."
+                    name: s.displayName || s.name,
+                    type: s.spaceType
+                })).sort((a, b) => a.name.localeCompare(b.name));
+
+                window.gchatSpaces = spaces;
+                msState.msChatSpaceDropdown.options = spaces;
+                renderMsOptions('msChatSpaceDropdown');
+                renderMsTrigger('msChatSpaceDropdown');
+                console.log(`[GCHAT] Loaded ${spaces.length} spaces.`);
+            } catch (err) {
+                console.error('[GCHAT] Failed to fetch spaces:', err);
+                showToast('Failed to fetch Chat spaces', 'error');
+            }
+        }
+
+        async function fetchGoogleChatMessages(spaceId, maxMessages = 50) {
+            if (!window.gchatAccessToken) return [];
+
+            try {
+                const res = await fetch(`https://chat.googleapis.com/v1/${spaceId}/messages?pageSize=${maxMessages}&orderBy=createTime%20desc`, {
+                    headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` }
+                });
+
+                if (!res.ok) {
+                    console.warn(`[GCHAT] Failed to fetch messages for ${spaceId}: ${res.status}`);
+                    return [];
+                }
+
+                const data = await res.json();
+                return (data.messages || []).map(m => ({
+                    sender: m.sender?.displayName || m.sender?.name || 'Unknown',
+                    text: m.text || m.formattedText || '',
+                    timestamp: m.createTime,
+                    thread: m.thread?.name || null
+                })).filter(m => m.text.trim());
+            } catch (err) {
+                console.error(`[GCHAT] Error fetching messages from ${spaceId}:`, err);
+                return [];
+            }
+        }
+
+        /**
+         * Fuzzy-match a campaign name from the summary board to an individual board in the registry.
+         * Returns { id, name } of the best matching board, or null.
+         */
+        function matchCampaignToBoard(campaignName) {
+            if (!campaignName || window.mondayBoardRegistry.length === 0) return null;
+
+            const normalize = s => (s || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+            const campNorm = normalize(campaignName);
+            if (!campNorm || campNorm.length < 3) return null;
+
+            let bestMatch = null;
+            let bestScore = 0;
+
+            for (const board of window.mondayBoardRegistry) {
+                // Skip the summary board itself
+                if (board.id === INTERNAL_CAMPAIGN_BOARD_ID) continue;
+
+                // Skip any board with 'subitems' in the name
+                if ((board.name || '').toLowerCase().includes('subitems')) continue;
+
+                const boardNorm = normalize(board.name);
+                if (!boardNorm || boardNorm.length < 3) continue;
+
+                let score = 0;
+
+                // Exact match (highest confidence)
+                if (campNorm === boardNorm) {
+                    score = 100;
+                }
+                // Campaign name fully contained in board name (e.g. board = "[23-09] Acme Corp (SEO)", campaign = "Acme Corp")
+                else if (boardNorm.includes(campNorm) && campNorm.length >= 5) {
+                    score = 80;
+                }
+                // Board name fully contained in campaign name (e.g. campaign = "Acme Corp SEO 12m", board = "Acme Corp")
+                else if (campNorm.includes(boardNorm) && boardNorm.length >= 5) {
+                    score = 70;
+                }
+                // No token-overlap matching — too many false positives with common words
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMatch = board;
+                }
+            }
+
+            return bestScore >= 70 ? { id: bestMatch.id, name: bestMatch.name, score: bestScore } : null;
+        }
+
+        /**
+         * Fetch lightweight data from an individual campaign board (columns + first 100 items).
+         */
+        async function fetchCampaignBoardData(boardId) {
+            try {
+                const query = `{ boards(ids: [${boardId}]) { name columns { id title type } items_page (limit: 100) { items { id name column_values { text column { id title } } updates (limit: 2) { text_body created_at creator { name } } } } } }`;
+                const res = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'get_monday_data', query })
+                });
+                const r = await res.json();
+                const mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
+
+                if (mData.errors || !mData.data?.boards?.[0]) return null;
+
+                const board = mData.data.boards[0];
+                return {
+                    board_id: boardId,
+                    board_name: board.name,
+                    board_url: `https://mediaone-business-group-pte-ltd.monday.com/boards/${boardId}`,
+                    columns: (board.columns || []).map(c => ({ title: c.title, type: c.type })),
+                    total_items: (board.items_page?.items || []).length,
+                    items: (board.items_page?.items || []).map(item => ({
+                        id: item.id,
+                        name: item.name,
+                        item_url: `https://mediaone-business-group-pte-ltd.monday.com/boards/${boardId}/pulses/${item.id}`,
+                        columns: Object.fromEntries(
+                            (item.column_values || []).filter(cv => cv.text).map(cv => [cv.column?.title || 'unknown', cv.text])
+                        ),
+                        recent_updates: (item.updates || []).map(u => ({
+                            by: u.creator?.name || 'Unknown',
+                            text: u.text_body,
+                            date: u.created_at
+                        }))
+                    }))
+                };
+            } catch (e) {
+                console.error(`[DRILL-DOWN] Failed to fetch board ${boardId}:`, e);
+                return null;
             }
         }
 
@@ -2654,8 +3114,46 @@
 
                 updateSyncStatus(`Found ${items.length} matching campaigns...`, true);
 
+                // ---- Fetch data from user-selected campaign boards ----
+                const selectedBoards = msState.msBoardDropdown.selected;
+                const campaignBoardDrilldowns = [];
+                if (selectedBoards.length > 0) {
+                    const drillDownLimit = Math.min(selectedBoards.length, 15);
+                    showToast(`Fetching data from ${drillDownLimit} selected boards...`, 'loading', 5000);
+                    updateSyncStatus(`Loading ${drillDownLimit} campaign boards...`, true);
+
+                    const drillPromises = selectedBoards.slice(0, drillDownLimit).map(async (b) => {
+                        const boardId = typeof b === 'object' ? b.id : b;
+                        const data = await fetchCampaignBoardData(boardId);
+                        if (data) campaignBoardDrilldowns.push(data);
+                    });
+                    await Promise.all(drillPromises);
+                    console.log(`[DRILL-DOWN] Fetched ${campaignBoardDrilldowns.length} user-selected boards.`);
+                }
+
+                // ---- Fetch Google Chat messages from selected spaces ----
+                const selectedChatSpaces = msState.msChatSpaceDropdown.selected;
+                const chatMessages = [];
+                if (selectedChatSpaces.length > 0 && window.gchatAccessToken) {
+                    showToast(`Fetching messages from ${selectedChatSpaces.length} Chat spaces...`, 'loading', 5000);
+                    updateSyncStatus(`Loading Chat messages...`, true);
+
+                    const chatPromises = selectedChatSpaces.map(async (s) => {
+                        const spaceId = typeof s === 'object' ? s.id : s;
+                        const spaceName = typeof s === 'object' ? s.name : spaceId;
+                        const msgs = await fetchGoogleChatMessages(spaceId, 50);
+                        if (msgs.length > 0) {
+                            chatMessages.push({ space_name: spaceName, space_id: spaceId, messages: msgs });
+                        }
+                    });
+                    await Promise.all(chatPromises);
+                    console.log(`[GCHAT] Fetched messages from ${chatMessages.length} spaces.`);
+                }
+
+                const hasBoardSelection = campaignBoardDrilldowns.length > 0;
+
                 const combinedContext = {
-                    mode: 'internal',
+                    mode: hasBoardSelection ? 'campaign_board_focus' : 'internal',
                     campaign_summary_board: "Integrated Campaign Summary",
                     search_filters: {
                         item_name_filter: selectedItems.length > 0 ? selectedItems.map(i => typeof i === 'object' ? i.name : i).join(', ') : 'none',
@@ -2663,10 +3161,20 @@
                         status_filter: selectedStatus.length > 0 ? selectedStatus.join(', ') : 'none',
                         project_type_filter: selectedType.length > 0 ? selectedType.join(', ') : 'none'
                     },
-                    total_matching_campaigns: items.length,
-                    campaigns: items.map(item => {
+                    board_registry_total: window.mondayBoardRegistry.length,
+                    // Detailed data from user-selected campaign boards
+                    selected_campaign_boards: campaignBoardDrilldowns,
+                    // Google Chat messages from selected spaces
+                    chat_messages: chatMessages.length > 0 ? chatMessages : undefined,
+                    last_sync: new Date().toISOString()
+                };
+
+                // Only include summary board campaigns if NO campaign boards are selected
+                if (!hasBoardSelection) {
+                    combinedContext.total_matching_campaigns = items.length;
+                    combinedContext.campaigns = items.map(item => {
                         const campaign = { name: item.name };
-                        if (item.id) campaign.monday_url = `https://mediaone.monday.com/boards/${INTERNAL_CAMPAIGN_BOARD_ID}/pulses/${item.id}`;
+                        if (item.id) campaign.monday_url = `https://mediaone-business-group-pte-ltd.monday.com/boards/${INTERNAL_CAMPAIGN_BOARD_ID}/pulses/${item.id}`;
                         campaign.columns = {};
                         (item.column_values || []).forEach(cv => {
                             if (cv.column && cv.text) {
@@ -2684,9 +3192,8 @@
                             }))
                         }));
                         return campaign;
-                    }),
-                    last_sync: new Date().toISOString()
-                };
+                    });
+                }
 
                 console.log("INTERNAL CONTEXT:", combinedContext);
 
@@ -2745,7 +3252,7 @@
                 
                 // DATA INJECTION: For small datasets (<25k chars), inject directly into instructions 
                 // to bypass file_search retrieval limits and ensure 100% list accuracy.
-                const compactData = JSON.stringify(combinedContext.campaigns.map(c => ({
+                const compactData = JSON.stringify((combinedContext.campaigns || []).map(c => ({
                     name: c.name,
                     monday_url: c.monday_url,
                     status: c.columns['[CSM] Campaign Status'] || c.columns['Status'],
@@ -2753,10 +3260,18 @@
                     type: c.columns['[BD]Project Type'] || c.columns['Type']
                 })));
 
+                // Build a compact board registry string for the AI to search
+                // Format: "BoardName | https://mediaone-business-group-pte-ltd.monday.com/boards/ID" per line
+                const boardRegistryLines = window.mondayBoardRegistry.length > 0
+                    ? window.mondayBoardRegistry.map(b => `${b.name} | https://mediaone-business-group-pte-ltd.monday.com/boards/${b.id}`).join('\n')
+                    : 'No boards discovered.';
+
+                const hasBoardDrilldown = hasBoardSelection;
+
                 let instructions = `You are the MediaOne Internal Campaign Analyst.
 
-MODE: Internal — you have access to the full campaign summary board data.
-
+MODE: Internal — you have access to campaign data from Monday.com.
+${hasBoardDrilldown ? `\n⚠️ CAMPAIGN BOARD MODE ACTIVE: The user has selected ${campaignBoardDrilldowns.length} specific campaign board(s). ALL your answers MUST be based EXCLUSIVELY on the data from these selected boards (found under "selected_campaign_boards" in the JSON). Do NOT reference or use the summary board campaign data unless the user explicitly asks about the summary board.\n` : ''}
 STRICT CONTEXT RULE:
 Ignore any information from previous conversations or files that are not visible in the current JSON context. You are only analyzing the data uploaded JUST NOW.
 
@@ -2765,24 +3280,66 @@ Your role:
 2. When answering, always cite which campaign item the information comes from.
 3. If there are people columns, note who is assigned.
 4. Present data in Markdown tables whenever listing multiple items.
-5. NO TRUNCATION: If the user asks for "all" or a list, you must list EVERY single matching campaign from the JSON data. List all 50, 100, or however many match.
+5. NO TRUNCATION: If the user asks for "all" or a list, you must list EVERY single matching item from the data. List all items, do not truncate.
 6. Be concise and direct — this is for internal staff, not clients.
 7. If the data doesn't contain what's being asked, say so clearly.
-8. ALWAYS include the monday_url link for each campaign you mention so users can click through to Monday.com. Format as a markdown link: [Campaign Name](monday_url).
+8. ALWAYS include clickable Monday.com links (item_url or monday_url) for each item you mention. Format as a markdown link: [Item Name](url).
+
+BOARD REGISTRY LOOKUP:
+Below is a complete list of ALL active boards in the Monday.com workspace. When a user asks about a specific client, campaign, or wants to "zoom in" / "drill down":
+- Search through the BOARD REGISTRY below to find boards whose names match or relate to the campaign/client name.
+- Board names in Monday often follow patterns like "[YY-MM/CODE] Client Name (Service Type)" e.g. "[23-09/BHS-01] Bhavini S Law Practice (SEO)".
+- A single client may have MULTIPLE boards (one per service: SEO, SEM, SMM, Web, etc.).
+- Present ALL matching boards from the registry as clickable links so the user can navigate to them.
+- If no matching boards are found, say so explicitly.
 
 CRITICAL FORMATTING RULE:
-- When presenting campaign data, ALWAYS use Markdown tables with clear headers.
+- When presenting data, ALWAYS use Markdown tables with clear headers.
 - Include a clickable Monday.com link column in tables.
+- When showing board lookups, include Board Name and a clickable Board URL column.
 - Do NOT truncate rows in tables. Show the full dataset matching the user's request.
 - Group related information logically.
 - Highlight any missing or empty fields.
 
 DATA CONTEXT:
-The attached JSON file contains campaign data from the Monday.com summary board (Board ID: ${INTERNAL_CAMPAIGN_BOARD_ID}).
-Total Matching Campaigns: ${items.length}`;
+${hasBoardDrilldown ? `PRIMARY DATA SOURCE: ${campaignBoardDrilldowns.length} selected campaign board(s).
+IMPORTANT: You have ZERO access to the summary board. ALL your answers MUST come from the SELECTED BOARD DATA below. If the data doesn't answer the question, say so.` : `Summary board (Board ID: ${INTERNAL_CAMPAIGN_BOARD_ID}) with ${items.length} campaigns.`}
+Total Workspace Boards in Registry: ${window.mondayBoardRegistry.length}
 
-                if (compactData.length < 28000) {
+BOARD REGISTRY (${window.mondayBoardRegistry.length} boards):
+${boardRegistryLines}`;
+
+                if (hasBoardDrilldown) {
+                    // DIRECT INJECTION: Serialize selected board data into instructions
+                    // This bypasses file_search entirely, preventing stale vector store data from leaking in
+                    const boardDataCompact = campaignBoardDrilldowns.map(d => ({
+                        board_name: d.board_name,
+                        board_url: d.board_url,
+                        items: d.items.map(item => ({
+                            name: item.name,
+                            url: item.item_url,
+                            columns: item.columns,
+                            updates: item.recent_updates
+                        }))
+                    }));
+                    const boardDataStr = JSON.stringify(boardDataCompact);
+                    instructions += `\n\nSELECTED BOARD DATA (USE THIS EXCLUSIVELY):\n${boardDataStr}`;
+                } else if (compactData.length < 28000) {
                     instructions += `\n\nDIRECT CAMPAIGN LIST (USE THIS FOR ALL LISTS):\n${compactData}`;
+                }
+
+                // Inject Google Chat messages into instructions
+                if (chatMessages.length > 0) {
+                    const chatCompact = chatMessages.map(s => ({
+                        space: s.space_name,
+                        messages: s.messages.slice(0, 30).map(m => ({
+                            from: m.sender,
+                            text: m.text.substring(0, 500),
+                            time: m.timestamp
+                        }))
+                    }));
+                    const chatDataStr = JSON.stringify(chatCompact);
+                    instructions += `\n\nGOOGLE CHAT MESSAGES (from ${chatMessages.length} space(s)):\nThe user has included recent Google Chat conversations. Use this to cross-reference discussions with campaign data. When the user asks about conversations, discussions, or team chats, reference this data.\n${chatDataStr}`;
                 }
 
                 const internalAssistantPayload = {
@@ -2823,11 +3380,31 @@ Total Matching Campaigns: ${items.length}`;
                 showToast("Internal Sync Complete!", 'success');
                 updateSyncStatus(`Internal Sync Done (${items.length} campaigns)`, false, true);
                 const itemNames = selectedItems.map(i => typeof i === 'object' ? i.name : i);
+
+                // Build board reference from user-selected boards
+                const selectedBoardNames = selectedBoards.map(b => typeof b === 'object' ? b.name : b);
+                let boardRefLines = '';
+                if (campaignBoardDrilldowns.length > 0) {
+                    boardRefLines = `\n\n📋 **Campaign Boards Loaded** (${campaignBoardDrilldowns.length}):\n` +
+                        campaignBoardDrilldowns.map(d => `- [${d.board_name}](${d.board_url}) — ${d.total_items} items`).join('\n');
+                } else if (window.mondayBoardRegistry.length > 0) {
+                    boardRefLines = `\n\n📋 **Board Registry:** ${window.mondayBoardRegistry.length} boards available — select boards in the filter above or ask me to look up boards for any campaign.`;
+                }
+
+                // Build Google Chat reference
+                let chatRefLines = '';
+                if (chatMessages.length > 0) {
+                    const totalMsgs = chatMessages.reduce((sum, s) => sum + s.messages.length, 0);
+                    chatRefLines = `\n\n💬 **Google Chat Loaded** (${chatMessages.length} space(s), ${totalMsgs} messages):\n` +
+                        chatMessages.map(s => `- ${s.space_name} — ${s.messages.length} messages`).join('\n');
+                }
+
                 addMessage("bot", `✅ **Internal data loaded!** Found **${items.length} campaigns** matching your filters.
 ${itemNames.length > 0 ? `\n📌 Campaigns: ${itemNames.join(', ')}` : ''}
 ${selectedStaff.length > 0 ? `👤 Staff: ${selectedStaff.join(', ')}` : ''}
 ${selectedStatus.length > 0 ? `🔴 Status: ${selectedStatus.join(', ')}` : ''}
 ${selectedType.length > 0 ? `⚡ Type: ${selectedType.join(', ')}` : ''}
+${boardRefLines}${chatRefLines}
 
 You can now ask me anything about these campaigns.`);
 
@@ -2925,7 +3502,7 @@ You can now ask me anything about these campaigns.`);
                         }).map(item => {
                             // Add item URL for the AI to reference
                             const boardId = board.id;
-                            item.monday_url = `https://mediaone.monday.com/boards/${boardId}/pulses/${item.id}`;
+                            item.monday_url = `https://mediaone-business-group-pte-ltd.monday.com/boards/${boardId}/pulses/${item.id}`;
                             return item;
                         });
 
@@ -3400,6 +3977,24 @@ CRITICAL CONTACT RULE:
             if (boardIds) {
                 console.log("[AUTO-SYNC] Starting background sync...");
                 setTimeout(syncMondayToOpenAI, 1000);
+            }
+
+            // Auto-connect Google Chat if in internal mode and not already connected
+            if (currentMode === 'internal' && !window.gchatAccessToken) {
+                setTimeout(() => {
+                    const clientId = document.getElementById('googleClientId')?.value?.trim();
+                    if (clientId && typeof google !== 'undefined' && google.accounts?.oauth2) {
+                        console.log('[GCHAT] Auto-prompting Google Chat connection...');
+                        connectGoogleChat();
+                    } else {
+                        console.log('[GCHAT] GIS SDK not ready yet, retrying in 2s...');
+                        setTimeout(() => {
+                            if (!window.gchatAccessToken && typeof google !== 'undefined' && google.accounts?.oauth2) {
+                                connectGoogleChat();
+                            }
+                        }, 2000);
+                    }
+                }, 2000);
             }
         });
     </script>
