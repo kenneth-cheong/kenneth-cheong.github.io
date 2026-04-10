@@ -1599,6 +1599,14 @@
             if (document.getElementById('autoSync').checked) {
                 startAutoSync();
             }
+
+            // Prompt Google Workspace connect on load if internal mode and not connected
+            if (currentMode === 'internal' && !window.gchatAccessToken) {
+                const dismissed = sessionStorage.getItem('gworkspace_modal_dismissed');
+                if (!dismissed) {
+                    setTimeout(function() { if (typeof showGworkspaceModal === 'function') showGworkspaceModal(); }, 800);
+                }
+            }
         });
 
         // ---- Mode Toggle Logic ----
@@ -1728,6 +1736,10 @@
             if (window.gchatAccessToken) {
                 updateGchatUI(true);
                 fetchGoogleChatSpaces();
+                fetchGoogleDriveFolders();
+                verifyGmailAccess();
+                setServiceBadge('Chat', true);
+                setServiceBadge('Drive', true);
             }
         }
 
@@ -4491,6 +4503,68 @@ CRITICAL CONTACT RULE:
             }
         });
     </script>
-</body>
 
+    <!-- Google Workspace Connect Modal -->
+    <div id="gworkspaceModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(15,23,42,0.55); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:20px; padding:36px 32px 28px; max-width:420px; width:90%; box-shadow:0 24px 60px rgba(0,0,0,0.18); text-align:center; animation:modalPop 0.3s cubic-bezier(0.34,1.56,0.64,1) both;">
+            <div style="display:flex; justify-content:center; gap:12px; margin-bottom:20px;">
+                <div style="width:44px;height:44px;border-radius:12px;background:#e9f7ef;display:flex;align-items:center;justify-content:center;">
+                    <i class="fas fa-comments" style="color:#34a853;font-size:1.2rem;"></i>
+                </div>
+                <div style="width:44px;height:44px;border-radius:12px;background:#fef9e7;display:flex;align-items:center;justify-content:center;">
+                    <i class="fab fa-google-drive" style="color:#f59e0b;font-size:1.2rem;"></i>
+                </div>
+                <div style="width:44px;height:44px;border-radius:12px;background:#fde8e8;display:flex;align-items:center;justify-content:center;">
+                    <i class="fas fa-envelope" style="color:#ef4444;font-size:1.2rem;"></i>
+                </div>
+            </div>
+            <h2 style="margin:0 0 8px; font-size:1.1rem; font-weight:800; color:#0f172a;">Connect Google Workspace</h2>
+            <p style="margin:0 0 24px; font-size:0.82rem; color:#64748b; line-height:1.5;">
+                Link your <strong>Google Chat</strong>, <strong>Drive</strong>, and <strong>Gmail</strong> to let the AI cross-reference team discussions, documents, and emails with your campaign data.
+            </p>
+            <button onclick="connectFromModal()" style="width:100%; padding:14px; background:linear-gradient(135deg,#34a853,#1e8f3c); color:#fff; border:none; border-radius:12px; font-size:0.9rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 14px rgba(52,168,83,0.4);">
+                <i class="fab fa-google"></i> Connect Google Workspace
+            </button>
+            <button onclick="dismissGworkspaceModal()" style="margin-top:12px; width:100%; background:none; border:none; font-size:0.78rem; color:#94a3b8; cursor:pointer; padding:6px;">
+                Skip for now &mdash; connect later via Settings
+            </button>
+        </div>
+    </div>
+
+    <style>
+        @keyframes modalPop {
+            from { opacity: 0; transform: scale(0.88) translateY(12px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+    </style>
+
+    <script>
+        function showGworkspaceModal() {
+            var modal = document.getElementById('gworkspaceModal');
+            if (modal) modal.style.display = 'flex';
+        }
+        function dismissGworkspaceModal() {
+            var modal = document.getElementById('gworkspaceModal');
+            if (modal) modal.style.display = 'none';
+            sessionStorage.setItem('gworkspace_modal_dismissed', '1');
+        }
+        function connectFromModal() {
+            dismissGworkspaceModal();
+            var settingsPanel = document.querySelector('.settings-panel');
+            if (settingsPanel && !settingsPanel.classList.contains('open')) {
+                settingsPanel.classList.add('open');
+            }
+            var section = document.getElementById('googleChatSection');
+            if (section) section.classList.add('active');
+            setTimeout(function() { connectGoogleChat(); }, 350);
+        }
+        var gModal = document.getElementById('gworkspaceModal');
+        if (gModal) {
+            gModal.addEventListener('click', function(e) {
+                if (e.target === this) dismissGworkspaceModal();
+            });
+        }
+    </script>
+
+</body>
 </html>
