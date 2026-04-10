@@ -1218,12 +1218,12 @@
                 </div>
             </div>
 
-            <!-- Google Chat Integration -->
+            <!-- Google Workspace Integration -->
             <div class="collapsible-section" id="googleChatSection">
                 <div class="collapsible-header"
                     onclick="this.closest('.collapsible-section').classList.toggle('active')">
                     <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i
-                            class="fab fa-google" style="margin-right: 8px; opacity: 0.5;"></i> Google Chat</span>
+                            class="fab fa-google" style="margin-right: 8px; opacity: 0.5;"></i> Google Workspace</span>
                     <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
                 </div>
                 <div class="collapsible-content">
@@ -1240,6 +1240,29 @@
                         </button>
                     </div>
                     <div id="gchatStatus" style="font-size: 0.7rem; color: #64748b; margin-top: 8px; text-align: center;"></div>
+
+                    <!-- Per-service access status -->
+                    <div id="gworkspaceServiceStatus" style="display:none; margin-top: 10px; display:none; flex-direction:column; gap:5px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.7rem; color:#475569;">
+                            <span><i class="fas fa-comments" style="width:14px;"></i> Google Chat</span>
+                            <span id="statusBadgeChat" style="font-size:0.65rem; padding:2px 8px; border-radius:10px; font-weight:600; background:#f1f5f9; color:#64748b;">—</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.7rem; color:#475569;">
+                            <span><i class="fab fa-google-drive" style="width:14px;"></i> Google Drive</span>
+                            <span id="statusBadgeDrive" style="font-size:0.65rem; padding:2px 8px; border-radius:10px; font-weight:600; background:#f1f5f9; color:#64748b;">—</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.7rem; color:#475569;">
+                            <span><i class="fas fa-envelope" style="width:14px;"></i> Gmail</span>
+                            <span id="statusBadgeGmail" style="font-size:0.65rem; padding:2px 8px; border-radius:10px; font-weight:600; background:#f1f5f9; color:#64748b;">—</span>
+                        </div>
+                    </div>
+
+                    <!-- Gmail days-back setting -->
+                    <div class="form-group" style="margin-top: 14px;">
+                        <label>Gmail History (days)</label>
+                        <input type="number" id="gmailDaysBack" value="90" min="1" max="730"
+                            style="width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8rem;">
+                    </div>
                 </div>
             </div>
 
@@ -1456,6 +1479,48 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Google Drive Folders Dropdown -->
+                <div id="gdriveSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
+                    <div class="filter-field">
+                        <label><span><i class="fab fa-google-drive" style="margin-right:4px; opacity:0.6;"></i> Google Drive Folders</span> <span class="label-count" id="count-msGDriveFolderDropdown"></span></label>
+                        <div class="ms-dropdown" id="msGDriveFolderDropdown">
+                            <div class="ms-trigger" onclick="toggleMsPanel('msGDriveFolderDropdown')">
+                                <span class="ms-placeholder">Connect Google Workspace in Settings...</span>
+                            </div>
+                            <div class="ms-panel">
+                                <div class="ms-search">
+                                    <i class="fas fa-search"></i>
+                                    <input type="text" placeholder="Search folders..." oninput="filterMsOptions('msGDriveFolderDropdown', this.value)">
+                                </div>
+                                <div class="ms-bulk-actions">
+                                    <button onclick="msSelectAll('msGDriveFolderDropdown')">✓ All</button>
+                                    <button onclick="msUnselectAll('msGDriveFolderDropdown')">✗ None</button>
+                                </div>
+                                <div class="ms-options">
+                                    <div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Connect Google Workspace first...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gmail Toggle -->
+                <div id="gmailSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
+                    <div class="filter-field">
+                        <label>
+                            <span><i class="fas fa-envelope" style="margin-right:4px; opacity:0.6;"></i> Include Gmail Threads <span id="gmailAccessBadge" style="display:none; font-size:0.6rem; padding:1px 6px; border-radius:8px; font-weight:700; margin-left:4px;"></span></span>
+                            <span style="display:flex;align-items:center;gap:6px;">
+                                <input type="checkbox" id="gmailIncludeToggle" checked
+                                    style="width:16px;height:16px;cursor:pointer;accent-color:#92400e;">
+                            </span>
+                        </label>
+                        <div style="font-size: 0.65rem; color: #92400e; margin-top: 4px; opacity: 0.8;">
+                            Searches emails mentioning selected campaigns / staff.
+                        </div>
+                    </div>
+                </div>
+
                 <div class="filter-actions">
                     <button class="btn-amber" id="internalSyncBtn" onclick="syncInternalMode()">
                         <i class="fas fa-bolt"></i> Load Data
@@ -2015,7 +2080,8 @@
             msStatusDropdown: { options: [], selected: [], active: false },
             msProjectTypeDropdown: { options: [], selected: [], active: false },
             msBoardDropdown: { options: [], selected: [], active: false },
-            msChatSpaceDropdown: { options: [], selected: [], active: false }
+            msChatSpaceDropdown: { options: [], selected: [], active: false },
+            msGDriveFolderDropdown: { options: [], selected: [], active: false }
         };
 
         window.allPrefetchedItems = []; 
@@ -2484,17 +2550,90 @@
             const disconnectBtn = document.getElementById('gchatDisconnectBtn');
             const statusEl = document.getElementById('gchatStatus');
             const spacesSection = document.getElementById('gchatSpacesSection');
-            
+            const driveSection = document.getElementById('gdriveSection');
+            const gmailSection = document.getElementById('gmailSection');
+            const serviceStatusPanel = document.getElementById('gworkspaceServiceStatus');
+
             if (connected) {
                 if (connectBtn) connectBtn.style.display = 'none';
                 if (disconnectBtn) disconnectBtn.style.display = 'flex';
-                if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#34a853;"></i> Connected';
+                if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#34a853;"></i> Google Workspace connected';
                 if (spacesSection) spacesSection.style.display = 'block';
+                if (driveSection) driveSection.style.display = 'block';
+                if (gmailSection) gmailSection.style.display = 'block';
+                if (serviceStatusPanel) serviceStatusPanel.style.display = 'flex';
             } else {
                 if (connectBtn) connectBtn.style.display = 'flex';
                 if (disconnectBtn) disconnectBtn.style.display = 'none';
                 if (statusEl) statusEl.innerHTML = '';
                 if (spacesSection) spacesSection.style.display = 'none';
+                if (driveSection) driveSection.style.display = 'none';
+                if (gmailSection) gmailSection.style.display = 'none';
+                if (serviceStatusPanel) serviceStatusPanel.style.display = 'none';
+                // Reset all badges
+                setServiceBadge('Chat', null);
+                setServiceBadge('Drive', null);
+                setServiceBadge('Gmail', null);
+            }
+        }
+
+        function setServiceBadge(service, granted) {
+            const badge = document.getElementById(`statusBadge${service}`);
+            if (!badge) return;
+            if (granted === null) {
+                badge.textContent = '—';
+                badge.style.background = '#f1f5f9';
+                badge.style.color = '#64748b';
+            } else if (granted) {
+                badge.textContent = '✓ Access Granted';
+                badge.style.background = '#dcfce7';
+                badge.style.color = '#15803d';
+            } else {
+                badge.textContent = '✗ No Access';
+                badge.style.background = '#fee2e2';
+                badge.style.color = '#dc2626';
+            }
+
+            // Also update the filter panel badge (Gmail only)
+            if (service === 'Gmail') {
+                const filterBadge = document.getElementById('gmailAccessBadge');
+                if (filterBadge) {
+                    if (granted === null) {
+                        filterBadge.style.display = 'none';
+                    } else if (granted) {
+                        filterBadge.textContent = '✓';
+                        filterBadge.style.display = 'inline';
+                        filterBadge.style.background = '#dcfce7';
+                        filterBadge.style.color = '#15803d';
+                    } else {
+                        filterBadge.textContent = '✗ No Access';
+                        filterBadge.style.display = 'inline';
+                        filterBadge.style.background = '#fee2e2';
+                        filterBadge.style.color = '#dc2626';
+                    }
+                }
+            }
+        }
+
+        async function verifyGmailAccess() {
+            if (!window.gchatAccessToken) return;
+            try {
+                const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+                    headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` }
+                });
+                const granted = res.ok;
+                setServiceBadge('Gmail', granted);
+                if (granted) {
+                    const profile = await res.json();
+                    console.log('[GMAIL] Access verified for:', profile.emailAddress);
+                    showToast(`Gmail access verified (${profile.emailAddress})`, 'success', 4000);
+                } else {
+                    console.warn('[GMAIL] Access denied. Enable Gmail API in Google Cloud Console.');
+                    showToast('Gmail access denied — enable Gmail API in Google Cloud Console', 'error', 6000);
+                }
+            } catch (err) {
+                setServiceBadge('Gmail', false);
+                console.error('[GMAIL] Verification error:', err);
             }
         }
 
@@ -2514,7 +2653,7 @@
 
             const codeClient = google.accounts.oauth2.initCodeClient({
                 client_id: clientId,
-                scope: 'https://www.googleapis.com/auth/chat.spaces.readonly https://www.googleapis.com/auth/chat.messages.readonly',
+                scope: 'https://www.googleapis.com/auth/chat.spaces.readonly https://www.googleapis.com/auth/chat.messages.readonly https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/gmail.readonly',
                 ux_mode: 'popup',
                 callback: async (response) => {
                     if (response.error) {
@@ -2549,6 +2688,11 @@
                         
                         // Fetch spaces
                         await fetchGoogleChatSpaces();
+                        await fetchGoogleDriveFolders();
+                        // Mark Chat and Drive as granted; verify Gmail separately
+                        setServiceBadge('Chat', true);
+                        setServiceBadge('Drive', true);
+                        verifyGmailAccess(); // async, non-blocking
                     } catch (err) {
                         console.error('[GCHAT] Token exchange failed:', err);
                         showToast(`Token exchange failed: ${err.message}`, 'error');
@@ -2665,6 +2809,163 @@
             } catch (err) {
                 console.error(`[GCHAT] Error fetching messages from ${spaceId}:`, err);
                 return [];
+            }
+        }
+
+        // ---- Google Drive: List folders ----
+        async function fetchGoogleDriveFolders() {
+            if (!window.gchatAccessToken) return;
+            try {
+                let allFolders = [];
+                let pageToken = '';
+                let pages = 0;
+
+                while (pages < 10) {
+                    const url = `https://www.googleapis.com/drive/v3/files?q=mimeType%3D'application%2Fvnd.google-apps.folder'+and+trashed%3Dfalse&fields=nextPageToken,files(id,name,mimeType,driveId)&pageSize=100&includeItemsFromAllDrives=true&supportsAllDrives=true&corpora=allDrives${pageToken ? `&pageToken=${pageToken}` : ''}`;
+                    const res = await fetch(url, {
+                        headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` }
+                    });
+                    if (!res.ok) { console.warn('[DRIVE] Folder fetch failed:', res.status); break; }
+                    const data = await res.json();
+                    allFolders = allFolders.concat(data.files || []);
+                    pageToken = data.nextPageToken;
+                    pages++;
+                    if (!pageToken) break;
+                }
+
+                allFolders.sort((a, b) => a.name.localeCompare(b.name));
+                const folderOptions = allFolders.map(f => ({ id: f.id, name: f.name }));
+                msState.msGDriveFolderDropdown.options = folderOptions;
+                renderMsOptions('msGDriveFolderDropdown');
+                renderMsTrigger('msGDriveFolderDropdown');
+                console.log(`[DRIVE] Loaded ${folderOptions.length} folders.`);
+            } catch (err) {
+                console.error('[DRIVE] Failed to fetch folders:', err);
+            }
+        }
+
+        // ---- Google Drive: Get all files in a folder (recursive) ----
+        async function fetchGoogleDriveFolderContents(folderId) {
+            if (!window.gchatAccessToken) return [];
+            let allFiles = [];
+            let pageToken = '';
+            let pages = 0;
+
+            while (pages < 20) {
+                const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+                const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,mimeType)&pageSize=100&includeItemsFromAllDrives=true&supportsAllDrives=true${pageToken ? `&pageToken=${pageToken}` : ''}`;
+                const res = await fetch(url, { headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` } });
+                if (!res.ok) break;
+                const data = await res.json();
+                const files = data.files || [];
+
+                // Recurse into sub-folders
+                for (const f of files) {
+                    if (f.mimeType === 'application/vnd.google-apps.folder') {
+                        const sub = await fetchGoogleDriveFolderContents(f.id);
+                        allFiles = allFiles.concat(sub);
+                    } else {
+                        allFiles.push(f);
+                    }
+                }
+                pageToken = data.nextPageToken;
+                pages++;
+                if (!pageToken) break;
+            }
+            return allFiles;
+        }
+
+        // ---- Google Drive: Export/download file content as plain text ----
+        async function fetchGoogleDriveFileContent(file) {
+            if (!window.gchatAccessToken) return null;
+            try {
+                let url;
+                const exportableTypes = {
+                    'application/vnd.google-apps.document': 'text/plain',
+                    'application/vnd.google-apps.spreadsheet': 'text/csv',
+                    'application/vnd.google-apps.presentation': 'text/plain'
+                };
+                const exportMime = exportableTypes[file.mimeType];
+
+                if (exportMime) {
+                    url = `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=${encodeURIComponent(exportMime)}`;
+                } else {
+                    // Binary/PDF — attempt text download (will work for text files, PDFs returned as-is)
+                    url = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
+                }
+
+                const res = await fetch(url, { headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` } });
+                if (!res.ok) return null;
+
+                const text = await res.text();
+                // Truncate very large files to 10k chars each
+                return text.substring(0, 10000);
+            } catch (err) {
+                console.warn(`[DRIVE] Could not read file ${file.name}:`, err);
+                return null;
+            }
+        }
+
+        // ---- Gmail: Search for matching threads ----
+        async function fetchGmailThreads(searchQuery, daysBack = 90) {
+            if (!window.gchatAccessToken) return [];
+            try {
+                const after = Math.floor((Date.now() - daysBack * 24 * 60 * 60 * 1000) / 1000);
+                const fullQuery = encodeURIComponent(`${searchQuery} after:${after}`);
+                let allThreads = [];
+                let pageToken = '';
+                let pages = 0;
+
+                while (pages < 5) { // Max 50 threads per query
+                    const url = `https://gmail.googleapis.com/gmail/v1/users/me/threads?q=${fullQuery}&maxResults=10${pageToken ? `&pageToken=${pageToken}` : ''}`;
+                    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` } });
+                    if (!res.ok) { console.warn('[GMAIL] Thread search failed:', res.status); break; }
+                    const data = await res.json();
+                    allThreads = allThreads.concat(data.threads || []);
+                    pageToken = data.nextPageToken;
+                    pages++;
+                    if (!pageToken || allThreads.length >= 50) break;
+                }
+                return allThreads;
+            } catch (err) {
+                console.error('[GMAIL] fetchGmailThreads error:', err);
+                return [];
+            }
+        }
+
+        // ---- Gmail: Parse and extract readable text from a thread ----
+        async function parseGmailThread(threadId) {
+            if (!window.gchatAccessToken) return null;
+            try {
+                const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}?format=full`, {
+                    headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` }
+                });
+                if (!res.ok) return null;
+                const data = await res.json();
+
+                const messages = (data.messages || []).slice(0, 10).map(msg => {
+                    const headers = msg.payload?.headers || [];
+                    const subject = headers.find(h => h.name === 'Subject')?.value || '(no subject)';
+                    const from = headers.find(h => h.name === 'From')?.value || 'Unknown';
+                    const date = headers.find(h => h.name === 'Date')?.value || '';
+
+                    // Extract plain text body
+                    let body = '';
+                    const extractBody = (part) => {
+                        if (part.mimeType === 'text/plain' && part.body?.data) {
+                            body += atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/')) + '\n';
+                        }
+                        if (part.parts) part.parts.forEach(extractBody);
+                    };
+                    extractBody(msg.payload);
+
+                    return { subject, from, date, body: body.substring(0, 2000) };
+                });
+
+                return { thread_id: threadId, messages };
+            } catch (err) {
+                console.warn(`[GMAIL] parseGmailThread error for ${threadId}:`, err);
+                return null;
             }
         }
 
@@ -3252,6 +3553,49 @@
                     console.log(`[GCHAT] Fetched messages from ${chatMessages.length} spaces.`);
                 }
 
+                // ---- Fetch Google Drive folder contents ----
+                const selectedDriveFolders = msState.msGDriveFolderDropdown.selected;
+                const driveDocuments = [];
+                if (selectedDriveFolders.length > 0 && window.gchatAccessToken) {
+                    showToast(`Reading ${selectedDriveFolders.length} Drive folder(s)...`, 'loading', 6000);
+                    updateSyncStatus(`Loading Drive documents...`, true);
+                    for (const folder of selectedDriveFolders) {
+                        const folderId = typeof folder === 'object' ? folder.id : folder;
+                        const folderName = typeof folder === 'object' ? folder.name : folderId;
+                        const files = await fetchGoogleDriveFolderContents(folderId);
+                        console.log(`[DRIVE] Folder "${folderName}": ${files.length} files`);
+                        for (const file of files.slice(0, 30)) { // cap at 30 files per folder
+                            const text = await fetchGoogleDriveFileContent(file);
+                            if (text && text.trim()) {
+                                driveDocuments.push({ folder: folderName, file: file.name, type: file.mimeType, content: text });
+                            }
+                        }
+                    }
+                    console.log(`[DRIVE] Extracted content from ${driveDocuments.length} documents.`);
+                }
+
+                // ---- Fetch Gmail threads ----
+                const gmailEnabled = document.getElementById('gmailIncludeToggle')?.checked;
+                const gmailData = [];
+                if (gmailEnabled && window.gchatAccessToken) {
+                    const daysBack = parseInt(document.getElementById('gmailDaysBack')?.value || '90');
+                    showToast(`Searching Gmail (last ${daysBack} days)...`, 'loading', 5000);
+                    updateSyncStatus(`Searching Gmail...`, true);
+
+                    // Build search terms from selected campaigns and staff
+                    const campaignTerms = selectedItems.slice(0, 5).map(i => typeof i === 'object' ? i.name : i);
+                    const staffTerms = selectedStaff.slice(0, 5);
+                    const searchTerms = [...campaignTerms, ...staffTerms].filter(Boolean);
+                    const gmailQuery = searchTerms.length > 0 ? searchTerms.join(' OR ') : 'campaign';
+
+                    const threads = await fetchGmailThreads(gmailQuery, daysBack);
+                    console.log(`[GMAIL] Found ${threads.length} matching threads.`);
+                    for (const thread of threads.slice(0, 20)) {
+                        const parsed = await parseGmailThread(thread.id);
+                        if (parsed) gmailData.push(parsed);
+                    }
+                }
+
                 const hasBoardSelection = campaignBoardDrilldowns.length > 0;
 
                 const combinedContext = {
@@ -3268,6 +3612,10 @@
                     selected_campaign_boards: campaignBoardDrilldowns,
                     // Google Chat messages from selected spaces
                     chat_messages: chatMessages.length > 0 ? chatMessages : undefined,
+                    // Google Drive documents
+                    drive_documents: driveDocuments.length > 0 ? driveDocuments : undefined,
+                    // Gmail threads
+                    gmail_threads: gmailData.length > 0 ? gmailData : undefined,
                     last_sync: new Date().toISOString()
                 };
 
@@ -3459,6 +3807,32 @@ ${boardRegistryLines}`;
                     }));
                     const chatDataStr = JSON.stringify(chatCompact);
                     instructions += `\n\nGOOGLE CHAT MESSAGES (from ${chatMessages.length} space(s)):\nThe user has included recent Google Chat conversations. Use this to cross-reference discussions with campaign data. When the user asks about conversations, discussions, or team chats, reference this data.\n${chatDataStr}`;
+                }
+
+                // Inject Google Drive document extracts into instructions
+                if (driveDocuments.length > 0) {
+                    const driveCompact = driveDocuments.map(doc => ({
+                        folder: doc.folder,
+                        file: doc.file,
+                        excerpt: doc.content.substring(0, 1000)
+                    }));
+                    const driveDataStr = JSON.stringify(driveCompact);
+                    instructions += `\n\nGOOGLE DRIVE DOCUMENTS (${driveDocuments.length} file(s) from ${selectedDriveFolders.length} folder(s)):\nThe user has shared Drive files. Use these to find project briefs, SOWs, reports, or any campaign documentation mentioned. Cross-reference file content with Monday.com campaign names.\n${driveDataStr}`;
+                }
+
+                // Inject Gmail threads into instructions
+                if (gmailData.length > 0) {
+                    const gmailCompact = gmailData.map(t => ({
+                        thread_id: t.thread_id,
+                        messages: t.messages.slice(0, 5).map(m => ({
+                            subject: m.subject,
+                            from: m.from,
+                            date: m.date,
+                            excerpt: m.body.substring(0, 500)
+                        }))
+                    }));
+                    const gmailDataStr = JSON.stringify(gmailCompact);
+                    instructions += `\n\nGMAIL THREADS (${gmailData.length} thread(s)):\nThe user has included Gmail email threads related to their campaigns/staff. Use this to surface campaign-related email discussions, proposals, or status updates.\n${gmailDataStr}`;
                 }
 
                 const internalAssistantPayload = {
