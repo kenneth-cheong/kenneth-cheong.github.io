@@ -781,6 +781,19 @@
             color: #92400e;
             text-transform: uppercase;
             letter-spacing: 0.05em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .label-count {
+            font-size: 0.65rem;
+            background: #fef3c7;
+            color: #92400e;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-weight: 600;
+            display: none;
         }
 
         .filter-actions {
@@ -1311,7 +1324,7 @@
 
                 <div class="filter-grid" id="summaryBoardFilters" style="display:none;">
                     <div class="filter-field">
-                        <label>Campaign / Item Name</label>
+                        <label>Campaign / Item Name <span class="label-count" id="count-msItemDropdown"></span></label>
                         <div class="ms-dropdown" id="msItemDropdown">
                             <div class="ms-trigger" onclick="toggleMsPanel('msItemDropdown')">
                                 <span class="ms-placeholder">Loading latest data...</span>
@@ -1332,7 +1345,7 @@
                         </div>
                     </div>
                     <div class="filter-field">
-                        <label>Staff Name</label>
+                        <label>Staff Name <span class="label-count" id="count-msStaffDropdown"></span></label>
                         <div class="ms-dropdown" id="msStaffDropdown">
                             <div class="ms-trigger" onclick="toggleMsPanel('msStaffDropdown')">
                                 <span class="ms-placeholder">Loading latest data...</span>
@@ -1353,7 +1366,7 @@
                         </div>
                     </div>
                     <div class="filter-field">
-                        <label>[CSM] Campaign Status</label>
+                        <label>[CSM] Campaign Status <span class="label-count" id="count-msStatusDropdown"></span></label>
                         <div class="ms-dropdown" id="msStatusDropdown">
                             <div class="ms-trigger" onclick="toggleMsPanel('msStatusDropdown')">
                                 <span class="ms-placeholder">Loading latest data...</span>
@@ -1374,7 +1387,7 @@
                         </div>
                     </div>
                     <div class="filter-field">
-                        <label>[BD] Project Type</label>
+                        <label>[BD] Project Type <span class="label-count" id="count-msProjectTypeDropdown"></span></label>
                         <div class="ms-dropdown" id="msProjectTypeDropdown">
                             <div class="ms-trigger" onclick="toggleMsPanel('msProjectTypeDropdown')">
                                 <span class="ms-placeholder">Loading latest data...</span>
@@ -1398,7 +1411,7 @@
                 <!-- Campaign Boards Dropdown (full width below the 2x2 grid) -->
                 <div style="margin-top: 12px; margin-bottom: 16px;">
                     <div class="filter-field">
-                        <label><i class="fas fa-th-large" style="margin-right:4px; opacity:0.6;"></i> Campaign Boards</label>
+                        <label><span><i class="fas fa-th-large" style="margin-right:4px; opacity:0.6;"></i> Campaign Boards</span> <span class="label-count" id="count-msBoardDropdown"></span></label>
                         <div class="ms-dropdown" id="msBoardDropdown">
                             <div class="ms-trigger" onclick="toggleMsPanel('msBoardDropdown')">
                                 <span class="ms-placeholder">Loading board registry...</span>
@@ -1422,7 +1435,7 @@
                 <!-- Google Chat Spaces Dropdown -->
                 <div id="gchatSpacesSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
                     <div class="filter-field">
-                        <label><i class="fab fa-google" style="margin-right:4px; opacity:0.6;"></i> Google Chat Spaces</label>
+                        <label><span><i class="fab fa-google" style="margin-right:4px; opacity:0.6;"></i> Google Chat Spaces</span> <span class="label-count" id="count-msChatSpaceDropdown"></span></label>
                         <div class="ms-dropdown" id="msChatSpaceDropdown">
                             <div class="ms-trigger" onclick="toggleMsPanel('msChatSpaceDropdown')">
                                 <span class="ms-placeholder">Connect Google Chat in Settings...</span>
@@ -2214,6 +2227,17 @@
             const optionsContainer = dd.querySelector('.ms-options');
             const state = msState[dropdownId];
 
+            // Update label count
+            const countEl = document.getElementById(`count-${dropdownId}`);
+            if (countEl) {
+                if (state.options.length > 0) {
+                    countEl.textContent = state.options.length;
+                    countEl.style.display = 'inline-block';
+                } else {
+                    countEl.style.display = 'none';
+                }
+            }
+
             if (state.options.length === 0) {
                 optionsContainer.innerHTML = `<div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading latest data...</div>`;
                 return;
@@ -2551,55 +2575,93 @@
             if (!window.gchatAccessToken) return;
 
             try {
-                const res = await fetch('https://chat.googleapis.com/v1/spaces?pageSize=100&filter=spaceType%3D%22SPACE%22', {
-                    headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` }
-                });
+                let allSpaces = [];
+                let nextPageToken = '';
+                let pages = 0;
+                
+                while (pages < 20) { // Safety limit of 2000 spaces
+                    const url = `https://chat.googleapis.com/v1/spaces?pageSize=100&filter=spaceType%3D%22SPACE%22${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`;
+                    const res = await fetch(url, {
+                        headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` }
+                    });
 
-                if (res.status === 401) {
-                    // Token expired
-                    disconnectGoogleChat();
-                    showToast('Google Chat session expired, please reconnect', 'error');
-                    return;
+                    if (res.status === 401) {
+                        disconnectGoogleChat();
+                        showToast('Google Chat session expired, please reconnect', 'error');
+                        return;
+                    }
+
+                    if (!res.ok) {
+                        console.error('[GCHAT] Failed to fetch spaces:', await res.text());
+                        break;
+                    }
+
+                    const data = await res.json();
+                    const batch = (data.spaces || []).map(s => ({
+                        id: s.name,
+                        name: s.displayName || s.name,
+                        type: s.spaceType
+                    }));
+                    
+                    allSpaces = allSpaces.concat(batch);
+                    nextPageToken = data.nextPageToken;
+                    pages++;
+
+                    if (!nextPageToken) break;
                 }
 
-                const data = await res.json();
-                const spaces = (data.spaces || []).map(s => ({
-                    id: s.name, // e.g. "spaces/AAAA..."
-                    name: s.displayName || s.name,
-                    type: s.spaceType
-                })).sort((a, b) => a.name.localeCompare(b.name));
-
-                window.gchatSpaces = spaces;
-                msState.msChatSpaceDropdown.options = spaces;
+                allSpaces.sort((a, b) => a.name.localeCompare(b.name));
+                window.gchatSpaces = allSpaces;
+                msState.msChatSpaceDropdown.options = allSpaces;
                 renderMsOptions('msChatSpaceDropdown');
                 renderMsTrigger('msChatSpaceDropdown');
-                console.log(`[GCHAT] Loaded ${spaces.length} spaces.`);
+                console.log(`[GCHAT] Loaded ${allSpaces.length} spaces.`);
             } catch (err) {
                 console.error('[GCHAT] Failed to fetch spaces:', err);
                 showToast('Failed to fetch Chat spaces', 'error');
             }
         }
 
-        async function fetchGoogleChatMessages(spaceId, maxMessages = 50) {
+        async function fetchGoogleChatMessages(spaceId) {
             if (!window.gchatAccessToken) return [];
 
             try {
-                const res = await fetch(`https://chat.googleapis.com/v1/${spaceId}/messages?pageSize=${maxMessages}&orderBy=createTime%20desc`, {
-                    headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` }
-                });
+                let allMessages = [];
+                let nextPageToken = '';
+                let pages = 0;
+                const MAX_PAGES = 50; // Fetch up to 5000 messages per space (100 per page)
 
-                if (!res.ok) {
-                    console.warn(`[GCHAT] Failed to fetch messages for ${spaceId}: ${res.status}`);
-                    return [];
+                while (pages < MAX_PAGES) {
+                    const url = `https://chat.googleapis.com/v1/${spaceId}/messages?pageSize=100&orderBy=createTime%20desc${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`;
+                    const res = await fetch(url, {
+                        headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` }
+                    });
+
+                    if (!res.ok) {
+                        console.warn(`[GCHAT] Failed to fetch messages for ${spaceId}: ${res.status}`);
+                        break;
+                    }
+
+                    const data = await res.json();
+                    const batch = (data.messages || []).map(m => ({
+                        sender: m.sender?.displayName || m.sender?.name || 'Unknown',
+                        text: m.text || m.formattedText || '',
+                        timestamp: m.createTime,
+                        thread: m.thread?.name || null
+                    })).filter(m => m.text.trim());
+
+                    allMessages = allMessages.concat(batch);
+                    nextPageToken = data.nextPageToken;
+                    pages++;
+
+                    if (!nextPageToken) break;
+                    
+                    if (pages % 2 === 0) {
+                         console.log(`[GCHAT] ${spaceId}: Loaded ${allMessages.length} messages...`);
+                    }
                 }
 
-                const data = await res.json();
-                return (data.messages || []).map(m => ({
-                    sender: m.sender?.displayName || m.sender?.name || 'Unknown',
-                    text: m.text || m.formattedText || '',
-                    timestamp: m.createTime,
-                    thread: m.thread?.name || null
-                })).filter(m => m.text.trim());
+                return allMessages;
             } catch (err) {
                 console.error(`[GCHAT] Error fetching messages from ${spaceId}:`, err);
                 return [];
@@ -2660,25 +2722,47 @@
          */
         async function fetchCampaignBoardData(boardId) {
             try {
-                const query = `{ boards(ids: [${boardId}]) { name columns { id title type } items_page (limit: 100) { items { id name column_values { text column { id title } } updates (limit: 2) { text_body created_at creator { name } } } } } }`;
-                const res = await fetch(MONDAY_LAMBDA_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'get_monday_data', query })
-                });
-                const r = await res.json();
-                const mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
+                let allItems = [];
+                let cursor = null;
+                let boardName = "";
+                let boardColumns = [];
+                let pages = 0;
+                const MAX_PAGES = 10; // 1000 items per board
 
-                if (mData.errors || !mData.data?.boards?.[0]) return null;
+                while (pages < MAX_PAGES) {
+                    let query;
+                    if (!cursor) {
+                        query = `{ boards(ids: [${boardId}]) { name columns { id title type } items_page (limit: 100) { cursor items { id name column_values { text column { id title } } updates (limit: 2) { text_body created_at creator { name } } } } } }`;
+                    } else {
+                        query = `{ next_items_page (cursor: "${cursor}", limit: 100) { cursor items { id name column_values { text column { id title } } updates (limit: 2) { text_body created_at creator { name } } } } }`;
+                    }
 
-                const board = mData.data.boards[0];
-                return {
-                    board_id: boardId,
-                    board_name: board.name,
-                    board_url: `https://mediaone-business-group-pte-ltd.monday.com/boards/${boardId}`,
-                    columns: (board.columns || []).map(c => ({ title: c.title, type: c.type })),
-                    total_items: (board.items_page?.items || []).length,
-                    items: (board.items_page?.items || []).map(item => ({
+                    const res = await fetch(MONDAY_LAMBDA_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'get_monday_data', query })
+                    });
+                    const r = await res.json();
+                    const mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
+
+                    if (mData.errors) {
+                        console.error(`[DRILL-DOWN] API Error for board ${boardId}:`, mData.errors);
+                        break;
+                    }
+
+                    let pageData;
+                    if (!cursor) {
+                        if (!mData.data?.boards?.[0]) break;
+                        boardName = mData.data.boards[0].name;
+                        boardColumns = (mData.data.boards[0].columns || []).map(c => ({ title: c.title, type: c.type }));
+                        pageData = mData.data.boards[0].items_page;
+                    } else {
+                        pageData = mData.data.next_items_page;
+                    }
+
+                    if (!pageData) break;
+
+                    const batch = (pageData.items || []).map(item => ({
                         id: item.id,
                         name: item.name,
                         item_url: `https://mediaone-business-group-pte-ltd.monday.com/boards/${boardId}/pulses/${item.id}`,
@@ -2690,7 +2774,25 @@
                             text: u.text_body,
                             date: u.created_at
                         }))
-                    }))
+                    }));
+
+                    allItems = allItems.concat(batch);
+                    cursor = pageData.cursor;
+                    pages++;
+
+                    if (!cursor) break;
+                    if (pages % 2 === 0) console.log(`[DRILL-DOWN] Board ${boardId}: Loaded ${allItems.length} items...`);
+                }
+
+                if (allItems.length === 0) return null;
+
+                return {
+                    board_id: boardId,
+                    board_name: boardName,
+                    board_url: `https://mediaone-business-group-pte-ltd.monday.com/boards/${boardId}`,
+                    columns: boardColumns,
+                    total_items: allItems.length,
+                    items: allItems
                 };
             } catch (e) {
                 console.error(`[DRILL-DOWN] Failed to fetch board ${boardId}:`, e);
