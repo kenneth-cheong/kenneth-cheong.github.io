@@ -3243,7 +3243,7 @@
                     const chatPromises = selectedChatSpaces.map(async (s) => {
                         const spaceId = typeof s === 'object' ? s.id : s;
                         const spaceName = typeof s === 'object' ? s.name : spaceId;
-                        const msgs = await fetchGoogleChatMessages(spaceId, 50);
+                        const msgs = await fetchGoogleChatMessages(spaceId);
                         if (msgs.length > 0) {
                             chatMessages.push({ space_name: spaceName, space_id: spaceId, messages: msgs });
                         }
@@ -3305,7 +3305,18 @@
                 
                 showToast(`Step 2/5: Uploading context (${fileName})...`, 'loading', 3000);
                 updateSyncStatus("Uploading to OpenAI...", true);
-                const blob = new Blob([JSON.stringify(combinedContext, null, 2)], { type: 'application/json' });
+
+                let jsonStr = JSON.stringify(combinedContext, null, 2);
+                const sizeInMB = (jsonStr.length / (1024 * 1024));
+                if (sizeInMB > 15) {
+                    console.warn(`[SYNC] Context too large (${sizeInMB.toFixed(2)}MB). Truncating updates/messages for 15MB safety limit.`);
+                    // Simple truncation strategy: Remove half of updates and chat messages until under limit
+                    if (combinedContext.chat_messages) combinedContext.chat_messages.forEach(s => s.messages = s.messages.slice(0, 50));
+                    if (combinedContext.campaigns) combinedContext.campaigns.forEach(c => c.recent_updates = (c.recent_updates || []).slice(0, 1));
+                    jsonStr = JSON.stringify(combinedContext, null, 2);
+                }
+
+                const blob = new Blob([jsonStr], { type: 'application/json' });
                 const reader2 = new FileReader();
                 const jsonB64 = await new Promise((resolve) => {
                     reader2.onload = () => resolve(reader2.result.split(',')[1]);
@@ -3352,15 +3363,21 @@
                 showToast("Step 5/5: Updating Assistant Instructions...", 'loading', 3000);
                 const cleanItemNames = selectedItems.map(i => typeof i === 'object' ? i.name : i).join(', ');
                 
-                // DATA INJECTION: For small datasets (<25k chars), inject directly into instructions 
+                // DATA INJECTION: For small datasets (<15k chars), inject directly into instructions 
                 // to bypass file_search retrieval limits and ensure 100% list accuracy.
-                const compactData = JSON.stringify((combinedContext.campaigns || []).map(c => ({
+                let compactData = JSON.stringify((combinedContext.campaigns || []).map(c => ({
                     name: c.name,
                     monday_url: c.monday_url,
                     status: c.columns['[CSM] Campaign Status'] || c.columns['Status'],
                     csm: c.columns['Client Success Manager'] || c.columns['Staff Name'] || c.columns['CSM'],
                     type: c.columns['[BD]Project Type'] || c.columns['Type']
                 })));
+
+                // SAFETY: If compactData is too large, it will break the OpenAI assistant instructions
+                if (compactData.length > 15000) {
+                    console.log(`[SYNC] compactData too large (${compactData.length} chars). Omitting direct injection to favor file_search.`);
+                    compactData = "[]"; // Force empty array so AI relies on file_search
+                }
 
                 // Build a compact board registry string for the AI to search
                 // Format: "BoardName | https://mediaone-business-group-pte-ltd.monday.com/boards/ID" per line
