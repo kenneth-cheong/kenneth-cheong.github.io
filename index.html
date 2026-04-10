@@ -3388,6 +3388,30 @@
             margin-bottom: 25px;
         }
 
+        #input-fields {
+            max-height: 70vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 8px;
+            margin-bottom: 15px;
+        }
+
+        /* Custom scrollbar for better look */
+        #input-fields::-webkit-scrollbar {
+            width: 6px;
+        }
+        #input-fields::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        #input-fields::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        #input-fields::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
         .sem-input-item {
             flex: 1;
             min-width: 220px;
@@ -5723,21 +5747,49 @@
             height: auto;
         }
 
-        .faq-item {
+        .faq-item, .breadcrumb-item {
             display: flex;
-            align-items: flex-start;
-            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+            border-bottom: 1px dashed #ddd;
+            padding-bottom: 20px;
+            position: relative;
+            padding-right: 45px;
         }
 
-        .faq-item input,
-        .faq-item textarea {
-            flex-grow: 1;
-            margin-right: 10px;
-            min-width: 0;
+        .faq-item .sem-input-item, 
+        .breadcrumb-item .sem-input-item {
+            flex: 1;
+            min-width: 250px;
+            margin-bottom: 0;
         }
 
         .faq-item textarea {
-            min-height: 80px;
+            min-height: 120px !important;
+        }
+
+        .remove-item.config-btn-highlight {
+            background: #dc3545 !important;
+            position: absolute;
+            top: 0;
+            right: 0;
+            height: 36px !important;
+            width: 36px !important;
+            min-width: 36px !important;
+            margin: 0 !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px !important;
+            color: white !important;
+            font-size: 20px !important;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .remove-item.config-btn-highlight:hover {
+            background: #bb2d3b !important;
         }
 
         #navbar ul {
@@ -15779,10 +15831,10 @@
 
     <script id="breadcrumblist-template" type="text/x-handlebars-template">
         <div id="breadcrumb-items" style="width: 100%;">
-            <div class="breadcrumb-item sem-input-group" style="margin-bottom: 10px; border-bottom: 1px dashed #ddd; padding-bottom: 15px;">
+            <div class="breadcrumb-item">
                 <div class="sem-input-item"><input type="text" id="name1" placeholder="Page #1's name" oninput="updateSchema()"></div>
                 <div class="sem-input-item"><input type="url" id="url1" placeholder="URL #1" oninput="updateSchema()"></div>
-                <button class="remove-item config-btn-highlight" style="background: #dc3545; height: 42px; width: 42px; min-width: 42px; margin: 0; display: flex; align-items: center; justify-content: center;" onclick="removeItem(this)">×</button>
+                <button class="remove-item config-btn-highlight" onclick="removeItem(this)">×</button>
             </div>
         </div>
         <button class="config-btn-highlight" style="margin: 0;" onclick="addItem()"> + ADD URL </button>
@@ -15790,10 +15842,10 @@
 
     <script id="faqpage-template" type="text/x-handlebars-template">
         <div id="faq-items" style="width: 100%;">
-            <div class="faq-item" style="margin-bottom: 15px; border-bottom: 1px dashed #ddd; padding-bottom: 15px; position: relative;">
+            <div class="faq-item">
                 <div class="sem-input-item"><input type="text" id="question1" placeholder="Question #1" oninput="updateSchema()"></div>
-                <div class="sem-input-item" style="margin-top: 5px;"><textarea id="answer1" placeholder="Answer" oninput="updateSchema()"></textarea></div>
-                <button class="remove-item config-btn-highlight" style="background: #dc3545; position: absolute; top: 0; right: 0; height: 32px; width: 32px; min-width: 32px; margin: 0; display: flex; align-items: center; justify-content: center;" onclick="removeFaqItem(this)">×</button>
+                <div class="sem-input-item"><textarea id="answer1" placeholder="Answer" oninput="updateSchema()"></textarea></div>
+                <button class="remove-item config-btn-highlight" onclick="removeFaqItem(this)">×</button>
             </div>
         </div>
         <button class="config-btn-highlight" style="margin: 0;" onclick="addFaqItem()">+ ADD QUESTION</button>
@@ -15981,10 +16033,10 @@
             const newItem = document.createElement('div');
             newItem.className = "faq-item";
             newItem.innerHTML = `
-        <input type="text" id="question${faqItemCount}" placeholder="Question #${faqItemCount}" oninput="updateSchema()">
-        <textarea type="text" id="answer${faqItemCount}" placeholder="Answer" oninput="updateSchema()"></textarea>
-        <button class="remove-item" onclick="removeFaqItem(this)">x</button>
-    `;
+                <div class="sem-input-item"><input type="text" id="question${faqItemCount}" placeholder="Question #${faqItemCount}" oninput="updateSchema()"></div>
+                <div class="sem-input-item"><textarea id="answer${faqItemCount}" placeholder="Answer" oninput="updateSchema()"></textarea></div>
+                <button class="remove-item config-btn-highlight" onclick="removeFaqItem(this)">×</button>
+            `;
             faqItemsDiv.appendChild(newItem);
 
             // Attach event listeners to new elements
@@ -28330,10 +28382,10 @@ ${selectedText}
             const newItem = document.createElement('div');
             newItem.className = "breadcrumb-item";
             newItem.innerHTML = `
-            <input type="text" id="name${breadcrumbItemCount}" placeholder="Page #${breadcrumbItemCount}'s name" oninput="updateSchema()">
-            <input type="url" id="url${breadcrumbItemCount}" placeholder="URL #${breadcrumbItemCount}" oninput="updateSchema()">
-            <button class="remove-item" onclick="removeItem(this)">x</button>
-        `;
+                <div class="sem-input-item"><input type="text" id="name${breadcrumbItemCount}" placeholder="Page #${breadcrumbItemCount}'s name" oninput="updateSchema()"></div>
+                <div class="sem-input-item"><input type="url" id="url${breadcrumbItemCount}" placeholder="URL #${breadcrumbItemCount}" oninput="updateSchema()"></div>
+                <button class="remove-item config-btn-highlight" onclick="removeItem(this)">×</button>
+            `;
             breadcrumbItemsDiv.appendChild(newItem);
 
             // Attach event listeners to new elements
