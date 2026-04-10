@@ -1116,11 +1116,11 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Job Title</th>
-                                <th>Created At</th>
-                                <th>Applicants</th>
-                                <th>Shortlisted</th>
-                                <th>Status</th>
+                                <th onclick="sortJobs('title')" style="cursor: pointer;">Job Title <i class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortJobs('createdAt')" style="cursor: pointer;">Created At <i class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortJobs('applicants')" style="cursor: pointer;">Applicants <i class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortJobs('shortlisted')" style="cursor: pointer;">Shortlisted <i class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortJobs('status')" style="cursor: pointer;">Status <i class="fas fa-sort ms-1"></i></th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -1201,7 +1201,14 @@
 
             <section id="resultsSection" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                    <h2 id="manageJobTitle" style="margin: 0;">Job Details</h2>
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <h2 id="manageJobTitle" style="margin: 0;">Job Details</h2>
+                        <select id="jobDetailsStatus" onchange="toggleJobStatus(state.activeJobId, this.value)"
+                            style="padding: 6px 12px; font-size: 0.8rem; font-weight: 600; border-radius: 10px; outline: none; cursor: pointer; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); color: white;">
+                            <option value="Open">Open</option>
+                            <option value="Closed">Closed</option>
+                        </select>
+                    </div>
                     <div id="unifiedBulkActions" style="display: none; align-items: center; gap: 12px; background: rgba(255,255,255,0.03); padding: 8px 16px; border-radius: 16px; border: 1px solid var(--border);">
                         <span style="font-size: 0.8rem; color: var(--text-dim); font-weight: 600;">Bulk Actions:</span>
                         <select id="bulkActionSelect" onchange="handleBulkActionChange('candidateTable')"
@@ -1238,7 +1245,7 @@
                                         class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortJobCandidates('bestFit')" style="cursor: pointer; width: 12%;">Best Fit <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortJobCandidates('interviewerScore')" style="cursor: pointer; width: 8%;">AI Score <i
+                                <th onclick="sortJobCandidates('interviewerScore')" style="cursor: pointer; width: 8%;">Interviewer Score <i
                                         class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortJobCandidates('pendingBy')" style="cursor: pointer; width: 12%;">Pending action by
                                     <i class="fas fa-sort ms-1"></i>
@@ -1350,7 +1357,7 @@
                                         class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortRepoTable('bestFit')" style="cursor: pointer; width: 12%;">Best Fit <i
                                         class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortRepoTable('interviewerScore')" style="cursor: pointer; width: 8%;">AI Score <i
+                                <th onclick="sortRepoTable('interviewerScore')" style="cursor: pointer; width: 8%;">Interviewer Score <i
                                         class="fas fa-sort ms-1"></i></th>
                                 <th onclick="sortRepoTable('pendingBy')" style="cursor: pointer; width: 12%;">Pending action by <i
                                         class="fas fa-sort ms-1"></i></th>
@@ -1465,7 +1472,20 @@
         <!-- Create/Edit Job Modal -->
         <div id="jobModal" class="modal">
             <div class="modal-content">
-                <h2 id="modalTitle">Create New Job Advertisement</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 id="modalTitle" style="margin: 0;">Create New Job Advertisement</h2>
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div id="jobStatusControl" style="display: none; align-items: center; gap: 10px;">
+                            <label style="font-size: 0.8rem; color: var(--text-dim); font-weight: 600;">Status:</label>
+                            <select id="jobModalStatus"
+                                style="padding: 6px 12px; font-size: 0.8rem; font-weight: 600; border-radius: 10px; outline: none; cursor: pointer; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); color: white;">
+                                <option value="Open">Open</option>
+                                <option value="Closed">Closed</option>
+                            </select>
+                        </div>
+                        <button onclick="closeJobModal()" style="background: none; border: none; color: var(--text-dim); font-size: 1.5rem; cursor: pointer; padding: 4px 8px; line-height: 1; transition: color 0.2s;" onmouseover="this.style.color='white'" onmouseout="this.style.color='var(--text-dim)'">&times;</button>
+                    </div>
+                </div>
                 <div class="config-grid">
                     <div class="form-group" style="grid-column: span 1;">
                         <label>Job Title</label>
@@ -2023,6 +2043,7 @@
 
         let jobDetailsSort = { field: 'score', direction: 'desc' };
         let repoSort = { field: 'date', direction: 'desc' };
+        let jobsSort = { field: 'createdAt', direction: 'desc' };
 
         // --- RBAC Helpers ---
         function getAccessibleCandidates(includeDeleted = false) {
@@ -2560,6 +2581,7 @@
             renderJobQuestions();
             renderJobCriteria();
 
+            document.getElementById('jobStatusControl').style.display = 'none';
             document.getElementById('jobModal').style.display = 'flex';
         }
 
@@ -2591,6 +2613,9 @@
             renderJobCriteria();
             state.jobQuestions = job.interviewQuestions || [];
             renderJobQuestions();
+
+            document.getElementById('jobModalStatus').value = job.status || 'Open';
+            document.getElementById('jobStatusControl').style.display = 'flex';
 
             document.getElementById('jobModal').style.display = 'flex';
         }
@@ -2625,7 +2650,7 @@
                 title, jobUrl: document.getElementById('jobUrl').value, desc, kpi,
                 evaluationCriteria: state.jobCriteria,
                 interviewQuestions: state.jobQuestions,
-                status: 'Open'
+                status: state.editingJobId ? document.getElementById('jobModalStatus').value : 'Open'
             };
 
             if (state.editingJobId) {
@@ -3081,6 +3106,19 @@
                 container.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-dim);">No jobs found.</td></tr>';
                 return;
             }
+            // Sort jobs
+            accessibleJobs.sort((a, b) => {
+                let valA, valB;
+                if (jobsSort.field === 'title') { valA = (a.title || '').toLowerCase(); valB = (b.title || '').toLowerCase(); }
+                else if (jobsSort.field === 'createdAt') { valA = new Date(a.createdAt || 0); valB = new Date(b.createdAt || 0); }
+                else if (jobsSort.field === 'applicants') { valA = parseInt(a.applicants) || 0; valB = parseInt(b.applicants) || 0; }
+                else if (jobsSort.field === 'shortlisted') { valA = parseInt(a.shortlisted) || 0; valB = parseInt(b.shortlisted) || 0; }
+                else if (jobsSort.field === 'status') { valA = a.status || ''; valB = b.status || ''; }
+                else { valA = 0; valB = 0; }
+                if (valA < valB) return jobsSort.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return jobsSort.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
             container.innerHTML = accessibleJobs.map(job => `
                 <tr style="cursor: pointer; transition: background 0.2s ease;">
                     <td class="clickable-name" onclick="openJobDetails('${job.id}')">${job.title}</td>
@@ -3088,8 +3126,11 @@
                     <td>${job.applicants || 0}</td>
                     <td>${job.shortlisted || 0}</td>
                     <td>
-                        <span class="badge ${job.status === 'Open' ? 'badge-success' : 'badge-error'}" 
-                             style="cursor: pointer;" onclick="toggleJobStatus('${job.id}')">${job.status}</span>
+                        <select onchange="toggleJobStatus('${job.id}', this.value)" 
+                            style="padding: 6px 10px; font-size: 0.75rem; font-weight: 600; border-radius: 10px; outline: none; cursor: pointer; border: 1px solid ${job.status === 'Open' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(244, 63, 94, 0.4)'}; background: ${job.status === 'Open' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)'}; color: ${job.status === 'Open' ? '#10b981' : '#fb7185'};">
+                            <option value="Open" ${job.status === 'Open' ? 'selected' : ''}>Open</option>
+                            <option value="Closed" ${job.status === 'Closed' ? 'selected' : ''}>Closed</option>
+                        </select>
                     </td>
                     <td style="display: flex; gap: 8px;">
                         <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem;" onclick="openJobDetails('${job.id}')">Manage</button>
@@ -3101,6 +3142,16 @@
             `).join('');
 
             updateStats();
+        }
+
+        function sortJobs(field) {
+            if (jobsSort.field === field) {
+                jobsSort.direction = jobsSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                jobsSort.field = field;
+                jobsSort.direction = 'asc';
+            }
+            renderJobs();
         }
 
         async function deleteJob(jobId) {
@@ -3164,13 +3215,14 @@
             }
         }
 
-        async function toggleJobStatus(jobId) {
+        async function toggleJobStatus(jobId, newStatus) {
             const job = state.jobs.find(j => String(j.id) === String(jobId));
             if (!job) return;
-            const newStatus = job.status === 'Open' ? 'Closed' : 'Open';
-            const result = await persistenceApiCall('upsert_job', { ...job, status: newStatus });
+            const result = await persistenceApiCall('upsert_job', { id: job.id, title: job.title, desc: job.desc, kpi: job.kpi, evaluationCriteria: job.evaluationCriteria, interviewQuestions: job.interviewQuestions, status: newStatus, applicants: job.applicants, shortlisted: job.shortlisted });
             if (result && result.success) {
-                job.status = newStatus;
+                // Re-fetch from server to ensure sync
+                const jobs = await persistenceApiCall('get_jobs');
+                if (Array.isArray(jobs)) state.jobs = jobs;
                 renderJobs();
             }
         }
@@ -3193,6 +3245,7 @@
             if (!job) return;
 
             document.getElementById('jobTitleDisplay').innerText = job.title;
+            document.getElementById('jobDetailsStatus').value = job.status || 'Open';
 
             // Reset pagination for new job context
             state.pagination.page = 1;
