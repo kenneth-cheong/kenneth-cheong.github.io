@@ -1813,10 +1813,9 @@
             updateSummaryFilterVisibility();
 
             document.getElementById('clientEmail').value = localStorage.getItem('clientEmail') || "";
-            const vsId = localStorage.getItem('vectorStoreId') || 'vs_69cba3d2f51881918a4211f57b70c546';
-            const correctedVsId = vsId.includes('69ca') ? 'vs_69cba3d2f51881918a4211f57b70c546' : vsId;
-            document.getElementById('vectorStoreId').value = correctedVsId;
-            localStorage.setItem('vectorStoreId', correctedVsId);
+            const vsId = localStorage.getItem('vectorStoreId') || "";
+            document.getElementById('vectorStoreId').value = vsId;
+            localStorage.setItem('vectorStoreId', vsId);
             document.getElementById('contextUrls').value = localStorage.getItem('contextUrls') || "";
             document.getElementById('autoSync').checked = localStorage.getItem('autoSync') === 'true';
             document.getElementById('googleClientId').value = localStorage.getItem('googleClientId') || '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com';
@@ -2104,6 +2103,19 @@
                 // Log errors from OpenAI if they exist (ignore 404 for deletes to keep console clean)
                 if (finalResult && finalResult.error) {
                     const isMissingFile = (method === 'DELETE' && endpoint.includes('/files/') && finalResult.error.code === null);
+                    
+                    // AUTO-CLEANUP logic for 404 / Invalid Resource errors
+                    const errStatus = finalResult.error.status || (finalResult.error.message ? 0 : 404); // Some proxies might not pass status perfectly
+                    const errMessage = (finalResult.error.message || "").toLowerCase();
+                    const isNotFound = errStatus === 404 || errMessage.includes("not found") || errMessage.includes("no such") || errMessage.includes("does not exist") || errMessage.includes("expired");
+
+                    if (isNotFound) {
+                        console.warn(`[SYNC] Resource not found/expired at ${endpoint}. Cleaning up stale ID from storage...`);
+                        if (endpoint.includes('/assistants/')) localStorage.removeItem('assistantId');
+                        if (endpoint.includes('/vector_stores/')) localStorage.removeItem('vectorStoreId');
+                        if (endpoint.includes('/threads/')) sessionStorage.removeItem('openai_thread_id');
+                    }
+
                     if (!isMissingFile) {
                         console.error(`[OPENAI ERROR] ${endpoint}:`, finalResult.error);
                     }
@@ -4397,10 +4409,6 @@ CRITICAL CONTACT RULE:
                     debugSection.style.display = 'block';
                     debugInfo.innerHTML = `LIVE ASST: ${currentAsstId || 'NONE'}\nLIVE VS:   ${vectorStoreId}\nSTATUS:    ${asstVerified ? '✅ Linked' : '❌ Link Failure'}\nMODEL:     gpt-4o-mini`;
 
-                    // Strong warning if it's still linked to the old one despite my forcing
-                    if (!vectorStoreId.includes('69cb')) {
-                        debugInfo.innerHTML += `\n\n⚠️ ID Mismatch: You are using an old Vector Store ID ending in 'a'. Please change it to 'vs_69cba3d2f51881918a4211f57b70c546' in the input field above.`;
-                    }
                 }
 
                 if (!asstVerified) {
