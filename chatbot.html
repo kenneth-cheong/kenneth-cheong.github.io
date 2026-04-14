@@ -497,6 +497,12 @@
             min-height: 24px;
         }
 
+        .input-bar textarea:disabled {
+            background: transparent;
+            color: #94a3b8;
+            cursor: not-allowed;
+        }
+
         .icon-btn {
             width: 48px;
             height: 48px;
@@ -523,14 +529,58 @@
 
         /* Typing Indicator */
         .typing {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            margin-bottom: 8px;
             display: none;
+            align-self: flex-start;
+            margin-bottom: 12px;
         }
 
         .typing.active {
-            display: block;
+            display: flex;
+        }
+
+        .typing-bubble {
+            background: #fff;
+            padding: 12px 18px;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            border-bottom-left-radius: 4px;
+            box-shadow: var(--shadow-md);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-blue);
+            border-radius: 50%;
+            opacity: 0.6;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .typing-dot:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0);
+                opacity: 0.4;
+            }
+
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
 
         /* Status Indicator */
@@ -743,8 +793,6 @@
         .internal-filter-panel.visible {
             display: block;
             max-height: 80vh;
-            overflow-y: auto;
-            /* Custom Scrollbar for Premium Feel */
             scrollbar-width: thin;
             scrollbar-color: #fcd34d transparent;
         }
@@ -1114,6 +1162,12 @@
             box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3);
         }
 
+        body.internal-mode .icon-btn:disabled {
+            background: #cbd5e1;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
         body.internal-mode .message.user {
             background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
             box-shadow: 0 4px 15px rgba(245, 158, 11, 0.2);
@@ -1191,6 +1245,48 @@
 
         .toast.hiding {
             animation: toastOut 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* Dynamic Filter UI */
+        .dynamic-filter {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .dynamic-filter-header {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .dynamic-filter select {
+            padding: 6px;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            font-size: 0.85rem;
+            color: #334155;
+            outline: none;
+            background: #f8fafc;
+        }
+
+        .dynamic-filter .btn-remove {
+            margin-left: auto;
+            color: #ef4444;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .dynamic-filter .btn-remove:hover {
+            color: #b91c1c;
         }
     </style>
 </head>
@@ -1453,52 +1549,24 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="filter-field">
-                            <label>[CSM] Campaign Status <span class="label-count"
-                                    id="count-msStatusDropdown"></span></label>
-                            <div class="ms-dropdown" id="msStatusDropdown">
-                                <div class="ms-trigger" onclick="toggleMsPanel('msStatusDropdown')">
-                                    <span class="ms-placeholder">Loading latest data...</span>
-                                </div>
-                                <div class="ms-panel">
-                                    <div class="ms-search">
-                                        <i class="fas fa-search"></i>
-                                        <input type="text" placeholder="Search status..."
-                                            oninput="filterMsOptions('msStatusDropdown', this.value)">
-                                    </div>
-                                    <div class="ms-bulk-actions">
-                                        <button onclick="msSelectAll('msStatusDropdown')">✓ All</button>
-                                        <button onclick="msUnselectAll('msStatusDropdown')">✗ None</button>
-                                    </div>
-                                    <div class="ms-options">
-                                        <div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading latest
-                                            data...</div>
-                                    </div>
-                                </div>
+                        <!-- Dynamic Filters Container -->
+                        <div id="dynamicFiltersWrapper"
+                            style="grid-column: 1 / -1; margin-top: 4px; background: rgba(245, 158, 11, 0.05); border: 1px dashed rgba(245, 158, 11, 0.3); border-radius: 12px; padding: 16px;">
+                            <div
+                                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                <label style="margin:0; font-weight:600; color:var(--text-main);"><i
+                                        class="fas fa-sliders-h" style="margin-right:6px; color:#f59e0b;"></i> Advanced
+                                    Filters</label>
+                                <button class="btn-sidebar"
+                                    style="background:#fff; border:1px solid #f2f2f2; color:#334155; padding:4px 10px; font-size:0.75rem; box-shadow:var(--shadow-sm); border-radius:6px;"
+                                    onclick="addDynamicFilter()">
+                                    <i class="fas fa-plus" style="color:#10b981;"></i> Add Custom Filter
+                                </button>
                             </div>
-                        </div>
-                        <div class="filter-field">
-                            <label>[BD] Project Type <span class="label-count"
-                                    id="count-msProjectTypeDropdown"></span></label>
-                            <div class="ms-dropdown" id="msProjectTypeDropdown">
-                                <div class="ms-trigger" onclick="toggleMsPanel('msProjectTypeDropdown')">
-                                    <span class="ms-placeholder">Loading latest data...</span>
-                                </div>
-                                <div class="ms-panel">
-                                    <div class="ms-search">
-                                        <i class="fas fa-search"></i>
-                                        <input type="text" placeholder="Search project type..."
-                                            oninput="filterMsOptions('msProjectTypeDropdown', this.value)">
-                                    </div>
-                                    <div class="ms-bulk-actions">
-                                        <button onclick="msSelectAll('msProjectTypeDropdown')">✓ All</button>
-                                        <button onclick="msUnselectAll('msProjectTypeDropdown')">✗ None</button>
-                                    </div>
-                                    <div class="ms-options">
-                                        <div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading latest
-                                            data...</div>
-                                    </div>
-                                </div>
+                            <div id="dynamicFiltersContainer" style="display:flex; flex-direction:column; gap:12px;">
+                                <div style="font-size:0.8rem; color:var(--text-muted); font-style:italic;"
+                                    id="emptyDynamicText">No custom filters active. Click "Add Custom Filter" to filter
+                                    by any column.</div>
                             </div>
                         </div>
                     </div>
@@ -1629,7 +1697,13 @@
                 </div>
             </div>
 
-            <div class="typing" id="typingIndicator">AI is thinking...</div>
+            <div class="typing" id="typingIndicator">
+                <div class="typing-bubble">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
 
             <div class="input-bar">
                 <textarea id="userInput" placeholder="Ask anything about your Monday board..." rows="1"></textarea>
@@ -2103,7 +2177,7 @@
                 // Log errors from OpenAI if they exist (ignore 404 for deletes to keep console clean)
                 if (finalResult && finalResult.error) {
                     const isMissingFile = (method === 'DELETE' && endpoint.includes('/files/') && finalResult.error.code === null);
-                    
+
                     // AUTO-CLEANUP logic for 404 / Invalid Resource errors
                     const errStatus = finalResult.error.status || (finalResult.error.message ? 0 : 404); // Some proxies might not pass status perfectly
                     const errMessage = (finalResult.error.message || "").toLowerCase();
@@ -2198,6 +2272,7 @@
 
         window.allPrefetchedItems = [];
         window.allPrefetchedColumns = [];
+        window.dynamicFilters = {}; // Maps filterId to filter state {"id1": {colId, operator, values: []}}
 
         // Close dropdowns when clicking outside
         document.addEventListener('click', (e) => {
@@ -2454,6 +2529,97 @@
             msState[dropdownId].selected = [];
             renderMsOptions(dropdownId);
             renderMsTrigger(dropdownId);
+        }
+
+        // --- Dynamic Filter Implementation ---
+        function addDynamicFilter() {
+            if (!window.allPrefetchedColumns || window.allPrefetchedColumns.length === 0) {
+                showToast("Please wait for board data to finish loading.", "warning");
+                return;
+            }
+
+            const id = 'dyn_' + Date.now();
+            window.dynamicFilters[id] = { colId: '', operator: 'include' };
+            msState[id] = { options: [], selected: [], active: false };
+
+            const container = document.getElementById('dynamicFiltersContainer');
+            const emptyText = document.getElementById('emptyDynamicText');
+            if (emptyText) emptyText.style.display = 'none';
+
+            let colOptions = '<option value="">Select Column...</option>';
+            window.allPrefetchedColumns.forEach(c => {
+                if (c.title) colOptions += `<option value="${c.id}">${c.title}</option>`;
+            });
+
+            const block = document.createElement('div');
+            block.className = 'dynamic-filter';
+            block.id = `filter_${id}`;
+
+            block.innerHTML = `
+                <div class="dynamic-filter-header">
+                    <select onchange="updateDynamicCol('${id}', this.value)" style="flex:1;">
+                        ${colOptions}
+                    </select>
+                    <select onchange="updateDynamicOp('${id}', this.value)" style="width:100px;">
+                        <option value="include">Include</option>
+                        <option value="exclude">Exclude</option>
+                    </select>
+                    <button class="btn-remove" onclick="removeDynamicFilter('${id}')"><i class="fas fa-trash"></i></button>
+                </div>
+                <div class="filter-field" style="margin-top: 4px;">
+                    <div class="ms-dropdown" id="${id}">
+                        <div class="ms-trigger" onclick="toggleMsPanel('${id}')">
+                            <span class="ms-placeholder">Select a column first...</span>
+                        </div>
+                        <div class="ms-panel">
+                            <div class="ms-search">
+                                <i class="fas fa-search"></i>
+                                <input type="text" placeholder="Search values..." oninput="filterMsOptions('${id}', this.value)">
+                            </div>
+                            <div class="ms-bulk-actions">
+                                <button onclick="msSelectAll('${id}')">✓ All</button>
+                                <button onclick="msUnselectAll('${id}')">✗ None</button>
+                            </div>
+                            <div class="ms-options">
+                                <div class="ms-loading">Select a column...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(block);
+        }
+
+        function updateDynamicCol(id, colId) {
+            window.dynamicFilters[id].colId = colId;
+            const values = new Set();
+            (window.allPrefetchedItems || []).forEach(item => {
+                const cv = (item.column_values || []).find(c => c.column.id === colId);
+                if (cv && cv.text) {
+                    cv.text.split(',').map(s => s.trim()).filter(s => s).forEach(v => values.add(v));
+                }
+            });
+            const options = Array.from(values).sort();
+            populateMsDropdown(id, options);
+            if (options.length === 0) {
+                document.querySelector(`#${id} .ms-placeholder`).innerText = "No values found";
+            }
+        }
+
+        function updateDynamicOp(id, op) {
+            window.dynamicFilters[id].operator = op;
+        }
+
+        function removeDynamicFilter(id) {
+            delete window.dynamicFilters[id];
+            delete msState[id];
+            const block = document.getElementById(`filter_${id}`);
+            if (block) block.remove();
+
+            if (Object.keys(window.dynamicFilters).length === 0) {
+                const emptyText = document.getElementById('emptyDynamicText');
+                if (emptyText) emptyText.style.display = 'block';
+            }
         }
 
         // Cache fetched board data to avoid redundant API calls
@@ -3241,12 +3407,7 @@
             const peopleColumnIds = (columns || []).filter(c => peopleColumnTypes.includes(c.type)).map(c => c.id);
             // Extract [CSM] Campaign Status
             const statusColId = findColumnByTitle(columns, '[CSM] Campaign Status');
-            // Extract [BD]Project Type
-            const typeColId = findColumnByTitle(columns, '[BD]Project Type');
-
             const staffSet = new Set();
-            const statusSet = new Set();
-            const typeSet = new Set();
 
             items.forEach(item => {
                 (item.column_values || []).forEach(cv => {
@@ -3259,47 +3420,18 @@
                             if (trimmed && trimmed.length > 1) staffSet.add(trimmed);
                         });
                     }
-                    // Status
-                    if (colId && statusColId && colId === statusColId) {
-                        const sText = (cv.text || '').trim();
-                        if (sText && sText !== '-') statusSet.add(sText);
-                    }
-                    // Project Type (Splitting multiple values)
-                    if (colId && typeColId && colId === typeColId) {
-                        const tText = (cv.text || '').trim();
-                        if (tText && tText !== '-') {
-                            tText.split(',').forEach(split => {
-                                const trimmed = split.trim();
-                                if (trimmed) typeSet.add(trimmed);
-                            });
-                        }
-                    }
                 });
             });
             const staffNames = [...staffSet].sort();
-            const statuses = [...statusSet].sort();
-            const types = [...typeSet].sort();
 
             // Refresh dropdowns without resetting selection
             msState.msItemDropdown.options = uniqueCampaigns;
             msState.msStaffDropdown.options = staffNames;
-            msState.msStatusDropdown.options = statuses;
-            msState.msProjectTypeDropdown.options = types;
-
-            // Auto-select active statuses on first load (if user hasn't made any selection yet)
-            const defaultExcludes = ['Completed', 'Abandoned', 'Expired', 'Terminated'];
-            if (msState.msStatusDropdown.selected.length === 0 && statuses.length > 0) {
-                msState.msStatusDropdown.selected = statuses.filter(s => !defaultExcludes.includes(s));
-            }
 
             renderMsOptions('msItemDropdown');
             renderMsOptions('msStaffDropdown');
-            renderMsOptions('msStatusDropdown');
-            renderMsOptions('msProjectTypeDropdown');
             renderMsTrigger('msItemDropdown');
             renderMsTrigger('msStaffDropdown');
-            renderMsTrigger('msStatusDropdown');
-            renderMsTrigger('msProjectTypeDropdown');
 
             // Apply current cascades if user has selections
             refineFilteredOptions();
@@ -3311,13 +3443,7 @@
 
             const selCampaigns = msState.msItemDropdown.selected.map(c => typeof c === 'object' ? c.id : null).filter(Boolean);
             const selStaff = msState.msStaffDropdown.selected;
-            const selStatuses = msState.msStatusDropdown.selected;
-            const selTypes = msState.msProjectTypeDropdown.selected;
 
-            const statusColId = findColumnByTitle(window.allPrefetchedColumns, '[CSM] Campaign Status');
-            const typeColId = findColumnByTitle(window.allPrefetchedColumns, '[BD]Project Type');
-
-            // Define matcher functions
             const matchStaff = (item) => {
                 if (selStaff.length === 0) return true;
                 return (item.column_values || []).some(cv => {
@@ -3325,36 +3451,33 @@
                     return selStaff.some(s => textVal.includes(s.toLowerCase()));
                 });
             };
-            const matchStatus = (item) => {
-                if (selStatuses.length === 0) return true;
-                return (item.column_values || []).some(cv => {
-                    return cv.column?.id === statusColId && selStatuses.includes((cv.text || '').trim());
-                });
-            };
-            const matchType = (item) => {
-                if (selTypes.length === 0 || !typeColId) return true;
-                return (item.column_values || []).some(cv => {
-                    if (cv.column?.id === typeColId) {
-                        const tText = (cv.text || '').trim();
-                        return selTypes.some(s => tText.includes(s));
-                    }
-                    return false;
-                });
-            };
             const matchItem = (item) => {
                 if (selCampaigns.length === 0) return true;
                 return selCampaigns.includes(item.id);
             };
 
-            // 1. Calculate Options for Each Dropdown (Filtered by other dimensions, but NOT itself)
+            const matchDynamicFilters = (item) => {
+                for (const filterId of Object.keys(window.dynamicFilters)) {
+                    const df = window.dynamicFilters[filterId];
+                    if (!df.colId) continue;
+                    const selectedVals = msState[filterId]?.selected || [];
+                    if (selectedVals.length === 0) continue;
 
-            // CAMPAIGN NAME options: Filtered by Staff + Status + Type
-            const campaignPool = window.allPrefetchedItems.filter(i => matchStaff(i) && matchStatus(i) && matchType(i));
+                    const cv = (item.column_values || []).find(c => c.column?.id === df.colId);
+                    const itemTexts = cv && cv.text ? cv.text.split(',').map(s => s.trim()) : [];
+                    const hasMatch = selectedVals.some(v => itemTexts.includes(v));
+
+                    if (df.operator === 'include' && !hasMatch) return false;
+                    if (df.operator === 'exclude' && hasMatch) return false;
+                }
+                return true;
+            };
+
+            const campaignPool = window.allPrefetchedItems.filter(i => matchStaff(i) && matchDynamicFilters(i));
             const availableCampaigns = campaignPool.map(i => ({ id: i.id, name: i.name || 'Unnamed' }));
             msState.msItemDropdown.options = deduplicateObjects([...availableCampaigns, ...msState.msItemDropdown.selected], 'id').sort((a, b) => a.name.localeCompare(b.name));
 
-            // STAFF NAME options: Filtered by Item + Status + Type
-            const staffPool = window.allPrefetchedItems.filter(i => matchItem(i) && matchStatus(i) && matchType(i));
+            const staffPool = window.allPrefetchedItems.filter(i => matchItem(i) && matchDynamicFilters(i));
             const peopleTypeIds = (window.allPrefetchedColumns || []).filter(c => ['people', 'multiple-person'].includes(c.type)).map(c => c.id);
             const availableStaffSet = new Set();
             staffPool.forEach(item => (item.column_values || []).forEach(cv => {
@@ -3367,42 +3490,10 @@
             }));
             msState.msStaffDropdown.options = [...new Set([...availableStaffSet, ...msState.msStaffDropdown.selected])].sort();
 
-            // STATUS options: Always show all from the board (as requested previously)
-            const availableStatusSet = new Set();
-            if (statusColId) {
-                (window.allPrefetchedItems || []).forEach(item => (item.column_values || []).forEach(cv => {
-                    if (cv.column?.id === statusColId) {
-                        const t = (cv.text || '').trim();
-                        if (t && t !== '-') availableStatusSet.add(t);
-                    }
-                }));
-            }
-            msState.msStatusDropdown.options = [...new Set([...availableStatusSet, ...msState.msStatusDropdown.selected])].sort();
-
-            // PROJECT TYPE options: Filtered by Item + Staff + Status
-            const typePool = window.allPrefetchedItems.filter(i => matchItem(i) && matchStaff(i) && matchStatus(i));
-            const availableTypeSet = new Set();
-            if (typeColId) {
-                typePool.forEach(item => (item.column_values || []).forEach(cv => {
-                    if (cv.column?.id === typeColId) {
-                        (cv.text || '').split(',').forEach(split => {
-                            const trimmed = split.trim();
-                            if (trimmed && trimmed !== '-') availableTypeSet.add(trimmed);
-                        });
-                    }
-                }));
-            }
-            msState.msProjectTypeDropdown.options = [...new Set([...availableTypeSet, ...msState.msProjectTypeDropdown.selected])].sort();
-
-            // 3. Render
             renderMsOptions('msItemDropdown');
             renderMsOptions('msStaffDropdown');
-            renderMsOptions('msStatusDropdown');
-            renderMsOptions('msProjectTypeDropdown');
             renderMsTrigger('msItemDropdown');
             renderMsTrigger('msStaffDropdown');
-            renderMsTrigger('msStatusDropdown');
-            renderMsTrigger('msProjectTypeDropdown');
         }
 
         function deduplicateObjects(arr, key) {
@@ -3476,8 +3567,12 @@
 
             const selectedItems = msState.msItemDropdown.selected;
             const selectedStaff = msState.msStaffDropdown.selected;
-            const selectedStatus = msState.msStatusDropdown.selected;
-            const selectedType = msState.msProjectTypeDropdown.selected;
+
+            // Check if any dynamic filters have selected values
+            const hasDynamicFilters = Object.keys(window.dynamicFilters || {}).some(id => {
+                const vals = msState[id]?.selected || [];
+                return vals.length > 0;
+            });
 
             const syncBtn = document.getElementById('internalSyncBtn');
             syncBtn.disabled = true;
@@ -3491,15 +3586,9 @@
                 let items = [];
                 let selectedItemIds = selectedItems.map(item => typeof item === 'object' ? item.id : null).filter(Boolean);
 
-                // Prefetch column IDs at the top so they are available for all blocks
-                const statusColId = findColumnByTitle(window.allPrefetchedColumns, '[CSM] Campaign Status');
-                const typeColId = findColumnByTitle(window.allPrefetchedColumns, '[BD]Project Type');
-
-                console.log("Sync Meta - StatusCol:", statusColId, "TypeCol:", typeColId);
-
                 // --- AUTOMATED ID HARVESTING ---
                 // If filters are set but no specific items selected, harvest IDs from the exhaustive prefetch data
-                if (selectedItemIds.length === 0 && (selectedStaff.length > 0 || selectedStatus.length > 0 || selectedType.length > 0)) {
+                if (selectedItemIds.length === 0 && (selectedStaff.length > 0 || hasDynamicFilters)) {
                     showToast("Harvesting matching project IDs from board history...", 'loading', 3000);
                     let harvested = window.allPrefetchedItems || [];
 
@@ -3510,21 +3599,25 @@
                             return selectedStaff.some(s => textVal.includes(s.toLowerCase()));
                         }));
                     }
-                    // Filter by Status (match any selected)
-                    if (selectedStatus.length > 0 && statusColId) {
-                        harvested = harvested.filter(item => (item.column_values || []).some(cv => {
-                            return cv.column?.id === statusColId && selectedStatus.includes((cv.text || '').trim());
-                        }));
-                    }
-                    // Filter by Project Type (Contains logic)
-                    if (selectedType.length > 0 && typeColId) {
-                        harvested = harvested.filter(item => (item.column_values || []).some(cv => {
-                            if (cv.column?.id === typeColId) {
-                                const tText = (cv.text || '').trim();
-                                return selectedType.some(s => tText.includes(s));
+
+                    // Filter by Dynamic Rules
+                    if (hasDynamicFilters) {
+                        harvested = harvested.filter(item => {
+                            for (const filterId of Object.keys(window.dynamicFilters)) {
+                                const df = window.dynamicFilters[filterId];
+                                if (!df.colId) continue;
+                                const selectedVals = msState[filterId]?.selected || [];
+                                if (selectedVals.length === 0) continue;
+
+                                const cv = (item.column_values || []).find(c => c.column?.id === df.colId);
+                                const itemTexts = cv && cv.text ? cv.text.split(',').map(s => s.trim()) : [];
+                                const hasMatch = selectedVals.some(v => itemTexts.includes(v));
+
+                                if (df.operator === 'include' && !hasMatch) return false;
+                                if (df.operator === 'exclude' && hasMatch) return false;
                             }
-                            return false;
-                        }));
+                            return true;
+                        });
                     }
 
                     selectedItemIds = harvested.map(h => h.id);
@@ -3551,9 +3644,9 @@
                         if (mData.data?.items) items = items.concat(mData.data.items);
                     }
                 } else {
-                    // Fallback to exhaustive recent items (fetched until end or 25s safety limit)
+                    // Fallback to exhaustive recent items (fetched until end or 45s safety limit)
                     const startTime = Date.now();
-                    const TIMEOUT_LIMIT = 25000; // 25 seconds safety cutoff
+                    const TIMEOUT_LIMIT = 45000; // 45 seconds safety cutoff
                     updateSyncStatus("Fetching exhaustive campaign list...", true);
 
                     let cursor = null;
@@ -3561,8 +3654,8 @@
                     while (true) {
                         // Safety checks
                         if ((Date.now() - startTime) > TIMEOUT_LIMIT) {
-                            console.warn("Sync timed out (25s limit). Returning partial board data.");
-                            showToast("Limited by execution time (25s). Loading partial board.", 'warning', 5000);
+                            console.warn("Sync timed out (45s limit). Returning partial board data.");
+                            showToast("Limited by execution time (45s). Loading partial board.", 'warning', 5000);
                             break;
                         }
 
@@ -3618,12 +3711,23 @@
                     });
                 }
 
-                // Apply status filter (uses whatever is checked in the dropdown)
-                if (selectedStatus.length > 0 && statusColId) {
+                // Apply dynamic filters
+                if (hasDynamicFilters) {
                     items = items.filter(item => {
-                        return (item.column_values || []).some(cv => {
-                            return cv.column?.id === statusColId && selectedStatus.includes((cv.text || '').trim());
-                        });
+                        for (const filterId of Object.keys(window.dynamicFilters)) {
+                            const df = window.dynamicFilters[filterId];
+                            if (!df.colId) continue;
+                            const selectedVals = msState[filterId]?.selected || [];
+                            if (selectedVals.length === 0) continue;
+
+                            const cv = (item.column_values || []).find(c => c.column?.id === df.colId);
+                            const itemTexts = cv && cv.text ? cv.text.split(',').map(s => s.trim()) : [];
+                            const hasMatch = selectedVals.some(v => itemTexts.includes(v));
+
+                            if (df.operator === 'include' && !hasMatch) return false;
+                            if (df.operator === 'exclude' && hasMatch) return false;
+                        }
+                        return true;
                     });
                 }
 
@@ -3716,8 +3820,7 @@
                     search_filters: {
                         item_name_filter: selectedItems.length > 0 ? selectedItems.map(i => typeof i === 'object' ? i.name : i).join(', ') : 'none',
                         staff_name_filter: selectedStaff.length > 0 ? selectedStaff.join(', ') : 'none',
-                        status_filter: selectedStatus.length > 0 ? selectedStatus.join(', ') : 'none',
-                        project_type_filter: selectedType.length > 0 ? selectedType.join(', ') : 'none'
+                        has_dynamic_filters_applied: hasDynamicFilters
                     },
                     board_registry_total: window.mondayBoardRegistry.length,
                     // Detailed data from user-selected campaign boards
@@ -3834,7 +3937,7 @@
                 })));
 
                 // SAFETY: If compactData is too large, it will break the OpenAI assistant instructions
-                if (compactData.length > 15000) {
+                if (compactData.length > 200000) {
                     console.log(`[SYNC] compactData too large (${compactData.length} chars). Omitting direct injection to favor file_search.`);
                     compactData = "[]"; // Force empty array so AI relies on file_search
                 }
@@ -3853,6 +3956,10 @@ MODE: Internal — you have access to campaign data from Monday.com.
 ${hasBoardDrilldown ? `\n⚠️ CAMPAIGN BOARD MODE ACTIVE: The user has selected ${campaignBoardDrilldowns.length} specific campaign board(s). ALL your answers MUST be based EXCLUSIVELY on the data from these selected boards (found under "selected_campaign_boards" in the JSON). Do NOT reference or use the summary board campaign data unless the user explicitly asks about the summary board.\n` : ''}
 STRICT CONTEXT RULE:
 Ignore any information from previous conversations or files that are not visible in the current JSON context. You are only analyzing the data uploaded JUST NOW.
+
+DOMAIN KNOWLEDGE & ACRONYMS:
+- "GEO" stands for "Generative Engine Optimization" (not Geography/Geographic). If the user asks for GEO campaigns, search for Generative Engine Optimization or GEO specifically.
+- "SEO" stands for Search Engine Optimization.
 
 Your role:
 1. Help internal staff quickly find information about campaigns, staff assignments, campaign statuses, and details.
@@ -3905,7 +4012,7 @@ ${boardRegistryLines}`;
                     }));
                     const boardDataStr = JSON.stringify(boardDataCompact);
                     instructions += `\n\nSELECTED BOARD DATA (USE THIS EXCLUSIVELY):\n${boardDataStr}`;
-                } else if (compactData.length < 28000) {
+                } else if (compactData.length < 200000) {
                     instructions += `\n\nDIRECT CAMPAIGN LIST (USE THIS FOR ALL LISTS):\n${compactData}`;
                 }
 
@@ -4009,8 +4116,7 @@ ${boardRegistryLines}`;
                 addMessage("bot", `✅ **Internal data loaded!** Found **${items.length} campaigns** matching your filters.
 ${itemNames.length > 0 ? `\n📌 Campaigns: ${itemNames.join(', ')}` : ''}
 ${selectedStaff.length > 0 ? `👤 Staff: ${selectedStaff.join(', ')}` : ''}
-${selectedStatus.length > 0 ? `🔴 Status: ${selectedStatus.join(', ')}` : ''}
-${selectedType.length > 0 ? `⚡ Type: ${selectedType.join(', ')}` : ''}
+${hasDynamicFilters ? `⚡ Custom Advanced Filters Applied` : ''}
 ${boardRefLines}${chatRefLines}
 
 You can now ask me anything about these campaigns.`);
@@ -4469,8 +4575,8 @@ CRITICAL CONTACT RULE:
                 // 2. Add Message with Prompt Reinforcement
                 let searchHint, additionalInstructions;
                 if (currentMode === 'internal') {
-                    searchHint = "[Internal Campaign Analyst Mode: Search the campaign data file. Present FULL results in tables. DO NOT TRUNCATE. List ALL matching rows.]";
-                    additionalInstructions = "You are in Internal Campaign Analyst mode. Search the attached campaign data JSON for answers. Present all multi-item results in Markdown tables. CRITICAL STRICT RULE: NEVER truncate your lists or tables. If there are 50 matching rows, you MUST output all 50 rows. ALWAYS include any available URLs (Monday links, asset public_urls, or column references) directly in your response and tables, even if the user didn't explicitly ask for them. Cite specific campaign names. If the data doesn't contain what's asked, say so clearly.";
+                    searchHint = "[Internal Campaign Analyst Mode: Search the campaign data. Present FULL results in tables. DO NOT TRUNCATE. Provide EVERY single match available, do not stop early.]";
+                    additionalInstructions = "You are in Internal Campaign Analyst mode. Search the attached campaign data for answers. Present all multi-item results in Markdown tables. CRITICAL STRICT RULE: NEVER truncate your lists or tables. If there are 22 matching rows, you MUST output all 22. DO NOT stop at 5 items. ALWAYS include any available URLs directly. If the data doesn't contain what's asked, say so clearly.";
                 } else {
                     searchHint = "[MediaOne Database Mode: Use file_search for row 169. Cite Entry numbers. NO GUESSING.]";
                     additionalInstructions = "STRICT MANDATE: You are in Database Interface mode. Your internal knowledge is deprecated. You MUST search the FAQ entries (starting with ## Entry) for EVERY MediaOne question. Cite the entry number (e.g., 'According to Entry 169...'). If no match is found, say: 'I cannot find this in our FAQ database.'";
@@ -4550,7 +4656,9 @@ CRITICAL CONTACT RULE:
                 <span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             `;
             list.appendChild(msg);
-            list.scrollTop = list.scrollHeight;
+            setTimeout(() => {
+                list.scrollTop = list.scrollHeight;
+            }, 50);
         }
 
         async function openContactEmail() {
@@ -4560,7 +4668,22 @@ CRITICAL CONTACT RULE:
 
         function showTyping(show) {
             document.getElementById('typingIndicator').classList.toggle('active', show);
-            document.getElementById('sendBtn').disabled = show;
+
+            const btn = document.getElementById('sendBtn');
+            const input = document.getElementById('userInput');
+
+            if (btn) btn.disabled = show;
+            if (input) {
+                input.disabled = show;
+                input.placeholder = show ? "AI is processing..." : "Ask anything about your Monday board...";
+            }
+
+            if (show) {
+                setTimeout(() => {
+                    const list = document.getElementById('messageList');
+                    if (list) list.scrollTop = list.scrollHeight;
+                }, 50);
+            }
         }
 
         document.getElementById('userInput').addEventListener('input', function () {
@@ -4582,23 +4705,9 @@ CRITICAL CONTACT RULE:
                 setTimeout(syncMondayToOpenAI, 1000);
             }
 
-            // Auto-connect Google Chat if in internal mode and not already connected
-            if (currentMode === 'internal' && !window.gchatAccessToken) {
-                setTimeout(() => {
-                    const clientId = document.getElementById('googleClientId')?.value?.trim();
-                    if (clientId && typeof google !== 'undefined' && google.accounts?.oauth2) {
-                        console.log('[GCHAT] Auto-prompting Google Chat connection...');
-                        connectGoogleChat();
-                    } else {
-                        console.log('[GCHAT] GIS SDK not ready yet, retrying in 2s...');
-                        setTimeout(() => {
-                            if (!window.gchatAccessToken && typeof google !== 'undefined' && google.accounts?.oauth2) {
-                                connectGoogleChat();
-                            }
-                        }, 2000);
-                    }
-                }, 2000);
-            }
+            // Note: The Google Workspace connection prompt is handled by showGworkspaceModal() 
+            // initialized earlier to prevent popup blockers and double-auth requests.
+
         });
     </script>
 
