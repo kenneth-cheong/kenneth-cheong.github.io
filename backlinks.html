@@ -4397,6 +4397,8 @@
             document.getElementById('deliveryStep2').style.display = 'none';
             const input = document.getElementById('deliveryFileInput');
             if (input) input.value = '';
+            const vendorSelect = document.getElementById('deliveryVendorSelect');
+            if (vendorSelect) vendorSelect.value = '';
         }
 
         function handleDeliveryDrop(event) {
@@ -4420,6 +4422,13 @@
         }
 
         async function processDeliveryFile(file) {
+            const vendor = document.getElementById('deliveryVendorSelect').value;
+            if (!vendor) {
+                alert('Please select a vendor before uploading the file.');
+                const fileInput = document.getElementById('deliveryFileInput');
+                if (fileInput) fileInput.value = '';
+                return;
+            }
             toggleLoading(true);
             const reader = new FileReader();
             reader.onload = async (e) => {
@@ -4658,6 +4667,7 @@
                         id: row.matchedOrder.id,
                         deliveredUrl: row.deliveredUrl,
                         status: 'Delivered',
+                        vendorName: document.getElementById('deliveryVendorSelect').value,
                         vendorDa: row.da || 0,
                         validatedDa: metrics.DA || 0,
                         ssl: ssl,
@@ -4928,6 +4938,26 @@
 
             <!-- Step 1: File Upload -->
             <div id="deliveryStep1">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin-bottom: 8px;">1. Select Vendor</label>
+                    <select id="deliveryVendorSelect" style="width: 100%; padding: 12px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border); border-radius: 12px; color: white; outline: none; font-size: 0.9rem;">
+                        <option value="">-- Choose Vendor --</option>
+                        <option value="Anurag (anurag.kashyap20@gmail.com)">Anurag - Email: anurag.kashyap20@gmail.com</option>
+                        <option value="Maark (maark@linksbuildingservice.co.uk)">Maark - Email: maark@linksbuildingservice.co.uk</option>
+                        <option value="Arya (aryajones7@gmail.com)">Arya - Email: aryajones7@gmail.com</option>
+                        <option value="Ramish (ramishgill651@gmail.com)">Ramish - Email: ramishgill651@gmail.com</option>
+                        <option value="Sasti (sastiseoconsultant@gmail.com)">Sasti - Email: sastiseoconsultant@gmail.com</option>
+                        <option value="Boris (online@shantel.co)">Boris - Email: online@shantel.co</option>
+                        <option value="Jimmy (jimmybwilliams8@gmail.com)">Jimmy - Email: jimmybwilliams8@gmail.com</option>
+                        <option value="Dan Inhouse Outreach">Dan Inhouse Outreach</option>
+                        <option value="Link Publisher">Link Publisher</option>
+                        <option value="iCopify">iCopify</option>
+                        <option value="Upwork">Upwork</option>
+                        <option value="Fiverr">Fiverr</option>
+                    </select>
+                </div>
+
+                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin-bottom: 8px;">2. Upload file</label>
                 <div style="border: 2px dashed var(--border); border-radius: 16px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s;"
                     onclick="document.getElementById('deliveryFileInput').click()"
                     ondragover="event.preventDefault(); this.style.borderColor='var(--secondary)'; this.style.background='rgba(16,185,129,0.05)'"
