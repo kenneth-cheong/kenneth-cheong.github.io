@@ -1075,6 +1075,9 @@
             rankingsComparisonBaseDate: null,
             rankingsComparisonTarget: '1w', // 1d, 3d, 1w... custom
             rankingsComparisonTargetDate: null,
+            rankingsKeywordSortCol: 'rank',
+            rankingsKeywordSortDir: 'asc',
+            rankingsCampaignSort: 'alphabetical',
             mondayColsInitialized: false,
             mondayFilters: [], // Rules: { colId, operator, value }
             mondaySort: { colId: null, direction: 'asc' },
@@ -3675,6 +3678,18 @@
                                    onchange="handleRankingsTargetDate(this.value)"
                                    value="${state.rankingsComparisonTargetDate || ''}">
                         </div>
+                        
+                        <div style="width: 1px; height: 16px; background: var(--border);"></div>
+
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Sort:</span>
+                            <select onchange="handleRankingsCampaignSort(this.value)" 
+                                    style="padding: 6px 10px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border); border-radius: 8px; color: white; outline: none; font-size: 0.8rem;">
+                                <option value="alphabetical" ${state.rankingsCampaignSort === 'alphabetical' ? 'selected' : ''}>Alphabetical</option>
+                                <option value="improved" ${state.rankingsCampaignSort === 'improved' ? 'selected' : ''}>Most Improved (↑)</option>
+                                <option value="declined" ${state.rankingsCampaignSort === 'declined' ? 'selected' : ''}>Most Declined (↓)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div style="padding: 20px; background: rgba(15, 23, 42, 0.4); border-radius: 12px; border: 1px solid var(--border);">
@@ -3724,6 +3739,12 @@
         function handleRankingsBaseChange(val) {
             state.rankingsComparisonBase = val;
             renderRankingsControls();
+            renderRankingsTable();
+        }
+
+        function handleRankingsCampaignSort(val) {
+            state.rankingsCampaignSort = val;
+            state.rankingsPage = 1; // Reset to page 1 on sort change
             renderRankingsTable();
         }
 
@@ -3820,7 +3841,25 @@
                 return acc;
             }, {});
 
-            const siteKeys = Object.keys(state.processedRankings).sort((a,b) => a.localeCompare(b));
+            const siteKeys = Object.keys(state.processedRankings);
+            
+            // Apply sorting logic
+            if (state.rankingsCampaignSort === 'improved' || state.rankingsCampaignSort === 'declined') {
+                const scores = {};
+                siteKeys.forEach(site => {
+                    scores[site] = calculateRankMovements(site);
+                });
+                
+                siteKeys.sort((a,b) => {
+                    if (state.rankingsCampaignSort === 'improved') {
+                        return (scores[b].pos - scores[a].pos) || a.localeCompare(b);
+                    } else {
+                        return (scores[b].neg - scores[a].neg) || a.localeCompare(b);
+                    }
+                });
+            } else {
+                siteKeys.sort((a,b) => a.localeCompare(b));
+            }
             
             // Pagination by Site
             const totalItems = siteKeys.length;
@@ -3917,25 +3956,26 @@
             const content = document.getElementById(`content-${nodeId}`);
             if (!content || !state.processedRankings[siteName]?.[engineName]) return;
             
-            const dates = state.processedRankings[siteName][engineName];
-            content.innerHTML = Object.keys(dates).sort((a,b) => b.localeCompare(a)).map(date => {
-                const dateNodeId = `${nodeId}-${date}`.replace(/\s+/g, '-');
-                const items = dates[date];
+            const dates = Object.keys(state.processedRankings[siteName][engineName]).sort((a,b) => b.localeCompare(a));
+            content.innerHTML = dates.map(date => {
+                const dateNodeId = `node-${siteName}-${engineName}-${date}`.replace(/\s+/g, '-');
+                const items = state.processedRankings[siteName][engineName][date];
                 return `
-                <div class="ranking-node tier-3" id="${dateNodeId}">
-                    <div class="node-header" onclick="toggleRankingNode('${dateNodeId}', 3, '${safeJS(siteName)}', '${safeJS(engineName)}', '${safeJS(date)}')">
-                        <div class="node-title">
-                            <i class="fas fa-chevron-right node-icon"></i>
-                            <span style="font-size: 0.85rem; color: var(--text-dim)">${date}</span>
+                    <div class="ranking-node tier-3" id="${dateNodeId}">
+                        <div class="node-header" onclick="toggleRankingNode('${dateNodeId}', 3, '${safeJS(siteName)}', '${safeJS(engineName)}', '${safeJS(date)}')">
+                            <div class="node-title">
+                                <i class="fas fa-chevron-right node-icon"></i>
+                                <span style="font-size: 0.85rem; color: var(--text-dim)">${date}</span>
+                            </div>
+                            <div class="ranking-stats">
+                                 <span class="badge" style="background: rgba(255,255,255,0.05);">${items.length} items</span>
+                            </div>
                         </div>
-                        <div class="ranking-stats">
-                             <span class="badge" style="background: rgba(255,255,255,0.05);">${items.length} items</span>
+                        <div class="node-content" id="content-${dateNodeId}" 
+                             data-site="${safeJS(siteName)}" data-engine="${safeJS(engineName)}" data-date="${safeJS(date)}">
+                            <!-- Lazy loaded tier 4 -->
                         </div>
                     </div>
-                    <div class="node-content" id="content-${dateNodeId}">
-                        <!-- Lazy loaded tier 4 -->
-                    </div>
-                </div>
                 `;
             }).join('');
         }
@@ -3945,16 +3985,43 @@
             const content = document.getElementById(`content-${dateNodeId}`);
             if (!content || !state.processedRankings[siteName]?.[engineName]?.[date]) return;
             
-            const items = state.processedRankings[siteName][engineName][date];
+            let items = [...state.processedRankings[siteName][engineName][date]];
+            
+            // Apply sorting
+            const col = state.rankingsKeywordSortCol;
+            const dir = state.rankingsKeywordSortDir;
+            
+            items.sort((a, b) => {
+                let valA = a[col] || '';
+                let valB = b[col] || '';
+                
+                if (col === 'rank') {
+                    valA = parseInt(valA) || 101;
+                    valB = parseInt(valB) || 101;
+                } else {
+                    valA = String(valA).toLowerCase();
+                    valB = String(valB).toLowerCase();
+                }
+                
+                if (valA < valB) return dir === 'asc' ? -1 : 1;
+                if (valA > valB) return dir === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            const getIcon = (c) => {
+                if (state.rankingsKeywordSortCol !== c) return '<i class="fas fa-sort" style="opacity: 0.2; font-size: 0.7rem;"></i>';
+                return state.rankingsKeywordSortDir === 'asc' ? '<i class="fas fa-sort-up"></i>' : '<i class="fas fa-sort-down"></i>';
+            };
+
             content.innerHTML = `
                 <div class="keywords-table-wrapper">
                     <table>
                         <thead>
                             <tr>
-                                <th>Keyword</th>
-                                <th>Rank</th>
-                                <th>Group</th>
-                                <th>URL</th>
+                                <th onclick="toggleRankingsKeywordSort('keyword')" style="cursor: pointer;">Keyword ${getIcon('keyword')}</th>
+                                <th onclick="toggleRankingsKeywordSort('rank')" style="cursor: pointer;">Rank ${getIcon('rank')}</th>
+                                <th onclick="toggleRankingsKeywordSort('group')" style="cursor: pointer;">Group ${getIcon('group')}</th>
+                                <th onclick="toggleRankingsKeywordSort('rankingUrl')" style="cursor: pointer;">URL ${getIcon('rankingUrl')}</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -3969,7 +4036,16 @@
                                     <td style="font-weight: 700; color: ${parseInt(k.rank) <= 3 ? 'var(--secondary)' : 'inherit'}">${k.rank}</td>
                                     <td><span class="badge" style="background: rgba(255,255,255,0.05); font-size: 0.7rem;">${k.group}</span></td>
                                     <td>
-                                        ${k.rankingUrl && k.rankingUrl !== '-' ? `<a href="${k.rankingUrl}" target="_blank" style="color: var(--secondary); font-size: 0.75rem;"><i class="fas fa-external-link-alt"></i> View</a>` : '-'}
+                                        ${k.rankingUrl && k.rankingUrl !== '-' ? `
+                                            <a href="${k.rankingUrl}" target="_blank" style="color: var(--secondary); font-size: 0.75rem; word-break: break-all; max-width: 200px; display: inline-block;">
+                                                <i class="fas fa-external-link-alt" style="margin-right: 4px; font-size: 0.7rem; opacity: 0.7;"></i>${(() => {
+                                                    try {
+                                                        const u = new URL(k.rankingUrl);
+                                                        return u.pathname + (u.search || '') || '/';
+                                                    } catch(e) { return 'View'; }
+                                                })()}
+                                            </a>
+                                        ` : '-'}
                                     </td>
                                     <td>
                                         <button class="btn" style="padding: 4px 8px; font-size: 0.8rem; background: var(--primary); color: white;" 
@@ -3983,6 +4059,26 @@
                     </table>
                 </div>
             `;
+        }
+
+        function toggleRankingsKeywordSort(col) {
+            if (state.rankingsKeywordSortCol === col) {
+                state.rankingsKeywordSortDir = state.rankingsKeywordSortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                state.rankingsKeywordSortCol = col;
+                state.rankingsKeywordSortDir = (col === 'rank') ? 'asc' : 'desc'; // Rank defaults to asc, others desc? No, let's keep it consistent.
+            }
+            
+            // Refresh all currently LOADED Tier 4 tables in place
+            document.querySelectorAll('.ranking-node.tier-3.expanded').forEach(node => {
+                const contentEl = node.querySelector('.node-content');
+                if (contentEl && contentEl.dataset.site) {
+                    renderRankingsTier4(contentEl.dataset.site, contentEl.dataset.engine, contentEl.dataset.date);
+                }
+            });
+            
+            // Also refresh the main headers if needed (though they don't show the keyword sort)
+            // But we do NOT call renderRankingsTable() here anymore to avoid closing nodes.
         }
 
         function toggleRankingNode(id, tier, site, engine, date) {
