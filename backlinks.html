@@ -826,24 +826,8 @@
                         Showing 0 of 0 links
                     </div>
 
-                    <div style="overflow-x: auto;">
-                        <table id="ordersTable">
-                            <thead>
-                                <tr>
-                                    <th style="width: 40px;"><input type="checkbox" id="selectAllOrders"
-                                            onclick="toggleAllOrders(this)"></th>
-                                    <th>Backlink Info</th>
-                                    <th>Keyword / Target</th>
-                                    <th>Quantity</th>
-                                    <th>Delivery URL</th>
-                                    <th>DA (Ven/Ver)</th>
-                                    <th>Status / History</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ordersBody"></tbody>
-                        </table>
-                    </div>
+                    <div id="ordersContainer" class="ranking-container"></div>
+
                     <div id="ordersPagination"
                         style="margin-top: 24px; display: flex; justify-content: center; gap: 8px;"></div>
                 </div>
@@ -1071,6 +1055,7 @@
             vendors: [],
             rankings: [],
             processedRankings: {}, // Grouped data for lazy loading
+            processedOrders: {}, // Grouped backlink data for domains
             rankingsComparisonBase: 'latest', // latest, custom
             rankingsComparisonBaseDate: null,
             rankingsComparisonTarget: '1w', // 1d, 3d, 1w... custom
@@ -1103,11 +1088,15 @@
             googleToken: null,
             ordersPage: 1,
             ordersPageSize: 20,
+            ordersSortCol: 'createdAt',
+            ordersSortDir: 'desc',
+            expandedDomains: [], // Track expanded collapsibles
             importHistory: [],
             loadingCount: 0,
             isFetchingOrders: false,
             selectedRankings: [],
-            cart: []
+            cart: [],
+            backlinkIdx: { byDomain: {}, byName: {}, byKwDomain: {}, siteToDomains: {} }
         };
 
         function toggleLoading(show) {
@@ -1120,6 +1109,105 @@
             const overlay = document.getElementById('loadingOverlay') || createLoadingOverlay();
             overlay.style.display = state.loadingCount > 0 ? 'flex' : 'none';
         }
+
+        function updateBacklinkIndexes() {
+            const idx = {
+                byDomain: {},
+                byName: {},
+                byKwDomain: {},
+                siteToDomains: {}
+            };
+
+            // 1. Index backlinks
+            state.backlinks.forEach(b => {
+                // Support multiple property names (camelCase and snake_case)
+                const bTargetUrl = b.targetUrl || b.target_url || '';
+                const bDeliveryUrl = b.deliveredUrl || b.delivery_url || b.deliveryUrl || '';
+                const bDomain = getDomain(bTargetUrl || bDeliveryUrl).toLowerCase();
+                const bName = (b.campaignName || b.campaign_name || b.campaign || '').toLowerCase().trim();
+                const bKw = (b.keyword || '').toLowerCase().trim();
+
+                if (bDomain && bDomain !== 'invalid') {
+                    idx.byDomain[bDomain] = (idx.byDomain[bDomain] || 0) + 1;
+                    if (bKw) {
+                        const kwKey = `${bDomain}|${bKw}`;
+                        idx.byKwDomain[kwKey] = (idx.byKwDomain[kwKey] || 0) + 1;
+                    }
+                }
+                if (bName) {
+                    idx.byName[bName] = (idx.byName[bName] || 0) + 1;
+                }
+            });
+
+            // 2. Index Ranking Sites to Domains
+            state.rankings.forEach(r => {
+                const sName = (r.siteName || '').toLowerCase().trim();
+                const sDomain = getDomain(r.siteUrl || '').toLowerCase();
+                if (sName) {
+                    if (!idx.siteToDomains[sName]) idx.siteToDomains[sName] = new Set();
+                    if (sDomain && sDomain !== 'invalid') idx.siteToDomains[sName].add(sDomain);
+                }
+            });
+
+            state.backlinkIdx = idx;
+        }
+
+        function getRobustSiteBacklinkCount(siteName) {
+            if (!state.backlinkIdx) return 0;
+            const sLower = siteName.toLowerCase().trim();
+            const domains = state.backlinkIdx.siteToDomains[sLower] || new Set();
+            
+            let count = 0;
+            domains.forEach(d => count += (state.backlinkIdx.byDomain[d] || 0));
+            
+            // Fallback to name-based count if Domain count is 0
+            if (count === 0) count = state.backlinkIdx.byName[sLower] || 0;
+            
+            // Final fuzzy check: if site name IS a domain
+            if (count === 0 && sLower.includes('.')) {
+                count = state.backlinkIdx.byDomain[sLower.replace(/^www\./, '')] || 0;
+            }
+            
+            return count;
+        }
+
+        function getRobustKwBacklinkCount(siteName, keyword) {
+            if (!state.backlinkIdx) return 0;
+            const sLower = siteName.toLowerCase().trim();
+            const kwLower = keyword.toLowerCase().trim();
+            const domains = state.backlinkIdx.siteToDomains[sLower] || new Set();
+            
+            let count = 0;
+            domains.forEach(d => {
+                const key = `${d}|${kwLower}`;
+                count += (state.backlinkIdx.byKwDomain[key] || 0);
+            });
+            
+            // Fallback to name match for keyword if domain match fails
+            if (count === 0) {
+                count = state.backlinks.filter(b => {
+                    const bName = (b.campaignName || b.campaign_name || b.campaign || '').toLowerCase().trim();
+                    const bKw = (b.keyword || '').toLowerCase().trim();
+                    return bName === sLower && bKw === kwLower;
+                }).length;
+            }
+            
+            return count;
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                const modalId = event.target.id;
+                // Convention: modal with id="orderModal" has closeOrderModal() function
+                const funcName = 'close' + modalId.charAt(0).toUpperCase() + modalId.slice(1);
+                if (typeof window[funcName] === 'function') {
+                    window[funcName]();
+                } else {
+                    event.target.style.display = 'none';
+                }
+            }
+        };
 
         function createLoadingOverlay() {
             let overlay = document.getElementById('loadingOverlay');
@@ -1823,6 +1911,7 @@
 
                 // Final state sync and render
                 state.backlinks = allBacklinks;
+                updateBacklinkIndexes();
                 renderOrders();
                 updateDashboard();
             } catch (err) {
@@ -1882,7 +1971,8 @@
                 const matchesSearch = !state.orderFilters.search ||
                     (b.campaignName || '').toLowerCase().includes(state.orderFilters.search) ||
                     (b.keyword || '').toLowerCase().includes(state.orderFilters.search) ||
-                    (b.deliveredUrl || '').toLowerCase().includes(state.orderFilters.search);
+                    (b.deliveredUrl || '').toLowerCase().includes(state.orderFilters.search) ||
+                    getDomain(b.targetUrl).toLowerCase().includes(state.orderFilters.search);
                 const matchesStatus = state.orderFilters.status === 'all' || b.status === state.orderFilters.status;
                 const matchesBD = !state.orderFilters.bd || (b.bd || '').toLowerCase().includes(state.orderFilters.bd);
                 const matchesDate = !state.orderFilters.date || (b.createdAt || '').includes(state.orderFilters.date);
@@ -1904,6 +1994,15 @@
             updateSelectionStats();
         }
 
+        function clearOrdersSelection() {
+            state.selectedOrders = [];
+            const selectAll = document.getElementById('selectAllOrders');
+            if (selectAll) selectAll.checked = false;
+            renderOrders();
+            updateBulkActionVisibility();
+            updateSelectionStats();
+        }
+
         function updateSelectionStats(count) {
             const stats = document.getElementById('orderStats');
             if (!stats) return;
@@ -1913,24 +2012,29 @@
             }
 
             const total = state.backlinks.length;
-            const filtered = state.lastFilteredCount !== undefined ? state.lastFilteredCount : total;
+            const filtered = (state.lastFilteredCount !== undefined) ? state.lastFilteredCount : total;
             const selected = state.selectedOrders.length;
 
-            let text = `Showing ${filtered} of ${total} links`;
+            let text = `
+                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        ${filtered > 0 ? `<input type="checkbox" id="selectAllOrders" onclick="toggleAllOrders(this)" style="margin-right: 4px;"> <label for="selectAllOrders" style="cursor: pointer;">Select All (${filtered})</label>` : ''}
+                        <span style="margin-left: 8px;">Showing ${filtered} of ${total} links</span>
+                    </div>
+            `;
+            
             if (selected > 0) {
-                text += ` | <span style="color: var(--primary-light); font-weight: 600;">${selected} selected</span>`;
-                text += ` <a href="javascript:void(0)" onclick="clearOrdersSelection()" style="color: var(--accent); font-size: 0.8rem; margin-left: 8px; text-decoration: none;">(Clear)</a>`;
+                text += `
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="color: var(--primary-light); font-weight: 600;">${selected} selected</span>
+                        <a href="javascript:void(0)" onclick="clearOrdersSelection()" style="color: var(--accent); font-size: 0.8rem; text-decoration: none;">(Clear Selection)</a>
+                    </div>
+                `;
             }
+            text += `</div>`;
             stats.innerHTML = text;
         }
 
-        function clearOrdersSelection() {
-            state.selectedOrders = [];
-            document.getElementById('selectAllOrders').checked = false;
-            renderOrders();
-            updateBulkActionVisibility();
-            updateSelectionStats();
-        }
 
         function updateBulkActionVisibility() {
             const selected = state.selectedOrders.length;
@@ -1941,14 +2045,41 @@
             if (delBtn) delBtn.style.display = (selected > 0 && state.role === 'Staff') ? 'inline-block' : 'none';
         }
 
+        function getDomain(url) {
+            try {
+                if (!url) return 'Unknown Domain';
+                let hostname = new URL(url).hostname;
+                return hostname.replace(/^www\./, '');
+            } catch (e) {
+                return 'Invalid URL';
+            }
+        }
+
+        function toggleOrdersSort(col) {
+            if (state.ordersSortCol === col) {
+                state.ordersSortDir = state.ordersSortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                state.ordersSortCol = col;
+                state.ordersSortDir = 'asc';
+            }
+            renderOrders();
+        }
+
+        function getSortIcon(col) {
+            if (state.ordersSortCol !== col) return '<i class="fas fa-sort" style="opacity: 0.2; font-size: 0.7rem;"></i>';
+            return state.ordersSortDir === 'asc' ? '<i class="fas fa-sort-up"></i>' : '<i class="fas fa-sort-down"></i>';
+        }
+
         function renderOrders() {
-            const body = document.getElementById('ordersBody');
+            const container = document.getElementById('ordersContainer');
+            if (!container) return;
 
             let filtered = state.backlinks.filter(b => {
                 const matchesSearch = !state.orderFilters.search ||
                     (b.campaignName || '').toLowerCase().includes(state.orderFilters.search) ||
                     (b.keyword || '').toLowerCase().includes(state.orderFilters.search) ||
-                    (b.deliveredUrl || '').toLowerCase().includes(state.orderFilters.search);
+                    (b.deliveredUrl || '').toLowerCase().includes(state.orderFilters.search) ||
+                    getDomain(b.targetUrl).toLowerCase().includes(state.orderFilters.search);
                 const matchesStatus = state.orderFilters.status === 'all' || b.status === state.orderFilters.status;
                 const matchesBD = !state.orderFilters.bd || (b.bd || '').toLowerCase().includes(state.orderFilters.bd);
                 const matchesDate = !state.orderFilters.date || (b.createdAt || '').includes(state.orderFilters.date);
@@ -1960,86 +2091,232 @@
             updateSelectionStats(filtered.length);
 
             if (filtered.length === 0) {
-                body.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-dim);">No orders found.</td></tr>';
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-dim);">No orders found.</div>';
                 document.getElementById('ordersPagination').innerHTML = '';
                 return;
             }
 
-            // Pagination Logic
-            const totalItems = filtered.length;
+            // Group by Domain
+            state.processedOrders = filtered.reduce((acc, item) => {
+                const domain = getDomain(item.targetUrl);
+                if (!acc[domain]) acc[domain] = [];
+                acc[domain].push(item);
+                return acc;
+            }, {});
+
+            const domains = Object.keys(state.processedOrders).sort();
+
+            // Pagination Logic for Domains
+            const totalItems = domains.length;
             const totalPages = Math.ceil(totalItems / state.ordersPageSize);
             const startIdx = (state.ordersPage - 1) * state.ordersPageSize;
-            const paginated = filtered.slice(startIdx, startIdx + state.ordersPageSize);
+            const paginatedDomains = domains.slice(startIdx, startIdx + state.ordersPageSize);
 
             renderPagination('ordersPagination', state.ordersPage, totalPages, (p) => {
                 state.ordersPage = p;
                 renderOrders();
             });
 
-            body.innerHTML = paginated.map(b => {
-                const date = new Date(b.createdAt).toLocaleDateString();
-                const lastValidated = b.lastValidatedAt ? new Date(b.lastValidatedAt).toLocaleDateString() : 'Never';
+            container.innerHTML = paginatedDomains.map(domain => {
+                const items = state.processedOrders[domain];
+                const avgDA = Math.round(items.reduce((sum, b) => sum + (parseInt(b.validatedDa || b.vendorDa || b.da) || 0), 0) / items.length);
+                const validatedCount = items.filter(b => b.status === 'Validated').length;
 
-                const isSelected = state.selectedOrders.includes(b.id);
                 return `
-                <tr>
-                    <td><input type="checkbox" class="order-checkbox" value="${b.id}" onchange="toggleOrderSelection('${b.id}')" ${isSelected ? 'checked' : ''}></td>
-                    <td>
-                        <div style="font-weight: 600;">${b.campaignName || 'Unnamed Campaign'}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-dim);">Ordered: ${date}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-dim);">BY: ${b.bd || 'N/A'}</div>
-                    </td>
-                    <td>
-                         <div style="color: var(--primary-light); font-weight: 500; cursor: pointer; border-bottom: 1px dashed var(--primary); display: inline-block;" 
-                              onclick="showKeywordTrend('${safeJS(b.keyword)}', '${safeJS(b.campaignName)}', '${safeJS(b.targetUrl)}', '')">
-                            ${b.keyword || 'No Keyword'}
+                <div class="ranking-node tier-1" id="order-node-${domain}">
+                    <div class="node-header" onclick="toggleOrderNode('order-node-${domain}', '${safeJS(domain)}')">
+                        <div class="node-title">
+                            <i class="fas fa-chevron-right node-icon"></i>
+                            <span>${domain}</span>
+                            <span class="badge" style="background: rgba(99, 102, 241, 0.2); font-size: 0.7rem;">${items.length} Backlinks</span>
                         </div>
-                        <a href="${b.targetUrl}" target="_blank" style="font-size: 0.75rem; color: var(--text-dim); text-decoration: none; display: block; margin-top: 4px;">
-                            <i class="fas fa-external-link-alt" style="font-size: 0.6rem;"></i> ${b.targetUrl || 'No Target URL'}
-                        </a>
-                    </td>
-                    <td>${b.quantity || 1}</td>
-                    <td>
-                        ${b.deliveredUrl ? `
-                            <a href="${b.deliveredUrl}" target="_blank" style="color: var(--secondary); text-decoration: none; word-break: break-all;">
-                                ${b.deliveredUrl.length > 40 ? b.deliveredUrl.substring(0, 40) + '...' : b.deliveredUrl}
-                            </a>
-                        ` : '<span style="color: var(--text-dim); font-style: italic;">Pending...</span>'}
-                    </td>
-                    <td>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <span title="Vendor DA" style="background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px;">${b.vendorDa || b.da || '-'}</span>
-                            <i class="fas fa-arrow-right" style="font-size: 0.6rem; opacity: 0.3;"></i>
-                            <span title="Validated DA" style="background: rgba(16, 185, 129, 0.1); color: var(--secondary); padding: 2px 6px; border-radius: 4px; font-weight: 600;">${b.validatedDa || '-'}</span>
+                        <div class="ranking-stats">
+                             <div class="ranking-stat-item"><i class="fas fa-chart-line"></i> Avg DA: <b>${avgDA}</b></div>
+                             <div class="ranking-stat-item"><i class="fas fa-check-circle"></i> Validated: <b>${validatedCount}</b></div>
                         </div>
-                    </td>
-                    <td>
-                        <span class="badge" style="background: ${getStatusColor(b.status)}; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.7rem;">${b.status || 'Ordered'}</span>
-                        <div style="font-size: 0.7rem; color: var(--text-dim); margin-top: 4px;">Validated: ${lastValidated}</div>
-                    </td>
-                    <td>
-                        <div style="display: flex; gap: 4px;">
-                            ${(state.role === 'Vendor' || state.role === 'Staff') && !b.deliveredUrl ? `
-                                <button class="btn" style="padding: 4px 8px; font-size: 0.8rem;" id="deliver-${b.id}" onclick="deliverOrder('${safeJS(b.id)}')" title="Deliver Link">
-                                    <i class="fas fa-upload"></i>
-                                </button>` : ''}
-                            
-                            ${state.role === 'Staff' && b.deliveredUrl ? `
-                                <button class="btn" style="padding: 4px 8px; font-size: 0.8rem; background: var(--secondary); color: white; border: none;" 
-                                        id="validate-${b.id}" onclick="validateBacklink('${safeJS(b.id)}')" title="Validate Now">
-                                    <i class="fas fa-search"></i>
-                                </button>` : ''}
-
-                            <button class="btn" style="padding: 4px 8px; font-size: 0.8rem; background: transparent; border: 1px solid var(--border); color: var(--accent);" 
-                                    id="delete-${b.id}" onclick="deleteOrder('${safeJS(b.id)}')" title="Delete">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
+                    </div>
+                    <div class="node-content" id="content-order-node-${domain}">
+                        <!-- Lazy loaded backlinks table -->
+                    </div>
+                </div>
                 `;
             }).join('');
+            
+            // Re-expand domains that were already open
+            paginatedDomains.forEach(domain => {
+                if (state.expandedDomains.includes(domain) || state.orderFilters.search) {
+                    const id = `order-node-${domain}`;
+                    const node = document.getElementById(id);
+                    const content = document.getElementById('content-' + id);
+                    if (node && content) {
+                        node.classList.add('expanded');
+                        renderOrderNodeContent(domain, content);
+                    }
+                }
+            });
         }
+
+        function toggleOrderNode(id, domain) {
+            const node = document.getElementById(id);
+            const content = document.getElementById('content-' + id);
+            if (!node || !content) return;
+
+            const isExpanded = node.classList.contains('expanded');
+            if (isExpanded) {
+                node.classList.remove('expanded');
+                state.expandedDomains = state.expandedDomains.filter(d => d !== domain);
+            } else {
+                node.classList.add('expanded');
+                if (!state.expandedDomains.includes(domain)) {
+                    state.expandedDomains.push(domain);
+                }
+                renderOrderNodeContent(domain, content);
+            }
+        }
+
+        function renderOrderNodeContent(domain, content) {
+            let items = [...(state.processedOrders[domain] || [])];
+            
+            // Apply sorting
+            const col = state.ordersSortCol;
+            const dir = state.ordersSortDir;
+            
+            items.sort((a, b) => {
+                let valA = a[col] || '';
+                let valB = b[col] || '';
+                
+                if (col === 'validatedDa' || col === 'vendorDa' || col === 'da' || col === 'quantity') {
+                    valA = parseFloat(valA || a.da || 0);
+                    valB = parseFloat(valB || b.da || 0);
+                } else if (col === 'createdAt') {
+                    valA = new Date(valA).getTime();
+                    valB = new Date(valB).getTime();
+                } else {
+                    valA = String(valA).toLowerCase();
+                    valB = String(valB).toLowerCase();
+                }
+                
+                if (valA < valB) return dir === 'asc' ? -1 : 1;
+                if (valA > valB) return dir === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            content.innerHTML = `
+                <div class="keywords-table-wrapper">
+                    <table style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;"><input type="checkbox" onchange="toggleDomainSelection('${safeJS(domain)}', this.checked)"></th>
+                                <th onclick="toggleOrdersSort('campaignName')" style="cursor: pointer;">Backlink Info ${getSortIcon('campaignName')}</th>
+                                <th onclick="toggleOrdersSort('createdAt')" style="cursor: pointer;">Date ${getSortIcon('createdAt')}</th>
+                                <th onclick="toggleOrdersSort('keyword')" style="cursor: pointer;">Keyword / Target ${getSortIcon('keyword')}</th>
+                                <th onclick="toggleOrdersSort('quantity')" style="cursor: pointer;">Qty ${getSortIcon('quantity')}</th>
+                                <th onclick="toggleOrdersSort('deliveredUrl')" style="cursor: pointer;">Delivery URL ${getSortIcon('deliveredUrl')}</th>
+                                <th onclick="toggleOrdersSort('validatedDa')" style="cursor: pointer;">DA (Vn/Vr) ${getSortIcon('validatedDa')}</th>
+                                <th onclick="toggleOrdersSort('status')" style="cursor: pointer;">Status ${getSortIcon('status')}</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${items.map(b => {
+                                const date = new Date(b.createdAt).toLocaleDateString();
+                                const lastValidated = b.lastValidatedAt ? new Date(b.lastValidatedAt).toLocaleDateString() : 'Never';
+                                const isSelected = state.selectedOrders.includes(b.id);
+                                return `
+                                <tr>
+                                    <td><input type="checkbox" class="order-checkbox" value="${b.id}" onchange="toggleOrderSelection('${b.id}')" ${isSelected ? 'checked' : ''}></td>
+                                    <td>
+                                        <div style="font-weight: 600; font-size: 0.85rem;">${b.campaignName || 'Unnamed'}</div>
+                                        <div style="font-size: 0.75rem; color: var(--text-dim);">BY: ${b.bd || 'N/A'}</div>
+                                    </td>
+                                    <td><div style="font-size: 0.85rem;">${date}</div></td>
+                                    <td>
+                                        <div style="color: var(--primary-light); font-weight: 500; cursor: pointer; border-bottom: 1px dashed var(--primary); display: inline-block; font-size: 0.85rem;" 
+                                             onclick="showKeywordTrend('${safeJS(b.keyword)}', '${safeJS(b.campaignName)}', '${safeJS(b.targetUrl)}', '')">
+                                            ${b.keyword || 'No Keyword'}
+                                        </div>
+                                        <a href="${b.targetUrl}" target="_blank" style="font-size: 0.7rem; color: var(--text-dim); text-decoration: none; display: block; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px;">
+                                            <i class="fas fa-external-link-alt" style="font-size: 0.6rem;"></i> ${b.targetUrl || 'No Target'}
+                                        </a>
+                                    </td>
+                                    <td>${b.quantity || 1}</td>
+                                    <td>
+                                        ${b.deliveredUrl ? `
+                                            <a href="${b.deliveredUrl}" target="_blank" style="color: var(--secondary); text-decoration: none; word-break: break-all; font-size: 0.8rem;">
+                                                ${b.deliveredUrl.length > 30 ? b.deliveredUrl.substring(0, 30) + '...' : b.deliveredUrl}
+                                            </a>
+                                        ` : '<span style="color: var(--text-dim); font-style: italic; font-size: 0.8rem;">Pending...</span>'}
+                                    </td>
+                                    <td>
+                                        <div style="display: flex; gap: 4px; align-items: center; font-size: 0.8rem;">
+                                            <span title="Vendor DA">${b.vendorDa || b.da || '-'}</span>
+                                            <i class="fas fa-arrow-right" style="font-size: 0.6rem; opacity: 0.3;"></i>
+                                            <span style="color: var(--secondary); font-weight: 600;">${b.validatedDa || '-'}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge" style="background: ${getStatusColor(b.status)}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.65rem;">${b.status || 'Ordered'}</span>
+                                        <div style="font-size: 0.65rem; color: var(--text-dim); margin-top: 4px;">Val: ${lastValidated}</div>
+                                    </td>
+                                    <td>
+                                        <div style="display: flex; gap: 4px;">
+                                            ${(state.role === 'Vendor' || state.role === 'Staff') && !b.deliveredUrl ? `
+                                                <button class="btn" style="padding: 2px 6px; font-size: 0.75rem;" onclick="deliverOrder('${safeJS(b.id)}')">
+                                                    <i class="fas fa-upload"></i>
+                                                </button>` : ''}
+                                            ${state.role === 'Staff' && b.deliveredUrl ? `
+                                                <button class="btn" style="padding: 2px 6px; font-size: 0.75rem; background: var(--secondary); color: white; border: none;" 
+                                                        onclick="validateBacklink('${safeJS(b.id)}')">
+                                                    <i class="fas fa-search"></i>
+                                                </button>` : ''}
+                                            <button class="btn" style="padding: 2px 6px; font-size: 0.75rem; background: transparent; border: 1px solid var(--border); color: var(--accent);" 
+                                                    onclick="deleteOrder('${safeJS(b.id)}')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function toggleDomainSelection(domain, isChecked) {
+            const items = state.processedOrders[domain] || [];
+            items.forEach(b => {
+                const idx = state.selectedOrders.indexOf(b.id);
+                if (isChecked && idx === -1) {
+                    state.selectedOrders.push(b.id);
+                } else if (!isChecked && idx !== -1) {
+                    state.selectedOrders.splice(idx, 1);
+                }
+            });
+            updateSelectionStats(); // Refresh stats display
+            
+            // Sync UI checkboxes for this domain
+            const domainContainer = document.getElementById('content-order-node-' + domain);
+            if (domainContainer) {
+                const checkboxes = domainContainer.querySelectorAll('.order-checkbox');
+                checkboxes.forEach(cb => cb.checked = isChecked);
+            }
+            
+            // We need to call toggleOrderSelection logic or similar to update global buttons
+            if (state.selectedOrders.length > 0) {
+                 const valBtn = document.getElementById('bulkValidateBtn');
+                 const delBtn = document.getElementById('bulkDeleteBtn');
+                 if (valBtn) valBtn.style.display = (state.role === 'Staff') ? 'inline-block' : 'none';
+                 if (delBtn) delBtn.style.display = (state.role === 'Staff') ? 'inline-block' : 'none';
+            } else {
+                 const valBtn = document.getElementById('bulkValidateBtn');
+                 const delBtn = document.getElementById('bulkDeleteBtn');
+                 if (valBtn) valBtn.style.display = 'none';
+                 if (delBtn) delBtn.style.display = 'none';
+            }
+        }
+
 
         async function validateBacklink(id) {
             const b = state.backlinks.find(x => x.id === id);
@@ -3132,6 +3409,22 @@
             }
         }
 
+        function getDomain(url) {
+            if (!url || url === '-' || url === 'n/a') return 'invalid';
+            try {
+                let u = String(url).trim();
+                if (!u.includes('://')) u = 'https://' + u;
+                const parsed = new URL(u);
+                let host = parsed.hostname.toLowerCase();
+                host = host.replace(/^www\./, '').replace(/^m\./, '');
+                return host;
+            } catch (e) {
+                const match = String(url).match(/([a-z0-9\-]+\.[a-z0-9.\-]+)/i);
+                if (match) return match[1].toLowerCase().replace(/^www\./, '');
+                return 'invalid';
+            }
+        }
+
 
         function logout() {
             localStorage.removeItem('googleUser');
@@ -3287,7 +3580,7 @@
 
                                         state.rankings.push({
                                             siteName: site.title || site.name || 'Unknown',
-                                            siteUrl: site.url || '',
+                                                        siteUrl: site.url || site.domain || '',
                                             keyword: kw.name || kw.keyword || '-',
                                             rankingUrl: (() => {
                                                 const lp = posData.landing_pages || kw.landing_pages;
@@ -3312,6 +3605,7 @@
                     } finally {
                         completedSites++;
                         if (syncStatus) syncStatus.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Syncing... (${completedSites}/${sites.length})`;
+                        updateBacklinkIndexes();
                         renderRankingsTable();
                     }
                 });
@@ -3688,6 +3982,7 @@
                                 <option value="alphabetical" ${state.rankingsCampaignSort === 'alphabetical' ? 'selected' : ''}>Alphabetical</option>
                                 <option value="improved" ${state.rankingsCampaignSort === 'improved' ? 'selected' : ''}>Most Improved (↑)</option>
                                 <option value="declined" ${state.rankingsCampaignSort === 'declined' ? 'selected' : ''}>Most Declined (↓)</option>
+                                <option value="backlinks" ${state.rankingsCampaignSort === 'backlinks' ? 'selected' : ''}>Most Backlinks</option>
                             </select>
                         </div>
                     </div>
@@ -3790,6 +4085,7 @@
         }
 
         function renderRankingsTable() {
+            console.log("[Dashboard] Rendering Rankings Table (v2.1 - Robust Mapping)");
             const container = document.getElementById('rankingsContainer');
             if (!container) return;
 
@@ -3840,11 +4136,17 @@
                 acc[site][engine][date].push(item);
                 return acc;
             }, {});
-
+            updateBacklinkIndexes();
             const siteKeys = Object.keys(state.processedRankings);
-            
-            // Apply sorting logic
-            if (state.rankingsCampaignSort === 'improved' || state.rankingsCampaignSort === 'declined') {
+
+            // Sorting logic update
+            if (state.rankingsCampaignSort === 'backlinks') {
+                siteKeys.sort((a,b) => {
+                    const countA = getRobustSiteBacklinkCount(a);
+                    const countB = getRobustSiteBacklinkCount(b);
+                    return (countB - countA) || a.localeCompare(b);
+                });
+            } else if (state.rankingsCampaignSort === 'improved' || state.rankingsCampaignSort === 'declined') {
                 const scores = {};
                 siteKeys.forEach(site => {
                     scores[site] = calculateRankMovements(site);
@@ -3873,9 +4175,11 @@
             const uniqueGlobalKeywords = new Set(filtered.map(k => k.keyword)).size;
             if (countEl) countEl.innerText = `${totalItems} Campaigns (${uniqueGlobalKeywords} Unique Keywords)`;
 
+
             // Render INITIAL Tier 1 ONLY
             container.innerHTML = paginatedSites.map(siteName => {
                 const engines = state.processedRankings[siteName];
+                const backlinkCount = getRobustSiteBacklinkCount(siteName);
                 
                 // Count unique keywords across all engines and dates for this campaign
                 const uniqueKeywords = new Set();
@@ -3900,6 +4204,10 @@
                         <div class="ranking-stats">
                              ${pos > 0 ? `<div class="ranking-stat-item" style="color: #10b981"><i class="fas fa-arrow-up"></i> <b>${pos}</b></div>` : ''}
                              ${neg > 0 ? `<div class="ranking-stat-item" style="color: #f43f5e"><i class="fas fa-arrow-down"></i> <b>${neg}</b></div>` : ''}
+                             <div class="ranking-stat-item" style="color: ${backlinkCount > 0 ? 'var(--secondary)' : 'var(--text-dim)'}; cursor: pointer; border-bottom: 1px dashed ${backlinkCount > 0 ? 'var(--secondary)' : 'transparent'};" 
+                                  onclick="event.stopPropagation(); showCampaignBacklinks('${safeJS(siteName)}')">
+                                <i class="fas fa-link"></i> <b>${backlinkCount}</b> Backlinks
+                             </div>
                              <div class="ranking-stat-item"><i class="fas fa-layer-group"></i> <b>${Object.keys(engines).length}</b> Engines</div>
                         </div>
                     </div>
@@ -3987,6 +4295,12 @@
             
             let items = [...state.processedRankings[siteName][engineName][date]];
             
+            // Map counts to items using centralized robust logic
+            items = items.map(item => ({
+                ...item,
+                backlinkCount: getRobustKwBacklinkCount(siteName, item.keyword)
+            }));
+
             // Apply sorting
             const col = state.rankingsKeywordSortCol;
             const dir = state.rankingsKeywordSortDir;
@@ -3995,9 +4309,9 @@
                 let valA = a[col] || '';
                 let valB = b[col] || '';
                 
-                if (col === 'rank') {
-                    valA = parseInt(valA) || 101;
-                    valB = parseInt(valB) || 101;
+                if (col === 'rank' || col === 'backlinkCount') {
+                    valA = parseInt(valA) || (col === 'rank' ? 101 : 0);
+                    valB = parseInt(valB) || (col === 'rank' ? 101 : 0);
                 } else {
                     valA = String(valA).toLowerCase();
                     valB = String(valB).toLowerCase();
@@ -4021,6 +4335,7 @@
                                 <th onclick="toggleRankingsKeywordSort('keyword')" style="cursor: pointer;">Keyword ${getIcon('keyword')}</th>
                                 <th onclick="toggleRankingsKeywordSort('rank')" style="cursor: pointer;">Rank ${getIcon('rank')}</th>
                                 <th onclick="toggleRankingsKeywordSort('group')" style="cursor: pointer;">Group ${getIcon('group')}</th>
+                                <th onclick="toggleRankingsKeywordSort('backlinkCount')" style="cursor: pointer;">Backlinks ${getIcon('backlinkCount')}</th>
                                 <th onclick="toggleRankingsKeywordSort('rankingUrl')" style="cursor: pointer;">URL ${getIcon('rankingUrl')}</th>
                                 <th>Action</th>
                             </tr>
@@ -4035,6 +4350,16 @@
                                     </td>
                                     <td style="font-weight: 700; color: ${parseInt(k.rank) <= 3 ? 'var(--secondary)' : 'inherit'}">${k.rank}</td>
                                     <td><span class="badge" style="background: rgba(255,255,255,0.05); font-size: 0.7rem;">${k.group}</span></td>
+                                    <td>
+                                        <div style="cursor: pointer; display: flex; align-items: center; gap: 6px;" 
+                                             onclick="showKeywordBacklinks('${safeJS(k.keyword)}', '${safeJS(siteName)}')"
+                                             title="View backlinks for this keyword">
+                                            <span class="badge" style="background: ${k.backlinkCount > 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.05)'}; color: ${k.backlinkCount > 0 ? 'var(--secondary)' : 'var(--text-dim)'}; font-size: 0.7rem;">
+                                                ${k.backlinkCount} Built
+                                            </span>
+                                            ${k.backlinkCount > 0 ? '<i class="fas fa-external-link-alt" style="font-size: 0.6rem; opacity: 0.5;"></i>' : ''}
+                                        </div>
+                                    </td>
                                     <td>
                                         ${k.rankingUrl && k.rankingUrl !== '-' ? `
                                             <a href="${k.rankingUrl}" target="_blank" style="color: var(--secondary); font-size: 0.75rem; word-break: break-all; max-width: 200px; display: inline-block;">
@@ -4059,6 +4384,31 @@
                     </table>
                 </div>
             `;
+        }
+        
+        function showKeywordBacklinks(keyword, siteName) {
+            // Set search filter and campaign filter? 
+            // For now just search the keyword globally in the backlinks tab
+            state.orderFilters.search = keyword.toLowerCase();
+            const searchInput = document.getElementById('orderSearch');
+            if (searchInput) searchInput.value = keyword;
+            
+            showTab('orders');
+            renderOrders();
+            
+            // Scroll to the top of the orders tab
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function showCampaignBacklinks(siteName) {
+            state.orderFilters.search = siteName.toLowerCase();
+            const searchInput = document.getElementById('orderSearch');
+            if (searchInput) searchInput.value = siteName;
+            
+            showTab('orders');
+            renderOrders();
+            
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function toggleRankingsKeywordSort(col) {
