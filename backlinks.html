@@ -439,6 +439,8 @@
             padding: 8px;
             border-radius: 8px;
             border: 1px solid var(--border);
+            overflow: visible;
+            position: relative;
         }
 
         @media (max-width: 768px) {
@@ -531,6 +533,110 @@
                 gap: 4px;
             }
         }
+
+        /* 4-Tier Collapsible Rankings Styles */
+        .ranking-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .ranking-node {
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .node-header {
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .node-header:hover {
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .node-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+        }
+
+        .node-icon {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+
+        .ranking-node.expanded > .node-header .node-icon {
+            transform: rotate(90deg);
+        }
+
+        .node-content {
+            display: none;
+            padding: 0 20px 20px 20px;
+        }
+
+        .ranking-node.expanded > .node-content {
+            display: block;
+        }
+
+        /* Tier Specifics */
+        .tier-1 { border-left: 4px solid var(--primary); }
+        .tier-2 { border-left: 4px solid var(--secondary); margin-top: 8px; background: rgba(0,0,0,0.1); }
+        .tier-3 { border-left: 4px solid var(--text-dim); margin-top: 8px; background: rgba(0,0,0,0.2); }
+
+        .tier-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .ranking-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .ranking-stat-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ranking-stat-item b {
+            color: var(--text-main);
+        }
+
+        .keywords-table-wrapper {
+            background: rgba(15, 23, 42, 0.4);
+            border-radius: 8px;
+            margin-top: 10px;
+            overflow-x: auto;
+        }
+
+        .keywords-table-wrapper table {
+            font-size: 0.85rem;
+        }
+
+        .keywords-table-wrapper th {
+            background: rgba(0, 0, 0, 0.3);
+            text-transform: none;
+            letter-spacing: 0;
+            font-weight: 500;
+        }
     </style>
 </head>
 
@@ -559,29 +665,29 @@
             </a>
 
             <nav>
-                <div class="nav-item active" onclick="showTab('dashboard')">
+                <div id="nav-dashboard" class="nav-item active" onclick="showTab('dashboard')">
                     <i class="fas fa-chart-line"></i>
                     <span>Dashboard</span>
                 </div>
-                <div class="nav-item" onclick="showTab('campaigns')">
+                <div id="nav-campaigns" class="nav-item" onclick="showTab('campaigns')">
                     <i class="fas fa-bullhorn"></i>
-                    <span>Campaigns</span>
+                    <span>Campaign Info Repository</span>
                 </div>
-                <div class="nav-item" onclick="showTab('orders')">
+                <div id="nav-orders" class="nav-item" onclick="showTab('orders')">
                     <i class="fas fa-shopping-cart"></i>
                     <span>Delivered Backlinks</span>
                 </div>
-                <div class="nav-item" onclick="showTab('vendors')">
+                <div id="nav-vendors" class="nav-item" onclick="showTab('vendors')">
                     <i class="fas fa-users"></i>
-                    <span>Users</span>
+                    <span>User Management</span>
                 </div>
-                <div class="nav-item" onclick="showTab('rankings')">
+                <div id="nav-rankings" class="nav-item" onclick="showTab('rankings')">
                     <i class="fas fa-chart-bar"></i>
-                    <span>Rankings</span>
+                    <span>Keyword Rankings</span>
                 </div>
-                <div class="nav-item" onclick="showTab('validator')">
+                <div id="nav-validator" class="nav-item" onclick="showTab('validator')">
                     <i class="fas fa-check-double"></i>
-                    <span>Validator</span>
+                    <span>Bulk Validator</span>
                 </div>
             </nav>
 
@@ -639,8 +745,8 @@
                                 style="font-size: 0.85rem; color: var(--primary-light); display: none;">
                                 <i class="fas fa-spinner fa-spin"></i> Syncing...
                             </span>
-                            <button class="btn btn-primary" onclick="openMondayModal()" id="importBtn">
-                                <i class="fas fa-download"></i> Get From Monday
+                            <button class="btn btn-primary" onclick="clearMondayCache(); syncMondayData(); return false;" id="importBtn" title="Refresh data from Monday.com API">
+                                <i class="fas fa-sync-alt"></i> Refresh
                             </button>
                         </div>
                     </div>
@@ -688,7 +794,7 @@
                                 style="display: none; background: var(--accent); color: white;">
                                 <i class="fas fa-trash-alt"></i> Delete Selected
                             </button>
-                            <button class="btn btn-primary" onclick="createOrder()">
+                            <button id="btn-new-request" class="btn btn-primary" onclick="createOrder()">
                                 <i class="fas fa-plus"></i> New Request
                             </button>
                         </div>
@@ -775,12 +881,16 @@
 
             <div id="vendorsTab" class="content-tab" style="display: none;">
                 <div class="card">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <h3>Vendors & Personnel</h3>
-                        <button class="btn btn-primary" onclick="addUser()">
-                            <i class="fas fa-user-plus"></i> Add User
-                        </button>
+                        <div style="display: flex; gap: 12px;">
+                            <button class="btn" style="background: rgba(99, 102, 241, 0.1); color: var(--primary-light); border: 1px solid var(--border);" onclick="showRoleExplainer()">
+                                <i class="fas fa-info-circle"></i> Access Levels
+                            </button>
+                            <button class="btn btn-primary" onclick="addUser()">
+                                <i class="fas fa-user-plus"></i> Add User
+                            </button>
+                        </div>
                     </div>
                     <table id="usersTable">
                         <thead>
@@ -850,7 +960,20 @@
 
                     <div id="rankingsTableControls" style="margin-bottom: 24px;"></div>
 
-                    <div id="rankingsTableContainer" style="overflow-x: auto; max-height: 70vh;">
+                    <div style="display: flex; justify-content: flex-end; gap: 12px; margin-bottom: 16px;">
+                        <button class="btn" style="background: transparent; color: var(--primary-light); border: 1px solid var(--border); font-size: 0.8rem;" onclick="expandAllRankings()">
+                            <i class="fas fa-expand-arrows-alt"></i> Expand All
+                        </button>
+                        <button class="btn" style="background: transparent; color: var(--text-dim); border: 1px solid var(--border); font-size: 0.8rem;" onclick="collapseAllRankings()">
+                            <i class="fas fa-compress-arrows-alt"></i> Collapse All
+                        </button>
+                    </div>
+
+                    <div id="rankingsContainer" class="ranking-container">
+                        <!-- 4-Tier Collapsible Nodes rendered here -->
+                    </div>
+
+                    <div id="rankingsTableContainer" style="overflow-x: auto; max-height: 70vh; display: none;">
                         <table>
                             <thead>
                                 <tr>
@@ -941,14 +1064,25 @@
 
         let state = {
             user: null,
+            role: 'Viewer',
             campaigns: [],
             mondayItems: [],
+            orders: [],
+            vendors: [],
+            rankings: [],
+            processedRankings: {}, // Grouped data for lazy loading
+            rankingsComparisonBase: 'latest', // latest, custom
+            rankingsComparisonBaseDate: null,
+            rankingsComparisonTarget: '1w', // 1d, 3d, 1w... custom
+            rankingsComparisonTargetDate: null,
             mondayColsInitialized: false,
             mondayFilters: [], // Rules: { colId, operator, value }
             mondaySort: { colId: null, direction: 'asc' },
             mondayVisibleCols: [],
             colSelectorSearch: '',
             cachedColumnMap: null,
+            filtersExpanded: true,
+            columnsExpanded: false,
             seRankingSites: [],
             rankings: [],
             rankingsFilters: [],
@@ -1003,26 +1137,92 @@
         function completeLogin() {
             document.getElementById('loginScreen').style.display = 'none';
             document.getElementById('app').style.display = 'flex';
-            document.getElementById('userName').innerText = state.user.name;
-            document.getElementById('userAvatar').innerText = state.user.name.charAt(0);
-
-            // Staff vs Vendor Role Check
-            state.role = state.user.email.toLowerCase().includes('mediaone') ? 'Staff' : 'Vendor';
+            // Role Management: Admin, Vendor, Viewer, Buyer
+            const adminNames = ['dan', 'desiree', 'kenneth', 'tom', 'june'];
+            const userNameLower = state.user.name.toLowerCase();
+            const userEmailLower = state.user.email.toLowerCase();
+            
+            // Initial role detection
+            if (adminNames.some(name => userNameLower.includes(name)) || userEmailLower.includes('kenneth')) {
+                state.role = 'Admin';
+            } else if (userEmailLower.includes('mediaone')) {
+                // Default staff to Viewer, can be upgraded to Buyer/Admin in Users tab
+                state.role = 'Viewer'; 
+            } else {
+                state.role = 'Vendor';
+            }
+            
             document.getElementById('userRole').innerText = state.role;
 
-            if (state.role === 'Vendor') {
-                // Hide staff-only tabs if necessary, or just restrict actions
-                document.getElementById('importBtn').style.display = 'none';
-            }
+            applyPermissions();
 
             fetchCampaigns(true);
             fetchOrders(true);
             fetchUsers(true);
             fetchImportHistory(true);
 
-            // Background automated syncs as requested
-            syncMondayData(true);
+            // Background automated syncs: Only sync if cache is empty or stale
+            if (state.mondayItems.length === 0) {
+                console.log('[DEBUG] No Monday items in state, checking cache...');
+                if (!loadMondayDataFromCache()) {
+                    console.log('[DEBUG] Cache empty or failed, triggering sync Monday data...');
+                    syncMondayData(true);
+                }
+            } else {
+                console.log('[DEBUG] Monday items already loaded from cache, skipping background sync.');
+            }
             fetchFullSERankingData(true);
+        }
+
+        function applyPermissions() {
+            const role = state.role || 'Viewer';
+            console.log('[DEBUG] Applying permissions for role:', role);
+
+            // Navigation Visibility
+            const navs = {
+                'dashboard': ['Admin', 'Viewer', 'Buyer'],
+                'campaigns': ['Admin', 'Viewer', 'Buyer'],
+                'orders': ['Admin', 'Vendor', 'Viewer', 'Buyer'],
+                'vendors': ['Admin', 'Viewer', 'Buyer'],
+                'rankings': ['Admin', 'Viewer', 'Buyer'],
+                'validator': ['Admin', 'Viewer', 'Buyer']
+            };
+
+            Object.keys(navs).forEach(tab => {
+                const navItem = document.getElementById(`nav-${tab}`);
+                if (navItem) {
+                    navItem.style.display = navs[tab].includes(role) ? 'flex' : 'none';
+                }
+            });
+
+            // If current tab is hidden, switch to a visible one
+            const currentTab = document.querySelector('.nav-item.active');
+            if (currentTab && currentTab.style.display === 'none') {
+                if (role === 'Vendor') showTab('orders');
+                else showTab('dashboard');
+            }
+
+            // Button/Action Restrictions
+            const isReadOnly = (role === 'Viewer');
+            const isAdmin = (role === 'Admin');
+            const isVendor = (role === 'Vendor');
+            const isBuyer = (role === 'Buyer');
+
+            // Hide Refresh/Import/Edit buttons for non-admins
+            const adminOnlyElements = document.querySelectorAll('#importBtn, #bulkValidateBtn, #bulkDeleteBtn, #excelUpload, #deliveryUpload');
+            adminOnlyElements.forEach(el => {
+                el.style.display = isAdmin ? 'inline-flex' : 'none';
+            });
+
+            // Special handling for Vendor on Orders tab
+            const vendorImportBtn = document.getElementById('deliveryUploadBtn');
+            if (vendorImportBtn) vendorImportBtn.style.display = (isAdmin || isVendor) ? 'inline-flex' : 'none';
+
+            // New Request / Order Link buttons (Admin and Buyer only)
+            const requestBtns = document.querySelectorAll('#btn-new-request');
+            requestBtns.forEach(btn => {
+                btn.style.display = (isAdmin || isBuyer) ? 'inline-flex' : 'none';
+            });
         }
 
         function showTab(tabId) {
@@ -1370,13 +1570,24 @@
                     <i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Loading campaigns...
                 </td></tr>`;
             }
-            const data = await apiCall(PERSISTENCE_URL, 'get_campaigns', {}, isQuiet);
-            if (data && Array.isArray(data)) {
-                state.campaigns = data;
-                renderCampaigns();
-            } else if (data) {
-                const list = data.campaigns || data.items || [];
-                state.campaigns = Array.isArray(list) ? list : [];
+            try {
+                const data = await apiCall(PERSISTENCE_URL, 'get_campaigns', {}, isQuiet);
+                console.log('Campaign data received:', data);
+                if (data && Array.isArray(data)) {
+                    state.campaigns = data;
+                    renderCampaigns();
+                } else if (data) {
+                    const list = data.campaigns || data.items || [];
+                    state.campaigns = Array.isArray(list) ? list : [];
+                    renderCampaigns();
+                } else {
+                    console.error('No data received from get_campaigns');
+                    state.campaigns = [];
+                    renderCampaigns();
+                }
+            } catch (err) {
+                console.error('Error fetching campaigns:', err);
+                state.campaigns = [];
                 renderCampaigns();
             }
         }
@@ -1395,15 +1606,27 @@
 
         function renderCampaigns() {
             const body = document.getElementById('campaignsBody');
+            
+            // If Monday items are already loaded, ensure we don't overwrite them with "empty" state
+            if (state.mondayItems && state.mondayItems.length > 0) {
+                console.log('[DEBUG] Monday items detected, deferring campaign rendering to renderMondayItems');
+                renderMondayItems();
+                return;
+            }
+
+            if (!state.campaigns || state.campaigns.length === 0) {
+                body.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">No campaigns found. Create one to get started.</td></tr>`;
+                return;
+            }
             body.innerHTML = state.campaigns.map(c => `
                 <tr>
-                    <td><strong>${c.name}</strong></td>
+                    <td><strong>${c.name || 'Unnamed'}</strong></td>
                     <td>${c.boardName || 'Manual'}</td>
                     <td>${c.linksCount || 0}</td>
-                    <td><span style="color: ${c.status === 'Active' ? 'var(--secondary)' : 'var(--text-dim)'}">${c.status}</span></td>
+                    <td><span style="color: ${c.status === 'Active' ? 'var(--secondary)' : 'var(--text-dim)'}">${c.status || 'Pending'}</span></td>
                     <td>
-                        <button class="btn" style="padding: 4px 8px;" onclick="viewKeywords('${safeJS(c.id)}')"><i class="fas fa-key"></i></button>
-                        <button class="btn" style="padding: 4px 8px;" onclick="editCampaign('${safeJS(c.id)}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn" style="padding: 4px 8px; ${(state.role === 'Viewer') ? 'display:none;' : ''}" onclick="viewKeywords('${safeJS(c.id)}')"><i class="fas fa-key"></i></button>
+                        <button class="btn" style="padding: 4px 8px; ${(state.role !== 'Admin') ? 'display:none;' : ''}" onclick="editCampaign('${safeJS(c.id)}')"><i class="fas fa-edit"></i></button>
                     </td>
                 </tr>
             `).join('');
@@ -1411,15 +1634,20 @@
 
         function renderUsers() {
             const body = document.getElementById('usersBody');
+            const canEdit = state.role === 'Admin';
             body.innerHTML = state.vendors.map(u => `
                 <tr>
                     <td>${u.name}</td>
                     <td>${u.email}</td>
-                    <td>${u.role}</td>
+                    <td><span class="badge" style="background: rgba(99, 102, 241, 0.1); color: var(--primary-light); padding: 4px 10px; border-radius: 6px; font-size: 0.75rem;">${u.role || 'Viewer'}</span></td>
                     <td><span class="badge" style="background: ${u.status === 'Active' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)'}; color: ${u.status === 'Active' ? '#10b981' : '#f43f5e'}; padding: 4px 12px; border-radius: 20px;">${u.status}</span></td>
                     <td>
-                        <button class="btn" style="padding: 4px 8px; background: transparent; border: 1px solid var(--border);" onclick="editUser('${safeJS(u.id)}')"><i class="fas fa-edit"></i></button>
-                        <button class="btn" style="padding: 4px 8px; background: transparent; border: 1px solid var(--border); color: var(--accent);" onclick="deleteUser('${safeJS(u.id)}')"><i class="fas fa-trash"></i></button>
+                        <button class="btn" style="padding: 4px 10px; background: rgba(99, 102, 241, 0.1); border: 1px solid var(--primary); color: var(--primary-light); ${!canEdit ? 'display:none;' : ''}" onclick="editUser('${safeJS(u.id)}')">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn" style="padding: 4px 10px; background: rgba(244, 63, 94, 0.1); border: 1px solid var(--accent); color: var(--accent); ${!canEdit ? 'display:none;' : ''}" onclick="deleteUser('${safeJS(u.id)}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </td>
                 </tr>
             `).join('');
@@ -2087,7 +2315,10 @@
                                     <td>${k.name}</td>
                                     <td>${k.volume || '-'}</td>
                                     <td>${k.difficulty || '-'}</td>
-                                    <td><button class="btn btn-primary" style="padding: 4px 12px;" onclick="orderBacklink('${safeJS(k.name)}')">Order Link</button></td>
+                                    <td>
+                                        <button class="btn btn-primary" style="padding: 4px 12px; ${(state.role !== 'Admin' && state.role !== 'Buyer') ? 'display:none;' : ''}" onclick="orderBacklink('${safeJS(k.name)}')">Order Link</button>
+                                        <span style="${(state.role !== 'Admin' && state.role !== 'Buyer') ? '' : 'display:none;'} color: var(--text-dim); font-size: 0.75rem;">View Only</span>
+                                    </td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -2103,6 +2334,120 @@
         }
 
         // Monday.com Integration
+        function cacheMondayData(items, filters = []) {
+            try {
+                console.log('[DEBUG] Starting cache process with', items.length, 'items');
+                
+                // Apply default filters to determine what to cache
+                let itemsToCache = items;
+                if (filters.length > 0) {
+                    itemsToCache = items.filter(item => {
+                        return filters.every(rule => {
+                            let itemVal = '';
+                            if (rule.colId === 'name') {
+                                itemVal = item.name;
+                            } else {
+                                const cv = item.column_values.find(v => v.id === rule.colId);
+                                itemVal = cv ? (cv.text || '') : '';
+                            }
+
+                            const val = (itemVal || '').toLowerCase();
+                            const filterVal = (rule.value || '').toLowerCase();
+
+                            switch (rule.operator) {
+                                case 'includes': return val.includes(filterVal);
+                                case 'excludes': return !val.includes(filterVal);
+                                case 'is_empty': return !val.trim();
+                                case 'not_empty': return !!val.trim();
+                                case 'equals': return val === filterVal;
+                                default: return true;
+                            }
+                        });
+                    });
+                }
+
+                console.log('[DEBUG] After filtering:', itemsToCache.length, 'items');
+
+                // Extract only default visible columns to reduce size
+                const whitelist = ['project type', 'campaign code', 'client success manager', 'aast csm', 'sales', 'seo/seo', 'seo campaign status', 'geo campaign status'];
+                const columnMap = {};
+                itemsToCache.forEach(item => {
+                    item.column_values.forEach(cv => {
+                        if (cv.column && cv.column.title) {
+                            columnMap[cv.column.id] = cv.column.title;
+                        }
+                    });
+                });
+
+                const visibleColIds = Object.keys(columnMap).filter(id => {
+                    const title = (columnMap[id] || '').toLowerCase();
+                    return whitelist.some(wl => title.includes(wl));
+                });
+
+                console.log('[DEBUG] Visible columns:', visibleColIds.length);
+
+                // Keep only visible columns for each item
+                const slimmedItems = itemsToCache.map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    column_values: item.column_values.filter(cv => visibleColIds.includes(cv.id))
+                }));
+
+                console.log('[DEBUG] About to save', slimmedItems.length, 'slimmed items to localStorage');
+                const jsonStr = JSON.stringify(slimmedItems);
+                console.log('[DEBUG] JSON size:', (jsonStr.length / 1024).toFixed(2), 'KB');
+                
+                localStorage.setItem('mondayItemsCache', jsonStr);
+                localStorage.setItem('mondayItemsCacheTime', new Date().toISOString());
+                console.log(`[DEBUG] ✓ Monday data cached. ${slimmedItems.length} filtered items with ${visibleColIds.length} columns saved.`);
+            } catch (err) {
+                console.error('[ERROR] Failed to cache Monday data:', err.message);
+                console.error('[ERROR] Error code:', err.name);
+            }
+        }
+
+        function loadMondayDataFromCache() {
+            try {
+                console.log('[DEBUG] Attempting to load Monday data from cache...');
+                const cached = localStorage.getItem('mondayItemsCache');
+                if (cached) {
+                    const cacheTime = localStorage.getItem('mondayItemsCacheTime');
+                    const items = JSON.parse(cached);
+                    
+                    if (items && Array.isArray(items) && items.length > 0) {
+                        console.log(`[DEBUG] Cache found with ${items.length} items (cached at ${cacheTime})`);
+                        
+                        // Check if cache is very old (e.g. > 24 hours) - Optional
+                        const cacheDate = new Date(cacheTime);
+                        const now = new Date();
+                        const hoursOld = (now - cacheDate) / (1000 * 60 * 60);
+                        
+                        if (hoursOld > 24) {
+                            console.log('[DEBUG] Cache is older than 24 hours, will permit background sync if needed.');
+                            // We don't return false here yet, we still load it for immediate UI usage
+                        }
+
+                        state.mondayItems = items;
+                        renderMondayItems();
+                        return true;
+                    } else {
+                        console.log('[DEBUG] Cache exists but is empty or invalid.');
+                    }
+                } else {
+                    console.log('[DEBUG] No cache found in localStorage');
+                }
+            } catch (err) {
+                console.error('[ERROR] Failed to load Monday data from cache:', err.message);
+            }
+            return false;
+        }
+
+        function clearMondayCache() {
+            localStorage.removeItem('mondayItemsCache');
+            localStorage.removeItem('mondayItemsCacheTime');
+            console.log('[DEBUG] Monday data cache cleared.');
+        }
+
         async function syncMondayData(isQuiet = false) {
             const syncStatus = document.getElementById('syncStatus');
             const importBtn = document.getElementById('importBtn');
@@ -2118,21 +2463,74 @@
             try {
                 do {
                     if (syncStatus) syncStatus.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Syncing Page ${page}...`;
+                    console.log(`[DEBUG] Calling Monday API with cursor:`, cursor);
                     const data = await apiCall(MONDAY_URL, 'get_board_items', { cursor }, isQuiet);
+                    console.log(`[DEBUG] Monday API Response Page ${page}:`, data);
 
-                    if (!data) break;
+                    if (!data) {
+                        console.warn(`[DEBUG] No data returned from Monday API`);
+                        break;
+                    }
 
-                    if (data.items) {
+                    if (data.items && data.items.length > 0) {
+                        console.log(`[DEBUG] Got ${data.items.length} items on page ${page}`);
                         state.mondayItems = state.mondayItems.concat(data.items);
                         renderMondayItems();
+                    } else if (!data.items) {
+                        console.warn(`[DEBUG] Response missing 'items' field:`, Object.keys(data));
                     }
                     cursor = data.cursor;
                     page++;
 
                 } while (cursor && page <= 50);
+                
+                console.log(`[DEBUG] Monday sync complete. Total items:`, state.mondayItems.length);
+                
+                // Build default filters to cache only filtered data
+                const allColIds = [];
+                state.mondayItems.forEach(item => {
+                    item.column_values.forEach(cv => {
+                        if (cv.column && cv.column.id && !allColIds.includes(cv.column.id)) {
+                            allColIds.push(cv.column.id);
+                        }
+                    });
+                });
+                
+                const defaultFilters = [];
+                const projectTypeColId = allColIds.find(id => {
+                    const item = state.mondayItems[0];
+                    const cv = item.column_values.find(v => v.id === id);
+                    return cv && (cv.column.title || '').toUpperCase().includes('PROJECT') && (cv.column.title || '').toUpperCase().includes('TYPE');
+                });
+                if (projectTypeColId) {
+                    defaultFilters.push({ colId: projectTypeColId, operator: 'includes', value: 'seo' });
+                }
+                
+                const statusColId = allColIds.find(id => {
+                    const item = state.mondayItems[0];
+                    const cv = item.column_values.find(v => v.id === id);
+                    return cv && (cv.column.title || '').toUpperCase().includes('CAMPAIGN') && (cv.column.title || '').toUpperCase().includes('STATUS');
+                });
+                if (statusColId) {
+                    ['Expired', 'Terminated', 'Abandoned'].forEach(val => {
+                        defaultFilters.push({ colId: statusColId, operator: 'excludes', value: val });
+                    });
+                }
+                
+                const seoStatusColId = allColIds.find(id => {
+                    const item = state.mondayItems[0];
+                    const cv = item.column_values.find(v => v.id === id);
+                    return cv && (cv.column.title || '').toUpperCase().includes('SEO') && (cv.column.title || '').toUpperCase().includes('CAMPAIGN') && (cv.column.title || '').toUpperCase().includes('STATUS');
+                });
+                if (seoStatusColId) {
+                    defaultFilters.push({ colId: seoStatusColId, operator: 'excludes', value: 'Expired' });
+                }
+                
+                cacheMondayData(state.mondayItems, defaultFilters);
 
             } catch (err) {
                 console.error('Monday Import Error:', err);
+                console.error('Error details:', err.message);
                 // Background sync shouldn't alert() users unless explicitly asked
                 // alert('An error occurred during Monday.com import.');
             } finally {
@@ -2143,18 +2541,40 @@
 
         async function openMondayModal() {
             document.getElementById('mondayModal').style.display = 'flex';
-            // Only sync if we don't have items yet
+            // Load from cache if available
             if (state.mondayItems.length === 0) {
-                syncMondayData();
+                loadMondayDataFromCache();
             }
         }
 
         function renderMondayItems() {
             const items = state.mondayItems || [];
-            if (items.length === 0) return;
+            console.log('[DEBUG] renderMondayItems called with', items.length, 'items');
+            
+            // Render table structure and title even if no items
+            const table = document.getElementById('campaignsTable');
+            if (!table) {
+                console.log('[DEBUG] Table element not found');
+                return;
+            }
+            
+            const columnMap = {};
+            
+            if (items.length === 0) {
+                // Still update the title to show 0 items
+                const titleElem = document.querySelector('#campaignsTab h3');
+                if (titleElem) titleElem.innerText = `Integrated Campaign Info Repository (0 items)`;
+                
+                const head = table.querySelector('thead tr');
+                const body = document.getElementById('campaignsBody');
+                if (head) head.innerHTML = '<th>Item Name</th>';
+                if (body) body.innerHTML = `<tr><td style="text-align: center; padding: 40px; color: var(--text-dim);">No campaigns loaded. Click "Get From Monday" to import campaigns.</td></tr>`;
+                
+                document.getElementById('campaignsPagination').innerHTML = '';
+                return;
+            }
 
             // Extract all unique columns
-            const columnMap = {};
             items.forEach(item => {
                 item.column_values.forEach(cv => {
                     if (cv.column && cv.column.title) {
@@ -2165,11 +2585,12 @@
 
             const allColIds = Object.keys(columnMap);
 
-            // Default visibility: exclude SEM, PMD, MB, SUBITEMS, SMM
+            // Default visibility: only show specific whitelisted columns
             if (!state.mondayColsInitialized && state.mondayVisibleCols.length === 0) {
+                const whitelist = ['project type', 'campaign code', 'client success manager', 'aast csm', 'sales', 'seo/seo', 'seo campaign status', 'geo campaign status'];
                 state.mondayVisibleCols = allColIds.filter(id => {
-                    const title = (columnMap[id] || '').toUpperCase();
-                    return !['SEM', 'PMD', 'MB', 'SUBITEMS', 'SMM'].some(term => title.includes(term));
+                    const title = (columnMap[id] || '').toLowerCase();
+                    return whitelist.some(wl => title.includes(wl));
                 });
                 state.mondayColsInitialized = true;
             }
@@ -2183,6 +2604,10 @@
                 const title = (columnMap[id] || '').toUpperCase();
                 return title.includes('CAMPAIGN') && title.includes('STATUS');
             });
+            const seoStatusColId = allColIds.find(id => {
+                const title = (columnMap[id] || '').toUpperCase();
+                return title.includes('SEO') && title.includes('CAMPAIGN') && title.includes('STATUS');
+            });
 
             if (projectTypeColId && !state.mondayFilters.some(f => f.colId === projectTypeColId)) {
                 state.mondayFilters.push({ colId: projectTypeColId, operator: 'includes', value: 'seo' });
@@ -2194,6 +2619,9 @@
                     }
                 });
             }
+            if (seoStatusColId && !state.mondayFilters.some(f => f.colId === seoStatusColId && f.value === 'Expired')) {
+                state.mondayFilters.push({ colId: seoStatusColId, operator: 'excludes', value: 'Expired' });
+            }
 
             // Identify SE Ranking Project Name column for linking
             const seRankingColId = allColIds.find(id => {
@@ -2202,7 +2630,6 @@
             });
 
             const visibleColIds = state.mondayVisibleCols;
-            const table = document.getElementById('campaignsTable');
             const head = table.querySelector('thead tr');
             const body = document.getElementById('campaignsBody');
 
@@ -2367,32 +2794,43 @@
                 controls = document.createElement('div');
                 controls.id = 'tableControls';
                 controls.style = 'margin-bottom: 24px; padding: 20px; background: rgba(15, 23, 42, 0.4); border-radius: 12px; border: 1px solid var(--border);';
+                titleBar.after(controls);
+            }
 
-                controls.innerHTML = `
-                    <div style="margin-bottom: 24px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                            <label style="font-size: 0.85rem; font-weight: 600;">Table Filters</label>
-                            <button class="btn btn-primary" style="padding: 4px 12px; font-size: 0.75rem;" onclick="addFilterRule()">+ Add Filter</button>
-                        </div>
-                        <div id="filterList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+            state.cachedColumnMap = columnMap;
+
+            // Regenerate HTML with current state values
+            controls.innerHTML = `
+                <div style="margin-bottom: 12px;">
+                    <div onclick="state.filtersExpanded = !state.filtersExpanded; updateTableControlsUI(state.cachedColumnMap)" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 8px 0; user-select: none;">
+                        <span style="font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                            <span style="display: inline-block; transform: rotate(${state.filtersExpanded ? '180' : '0'}deg); transition: transform 0.2s;">▼</span>
+                            Campaign Filters
+                        </span>
+                        <button class="btn btn-primary" style="padding: 4px 12px; font-size: 0.75rem;" onclick="event.stopPropagation(); addFilterRule()">+ Add Filter</button>
                     </div>
+                    <div id="filterList" style="display: ${state.filtersExpanded ? 'flex' : 'none'}; flex-direction: column; gap: 8px; overflow: visible; margin-top: 8px;"></div>
+                </div>
 
-                    <div style="margin-bottom: 24px;">
-                        <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 8px;">Find Columns</label>
+                <div style="margin-bottom: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
+                    <div onclick="state.columnsExpanded = !state.columnsExpanded; updateTableControlsUI(state.cachedColumnMap)" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 8px 0; user-select: none; margin-bottom: 8px;">
+                        <span style="font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                            <span style="display: inline-block; transform: rotate(${state.columnsExpanded ? '180' : '0'}deg); transition: transform 0.2s;">▼</span>
+                            Column Selector
+                        </span>
+                    </div>
+                    <div style="display: ${state.columnsExpanded ? 'block' : 'none'};">
                         <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 12px;">
                             <input type="text" placeholder="Search columns..." style="flex: 1; padding: 10px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: white;" oninput="state.colSelectorSearch = this.value; renderColumnList()">
                             <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem; background: rgba(99, 102, 241, 0.2); border: 1px solid var(--primary);" onclick="selectAllColumns()">Select All</button>
                             <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem; background: rgba(244, 63, 94, 0.1); border: 1px solid var(--accent); color: var(--accent);" onclick="deselectAllColumns()">Deselect All</button>
                         </div>
+                        <div id="columnChecklist" style="display: flex; flex-wrap: wrap; gap: 10px; max-height: 120px; overflow-y: auto; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: rgba(0,0,0,0.2);">
+                        </div>
                     </div>
-                    
-                    <div id="columnChecklist" style="display: flex; flex-wrap: wrap; gap: 10px; max-height: 120px; overflow-y: auto; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: rgba(0,0,0,0.2);">
-                    </div>
-                `;
-                titleBar.after(controls);
-            }
+                </div>
+            `;
 
-            state.cachedColumnMap = columnMap;
             renderColumnList();
             renderFilterList();
         }
@@ -2401,13 +2839,18 @@
             state.mondayPage = 1; // Reset to page 1 on filter add
             const colId = Object.keys(state.cachedColumnMap)[0] || 'name';
             state.mondayFilters.push({ colId, operator: 'includes', value: '' });
-            renderMondayItems();
+            renderFilterList();
         }
 
         function updateRule(idx, field, val) {
-            state.mondayPage = 1; // Reset to page 1 on filter update
             state.mondayFilters[idx][field] = val;
-            renderMondayItems();
+            
+            // Only re-render table if field or operator changed (not value)
+            if (field !== 'value') {
+                state.mondayPage = 1; // Reset to page 1 on filter update
+                renderMondayItems();
+            }
+            // For value changes, just update the state - don't re-render to avoid losing focus
         }
 
         function removeRule(idx) {
@@ -2425,13 +2868,23 @@
                 return;
             }
 
-            container.innerHTML = state.mondayFilters.map((rule, idx) => `
-                <div class="filter-row">
-                    <select style="flex: 1; padding: 6px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 4px;" onchange="updateRule(${idx}, 'colId', this.value)">
-                        <option value="name" ${rule.colId === 'name' ? 'selected' : ''}>Item Name</option>
-                        ${Object.keys(state.cachedColumnMap).map(id => `<option value="${id}" ${rule.colId === id ? 'selected' : ''}>${state.cachedColumnMap[id]}</option>`).join('')}
-                    </select>
-                    <select style="width: 120px; padding: 6px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 4px;" onchange="updateRule(${idx}, 'operator', this.value)">
+            container.innerHTML = state.mondayFilters.map((rule, idx) => {
+                const columnOptions = [{ id: 'name', label: 'Item Name' }, ...Object.keys(state.cachedColumnMap).map(id => ({ id, label: state.cachedColumnMap[id] }))];
+                const currentLabel = columnOptions.find(c => c.id === rule.colId)?.label || rule.colId;
+                
+                return `
+                <div class="filter-row" style="position: relative;">
+                    <div style="flex: 1;">
+                        <input type="text" id="filterColSearch_${idx}" class="filterColInput" placeholder="Search columns..." 
+                            value="${currentLabel}" 
+                            data-idx="${idx}"
+                            style="width: 100%; padding: 6px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box;"
+                            oninput="filterColumnOptions(${idx}, this.value)"
+                            onfocus="showColumnDropdown(${idx})"
+                            onclick="showColumnDropdown(${idx})"
+                            onmousedown="event.preventDefault(); showColumnDropdown(${idx});">
+                    </div>
+                    <select style="width: 120px; padding: 6px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 4px; margin-left: 6px;" onchange="updateRule(${idx}, 'operator', this.value)">
                         <option value="includes" ${rule.operator === 'includes' ? 'selected' : ''}>Includes</option>
                         <option value="excludes" ${rule.operator === 'excludes' ? 'selected' : ''}>Excludes</option>
                         <option value="equals" ${rule.operator === 'equals' ? 'selected' : ''}>Equals</option>
@@ -2439,11 +2892,76 @@
                         <option value="not_empty" ${rule.operator === 'not_empty' ? 'selected' : ''}>Not Empty</option>
                     </select>
                     ${['is_empty', 'not_empty'].includes(rule.operator) ? '' : `
-                        <input type="text" value="${rule.value}" placeholder="Value..." style="flex: 2; padding: 6px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 4px;" oninput="updateRule(${idx}, 'value', this.value)">
+                        <input type="text" value="${rule.value}" placeholder="Value..." style="flex: 2; padding: 6px; background: var(--bg); color: white; border: 1px solid var(--border); border-radius: 4px; margin-left: 6px;" oninput="updateRule(${idx}, 'value', this.value)">
                     `}
-                    <button style="background: none; border: none; color: var(--accent); cursor: pointer; padding: 0 4px;" onclick="removeRule(${idx})"><i class="fas fa-times"></i></button>
+                    <button style="background: none; border: none; color: var(--accent); cursor: pointer; padding: 0 4px; margin-left: 6px;" onclick="removeRule(${idx})"><i class="fas fa-times"></i></button>
                 </div>
-            `).join('');
+                <div id="filterColDropdown_${idx}" class="filterColDropdown" style="display: none; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; min-width: 250px; max-height: 300px; overflow-y: auto; z-index: 100000; margin-left: 8px; margin-bottom: 8px;">
+                    ${columnOptions.map(col => `
+                        <div class="filterColOption" onclick="selectFilterColumn(${idx}, '${col.id}', '${col.label.replace(/'/g, "\\'")}', event)" style="padding: 6px 10px; cursor: pointer; border-bottom: 1px solid var(--border); color: white; font-size: 0.75rem; transition: background 0.15s;">
+                            ${col.label}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            }).join('');
+        }
+
+        function showColumnDropdown(idx) {
+            const dropdown = document.getElementById(`filterColDropdown_${idx}`);
+            if (dropdown) {
+                dropdown.style.display = 'block';
+            }
+            // Close any other open dropdowns
+            document.querySelectorAll('.filterColDropdown').forEach((dd, i) => {
+                if (i !== idx) dd.style.display = 'none';
+            });
+        }
+
+        function hideColumnDropdown(idx) {
+            const dropdown = document.getElementById(`filterColDropdown_${idx}`);
+            if (dropdown) dropdown.style.display = 'none';
+        }
+
+        function filterColumnOptions(idx, searchVal) {
+            const dropdown = document.getElementById(`filterColDropdown_${idx}`);
+            if (!dropdown) return;
+            
+            const search = searchVal.toLowerCase();
+            const options = dropdown.querySelectorAll('.filterColOption');
+            let hasVisibleOption = false;
+            
+            options.forEach(option => {
+                const text = option.textContent.toLowerCase();
+                const isVisible = text.includes(search);
+                option.style.display = isVisible ? 'block' : 'none';
+                if (isVisible) hasVisibleOption = true;
+            });
+            
+            // Show dropdown if there are matching options and user is typing
+            if (hasVisibleOption && searchVal) {
+                dropdown.style.display = 'block';
+            } else if (!searchVal) {
+                dropdown.style.display = 'block';
+            }
+        }
+
+        function selectFilterColumn(idx, colId, colLabel, event) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const input = document.getElementById(`filterColSearch_${idx}`);
+            if (input) input.value = colLabel;
+            
+            updateRule(idx, 'colId', colId);
+            hideColumnDropdown(idx);
+        }
+
+        function addFilterRule() {
+            state.mondayPage = 1; // Reset to page 1 on filter add
+            const colId = Object.keys(state.cachedColumnMap)[0] || 'name';
+            state.mondayFilters.push({ colId, operator: 'includes', value: '' });
+            renderFilterList();
         }
 
         function renderColumnList() {
@@ -2615,6 +3133,14 @@
         function logout() {
             localStorage.removeItem('googleUser');
             location.reload();
+        }
+
+        // Role Explainer
+        function showRoleExplainer() {
+            document.getElementById('roleExplainerModal').style.display = 'flex';
+        }
+        function closeRoleExplainer() {
+            document.getElementById('roleExplainerModal').style.display = 'none';
         }
 
         window.onload = initAuth;
@@ -3108,12 +3634,47 @@
 
             // Only render if empty or if we want to refresh (here we just refresh for simplicity)
             container.innerHTML = `
-                <div style="margin-bottom: 16px;">
-                    <div style="position: relative;">
+                <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+                    <div style="position: relative; flex: 1; min-width: 300px;">
                         <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 0.9rem;"></i>
                         <input type="text" id="rankingsKeywordSearch" placeholder="Search by keyword or campaign..." 
                             style="width: 100%; padding: 12px 12px 12px 40px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border); border-radius: 12px; color: white; outline: none;"
                             oninput="handleRankingsSearch(this.value)" value="${state.rankingsSearch || ''}">
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; gap: 12px; background: rgba(15, 23, 42, 0.3); padding: 8px 16px; border-radius: 16px; border: 1px solid var(--border);">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Base:</span>
+                            <select onchange="handleRankingsBaseChange(this.value)" 
+                                    style="padding: 6px 10px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border); border-radius: 8px; color: white; outline: none; font-size: 0.8rem;">
+                                <option value="latest" ${state.rankingsComparisonBase === 'latest' ? 'selected' : ''}>Today/Latest</option>
+                                <option value="custom" ${state.rankingsComparisonBase === 'custom' ? 'selected' : ''}>Custom Date</option>
+                            </select>
+                            <input type="date" id="rankingsBaseDate" 
+                                   style="display: ${state.rankingsComparisonBase === 'custom' ? 'inline-block' : 'none'}; padding: 4px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border); border-radius: 6px; color: white; font-size: 0.75rem;"
+                                   onchange="handleRankingsBaseDate(this.value)"
+                                   value="${state.rankingsComparisonBaseDate || ''}">
+                        </div>
+                        
+                        <div style="width: 1px; height: 16px; background: var(--border);"></div>
+
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; font-weight: 700;">Vs:</span>
+                            <select onchange="handleRankingsTargetChange(this.value)" 
+                                    style="padding: 6px 10px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border); border-radius: 8px; color: white; outline: none; font-size: 0.8rem;">
+                                <option value="1d" ${state.rankingsComparisonTarget === '1d' ? 'selected' : ''}>1 Day Ago</option>
+                                <option value="3d" ${state.rankingsComparisonTarget === '3d' ? 'selected' : ''}>3 Days Ago</option>
+                                <option value="1w" ${state.rankingsComparisonTarget === '1w' ? 'selected' : ''}>1 Week Ago</option>
+                                <option value="1m" ${state.rankingsComparisonTarget === '1m' ? 'selected' : ''}>1 Month Ago</option>
+                                <option value="2m" ${state.rankingsComparisonTarget === '2m' ? 'selected' : ''}>2 Months Ago</option>
+                                <option value="3m" ${state.rankingsComparisonTarget === '3m' ? 'selected' : ''}>3 Months Ago</option>
+                                <option value="custom" ${state.rankingsComparisonTarget === 'custom' ? 'selected' : ''}>Custom Date</option>
+                            </select>
+                            <input type="date" id="rankingsTargetDate" 
+                                   style="display: ${state.rankingsComparisonTarget === 'custom' ? 'inline-block' : 'none'}; padding: 4px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border); border-radius: 6px; color: white; font-size: 0.75rem;"
+                                   onchange="handleRankingsTargetDate(this.value)"
+                                   value="${state.rankingsComparisonTargetDate || ''}">
+                        </div>
                     </div>
                 </div>
                 <div style="padding: 20px; background: rgba(15, 23, 42, 0.4); border-radius: 12px; border: 1px solid var(--border);">
@@ -3160,6 +3721,28 @@
             debouncedRenderRankingsTable();
         }
 
+        function handleRankingsBaseChange(val) {
+            state.rankingsComparisonBase = val;
+            renderRankingsControls();
+            renderRankingsTable();
+        }
+
+        function handleRankingsBaseDate(val) {
+            state.rankingsComparisonBaseDate = val;
+            renderRankingsTable();
+        }
+
+        function handleRankingsTargetChange(val) {
+            state.rankingsComparisonTarget = val;
+            renderRankingsControls();
+            renderRankingsTable();
+        }
+
+        function handleRankingsTargetDate(val) {
+            state.rankingsComparisonTargetDate = val;
+            renderRankingsTable();
+        }
+
         function addRankingsFilter() {
             state.rankingsPage = 1; // Reset to page 1
             state.rankingsFilters.push({ colId: 'keyword', operator: 'includes', value: '' });
@@ -3186,16 +3769,16 @@
         }
 
         function renderRankingsTable() {
-            const body = document.getElementById('rankingsBody');
-            if (!body) return;
+            const container = document.getElementById('rankingsContainer');
+            if (!container) return;
 
             if (state.rankings.length === 0) {
-                body.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-dim);">No data available. Click "Refresh Data" to sync.</td></tr>';
+                container.innerHTML = '<div class="card" style="text-align: center; padding: 60px; color: var(--text-dim);"><i class="fas fa-search" style="font-size: 3rem; margin-bottom: 20px; opacity: 0.2;"></i><p>No rankings data available. Click "Refresh Data" to fetch from SE Ranking.</p></div>';
                 renderRankingsControls();
                 return;
             }
 
-            // Apply Filters
+            // Apply Filters & Search
             let filtered = state.rankings;
             if (state.rankingsFilters.length > 0) {
                 filtered = state.rankings.filter(item => {
@@ -3203,7 +3786,6 @@
                         const val = String(item[rule.colId] || '');
                         const valLower = val.toLowerCase();
                         const filterVal = (rule.value || '').toLowerCase();
-
                         switch (rule.operator) {
                             case 'includes': return valLower.includes(filterVal);
                             case 'excludes': return !valLower.includes(filterVal);
@@ -3217,102 +3799,341 @@
                 });
             }
 
-            // Apply Global Search (Keyword & Campaign)
             if (state.rankingsSearch) {
                 const search = state.rankingsSearch.toLowerCase();
                 filtered = filtered.filter(item =>
                     String(item.keyword || '').toLowerCase().includes(search) ||
                     String(item.siteName || '').toLowerCase().includes(search) ||
-                    String(item.siteUrl || '').toLowerCase().includes(search) ||
-                    String(item.rankingUrl || '').toLowerCase().includes(search)
+                    String(item.siteUrl || '').toLowerCase().includes(search)
                 );
             }
 
-            // Update Count
-            const countEl = document.getElementById('rankingsResultsCount');
-            if (countEl) {
-                countEl.innerText = `${filtered.length} results`;
-            }
+            // Grouping Logic: Site -> Engine -> Date
+            state.processedRankings = filtered.reduce((acc, item) => {
+                const site = item.siteName || 'Unknown Campaign';
+                const engine = item.searchEngine || 'Unknown Engine';
+                const date = item.date || 'Unknown Date';
+                if (!acc[site]) acc[site] = {};
+                if (!acc[site][engine]) acc[site][engine] = {};
+                if (!acc[site][engine][date]) acc[site][engine][date] = [];
+                acc[site][engine][date].push(item);
+                return acc;
+            }, {});
 
-            // Apply Sorting
-            const { colId, direction } = state.rankingsSort;
-            if (colId) {
-                filtered.sort((a, b) => {
-                    let valA = a[colId];
-                    let valB = b[colId];
-
-                    if (colId === 'rank') {
-                        const parseRank = (v) => v === '-' ? 999 : (parseInt(v) || 999);
-                        valA = parseRank(valA);
-                        valB = parseRank(valB);
-                    } else if (colId === 'date') {
-                        valA = new Date(valA || 0);
-                        valB = new Date(valB || 0);
-                    } else {
-                        valA = String(valA || '').toLowerCase();
-                        valB = String(valB || '').toLowerCase();
-                    }
-
-                    if (valA < valB) return direction === 'asc' ? -1 : 1;
-                    if (valA > valB) return direction === 'asc' ? 1 : -1;
-                    return 0;
-                });
-            }
-
-            // Pagination
-            const totalItems = filtered.length;
+            const siteKeys = Object.keys(state.processedRankings).sort((a,b) => a.localeCompare(b));
+            
+            // Pagination by Site
+            const totalItems = siteKeys.length;
             const totalPages = Math.ceil(totalItems / state.rankingsPageSize);
             if (state.rankingsPage > totalPages) state.rankingsPage = Math.max(1, totalPages);
-
             const startIdx = (state.rankingsPage - 1) * state.rankingsPageSize;
-            const paginated = filtered.slice(startIdx, startIdx + state.rankingsPageSize);
+            const paginatedSites = siteKeys.slice(startIdx, startIdx + state.rankingsPageSize);
 
-            body.innerHTML = paginated.map((item, idx) => {
-                const rowKey = `${item.keyword}||${item.siteName}||${item.siteUrl}||${item.searchEngine}`;
-                const isSelected = state.selectedRankings.some(r => `${r.keyword}||${r.siteName}||${r.siteUrl}||${r.searchEngine}` === rowKey);
+            // Update Count
+            const countEl = document.getElementById('rankingsResultsCount');
+            const uniqueGlobalKeywords = new Set(filtered.map(k => k.keyword)).size;
+            if (countEl) countEl.innerText = `${totalItems} Campaigns (${uniqueGlobalKeywords} Unique Keywords)`;
+
+            // Render INITIAL Tier 1 ONLY
+            container.innerHTML = paginatedSites.map(siteName => {
+                const engines = state.processedRankings[siteName];
+                
+                // Count unique keywords across all engines and dates for this campaign
+                const uniqueKeywords = new Set();
+                Object.values(engines).forEach(engine => {
+                    Object.values(engine).forEach(dateGroup => {
+                        dateGroup.forEach(item => uniqueKeywords.add(item.keyword));
+                    });
+                });
+                const uniqueCount = uniqueKeywords.size;
+
+                // Calculate Movements
+                const { pos, neg } = calculateRankMovements(siteName);
+                
                 return `
-                <tr>
-                    <td><input type="checkbox" class="ranking-checkbox" data-idx="${startIdx + idx}" ${isSelected ? 'checked' : ''}
-                        onchange="toggleRankingSelection(${startIdx + idx}, this.checked)"></td>
-                    <td><span style="color: var(--primary-light); font-weight: 500;">${item.siteName}</span></td>
-                    <td>
-                        <strong style="cursor: pointer; color: var(--primary-light); border-bottom: 1px dashed var(--primary);" 
-                                onclick="showKeywordTrend('${safeJS(item.keyword)}', '${safeJS(item.siteName)}', '${safeJS(item.siteUrl)}', '${safeJS(item.searchEngine)}')">
-                            ${item.keyword}
-                        </strong>
-                    </td>
-                    <td>
-                        ${item.rankingUrl && item.rankingUrl !== '-' ?
-                        `<a href="${item.rankingUrl}" target="_blank" style="font-size: 0.75rem; color: var(--secondary); text-decoration: none; display: flex; align-items: center; gap: 4px;">
-                             <i class="fas fa-external-link-alt" style="font-size: 0.7rem;"></i> 
-                             ${item.rankingUrl.length > 30 ? item.rankingUrl.substring(0, 30) + '...' : item.rankingUrl}
-                           </a>` :
-                        `<span style="font-size: 0.75rem; color: var(--text-dim);">-</span>`
-                    }
-                    </td>
-                    <td><span class="badge" style="background: rgba(99, 102, 241, 0.2)">${item.group}</span></td>
-                    <td style="font-size: 0.8rem; color: var(--text-dim);">${item.searchEngine}</td>
-                    <td style="font-size: 0.8rem; color: var(--text-dim);">${item.date}</td>
-                    <td style="font-weight: 600;">${item.rank}</td>
-                    <td>
-                        <button class="btn" style="padding: 4px 8px; font-size: 0.8rem; background: var(--primary); color: white; border: none;"
-                                onclick="addToCart('${safeJS(item.keyword)}', '${safeJS(item.siteUrl)}', '${safeJS(item.siteName)}', '${safeJS(item.rankingUrl)}')" title="Add to Cart">
-                            <i class="fas fa-cart-plus"></i>
-                        </button>
-                    </td>
-                </tr>
+                <div class="ranking-node tier-1" id="node-${siteName}">
+                    <div class="node-header" onclick="toggleRankingNode('node-${siteName}', 1, '${safeJS(siteName)}')">
+                        <div class="node-title">
+                            <i class="fas fa-chevron-right node-icon"></i>
+                            <span>${siteName}</span>
+                            <span class="badge" style="background: rgba(99, 102, 241, 0.2); font-size: 0.7rem;">${uniqueCount} Unique Keywords</span>
+                        </div>
+                        <div class="ranking-stats">
+                             ${pos > 0 ? `<div class="ranking-stat-item" style="color: #10b981"><i class="fas fa-arrow-up"></i> <b>${pos}</b></div>` : ''}
+                             ${neg > 0 ? `<div class="ranking-stat-item" style="color: #f43f5e"><i class="fas fa-arrow-down"></i> <b>${neg}</b></div>` : ''}
+                             <div class="ranking-stat-item"><i class="fas fa-layer-group"></i> <b>${Object.keys(engines).length}</b> Engines</div>
+                        </div>
+                    </div>
+                    <div class="node-content" id="content-node-${siteName}">
+                        <!-- Lazy loaded tier 2 -->
+                    </div>
+                </div>
                 `;
-            }).join('');
+            }).join('') || '<div style="text-align:center; padding: 40px; color: var(--text-dim);">No matching results found.</div>';
 
-            // Update floating bar
-            updateRankingsFloatingBar();
+            // Special case: If searching, expand all for convenience (forces render)
+            if (state.rankingsSearch) {
+                expandAllRankings();
+            }
 
             renderPagination('rankingsPagination', state.rankingsPage, totalPages, (p) => {
                 state.rankingsPage = p;
                 renderRankingsTable();
             });
 
-            updateRankingsHeaderUI();
+            renderRankingsControls();
+        }
+
+        // Tiered Renderers for Lazy Loading
+        function renderRankingsTier2(siteName) {
+            const content = document.getElementById(`content-node-${siteName}`);
+            if (!content || !state.processedRankings[siteName]) return;
+            
+            const engines = state.processedRankings[siteName];
+            content.innerHTML = Object.keys(engines).sort().map(engineName => {
+                const dates = engines[engineName];
+                const nodeId = `node-${siteName}-${engineName}`.replace(/\s+/g, '-');
+                return `
+                <div class="ranking-node tier-2" id="${nodeId}">
+                    <div class="node-header" onclick="toggleRankingNode('${nodeId}', 2, '${safeJS(siteName)}', '${safeJS(engineName)}')">
+                        <div class="node-title">
+                            <i class="fas fa-chevron-right node-icon"></i>
+                            <span style="font-size: 0.9rem; color: var(--secondary)">${engineName}</span>
+                        </div>
+                        <div class="ranking-stats">
+                            <div class="ranking-stat-item"><i class="fas fa-calendar-alt"></i> <b>${Object.keys(dates).length}</b> Snapshots</div>
+                        </div>
+                    </div>
+                    <div class="node-content" id="content-${nodeId}">
+                        <!-- Lazy loaded tier 3 -->
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function renderRankingsTier3(siteName, engineName) {
+            const nodeId = `node-${siteName}-${engineName}`.replace(/\s+/g, '-');
+            const content = document.getElementById(`content-${nodeId}`);
+            if (!content || !state.processedRankings[siteName]?.[engineName]) return;
+            
+            const dates = state.processedRankings[siteName][engineName];
+            content.innerHTML = Object.keys(dates).sort((a,b) => b.localeCompare(a)).map(date => {
+                const dateNodeId = `${nodeId}-${date}`.replace(/\s+/g, '-');
+                const items = dates[date];
+                return `
+                <div class="ranking-node tier-3" id="${dateNodeId}">
+                    <div class="node-header" onclick="toggleRankingNode('${dateNodeId}', 3, '${safeJS(siteName)}', '${safeJS(engineName)}', '${safeJS(date)}')">
+                        <div class="node-title">
+                            <i class="fas fa-chevron-right node-icon"></i>
+                            <span style="font-size: 0.85rem; color: var(--text-dim)">${date}</span>
+                        </div>
+                        <div class="ranking-stats">
+                             <span class="badge" style="background: rgba(255,255,255,0.05);">${items.length} items</span>
+                        </div>
+                    </div>
+                    <div class="node-content" id="content-${dateNodeId}">
+                        <!-- Lazy loaded tier 4 -->
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function renderRankingsTier4(siteName, engineName, date) {
+            const dateNodeId = `node-${siteName}-${engineName}-${date}`.replace(/\s+/g, '-');
+            const content = document.getElementById(`content-${dateNodeId}`);
+            if (!content || !state.processedRankings[siteName]?.[engineName]?.[date]) return;
+            
+            const items = state.processedRankings[siteName][engineName][date];
+            content.innerHTML = `
+                <div class="keywords-table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Keyword</th>
+                                <th>Rank</th>
+                                <th>Group</th>
+                                <th>URL</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${items.map(k => `
+                                <tr>
+                                    <td>
+                                        <strong style="cursor: pointer; color: var(--primary-light);" onclick="showKeywordTrend('${safeJS(k.keyword)}', '${safeJS(k.siteName)}', '${safeJS(k.siteUrl)}', '${safeJS(k.searchEngine)}')">
+                                            ${k.keyword}
+                                        </strong>
+                                    </td>
+                                    <td style="font-weight: 700; color: ${parseInt(k.rank) <= 3 ? 'var(--secondary)' : 'inherit'}">${k.rank}</td>
+                                    <td><span class="badge" style="background: rgba(255,255,255,0.05); font-size: 0.7rem;">${k.group}</span></td>
+                                    <td>
+                                        ${k.rankingUrl && k.rankingUrl !== '-' ? `<a href="${k.rankingUrl}" target="_blank" style="color: var(--secondary); font-size: 0.75rem;"><i class="fas fa-external-link-alt"></i> View</a>` : '-'}
+                                    </td>
+                                    <td>
+                                        <button class="btn" style="padding: 4px 8px; font-size: 0.8rem; background: var(--primary); color: white;" 
+                                                onclick="addToCart('${safeJS(k.keyword)}', '${safeJS(k.siteUrl)}', '${safeJS(k.siteName)}', '${safeJS(k.rankingUrl)}')" title="Add to Cart">
+                                            <i class="fas fa-cart-plus"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function toggleRankingNode(id, tier, site, engine, date) {
+            const node = document.getElementById(id);
+            if (!node) return;
+            
+            const isExpanding = !node.classList.contains('expanded');
+            
+            if (isExpanding) {
+                // Determine if lazy load is needed
+                const contentId = id.startsWith('node-') ? `content-${id}` : `content-${id}`;
+                const contentEl = document.getElementById(contentId);
+                
+                if (contentEl && contentEl.innerHTML.trim().length < 50) { // arbitrary small length for "empty"
+                    if (tier === 1) renderRankingsTier2(site);
+                    else if (tier === 2) renderRankingsTier3(site, engine);
+                    else if (tier === 3) renderRankingsTier4(site, engine, date);
+                }
+            }
+            
+            node.classList.toggle('expanded');
+        }
+
+        function calculateRankMovements(siteName) {
+            const engines = state.processedRankings[siteName];
+            if (!engines) return { pos: 0, neg: 0 };
+
+            const allDates = [];
+            Object.values(engines).forEach(engine => {
+                Object.keys(engine).forEach(date => {
+                    if (!allDates.includes(date)) allDates.push(date);
+                });
+            });
+            allDates.sort((a, b) => b.localeCompare(a));
+
+            if (allDates.length < 2) return { pos: 0, neg: 0 };
+
+            // Step 1: Find Base Date
+            let baseDate = allDates[0]; // default latest
+            const baseType = state.rankingsComparisonBase;
+            if (baseType === 'custom' && state.rankingsComparisonBaseDate) {
+                const target = new Date(state.rankingsComparisonBaseDate);
+                let minDiff = Infinity;
+                allDates.forEach(d => {
+                    const diff = Math.abs(new Date(d) - target);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        baseDate = d;
+                    }
+                });
+            }
+
+            // Step 2: Find Target Date
+            let targetDate = null;
+            const targetType = state.rankingsComparisonTarget;
+            const baseObj = new Date(baseDate);
+
+            if (targetType === 'custom') {
+                if (!state.rankingsComparisonTargetDate) return { pos: 0, neg: 0 };
+                const target = new Date(state.rankingsComparisonTargetDate);
+                let minDiff = Infinity;
+                allDates.forEach(d => {
+                    if (d === baseDate) return;
+                    const diff = Math.abs(new Date(d) - target);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        targetDate = d;
+                    }
+                });
+            } else {
+                let targetDays = 7;
+                switch (targetType) {
+                    case '1d': targetDays = 1; break;
+                    case '3d': targetDays = 3; break;
+                    case '1w' : targetDays = 7; break;
+                    case '1m': targetDays = 30; break;
+                    case '2m': targetDays = 60; break;
+                    case '3m': targetDays = 90; break;
+                }
+
+                let minDiff = Infinity;
+                allDates.forEach(d => {
+                    if (d === baseDate) return;
+                    const diff = (baseObj - new Date(d)) / (1000 * 60 * 60 * 24);
+                    const absDiff = Math.abs(diff - targetDays);
+                    if (absDiff < minDiff) {
+                        minDiff = absDiff;
+                        targetDate = d;
+                    }
+                });
+            }
+
+            if (!targetDate || targetDate === baseDate) return { pos: 0, neg: 0 };
+
+            let pos = 0;
+            let neg = 0;
+
+            Object.keys(engines).forEach(engineName => {
+                const engineData = engines[engineName];
+                const baseList = engineData[baseDate] || [];
+                const targetList = engineData[targetDate] || [];
+
+                baseList.forEach(curr => {
+                    const prev = targetList.find(p => p.keyword === curr.keyword);
+                    if (prev) {
+                        const cRank = parseInt(curr.rank) || 101;
+                        const pRank = parseInt(prev.rank) || 101;
+                        if (cRank < pRank) pos++;
+                        else if (cRank > pRank) neg++;
+                    }
+                });
+            });
+
+            return { pos, neg };
+        }
+
+        function expandAllRankings() {
+            // First pass: Expand Tier 1 and render Tier 2
+            Object.keys(state.processedRankings).forEach(site => {
+                const node = document.getElementById(`node-${site}`);
+                if (node) {
+                    node.classList.add('expanded');
+                    renderRankingsTier2(site);
+                    
+                    // Second pass: Expand Tier 2 and render Tier 3
+                    const engines = state.processedRankings[site];
+                    Object.keys(engines).forEach(engine => {
+                        const nodeId = `node-${site}-${engine}`.replace(/\s+/g, '-');
+                        const eNode = document.getElementById(nodeId);
+                        if (eNode) {
+                            eNode.classList.add('expanded');
+                            renderRankingsTier3(site, engine);
+                            
+                            // Third pass: Expand Tier 3 and render Tier 4
+                            const dates = engines[engine];
+                            Object.keys(dates).forEach(date => {
+                                const dNodeId = `${nodeId}-${date}`.replace(/\s+/g, '-');
+                                const dNode = document.getElementById(dNodeId);
+                                if (dNode) {
+                                    dNode.classList.add('expanded');
+                                    renderRankingsTier4(site, engine, date);
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        }
+
+        function collapseAllRankings() {
+            document.querySelectorAll('.ranking-node').forEach(n => n.classList.remove('expanded'));
         }
 
         let trendChart = null;
@@ -3320,6 +4141,11 @@
 
         // Initialize sticky tooltip behavior
         document.addEventListener('DOMContentLoaded', () => {
+            // Load Monday data from cache on page load, or auto-sync if no cache
+            if (!loadMondayDataFromCache()) {
+                syncMondayData(true);
+            }
+
             const tooltip = document.getElementById('backlinkTooltip');
             if (tooltip) {
                 tooltip.onmouseenter = () => {
@@ -3880,9 +4706,10 @@
                 <div class="form-group">
                     <label>Role</label>
                     <select id="userRoleSelect">
-                        <option value="Staff">Staff</option>
+                        <option value="Admin">Admin</option>
                         <option value="Vendor">Vendor</option>
-                        <option value="Admin">Administrator</option>
+                        <option value="Viewer">Viewer</option>
+                        <option value="Buyer">Buyer</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -4166,6 +4993,76 @@
     </div>
 
     <div id="backlinkTooltip" class="backlink-tooltip"></div>
+
+    <!-- Role Explainer Modal -->
+    <div id="roleExplainerModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h3 style="margin: 0;">Access Levels Table</h3>
+                <button class="btn" onclick="closeRoleExplainer()" style="background: transparent; color: var(--text-dim); padding: 5px;"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; background: rgba(0,0,0,0.2); border-radius: 12px;">
+                    <thead>
+                        <tr style="background: rgba(99, 102, 241, 0.1);">
+                            <th style="padding: 14px; text-align: left; border-bottom: 1px solid var(--border);">Role Tier</th>
+                            <th style="padding: 14px; text-align: left; border-bottom: 1px solid var(--border);">Capabilities & Access</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 14px; border-bottom: 1px solid var(--border); vertical-align: top;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <i class="fas fa-crown" style="color: #f59e0b;"></i>
+                                    <b style="color: var(--primary-light)">Admin</b>
+                                </div>
+                            </td>
+                            <td style="padding: 14px; border-bottom: 1px solid var(--border); color: var(--text-main); font-size: 0.9rem;">
+                                Full system access. Can view, edit, delete, and import all data across all boards. Manages users and settings.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 14px; border-bottom: 1px solid var(--border); vertical-align: top;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <i class="fas fa-store" style="color: var(--secondary);"></i>
+                                    <b style="color: var(--secondary)">Vendor</b>
+                                </div>
+                            </td>
+                            <td style="padding: 14px; border-bottom: 1px solid var(--border); color: var(--text-main); font-size: 0.9rem;">
+                                Specifically for external sellers. Can <b>only</b> access "Delivered Backlinks". Can submit/import fulfilled items and request confirmation.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 14px; border-bottom: 1px solid var(--border); vertical-align: top;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <i class="fas fa-eye" style="color: var(--text-dim);"></i>
+                                    <b style="color: var(--text-main)">Viewer</b>
+                                </div>
+                            </td>
+                            <td style="padding: 14px; border-bottom: 1px solid var(--border); color: var(--text-dim); font-size: 0.9rem;">
+                                Standard view access. Can see all boards and data but <b>cannot edit</b> information or send new backlink requests.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 14px; border-bottom: 1px solid var(--border); vertical-align: top;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <i class="fas fa-shopping-cart" style="color: var(--primary-light);"></i>
+                                    <b style="color: var(--primary-light)">Buyer</b>
+                                </div>
+                            </td>
+                            <td style="padding: 14px; border-bottom: 1px solid var(--border); color: var(--text-main); font-size: 0.9rem;">
+                                View access + requesting permissions. Same as Viewer, but <b>can initiate new requests</b> for backlinks from the Campaigns page.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top: 24px; text-align: right;">
+                <button class="btn btn-primary" onclick="closeRoleExplainer()" style="padding: 10px 32px;">Got it</button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

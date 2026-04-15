@@ -15,7 +15,15 @@ client = None
 def get_db():
     global client
     if client is None:
-        client = MongoClient(MONGODB_URI)
+        if not MONGODB_URI:
+            raise Exception("MONGODB_URI environment variable not configured")
+        try:
+            client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+            # Verify connection
+            client.admin.command('ping')
+        except Exception as e:
+            print(f"MongoDB connection error: {str(e)}")
+            raise
     return client[MONGODB_DATABASE]
 
 def lambda_handler(event, context):
@@ -78,8 +86,22 @@ def lambda_handler(event, context):
 # --- Handlers ---
 
 def handle_get_campaigns(db, headers):
-    campaigns = list(db.campaigns.find({"deleted": {"$ne": True}}))
-    return response(200, campaigns, headers)
+    try:
+        print("Attempting to fetch campaigns from MongoDB...")
+        campaigns = list(db.campaigns.find({"deleted": {"$ne": True}}))
+        print(f"Successfully retrieved {len(campaigns)} campaigns")
+        
+        # Ensure clean ObjectId serialization
+        campaigns = [
+            {**c, '_id': str(c.get('_id', ''))} if '_id' in c else c
+            for c in campaigns
+        ]
+        return response(200, campaigns, headers)
+    except Exception as e:
+        print(f"Error in handle_get_campaigns: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return response(500, {"error": str(e), "type": "database_error"}, headers)
 
 def handle_upsert_campaign(db, data, user, headers):
     cid = data.get('id')
@@ -101,8 +123,17 @@ def handle_get_backlinks(db, data, headers):
     
     limit = int(data.get('limit', 1000))
     skip = int(data.get('skip', 0))
-    backlinks = list(db.backlinks.find(query).sort("createdAt", -1).skip(skip).limit(limit))
-    return response(200, backlinks, headers)
+    try:
+        backlinks = list(db.backlinks.find(query).sort("createdAt", -1).skip(skip).limit(limit))
+        # Clean ObjectId fields for serialization
+        backlinks = [
+            {**b, '_id': str(b.get('_id', ''))} if '_id' in b else b
+            for b in backlinks
+        ]
+        return response(200, backlinks, headers)
+    except Exception as e:
+        print(f"Error in handle_get_backlinks: {str(e)}")
+        return response(500, {"error": str(e)}, headers)
 
 def handle_upsert_backlink(db, data, user, headers):
     bid = data.get('id')
@@ -129,8 +160,17 @@ def handle_upsert_backlink(db, data, user, headers):
     return response(200, {"success": True, "backlink": data}, headers)
 
 def handle_get_users(db, headers):
-    users = list(db.users.find({}))
-    return response(200, users, headers)
+    try:
+        users = list(db.users.find({}))
+        # Clean ObjectId fields for serialization
+        users = [
+            {**u, '_id': str(u.get('_id', ''))} if '_id' in u else u
+            for u in users
+        ]
+        return response(200, users, headers)
+    except Exception as e:
+        print(f"Error in handle_get_users: {str(e)}")
+        return response(500, {"error": str(e)}, headers)
 
 def handle_upsert_user(db, data, current_user, headers):
     uid = data.get('id')
