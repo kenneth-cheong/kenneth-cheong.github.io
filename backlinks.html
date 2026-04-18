@@ -12,6 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css" />
     <style>
         :root {
             --primary: #6366f1;
@@ -576,7 +578,7 @@
             font-size: 0.8rem;
         }
 
-        .ranking-node.expanded > .node-header .node-icon {
+        .ranking-node.expanded>.node-header .node-icon {
             transform: rotate(90deg);
         }
 
@@ -585,14 +587,26 @@
             padding: 0 20px 20px 20px;
         }
 
-        .ranking-node.expanded > .node-content {
+        .ranking-node.expanded>.node-content {
             display: block;
         }
 
         /* Tier Specifics */
-        .tier-1 { border-left: 4px solid var(--primary); }
-        .tier-2 { border-left: 4px solid var(--secondary); margin-top: 8px; background: rgba(0,0,0,0.1); }
-        .tier-3 { border-left: 4px solid var(--text-dim); margin-top: 8px; background: rgba(0,0,0,0.2); }
+        .tier-1 {
+            border-left: 4px solid var(--primary);
+        }
+
+        .tier-2 {
+            border-left: 4px solid var(--secondary);
+            margin-top: 8px;
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        .tier-3 {
+            border-left: 4px solid var(--text-dim);
+            margin-top: 8px;
+            background: rgba(0, 0, 0, 0.2);
+        }
 
         .tier-label {
             font-size: 0.7rem;
@@ -715,7 +729,12 @@
                     </button>
                     <h1 id="pageTitle">Dashboard</h1>
                 </div>
-                <div id="headerActions"></div>
+                <div id="headerActions" style="display: flex; gap: 12px; align-items: center;">
+                    <button class="btn" onclick="startTour()" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--border);">
+                        <i class="fas fa-question-circle"></i> Tour
+                    </button>
+                    <div id="headerActionsContent"></div>
+                </div>
             </header>
 
             <div id="dashboardTab" class="content-tab">
@@ -745,7 +764,9 @@
                                 style="font-size: 0.85rem; color: var(--primary-light); display: none;">
                                 <i class="fas fa-spinner fa-spin"></i> Syncing...
                             </span>
-                            <button class="btn btn-primary" onclick="clearMondayCache(); syncMondayData(); return false;" id="importBtn" title="Refresh data from Monday.com API">
+                            <button class="btn btn-primary"
+                                onclick="clearMondayCache(); syncMondayData(); return false;" id="importBtn"
+                                title="Refresh data from Monday.com API">
                                 <i class="fas fa-sync-alt"></i> Refresh
                             </button>
                         </div>
@@ -865,10 +886,13 @@
 
             <div id="vendorsTab" class="content-tab" style="display: none;">
                 <div class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <h3>Vendors & Personnel</h3>
                         <div style="display: flex; gap: 12px;">
-                            <button class="btn" style="background: rgba(99, 102, 241, 0.1); color: var(--primary-light); border: 1px solid var(--border);" onclick="showRoleExplainer()">
+                            <button class="btn"
+                                style="background: rgba(99, 102, 241, 0.1); color: var(--primary-light); border: 1px solid var(--border);"
+                                onclick="showRoleExplainer()">
                                 <i class="fas fa-info-circle"></i> Access Levels
                             </button>
                             <button class="btn btn-primary" onclick="addUser()">
@@ -945,10 +969,14 @@
                     <div id="rankingsTableControls" style="margin-bottom: 24px;"></div>
 
                     <div style="display: flex; justify-content: flex-end; gap: 12px; margin-bottom: 16px;">
-                        <button class="btn" style="background: transparent; color: var(--primary-light); border: 1px solid var(--border); font-size: 0.8rem;" onclick="expandAllRankings()">
+                        <button class="btn"
+                            style="background: transparent; color: var(--primary-light); border: 1px solid var(--border); font-size: 0.8rem;"
+                            onclick="expandAllRankings()">
                             <i class="fas fa-expand-arrows-alt"></i> Expand All
                         </button>
-                        <button class="btn" style="background: transparent; color: var(--text-dim); border: 1px solid var(--border); font-size: 0.8rem;" onclick="collapseAllRankings()">
+                        <button class="btn"
+                            style="background: transparent; color: var(--text-dim); border: 1px solid var(--border); font-size: 0.8rem;"
+                            onclick="collapseAllRankings()">
                             <i class="fas fa-compress-arrows-alt"></i> Collapse All
                         </button>
                     </div>
@@ -1156,18 +1184,18 @@
             if (!state.backlinkIdx) return 0;
             const sLower = siteName.toLowerCase().trim();
             const domains = state.backlinkIdx.siteToDomains[sLower] || new Set();
-            
+
             let count = 0;
             domains.forEach(d => count += (state.backlinkIdx.byDomain[d] || 0));
-            
+
             // Fallback to name-based count if Domain count is 0
             if (count === 0) count = state.backlinkIdx.byName[sLower] || 0;
-            
+
             // Final fuzzy check: if site name IS a domain
             if (count === 0 && sLower.includes('.')) {
                 count = state.backlinkIdx.byDomain[sLower.replace(/^www\./, '')] || 0;
             }
-            
+
             return count;
         }
 
@@ -1176,13 +1204,13 @@
             const sLower = siteName.toLowerCase().trim();
             const kwLower = keyword.toLowerCase().trim();
             const domains = state.backlinkIdx.siteToDomains[sLower] || new Set();
-            
+
             let count = 0;
             domains.forEach(d => {
                 const key = `${d}|${kwLower}`;
                 count += (state.backlinkIdx.byKwDomain[key] || 0);
             });
-            
+
             // Fallback to name match for keyword if domain match fails
             if (count === 0) {
                 count = state.backlinks.filter(b => {
@@ -1191,12 +1219,12 @@
                     return bName === sLower && bKw === kwLower;
                 }).length;
             }
-            
+
             return count;
         }
 
         // Close modals when clicking outside
-        window.onclick = function(event) {
+        window.onclick = function (event) {
             if (event.target.classList.contains('modal')) {
                 const modalId = event.target.id;
                 // Convention: modal with id="orderModal" has closeOrderModal() function
@@ -1232,17 +1260,17 @@
             const adminNames = ['dan', 'desiree', 'kenneth', 'tom', 'june'];
             const userNameLower = state.user.name.toLowerCase();
             const userEmailLower = state.user.email.toLowerCase();
-            
+
             // Initial role detection
             if (adminNames.some(name => userNameLower.includes(name)) || userEmailLower.includes('kenneth')) {
                 state.role = 'Admin';
             } else if (userEmailLower.includes('mediaone')) {
                 // Default staff to Viewer, can be upgraded to Buyer/Admin in Users tab
-                state.role = 'Viewer'; 
+                state.role = 'Viewer';
             } else {
                 state.role = 'Vendor';
             }
-            
+
             document.getElementById('userRole').innerText = state.role;
 
             applyPermissions();
@@ -1697,7 +1725,7 @@
 
         function renderCampaigns() {
             const body = document.getElementById('campaignsBody');
-            
+
             // If Monday items are already loaded, ensure we don't overwrite them with "empty" state
             if (state.mondayItems && state.mondayItems.length > 0) {
                 console.log('[DEBUG] Monday items detected, deferring campaign rendering to renderMondayItems');
@@ -2022,7 +2050,7 @@
                         <span style="margin-left: 8px;">Showing ${filtered} of ${total} links</span>
                     </div>
             `;
-            
+
             if (selected > 0) {
                 text += `
                     <div style="display: flex; align-items: center; gap: 12px;">
@@ -2141,7 +2169,7 @@
                 </div>
                 `;
             }).join('');
-            
+
             // Re-expand domains that were already open
             paginatedDomains.forEach(domain => {
                 if (state.expandedDomains.includes(domain) || state.orderFilters.search) {
@@ -2176,15 +2204,15 @@
 
         function renderOrderNodeContent(domain, content) {
             let items = [...(state.processedOrders[domain] || [])];
-            
+
             // Apply sorting
             const col = state.ordersSortCol;
             const dir = state.ordersSortDir;
-            
+
             items.sort((a, b) => {
                 let valA = a[col] || '';
                 let valB = b[col] || '';
-                
+
                 if (col === 'validatedDa' || col === 'vendorDa' || col === 'da' || col === 'quantity') {
                     valA = parseFloat(valA || a.da || 0);
                     valB = parseFloat(valB || b.da || 0);
@@ -2195,7 +2223,7 @@
                     valA = String(valA).toLowerCase();
                     valB = String(valB).toLowerCase();
                 }
-                
+
                 if (valA < valB) return dir === 'asc' ? -1 : 1;
                 if (valA > valB) return dir === 'asc' ? 1 : -1;
                 return 0;
@@ -2219,10 +2247,10 @@
                         </thead>
                         <tbody>
                             ${items.map(b => {
-                                const date = new Date(b.createdAt).toLocaleDateString();
-                                const lastValidated = b.lastValidatedAt ? new Date(b.lastValidatedAt).toLocaleDateString() : 'Never';
-                                const isSelected = state.selectedOrders.includes(b.id);
-                                return `
+                const date = new Date(b.createdAt).toLocaleDateString();
+                const lastValidated = b.lastValidatedAt ? new Date(b.lastValidatedAt).toLocaleDateString() : 'Never';
+                const isSelected = state.selectedOrders.includes(b.id);
+                return `
                                 <tr>
                                     <td><input type="checkbox" class="order-checkbox" value="${b.id}" onchange="toggleOrderSelection('${b.id}')" ${isSelected ? 'checked' : ''}></td>
                                     <td>
@@ -2277,7 +2305,7 @@
                                     </td>
                                 </tr>
                                 `;
-                            }).join('')}
+            }).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -2295,25 +2323,25 @@
                 }
             });
             updateSelectionStats(); // Refresh stats display
-            
+
             // Sync UI checkboxes for this domain
             const domainContainer = document.getElementById('content-order-node-' + domain);
             if (domainContainer) {
                 const checkboxes = domainContainer.querySelectorAll('.order-checkbox');
                 checkboxes.forEach(cb => cb.checked = isChecked);
             }
-            
+
             // We need to call toggleOrderSelection logic or similar to update global buttons
             if (state.selectedOrders.length > 0) {
-                 const valBtn = document.getElementById('bulkValidateBtn');
-                 const delBtn = document.getElementById('bulkDeleteBtn');
-                 if (valBtn) valBtn.style.display = (state.role === 'Staff') ? 'inline-block' : 'none';
-                 if (delBtn) delBtn.style.display = (state.role === 'Staff') ? 'inline-block' : 'none';
+                const valBtn = document.getElementById('bulkValidateBtn');
+                const delBtn = document.getElementById('bulkDeleteBtn');
+                if (valBtn) valBtn.style.display = (state.role === 'Staff') ? 'inline-block' : 'none';
+                if (delBtn) delBtn.style.display = (state.role === 'Staff') ? 'inline-block' : 'none';
             } else {
-                 const valBtn = document.getElementById('bulkValidateBtn');
-                 const delBtn = document.getElementById('bulkDeleteBtn');
-                 if (valBtn) valBtn.style.display = 'none';
-                 if (delBtn) delBtn.style.display = 'none';
+                const valBtn = document.getElementById('bulkValidateBtn');
+                const delBtn = document.getElementById('bulkDeleteBtn');
+                if (valBtn) valBtn.style.display = 'none';
+                if (delBtn) delBtn.style.display = 'none';
             }
         }
 
@@ -2454,7 +2482,7 @@
 
         async function exportOrderedCSV() {
             const vendorFilter = document.getElementById('vendorExportFilter').value.toLowerCase();
-            
+
             const orderedLinks = state.backlinks.filter(b => {
                 const isOrdered = b.status === 'Ordered';
                 const matchesVendor = !vendorFilter || (b.vendorName || '').toLowerCase().includes(vendorFilter);
@@ -2617,7 +2645,7 @@
         function cacheMondayData(items, filters = []) {
             try {
                 console.log('[DEBUG] Starting cache process with', items.length, 'items');
-                
+
                 // Apply default filters to determine what to cache
                 let itemsToCache = items;
                 if (filters.length > 0) {
@@ -2676,7 +2704,7 @@
                 console.log('[DEBUG] About to save', slimmedItems.length, 'slimmed items to localStorage');
                 const jsonStr = JSON.stringify(slimmedItems);
                 console.log('[DEBUG] JSON size:', (jsonStr.length / 1024).toFixed(2), 'KB');
-                
+
                 localStorage.setItem('mondayItemsCache', jsonStr);
                 localStorage.setItem('mondayItemsCacheTime', new Date().toISOString());
                 console.log(`[DEBUG] ✓ Monday data cached. ${slimmedItems.length} filtered items with ${visibleColIds.length} columns saved.`);
@@ -2693,15 +2721,15 @@
                 if (cached) {
                     const cacheTime = localStorage.getItem('mondayItemsCacheTime');
                     const items = JSON.parse(cached);
-                    
+
                     if (items && Array.isArray(items) && items.length > 0) {
                         console.log(`[DEBUG] Cache found with ${items.length} items (cached at ${cacheTime})`);
-                        
+
                         // Check if cache is very old (e.g. > 24 hours) - Optional
                         const cacheDate = new Date(cacheTime);
                         const now = new Date();
                         const hoursOld = (now - cacheDate) / (1000 * 60 * 60);
-                        
+
                         if (hoursOld > 24) {
                             console.log('[DEBUG] Cache is older than 24 hours, will permit background sync if needed.');
                             // We don't return false here yet, we still load it for immediate UI usage
@@ -2763,9 +2791,9 @@
                     page++;
 
                 } while (cursor && page <= 50);
-                
+
                 console.log(`[DEBUG] Monday sync complete. Total items:`, state.mondayItems.length);
-                
+
                 // Build default filters to cache only filtered data
                 const allColIds = [];
                 state.mondayItems.forEach(item => {
@@ -2775,7 +2803,7 @@
                         }
                     });
                 });
-                
+
                 const defaultFilters = [];
                 const projectTypeColId = allColIds.find(id => {
                     const item = state.mondayItems[0];
@@ -2785,7 +2813,7 @@
                 if (projectTypeColId) {
                     defaultFilters.push({ colId: projectTypeColId, operator: 'includes', value: 'seo' });
                 }
-                
+
                 const statusColId = allColIds.find(id => {
                     const item = state.mondayItems[0];
                     const cv = item.column_values.find(v => v.id === id);
@@ -2796,7 +2824,7 @@
                         defaultFilters.push({ colId: statusColId, operator: 'excludes', value: val });
                     });
                 }
-                
+
                 const seoStatusColId = allColIds.find(id => {
                     const item = state.mondayItems[0];
                     const cv = item.column_values.find(v => v.id === id);
@@ -2805,7 +2833,7 @@
                 if (seoStatusColId) {
                     defaultFilters.push({ colId: seoStatusColId, operator: 'excludes', value: 'Expired' });
                 }
-                
+
                 cacheMondayData(state.mondayItems, defaultFilters);
 
             } catch (err) {
@@ -2830,26 +2858,26 @@
         function renderMondayItems() {
             const items = state.mondayItems || [];
             console.log('[DEBUG] renderMondayItems called with', items.length, 'items');
-            
+
             // Render table structure and title even if no items
             const table = document.getElementById('campaignsTable');
             if (!table) {
                 console.log('[DEBUG] Table element not found');
                 return;
             }
-            
+
             const columnMap = {};
-            
+
             if (items.length === 0) {
                 // Still update the title to show 0 items
                 const titleElem = document.querySelector('#campaignsTab h3');
                 if (titleElem) titleElem.innerText = `Integrated Campaign Info Repository (0 items)`;
-                
+
                 const head = table.querySelector('thead tr');
                 const body = document.getElementById('campaignsBody');
                 if (head) head.innerHTML = '<th>Item Name</th>';
                 if (body) body.innerHTML = `<tr><td style="text-align: center; padding: 40px; color: var(--text-dim);">No campaigns loaded. Click "Get From Monday" to import campaigns.</td></tr>`;
-                
+
                 document.getElementById('campaignsPagination').innerHTML = '';
                 return;
             }
@@ -3124,7 +3152,7 @@
 
         function updateRule(idx, field, val) {
             state.mondayFilters[idx][field] = val;
-            
+
             // Only re-render table if field or operator changed (not value)
             if (field !== 'value') {
                 state.mondayPage = 1; // Reset to page 1 on filter update
@@ -3151,7 +3179,7 @@
             container.innerHTML = state.mondayFilters.map((rule, idx) => {
                 const columnOptions = [{ id: 'name', label: 'Item Name' }, ...Object.keys(state.cachedColumnMap).map(id => ({ id, label: state.cachedColumnMap[id] }))];
                 const currentLabel = columnOptions.find(c => c.id === rule.colId)?.label || rule.colId;
-                
+
                 return `
                 <div class="filter-row" style="position: relative;">
                     <div style="flex: 1;">
@@ -3206,18 +3234,18 @@
         function filterColumnOptions(idx, searchVal) {
             const dropdown = document.getElementById(`filterColDropdown_${idx}`);
             if (!dropdown) return;
-            
+
             const search = searchVal.toLowerCase();
             const options = dropdown.querySelectorAll('.filterColOption');
             let hasVisibleOption = false;
-            
+
             options.forEach(option => {
                 const text = option.textContent.toLowerCase();
                 const isVisible = text.includes(search);
                 option.style.display = isVisible ? 'block' : 'none';
                 if (isVisible) hasVisibleOption = true;
             });
-            
+
             // Show dropdown if there are matching options and user is typing
             if (hasVisibleOption && searchVal) {
                 dropdown.style.display = 'block';
@@ -3229,10 +3257,10 @@
         function selectFilterColumn(idx, colId, colLabel, event) {
             event.preventDefault();
             event.stopPropagation();
-            
+
             const input = document.getElementById(`filterColSearch_${idx}`);
             if (input) input.value = colLabel;
-            
+
             updateRule(idx, 'colId', colId);
             hideColumnDropdown(idx);
         }
@@ -3580,7 +3608,7 @@
 
                                         state.rankings.push({
                                             siteName: site.title || site.name || 'Unknown',
-                                                        siteUrl: site.url || site.domain || '',
+                                            siteUrl: site.url || site.domain || '',
                                             keyword: kw.name || kw.keyword || '-',
                                             rankingUrl: (() => {
                                                 const lp = posData.landing_pages || kw.landing_pages;
@@ -4141,7 +4169,7 @@
 
             // Sorting logic update
             if (state.rankingsCampaignSort === 'backlinks') {
-                siteKeys.sort((a,b) => {
+                siteKeys.sort((a, b) => {
                     const countA = getRobustSiteBacklinkCount(a);
                     const countB = getRobustSiteBacklinkCount(b);
                     return (countB - countA) || a.localeCompare(b);
@@ -4151,8 +4179,8 @@
                 siteKeys.forEach(site => {
                     scores[site] = calculateRankMovements(site);
                 });
-                
-                siteKeys.sort((a,b) => {
+
+                siteKeys.sort((a, b) => {
                     if (state.rankingsCampaignSort === 'improved') {
                         return (scores[b].pos - scores[a].pos) || a.localeCompare(b);
                     } else {
@@ -4160,9 +4188,9 @@
                     }
                 });
             } else {
-                siteKeys.sort((a,b) => a.localeCompare(b));
+                siteKeys.sort((a, b) => a.localeCompare(b));
             }
-            
+
             // Pagination by Site
             const totalItems = siteKeys.length;
             const totalPages = Math.ceil(totalItems / state.rankingsPageSize);
@@ -4180,7 +4208,7 @@
             container.innerHTML = paginatedSites.map(siteName => {
                 const engines = state.processedRankings[siteName];
                 const backlinkCount = getRobustSiteBacklinkCount(siteName);
-                
+
                 // Count unique keywords across all engines and dates for this campaign
                 const uniqueKeywords = new Set();
                 Object.values(engines).forEach(engine => {
@@ -4192,7 +4220,7 @@
 
                 // Calculate Movements
                 const { pos, neg } = calculateRankMovements(siteName);
-                
+
                 return `
                 <div class="ranking-node tier-1" id="node-${siteName}">
                     <div class="node-header" onclick="toggleRankingNode('node-${siteName}', 1, '${safeJS(siteName)}')">
@@ -4235,7 +4263,7 @@
         function renderRankingsTier2(siteName) {
             const content = document.getElementById(`content-node-${siteName}`);
             if (!content || !state.processedRankings[siteName]) return;
-            
+
             const engines = state.processedRankings[siteName];
             content.innerHTML = Object.keys(engines).sort().map(engineName => {
                 const dates = engines[engineName];
@@ -4263,8 +4291,8 @@
             const nodeId = `node-${siteName}-${engineName}`.replace(/\s+/g, '-');
             const content = document.getElementById(`content-${nodeId}`);
             if (!content || !state.processedRankings[siteName]?.[engineName]) return;
-            
-            const dates = Object.keys(state.processedRankings[siteName][engineName]).sort((a,b) => b.localeCompare(a));
+
+            const dates = Object.keys(state.processedRankings[siteName][engineName]).sort((a, b) => b.localeCompare(a));
             content.innerHTML = dates.map(date => {
                 const dateNodeId = `node-${siteName}-${engineName}-${date}`.replace(/\s+/g, '-');
                 const items = state.processedRankings[siteName][engineName][date];
@@ -4292,9 +4320,9 @@
             const dateNodeId = `node-${siteName}-${engineName}-${date}`.replace(/\s+/g, '-');
             const content = document.getElementById(`content-${dateNodeId}`);
             if (!content || !state.processedRankings[siteName]?.[engineName]?.[date]) return;
-            
+
             let items = [...state.processedRankings[siteName][engineName][date]];
-            
+
             // Map counts to items using centralized robust logic
             items = items.map(item => ({
                 ...item,
@@ -4304,11 +4332,11 @@
             // Apply sorting
             const col = state.rankingsKeywordSortCol;
             const dir = state.rankingsKeywordSortDir;
-            
+
             items.sort((a, b) => {
                 let valA = a[col] || '';
                 let valB = b[col] || '';
-                
+
                 if (col === 'rank' || col === 'backlinkCount') {
                     valA = parseInt(valA) || (col === 'rank' ? 101 : 0);
                     valB = parseInt(valB) || (col === 'rank' ? 101 : 0);
@@ -4316,7 +4344,7 @@
                     valA = String(valA).toLowerCase();
                     valB = String(valB).toLowerCase();
                 }
-                
+
                 if (valA < valB) return dir === 'asc' ? -1 : 1;
                 if (valA > valB) return dir === 'asc' ? 1 : -1;
                 return 0;
@@ -4364,11 +4392,11 @@
                                         ${k.rankingUrl && k.rankingUrl !== '-' ? `
                                             <a href="${k.rankingUrl}" target="_blank" style="color: var(--secondary); font-size: 0.75rem; word-break: break-all; max-width: 200px; display: inline-block;">
                                                 <i class="fas fa-external-link-alt" style="margin-right: 4px; font-size: 0.7rem; opacity: 0.7;"></i>${(() => {
-                                                    try {
-                                                        const u = new URL(k.rankingUrl);
-                                                        return u.pathname + (u.search || '') || '/';
-                                                    } catch(e) { return 'View'; }
-                                                })()}
+                        try {
+                            const u = new URL(k.rankingUrl);
+                            return u.pathname + (u.search || '') || '/';
+                        } catch (e) { return 'View'; }
+                    })()}
                                             </a>
                                         ` : '-'}
                                     </td>
@@ -4385,17 +4413,17 @@
                 </div>
             `;
         }
-        
+
         function showKeywordBacklinks(keyword, siteName) {
             // Set search filter and campaign filter? 
             // For now just search the keyword globally in the backlinks tab
             state.orderFilters.search = keyword.toLowerCase();
             const searchInput = document.getElementById('orderSearch');
             if (searchInput) searchInput.value = keyword;
-            
+
             showTab('orders');
             renderOrders();
-            
+
             // Scroll to the top of the orders tab
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -4404,10 +4432,10 @@
             state.orderFilters.search = siteName.toLowerCase();
             const searchInput = document.getElementById('orderSearch');
             if (searchInput) searchInput.value = siteName;
-            
+
             showTab('orders');
             renderOrders();
-            
+
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -4418,7 +4446,7 @@
                 state.rankingsKeywordSortCol = col;
                 state.rankingsKeywordSortDir = (col === 'rank') ? 'asc' : 'desc'; // Rank defaults to asc, others desc? No, let's keep it consistent.
             }
-            
+
             // Refresh all currently LOADED Tier 4 tables in place
             document.querySelectorAll('.ranking-node.tier-3.expanded').forEach(node => {
                 const contentEl = node.querySelector('.node-content');
@@ -4426,7 +4454,7 @@
                     renderRankingsTier4(contentEl.dataset.site, contentEl.dataset.engine, contentEl.dataset.date);
                 }
             });
-            
+
             // Also refresh the main headers if needed (though they don't show the keyword sort)
             // But we do NOT call renderRankingsTable() here anymore to avoid closing nodes.
         }
@@ -4434,21 +4462,21 @@
         function toggleRankingNode(id, tier, site, engine, date) {
             const node = document.getElementById(id);
             if (!node) return;
-            
+
             const isExpanding = !node.classList.contains('expanded');
-            
+
             if (isExpanding) {
                 // Determine if lazy load is needed
                 const contentId = id.startsWith('node-') ? `content-${id}` : `content-${id}`;
                 const contentEl = document.getElementById(contentId);
-                
+
                 if (contentEl && contentEl.innerHTML.trim().length < 50) { // arbitrary small length for "empty"
                     if (tier === 1) renderRankingsTier2(site);
                     else if (tier === 2) renderRankingsTier3(site, engine);
                     else if (tier === 3) renderRankingsTier4(site, engine, date);
                 }
             }
-            
+
             node.classList.toggle('expanded');
         }
 
@@ -4503,7 +4531,7 @@
                 switch (targetType) {
                     case '1d': targetDays = 1; break;
                     case '3d': targetDays = 3; break;
-                    case '1w' : targetDays = 7; break;
+                    case '1w': targetDays = 7; break;
                     case '1m': targetDays = 30; break;
                     case '2m': targetDays = 60; break;
                     case '3m': targetDays = 90; break;
@@ -4552,7 +4580,7 @@
                 if (node) {
                     node.classList.add('expanded');
                     renderRankingsTier2(site);
-                    
+
                     // Second pass: Expand Tier 2 and render Tier 3
                     const engines = state.processedRankings[site];
                     Object.keys(engines).forEach(engine => {
@@ -4561,7 +4589,7 @@
                         if (eNode) {
                             eNode.classList.add('expanded');
                             renderRankingsTier3(site, engine);
-                            
+
                             // Third pass: Expand Tier 3 and render Tier 4
                             const dates = engines[engine];
                             Object.keys(dates).forEach(date => {
@@ -5144,6 +5172,128 @@
                 closeDeliveryModal();
             }, 2000);
         }
+
+        // Onboarding Tour
+        function startTour() {
+            if (typeof initBacklinksTour === 'function') initBacklinksTour();
+        }
+
+        function initBacklinksTour() {
+            if (typeof window.driver === 'undefined') return;
+
+            const driver = window.driver.js.driver;
+            const driverObj = driver({
+                showProgress: true,
+                scrollIntoViewOptions: { behavior: 'smooth', block: 'start' },
+                allowClose: true,
+                steps: [
+                    {
+                        element: '.stats-grid',
+                        popover: {
+                            title: 'Step 1: Dashboard Overview',
+                            description: 'Gain immediate visibility into your backlink health, authority, and delivery pipeline.',
+                            side: "bottom", align: 'start'
+                        }
+                    },
+                    {
+                        element: '#val-total-links',
+                        popover: {
+                            title: 'Step 2: Backlink Volume',
+                            description: 'Monitor the total number of live backlinks secured across all your active campaigns.',
+                            side: "bottom", align: 'start'
+                        }
+                    },
+                    {
+                        element: '#val-avg-da',
+                        popover: {
+                            title: 'Step 3: Authority Metrics',
+                            description: 'Track the average Domain Authority of your links to maintain a high-quality link profile.',
+                            side: "bottom", align: 'start'
+                        }
+                    },
+                    {
+                        element: '#nav-campaigns',
+                        popover: {
+                            title: 'Step 4: Campaign Repository',
+                            description: 'Centralise all your link-building strategies and active Monday.com board data here.',
+                            side: "right", align: 'start'
+                        }
+                    },
+                    {
+                        element: '#importBtn',
+                        popover: {
+                            title: 'Step 5: Monday.com Synchronization',
+                            description: 'Keep your dashboard current by syncing the latest board items directly from Monday.com.',
+                            side: "top", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            if (typeof showTab === 'function') showTab('campaigns');
+                        }
+                    },
+                    {
+                        element: '#nav-orders',
+                        popover: {
+                            title: 'Step 6: Fulfilled Orders',
+                            description: 'Review and manage all delivered backlinks, including technical validation results.',
+                            side: "right", align: 'start'
+                        }
+                    },
+                    {
+                        element: '#nav-rankings',
+                        popover: {
+                            title: 'Step 7: Keyword Rankings',
+                            description: 'Analyze real-time keyword movements powered by our SE Ranking integration.',
+                            side: "right", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            if (typeof showTab === 'function') showTab('rankings');
+                        }
+                    },
+                    {
+                        element: '#linkSiteBtn',
+                        popover: {
+                            title: 'Step 8: Global Ranking Sync',
+                            description: 'Link your SE Ranking properties to pull live keyword position data into your dashboard.',
+                            side: "top", align: 'start'
+                        }
+                    },
+                    {
+                        element: '#nav-validator',
+                        popover: {
+                            title: 'Step 9: Bulk Link Validator',
+                            description: 'Perform automated quality and uptime audits on massive lists of backlinks at scale.',
+                            side: "right", align: 'start'
+                        }
+                    },
+                    {
+                        element: '#cartBadgeBtn',
+                        popover: {
+                            title: 'Step 10: Order Processing',
+                            description: 'Manage your wishlist and process bulk orders to your preferred vendors.',
+                            side: "left", align: 'start'
+                        }
+                    },
+                    {
+                        element: '#nav-vendors',
+                        popover: {
+                            title: 'Step 11: Access Control',
+                            description: 'Manage user permissions and vendor profiles with granular capability settings.',
+                            side: "right", align: 'start'
+                        }
+                    },
+                    {
+                        element: '.nav-item[onclick="logout()"]',
+                        popover: {
+                            title: 'Step 12: Secure Logout',
+                            description: 'Ensure your session is securely terminated and local cache is cleared.',
+                            side: "right", align: 'start'
+                        }
+                    }
+                ]
+            });
+
+            driverObj.drive();
+        }
     </script>
     <!-- User Modal -->
     <div id="userModal" class="modal">
@@ -5226,7 +5376,8 @@
                 </div>
                 <div class="form-group">
                     <label>Vendor</label>
-                    <input type="text" id="orderVendorInput" list="vendorList" placeholder="Select or type vendor..." required>
+                    <input type="text" id="orderVendorInput" list="vendorList" placeholder="Select or type vendor..."
+                        required>
                     <datalist id="vendorList"></datalist>
                 </div>
                 <div class="form-group">
@@ -5385,16 +5536,24 @@
             <!-- Step 1: File Upload -->
             <div id="deliveryStep1">
                 <div style="margin-bottom: 20px;">
-                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin-bottom: 8px;">1. Select Vendor</label>
-                    <select id="deliveryVendorSelect" style="width: 100%; padding: 12px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border); border-radius: 12px; color: white; outline: none; font-size: 0.9rem;">
+                    <label
+                        style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin-bottom: 8px;">1.
+                        Select Vendor</label>
+                    <select id="deliveryVendorSelect"
+                        style="width: 100%; padding: 12px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border); border-radius: 12px; color: white; outline: none; font-size: 0.9rem;">
                         <option value="">-- Choose Vendor --</option>
-                        <option value="Anurag (anurag.kashyap20@gmail.com)">Anurag - Email: anurag.kashyap20@gmail.com</option>
-                        <option value="Maark (maark@linksbuildingservice.co.uk)">Maark - Email: maark@linksbuildingservice.co.uk</option>
+                        <option value="Anurag (anurag.kashyap20@gmail.com)">Anurag - Email: anurag.kashyap20@gmail.com
+                        </option>
+                        <option value="Maark (maark@linksbuildingservice.co.uk)">Maark - Email:
+                            maark@linksbuildingservice.co.uk</option>
                         <option value="Arya (aryajones7@gmail.com)">Arya - Email: aryajones7@gmail.com</option>
-                        <option value="Ramish (ramishgill651@gmail.com)">Ramish - Email: ramishgill651@gmail.com</option>
-                        <option value="Sasti (sastiseoconsultant@gmail.com)">Sasti - Email: sastiseoconsultant@gmail.com</option>
+                        <option value="Ramish (ramishgill651@gmail.com)">Ramish - Email: ramishgill651@gmail.com
+                        </option>
+                        <option value="Sasti (sastiseoconsultant@gmail.com)">Sasti - Email: sastiseoconsultant@gmail.com
+                        </option>
                         <option value="Boris (online@shantel.co)">Boris - Email: online@shantel.co</option>
-                        <option value="Jimmy (jimmybwilliams8@gmail.com)">Jimmy - Email: jimmybwilliams8@gmail.com</option>
+                        <option value="Jimmy (jimmybwilliams8@gmail.com)">Jimmy - Email: jimmybwilliams8@gmail.com
+                        </option>
                         <option value="Dan Inhouse Outreach">Dan Inhouse Outreach</option>
                         <option value="Link Publisher">Link Publisher</option>
                         <option value="iCopify">iCopify</option>
@@ -5403,7 +5562,9 @@
                     </select>
                 </div>
 
-                <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin-bottom: 8px;">2. Upload file</label>
+                <label
+                    style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin-bottom: 8px;">2.
+                    Upload file</label>
                 <div style="border: 2px dashed var(--border); border-radius: 16px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s;"
                     onclick="document.getElementById('deliveryFileInput').click()"
                     ondragover="event.preventDefault(); this.style.borderColor='var(--secondary)'; this.style.background='rgba(16,185,129,0.05)'"
@@ -5475,15 +5636,20 @@
         <div class="modal-content" style="max-width: 600px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                 <h3 style="margin: 0;">Access Levels Table</h3>
-                <button class="btn" onclick="closeRoleExplainer()" style="background: transparent; color: var(--text-dim); padding: 5px;"><i class="fas fa-times"></i></button>
+                <button class="btn" onclick="closeRoleExplainer()"
+                    style="background: transparent; color: var(--text-dim); padding: 5px;"><i
+                        class="fas fa-times"></i></button>
             </div>
-            
+
             <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; background: rgba(0,0,0,0.2); border-radius: 12px;">
+                <table
+                    style="width: 100%; border-collapse: collapse; background: rgba(0,0,0,0.2); border-radius: 12px;">
                     <thead>
                         <tr style="background: rgba(99, 102, 241, 0.1);">
-                            <th style="padding: 14px; text-align: left; border-bottom: 1px solid var(--border);">Role Tier</th>
-                            <th style="padding: 14px; text-align: left; border-bottom: 1px solid var(--border);">Capabilities & Access</th>
+                            <th style="padding: 14px; text-align: left; border-bottom: 1px solid var(--border);">Role
+                                Tier</th>
+                            <th style="padding: 14px; text-align: left; border-bottom: 1px solid var(--border);">
+                                Capabilities & Access</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -5494,8 +5660,10 @@
                                     <b style="color: var(--primary-light)">Admin</b>
                                 </div>
                             </td>
-                            <td style="padding: 14px; border-bottom: 1px solid var(--border); color: var(--text-main); font-size: 0.9rem;">
-                                Full system access. Can view, edit, delete, and import all data across all boards. Manages users and settings.
+                            <td
+                                style="padding: 14px; border-bottom: 1px solid var(--border); color: var(--text-main); font-size: 0.9rem;">
+                                Full system access. Can view, edit, delete, and import all data across all boards.
+                                Manages users and settings.
                             </td>
                         </tr>
                         <tr>
@@ -5505,8 +5673,10 @@
                                     <b style="color: var(--secondary)">Vendor</b>
                                 </div>
                             </td>
-                            <td style="padding: 14px; border-bottom: 1px solid var(--border); color: var(--text-main); font-size: 0.9rem;">
-                                Specifically for external sellers. Can <b>only</b> access "Delivered Backlinks". Can submit/import fulfilled items and request confirmation.
+                            <td
+                                style="padding: 14px; border-bottom: 1px solid var(--border); color: var(--text-main); font-size: 0.9rem;">
+                                Specifically for external sellers. Can <b>only</b> access "Delivered Backlinks". Can
+                                submit/import fulfilled items and request confirmation.
                             </td>
                         </tr>
                         <tr>
@@ -5516,8 +5686,10 @@
                                     <b style="color: var(--text-main)">Viewer</b>
                                 </div>
                             </td>
-                            <td style="padding: 14px; border-bottom: 1px solid var(--border); color: var(--text-dim); font-size: 0.9rem;">
-                                Standard view access. Can see all boards and data but <b>cannot edit</b> information or send new backlink requests.
+                            <td
+                                style="padding: 14px; border-bottom: 1px solid var(--border); color: var(--text-dim); font-size: 0.9rem;">
+                                Standard view access. Can see all boards and data but <b>cannot edit</b> information or
+                                send new backlink requests.
                             </td>
                         </tr>
                         <tr>
@@ -5527,15 +5699,18 @@
                                     <b style="color: var(--primary-light)">Buyer</b>
                                 </div>
                             </td>
-                            <td style="padding: 14px; border-bottom: 1px solid var(--border); color: var(--text-main); font-size: 0.9rem;">
-                                View access + requesting permissions. Same as Viewer, but <b>can initiate new requests</b> for backlinks from the Campaigns page.
+                            <td
+                                style="padding: 14px; border-bottom: 1px solid var(--border); color: var(--text-main); font-size: 0.9rem;">
+                                View access + requesting permissions. Same as Viewer, but <b>can initiate new
+                                    requests</b> for backlinks from the Campaigns page.
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
             <div style="margin-top: 24px; text-align: right;">
-                <button class="btn btn-primary" onclick="closeRoleExplainer()" style="padding: 10px 32px;">Got it</button>
+                <button class="btn btn-primary" onclick="closeRoleExplainer()" style="padding: 10px 32px;">Got
+                    it</button>
             </div>
         </div>
     </div>
