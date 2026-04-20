@@ -71,22 +71,22 @@
 
         .container {
             width: 100%;
-            padding: 24px 40px;
+            padding: 8px 16px;
             flex: 1;
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            gap: 8px;
         }
 
         .card {
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 24px;
+            padding: 12px;
             box-shadow: var(--shadow);
-            margin-bottom: 24px;
+            margin-bottom: 8px;
             position: relative;
-            overflow: hidden;
             flex-shrink: 0;
             display: flex;
             flex-direction: column;
@@ -217,7 +217,7 @@
         .stat-card {
             background: var(--glass);
             border: 1px solid var(--border);
-            padding: 24px;
+            padding: 8px 12px;
             border-radius: var(--radius);
             text-align: center;
             cursor: pointer;
@@ -524,6 +524,50 @@
             margin-left: 4px;
         }
 
+        /* Wide Format Settings Modal */
+        .settings-backdrop {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 1999;
+            display: none;
+        }
+
+        .settings-popover {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(1000px, 92vw);
+            max-height: 80dvh;
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(40px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+            padding: 32px;
+            overflow: hidden;
+        }
+
+        .settings-popover.show, .settings-backdrop.show {
+            display: flex;
+        }
+        
+        .settings-backdrop.show { display: block; }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 16px;
+        }
+
         /* Loading Toast */
         #loading-toast {
             position: fixed;
@@ -581,6 +625,7 @@
             <h1>Campaign Auditor</h1>
         </div>
     </header>
+    <div id="settings-backdrop" class="settings-backdrop" onclick="toggleSettings()"></div>
     <div class="container">
         <div id="error-message"></div>
         <div class="card" id="step-auth">
@@ -593,84 +638,82 @@
             <button class="btn" onclick="connectMonday()">Connect to Monday.com</button>
         </div>
         <div class="card" id="step-folders" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <div><span class="step-num">2</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <div>
+                    <span class="step-num">2</span>
                     <h2>Select Folders</h2>
                 </div>
                 <div style="display: flex; gap: 8px;">
-                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 11px;"
-                        onclick="toggleAllFolders(true)">All</button>
-                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 11px;"
-                        onclick="toggleAllFolders(false)">None</button>
+                    <button class="btn btn-secondary" onclick="toggleAllFolders(true)">Select All</button>
+                    <button class="btn btn-secondary" onclick="toggleAllFolders(false)">Deselect All</button>
                 </div>
             </div>
             <div class="folder-grid" id="folder-list"></div>
+            <div id="status-exclusions" style="display: none; margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px;"></div>
             <div style="margin-top: 32px; display: flex; justify-content: space-between; align-items: center;">
                 <div id="selection-summary" style="font-size: 13px; font-weight: 600; color: var(--primary);">0 boards selected for audit</div>
                 <button class="btn" id="crawl-btn" onclick="startAudit()" disabled>Start Audit</button>
             </div>
         </div>
-        <div class="card" id="step-results" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <div style="display: flex; align-items: center;">
-                    <span class="step-num">3</span>
-                    <h2 style="margin: 0;">Audit Results</h2>
-                </div>
-            </div>
-            
-            <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
-                <div class="stat-card" data-status="all" onclick="setStatusFilter('all')">
-                    <div class="stat-val" id="stat-boards">0</div>
-                    <div class="stat-lbl">Boards</div>
-                </div>
-                <div class="stat-card" data-status="overdue" onclick="setStatusFilter('overdue')">
-                    <div class="stat-val" id="stat-overdue" style="color: var(--danger);">0</div>
-                    <div class="stat-lbl">Overdue</div>
-                </div>
-                <div class="stat-card" data-status="soon" onclick="setStatusFilter('soon')">
-                    <div class="stat-val" id="stat-soon" style="color: var(--warning);">0</div>
-                    <div class="stat-lbl">Due Soon</div>
-                </div>
-                <div class="stat-card" data-status="2w" onclick="setStatusFilter('2w')">
-                    <div class="stat-val" id="stat-2w" style="color: var(--primary);">0</div>
-                    <div class="stat-lbl">Due 2 Weeks</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-val" id="stat-items">0</div>
-                    <div class="stat-lbl">Items Scanned</div>
-                </div>
-            </div>
-            <div id="results-controls" style="display: none; margin-top: 32px;">
-                <div class="filter-bar">
-                    <div
-                        style="color: var(--muted); font-size: 11px; text-transform: uppercase; font-weight: 700; width: 100%; display: flex; justify-content: space-between; align-items: center;">
-                        <span>Filters (Item Search)</span>
+
+        <!-- RESULTS STEP -->
+        <div id="step-results" style="display: none; flex-direction: column; height: 100%; min-height: 0;">
+            <div id="results-controls" style="display: none; flex-direction: column;">
+                <div class="stat-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 12px;">
+                    <div class="stat-card" onclick="setStatusFilter('all')" data-status="all">
+                        <div class="stat-value" id="stat-boards" style="font-size: 18px;">0</div>
+                        <div class="stat-label" style="font-size: 9px;">Boards</div>
                     </div>
-                    <div style="display: flex; gap: 16px; width: 100%;">
-                        <input type="text" id="filter-text" class="filter-input" placeholder="Search by item or board..."
-                            oninput="updateFilteredUI()">
-                        <input type="text" id="filter-person" class="filter-input" placeholder="Filter by person..."
-                            oninput="updateFilteredUI()">
+                    <div class="stat-card" onclick="setStatusFilter('overdue')" data-status="overdue" style="border-bottom: 2px solid var(--danger); padding: 8px;">
+                        <div class="stat-value" id="stat-overdue" style="font-size: 18px;">0</div>
+                        <div class="stat-label" style="font-size: 9px;">Overdue</div>
+                    </div>
+                    <div class="stat-card" onclick="setStatusFilter('soon')" data-status="soon" style="border-bottom: 2px solid var(--warning); padding: 8px;">
+                        <div class="stat-value" id="stat-soon" style="font-size: 18px;">0</div>
+                        <div class="stat-label" style="font-size: 9px;">Soon</div>
+                    </div>
+                    <div class="stat-card" onclick="setStatusFilter('2w')" data-status="2w" style="border-bottom: 2px solid var(--primary); padding: 8px;">
+                        <div class="stat-value" id="stat-2w" style="font-size: 18px;">0</div>
+                        <div class="stat-label" style="font-size: 9px;">2 Weeks</div>
+                    </div>
+                    <div class="stat-card" style="padding: 8px;">
+                        <div class="stat-value" id="stat-items" style="font-size: 18px;">0</div>
+                        <div class="stat-label" style="font-size: 9px;">Scanned</div>
                     </div>
                 </div>
 
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th class="sortable" onclick="handleSort('name')" id="sort-name">Item Name</th>
-                                <th class="sortable" onclick="handleSort('person')" id="sort-person">Person</th>
-                                <th class="sortable" onclick="handleSort('deadline')" id="sort-deadline"
-                                    style="text-align: center;">Deadline</th>
-                                <th class="sortable" onclick="handleSort('daysOverdue')" id="sort-daysOverdue"
-                                    style="text-align: center;">Overdue</th>
-                                <th>Board / Folder</th>
-                                <th style="text-align: right;">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="results-table-body"></tbody>
-                    </table>
+                <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+                    <input type="text" id="filter-text" class="filter-input" style="flex: 1; padding: 6px 10px; font-size: 12px;" placeholder="Search items or boards..." oninput="updateFilteredUI()">
+                    <input type="text" id="filter-person" class="filter-input" style="flex: 1; padding: 6px 10px; font-size: 12px;" placeholder="Filter by person..." oninput="updateFilteredUI()">
+                    <button class="btn btn-secondary" onclick="toggleSettings()" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px;">
+                        <i class="fas fa-cog"></i> Settings
+                    </button>
                 </div>
+
+                <!-- Floating Settings Popover -->
+                <div id="settings-pnl" class="settings-popover">
+                    <div class="settings-header">
+                        <h3 style="margin: 0; font-size: 15px;">Audit Settings</h3>
+                        <i class="fas fa-times" onclick="toggleSettings()" style="cursor: pointer; color: var(--muted);"></i>
+                    </div>
+                    <div id="results-status-exclusions" style="overflow-y: auto;"></div>
+                </div>
+            </div>
+
+            <div class="table-container" style="flex: 1; min-height: 0; overflow: auto; background: var(--surface); border-radius: 12px; border: 1px solid var(--border);">
+                <table style="width: 100%; border-collapse: separate; border-spacing: 0;">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="handleSort('name')" id="sort-name">Item Name</th>
+                            <th class="sortable" onclick="handleSort('person')" id="sort-person">Person</th>
+                            <th class="sortable" onclick="handleSort('deadline')" id="sort-deadline" style="text-align: center;">Deadline</th>
+                            <th class="sortable" onclick="handleSort('daysOverdue')" id="sort-daysOverdue" style="text-align: center;">Overdue</th>
+                            <th>Board / Folder</th>
+                            <th style="text-align: right;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-table-body"></tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -694,20 +737,37 @@
             stats: { boardsAudited: 0, totalItems: 0, overdueTotal: 0, soonTotal: 0, v2wTotal: 0 },
             sort: { key: 'deadline', dir: 'asc' },
             filters: { text: '', person: '', status: 'all' },
-            expandedBoardIds: new Set()
+            expandedBoardIds: new Set(),
+            allStatusLabels: [],
+            excludedStatusLabels: new Set([
+                'Done', 'Completed', 'Finished', 'Approved', 
+                'Abandoned', 'Abandonement', 'Archive', 'End', 'Ended', 
+                'Expired', 'PSG expired', 'psg expired (PM)', 'Pause', 'Paused', 'Terminated'
+            ])
         };
 
         window.onload = () => { if (state.apiKey) { document.getElementById('api-key').value = state.apiKey; connectMonday(); } };
 
-        async function monday(query, variables = {}) {
-            showToast("Connecting to Monday...");
+        async function monday(query, variables = {}, toastMsg = "Connecting to Monday...") {
+            showToast(toastMsg);
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout
             try {
-                const r = await fetch(LAMBDA, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_monday_data', query, variables, api_key: state.apiKey }) });
+                const r = await fetch(LAMBDA, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ action: 'get_monday_data', query, variables, api_key: state.apiKey }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
                 const res = await r.json();
                 const data = typeof res.body === 'string' ? JSON.parse(res.body) : (res.body || res);
                 if (data.errors) throw new Error(data.errors[0].message);
                 if (data.error) throw new Error(data.error);
                 return data.data || data;
+            } catch (err) {
+                if (err.name === 'AbortError') throw new Error("Connection Timeout (25s). Monday is responding slowly.");
+                throw err;
             } finally {
                 hideToast();
             }
@@ -720,25 +780,31 @@
             try {
                 btn.disabled = true; btn.innerHTML = '<div class="loading-spinner"></div> Connecting...';
                 state.apiKey = key; localStorage.setItem('monday_api_key', key);
-
-                const acc = await monday(`query { account { slug } }`);
+                
+                const acc = await monday(`query { account { slug } }`, {}, "Authenticating...");
                 state.slug = acc.account?.slug || 'my';
-
+                
                 let allBoards = [], page = 1, hasMore = true;
-
-                while (hasMore) {
+                const seenIds = new Set();
+                
+                while (hasMore && page < 100) { // Safety cap at 100 pages
                     try {
-                        const bdata = await monday(`query($p:Int){ boards(limit:100, page:$p, state:active){ id name type folder{id name} workspace{name} } }`, { p: page });
-                        console.log("Page " + page + " Result:", bdata);
-
+                        const bdata = await monday(`query($p:Int){ boards(limit:100, page:$p, state:active){ id name type folder{id name} workspace{name} } }`, { p: page }, `Fetching boards (Page ${page})...`);
                         const boards = bdata.boards || (bdata.data && bdata.data.boards);
 
                         if (!boards || boards.length === 0) {
                             hasMore = false;
                         } else {
-                            allBoards = allBoards.concat(boards);
-                            hasMore = boards.length === 100;
-                            page++;
+                            // Deduplication safety check
+                            const newBoards = boards.filter(b => !seenIds.has(b.id));
+                            if (newBoards.length === 0) {
+                                hasMore = false; // We only found boards we already have, stop to prevent loops
+                            } else {
+                                newBoards.forEach(b => seenIds.add(b.id));
+                                allBoards = allBoards.concat(newBoards);
+                                hasMore = boards.length === 100;
+                                page++;
+                            }
                         }
                     } catch (err) {
                         console.error("Pagination error at page " + page, err);
@@ -768,10 +834,35 @@
                 renderFolders();
                 document.getElementById('step-auth').style.display = 'none';
                 document.getElementById('step-folders').style.display = 'block';
+                
+                // Trigger initial harvesting for pre-selected folders
+                if (state.selectedFolderIds.size > 0) harvestLabelsForSelectedFolders();
             } catch (e) { showError(e.message); btn.disabled = false; btn.innerHTML = 'Connect'; }
         }
 
         function renderFolders() {
+            // Harvest unique status labels ONLY from selected folders
+            const labels = new Set();
+            state.selectedFolderIds.forEach(fid => {
+                const f = state.folders.find(x => x.id === fid);
+                if (f) {
+                    f.boards.forEach(b => {
+                        b.columns?.forEach(col => {
+                            if (!col.settings_str) return;
+                            try {
+                                const settings = JSON.parse(col.settings_str);
+                                if (settings.labels) {
+                                    Object.values(settings.labels).forEach(l => {
+                                        if (l && l.trim()) labels.add(l.trim());
+                                    });
+                                }
+                            } catch (e) {}
+                        });
+                    });
+                }
+            });
+            state.allStatusLabels = Array.from(labels).sort();
+
             const list = document.getElementById('folder-list');
             list.innerHTML = state.folders.map(f => `
                 <div class="folder-item ${state.selectedFolderIds.has(f.id) ? 'selected' : ''}" onclick="toggleFolder('${f.id}')">
@@ -780,6 +871,24 @@
                 </div>
             `).join('');
             
+            // Render Status Exclusions in BOTH locations
+            const html = state.allStatusLabels.length > 0 ? `
+                <label style="display: block; margin-bottom: 12px; font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--muted);">Exclude these statuses from audit:</label>
+                <div class="folder-grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); max-height: 400px; gap: 8px;">
+                    ${state.allStatusLabels.map(l => `
+                        <div class="folder-item ${state.excludedStatusLabels.has(l) ? 'selected' : ''}" onclick="toggleStatusExclusion('${l.replace(/'/g, "\\'")}')" style="padding: 8px 12px; background: rgba(255,255,255,0.03);">
+                            <input type="checkbox" ${state.excludedStatusLabels.has(l) ? 'checked' : ''} style="accent-color:var(--primary)">
+                            <div class="folder-name" style="font-size: 10px;">${l}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : '';
+
+            const area1 = document.getElementById('status-exclusions');
+            const area2 = document.getElementById('results-status-exclusions');
+            if (area1) { area1.innerHTML = html; area1.style.display = html ? 'block' : 'none'; }
+            if (area2) { area2.innerHTML = html; }
+
             // Calculate total boards
             let total = 0;
             state.selectedFolderIds.forEach(id => {
@@ -792,13 +901,52 @@
 
         function toggleFolder(id) {
             if (state.selectedFolderIds.has(id)) state.selectedFolderIds.delete(id);
-            else state.selectedFolderIds.add(id);
+            else {
+                state.selectedFolderIds.add(id);
+                harvestLabelsForSelectedFolders();
+            }
+            renderFolders();
+        }
+
+        async function harvestLabelsForSelectedFolders() {
+            const boardIds = [];
+            state.selectedFolderIds.forEach(fid => {
+                const f = state.folders.find(x => x.id === fid);
+                if (f) f.boards.forEach(b => {
+                    if (!b.columns) boardIds.push(b.id);
+                });
+            });
+
+            if (boardIds.length === 0) { renderFolders(); return; }
+
+            // Batch fetch board columns (50 at a time)
+            for (let i = 0; i < boardIds.length; i += 50) {
+                const batch = boardIds.slice(i, i + 50);
+                try {
+                    const data = await monday(`query($ids:[ID!]){ boards(ids:$ids){ id columns(types:[status]){ settings_str } } }`, { ids: batch }, `Discovering status labels...`);
+                    const boards = data.boards || (data.data && data.data.boards);
+                    if (boards) {
+                        boards.forEach(updatedBoard => {
+                            state.folders.forEach(f => {
+                                const b = f.boards.find(x => x.id === updatedBoard.id);
+                                if (b) b.columns = updatedBoard.columns;
+                            });
+                        });
+                    }
+                } catch (e) { console.warn("Failed to harvest labels for batch", e); }
+            }
             renderFolders();
         }
 
         function toggleAllFolders(val) {
             if (val) state.folders.forEach(f => state.selectedFolderIds.add(f.id));
             else state.selectedFolderIds.clear();
+            renderFolders();
+        }
+
+        function toggleStatusExclusion(label) {
+            if (state.excludedStatusLabels.has(label)) state.excludedStatusLabels.delete(label);
+            else state.excludedStatusLabels.add(label);
             renderFolders();
         }
 
@@ -819,11 +967,12 @@
                 while (queue.length > 0) {
                     const b = queue.shift();
                     try {
+                        showToast(`Scanning items for: ${b.name}`);
                         let bItems = [], cursor = null;
                         do {
                             const idata = await monday(`query($id:[ID!],$c:String){ 
                                 boards(ids:$id){ 
-                                    items_page(limit:100,cursor:$c){ 
+                                    items_page(limit:500,cursor:$c){ 
                                         cursor 
                                         items { 
                                             id 
@@ -850,8 +999,6 @@
                         } while (cursor);
 
                         const qualified = bItems.filter(i => {
-                            const done = ['Done', 'Completed', 'Finished', 'Approved'].some(l => i.column_values.some(cv => cv.label === l));
-                            if (done) return false;
                             const dv = i.column_values.find(cv => cv.date || cv.to);
                             if (!dv) return false;
                             const due = new Date(dv.date || dv.to).getTime();
@@ -861,6 +1008,7 @@
 
                         state.auditedItems = state.auditedItems.concat(qualified.map(i => {
                             const dv = i.column_values.find(cv => cv.date || cv.to);
+                            const st = i.column_values.find(cv => cv.label !== undefined); // Find status label
                             const assigned = i.column_values.find(cv => cv.type === 'people' || cv.type === 'multiple-person');
                             
                             const today = new Date().setHours(0, 0, 0, 0);
@@ -873,9 +1021,9 @@
                                 else status = '2w';
                             }
 
-                            if (status === 'overdue') state.stats.overdueTotal++;
-                            else if (status === 'soon') state.stats.soonTotal++;
-                            else state.stats.v2wTotal++;
+                            if (status === 'overdue') {} // Counts handled dynamically in updateFilteredUI
+                            else if (status === 'soon') {}
+                            else {}
 
                             let dateDisplay = 'No Date';
                             if (dv) {
@@ -893,7 +1041,8 @@
                                 deadlineDisplay: dateDisplay,
                                 daysOverdue: diffDays,
                                 person: assigned?.text || 'Unassigned',
-                                status: status
+                                status: status,
+                                itemStatus: st?.label || ''
                             };
                         }));
                         state.stats.boardsAudited++; state.stats.totalItems += bItems.length;
@@ -904,7 +1053,7 @@
                     updateUI(Math.round((++finished / total) * 100));
                 }
             }
-            await Promise.all(Array(5).fill(0).map(work));
+            await Promise.all(Array(20).fill(0).map(work));
             
             toastCount = 0; // Unlock toast
             hideToast();
@@ -926,10 +1075,6 @@
             if (state.auditedItems.length > 0) {
                 const controls = document.getElementById('results-controls');
                 controls.style.display = 'flex';
-                controls.style.flexDirection = 'column';
-                controls.style.flex = '1';
-                controls.style.minHeight = '0';
-                controls.style.gap = '16px';
                 updateFilteredUI();
             }
             
@@ -983,12 +1128,35 @@
             const queryText = document.getElementById('filter-text').value.toLowerCase();
             const queryPerson = document.getElementById('filter-person').value.toLowerCase();
 
+            // Dynamic Stats Calculation
+            let liveStats = { boards: new Set(), overdue: 0, soon: 0, v2w: 0, total: 0 };
+
             let filtered = state.auditedItems.filter(i => {
+                // Status Exclusion Filter (Dynamic)
+                if (state.excludedStatusLabels.has(i.itemStatus)) return false;
+
                 const matchesText = i.name.toLowerCase().includes(queryText) || i.bName.toLowerCase().includes(queryText);
                 const matchesPerson = (i.person || '').toLowerCase().includes(queryPerson);
-                const matchesStatus = state.filters.status === 'all' || i.status === state.filters.status;
-                return matchesText && matchesPerson && matchesStatus;
+                const matchesStatusFilter = state.filters.status === 'all' || i.status === state.filters.status;
+                
+                const isMatch = matchesText && matchesPerson && matchesStatusFilter;
+                
+                // Track stats for the subset matching the status exclusions (but NOT limited by text/person/card filters)
+                liveStats.total++;
+                liveStats.boards.add(i.bId);
+                if (i.status === 'overdue') liveStats.overdue++;
+                else if (i.status === 'soon') liveStats.soon++;
+                else if (i.status === '2w') liveStats.v2w++;
+
+                return isMatch;
             });
+
+            // Update Global Stat Cards
+            document.getElementById('stat-boards').innerText = liveStats.boards.size;
+            document.getElementById('stat-overdue').innerText = liveStats.overdue;
+            document.getElementById('stat-soon').innerText = liveStats.soon;
+            document.getElementById('stat-2w').innerText = liveStats.v2w;
+            document.getElementById('stat-items').innerText = liveStats.total;
 
             // Group by Board
             const groups = {};
@@ -1073,6 +1241,13 @@
             if (state.expandedBoardIds.has(bId)) state.expandedBoardIds.delete(bId);
             else state.expandedBoardIds.add(bId);
             updateFilteredUI();
+        }
+
+        function toggleSettings() {
+            const p = document.getElementById('settings-pnl');
+            const b = document.getElementById('settings-backdrop');
+            p.classList.toggle('show');
+            if (b) b.classList.toggle('show');
         }
 
         function showError(m) { const e = document.getElementById('error-message'); e.innerText = m; e.style.display = m ? 'block' : 'none'; }
