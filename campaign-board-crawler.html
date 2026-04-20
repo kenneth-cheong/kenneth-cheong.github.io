@@ -36,7 +36,11 @@
             color: var(--text);
             font-size: 14px;
             line-height: 1.6;
-            min-height: 100vh;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
         header {
@@ -48,8 +52,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            position: sticky;
-            top: 0;
+            flex-shrink: 0;
             z-index: 1000;
         }
 
@@ -67,20 +70,31 @@
         }
 
         .container {
-            max-width: 1200px;
-            margin: 40px auto;
-            padding: 0 24px;
+            width: 100%;
+            padding: 24px 40px;
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
         .card {
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 32px;
+            padding: 24px;
             box-shadow: var(--shadow);
-            margin-bottom: 32px;
+            margin-bottom: 24px;
             position: relative;
             overflow: hidden;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #step-results {
+            flex: 1;
+            min-height: 0; /* Important for flex child overflow */
         }
 
         .step-num {
@@ -206,6 +220,39 @@
             padding: 24px;
             border-radius: var(--radius);
             text-align: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--primary);
+        }
+
+        .stat-card.active {
+            background: var(--primary-glow);
+            border-color: var(--primary);
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        .stat-card.active[data-status="overdue"] {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: var(--danger);
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
+        }
+
+        .stat-card.active[data-status="soon"] {
+            background: rgba(245, 158, 11, 0.15);
+            border-color: var(--warning);
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
+        }
+
+        .stat-card.active[data-status="2w"] {
+            background: rgba(56, 189, 248, 0.15);
+            border-color: var(--primary);
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
         }
 
         .stat-val {
@@ -223,24 +270,30 @@
 
         .table-container {
             width: 100%;
-            overflow-x: auto;
+            overflow: auto;
             border-radius: 8px;
             border: 1px solid var(--border);
+            flex: 1;
+            min-height: 0;
         }
 
         table {
             width: 100%;
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0;
             text-align: left;
         }
 
         th {
-            background: rgba(0, 0, 0, 0.2);
+            background: var(--surface);
             padding: 16px;
             font-size: 11px;
             color: var(--muted);
             text-transform: uppercase;
             border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
 
         td {
@@ -365,7 +418,6 @@
         .sortable {
             cursor: pointer;
             user-select: none;
-            position: relative;
             padding-right: 20px !important;
         }
 
@@ -400,6 +452,125 @@
             padding: 2px 8px;
             border-radius: 12px;
             font-size: 11px;
+        }
+
+        /* Board Group Headers */
+        .board-group-header {
+            background: rgba(255, 255, 255, 0.03) !important;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .board-group-header:hover {
+            background: rgba(255, 255, 255, 0.06) !important;
+        }
+
+        .board-group-header td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .board-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .board-chevron {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            color: var(--muted);
+            width: 14px;
+        }
+
+        .is-collapsed .board-chevron {
+            transform: rotate(-90deg);
+        }
+
+        .board-tag {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            margin-left: 4px;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .board-tag.overdue {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .board-tag.soon {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        .board-tag.v2w {
+            background: rgba(56, 189, 248, 0.15);
+            color: var(--primary);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+
+        .folder-sub {
+            font-size: 10px;
+            color: var(--muted);
+            font-weight: 400;
+            margin-left: 4px;
+        }
+
+        /* Loading Toast */
+        #loading-toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--primary);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+            z-index: 2000;
+            transform: translateY(150px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            width: 320px;
+        }
+
+        #loading-toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .toast-content {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        #loading-toast .progress-bar {
+            margin: 0;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        #loading-toast #progress-text {
+            font-size: 11px;
+            margin: 0;
         }
     </style>
 </head>
@@ -440,27 +611,27 @@
             </div>
         </div>
         <div class="card" id="step-results" style="display: none;">
-            <span class="step-num">3</span>
-            <h2>Auditing...</h2>
-            <div class="progress-bar">
-                <div class="progress-fill" id="progress-fill"></div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <div style="display: flex; align-items: center;">
+                    <span class="step-num">3</span>
+                    <h2 style="margin: 0;">Audit Results</h2>
+                </div>
             </div>
-            <div id="progress-text" style="font-size: 12px; color: var(--muted); margin-bottom: 32px;">Initializing...
-            </div>
+            
             <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
-                <div class="stat-card">
+                <div class="stat-card" data-status="all" onclick="setStatusFilter('all')">
                     <div class="stat-val" id="stat-boards">0</div>
                     <div class="stat-lbl">Boards</div>
                 </div>
-                <div class="stat-card" style="border-color: var(--danger);">
+                <div class="stat-card" data-status="overdue" onclick="setStatusFilter('overdue')">
                     <div class="stat-val" id="stat-overdue" style="color: var(--danger);">0</div>
                     <div class="stat-lbl">Overdue</div>
                 </div>
-                <div class="stat-card" style="border-color: var(--warning);">
+                <div class="stat-card" data-status="soon" onclick="setStatusFilter('soon')">
                     <div class="stat-val" id="stat-soon" style="color: var(--warning);">0</div>
                     <div class="stat-lbl">Due Soon</div>
                 </div>
-                <div class="stat-card" style="border-color: var(--primary);">
+                <div class="stat-card" data-status="2w" onclick="setStatusFilter('2w')">
                     <div class="stat-val" id="stat-2w" style="color: var(--primary);">0</div>
                     <div class="stat-lbl">Due 2 Weeks</div>
                 </div>
@@ -473,13 +644,7 @@
                 <div class="filter-bar">
                     <div
                         style="color: var(--muted); font-size: 11px; text-transform: uppercase; font-weight: 700; width: 100%; display: flex; justify-content: space-between; align-items: center;">
-                        <span>Filters</span>
-                    </div>
-                    <div class="filter-chips" id="status-chips">
-                        <div class="chip active" onclick="setStatusFilter('all')">All</div>
-                        <div class="chip" onclick="setStatusFilter('overdue')">Overdue</div>
-                        <div class="chip" onclick="setStatusFilter('soon')">Due Soon</div>
-                        <div class="chip" onclick="setStatusFilter('2w')">2 Weeks</div>
+                        <span>Filters (Item Search)</span>
                     </div>
                     <div style="display: flex; gap: 16px; width: 100%;">
                         <input type="text" id="filter-text" class="filter-input" placeholder="Search by item or board..."
@@ -510,25 +675,42 @@
         </div>
     </div>
 
+    <div id="loading-toast">
+        <div class="toast-header">
+            <div class="loading-spinner"></div>
+            <div class="toast-content" id="toast-text">Fetching data...</div>
+        </div>
+        <div class="progress-bar" id="toast-progress-container" style="display: none;">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <div id="progress-text" style="display: none; color: var(--muted);">Initializing...</div>
+    </div>
+
     <script>
         const LAMBDA = "https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday";
         let state = {
-            apiKey: localStorage.getItem('monday_api_key') || 'eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjU2MTgzNDg0NiwiYWFpIjoxMSwidWlkIjoxMTkwNzA1MCwiaWFkIjoiMjAyNS0wOS0xNVQwMjo1ODowMC4yMDNaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6NDk4MzM0NiwicmduIjoidXNlMSJ9.nqKAEHVsrKS18eFmRjxFo0xz360BOP5t7IV0aFl5R84',
+            apiKey: localStorage.getItem('monday_api_key') || '',
             slug: '', folders: [], selectedFolderIds: new Set(), auditedItems: [],
             stats: { boardsAudited: 0, totalItems: 0, overdueTotal: 0, soonTotal: 0, v2wTotal: 0 },
             sort: { key: 'deadline', dir: 'asc' },
-            filters: { text: '', person: '', status: 'all' }
+            filters: { text: '', person: '', status: 'all' },
+            expandedBoardIds: new Set()
         };
 
         window.onload = () => { if (state.apiKey) { document.getElementById('api-key').value = state.apiKey; connectMonday(); } };
 
         async function monday(query, variables = {}) {
-            const r = await fetch(LAMBDA, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_monday_data', query, variables, api_key: state.apiKey }) });
-            const res = await r.json();
-            const data = typeof res.body === 'string' ? JSON.parse(res.body) : (res.body || res);
-            if (data.errors) throw new Error(data.errors[0].message);
-            if (data.error) throw new Error(data.error);
-            return data.data || data;
+            showToast("Connecting to Monday...");
+            try {
+                const r = await fetch(LAMBDA, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_monday_data', query, variables, api_key: state.apiKey }) });
+                const res = await r.json();
+                const data = typeof res.body === 'string' ? JSON.parse(res.body) : (res.body || res);
+                if (data.errors) throw new Error(data.errors[0].message);
+                if (data.error) throw new Error(data.error);
+                return data.data || data;
+            } finally {
+                hideToast();
+            }
         }
 
         async function connectMonday() {
@@ -624,7 +806,13 @@
             const queue = [];
             state.selectedFolderIds.forEach(fid => { const f = state.folders.find(x => x.id === fid); f.boards.forEach(b => { if (!queue.find(q => q.id === b.id)) queue.push({ ...b, folderName: f.name }); }); });
             document.getElementById('step-folders').style.display = 'none';
-            document.getElementById('step-results').style.display = 'block';
+            document.getElementById('step-results').style.display = 'flex';
+            
+            // Setup toast for persistent auditing
+            showToast("Starting audit...");
+            document.getElementById('toast-progress-container').style.display = 'block';
+            document.getElementById('progress-text').style.display = 'block';
+            toastCount = 999; // Lock toast open
 
             let finished = 0, total = queue.length;
             async function work() {
@@ -717,6 +905,13 @@
                 }
             }
             await Promise.all(Array(5).fill(0).map(work));
+            
+            toastCount = 0; // Unlock toast
+            hideToast();
+            setTimeout(() => {
+                document.getElementById('toast-progress-container').style.display = 'none';
+                document.getElementById('progress-text').style.display = 'none';
+            }, 3000); // Hide progress bar after 3 seconds
         }
 
         function updateUI(pct) {
@@ -729,20 +924,43 @@
             document.getElementById('stat-items').innerText = state.stats.totalItems.toLocaleString();
 
             if (state.auditedItems.length > 0) {
-                document.getElementById('results-controls').style.display = 'block';
+                const controls = document.getElementById('results-controls');
+                controls.style.display = 'flex';
+                controls.style.flexDirection = 'column';
+                controls.style.flex = '1';
+                controls.style.minHeight = '0';
+                controls.style.gap = '16px';
                 updateFilteredUI();
             }
+            
+            // Sync active state of cards
+            document.querySelectorAll('.stat-card').forEach(c => {
+                c.classList.toggle('active', c.dataset.status === state.filters.status);
+            });
         }
 
         function setStatusFilter(val) {
-            state.filters.status = val;
-            document.querySelectorAll('.chip').forEach(c => {
-                c.classList.remove('active');
-                if (c.innerText.toLowerCase().includes(val === '2w' ? '2 weeks' : val === 'soon' ? 'soon' : val)) {
-                    c.classList.add('active');
-                }
-            });
+            if (state.filters.status === val && val !== 'all') state.filters.status = 'all';
+            else state.filters.status = val;
+            
+            updateUI(100); // Trigger UI refresh to update active classes
             updateFilteredUI();
+        }
+
+        let toastCount = 0;
+        function showToast(text) {
+            toastCount++;
+            const t = document.getElementById('loading-toast');
+            document.getElementById('toast-text').innerText = text || 'Processing...';
+            t.classList.add('show');
+        }
+
+        function hideToast() {
+            toastCount--;
+            if (toastCount <= 0) {
+                toastCount = 0;
+                document.getElementById('loading-toast').classList.remove('show');
+            }
         }
 
         function handleSort(key) {
@@ -772,43 +990,89 @@
                 return matchesText && matchesPerson && matchesStatus;
             });
 
-            // Sort
-            filtered.sort((a, b) => {
-                let vA = a[state.sort.key] || '', vB = b[state.sort.key] || '';
-                if (state.sort.key === 'deadline') {
-                    vA = vA ? new Date(vA).getTime() : 0;
-                    vB = vB ? new Date(vB).getTime() : 0;
-                }
-                return state.sort.dir === 'asc' ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
+            // Group by Board
+            const groups = {};
+            filtered.forEach(i => {
+                if (!groups[i.bId]) groups[i.bId] = { id: i.bId, name: i.bName, folder: i.fName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 } };
+                groups[i.bId].items.push(i);
+                groups[i.bId].counts[i.status === '2w' ? 'v2w' : i.status]++;
+            });
+
+            // Sort groups by Board Name
+            const sortedGroups = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
+
+            // Sort items within groups
+            sortedGroups.forEach(g => {
+                g.items.sort((a, b) => {
+                    let vA = a[state.sort.key] || '', vB = b[state.sort.key] || '';
+                    if (state.sort.key === 'deadline') {
+                        vA = vA ? new Date(vA).getTime() : 0;
+                        vB = vB ? new Date(vB).getTime() : 0;
+                    }
+                    return state.sort.dir === 'asc' ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
+                });
             });
 
             const body = document.getElementById('results-table-body');
-            body.innerHTML = filtered.map(i => {
-                let tagClass = 'tag-overdue';
-                let tagLabel = 'Overdue';
-                let daysColor = 'var(--danger)';
+            let html = '';
 
-                if (i.status === 'soon') {
-                    tagClass = 'tag-soon';
-                    tagLabel = 'Due Soon';
-                    daysColor = 'var(--warning)';
-                } else if (i.status === '2w') {
-                    tagClass = 'tag-2w';
-                    tagLabel = 'Due 2W';
-                    daysColor = 'var(--primary)';
-                }
-
-                return `
-                <tr>
-                    <td><a href="https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}" target="_blank" class="item-link">${i.name} <i class="fas fa-external-link-alt" style="font-size:0.8em"></i></a></td>
-                    <td><div class="person-badge"><i class="fas fa-user"></i> ${i.person || 'Unassigned'}</div></td>
-                    <td style="text-align:center; font-family:monospace; color:var(--muted)">${i.deadlineDisplay}</td>
-                    <td style="text-align:center; font-weight:800; color:${daysColor}">${i.daysOverdue}d</td>
-                    <td><div style="font-weight:600">${i.bName}</div><div style="font-size:11px;color:var(--muted)">${i.fName}</div></td>
-                    <td style="text-align:right"><span class="${tagClass}">${tagLabel}</span></td>
+            sortedGroups.forEach(g => {
+                const isExpanded = state.expandedBoardIds.has(g.id);
+                
+                // Group Header
+                html += `
+                <tr class="board-group-header ${!isExpanded ? 'is-collapsed' : ''}" onclick="toggleBoardExpansion('${g.id}')">
+                    <td colspan="6">
+                        <div class="board-info">
+                            <i class="fas fa-chevron-down board-chevron"></i>
+                            <span>${g.name} <span class="folder-sub">in ${g.folder}</span></span>
+                            <div style="display: flex; gap: 4px; margin-left: 12px;">
+                                ${g.counts.overdue > 0 ? `<span class="board-tag overdue">${g.counts.overdue} Overdue</span>` : ''}
+                                ${g.counts.soon > 0 ? `<span class="board-tag soon">${g.counts.soon} Soon</span>` : ''}
+                                ${g.counts.v2w > 0 ? `<span class="board-tag v2w">${g.counts.v2w} 2W</span>` : ''}
+                            </div>
+                        </div>
+                    </td>
                 </tr>
-            `;
-            }).join('');
+                `;
+
+                if (isExpanded) {
+                    g.items.forEach(i => {
+                        let tagClass = 'tag-overdue';
+                        let tagLabel = 'Overdue';
+                        let daysColor = 'var(--danger)';
+
+                        if (i.status === 'soon') {
+                            tagClass = 'tag-soon';
+                            tagLabel = 'Due Soon';
+                            daysColor = 'var(--warning)';
+                        } else if (i.status === '2w') {
+                            tagClass = 'tag-2w';
+                            tagLabel = 'Due 2W';
+                            daysColor = 'var(--primary)';
+                        }
+
+                        html += `
+                        <tr class="item-row">
+                            <td><a href="https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}" target="_blank" class="item-link">${i.name} <i class="fas fa-external-link-alt" style="font-size:0.8em"></i></a></td>
+                            <td><div class="person-badge"><i class="far fa-user"></i> ${i.person}</div></td>
+                            <td style="text-align: center; color: var(--muted); font-family: monospace;">${i.deadlineDisplay}</td>
+                            <td style="text-align: center; font-weight: 700; color: ${daysColor}">${i.daysOverdue > 0 ? i.daysOverdue + 'd' : '-'}</td>
+                            <td style="color: var(--muted); font-size: 11px;">${i.bName}</td>
+                            <td style="text-align: right;"><span class="${tagClass}">${tagLabel}</span></td>
+                        </tr>
+                        `;
+                    });
+                }
+            });
+
+            body.innerHTML = html;
+        }
+
+        function toggleBoardExpansion(bId) {
+            if (state.expandedBoardIds.has(bId)) state.expandedBoardIds.delete(bId);
+            else state.expandedBoardIds.add(bId);
+            updateFilteredUI();
         }
 
         function showError(m) { const e = document.getElementById('error-message'); e.innerText = m; e.style.display = m ? 'block' : 'none'; }
