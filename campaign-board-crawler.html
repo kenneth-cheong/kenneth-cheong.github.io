@@ -568,6 +568,69 @@
             padding-bottom: 16px;
         }
 
+        /* Person Multi-Select Dropdown */
+        .person-filter-wrapper {
+            position: relative;
+            flex: 1;
+        }
+
+        .person-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            background: rgba(30, 41, 59, 0.98);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            z-index: 1500;
+            display: none;
+            flex-direction: column;
+            padding: 12px;
+            max-height: 350px;
+        }
+
+        .person-dropdown.show { display: flex; }
+
+        .person-list {
+            overflow-y: auto;
+            flex: 1;
+            margin: 8px 0;
+        }
+
+        .person-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 12px;
+        }
+
+        .person-item:hover { background: rgba(255, 255, 255, 0.05); }
+        .person-item.selected { background: var(--primary-glow); border: 1px solid var(--primary); }
+
+        .person-controls {
+            display: flex;
+            gap: 12px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border);
+        }
+
+        .person-btn {
+            font-size: 10px;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: var(--primary);
+            cursor: pointer;
+            opacity: 0.8;
+        }
+
+        .person-btn:hover { opacity: 1; }
+
         /* Loading Toast */
         #loading-toast {
             position: fixed;
@@ -684,7 +747,19 @@
 
                 <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
                     <input type="text" id="filter-text" class="filter-input" style="flex: 1; padding: 6px 10px; font-size: 12px;" placeholder="Search items or boards..." oninput="updateFilteredUI()">
-                    <input type="text" id="filter-person" class="filter-input" style="flex: 1; padding: 6px 10px; font-size: 12px;" placeholder="Filter by person..." oninput="updateFilteredUI()">
+                    
+                    <div class="person-filter-wrapper">
+                        <input type="text" id="filter-person-input" class="filter-input" style="width: 100%; padding: 6px 10px; font-size: 12px;" placeholder="Filter by people..." onfocus="togglePersonDropdown(true)" oninput="renderPersonOptions()">
+                        <div id="person-dropdown" class="person-dropdown">
+                            <div id="person-list" class="person-list"></div>
+                            <div class="person-controls">
+                                <span class="person-btn" onclick="selectAllPeople()">Select All</span>
+                                <span class="person-btn" onclick="clearPeople()">Clear</span>
+                                <span class="person-btn" style="margin-left:auto; color:var(--muted)" onclick="togglePersonDropdown(false)">Close</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <button class="btn btn-secondary" onclick="toggleSettings()" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px;">
                         <i class="fas fa-cog"></i> Settings
                     </button>
@@ -736,7 +811,7 @@
             slug: '', folders: [], selectedFolderIds: new Set(), auditedItems: [],
             stats: { boardsAudited: 0, totalItems: 0, overdueTotal: 0, soonTotal: 0, v2wTotal: 0 },
             sort: { key: 'deadline', dir: 'asc' },
-            filters: { text: '', person: '', status: 'all' },
+            filters: { text: '', people: new Set(), status: 'all' },
             expandedBoardIds: new Set(),
             allStatusLabels: [],
             excludedStatusLabels: new Set([
@@ -1040,7 +1115,7 @@
                                 deadline: dv ? (dv.date || dv.to) : null,
                                 deadlineDisplay: dateDisplay,
                                 daysOverdue: diffDays,
-                                person: assigned?.text || 'Unassigned',
+                                people: assigned?.text ? assigned.text.split(/, | & | and /).map(p => p.trim()) : ['Unassigned'],
                                 status: status,
                                 itemStatus: st?.label || ''
                             };
@@ -1126,7 +1201,7 @@
 
         function updateFilteredUI() {
             const queryText = document.getElementById('filter-text').value.toLowerCase();
-            const queryPerson = document.getElementById('filter-person').value.toLowerCase();
+            const queryPerson = document.getElementById('filter-person-input').value.toLowerCase();
 
             // Dynamic Stats Calculation
             let liveStats = { boards: new Set(), overdue: 0, soon: 0, v2w: 0, total: 0 };
@@ -1135,12 +1210,22 @@
                 // Status Exclusion Filter (Dynamic)
                 if (state.excludedStatusLabels.has(i.itemStatus)) return false;
 
+                // Status Filter (Grid Tabs)
+                if (state.filters.status !== 'all' && i.status !== state.filters.status) return false;
+
+                // Multi-Person Filter
+                if (state.filters.people.size > 0) {
+                    const hasMatch = i.people.some(p => state.filters.people.has(p));
+                    if (!hasMatch) return false;
+                }
+
+                // Search Box Filter
                 const matchesText = i.name.toLowerCase().includes(queryText) || i.bName.toLowerCase().includes(queryText);
-                const matchesPerson = (i.person || '').toLowerCase().includes(queryPerson);
-                const matchesStatusFilter = state.filters.status === 'all' || i.status === state.filters.status;
-                
-                const isMatch = matchesText && matchesPerson && matchesStatusFilter;
-                
+                if (!matchesText) return false;
+
+                // Individual Person Search Match (from input)
+                if (queryPerson && !i.people.some(p => p.toLowerCase().includes(queryPerson))) return false;
+
                 // Track stats for the subset matching the status exclusions (but NOT limited by text/person/card filters)
                 liveStats.total++;
                 liveStats.boards.add(i.bId);
@@ -1148,7 +1233,7 @@
                 else if (i.status === 'soon') liveStats.soon++;
                 else if (i.status === '2w') liveStats.v2w++;
 
-                return isMatch;
+                return true;
             });
 
             // Update Global Stat Cards
@@ -1223,7 +1308,7 @@
                         html += `
                         <tr class="item-row">
                             <td><a href="https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}" target="_blank" class="item-link">${i.name} <i class="fas fa-external-link-alt" style="font-size:0.8em"></i></a></td>
-                            <td><div class="person-badge"><i class="far fa-user"></i> ${i.person}</div></td>
+                            <td><div class="person-badge"><i class="far fa-user"></i> ${i.people.join(', ')}</div></td>
                             <td style="text-align: center; color: var(--muted); font-family: monospace;">${i.deadlineDisplay}</td>
                             <td style="text-align: center; font-weight: 700; color: ${daysColor}">${i.daysOverdue > 0 ? i.daysOverdue + 'd' : '-'}</td>
                             <td style="color: var(--muted); font-size: 11px;">${i.bName}</td>
@@ -1249,6 +1334,69 @@
             p.classList.toggle('show');
             if (b) b.classList.toggle('show');
         }
+
+        // --- Person Multi-Select Logic ---
+        function togglePersonDropdown(show) {
+            const d = document.getElementById('person-dropdown');
+            if (show) {
+                d.classList.add('show');
+                renderPersonOptions();
+            } else {
+                d.classList.remove('show');
+            }
+        }
+
+        function renderPersonOptions() {
+            const list = document.getElementById('person-list');
+            const query = document.getElementById('filter-person-input').value.toLowerCase();
+            
+            // Extract unique people from all items (flattened)
+            const people = [...new Set(state.auditedItems.flatMap(i => i.people))].sort();
+            
+            const html = people.filter(p => p.toLowerCase().includes(query)).map(p => `
+                <div class="person-item ${state.filters.people.has(p) ? 'selected' : ''}" onclick="togglePersonSelection('${p.replace(/'/g, "\\'")}')">
+                    <input type="checkbox" ${state.filters.people.has(p) ? 'checked' : ''} style="pointer-events: none;">
+                    <span>${p}</span>
+                </div>
+            `).join('');
+            
+            list.innerHTML = html || '<div style="padding:10px; font-size:11px; color:var(--muted)">No people found...</div>';
+            updateFilteredUI(); // Update results as we type/search
+        }
+
+        function togglePersonSelection(name) {
+            if (name) {
+                if (state.filters.people.has(name)) state.filters.people.delete(name);
+                else state.filters.people.add(name);
+            }
+            
+            // Update the input placeholder to show names separated by commas
+            const input = document.getElementById('filter-person-input');
+            const names = [...state.filters.people].sort();
+            input.placeholder = names.length > 0 ? names.join(", ") : "Filter by people...";
+            
+            renderPersonOptions();
+        }
+
+        function selectAllPeople() {
+            const people = [...new Set(state.auditedItems.flatMap(i => i.people))];
+            people.forEach(p => state.filters.people.add(p));
+            togglePersonSelection(null); // Just to trigger UI refresh
+        }
+
+        function clearPeople() {
+            state.filters.people.clear();
+            togglePersonSelection(null); // Just to trigger UI refresh
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('mousedown', (e) => {
+            const d = document.getElementById('person-dropdown');
+            const wrapper = document.querySelector('.person-filter-wrapper');
+            if (d.classList.contains('show') && !wrapper.contains(e.target)) {
+                togglePersonDropdown(false);
+            }
+        });
 
         function showError(m) { const e = document.getElementById('error-message'); e.innerText = m; e.style.display = m ? 'block' : 'none'; }
     </script>
