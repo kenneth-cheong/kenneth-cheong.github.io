@@ -71,9 +71,10 @@
 
         .container {
             width: 100%;
-            padding: 8px 16px;
+            padding: 8px 16px 40px 16px;
             flex: 1;
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -170,8 +171,6 @@
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 16px;
-            max-height: 400px;
-            overflow-y: auto;
             padding: 8px;
             margin-top: 16px;
         }
@@ -270,10 +269,8 @@
 
         .table-container {
             width: 100%;
-            overflow: auto;
             border-radius: 8px;
             border: 1px solid var(--border);
-            flex: 1;
             min-height: 0;
         }
 
@@ -290,10 +287,11 @@
             font-size: 11px;
             color: var(--muted);
             text-transform: uppercase;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 2px solid var(--border);
             position: sticky;
             top: 0;
-            z-index: 10;
+            z-index: 100;
+            box-shadow: 0 1px 0 var(--border);
         }
 
         td {
@@ -846,6 +844,121 @@
             opacity: 1;
         }
 
+        /* Manager Dashboard Headers */
+        .staff-group-header {
+            background: rgba(56, 189, 248, 0.05) !important;
+            cursor: pointer;
+        }
+        .staff-group-header td {
+            padding: 14px 16px;
+            color: var(--primary);
+            font-size: 14px;
+            font-weight: 800;
+            border-bottom: 2px solid var(--border);
+        }
+        .campaign-sub-header {
+            background: rgba(255, 255, 255, 0.02) !important;
+            cursor: pointer;
+        }
+        .campaign-sub-header td {
+            padding: 10px 16px 10px 40px;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+            border-bottom: 1px solid var(--border);
+        }
+        .view-toggle-container {
+            display: flex;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 4px;
+            border: 1px solid var(--border);
+            gap: 4px;
+        }
+        .view-toggle-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .view-toggle-btn:hover { color: var(--text); }
+        .view-toggle-btn.active {
+            background: var(--primary);
+            color: var(--bg);
+        }
+
+        .staff-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px;
+            margin: 0 0 24px 0;
+            padding: 8px 4px;
+        }
+
+        .staff-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            position: relative;
+        }
+
+        .staff-card:hover {
+            transform: translateY(-4px);
+            background: rgba(255, 255, 255, 0.06);
+            border-color: var(--primary);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .staff-card.active {
+            background: var(--primary-glow);
+            border-color: var(--primary);
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        .staff-card .staff-name {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .staff-stats-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .staff-stat-badge {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            min-width: 40px;
+            justify-content: center;
+        }
+
+        .staff-stat-badge.overdue { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2); }
+        .staff-stat-badge.soon { background: rgba(245, 158, 11, 0.15); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2); }
+        .staff-stat-badge.v2w { background: rgba(56, 189, 248, 0.15); color: var(--primary); border: 1px solid rgba(56, 189, 248, 0.2); }
+        .staff-stat-badge.total { background: rgba(255, 255, 255, 0.05); color: var(--muted); border: 1px solid rgba(255, 255, 255, 0.1); }
+
         .expansion-trigger {
             cursor: pointer;
             width: 24px;
@@ -971,6 +1084,15 @@
                     <button class="btn btn-secondary" onclick="toggleSettings()" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px;">
                         <i class="fas fa-cog"></i> Settings
                     </button>
+
+                    <div class="view-toggle-container">
+                        <div class="view-toggle-btn" id="view-manager" onclick="setViewMode('manager')">
+                            <i class="fas fa-users-cog"></i> Manager Dashboard
+                        </div>
+                        <div class="view-toggle-btn" id="view-auditor" onclick="setViewMode('auditor')">
+                            <i class="fas fa-table"></i> Auditor View
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Floating Settings Popover -->
@@ -983,7 +1105,9 @@
                 </div>
             </div>
 
-            <div class="table-container" style="flex: 1; min-height: 0; overflow: auto; background: var(--surface); border-radius: 12px; border: 1px solid var(--border);">
+            <div id="results-scroll-area" style="flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; position: relative;">
+                <div id="manager-grid-container" style="display: none;"></div>
+                <div class="table-container" style="background: var(--surface); border-radius: 12px; border: 1px solid var(--border);">
                 <table style="width: 100%; border-collapse: separate; border-spacing: 0;">
                     <thead>
                         <tr>
@@ -997,6 +1121,7 @@
                     </thead>
                     <tbody id="results-table-body"></tbody>
                 </table>
+            </div>
             </div>
         </div>
     </div>
@@ -1022,8 +1147,12 @@
             filters: { text: '', people: new Set(), status: 'all' },
             expandedBoardIds: new Set(),
             expandedItemIds: new Set(),
+            expandedStaffIds: new Set(),
+            expandedManagerBoardIds: new Set(),
             itemUpdates: {},
             updateMetadata: {}, // { itemId: { page: 1, hasMore: true, loadingMore: false } }
+            viewMode: 'manager',
+            selectedStaffName: null,
             allStatusLabels: [],
             excludedStatusLabels: new Set([
                 'Done', 'Completed', 'Finished', 'Approved', 
@@ -1410,51 +1539,7 @@
             updateFilteredUI();
         }
 
-        function updateFilteredUI() {
-            const queryText = document.getElementById('filter-text').value.toLowerCase();
-            const queryPerson = document.getElementById('filter-person-input').value.toLowerCase();
-
-            // Dynamic Stats Calculation
-            let liveStats = { boards: new Set(), overdue: 0, soon: 0, v2w: 0, total: 0 };
-
-            let filtered = state.auditedItems.filter(i => {
-                // Status Exclusion Filter (Dynamic)
-                if (state.excludedStatusLabels.has(i.itemStatus)) return false;
-
-                // Status Filter (Grid Tabs)
-                if (state.filters.status !== 'all' && i.status !== state.filters.status) return false;
-
-                // Multi-Person Filter
-                if (state.filters.people.size > 0) {
-                    const hasMatch = i.people.some(p => state.filters.people.has(p));
-                    if (!hasMatch) return false;
-                }
-
-                // Search Box Filter
-                const matchesText = i.name.toLowerCase().includes(queryText) || i.bName.toLowerCase().includes(queryText);
-                if (!matchesText) return false;
-
-                // Individual Person Search Match (from input)
-                if (queryPerson && !i.people.some(p => p.toLowerCase().includes(queryPerson))) return false;
-
-                // Track stats for the subset matching the status exclusions (but NOT limited by text/person/card filters)
-                liveStats.total++;
-                liveStats.boards.add(i.bId);
-                if (i.status === 'overdue') liveStats.overdue++;
-                else if (i.status === 'soon') liveStats.soon++;
-                else if (i.status === '2w') liveStats.v2w++;
-
-                return true;
-            });
-
-            // Update Global Stat Cards
-            document.getElementById('stat-boards').innerText = liveStats.boards.size;
-            document.getElementById('stat-overdue').innerText = liveStats.overdue;
-            document.getElementById('stat-soon').innerText = liveStats.soon;
-            document.getElementById('stat-2w').innerText = liveStats.v2w;
-            document.getElementById('stat-items').innerText = liveStats.total;
-
-            // Group by Board
+        function renderAuditorView(filtered) {
             const groups = {};
             filtered.forEach(i => {
                 if (!groups[i.bId]) groups[i.bId] = { id: i.bId, name: i.bName, folder: i.fName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 } };
@@ -1462,10 +1547,7 @@
                 groups[i.bId].counts[i.status === '2w' ? 'v2w' : i.status]++;
             });
 
-            // Sort groups by Board Name
             const sortedGroups = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
-
-            // Sort items within groups
             sortedGroups.forEach(g => {
                 g.items.sort((a, b) => {
                     let vA = a[state.sort.key] || '', vB = b[state.sort.key] || '';
@@ -1482,8 +1564,6 @@
 
             sortedGroups.forEach(g => {
                 const isExpanded = state.expandedBoardIds.has(g.id);
-                
-                // Group Header
                 html += `
                 <tr class="board-group-header ${!isExpanded ? 'is-collapsed' : ''}" onclick="toggleBoardExpansion('${g.id}')">
                     <td colspan="6">
@@ -1502,52 +1582,234 @@
 
                 if (isExpanded) {
                     g.items.forEach(i => {
-                        let tagClass = 'tag-overdue';
-                        let tagLabel = 'Overdue';
-                        let daysColor = 'var(--danger)';
-
-                        if (i.status === 'soon') {
-                            tagClass = 'tag-soon';
-                            tagLabel = 'Due Soon';
-                            daysColor = 'var(--warning)';
-                        } else if (i.status === '2w') {
-                            tagClass = 'tag-2w';
-                            tagLabel = 'Due 2W';
-                            daysColor = 'var(--primary)';
-                        }
-
-                        html += `
-                        <tr class="item-row ${state.expandedItemIds.has(i.id) ? 'is-expanded' : ''}">
-                            <td style="display: flex; align-items: center; gap: 8px;">
-                                <div class="expansion-trigger" onclick="toggleItemExpansion('${i.id}')">
-                                    <i class="fas fa-chevron-right"></i>
-                                </div>
-                                <a href="https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}" target="_blank" class="item-link">${i.name} <i class="fas fa-external-link-alt" style="font-size:0.8em"></i></a>
-                            </td>
-                            <td><div class="person-badge"><i class="far fa-user"></i> ${i.people.join(', ')}</div></td>
-                            <td style="text-align: center; color: var(--muted); font-family: monospace;">${i.deadlineDisplay}</td>
-                            <td style="text-align: center; font-weight: 700; color: ${daysColor}">${i.daysOverdue > 0 ? i.daysOverdue + 'd' : '-'}</td>
-                            <td style="color: var(--muted); font-size: 11px;">${i.bName}</td>
-                            <td style="text-align: right;"><span class="${tagClass}">${tagLabel}</span></td>
-                        </tr>
-                        `;
-
-                        if (state.expandedItemIds.has(i.id)) {
-                            html += `
-                            <tr class="item-updates-row">
-                                <td colspan="6" style="padding: 0; border: none;">
-                                    <div class="updates-container">
-                                        ${renderUpdates(i.id)}
-                                    </div>
-                                </td>
-                            </tr>
-                            `;
-                        }
+                        html += renderItemRow(i);
                     });
                 }
             });
 
             body.innerHTML = html;
+        }
+
+        function selectStaffCard(name) {
+            if (state.selectedStaffName === name) state.selectedStaffName = null;
+            else state.selectedStaffName = name;
+            updateFilteredUI();
+        }
+
+        function renderManagerView(filtered) {
+            const gridContainer = document.getElementById('manager-grid-container');
+            const body = document.getElementById('results-table-body');
+            
+            gridContainer.style.display = 'block';
+            
+            // Group by Staff & Calculate Counts
+            const staffGroups = {};
+            filtered.forEach(i => {
+                i.people.forEach(person => {
+                    const isDeleted = person.toLowerCase().includes('deleted');
+                    const isSelected = state.filters.people.has(person);
+
+                    // Skip "deleted" staff by default UNLESS they are explicitly selected in the filter
+                    if (isDeleted && !isSelected) return;
+                    
+                    // Standard filter: if other people are selected, only show them
+                    if (state.filters.people.size > 0 && !isSelected) return;
+
+                    if (!staffGroups[person]) {
+                        staffGroups[person] = { 
+                            name: person, 
+                            count: 0, 
+                            overdue: 0, 
+                            soon: 0, 
+                            v2w: 0, 
+                            campaigns: {} 
+                        };
+                    }
+                    staffGroups[person].count++;
+                    staffGroups[person][i.status === '2w' ? 'v2w' : i.status]++;
+                    
+                    if (!staffGroups[person].campaigns[i.bId]) {
+                        staffGroups[person].campaigns[i.bId] = { id: i.bId, name: i.bName, folder: i.fName, items: [] };
+                    }
+                    staffGroups[person].campaigns[i.bId].items.push(i);
+                });
+            });
+
+            const sortedStaff = Object.values(staffGroups).sort((a, b) => a.name.localeCompare(b.name));
+            
+            // Render Grid
+            let gridHtml = '<div class="staff-grid">';
+            sortedStaff.forEach(s => {
+                const isActive = state.selectedStaffName === s.name;
+                gridHtml += `
+                <div class="staff-card ${isActive ? 'active' : ''}" onclick="selectStaffCard('${s.name.replace(/'/g, "\\'")}')">
+                    <div class="staff-name">
+                        <i class="fas fa-user-circle"></i>
+                        ${s.name}
+                    </div>
+                    <div class="staff-stats-row">
+                        ${s.overdue > 0 ? `<div class="staff-stat-badge overdue" title="Overdue">${s.overdue}<span style="font-size:8px; opacity:0.6; margin-left:2px;">O</span></div>` : ''}
+                        ${s.soon > 0 ? `<div class="staff-stat-badge soon" title="Due Soon">${s.soon}<span style="font-size:8px; opacity:0.6; margin-left:2px;">S</span></div>` : ''}
+                        ${s.v2w > 0 ? `<div class="staff-stat-badge v2w" title="Due 2W">${s.v2w}<span style="font-size:8px; opacity:0.6; margin-left:2px;">2W</span></div>` : ''}
+                        <div class="staff-stat-badge total" title="Total Tasks">${s.count}</div>
+                    </div>
+                </div>
+                `;
+            });
+            gridHtml += '</div>';
+            gridContainer.innerHTML = gridHtml || '<div style="padding:40px; text-align:center; color:var(--muted)">No staff data found matching your filters.</div>';
+
+            // Render Details Table for Selected Staff
+            let tableHtml = '';
+            if (state.selectedStaffName && staffGroups[state.selectedStaffName]) {
+                const s = staffGroups[state.selectedStaffName];
+                const sortedCampaigns = Object.values(s.campaigns).sort((a, b) => a.name.localeCompare(b.name));
+                
+                sortedCampaigns.forEach(c => {
+                    const compoundId = `${s.name}-${c.id}`;
+                    const isCampaignExpanded = state.expandedManagerBoardIds.has(compoundId);
+                    
+                    tableHtml += `
+                    <tr class="campaign-sub-header" onclick="toggleManagerBoardExpansion('${compoundId.replace(/'/g, "\\'")}')">
+                        <td colspan="6">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <i class="fas ${isCampaignExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="width: 12px; opacity: 0.5;"></i>
+                                <span>${c.name} <span class="folder-sub">in ${c.folder}</span></span>
+                                <span style="font-size: 10px; opacity: 0.6; margin-left: auto;">${c.items.length} tasks</span>
+                            </div>
+                        </td>
+                    </tr>
+                    `;
+
+                    if (isCampaignExpanded) {
+                        c.items.sort((a, b) => {
+                            let vA = a[state.sort.key] || '', vB = b[state.sort.key] || '';
+                            if (state.sort.key === 'deadline') {
+                                vA = vA ? new Date(vA).getTime() : 0;
+                                vB = vB ? new Date(vB).getTime() : 0;
+                            }
+                            return state.sort.dir === 'asc' ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
+                        });
+                        c.items.forEach(i => {
+                            tableHtml += renderItemRow(i);
+                        });
+                    }
+                });
+            } else if (sortedStaff.length > 0) {
+                tableHtml = '<tr><td colspan="6" style="text-align:center; padding: 60px; color: var(--muted);"><i class="fas fa-mouse-pointer" style="display:block; font-size: 24px; margin-bottom: 12px; opacity:0.3;"></i> Select a staff card above to see detailed tasks</td></tr>';
+            }
+
+            body.innerHTML = tableHtml;
+        }
+
+        function renderItemRow(i) {
+            let tagClass = 'tag-overdue';
+            let tagLabel = 'Overdue';
+            let daysColor = 'var(--danger)';
+
+            if (i.status === 'soon') {
+                tagClass = 'tag-soon';
+                tagLabel = 'Due Soon';
+                daysColor = 'var(--warning)';
+            } else if (i.status === '2w') {
+                tagClass = 'tag-2w';
+                tagLabel = 'Due 2W';
+                daysColor = 'var(--primary)';
+            }
+
+            let html = `
+            <tr class="item-row ${state.expandedItemIds.has(i.id) ? 'is-expanded' : ''}">
+                <td style="display: flex; align-items: center; gap: 8px;">
+                    <div class="expansion-trigger" onclick="toggleItemExpansion('${i.id}')">
+                        <i class="fas fa-chevron-right"></i>
+                    </div>
+                    <a href="https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}" target="_blank" class="item-link">${i.name} <i class="fas fa-external-link-alt" style="font-size:0.8em"></i></a>
+                </td>
+                <td><div class="person-badge"><i class="far fa-user"></i> ${i.people.join(', ')}</div></td>
+                <td style="text-align: center; color: var(--muted); font-family: monospace;">${i.deadlineDisplay}</td>
+                <td style="text-align: center; font-weight: 700; color: ${daysColor}">${i.daysOverdue > 0 ? i.daysOverdue + 'd' : '-'}</td>
+                <td style="color: var(--muted); font-size: 11px;">${i.bName}</td>
+                <td style="text-align: right;"><span class="${tagClass}">${tagLabel}</span></td>
+            </tr>
+            `;
+
+            if (state.expandedItemIds.has(i.id)) {
+                html += `
+                <tr class="item-updates-row">
+                    <td colspan="6" style="padding: 0; border: none;">
+                        <div class="updates-container">
+                            ${renderUpdates(i.id)}
+                        </div>
+                    </td>
+                </tr>
+                `;
+            }
+            return html;
+        }
+
+        function setViewMode(v) {
+            state.viewMode = v;
+            updateFilteredUI();
+        }
+
+        function toggleStaffExpansion(name) {
+            if (state.expandedStaffIds.has(name)) state.expandedStaffIds.delete(name);
+            else state.expandedStaffIds.add(name);
+            updateFilteredUI();
+        }
+
+        function toggleManagerBoardExpansion(id) {
+            if (state.expandedManagerBoardIds.has(id)) state.expandedManagerBoardIds.delete(id);
+            else state.expandedManagerBoardIds.add(id);
+            updateFilteredUI();
+        }
+
+        function updateFilteredUI() {
+            const queryText = document.getElementById('filter-text').value.toLowerCase();
+            const queryPerson = document.getElementById('filter-person-input').value.toLowerCase();
+
+            // Sync View Toggle
+            document.querySelectorAll('.view-toggle-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.id === 'view-' + state.viewMode);
+            });
+
+            // Dynamic Stats Calculation
+            let liveStats = { boards: new Set(), overdue: 0, soon: 0, v2w: 0, total: 0 };
+
+            let filtered = state.auditedItems.filter(i => {
+                if (state.excludedStatusLabels.has(i.itemStatus)) return false;
+                if (state.filters.status !== 'all' && i.status !== state.filters.status) return false;
+                if (state.filters.people.size > 0) {
+                    const hasMatch = i.people.some(p => state.filters.people.has(p));
+                    if (!hasMatch) return false;
+                }
+                const matchesText = i.name.toLowerCase().includes(queryText) || i.bName.toLowerCase().includes(queryText);
+                if (!matchesText) return false;
+                if (queryPerson && !i.people.some(p => p.toLowerCase().includes(queryPerson))) return false;
+
+                liveStats.total++;
+                liveStats.boards.add(i.bId);
+                if (i.status === 'overdue') liveStats.overdue++;
+                else if (i.status === 'soon') liveStats.soon++;
+                else if (i.status === '2w') liveStats.v2w++;
+
+                return true;
+            });
+
+            document.getElementById('stat-boards').innerText = liveStats.boards.size;
+            document.getElementById('stat-overdue').innerText = liveStats.overdue;
+            document.getElementById('stat-soon').innerText = liveStats.soon;
+            document.getElementById('stat-2w').innerText = liveStats.v2w;
+            document.getElementById('stat-items').innerText = liveStats.total;
+
+            const gridContainer = document.getElementById('manager-grid-container');
+            if (state.viewMode === 'manager') {
+                gridContainer.style.display = 'block';
+                renderManagerView(filtered);
+            } else {
+                gridContainer.style.display = 'none';
+                renderAuditorView(filtered);
+            }
         }
 
         function toggleBoardExpansion(bId) {
@@ -1712,8 +1974,11 @@
             const list = document.getElementById('person-list');
             const query = document.getElementById('filter-person-input').value.toLowerCase();
             
-            // Extract unique people from all items (flattened)
-            const people = [...new Set(state.auditedItems.flatMap(i => i.people))].sort();
+            const allPeople = new Set();
+            state.auditedItems.forEach(i => {
+                i.people.forEach(p => allPeople.add(p));
+            });
+            const people = Array.from(allPeople).sort();
             
             const html = people.filter(p => p.toLowerCase().includes(query)).map(p => `
                 <div class="person-item ${state.filters.people.has(p) ? 'selected' : ''}" onclick="togglePersonSelection('${p.replace(/'/g, "\\'")}')">
