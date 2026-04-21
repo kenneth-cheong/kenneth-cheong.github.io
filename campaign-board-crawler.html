@@ -1130,6 +1130,8 @@
                             <th class="sortable" onclick="handleSort('name')" id="sort-name">Item Name</th>
                             <th class="sortable" onclick="handleSort('person')" id="sort-person">Person</th>
                             <th class="sortable" onclick="handleSort('csManager')" id="sort-csManager">CS Manager</th>
+                            <th class="sortable" onclick="handleSort('masterStatus')">Campaign Status</th>
+                            <th class="sortable" onclick="handleSort('masterTimeline')">Timeline</th>
                             <th class="sortable" onclick="handleSort('deadline')" id="sort-deadline" style="text-align: center;">Deadline</th>
                             <th class="sortable" onclick="handleSort('daysOverdue')" id="sort-daysOverdue" style="text-align: center;">Overdue</th>
                             <th>Board / Folder</th>
@@ -1465,8 +1467,8 @@
                             const st = i.column_values.find(cv => cv.label !== undefined); // Find status label
                             const assigned = i.column_values.find(cv => cv.type === 'people' || cv.type === 'multiple-person');
                             
-                            // Get CS Manager (might be placeholder if master fetch still running)
-                            const csManagers = getCSManagersFromMap(b.name);
+                            // Get Master Data (CSM, Status, Timeline)
+                            const masterData = getMasterDataFromMap(b.name);
 
                             const today = new Date().setHours(0, 0, 0, 0);
                             const due = dv ? new Date(dv.date || dv.to) : null;
@@ -1498,7 +1500,9 @@
                                 deadlineDisplay: dateDisplay,
                                 daysOverdue: diffDays,
                                 people: assigned?.text ? assigned.text.split(/, | & | and /).map(p => p.trim()) : ['Unassigned'],
-                                csManagers: csManagers,
+                                csManagers: masterData.csm,
+                                masterStatus: masterData.status,
+                                masterTimeline: masterData.timeline,
                                 status: status,
                                 itemStatus: st?.label || ''
                             };
@@ -1609,7 +1613,7 @@
                 const isExpanded = state.expandedBoardIds.has(g.id);
                 html += `
                 <tr class="board-group-header ${!isExpanded ? 'is-collapsed' : ''}" onclick="toggleBoardExpansion('${g.id}')">
-                    <td colspan="7">
+                    <td colspan="9">
                         <div class="board-info">
                             <i class="fas fa-chevron-down board-chevron"></i>
                             <span>${g.name} <span class="folder-sub">in ${g.folder}</span></span>
@@ -1713,7 +1717,7 @@
                     
                     tableHtml += `
                     <tr class="campaign-sub-header" onclick="toggleManagerBoardExpansion('${compoundId.replace(/'/g, "\\'")}')">
-                        <td colspan="7">
+                        <td colspan="9">
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <i class="fas ${isCampaignExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="width: 12px; opacity: 0.5;"></i>
                                 <span>${c.name} <span class="folder-sub">in ${c.folder}</span></span>
@@ -1738,7 +1742,7 @@
                     }
                 });
             } else if (sortedStaff.length > 0) {
-                tableHtml = '<tr><td colspan="7" style="text-align:center; padding: 60px; color: var(--muted);"><i class="fas fa-mouse-pointer" style="display:block; font-size: 24px; margin-bottom: 12px; opacity:0.3;"></i> Select a staff card above to see detailed tasks</td></tr>';
+                tableHtml = '<tr><td colspan="9" style="text-align:center; padding: 60px; color: var(--muted);"><i class="fas fa-mouse-pointer" style="display:block; font-size: 24px; margin-bottom: 12px; opacity:0.3;"></i> Select a staff card above to see detailed tasks</td></tr>';
             }
 
             body.innerHTML = tableHtml;
@@ -1769,6 +1773,8 @@
                 </td>
                 <td><div class="person-badge"><i class="far fa-user"></i> ${i.people.join(', ')}</div></td>
                 <td><div class="person-badge" style="border-color:var(--success); color:var(--success)"><i class="fas fa-user-shield"></i> ${i.csManagers.join(', ')}</div></td>
+                <td style="font-size: 11px;">${i.masterStatus && i.masterStatus !== '-' ? `<span class="status-tag status-other" style="background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border);">${i.masterStatus}</span>` : '-'}</td>
+                <td style="font-size: 10px; color: var(--muted);">${i.masterTimeline || '-'}</td>
                 <td style="text-align: center; color: var(--muted); font-family: monospace;">${i.deadlineDisplay}</td>
                 <td style="text-align: center; font-weight: 700; color: ${daysColor}">${i.daysOverdue > 0 ? i.daysOverdue + 'd' : '-'}</td>
                 <td style="color: var(--muted); font-size: 11px;">${i.bName}</td>
@@ -1779,7 +1785,7 @@
             if (state.expandedItemIds.has(i.id)) {
                 html += `
                 <tr class="item-updates-row">
-                    <td colspan="7" style="padding: 0; border: none;">
+                    <td colspan="9" style="padding: 0; border: none;">
                         <div class="updates-container">
                             ${renderUpdates(i.id)}
                         </div>
@@ -2094,25 +2100,25 @@
                     const items = p.items || [];
                     let newEntries = 0;
                     items.forEach(item => {
-                        const csmList = [];
+                        const csmList = [], timelineParts = [], statusParts = [];
                         item.column_values.forEach(cv => {
                             const title = cv.column?.title || "";
                             if (title === "[CSM]Client Success Manager" || title === "[CSM]Asst CSM") {
-                                if (cv.text) {
-                                    cv.text.split(/, | & | and /).forEach(p => {
-                                        const trimmed = p.trim();
-                                        if (trimmed && trimmed !== "-") {
-                                            csmList.push(trimmed);
-                                            // Harvest for filter too
-                                            // state.filters.csManagers.add(trimmed);
-                                        }
-                                    });
-                                }
+                                if (cv.text) cv.text.split(/, | & | and /).forEach(p => {
+                                    const trimmed = p.trim();
+                                    if (trimmed && trimmed !== "-") csmList.push(trimmed);
+                                });
                             }
+                            if (title === "Campaign Timeline" && cv.text) timelineParts.push(cv.text);
+                            if (title === "[CSM] Campaign Status" && cv.text) statusParts.push(cv.text);
                         });
                         
-                        if (csmList.length > 0) {
-                            state.masterCampaignMap[item.name] = { csm: [...new Set(csmList)] };
+                        if (csmList.length > 0 || timelineParts.length > 0 || statusParts.length > 0) {
+                            state.masterCampaignMap[item.name] = { 
+                                csm: [...new Set(csmList)],
+                                timeline: timelineParts.join(" / "),
+                                status: statusParts.join(" / ")
+                            };
                             newEntries++;
                         }
                     });
@@ -2130,32 +2136,42 @@
             }
         }
 
-        function getCSManagersFromMap(boardName) {
+        function getMasterDataFromMap(boardName) {
             const bClean = boardName.toLowerCase();
             const allManagers = new Set();
+            const allTimelines = new Set();
+            const allStatuses = new Set();
             let foundMatch = false;
 
             for (const [key, val] of Object.entries(state.masterCampaignMap)) {
                 if (bClean.includes(key.toLowerCase())) {
-                    val.csm.forEach(m => allManagers.add(m));
+                    if (val.csm) val.csm.forEach(m => allManagers.add(m));
+                    if (val.timeline) allTimelines.add(val.timeline);
+                    if (val.status) allStatuses.add(val.status);
                     foundMatch = true;
                 }
             }
 
             if (!foundMatch) {
-                // If the fetch is still running, show loading, otherwise show '-'
-                return (state.masterFetchPromise && !state.masterFetchPromise.isResolved) ? ['...'] : ['-'];
+                const placeholder = (state.masterFetchPromise && !state.masterFetchPromise.isResolved) ? '...' : '-';
+                return { csm: [placeholder], timeline: placeholder, status: placeholder };
             }
-            return Array.from(allManagers);
+            return { 
+                csm: Array.from(allManagers), 
+                timeline: Array.from(allTimelines).join(" | "), 
+                status: Array.from(allStatuses).join(" | ") 
+            };
         }
 
         function reMapAuditedItems() {
             let changed = false;
             state.auditedItems.forEach(i => {
                 if (i.csManagers && i.csManagers[0] === '...') {
-                    const mapped = getCSManagersFromMap(i.bName);
-                    if (mapped[0] !== '...') {
-                        i.csManagers = mapped;
+                    const mapped = getMasterDataFromMap(i.bName);
+                    if (mapped.csm[0] !== '...') {
+                        i.csManagers = mapped.csm;
+                        i.masterStatus = mapped.status;
+                        i.masterTimeline = mapped.timeline;
                         changed = true;
                     }
                 }
@@ -2257,10 +2273,16 @@
             }
 
             resultsArea.innerHTML = results.map(r => `
-                <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
-                    <div style="font-weight: 600; color: var(--text);">${r.name}</div>
-                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                        ${r.csm.map(c => `<span class="person-badge" style="border-color:var(--success); color:var(--success); font-size: 10px;"><i class="fas fa-user-shield"></i> ${c}</span>`).join('')}
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div style="font-weight: 600; color: var(--text); font-size: 14px;">${r.name}</div>
+                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                            ${r.csm.map(c => `<span class="person-badge" style="border-color:var(--success); color:var(--success); font-size: 10px;"><i class="fas fa-user-shield"></i> ${c}</span>`).join('')}
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 12px; font-size: 11px; color: var(--muted);">
+                        <span title="Campaign Status"><i class="fas fa-info-circle"></i> ${state.masterCampaignMap[r.name].status || '-'}</span>
+                        <span title="Timeline"><i class="far fa-calendar-alt"></i> ${state.masterCampaignMap[r.name].timeline || '-'}</span>
                     </div>
                 </div>
             `).join('');
