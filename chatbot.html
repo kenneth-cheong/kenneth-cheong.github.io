@@ -1720,6 +1720,7 @@
         let assistantId = localStorage.getItem('assistantId') || null;
         let vectorStoreId = localStorage.getItem('vectorStoreId') || null;
         let currentMode = localStorage.getItem('chatbotMode') || 'client'; // 'client' or 'internal'
+        window.lastSyncedInternalState = { boards: [], items: [], staff: [] };
 
         const INTERNAL_CAMPAIGN_BOARD_ID = '2845615047';
 
@@ -4082,6 +4083,13 @@ ${boardRegistryLines}`;
                 showToast("Internal Sync Complete!", 'success');
                 const totalItemCount = items.length + campaignBoardDrilldowns.reduce((sum, b) => sum + (b.total_items || 0), 0);
                 updateSyncStatus(`Internal Sync Done (${totalItemCount} campaigns)`, false, true);
+                
+                // Update synced state to prevent un-synced filter warnings
+                window.lastSyncedInternalState = {
+                    boards: msState.msBoardDropdown.selected.map(b => typeof b === 'object' ? b.id : b),
+                    items: msState.msItemDropdown.selected.map(i => typeof i === 'object' ? i.id : i),
+                    staff: [...msState.msStaffDropdown.selected]
+                };
                 const itemNames = selectedItems.map(i => typeof i === 'object' ? i.name : i);
 
                 // Build board reference from user-selected boards
@@ -4538,6 +4546,22 @@ CRITICAL CONTACT RULE:
             const input = document.getElementById('userInput');
             const text = input.value.trim();
             if (!text || isSyncing) return;
+
+            // --- Un-synced Filter Confirmation (Internal Mode) ---
+            if (currentMode === 'internal') {
+                const currentBoards = msState.msBoardDropdown.selected.map(b => typeof b === 'object' ? b.id : b);
+                const currentItems = msState.msItemDropdown.selected.map(i => typeof i === 'object' ? i.id : i);
+                const currentStaff = [...msState.msStaffDropdown.selected];
+
+                const boardsChanged = JSON.stringify(currentBoards.sort()) !== JSON.stringify(window.lastSyncedInternalState.boards.sort());
+                const itemsChanged = JSON.stringify(currentItems.sort()) !== JSON.stringify(window.lastSyncedInternalState.items.sort());
+                const staffChanged = JSON.stringify(currentStaff.sort()) !== JSON.stringify(window.lastSyncedInternalState.staff.sort());
+
+                if (boardsChanged || itemsChanged || staffChanged) {
+                    const proceed = confirm("⚠️ You have changed your filter or board selections but haven't clicked 'Load Data' yet.\n\nThe AI will not see your new selections. Proceed anyway with previously loaded data?");
+                    if (!proceed) return;
+                }
+            }
 
             const openaiKey = localStorage.getItem('openaiKey');
             const assistantId = localStorage.getItem('assistantId');
