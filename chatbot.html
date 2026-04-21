@@ -3319,12 +3319,12 @@
 
                     let pageData;
                     if (!cursor) {
-                        if (!mData.data?.boards?.[0]) break;
-                        boardName = mData.data.boards[0].name;
-                        boardColumns = (mData.data.boards[0].columns || []).map(c => ({ title: c.title, type: c.type }));
-                        pageData = mData.data.boards[0].items_page;
+                        if (!mData.boards?.[0]) break;
+                        boardName = mData.boards[0].name;
+                        boardColumns = (mData.boards[0].columns || []).map(c => ({ title: c.title, type: c.type }));
+                        pageData = mData.boards[0].items_page;
                     } else {
-                        pageData = mData.data.next_items_page;
+                        pageData = mData.next_items_page;
                     }
 
                     if (!pageData) break;
@@ -3629,7 +3629,7 @@
                         });
                         const r = await res.json();
                         const mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
-                        if (mData.data?.items) items = items.concat(mData.data.items);
+                        if (mData.items) items = items.concat(mData.items);
                     }
                 } else {
                     // Fallback to exhaustive recent items (fetched until end or 45s safety limit)
@@ -3664,7 +3664,7 @@
                         const r = await res.json();
                         const mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
 
-                        const resultPage = !cursor ? mData.data?.boards?.[0]?.items_page : mData.data?.next_items_page;
+                        const resultPage = !cursor ? mData.boards?.[0]?.items_page : mData.next_items_page;
                         if (resultPage?.items) items = items.concat(resultPage.items);
                         cursor = resultPage?.cursor;
 
@@ -4080,7 +4080,8 @@ ${boardRegistryLines}`;
                 threadId = null;
 
                 showToast("Internal Sync Complete!", 'success');
-                updateSyncStatus(`Internal Sync Done (${items.length} campaigns)`, false, true);
+                const totalItemCount = items.length + campaignBoardDrilldowns.reduce((sum, b) => sum + (b.total_items || 0), 0);
+                updateSyncStatus(`Internal Sync Done (${totalItemCount} campaigns)`, false, true);
                 const itemNames = selectedItems.map(i => typeof i === 'object' ? i.name : i);
 
                 // Build board reference from user-selected boards
@@ -4101,8 +4102,8 @@ ${boardRegistryLines}`;
                         chatMessages.map(s => `- ${s.space_name} — ${s.messages.length} messages`).join('\n');
                 }
 
-                addMessage("bot", `✅ **Internal data loaded!** Found **${items.length} campaigns** matching your filters.
-${itemNames.length > 0 ? `\n📌 Campaigns: ${itemNames.join(', ')}` : ''}
+                addMessage("bot", `✅ **Internal data loaded!** Found **${totalItemCount} total campaigns/items** matching your filters.
+${itemNames.length > 0 ? `\n📌 Summary Board Matches: ${itemNames.join(', ')}` : ''}
 ${selectedStaff.length > 0 ? `👤 Staff: ${selectedStaff.join(', ')}` : ''}
 ${hasDynamicFilters ? `⚡ Custom Advanced Filters Applied` : ''}
 ${boardRefLines}${chatRefLines}
@@ -4178,8 +4179,8 @@ You can now ask me anything about these campaigns.`);
                 for (const res of boardResults) {
                     const bId = res.bId;
                     const mData = res.data;
-                    if (mData.data && mData.data.boards && mData.data.boards[0]) {
-                        const board = mData.data.boards[0];
+                    if (mData.boards && mData.boards[0]) {
+                        const board = mData.boards[0];
 
                         const filteredItems = (board.items_page.items || []).filter(item => {
                             const itemName = (item.name || "").toLowerCase();
