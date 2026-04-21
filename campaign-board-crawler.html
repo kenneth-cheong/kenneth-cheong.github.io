@@ -679,6 +679,214 @@
             font-size: 11px;
             margin: 0;
         }
+
+        /* Updates & Replies Section */
+        .updates-container {
+            padding: 16px 40px 32px 60px;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 2px solid var(--border);
+        }
+
+        .updates-list {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .update-item {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        /* Marker for parent vs reply */
+        .update-item::before {
+            content: 'UPDATE';
+            position: absolute;
+            top: -8px;
+            left: 20px;
+            background: var(--primary);
+            color: var(--bg);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+
+        .update-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .creator-img {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--surface-hover);
+            border: 1px solid var(--border);
+        }
+
+        .creator-name {
+            font-weight: 700;
+            font-size: 13px;
+            color: var(--primary);
+        }
+
+        .update-time {
+            font-size: 11px;
+            color: var(--muted);
+            margin-left: auto;
+        }
+
+        .update-body {
+            font-size: 13.5px;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.9);
+            overflow-wrap: break-word;
+        }
+
+        .update-body img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 12px 0;
+            border: 1px solid var(--border);
+        }
+
+        /* Replies Specific Styling */
+        .replies-list {
+            margin-top: 20px;
+            margin-left: 10px;
+            padding-left: 24px;
+            border-left: 3px solid rgba(56, 189, 248, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .reply-item {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 12px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            position: relative;
+        }
+
+        .reply-item::before {
+            content: '\f3e5'; /* FontAwesome reply icon */
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            position: absolute;
+            left: -20px;
+            top: 14px;
+            color: var(--primary);
+            font-size: 10px;
+            opacity: 0.5;
+        }
+
+        .reply-item .creator-name {
+            font-size: 12px;
+            color: var(--text);
+            opacity: 0.8;
+        }
+
+        .reply-item .update-body {
+            font-size: 12.5px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .load-more-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 24px;
+            padding-bottom: 8px;
+        }
+
+        .btn-load-more {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            padding: 8px 24px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-load-more:hover {
+            background: var(--primary-glow);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-load-more:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .update-link {
+            color: var(--muted);
+            font-size: 10px;
+            text-decoration: none;
+            transition: all 0.2s;
+            margin-left: 8px;
+            opacity: 0.6;
+        }
+
+        .update-link:hover {
+            color: var(--primary);
+            opacity: 1;
+        }
+
+        .expansion-trigger {
+            cursor: pointer;
+            width: 24px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s;
+            color: var(--muted);
+        }
+
+        .expansion-trigger:hover {
+            background: var(--surface-hover);
+            color: var(--primary);
+        }
+
+        .item-row.is-expanded .expansion-trigger {
+            transform: rotate(180deg);
+            color: var(--primary);
+        }
+
+        .update-body a {
+            color: var(--primary);
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            transition: color 0.2s;
+        }
+
+        .update-body a:hover {
+            color: var(--text);
+        }
+
+        .loading-updates {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--muted);
+            font-size: 12px;
+            padding: 12px;
+        }
     </style>
 </head>
 
@@ -813,6 +1021,9 @@
             sort: { key: 'deadline', dir: 'asc' },
             filters: { text: '', people: new Set(), status: 'all' },
             expandedBoardIds: new Set(),
+            expandedItemIds: new Set(),
+            itemUpdates: {},
+            updateMetadata: {}, // { itemId: { page: 1, hasMore: true, loadingMore: false } }
             allStatusLabels: [],
             excludedStatusLabels: new Set([
                 'Done', 'Completed', 'Finished', 'Approved', 
@@ -1306,8 +1517,13 @@
                         }
 
                         html += `
-                        <tr class="item-row">
-                            <td><a href="https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}" target="_blank" class="item-link">${i.name} <i class="fas fa-external-link-alt" style="font-size:0.8em"></i></a></td>
+                        <tr class="item-row ${state.expandedItemIds.has(i.id) ? 'is-expanded' : ''}">
+                            <td style="display: flex; align-items: center; gap: 8px;">
+                                <div class="expansion-trigger" onclick="toggleItemExpansion('${i.id}')">
+                                    <i class="fas fa-chevron-right"></i>
+                                </div>
+                                <a href="https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}" target="_blank" class="item-link">${i.name} <i class="fas fa-external-link-alt" style="font-size:0.8em"></i></a>
+                            </td>
                             <td><div class="person-badge"><i class="far fa-user"></i> ${i.people.join(', ')}</div></td>
                             <td style="text-align: center; color: var(--muted); font-family: monospace;">${i.deadlineDisplay}</td>
                             <td style="text-align: center; font-weight: 700; color: ${daysColor}">${i.daysOverdue > 0 ? i.daysOverdue + 'd' : '-'}</td>
@@ -1315,6 +1531,18 @@
                             <td style="text-align: right;"><span class="${tagClass}">${tagLabel}</span></td>
                         </tr>
                         `;
+
+                        if (state.expandedItemIds.has(i.id)) {
+                            html += `
+                            <tr class="item-updates-row">
+                                <td colspan="6" style="padding: 0; border: none;">
+                                    <div class="updates-container">
+                                        ${renderUpdates(i.id)}
+                                    </div>
+                                </td>
+                            </tr>
+                            `;
+                        }
                     });
                 }
             });
@@ -1326,6 +1554,140 @@
             if (state.expandedBoardIds.has(bId)) state.expandedBoardIds.delete(bId);
             else state.expandedBoardIds.add(bId);
             updateFilteredUI();
+        }
+
+        async function fetchItemUpdates(itemId, isLoadMore = false) {
+            const meta = state.updateMetadata[itemId] || { page: 1, hasMore: true, loadingMore: false };
+            
+            if (isLoadMore) {
+                if (!meta.hasMore || meta.loadingMore) return;
+                meta.page++;
+                meta.loadingMore = true;
+            } else {
+                if (state.itemUpdates[itemId] && !state.itemUpdates[itemId].error) return;
+                state.itemUpdates[itemId] = { loading: true, data: [] };
+            }
+            
+            state.updateMetadata[itemId] = meta;
+            updateFilteredUI();
+            
+            try {
+                const data = await monday(`query($id:[ID!],$p:Int){ 
+                    items(ids:$id){ 
+                        updates(limit:10, page:$p){ 
+                            id 
+                            body 
+                            created_at 
+                            creator { name photo_url { thumb } } 
+                            replies { 
+                                id 
+                                body 
+                                created_at 
+                                creator { name photo_url { thumb } } 
+                            } 
+                        } 
+                    } 
+                }`, { id: [itemId], p: meta.page }, isLoadMore ? `Loading more updates...` : `Fetching updates...`);
+                
+                const updates = data.items?.[0]?.updates || [];
+                
+                if (isLoadMore) {
+                    state.itemUpdates[itemId].data = [...state.itemUpdates[itemId].data, ...updates];
+                    meta.loadingMore = false;
+                } else {
+                    state.itemUpdates[itemId] = { loading: false, data: updates };
+                }
+                
+                meta.hasMore = updates.length === 10;
+            } catch (e) {
+                console.error("Failed to fetch updates", e);
+                if (!isLoadMore) {
+                    state.itemUpdates[itemId] = { loading: false, data: [], error: e.message };
+                } else {
+                    meta.loadingMore = false;
+                    meta.page--; // Revert page on error
+                }
+            }
+            updateFilteredUI();
+        }
+
+        function toggleItemExpansion(itemId) {
+            if (state.expandedItemIds.has(itemId)) {
+                state.expandedItemIds.delete(itemId);
+            } else {
+                state.expandedItemIds.add(itemId);
+                fetchItemUpdates(itemId);
+            }
+            updateFilteredUI();
+        }
+
+        function renderUpdates(itemId) {
+            const updateState = state.itemUpdates[itemId];
+            const meta = state.updateMetadata[itemId];
+            
+            // Find board ID for URL construction
+            const item = state.auditedItems.find(x => x.id === itemId);
+            const boardId = item ? item.bId : '';
+
+            if (!updateState || (updateState.loading && updateState.data.length === 0)) {
+                return `<div class="loading-updates"><div class="loading-spinner"></div> Loading updates from Monday...</div>`;
+            }
+            if (updateState.error) {
+                return `<div class="loading-updates" style="color:var(--danger)"><i class="fas fa-exclamation-circle"></i> Error: ${updateState.error}</div>`;
+            }
+            if (updateState.data.length === 0) {
+                return `<div class="loading-updates"><i class="fas fa-info-circle"></i> No updates found for this item.</div>`;
+            }
+
+            let html = `<div class="updates-list">`;
+            html += updateState.data.map(u => `
+                <div class="update-item">
+                    <div class="update-header">
+                        ${u.creator?.photo_url?.thumb ? `<img src="${u.creator.photo_url.thumb}" class="creator-img">` : `<div class="creator-img" style="display:flex;align-items:center;justify-content:center;background:var(--surface-hover);color:var(--muted);font-size:10px;"><i class="fas fa-user"></i></div>`}
+                        <span class="creator-name">${u.creator?.name || 'Unknown User'}</span>
+                        <div class="update-time">
+                            ${new Date(u.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            <a href="https://${state.slug}.monday.com/boards/${boardId}/pulses/${itemId}/posts/${u.id}" target="_blank" class="update-link" title="Open on Monday.com">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="update-body">${u.body}</div>
+                    
+                    ${u.replies && u.replies.length > 0 ? `
+                        <div class="replies-list">
+                            ${u.replies.map(r => `
+                                <div class="reply-item">
+                                    <div class="update-header">
+                                        ${r.creator?.photo_url?.thumb ? `<img src="${r.creator.photo_url.thumb}" class="creator-img" style="width:20px;height:20px;">` : `<div class="creator-img" style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;background:var(--surface-hover);color:var(--muted);font-size:8px;"><i class="fas fa-user"></i></div>`}
+                                        <span class="creator-name">${r.creator?.name || 'Unknown User'}</span>
+                                        <div class="update-time">
+                                            ${new Date(r.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                            <a href="https://${state.slug}.monday.com/boards/${boardId}/pulses/${itemId}/posts/${r.id}" target="_blank" class="update-link" title="Open on Monday.com">
+                                                <i class="fas fa-external-link-alt"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                    <div class="update-body">${r.body}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+
+            if (meta && meta.hasMore) {
+                html += `
+                <div class="load-more-container">
+                    <button class="btn-load-more" ${meta.loadingMore ? 'disabled' : ''} onclick="fetchItemUpdates('${itemId}', true)">
+                        ${meta.loadingMore ? '<i class="fas fa-spinner fa-spin"></i> Loading...' : 'Load More Updates'}
+                    </button>
+                </div>
+                `;
+            }
+
+            html += `</div>`;
+            return html;
         }
 
         function toggleSettings() {
