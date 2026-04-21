@@ -2673,13 +2673,13 @@
 
                     let resultPage;
                     if (!cursor) {
-                        if (!mData.data || !mData.data.boards || !mData.data.boards[0]) break;
-                        resultPage = mData.data.boards[0].items_page;
+                        if (!mData.boards || !mData.boards[0]) break;
+                        resultPage = mData.boards[0].items_page;
                         // Store columns from first page
-                        if (pageCount === 0) window.allPrefetchedColumns = mData.data.boards[0].columns;
+                        if (pageCount === 0) window.allPrefetchedColumns = mData.boards[0].columns;
                     } else {
-                        if (!mData.data || !mData.data.next_items_page) break;
-                        resultPage = mData.data.next_items_page;
+                        if (!mData.next_items_page) break;
+                        resultPage = mData.next_items_page;
                     }
 
                     const items = resultPage.items || [];
@@ -2728,44 +2728,32 @@
             console.log('[BOARD REGISTRY] Fetching all workspace boards...');
 
             try {
-                let allBoards = [];
-                let page = 1;
-                const SAFETY_LIMIT = 20; // Max 20 pages × 200 = 4000 boards
+                // In API version 2024-04+, the 'page' argument on the root boards query is removed.
+                // We'll use a single high-limit query to fetch boards efficiently.
+                const query = `{ boards (limit: 1000, state: active) { id name board_kind state } }`;
+                const res = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'get_monday_data', query })
+                });
+                
+                const r = await res.json();
+                const mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
 
-                while (page <= SAFETY_LIMIT) {
-                    const query = `{ boards (limit: 200, page: ${page}, state: active) { id name board_kind state } }`;
-                    const res = await fetch(MONDAY_LAMBDA_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'get_monday_data', query })
-                    });
-                    const r = await res.json();
-                    const mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
-
-                    if (mData.errors) {
-                        console.error('[BOARD REGISTRY] API Error:', mData.errors);
-                        break;
-                    }
-
-                    const boards = mData.data?.boards || [];
-                    if (boards.length === 0) break;
-
-                    // Filter out sub-item boards, private boards, and boards with 'Subitems' in name
-                    const filtered = boards.filter(b => b.board_kind !== 'sub_items_board' && !(b.name || '').toLowerCase().includes('subitems'));
-                    allBoards = allBoards.concat(filtered);
-                    console.log(`[BOARD REGISTRY] Page ${page}: ${boards.length} boards (${filtered.length} after filter), total: ${allBoards.length}`);
-
-                    if (boards.length < 200) break; // Last page
-                    page++;
+                if (mData.errors) {
+                    console.error('[BOARD REGISTRY] API Error:', mData.errors);
                 }
 
-                window.mondayBoardRegistry = allBoards;
-                console.log(`[BOARD REGISTRY] Complete: ${allBoards.length} active boards discovered.`);
+                const boards = mData.boards || [];
+                // Filter out sub-item boards and boards with 'Subitems' in name
+                const filtered = boards.filter(b => b.board_kind !== 'sub_items_board' && !(b.name || '').toLowerCase().includes('subitems'));
+                
+                window.mondayBoardRegistry = filtered;
+                console.log(`[BOARD REGISTRY] Complete: ${filtered.length} active boards discovered (out of ${boards.length} total).`);
 
-                // Cache to localStorage
                 try {
                     localStorage.setItem('internal_board_registry_cache', JSON.stringify({
-                        boards: allBoards,
+                        boards: filtered,
                         timestamp: Date.now()
                     }));
                 } catch (e) {
