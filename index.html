@@ -30423,8 +30423,8 @@ ${selectedText}
                     document.getElementById('targetReadability').innerText = data.body.readability;
                     document.getElementById('targetWordCount').innerText = data.body.word_count;
 
-                    document.getElementById("meta_data").style.backgroundColor = "green";
-                    document.getElementById("domain_metrics").style.backgroundColor = "green";
+                    document.getElementById("metaData").style.backgroundColor = "green";
+                    document.getElementById("domainMetrics").style.backgroundColor = "green";
                 })
                 .catch(error => {
                     console.error("Error fetching targeted domain data:", error); // Log any errors
@@ -31182,38 +31182,54 @@ ${selectedText}
 
             // Iterate over each unique keyword and create a row
             allKeywords.forEach(keyword => {
-                tableHTML += `
-                    <tr class="premium-tr">
-                        <td class="premium-td" style="font-weight: 500; color: #1a73e8;">${keyword}</td>
-                `;
+                try {
+                    tableHTML += `
+                        <tr class="premium-tr">
+                            <td class="premium-td" style="font-weight: 500; color: #1a73e8;">${keyword}</td>
+                    `;
 
-                console.log(results);
+                    const targetDomain = document.getElementById("competitors-target1").value;
+                    
+                    // Helper to find rank data for a domain
+                    const getDomainData = (obj, domain) => {
+                        if (!obj) return null;
+                        // Try exact match first
+                        if (obj[domain]) return obj[domain];
+                        // Try matching without www. or protocol
+                        const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase();
+                        for (let key in obj) {
+                            const cleanKey = key.replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase();
+                            if (cleanKey === cleanDomain && Array.isArray(obj[key])) return obj[key];
+                        }
+                        // Fallback to any key that looks like domain data (array of 2 elements) 
+                        // and isn't a known metadata field, but only if we can't find the domain
+                        return null;
+                    };
 
-                // Get target1 data (Target Domain)
-                if (results[0].data && results[0].data[keyword]) {
-                    const rank = results[0].data[keyword][Object.keys(results[0].data[keyword])[3]][0];
-                    const url = results[0].data[keyword][Object.keys(results[0].data[keyword])[3]][1];
-                    tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(rank, url)}</td>`;
-                } else {
-                    tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(999)}</td>`;
-                }
-
-                // Add rankings for the rest of the selected domains
-                results.forEach(result => {
-                    if (result.data && result.data[keyword]) {
-                        const firstDomainKey = Object.keys(result.data[keyword])[4];
-                        const domainData = result.data[keyword][firstDomainKey];
-                        const rank = domainData[0];
-                        const url = domainData[1];
-                        tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(rank, url)}</td>`;
-                    } else if (result.error) {
-                        tableHTML += `<td class="premium-td" style="text-align: center;"><span class="premium-badge-bad">Error</span></td>`;
+                    // Get target1 data (Target Domain)
+                    const targetData = getDomainData(results[0].data ? results[0].data[keyword] : null, targetDomain);
+                    if (targetData && Array.isArray(targetData)) {
+                        tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(targetData[0], targetData[1])}</td>`;
                     } else {
                         tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(999)}</td>`;
                     }
-                });
 
-                tableHTML += `</tr>`;
+                    // Add rankings for each competitor domain
+                    results.forEach(result => {
+                        const competitorData = getDomainData(result.data ? result.data[keyword] : null, result.domain);
+                        if (competitorData && Array.isArray(competitorData)) {
+                            tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(competitorData[0], competitorData[1])}</td>`;
+                        } else if (result.error) {
+                            tableHTML += `<td class="premium-td" style="text-align: center;"><span class="premium-badge-bad">Error</span></td>`;
+                        } else {
+                            tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(999)}</td>`;
+                        }
+                    });
+
+                    tableHTML += `</tr>`;
+                } catch (e) {
+                    console.error("Error building row for keyword:", keyword, e);
+                }
             });
 
             tableHTML += `
@@ -34741,8 +34757,48 @@ Return ONLY valid JSON in this exact format:
 
             // If grid was wiped by runOnPageAuditRoot's general cleanup, restore it
             if (!grid && onPageAuditResultsContent) {
-                console.log("Restoring onPageAuditGrid because it was cleared...");
-                onPageAuditResultsContent.innerHTML = `<div id="onPageAuditGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding: 20px;"></div> `;
+                console.log("Restoring onPageAuditResults structure...");
+                onPageAuditResultsContent.innerHTML = `
+                    <div id="onPageAuditGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; padding: 20px;"></div>
+                    
+                    <!-- Detailed Crawler Section (Replicated from 13FebSs.html) -->
+                    <div id="onPageCrawlerSection" style="display: none; border-top: 2px dashed #eee; padding: 20px; margin-top: 20px;">
+                        <div class="sem-card-title" style="margin-bottom: 20px;">
+                            <i class="fas fa-spider"></i> Page-Level Crawl Results
+                        </div>
+
+                        <!-- Column Chooser -->
+                        <div class="column-chooser-container" style="background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px solid #f1f5f9; margin-bottom: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <b style="font-size: 0.9em; color: #1e293b;"><i class="fas fa-columns"></i> Customise View</b>
+                                <div style="display: flex; gap: 8px;">
+                                    <input type="text" class="column-search-input" placeholder="Search columns..." style="font-size: 0.8em; padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd;" onkeyup="filterOnPageColumns(this.value)">
+                                    <button class="config-btn-highlight" style="margin: 0; padding: 4px 8px; font-size: 0.75em;" onclick="toggleAllOnPageColumns(true)">Select All</button>
+                                    <button class="config-btn-highlight" style="margin: 0; padding: 4px 8px; font-size: 0.75em; background: #666;" onclick="toggleAllOnPageColumns(false)">Clear</button>
+                                </div>
+                            </div>
+                            <div id="onPageColumnCheckboxList" class="column-checkbox-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-height: 120px; overflow-y: auto; padding: 5px;"></div>
+                        </div>
+
+                        <!-- Summary Filters (Issue Cards) -->
+                        <div id="onPageCrawlerSummary" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px;"></div>
+
+                        <!-- Results Table -->
+                        <div class="table-container" style="background: white; border-radius: 12px; border: 1px solid #eee; overflow: hidden;">
+                            <table id="onPageCrawlerTable" class="wide-table" style="font-size: 0.85em; width: 100%; border-collapse: collapse;">
+                                <thead></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+                            <div id="onPageCrawlerPagination" style="font-size: 0.85em; color: #666;"></div>
+                            <button class="config-btn-highlight" id="onPageDownloadResultsBtn" style="display: none; background: #34a853; margin: 0;" onclick="downloadOnPageCrawlResults()">
+                                <i class="fas fa-download"></i> Download Results (.csv)
+                            </button>
+                        </div>
+                    </div>
+                `;
                 grid = document.getElementById('onPageAuditGrid');
             }
 
@@ -34876,35 +34932,63 @@ Return ONLY valid JSON in this exact format:
 
         // --- On-Page Crawler Logic (Scoped Helpers) ---
         async function startOnPageCrawl(url) {
+            console.log("startOnPageCrawl started for:", url);
             const table = document.getElementById('onPageCrawlerTable');
+            if (!table) {
+                console.error("onPageCrawlerTable not found!");
+                return;
+            }
+            
             table.innerHTML = `<thead> <tr><th colspan="100%" style="text-align:center; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Initialising crawler for ${url}...</p></th></tr></thead> `;
 
             try {
                 const response = await fetch("https://34208dks88.execute-api.ap-southeast-1.amazonaws.com/submitDiscoveryCrawl", {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: url, user: JSON.parse(localStorage.getItem('googleUser'))?.email || 'anonymous' })
+                    body: JSON.stringify({ 
+                        url: url, 
+                        user: JSON.parse(localStorage.getItem('googleUser'))?.email || 'anonymous' 
+                    })
                 });
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
                 const d = await response.json();
+                
+                // Handle Lambda errors or empty responses
+                if (d.errorMessage || d.errorType) {
+                   throw new Error(d.errorMessage || "Unknown backend error");
+                }
+                
                 const taskId = d.task_id;
+                if (!taskId) throw new Error("No task_id returned from crawler");
 
-                // Setup polling
+                console.log("Crawl started, Task ID:", taskId);
                 if (onPageCrawlerPollingInterval) clearInterval(onPageCrawlerPollingInterval);
                 onPageCrawlerPollingInterval = setInterval(() => pollOnPageCrawl(taskId), 5000);
             } catch (err) {
-                console.error("Crawl submission failed", err);
+                console.error("startOnPageCrawl Error:", err);
+                table.innerHTML = `<thead> <tr><th colspan="100%" style="text-align:center; padding: 40px; color: #ef4444;"><i class="fas fa-exclamation-triangle fa-2x"></i><p>Failed to start crawler: ${err.message}</p></th></tr></thead> `;
             }
         }
 
         async function pollOnPageCrawl(taskId) {
+            console.log("pollOnPageCrawl for:", taskId);
             try {
                 const response = await fetch("https://34208dks88.execute-api.ap-southeast-1.amazonaws.com/getDiscoveryCrawlResults", {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ task_id: taskId })
                 });
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
                 const d = await response.json();
+                
+                if (d.errorMessage || d.errorType) {
+                   throw new Error(d.errorMessage || "Unknown backend error during polling");
+                }
 
-                onPageCrawlerItems = d.items || [];
-                if (onPageCrawlerItems.length > 0) {
+                if (d.items && d.items.length > 0) {
+                    onPageCrawlerItems = d.items;
                     // Find unique headers
                     onPageCrawlerItems.forEach(item => {
                         Object.keys(item).forEach(key => {
@@ -34916,12 +35000,21 @@ Return ONLY valid JSON in this exact format:
                     updateOnPageTechnicalSummaryUI();
                 }
 
-                if (d.status === 'finished') {
+                if (d.status === 'finished' || d.status === 'completed') {
                     clearInterval(onPageCrawlerPollingInterval);
-                    document.getElementById('onPageDownloadResultsBtn').style.display = 'block';
+                    const btn = document.getElementById('onPageDownloadResultsBtn');
+                    if (btn) btn.style.display = 'block';
+                    
+                    const section = document.getElementById('onPageCrawlerSection');
+                    if (section) section.style.display = 'block';
+                } else if (d.status === 'failed') {
+                    throw new Error("Crawler task failed in backend");
                 }
             } catch (err) {
-                console.error("Polling failed", err);
+                console.error("pollOnPageCrawl Error:", err);
+                clearInterval(onPageCrawlerPollingInterval);
+                const table = document.getElementById('onPageCrawlerTable');
+                if (table) table.innerHTML = `<thead> <tr><th colspan="100%" style="text-align:center; padding: 40px; color: #ef4444;"><i class="fas fa-exclamation-triangle fa-2x"></i><p>Crawler error: ${err.message}</p></th></tr></thead> `;
             }
         }
 

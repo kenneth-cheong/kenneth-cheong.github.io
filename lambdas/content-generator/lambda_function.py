@@ -73,12 +73,21 @@ def lambda_handler(event, context):
     if word_count: prompt += f"Length: {word_count}. "
 
     # Data Context
+    def get_text_from_item(item):
+        if isinstance(item, dict):
+            # Check common keys returned by parser APIs
+            for key in ['body', 'content', 'text', 'parsed_text']:
+                if key in item and item[key]:
+                    return str(item[key])
+            return json.dumps(item)
+        return str(item)
+
     if webpage_data:
-        webpage_content = ' '.join(webpage_data)
+        webpage_content = ' '.join([get_text_from_item(i) for i in webpage_data])
         prompt += f"\nContext from Website: '{webpage_content}'. "
 
     if brand_guide_data:
-        brand_guide_content = ' '.join(brand_guide_data)
+        brand_guide_content = ' '.join([get_text_from_item(i) for i in brand_guide_data])
         prompt += f"\nBrand Guidelines: '{brand_guide_content}'. "
 
     if reference_post:
