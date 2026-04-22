@@ -1152,6 +1152,13 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <select id="campaign-sort" class="filter-input" style="width: auto; padding: 6px 10px; font-size: 12px; cursor: pointer;" onchange="handleCampaignSort()">
+                        <option value="name_asc">Campaign: A-Z</option>
+                        <option value="name_desc">Campaign: Z-A</option>
+                        <option value="overdue_desc">Most Overdue First</option>
+                        <option value="tasks_desc">Most Tasks First</option>
+                    </select>
 
                     <button class="btn btn-secondary" onclick="toggleLookupModal(true)"
                         style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px;">
@@ -1261,6 +1268,7 @@
             selectedStaffName: null,
             allStatusLabels: [],
             sort: { key: 'deadline', dir: 'asc' },
+            campaignSort: 'name_asc',
             filters: { text: '', people: new Set(), csManagers: new Set(), status: 'all' },
             excludedStatusLabels: new Set([
                 'Done', 'Completed', 'Finished', 'Approved',
@@ -1663,6 +1671,32 @@
             updateFilteredUI();
         }
 
+        function handleCampaignSort() {
+            state.campaignSort = document.getElementById('campaign-sort').value;
+            updateFilteredUI();
+        }
+
+        function sortCampaignGroups(groupsArray) {
+            return groupsArray.sort((a, b) => {
+                const [key, dir] = state.campaignSort.split('_');
+                let vA, vB;
+                
+                if (key === 'name') {
+                    vA = a.name.toLowerCase();
+                    vB = b.name.toLowerCase();
+                } else if (key === 'overdue') {
+                    vA = a.counts?.overdue || 0;
+                    vB = b.counts?.overdue || 0;
+                } else if (key === 'tasks') {
+                    vA = a.items.length;
+                    vB = b.items.length;
+                }
+
+                if (dir === 'asc') return vA > vB ? 1 : -1;
+                else return vA < vB ? 1 : -1;
+            });
+        }
+
         function renderAuditorView(filtered) {
             const groups = {};
             filtered.forEach(i => {
@@ -1671,7 +1705,7 @@
                 groups[i.bId].counts[i.status === '2w' ? 'v2w' : i.status]++;
             });
 
-            const sortedGroups = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
+            const sortedGroups = sortCampaignGroups(Object.values(groups));
             sortedGroups.forEach(g => {
                 g.items.sort((a, b) => {
                     let vA = a[state.sort.key] || '', vB = b[state.sort.key] || '';
@@ -1753,9 +1787,10 @@
                     staffGroups[person][i.status === '2w' ? 'v2w' : i.status]++;
 
                     if (!staffGroups[person].campaigns[i.bId]) {
-                        staffGroups[person].campaigns[i.bId] = { id: i.bId, name: i.bName, folder: i.fName, items: [] };
+                        staffGroups[person].campaigns[i.bId] = { id: i.bId, name: i.bName, folder: i.fName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 } };
                     }
                     staffGroups[person].campaigns[i.bId].items.push(i);
+                    staffGroups[person].campaigns[i.bId].counts[i.status === '2w' ? 'v2w' : i.status]++;
                 });
             });
 
@@ -1786,7 +1821,7 @@
             let tableHtml = '';
             if (state.selectedStaffName && staffGroups[state.selectedStaffName]) {
                 const s = staffGroups[state.selectedStaffName];
-                const sortedCampaigns = Object.values(s.campaigns).sort((a, b) => a.name.localeCompare(b.name));
+                const sortedCampaigns = sortCampaignGroups(Object.values(s.campaigns));
 
                 sortedCampaigns.forEach(c => {
                     const compoundId = `${s.name}-${c.id}`;
@@ -1798,6 +1833,11 @@
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <i class="fas ${isCampaignExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="width: 12px; opacity: 0.5;"></i>
                                 <span>${c.name} <span class="folder-sub">in ${c.folder}</span></span>
+                                <div style="display: flex; gap: 4px; margin-left: 12px;">
+                                    ${c.counts.overdue > 0 ? `<span class="board-tag overdue">${c.counts.overdue} Overdue</span>` : ''}
+                                    ${c.counts.soon > 0 ? `<span class="board-tag soon">${c.counts.soon} Soon</span>` : ''}
+                                    ${c.counts.v2w > 0 ? `<span class="board-tag v2w">${c.counts.v2w} 2W</span>` : ''}
+                                </div>
                                 <span style="font-size: 10px; opacity: 0.6; margin-left: auto;">${c.items.length} tasks</span>
                             </div>
                         </td>
