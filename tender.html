@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TenderAI | APAC Airport Tender Response</title>
+    <!-- Google Fonts: Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700&display=swap"
+        rel="stylesheet">
+    <!-- Lucide Icons via CDN (UMD) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            /* Color Palette */
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --primary-light: #eff6ff;
+            --secondary: #64748b;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --bg-app: #f8fafc;
+            --bg-sidebar: #ffffff;
+            --bg-card: #ffffff;
+            --border: #e2e8f0;
+            --border-hover: #cbd5e1;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+
+            /* Shadows & Spacing */
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --radius-sm: 0.375rem;
+            --radius: 0.5rem;
+            --radius-lg: 0.75rem;
+
+            /* Sizing */
+            --header-height: 64px;
+            --sidebar-width: 260px;
+            --right-panel-width: 480px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-app);
+            color: var(--text-main);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1,
+        h2,
+        h3,
+        .brand {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        /* --- Header Styles --- */
+        header {
+            height: var(--header-height);
+            background: #fff;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1.5rem;
+            z-index: 50;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .brand {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .project-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            border-left: 1px solid var(--border);
+            padding-left: 1.5rem;
+        }
+
+        .project-title {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .badge {
+            background: var(--primary-light);
+            color: var(--primary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--border);
+            background: #fff;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-ghost:hover {
+            background: var(--bg-app);
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        /* --- Main Layout --- */
+        .app-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* --- Sidebar --- */
+        aside.sidebar {
+            width: var(--sidebar-width);
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 1.25rem 0;
+            overflow-y: auto;
+        }
+
+        .nav-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .nav-label {
+            padding: 0 1.5rem;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.625rem 1.5rem;
+            color: var(--text-main);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: var(--bg-app);
+            color: var(--primary);
+        }
+
+        .nav-item.active {
+            background: var(--primary-light);
+            color: var(--primary);
+            border-left-color: var(--primary);
+        }
+
+        .file-list {
+            padding: 0 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            padding: 0.375rem 0.5rem;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+        }
+
+        .file-item:hover {
+            background: var(--bg-app);
+            color: var(--text-main);
+        }
+
+        .progress-card {
+            margin: auto 1rem 0;
+            padding: 1rem;
+            background: #f1f5f9;
+            border-radius: var(--radius-lg);
+        }
+
+        .progress-card h4 {
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: #cbd5e1;
+            border-radius: 9999px;
+            overflow: hidden;
+            margin-top: 0.25rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            border-radius: 9999px;
+        }
+
+        /* --- Main Content (Chat Area) --- */
+        main.chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #f8fafc;
+            border-right: 1px solid var(--border);
+            position: relative;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .message {
+            max-width: 85%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .message-user {
+            align-self: flex-end;
+        }
+
+        .message-content {
+            padding: 1rem;
+            border-radius: var(--radius-lg);
+            font-size: 0.9375rem;
+            line-height: 1.5;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .message-user .message-content {
+            background: var(--primary);
+            color: #fff;
+            border-bottom-right-radius: 0;
+        }
+
+        .message-ai .message-content {
+            background: #fff;
+            color: var(--text-main);
+            border-bottom-left-radius: 0;
+            border: 1px solid var(--border);
+        }
+
+        /* --- Cards in Chat --- */
+        .ai-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+            margin-top: 0.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .ai-card-title {
+            font-weight: 700;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        .insight-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .insight-item {
+            padding: 0.75rem;
+            background: var(--bg-app);
+            border-radius: var(--radius);
+            font-size: 0.8125rem;
+        }
+
+        .insight-label {
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+        }
+
+        /* --- Chat Input Area --- */
+        .chat-input-wrapper {
+            padding: 1.5rem;
+            background: #fff;
+            border-top: 1px solid var(--border);
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            padding: 0.375rem 0.875rem;
+            background: var(--bg-app);
+            border: 1px solid var(--border);
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chip:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .input-box {
+            display: flex;
+            align-items: flex-end;
+            gap: 0.75rem;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 0.75rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .input-box:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        textarea {
+            flex: 1;
+            border: none;
+            resize: none;
+            font-family: inherit;
+            font-size: 0.9375rem;
+            padding: 0.25rem;
+            max-height: 120px;
+            outline: none;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: var(--radius);
+            transition: background 0.2s;
+        }
+
+        .icon-btn:hover {
+            background: var(--bg-app);
+            color: var(--primary);
+        }
+
+        /* --- Right Panel (Slide Editor) --- */
+        aside.slide-panel {
+            width: var(--right-panel-width);
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* --- Thumbnail Rail --- */
+        .slide-rail {
+            width: 120px;
+            background: #f8fafc;
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            padding: 1rem 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .thumb {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 0.25rem;
+        }
+
+        .thumb:hover {
+            border-color: var(--primary);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .thumb.active {
+            border-color: var(--primary);
+            border-width: 2px;
+            box-shadow: 0 0 0 2px var(--primary-light);
+        }
+
+        .thumb-num {
+            position: absolute;
+            top: 2px;
+            left: 4px;
+            font-size: 0.6rem;
+            color: var(--text-muted);
+        }
+
+        /* --- Main Editor Canvas --- */
+        .editor-view {
+            flex: 1;
+            background: #f1f5f9;
+            padding: 1.5rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .slide-canvas {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #fff;
+            box-shadow: var(--shadow-lg);
+            border-radius: 4px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .slide-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 1.5rem;
+            outline: none;
+            padding: 4px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .slide-title:hover,
+        .slide-body:hover {
+            background: rgba(37, 99, 235, 0.03);
+        }
+
+        .slide-title:focus,
+        .slide-body:focus {
+            background: rgba(37, 99, 235, 0.05);
+            box-shadow: inset 0 0 0 1px var(--primary);
+        }
+
+        .slide-body {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #475569;
+            flex: 1;
+            outline: none;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .slide-body ul {
+            padding-left: 1.25rem;
+        }
+
+        .slide-body li {
+            margin-bottom: 0.5rem;
+        }
+
+        .canvas-controls {
+            position: absolute;
+            bottom: 1rem;
+            right: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .slide-canvas:hover .canvas-controls {
+            opacity: 1;
+        }
+
+        /* --- AI Suggestions --- */
+        .suggestions-panel {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+        }
+
+        .suggestions-title {
+            font-size: 0.8125rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .suggestion-item {
+            padding: 0.75rem;
+            border-radius: var(--radius);
+            border: 1px dashed var(--border);
+            margin-bottom: 0.75rem;
+            font-size: 0.8125rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .suggestion-item:hover {
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+
+        .suggestion-meta {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+        }
+
+        .apply-btn {
+            color: var(--primary);
+            font-weight: 600;
+            font-size: 0.75rem;
+        }
+
+        /* --- Version History Mini-Panel --- */
+        .version-panel {
+            border-top: 1px solid var(--border);
+            padding: 1rem 1.5rem;
+        }
+
+        .version-list {
+            display: flex;
+            gap: 1rem;
+            overflow-x: auto;
+            padding-bottom: 0.5rem;
+        }
+
+        .version-tag {
+            flex-shrink: 0;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            background: var(--bg-app);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+        }
+
+        .version-tag.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+
+        /* Responsive Tweaks */
+        @media (max-width: 1200px) {
+            :root {
+                --right-panel-width: 400px;
+                --sidebar-width: 220px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="header-left">
+            <div class="brand">
+                <i data-lucide="zap" fill="currentColor"></i>
+                <span>TenderAI</span>
+            </div>
+            <div class="project-info">
+                <span class="project-title">APAC Airport Tender Response</span>
+                <span class="badge">In Progress</span>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-ghost"><i data-lucide="share-2" size="16"></i> Share</button>
+            <button class="btn btn-ghost"><i data-lucide="file-down" size="16"></i> Export PPTX</button>
+            <button class="btn btn-primary"><i data-lucide="play-circle" size="16"></i> Generate Slides</button>
+            <div class="avatar">
+                <i data-lucide="user" size="20"></i>
+            </div>
+        </div>
+    </header>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <nav class="nav-section">
+                <p class="nav-label">Navigation</p>
+                <a href="#" class="nav-item active"><i data-lucide="layout-grid" size="18"></i> Overview</a>
+                <a href="#" class="nav-item"><i data-lucide="file-text" size="18"></i> Tender Documents</a>
+                <a href="#" class="nav-item"><i data-lucide="check-square" size="18"></i> Compliance Matrix</a>
+                <a href="#" class="nav-item"><i data-lucide="presentation" size="18"></i> Slide Deck</a>
+                <a href="#" class="nav-item"><i data-lucide="history" size="18"></i> Versions</a>
+            </nav>
+
+            <nav class="nav-section">
+                <p class="nav-label">Tender Documents</p>
+                <div class="file-list" id="sidebar-file-list">
+                    <!-- Documents will appear here after upload -->
+                    <div style="padding: 0.5rem; font-size: 0.75rem; color: var(--text-muted); font-style: italic;">No
+                        documents uploaded</div>
+                </div>
+            </nav>
+
+            <div class="progress-card">
+                <h4>PROJECT PROGRESS</h4>
+                <div class="stat-row">
+                    <span>Documents ingested</span>
+                    <span id="stat-ingested">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="bar-ingested" style="width: 0%;"></div>
+                </div>
+
+                <div class="stat-row" style="margin-top: 0.75rem;">
+                    <span>Requirements extracted</span>
+                    <span id="stat-extracted">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="bar-extracted" style="width: 0%;"></div>
+                </div>
+
+                <div class="stat-row" style="margin-top: 0.75rem;">
+                    <span>Slides drafted</span>
+                    <span id="stat-slides">0/0</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="bar-slides" style="width: 0%;"></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="chat-container">
+            <div class="chat-messages" id="chat-messages">
+                <div class="message message-ai">
+                    <div class="message-content">
+                        Welcome! Please upload your tender documents (RFP, submission guidelines, etc.) to begin the
+                        analysis.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Input -->
+            <div class="chat-input-wrapper">
+                <div class="quick-actions">
+                    <button class="chip" onclick="addPrompt('Extract mandatory requirements')">Extract
+                        requirements</button>
+                    <button class="chip" onclick="addPrompt('Show compliance matrix')">Compliance matrix</button>
+                    <button class="chip" onclick="addPrompt('Draft executive summary')">Executive summary</button>
+                    <button class="chip" onclick="addPrompt('Update win themes')">Update win themes</button>
+                </div>
+                <div class="input-box">
+                    <button class="icon-btn"><i data-lucide="paperclip" size="20"></i></button>
+                    <textarea id="chat-input" placeholder="Ask AI to analyze or edit..." rows="1"></textarea>
+                    <button class="icon-btn" style="color: var(--primary);" onclick="sendMessage()"><i
+                            data-lucide="send" size="20"></i></button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Panel (Editor) -->
+        <aside class="slide-panel">
+            <div class="panel-header">
+                <h3 style="font-size: 0.9375rem; font-weight: 700;">SLIDE DECK PREVIEW</h3>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="icon-btn"><i data-lucide="maximize-2" size="16"></i></button>
+                    <button class="icon-btn"><i data-lucide="more-horizontal" size="16"></i></button>
+                </div>
+            </div>
+
+            <div class="panel-content">
+                <div class="slide-rail" id="slide-rail">
+                    <!-- Thumbnails generated by JS -->
+                </div>
+
+                <div class="editor-view">
+                    <!-- Feedback Workflow Badge -->
+                    <div id="feedback-alert"
+                        style="display:none; background: #fffbeb; border: 1px solid #fcd34d; padding: 0.75rem; border-radius: var(--radius); margin-bottom: 1rem;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <div
+                                style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; font-weight: 600; color: #92400e;">
+                                <i data-lucide="sparkles" size="14"></i> AI Changes Proposed
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="apply-btn" onclick="acceptChanges()"
+                                    style="border:none; background:none; cursor:pointer;">Accept All</button>
+                                <button class="apply-btn"
+                                    style="color: #64748b; border:none; background:none; cursor:pointer;">Review</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="slide-canvas" id="slide-canvas">
+                        <div class="slide-title" contenteditable="true" id="current-slide-title">Untitled Slide</div>
+                        <div class="slide-body" contenteditable="true" id="current-slide-body">
+                            <p style="color: var(--text-muted); font-style: italic;">Start typing or ask AI to generate
+                                content...</p>
+                        </div>
+                        <div class="canvas-controls">
+                            <button class="btn btn-ghost" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;"
+                                onclick="askAItoRewrite()"><i data-lucide="sparkles" size="12"></i> Ask AI to
+                                rewrite</button>
+                            <button class="btn btn-ghost" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;"><i
+                                    data-lucide="edit-3" size="12"></i> Design</button>
+                        </div>
+                    </div>
+
+                    <div class="suggestions-panel">
+                        <div class="suggestions-title"><i data-lucide="wand-2" size="14"></i> AI Suggestions</div>
+
+                        <div class="suggestion-item"
+                            onclick="applySuggestion('Make it more persuasive', 'Strengthen the value proposition by emphasizing our 15-year track record in APAC aviation.')">
+                            <strong>Make it more persuasive</strong>
+                            <p style="color: var(--text-muted); margin-top: 0.25rem;">Focus on the 15-year track record
+                                and successful delivery at HKG and SIN.</p>
+                            <div class="suggestion-meta">
+                                <span class="apply-btn">Apply Suggestion</span>
+                            </div>
+                        </div>
+
+                        <div class="suggestion-item"
+                            onclick="applySuggestion('Shorten for clarity', 'Streamline bullet points to focus on the top 3 high-impact outcomes.')">
+                            <strong>Shorten for clarity</strong>
+                            <p style="color: var(--text-muted); margin-top: 0.25rem;">Reduces text volume by 30% without
+                                losing core messaging.</p>
+                            <div class="suggestion-meta">
+                                <span class="apply-btn">Apply Suggestion</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="version-panel">
+                <div class="nav-label" style="padding:0; margin-bottom: 0.5rem;">Version History</div>
+                <div class="version-list" id="version-list">
+                    <div class="version-tag">v1 Initial</div>
+                    <div class="version-tag">v2 Revisions</div>
+                    <div class="version-tag active">v3 Current</div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const API_BASE_URL = 'https://2zsxqwth46.execute-api.ap-southeast-1.amazonaws.com/claude';
+
+        // --- State Management ---
+        const slidesData = [];
+        let activeSlideIndex = -1;
+        let isProcessing = false;
+
+        // Mock Data for "Generation" baseline
+        const MOCK_SLIDES = [
+            { id: 1, title: "Executive Summary", body: "<ul><li>Our proposal centers on a unified digital ecosystem designed for scale.</li><li>Focus on passenger experience through automated check-in and biometric verification.</li><li>Local delivery team based in Singapore ensures 24/7 on-site support.</li></ul>" },
+            { id: 2, title: "Client Needs & Scope", body: "<ul><li>Address the 25% projected growth in passenger traffic over 5 years.</li><li>Requirement for zero-downtime migration of legacy security systems.</li><li>Integration with existing border control databases.</li></ul>" },
+            { id: 3, title: "Our Understanding", body: "<ul><li>Deep integration with the APAC regional compliance framework.</li><li>Focus on sustainable energy usage for all IT server rooms.</li><li>Modular architecture allowing for future-proof terminal expansions.</li></ul>" },
+            { id: 4, title: "Win Themes", body: "<ul><li><strong>Unmatched Reliability:</strong> 99.999% uptime proven in 12 global airport hubs.</li><li><strong>Local Expertise:</strong> Largest aviation tech workforce in the region.</li><li><strong>Innovation First:</strong> AI-driven predictive maintenance for terminal hardware.</li></ul>" },
+            { id: 5, title: "Delivery Approach", body: "<ul><li>Phase 1: Deep Discovery & Audit (Month 1-2)</li><li>Phase 2: Hybrid Cloud Infrastructure Setup (Month 3-6)</li><li>Phase 3: Progressive Systems Rollout (Month 7-12)</li></ul>" },
+            { id: 6, title: "Team & Governance", body: "<ul><li>Project Sponsor: Dr. Sarah Chen, CTO Aviation</li><li>Lead Architect: James Wilson, 20+ years in Large Scale Systems</li><li>Dedicated Risk & Compliance Office for this project.</li></ul>" },
+            { id: 7, title: "Risks & Mitigations", body: "<ul><li>Migration Latency: Mitigation via dual-run staging environment.</li><li>Supply Chain Delay: Strategy includes localized hardware buffer stock.</li></ul>" },
+            { id: 8, title: "Pricing & Commercial", body: "<ul><li>Flexible Opex-based pricing model to align with traffic growth.</li><li>Performance-based incentives tied to passenger satisfaction scores.</li></ul>" }
+        ];
+
+        // --- Initialize UI ---
+        function init() {
+            lucide.createIcons();
+            renderThumbnails();
+            updateEditorState();
+            setupAutoSave();
+            setupProjectActions();
+            setupFileUpload();
+
+            const tx = document.getElementById('chat-input');
+            tx.addEventListener("input", function () {
+                this.style.height = "auto";
+                this.style.height = (this.scrollHeight) + "px";
+            }, false);
+
+            tx.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+        }
+
+        // --- Slide Management ---
+        function renderThumbnails() {
+            const rail = document.getElementById('slide-rail');
+            rail.innerHTML = '';
+
+            if (slidesData.length === 0) {
+                rail.innerHTML = '<div style="font-size:0.6rem; color:var(--text-muted); text-align:center; padding:1rem; opacity:0.5;">Empty</div>';
+                return;
+            }
+
+            slidesData.forEach((slide, index) => {
+                const thumb = document.createElement('div');
+                thumb.className = `thumb ${index === activeSlideIndex ? 'active' : ''}`;
+                thumb.id = `thumb-${index}`;
+                thumb.innerHTML = `<span class="thumb-num">${slide.id}</span> ${slide.title}`;
+                thumb.onclick = () => loadSlide(index);
+                rail.appendChild(thumb);
+            });
+        }
+
+        function updateEditorState() {
+            const canvas = document.getElementById('slide-canvas');
+            const titleEl = document.getElementById('current-slide-title');
+            const bodyEl = document.getElementById('current-slide-body');
+            const controls = document.querySelector('.canvas-controls');
+
+            if (activeSlideIndex === -1) {
+                titleEl.innerText = "No Slides Generated";
+                bodyEl.innerHTML = '<p style="color: var(--text-muted); font-style: italic;">Upload documents and click "Analyze Tender" to generate your slide deck.</p>';
+                controls.style.display = 'none';
+                canvas.style.opacity = '0.5';
+            } else {
+                const slide = slidesData[activeSlideIndex];
+                titleEl.innerText = slide.title;
+                bodyEl.innerHTML = slide.body;
+                controls.style.display = 'flex';
+                canvas.style.opacity = '1';
+                updateSuggestions(slide);
+            }
+        }
+
+        function loadSlide(index) {
+            if (activeSlideIndex !== -1) saveCurrentSlide();
+            activeSlideIndex = index;
+            updateEditorState();
+
+            document.querySelectorAll('.thumb').forEach((t, i) => {
+                t.classList.toggle('active', i === index);
+            });
+
+            document.getElementById('feedback-alert').style.display = 'none';
+        }
+
+        function saveCurrentSlide() {
+            if (activeSlideIndex === -1) return;
+            const title = document.getElementById('current-slide-title').innerText;
+            const body = document.getElementById('current-slide-body').innerHTML;
+            slidesData[activeSlideIndex].title = title;
+            slidesData[activeSlideIndex].body = body;
+        }
+
+        function setupAutoSave() {
+            const titleEl = document.getElementById('current-slide-title');
+            const bodyEl = document.getElementById('current-slide-body');
+
+            const handleInput = () => {
+                if (activeSlideIndex === -1) return;
+                slidesData[activeSlideIndex].title = titleEl.innerText;
+                slidesData[activeSlideIndex].body = bodyEl.innerHTML;
+
+                const thumb = document.getElementById(`thumb-${activeSlideIndex}`);
+                if (thumb) thumb.innerHTML = `<span class="thumb-num">${slidesData[activeSlideIndex].id}</span> ${titleEl.innerText}`;
+            };
+
+            titleEl.addEventListener('input', handleInput);
+            bodyEl.addEventListener('input', handleInput);
+        }
+
+        // --- Real API Interactions ---
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text || isProcessing) return;
+
+            addChatMessage(text, 'user');
+            input.value = '';
+            input.style.height = 'auto';
+
+            callClaudeAPI(text);
+        }
+
+        async function callClaudeAPI(userInput) {
+            isProcessing = true;
+            const container = document.getElementById('chat-messages');
+
+            const typing = document.createElement('div');
+            typing.className = 'message message-ai typing-indicator';
+            typing.innerHTML = '<div class="message-content" style="padding: 0.5rem 1rem; color: var(--text-muted);">Claude is responding...</div>';
+            container.appendChild(typing);
+            container.scrollTop = container.scrollHeight;
+
+            try {
+                const response = await fetch(API_BASE_URL, {
+                    method: 'POST',
+                    mode: 'cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'analyze',
+                        prompt: userInput
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.text();
+                    throw new Error(`API Error (${response.status}): ${errorData}`);
+                }
+
+                const data = await response.json();
+                console.log('API Response Data:', data);
+                typing.remove();
+
+                if (data.ai_response) {
+                    addChatMessage(data.ai_response, 'ai');
+                    if (data.ai_response.toLowerCase().includes("slide") && slidesData.length > 0) {
+                        handleAIAction(data.ai_response);
+                    }
+                } else {
+                    const rawString = JSON.stringify(data);
+                    addChatMessage('**Debug Info**: Received 200 OK but "ai_response" is missing. Raw data: ' + rawString, 'ai');
+                }
+            } catch (error) {
+                typing.remove();
+                addChatMessage(`**Connection Error**: ${error.message}`, 'ai');
+                console.error('Claude API Error Details:', error);
+            } finally {
+                isProcessing = false;
+            }
+        }
+
+        function handleAIAction(responseText) {
+            const slideMatch = responseText.toLowerCase().match(/slide (\d+)/);
+            if (slideMatch) {
+                const num = parseInt(slideMatch[1]);
+                if (num > 0 && num <= slidesData.length) {
+                    loadSlide(num - 1);
+                }
+            }
+        }
+
+        // --- File Upload Logic ---
+        function setupFileUpload() {
+            const paperclip = document.querySelector('.icon-btn:has(.lucide-paperclip)');
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.style.display = 'none';
+            document.body.appendChild(fileInput);
+
+            paperclip.onclick = () => fileInput.click();
+
+            fileInput.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                addChatMessage(`Uploading ${file.name}...`, 'user');
+
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = async () => {
+                    const base64Content = reader.result.split(',')[1];
+                    try {
+                        const response = await fetch(API_BASE_URL, {
+                            method: 'POST',
+                            mode: 'cors',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'upload',
+                                fileName: file.name,
+                                fileContent: base64Content,
+                                contentType: file.type
+                            })
+                        });
+
+                        if (!response.ok) throw new Error(`Upload failed (${response.status})`);
+
+                        addChatMessage(`Success! **${file.name}** has been uploaded.`, 'ai');
+                        addFileToSidebar(file.name, file.type);
+                    } catch (error) {
+                        addChatMessage(`Upload failed: ${error.message}. Check AWS CORS settings.`, 'ai');
+                    }
+                };
+            };
+        }
+
+        function addFileToSidebar(name, type) {
+            const list = document.getElementById('sidebar-file-list');
+            if (list.innerText.includes("No documents")) list.innerHTML = '';
+
+            const item = document.createElement('div');
+            item.className = 'file-item';
+            item.innerHTML = `<i data-lucide="file-text" size="14"></i> ${name}`;
+            list.appendChild(item);
+            lucide.createIcons();
+
+            const ingested = document.getElementById('stat-ingested');
+            const bar = document.getElementById('bar-ingested');
+            const current = parseInt(ingested.innerText) || 0;
+            const newVal = Math.min(100, current + 25);
+            ingested.innerText = `${newVal}%`;
+            bar.style.width = `${newVal}%`;
+        }
+
+        // --- UI Helper Functions ---
+        function addChatMessage(text, type, card = null) {
+            const container = document.getElementById('chat-messages');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message message-${type}`;
+            let html = `<div class="message-content">${text}</div>`;
+            if (card) {
+                html += `<div class="ai-card"><div class="ai-card-title"><i data-lucide="${card.icon}" size="16"></i> ${card.title}</div>${card.content}</div>`;
+            }
+            msgDiv.innerHTML = html;
+            container.appendChild(msgDiv);
+            container.scrollTop = container.scrollHeight;
+            lucide.createIcons();
+        }
+
+        function setupProjectActions() {
+            const mainAction = document.querySelector('.btn-primary');
+            mainAction.onclick = () => {
+                if (slidesData.length > 0) return;
+
+                isProcessing = true;
+                mainAction.innerHTML = '<i data-lucide="loader-2" size="16" class="spin"></i> Analyzing...';
+
+                setTimeout(() => {
+                    slidesData.length = 0;
+                    MOCK_SLIDES.forEach(s => slidesData.push(JSON.parse(JSON.stringify(s))));
+                    activeSlideIndex = 0;
+
+                    document.getElementById('stat-extracted').innerText = "85%";
+                    document.getElementById('bar-extracted').style.width = "85%";
+                    document.getElementById('stat-slides').innerText = "8/8";
+                    document.getElementById('bar-slides').style.width = "100%";
+
+                    mainAction.innerHTML = '<i data-lucide="play-circle" size="16"></i> Generate Slides';
+                    isProcessing = false;
+                    renderThumbnails();
+                    updateEditorState();
+                    addChatMessage("I've analyzed the current project context and generated an 8-slide response draft. You can now edit each slide or ask me for specific revisions.", 'ai');
+                    lucide.createIcons();
+                }, 1500);
+            };
+
+            const exportBtn = document.querySelector('button:has(.lucide-file-down)');
+            if (exportBtn) {
+                exportBtn.onclick = () => {
+                    if (slidesData.length === 0) return alert("Please generate slides before exporting.");
+                    alert("Generating PowerPoint export... Your download will start shortly.");
+                };
+            }
+        }
+
+        function askAItoRewrite() {
+            const currentContent = document.getElementById('current-slide-body').innerText;
+            addChatMessage(`Please rewrite the current slide to be more professional: "${slidesData[activeSlideIndex].title}"`, 'user');
+            callClaudeAPI(`Rewrite the following slide content for an executive audience, keeping the same core meaning but making it more persuasive and professional: ${currentContent}`);
+        }
+
+        function applySuggestion(type, explanation) {
+            const body = document.getElementById('current-slide-body');
+            body.innerHTML = `<div style="background:var(--primary-light); padding:0.75rem; border-radius:var(--radius); margin-bottom:1rem; border:1px dashed var(--primary); font-size:0.8rem;"><strong>AI suggested:</strong> ${explanation}</div>${body.innerHTML}`;
+            addChatMessage(`Applied "${type}" suggestion to the active slide.`, 'ai');
+            lucide.createIcons();
+        }
+
+        function acceptChanges() {
+            document.getElementById('feedback-alert').style.display = 'none';
+            saveCurrentSlide();
+            const list = document.getElementById('version-list');
+            list.querySelectorAll('.version-tag').forEach(t => t.classList.remove('active'));
+            const newVer = document.createElement('div');
+            newVer.className = 'version-tag active';
+            newVer.innerText = `v${list.children.length + 1} AI Refined`;
+            list.appendChild(newVer);
+            addChatMessage("Changes accepted and saved to version history.", 'ai');
+        }
+
+        function updateSuggestions(slide) {
+            const panel = document.querySelector('.suggestions-panel');
+            panel.innerHTML = `<div class="suggestions-title"><i data-lucide="wand-2" size="14"></i> AI Suggestions</div>
+                <div class="suggestion-item" onclick="applySuggestion('Executive Tone', 'Refine for authority.')"><strong>Increase Executive Impact</strong><div class="suggestion-meta"><span class="apply-btn">Apply</span></div></div>
+                <div class="suggestion-item" onclick="applySuggestion('Shorten', 'Condense points.')"><strong>Condense Content</strong><div class="suggestion-meta"><span class="apply-btn">Apply</span></div></div>`;
+            lucide.createIcons();
+        }
+
+        function addPrompt(text) {
+            document.getElementById('chat-input').value = text;
+            document.getElementById('chat-input').focus();
+        }
+
+        window.onload = init;
+    </script>
+    <style>
+        .spin {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .typing-indicator {
+            font-style: italic;
+            opacity: 0.8;
+        }
+    </style>
+</body>
+
+</html>
