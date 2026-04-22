@@ -826,8 +826,15 @@
         }
 
         @keyframes modalSlideUp {
-            from { transform: translateY(30px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
 
         .changelog-header {
@@ -9704,7 +9711,8 @@
         <div class="nav-item" id="changelogNavItem">
             <a href="#" onclick="openChangelog(event)" style="position: relative;">
                 Changelog
-                <span id="changelogBadge" style="position: absolute; top: -5px; right: -10px; width: 8px; height: 8px; background-color: #ef4444; border-radius: 50%; border: 2px solid white;"></span>
+                <span id="changelogBadge"
+                    style="position: absolute; top: -5px; right: -10px; width: 8px; height: 8px; background-color: #ef4444; border-radius: 50%; border: 2px solid white;"></span>
             </a>
         </div>
 
@@ -9755,8 +9763,8 @@
                         box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25); 
                         transition: all 0.3s ease; border: 1px solid rgba(255,255,255,0.2);
                         cursor: pointer;
-                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 15px rgba(245, 158, 11, 0.4)';" 
-                       onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(245, 158, 11, 0.25)';">
+                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 15px rgba(245, 158, 11, 0.4)';"
+                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(245, 158, 11, 0.25)';">
                         <i class="fas fa-bolt"></i> New Chatbot (WIP)
                     </a>
                 </div>
@@ -10054,7 +10062,8 @@
                             </button>
                             <span id="cockpit-monday-count" class="badge-action"
                                 style="font-size: 14px; padding: 5px 10px;">Loading...</span>
-                            <a href="campaign-board-crawler.html" target="_blank" class="expand-card-btn" title="Open Auditor">
+                            <a href="campaign-board-crawler.html" target="_blank" class="expand-card-btn"
+                                title="Open Auditor">
                                 <i class="fas fa-external-link-alt"></i>
                             </a>
                         </div>
@@ -10128,7 +10137,8 @@
                             </button>
                             <span id="cockpit-updates-count" class="badge-action"
                                 style="font-size: 14px; padding: 5px 10px; background: rgba(99, 102, 241, 0.1); color: #6366f1;">-</span>
-                            <a href="campaign-board-crawler.html" target="_blank" class="expand-card-btn" title="Open Auditor">
+                            <a href="campaign-board-crawler.html" target="_blank" class="expand-card-btn"
+                                title="Open Auditor">
                                 <i class="fas fa-external-link-alt"></i>
                             </a>
                         </div>
@@ -31179,7 +31189,7 @@ ${selectedText}
                     `;
 
                     const targetDomain = document.getElementById("competitors-target1").value;
-                    
+
                     // Helper to find rank data for a domain
                     const getDomainData = (obj, domain) => {
                         if (!obj) return null;
@@ -34928,27 +34938,27 @@ Return ONLY valid JSON in this exact format:
                 console.error("onPageCrawlerTable not found!");
                 return;
             }
-            
+
             table.innerHTML = `<thead> <tr><th colspan="100%" style="text-align:center; padding: 40px;"><i class="fas fa-spinner fa-spin fa-2x"></i><p>Initialising crawler for ${url}...</p></th></tr></thead> `;
 
             try {
                 const response = await fetch("https://34208dks88.execute-api.ap-southeast-1.amazonaws.com/submitDiscoveryCrawl", {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        url: url, 
-                        user: JSON.parse(localStorage.getItem('googleUser'))?.email || 'anonymous' 
+                    body: JSON.stringify({
+                        url: url,
+                        user: JSON.parse(localStorage.getItem('googleUser'))?.email || 'anonymous'
                     })
                 });
-                
+
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                
+
                 const d = await response.json();
-                
+
                 // Handle Lambda errors or empty responses
                 if (d.errorMessage || d.errorType) {
-                   throw new Error(d.errorMessage || "Unknown backend error");
+                    throw new Error(d.errorMessage || "Unknown backend error");
                 }
-                
+
                 const taskId = d.task_id;
                 if (!taskId) throw new Error("No task_id returned from crawler");
 
@@ -34968,13 +34978,13 @@ Return ONLY valid JSON in this exact format:
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ task_id: taskId })
                 });
-                
+
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                
+
                 const d = await response.json();
-                
+
                 if (d.errorMessage || d.errorType) {
-                   throw new Error(d.errorMessage || "Unknown backend error during polling");
+                    throw new Error(d.errorMessage || "Unknown backend error during polling");
                 }
 
                 if (d.items && d.items.length > 0) {
@@ -34994,7 +35004,7 @@ Return ONLY valid JSON in this exact format:
                     clearInterval(onPageCrawlerPollingInterval);
                     const btn = document.getElementById('onPageDownloadResultsBtn');
                     if (btn) btn.style.display = 'block';
-                    
+
                     const section = document.getElementById('onPageCrawlerSection');
                     if (section) section.style.display = 'block';
                 } else if (d.status === 'failed') {
@@ -50649,7 +50659,7 @@ Move-In</h3>
                 if (inspectText) inspectText.value = '';
                 const indexText = document.getElementById('gscIndexUrls');
                 if (indexText) indexText.value = '';
-                advanceTourSequence(); 
+                advanceTourSequence();
             };
 
             setTimeout(() => { driverObj.drive(); }, 500);
@@ -55728,11 +55738,43 @@ Move-In</h3>
                     <!-- EPOCH: THE EXPANSION ERA -->
                     <div class="epoch-divider">The Expansion Era (2026)</div>
 
+                    <!-- v1.3.0 -->
+                    <div class="timeline-item">
+                        <div class="timeline-version">
+                            <span class="version-tag">v1.3.0</span>
+                            <span class="version-date">Current</span>
+                        </div>
+                        <div class="timeline-content">
+                            <div style="background: rgba(99, 102, 241, 0.05); border-radius: 12px; padding: 15px; border: 1px solid rgba(99, 102, 241, 0.2); margin-bottom: 15px;">
+                                <strong style="color: #6366f1; display: block; margin-bottom: 8px; font-size: 1.1rem;">
+                                    <i class="fas fa-radar"></i> Feature Spotlight: Campaign Intelligence Hub
+                                </strong>
+                                <p style="font-size: 0.9rem; line-height: 1.5; color: #475569; margin: 0;">
+                                    Introducing the <strong>Campaign Auditor</strong>—a sophisticated engine designed to bridge the gap between raw Monday.com task data and strategic campaign oversight. It transforms fragmented board data into a unified, actionable intelligence dashboard.
+                                </p>
+                                <div style="margin-top: 12px;">
+                                    <a href="campaign-board-crawler.html" target="_blank" style="display: inline-flex; align-items: center; gap: 8px; background: #6366f1; color: white !important; padding: 6px 14px; border-radius: 8px; text-decoration: none; font-size: 0.85rem; font-weight: 600;">
+                                        Launch Auditor Tool <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <strong>Core Intelligence Capabilities:</strong>
+                            <ul style="margin-top: 10px;">
+                                <li><strong>Advanced Mapping Engine:</strong> 100% accurate linkage via <code>[Tech] Board ID</code>, bracketed campaign codes, and domain-based heuristics.</li>
+                                <li><strong>Normalization Logic:</strong> Automated cleaning of emojis, URLs, and noise from master records for robust data integrity.</li>
+                                <li><strong>Urgency Radar:</strong> Real-time cross-folder scanning for <em>Overdue</em>, <em>Due Soon</em> (7 days), and <em>2-Week</em> task windows.</li>
+                                <li><strong>Manager Dashboard:</strong> High-level personnel grouping to track staff bandwidth and project health at a glance.</li>
+                                <li><strong>Multi-Tier Sorting:</strong> Granular control over campaign reporting (Sort by Name, Urgency, or Task Volume).</li>
+                            </ul>
+                        </div>
+                    </div>
+
                     <!-- v1.2.5 -->
                     <div class="timeline-item">
                         <div class="timeline-version">
                             <span class="version-tag">v1.2.5</span>
-                            <span class="version-date">Current</span>
+                            <span class="version-date">April 20, 2026</span>
                         </div>
                         <div class="timeline-content">
                             <strong>Platform Transparency</strong>
@@ -55770,8 +55812,10 @@ Move-In</h3>
                             <strong>Onboarding Tour Expansion</strong>
                             <ul>
                                 <li>Scaled GA4, Google Ads, SEM, and GSC tours to 10-12 granular steps.</li>
-                                <li>Integrated <code>driver.js</code> (v1.3.1) for high-performance sequential walkthroughs.</li>
-                                <li>Implemented automatic UI state cleanup hooks to restore dashboard integrity after tours.</li>
+                                <li>Integrated <code>driver.js</code> (v1.3.1) for high-performance sequential
+                                    walkthroughs.</li>
+                                <li>Implemented automatic UI state cleanup hooks to restore dashboard integrity after
+                                    tours.</li>
                             </ul>
                         </div>
                     </div>
@@ -55786,7 +55830,8 @@ Move-In</h3>
                             <strong>Dynamic Chatbot Engine</strong>
                             <ul>
                                 <li>Launched the flexible filter engine for Monday.com column retrieval.</li>
-                                <li>Implemented multi-select inclusion/exclusion logic for candidate and task filtering.</li>
+                                <li>Implemented multi-select inclusion/exclusion logic for candidate and task filtering.
+                                </li>
                             </ul>
                         </div>
                     </div>
@@ -55803,7 +55848,8 @@ Move-In</h3>
                         <div class="timeline-content">
                             <strong>FAQ Precision & Strategy</strong>
                             <ul>
-                                <li>Enforced a strict "No-Guessing Policy" and Citation Guards for the media chatbot.</li>
+                                <li>Enforced a strict "No-Guessing Policy" and Citation Guards for the media chatbot.
+                                </li>
                                 <li>Restructured the "Strategy House" section with enhanced visual hierarchy.</li>
                             </ul>
                         </div>
@@ -55818,7 +55864,8 @@ Move-In</h3>
                         <div class="timeline-content">
                             <strong>GSC Stability & Performance</strong>
                             <ul>
-                                <li>Complete refactor of the Google Search Console module to eliminate syntax instability.</li>
+                                <li>Complete refactor of the Google Search Console module to eliminate syntax
+                                    instability.</li>
                                 <li>Introduced granular striking distance win analysis reports.</li>
                             </ul>
                         </div>
@@ -55833,7 +55880,8 @@ Move-In</h3>
                         <div class="timeline-content">
                             <strong>The Unified Cockpit</strong>
                             <ul>
-                                <li>Initial unification of SEO, SMM, SEM, and GEO tools into a single cockpit expérience.</li>
+                                <li>Initial unification of SEO, SMM, SEM, and GEO tools into a single cockpit
+                                    expérience.</li>
                                 <li>Launched keyless "Zero-Key" architecture for secure portal authentication.</li>
                             </ul>
                         </div>
@@ -55894,7 +55942,7 @@ Move-In</h3>
                 modal.style.display = 'none';
             }
         }
-        
+
         // Auto-hide badge if already viewed in this session/localstorage
         window.addEventListener('DOMContentLoaded', () => {
             if (localStorage.getItem('changelog_last_viewed_v1.2.5') === 'true') {
@@ -55904,4 +55952,5 @@ Move-In</h3>
         });
     </script>
 </body>
+
 </html>
