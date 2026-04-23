@@ -15,6 +15,8 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- PptxGenJS for slide exports -->
     <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+    <!-- Google GIS -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root {
             /* Color Palette */
@@ -82,6 +84,64 @@
             z-index: 50;
         }
 
+        .chat-input-box {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 0.5rem;
+            display: flex;
+            align-items: flex-end;
+            gap: 0.5rem;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.2s;
+        }
+
+        .chat-input-box:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .chat-input-box.drag-over {
+            border-color: var(--primary);
+            background: rgba(37, 99, 235, 0.05);
+        }
+
+        .chat-input-actions {
+            display: flex;
+            gap: 0.25rem;
+            padding-bottom: 0.25rem;
+        }
+
+        #chat-input {
+            flex: 1;
+            border: none;
+            outline: none;
+            padding: 0.5rem;
+            font-size: 0.875rem;
+            background: none;
+            resize: none;
+            max-height: 150px;
+            min-height: 24px;
+        }
+
+        .send-btn {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            margin-bottom: 0.15rem;
+        }
+
+        .send-btn:hover {
+            opacity: 0.9;
+        }
         .header-left {
             display: flex;
             align-items: center;
@@ -872,6 +932,8 @@
             outline: none;
             padding: 4px;
             border-radius: 4px;
+            border: 1px solid transparent;
+            transition: border-color 0.2s;
         }
 
         .theme-dark .slide-title {
@@ -894,6 +956,8 @@
             outline: none;
             padding: 4px;
             border-radius: 4px;
+            border: 1px solid transparent;
+            transition: border-color 0.2s;
         }
 
         .theme-dark .slide-body {
@@ -1091,6 +1155,170 @@
         .data-table tr:last-child td {
             border-bottom: none;
         }
+        /* User Profile & Auth */
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .user-profile:hover {
+            background: var(--bg-app);
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.75rem;
+        }
+
+        .user-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-name {
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .user-role {
+            font-size: 0.6875rem;
+            color: var(--text-muted);
+        }
+
+        .login-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-overlay.active {
+            display: flex;
+        }
+
+        .login-card {
+            background: #fff;
+            width: 100%;
+            max-width: 400px;
+            padding: 2.5rem;
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-xl);
+            animation: modalFadeIn 0.3s ease-out;
+        }
+
+        .revision-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            margin-bottom: 0.75rem;
+            transition: all 0.2s;
+        }
+
+        .revision-item:hover {
+            border-color: var(--primary);
+            background: rgba(37, 99, 235, 0.02);
+        }
+
+        .revision-info h4 {
+            font-size: 0.875rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .revision-meta {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        /* Advanced Slide Components */
+        .slide-element {
+            position: absolute;
+            border: 1px solid transparent;
+            cursor: move;
+            transition: border-color 0.15s;
+            user-select: none;
+        }
+
+        .slide-element:hover {
+            border: 1px solid rgba(37, 99, 235, 0.4);
+        }
+
+        .slide-element.active {
+            border: 1px solid var(--primary);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+            z-index: 100;
+        }
+
+        .slide-element .resize-handle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #fff;
+            border: 2px solid var(--primary);
+            border-radius: 50%;
+            bottom: -5px;
+            right: -5px;
+            cursor: nwse-resize;
+            display: none;
+            z-index: 110;
+        }
+
+        .slide-element.active .resize-handle {
+            display: block;
+        }
+
+        .slide-element img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            pointer-events: none;
+        }
+
+        .slide-element .element-actions {
+            position: absolute;
+            top: -30px;
+            right: 0;
+            background: var(--primary);
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            display: none;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .slide-element.active .element-actions {
+            display: flex;
+        }
+
+        .slide-element .element-actions i {
+            cursor: pointer;
+            opacity: 0.8;
+        }
+
+        .slide-element .element-actions i:hover {
+            opacity: 1;
+        }
 
         .status-badge {
             padding: 0.25rem 0.5rem;
@@ -1098,6 +1326,7 @@
             font-size: 0.7rem;
             font-weight: 600;
             text-transform: uppercase;
+            color: #fff;
         }
 
         .status-compliant {
@@ -1708,9 +1937,10 @@
         }
 
         [contenteditable="true"]:focus {
-            background: #fff;
-            outline: 2px solid var(--primary);
-            box-shadow: var(--shadow-sm);
+            background: transparent;
+            outline: none;
+            box-shadow: none;
+            border: 1px dashed var(--primary);
         }
 
         /* Modal Styles */
@@ -1892,6 +2122,10 @@
             </div>
         </div>
         <div class="header-actions">
+            <button class="btn btn-ghost" title="Version History" onclick="openHistoryModal()">
+                <i data-lucide="history" size="18"></i>
+            </button>
+            <div class="divider" style="height: 24px; width: 1px; background: var(--border);"></div>
             <button class="btn btn-ghost" onclick="toggleFocusMode()"><i data-lucide="share-2" size="16"></i> Focus
                 Mode</button>
             <button class="btn btn-ghost" onclick="exportToPPTX()"><i data-lucide="file-down" size="16"></i> Export
@@ -1900,8 +2134,18 @@
                 <i data-lucide="play-circle" size="16"></i>
                 <span id="generate-btn-text">Generate Slides</span>
             </button>
-            <div class="avatar">
-                <i data-lucide="user" size="20"></i>
+            <div class="divider" style="height: 24px; width: 1px; background: var(--border);"></div>
+            <div class="user-profile" id="header-user-profile" onclick="toggleUserDropdown()">
+                <div class="user-avatar" id="header-avatar">KC</div>
+                <div class="user-name" id="header-username">Kenneth Cheong</div>
+                <i data-lucide="chevron-down" size="14"></i>
+            </div>
+            
+            <!-- User Dropdown -->
+            <div id="user-dropdown" class="card" style="position: absolute; top: 60px; right: 1.5rem; width: 160px; display: none; z-index: 1000; padding: 0.5rem; box-shadow: var(--shadow-lg);">
+                <button class="btn btn-ghost" style="width: 100%; justify-content: flex-start; gap: 0.75rem; font-size: 0.8rem;" onclick="logout()">
+                    <i data-lucide="log-out" size="14"></i> Log Out
+                </button>
             </div>
         </div>
     </header>
@@ -2020,12 +2264,17 @@
                         <button class="chip" onclick="addPrompt('Draft executive summary')">Executive summary</button>
                         <button class="chip" onclick="addPrompt('Update win themes')">Update win themes</button>
                     </div>
-                    <div class="input-box" id="chat-input-box">
-                        <button class="icon-btn" onclick="document.querySelector('input[type=file]').click()"><i
-                                data-lucide="paperclip" size="20"></i></button>
-                        <textarea id="chat-input" placeholder="Ask AI to analyze or edit..." rows="1"></textarea>
-                        <button class="icon-btn" style="color: var(--primary);" onclick="sendMessage()"><i
-                                data-lucide="send" size="20"></i></button>
+                    <div class="chat-input-box" id="chat-input-box">
+                        <div class="chat-input-actions">
+                            <button class="icon-btn" title="Attach Document" onclick="setupFileUpload()"><i
+                                    data-lucide="paperclip" size="18"></i></button>
+                            <button class="icon-btn" title="Add Website URL" onclick="addReferenceUrl()"><i
+                                    data-lucide="globe" size="18"></i></button>
+                        </div>
+                        <textarea id="chat-input" placeholder="Ask AI to analyze tender or refine strategy..."
+                            onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendMessage(); }"></textarea>
+                        <button class="send-btn" onclick="sendMessage()"><i data-lucide="send"
+                                size="18"></i></button>
                     </div>
                 </div>
             </div>
@@ -2242,6 +2491,15 @@
                                 <button class="icon-btn" title="Redo (Ctrl+Shift+Z)" onclick="redo()"><i
                                         data-lucide="redo" size="14"></i></button>
                             </div>
+                             <div class="divider"></div>
+                            <div class="toolbar-group">
+                                <button class="btn btn-ghost btn-sm" onclick="addComponent('text')" title="Add Text Box">
+                                    <i data-lucide="type" size="14"></i> <span>Text</span>
+                                </button>
+                                <button class="btn btn-ghost btn-sm" onclick="triggerImageUpload()" title="Add Image">
+                                    <i data-lucide="image" size="14"></i> <span>Image</span>
+                                </button>
+                            </div>
                             <div class="divider"></div>
                             <div class="toolbar-group">
                                 <button class="icon-btn" title="Add slide from template"
@@ -2389,6 +2647,53 @@
                 </div>
             </div>
         </aside>
+    </div>
+
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="login-overlay">
+        <div class="login-card">
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <div class="brand" style="justify-content: center; font-size: 2rem; margin-bottom: 1rem;">
+                    <i data-lucide="zap" fill="currentColor"></i> TenderAI
+                </div>
+                <h2>Welcome Back</h2>
+                <p>Sign in to manage your high-fidelity tenders.</p>
+            </div>
+            <div class="form-group" style="display: none;">
+                <label>Email Address</label>
+                <input type="email" id="login-email" class="form-control" placeholder="name@mediaone.com.sg" value="kenneth@mediaone.com.sg">
+            </div>
+            <div class="form-group" style="display: none;">
+                <label>Password</label>
+                <input type="password" id="login-pass" class="form-control" placeholder="••••••••" value="password">
+            </div>
+            
+            <div id="googleSignInButton" style="display: flex; justify-content: center; margin: 2rem 0;"></div>
+            
+            <div id="loginError" style="color: var(--danger); font-size: 0.8rem; text-align: center; margin-top: 1rem;"></div>
+
+            <button class="btn btn-primary" style="width: 100%; height: 48px; font-size: 1rem; display: none;" onclick="login()">Sign In</button>
+            <div style="text-align: center; margin-top: 1.5rem;">
+                <p style="font-size: 0.75rem;">Don't have an account? <a href="#" style="color: var(--primary); font-weight: 600;">Contact IT</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="history-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Version History</h2>
+                <p>Track changes and restore previous snapshots of this project.</p>
+            </div>
+            <div id="revision-list" style="max-height: 400px; overflow-y: auto; margin: 1.5rem 0;">
+                <!-- Populated by JS -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeHistoryModal()">Close</button>
+                <button class="btn btn-primary" onclick="createManualCheckpoint()">Create Checkpoint</button>
+            </div>
+        </div>
     </div>
 
     <div class="modal-overlay" id="new-tender-modal">
@@ -2761,15 +3066,15 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         function duplicateActiveSlide() {
             if (activeSlideIndex === -1) return;
             const original = slidesData[activeSlideIndex];
-            const duplicate = {
-                id: Date.now(),
-                title: original.title + " (Copy)",
-                body: original.body
-            };
+            // Deep clone to include components
+            const duplicate = JSON.parse(JSON.stringify(original));
+            duplicate.id = Date.now();
+            duplicate.title += " (Copy)";
+            
             slidesData.splice(activeSlideIndex + 1, 0, duplicate);
             activeSlideIndex++;
             renderThumbnails();
-            updateEditorState();
+            loadSlide(activeSlideIndex);
             saveProjects();
             addChatMessage("Slide duplicated.", 'ai');
             document.getElementById('slide-more-dropdown').classList.remove('show');
@@ -2898,9 +3203,10 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         });
 
         // --- State Management ---
-        const slidesData = [];
+        let slidesData = [];
         let activeSlideIndex = -1;
         let isProcessing = false;
+        let currentUser = null;
 
         // --- Project Management ---
         let projects = [];
@@ -2934,6 +3240,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         // --- Initialize UI ---
         function init() {
             lucide.createIcons();
+            checkAuth();
             setupProjectActions();
             setupFileUpload();
             setupDragAndDrop();
@@ -2976,9 +3283,25 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
                 if (isTyping) return;
 
-                if ((e.key === 'Backspace' || e.key === 'Delete') && activeSlideIndex !== -1) {
+                if ((e.key === 'Backspace' || e.key === 'Delete')) {
+                    if (selectedElementId) {
+                        e.preventDefault();
+                        deleteComponent(selectedElementId);
+                        return;
+                    }
+                    
+                    // Only delete slide if the user is focused on the rail or specifically no element is selected
+                    // and we are NOT in a state where an element was recently active.
+                    // To be safe, we'll only allow rail-based deletion via shortcuts if the rail was the last clicked thing.
+                    // For now, let's just make it harder to accidentally delete the slide.
+                    const isRailFocus = active.closest('.slide-editor-rail');
+                    if (isRailFocus && activeSlideIndex !== -1) {
+                        e.preventDefault();
+                        deleteSlide(activeSlideIndex);
+                    }
+                } else if (e.key.startsWith('Arrow') && selectedElementId) {
                     e.preventDefault();
-                    deleteSlide(activeSlideIndex);
+                    nudgeElement(e.key, e.shiftKey ? 10 : 1);
                 } else if (e.key === 'ArrowUp' && activeSlideIndex > 0) {
                     e.preventDefault();
                     loadSlide(activeSlideIndex - 1);
@@ -3189,7 +3512,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             rails.forEach(rail => {
                 if (!rail) return;
 
-                // Clear thumbnails only, keep the resize handle if it's the editor rail
+                // Clear thumbnails only
                 const thumbs = rail.querySelectorAll('.thumb');
                 thumbs.forEach(t => t.remove());
 
@@ -3207,12 +3530,13 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 const emptyMsg = rail.querySelector('.empty-rail');
                 if (emptyMsg) emptyMsg.remove();
 
+                const fragment = document.createDocumentFragment();
                 slidesData.forEach((slide, index) => {
                     const thumb = document.createElement('div');
                     thumb.className = `thumb ${index === activeSlideIndex ? 'active' : ''}`;
                     thumb.id = `thumb-${index}-${rail.id === 'slide-rail-editor' ? 'editor' : 'main'}`;
 
-                    const isDark = slide.title === slide.title.toUpperCase() || slide.title.includes('Section') || slide.title.includes('Divider');
+                    const isDark = (slide.theme === 'dark') || (slide.title === slide.title.toUpperCase() || slide.title.includes('Section') || slide.title.includes('Divider'));
 
                     thumb.innerHTML = `
                         <div class="thumb-num">${index + 1}</div> 
@@ -3227,8 +3551,9 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                         </div>
                     `;
                     thumb.onclick = () => loadSlide(index);
-                    rail.appendChild(thumb);
+                    fragment.appendChild(thumb);
                 });
+                rail.appendChild(fragment);
             });
             lucide.createIcons();
         }
@@ -3271,49 +3596,29 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
         function updateEditorState() {
             const canvas = document.getElementById('slide-canvas');
-            const titleEl = document.getElementById('current-slide-title');
-            const bodyEl = document.getElementById('current-slide-body');
-            const controls = document.querySelector('.canvas-controls');
+            if (!canvas) return;
 
             if (activeSlideIndex === -1) {
-                titleEl.innerText = "No Slides Generated";
-                bodyEl.innerHTML = '<p style="color: var(--text-muted); font-style: italic;">Upload documents and click "Analyze Tender" to generate your slide deck.</p>';
-                controls.style.display = 'none';
-                canvas.style.opacity = '0.5';
+                canvas.innerHTML = '<div style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-muted); font-style:italic;">No slide selected. Generate slides or add one from template.</div>';
                 canvas.classList.remove('theme-dark');
                 return;
             }
 
             const slide = slidesData[activeSlideIndex];
-            titleEl.innerText = slide.title;
-            bodyEl.innerHTML = slide.body;
-            controls.style.display = 'flex';
-            canvas.style.opacity = '1';
-
-            // Automatic theme detection
-            const isDark = slide.title === slide.title.toUpperCase() || slide.title.includes('Section') || slide.title.includes('Divider');
-            if (isDark) {
+            
+            // Automatic theme detection (if not explicitly set)
+            if (!slide.theme) {
+                const isDark = slide.title === slide.title.toUpperCase() || slide.title.includes('Section') || slide.title.includes('Divider');
+                slide.theme = isDark ? 'dark' : 'light';
+            }
+            
+            if (slide.theme === 'dark') {
                 canvas.classList.add('theme-dark');
             } else {
                 canvas.classList.remove('theme-dark');
             }
 
-            // Add Logo and Accent Line
-            let logo = canvas.querySelector('.slide-logo');
-            if (!logo) {
-                logo = document.createElement('div');
-                logo.className = 'slide-logo';
-                logo.innerHTML = '<strong>MediaOne</strong>';
-                canvas.appendChild(logo);
-            }
-
-            let accent = canvas.querySelector('.slide-accent-line');
-            if (!accent) {
-                accent = document.createElement('div');
-                accent.className = 'slide-accent-line';
-                titleEl.parentNode.insertBefore(accent, titleEl.nextSibling);
-            }
-
+            renderSlideCanvas();
             updateSuggestions(slide);
         }
 
@@ -3326,15 +3631,283 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 t.classList.toggle('active', i === index);
             });
 
+            renderSlideCanvas();
             document.getElementById('feedback-alert').style.display = 'none';
         }
 
-        function saveCurrentSlide() {
+        let selectedElementId = null;
+
+        function renderSlideCanvas() {
+            const canvas = document.getElementById('slide-canvas');
+            if (!canvas) return;
+
+            const slide = slidesData[activeSlideIndex];
+            if (!slide) return;
+
+            // Ensure components array exists
+            if (!slide.components) {
+                slide.components = [
+                    { id: 'title-' + Date.now(), type: 'text', x: 56, y: 160, width: 1100, height: 100, content: slide.title, isTitle: true },
+                    { id: 'body-' + Date.now(), type: 'text', x: 56, y: 280, width: 1100, height: 400, content: slide.body, isBody: true }
+                ];
+            }
+
+            canvas.innerHTML = '';
+            
+            // Add Logo (Fixed for all slides)
+            const logo = document.createElement('div');
+            logo.className = 'slide-logo';
+            logo.innerHTML = '<strong>MediaOne</strong>';
+            canvas.appendChild(logo);
+
+            slide.components.forEach(comp => {
+                const el = document.createElement('div');
+                el.className = `slide-element ${selectedElementId === comp.id ? 'active' : ''} ${comp.type === 'image' ? 'image-el' : ''}`;
+                el.style.left = comp.x + 'px';
+                el.style.top = comp.y + 'px';
+                el.style.width = comp.width + 'px';
+                el.style.height = comp.height + 'px';
+                el.id = 'el-' + comp.id;
+
+                if (comp.type === 'text') {
+                    el.innerHTML = `
+                        <div class="element-actions">
+                            <i data-lucide="layers" size="12" title="Bring to Front" onclick="reorderComponent('${comp.id}', 'front')"></i>
+                            <i data-lucide="copy" size="12" title="Duplicate" onclick="duplicateComponent('${comp.id}')"></i>
+                            <i data-lucide="trash-2" size="12" title="Delete" onclick="deleteComponent('${comp.id}')"></i>
+                        </div>
+                        <div contenteditable="true" class="${comp.isTitle ? 'slide-title' : 'slide-body'}" 
+                             style="width: 100%; height: 100%; overflow: visible;"
+                             onblur="updateComponentContent('${comp.id}', this.innerHTML)">${comp.content}</div>
+                        <div class="resize-handle" onmousedown="initResize(event, '${comp.id}')"></div>
+                    `;
+                } else if (comp.type === 'image') {
+                    el.innerHTML = `
+                        <div class="element-actions">
+                            <i data-lucide="layers" size="12" title="Bring to Front" onclick="reorderComponent('${comp.id}', 'front')"></i>
+                            <i data-lucide="copy" size="12" title="Duplicate" onclick="duplicateComponent('${comp.id}')"></i>
+                            <i data-lucide="trash-2" size="12" title="Delete" onclick="deleteComponent('${comp.id}')"></i>
+                        </div>
+                        <img src="${comp.src}" />
+                        <div class="resize-handle" onmousedown="initResize(event, '${comp.id}')"></div>
+                    `;
+                }
+
+                el.onmousedown = (e) => {
+                    e.stopPropagation(); // Prevent canvas deselect
+                    if (e.target.classList.contains('resize-handle')) return;
+                    selectElement(comp.id);
+                    initDrag(e, comp.id);
+                };
+
+                canvas.appendChild(el);
+            });
+
+            // Click canvas to deselect
+            canvas.onmousedown = (e) => {
+                if (e.target === canvas) {
+                    selectElement(null);
+                }
+            };
+            
+            lucide.createIcons();
+        }
+
+        function selectElement(id) {
+            selectedElementId = id;
+            document.querySelectorAll('.slide-element').forEach(el => {
+                el.classList.toggle('active', el.id === 'el-' + id);
+            });
+        }
+
+        function addComponent(type) {
             if (activeSlideIndex === -1) return;
-            const title = document.getElementById('current-slide-title').innerText;
-            const body = document.getElementById('current-slide-body').innerHTML;
-            slidesData[activeSlideIndex].title = title;
-            slidesData[activeSlideIndex].body = body;
+            saveHistory();
+            const id = Date.now().toString();
+            const comp = {
+                id,
+                type,
+                x: 100,
+                y: 100,
+                width: type === 'text' ? 400 : 300,
+                height: type === 'text' ? 100 : 200,
+                content: type === 'text' ? 'New Text Box' : '',
+                src: type === 'image' ? 'https://via.placeholder.com/300x200' : ''
+            };
+            slidesData[activeSlideIndex].components.push(comp);
+            selectedElementId = id;
+            renderSlideCanvas();
+            saveProjects();
+        }
+
+        function deleteComponent(id) {
+            if (activeSlideIndex === -1) return;
+            saveHistory();
+            const slide = slidesData[activeSlideIndex];
+            slide.components = slide.components.filter(c => c.id !== id);
+            selectedElementId = null;
+            renderSlideCanvas();
+            saveProjects();
+        }
+
+        function duplicateComponent(id) {
+            if (activeSlideIndex === -1) return;
+            saveHistory();
+            const slide = slidesData[activeSlideIndex];
+            const original = slide.components.find(c => c.id === id);
+            if (!original) return;
+
+            const duplicate = JSON.parse(JSON.stringify(original));
+            duplicate.id = Date.now().toString();
+            duplicate.x += 20;
+            duplicate.y += 20;
+            slide.components.push(duplicate);
+            selectedElementId = duplicate.id;
+            renderSlideCanvas();
+            saveProjects();
+        }
+
+        function reorderComponent(id, action) {
+            const slide = slidesData[activeSlideIndex];
+            if (!slide) return;
+            const index = slide.components.findIndex(c => c.id === id);
+            if (index === -1) return;
+
+            const comp = slide.components.splice(index, 1)[0];
+            if (action === 'front') {
+                slide.components.push(comp);
+            } else {
+                slide.components.unshift(comp);
+            }
+            renderSlideCanvas();
+            saveProjects();
+        }
+
+        function nudgeElement(key, amount) {
+            const slide = slidesData[activeSlideIndex];
+            const comp = slide?.components.find(c => c.id === selectedElementId);
+            if (!comp) return;
+
+            saveHistory();
+            if (key === 'ArrowUp') comp.y -= amount;
+            if (key === 'ArrowDown') comp.y += amount;
+            if (key === 'ArrowLeft') comp.x -= amount;
+            if (key === 'ArrowRight') comp.x += amount;
+            
+            renderSlideCanvas();
+            saveProjects();
+        }
+
+        function updateComponentContent(id, content) {
+            const slide = slidesData[activeSlideIndex];
+            if (!slide) return;
+            const comp = slide.components.find(c => c.id === id);
+            if (comp) comp.content = content;
+            saveProjects();
+        }
+
+        function triggerImageUpload() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (f) => {
+                    saveHistory();
+                    const id = Date.now().toString();
+                    slidesData[activeSlideIndex].components.push({
+                        id, type: 'image', x: 200, y: 200, width: 400, height: 300, src: f.target.result
+                    });
+                    selectedElementId = id;
+                    renderSlideCanvas();
+                    saveProjects();
+                };
+                reader.readAsDataURL(file);
+            };
+            input.click();
+        }
+
+        // Drag & Resize Logic
+        let dragTarget = null;
+        let resizeTarget = null;
+        let startX, startY, startW, startH, startLeft, startTop;
+
+        function initDrag(e, id) {
+            if (e.target.isContentEditable) return;
+            dragTarget = id;
+            const comp = slidesData[activeSlideIndex].components.find(c => c.id === id);
+            startX = e.clientX;
+            startY = e.clientY;
+            startLeft = comp.x;
+            startTop = comp.y;
+            document.addEventListener('mousemove', handleDrag);
+            document.addEventListener('mouseup', stopDrag);
+        }
+
+        function handleDrag(e) {
+            if (!dragTarget) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            const comp = slidesData[activeSlideIndex].components.find(c => c.id === dragTarget);
+            comp.x = startLeft + dx;
+            comp.y = startTop + dy;
+            const el = document.getElementById('el-' + dragTarget);
+            if (el) {
+                el.style.left = comp.x + 'px';
+                el.style.top = comp.y + 'px';
+            }
+        }
+
+        function stopDrag() {
+            if (dragTarget) {
+                saveHistory();
+                saveProjects();
+            }
+            dragTarget = null;
+            document.removeEventListener('mousemove', handleDrag);
+            document.removeEventListener('mouseup', stopDrag);
+        }
+
+        function initResize(e, id) {
+            e.stopPropagation();
+            resizeTarget = id;
+            const comp = slidesData[activeSlideIndex].components.find(c => c.id === id);
+            startX = e.clientX;
+            startY = e.clientY;
+            startW = comp.width;
+            startH = comp.height;
+            document.addEventListener('mousemove', handleResize);
+            document.addEventListener('mouseup', stopResize);
+        }
+
+        function handleResize(e) {
+            if (!resizeTarget) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            const comp = slidesData[activeSlideIndex].components.find(c => c.id === resizeTarget);
+            comp.width = Math.max(50, startW + dx);
+            comp.height = Math.max(30, startH + dy);
+            const el = document.getElementById('el-' + resizeTarget);
+            if (el) {
+                el.style.width = comp.width + 'px';
+                el.style.height = comp.height + 'px';
+            }
+        }
+
+        function stopResize() {
+            if (resizeTarget) {
+                saveHistory();
+                saveProjects();
+            }
+            resizeTarget = null;
+            document.removeEventListener('mousemove', handleResize);
+            document.removeEventListener('mouseup', stopResize);
+        }
+
+        function saveCurrentSlide() {
+            // Handled by inline updates and blurs now
         }
 
         function setupAutoSave() {
@@ -3646,10 +4219,16 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             try {
                 const current = projects.find(p => p.id === currentProjectId);
                 const persona = current?.masterPrompt || DEFAULT_MASTER_PROMPT;
+                const urls = (current?.referenceUrls || []).map(u => u.url).join(', ');
+                const docs = (current?.docs || []).map(d => d.name).join(', ');
                 
-                const prompt = `Based on the current tender context and your strategic persona, generate a comprehensive 8-slide pitch deck.
+                const prompt = `Based on the following context, generate a high-impact 8-slide tender response deck.
+                Context URLs: ${urls || 'None provided'}
+                Attached Documents: ${docs || 'None provided'}
+                System Persona: ${persona}
+
                 Output ONLY a JSON array of slide objects. Each object MUST have: "title", "body" (HTML strings), and "theme" ("light" or "dark").
-                Example: [{"title": "EXECUTIVE SUMMARY", "body": "...", "theme": "dark"}]`;
+                Ensure the theme is "dark" for section dividers and "light" for content slides.`;
 
                 const response = await fetch(API_BASE_URL, {
                     method: 'POST',
@@ -3657,7 +4236,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'analyze',
-                        prompt: `System Persona:\n${persona}\n\nTask: ${prompt}`
+                        prompt: prompt
                     })
                 });
 
@@ -3823,6 +4402,170 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 current.team = [...teamData];
             }
             localStorage.setItem('tender_projects', JSON.stringify(projects));
+        }
+
+        // --- User Auth ---
+        let googleUser = null;
+        const codeReceiverURI = 'https://ts9k398yn8.execute-api.ap-southeast-1.amazonaws.com/googleLogin';
+
+        function handleCredentialResponse(response) {
+            fetch(codeReceiverURI, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ credential: response.credential })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.body.success) {
+                    currentUser = data.body.user;
+                    localStorage.setItem('tender_user', JSON.stringify(currentUser));
+                    document.getElementById('login-overlay').classList.remove('active');
+                    updateUserProfile();
+                    addChatMessage(`Welcome back, ${currentUser.name}!`, 'ai');
+                    location.reload(); // Refresh to ensure everything loads with user context
+                } else {
+                    document.getElementById('loginError').textContent = data.message || "Google login failed.";
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loginError').textContent = "An error occurred during sign-in.";
+            });
+        }
+
+        function checkAuth() {
+            const saved = localStorage.getItem('tender_user');
+            if (saved) {
+                currentUser = JSON.parse(saved);
+                updateUserProfile();
+                return true;
+            } else {
+                document.getElementById('login-overlay').classList.add('active');
+                google.accounts.id.initialize({
+                    client_id: '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com',
+                    callback: handleCredentialResponse
+                });
+                google.accounts.id.renderButton(
+                    document.getElementById('googleSignInButton'),
+                    { theme: "outline", size: "large", width: "320" }
+                );
+                return false;
+            }
+        }
+
+        function login() {
+            // No longer used for direct login, handled by Google button
+        }
+
+        function logout() {
+            localStorage.removeItem('tender_user');
+            location.reload();
+        }
+
+        function toggleUserDropdown() {
+            const dd = document.getElementById('user-dropdown');
+            dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function updateUserProfile() {
+            if (!currentUser) return;
+            
+            // Fallbacks for Google Data
+            const name = currentUser.name || "User";
+            const initials = currentUser.initials || name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+            const picture = currentUser.picture; // Google profile img
+
+            document.getElementById('header-username').innerText = name;
+            
+            const avatarEl = document.getElementById('header-avatar');
+            if (picture) {
+                avatarEl.innerHTML = `<img src="${picture}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;" />`;
+                avatarEl.style.background = "transparent";
+            } else {
+                avatarEl.innerText = initials;
+                avatarEl.style.background = "var(--primary)";
+            }
+        }
+
+        // --- Version Control ---
+        function saveRevision(label = "Checkpoint") {
+            const current = projects.find(p => p.id === currentProjectId);
+            if (!current) return;
+
+            if (!current.revisions) current.revisions = [];
+            
+            const revision = {
+                id: Date.now(),
+                timestamp: new Date().toISOString(),
+                label: label,
+                author: currentUser?.name || "System",
+                snapshot: JSON.parse(JSON.stringify(slidesData))
+            };
+
+            current.revisions.unshift(revision);
+            if (current.revisions.length > 20) current.revisions.pop(); // Keep last 20
+            saveProjects();
+        }
+
+        function openHistoryModal() {
+            renderRevisionList();
+            document.getElementById('history-modal').classList.add('active');
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('history-modal').classList.remove('active');
+        }
+
+        function renderRevisionList() {
+            const list = document.getElementById('revision-list');
+            const current = projects.find(p => p.id === currentProjectId);
+            if (!list || !current) return;
+
+            if (!current.revisions || current.revisions.length === 0) {
+                list.innerHTML = '<p style="text-align:center; padding:2rem; color:var(--text-muted);">No versions saved yet.</p>';
+                return;
+            }
+
+            list.innerHTML = current.revisions.map(rev => `
+                <div class="revision-item">
+                    <div class="revision-info">
+                        <h4>${rev.label}</h4>
+                        <div class="revision-meta">
+                            ${new Date(rev.timestamp).toLocaleString()} • by ${rev.author}
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="restoreRevision(${rev.id})">
+                        <i data-lucide="rotate-ccw" size="12"></i> Restore
+                    </button>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function restoreRevision(id) {
+            if (!confirm("Are you sure you want to restore this version? Current unsaved changes will be lost.")) return;
+            
+            const current = projects.find(p => p.id === currentProjectId);
+            const revision = current.revisions.find(r => r.id === id);
+            
+            if (revision) {
+                saveRevision("Before Restore"); // Save current state before restoring
+                slidesData.length = 0;
+                revision.snapshot.forEach(s => slidesData.push(s));
+                renderThumbnails();
+                if (slidesData.length > 0) loadSlide(0);
+                closeHistoryModal();
+                addChatMessage(`Restored project to version: **${revision.label}**`, 'ai');
+                saveProjects();
+            }
+        }
+
+        function createManualCheckpoint() {
+            const label = prompt("Enter a label for this checkpoint:", "Manual Snapshot");
+            if (label) {
+                saveRevision(label);
+                renderRevisionList();
+            }
         }
 
         // --- Reference URLs ---
