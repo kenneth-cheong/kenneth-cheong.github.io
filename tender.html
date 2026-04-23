@@ -17,6 +17,8 @@
     <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
     <!-- Google GIS -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Marked for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root {
             /* Color Palette */
@@ -34,6 +36,35 @@
             --success: #10b981;
             --warning: #f59e0b;
             --danger: #ef4444;
+
+            /* Markdown & Chat Table Styles */
+        .message-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+            overflow: hidden;
+            font-size: 0.85rem;
+        }
+
+        .message-content th, .message-content td {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            text-align: left;
+        }
+
+        .message-content th {
+            background: rgba(0, 0, 0, 0.05);
+            font-weight: 600;
+        }
+
+        .message-content p { margin-bottom: 0.75rem; }
+        .message-content p:last-child { margin-bottom: 0; }
+        .message-content ul, .message-content ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+        .message-content code { background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 4px; font-family: monospace; }
+        .message-content pre { background: var(--text-slate); color: white; padding: 1rem; border-radius: 8px; overflow-x: auto; margin: 1rem 0; }
+        .message-content h1, .message-content h2, .message-content h3 { margin: 1.5rem 0 0.75rem 0; font-family: var(--font-header); }
 
             /* Shadows & Spacing */
             --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -1378,6 +1409,21 @@
             margin-bottom: 1rem;
         }
 
+        .theme-card.selected, .team-card.selected {
+            border-color: var(--primary) !important;
+            background: rgba(59, 130, 246, 0.05) !important;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+            position: relative;
+        }
+
+        .select-toggle {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            cursor: pointer;
+            color: var(--primary);
+        }
+
         .theme-card h3 {
             font-size: 1rem;
             font-weight: 700;
@@ -2097,6 +2143,33 @@
             text-overflow: ellipsis;
         }
 
+        .cloud-sync-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            padding: 0.25rem 0.6rem;
+            border-radius: var(--radius-sm);
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .cloud-sync-status.syncing {
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .cloud-sync-status i.sync-icon {
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
         /* Responsive Tweaks */
         @media (max-width: 1200px) {
             :root {
@@ -2104,6 +2177,59 @@
                 --sidebar-width: 220px;
             }
         }
+        /* Premium Tooltips */
+        [data-tooltip] {
+            position: relative;
+            cursor: pointer;
+        }
+
+        [data-tooltip]::before {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(-8px);
+            background: var(--text-slate);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            box-shadow: var(--shadow-lg);
+            pointer-events: none;
+        }
+
+        [data-tooltip]::after {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(0);
+            border: 6px solid transparent;
+            border-top-color: var(--text-slate);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        [data-tooltip]:hover::before,
+        [data-tooltip]:hover::after {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(-4px);
+        }
+
+        [data-tooltip]:hover::after {
+            transform: translateX(-50%) translateY(4px);
+        }
+
     </style>
 </head>
 
@@ -2119,13 +2245,13 @@
                 <span class="project-title" id="active-project-title" contenteditable="true"
                     onblur="renameActiveProject(this.innerText)">Active Tender Analysis</span>
                 <span class="badge" id="active-project-status">In Progress</span>
+                <div id="cloud-sync-status" class="cloud-sync-status" data-tooltip="All changes are securely synced to AWS Cloud">
+                    <i data-lucide="cloud-check" size="14"></i>
+                    <span>Cloud Synced</span>
+                </div>
             </div>
         </div>
         <div class="header-actions">
-            <button class="btn btn-ghost" title="Version History" onclick="openHistoryModal()">
-                <i data-lucide="history" size="18"></i>
-            </button>
-            <div class="divider" style="height: 24px; width: 1px; background: var(--border);"></div>
             <button class="btn btn-ghost" onclick="toggleFocusMode()"><i data-lucide="share-2" size="16"></i> Focus
                 Mode</button>
             <button class="btn btn-ghost" onclick="exportToPPTX()"><i data-lucide="file-down" size="16"></i> Export
@@ -2154,37 +2280,38 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <nav class="nav-section">
-                <p class="nav-label">Active Tenders</p>
-                <div id="sidebar-project-list" style="padding: 0 0.5rem; margin-bottom: 1rem;">
-                    <!-- Projects will be listed here -->
-                </div>
-                <button class="btn btn-ghost"
-                    style="width: calc(100% - 2rem); margin: 0 1rem; justify-content: flex-start;"
-                    onclick="createNewProject()">
-                    <i data-lucide="plus" size="16"></i> New Tender
-                </button>
-            </nav>
+                <p class="nav-label">Global Dashboard</p>
+                <a href="#" class="nav-item active" onclick="switchView('all-projects', this)">
+                    <i data-lucide="layout-grid" size="18"></i> All Tenders
+                </a>
 
-            <nav class="nav-section">
-                <p class="nav-label">Navigation</p>
-                <a href="javascript:void(0)" class="nav-item active" onclick="switchView('all-projects', this)"><i
-                        data-lucide="layout" size="18"></i> All Tenders</a>
-                <a href="javascript:void(0)" class="nav-item" onclick="switchView('overview', this)"><i
-                        data-lucide="layout-grid" size="18"></i> Tender AI Chat</a>
-                <a href="javascript:void(0)" class="nav-item" onclick="switchView('documents', this)"><i
-                        data-lucide="file-text" size="18"></i> Documents</a>
-                <a href="javascript:void(0)" class="nav-item" onclick="switchView('slide-editor', this)"><i
-                        data-lucide="presentation" size="18"></i> Slide Editor</a>
-                <a href="javascript:void(0)" class="nav-item" onclick="switchView('compliance', this)"><i
-                        data-lucide="check-square" size="18"></i> Compliance Matrix</a>
-                <a href="javascript:void(0)" class="nav-item" onclick="switchView('themes', this)"><i
-                        data-lucide="award" size="18"></i> Win Themes</a>
-                <a href="javascript:void(0)" class="nav-item" onclick="switchView('team', this)"><i data-lucide="users"
-                        size="18"></i> Team & Roles</a>
-                <a href="javascript:void(0)" class="nav-item" onclick="switchView('proof-bank', this)"><i
-                        data-lucide="database" size="18"></i> Proof Bank</a>
-                <a href="javascript:void(0)" class="nav-item" onclick="switchView('persona', this)"><i
-                        data-lucide="sparkles" size="18"></i> AI Persona</a>
+                <p class="nav-label">Project Workspace</p>
+                <a href="#" class="nav-item" onclick="switchView('overview', this)">
+                    <i data-lucide="message-square" size="18"></i> Tender AI Chat
+                </a>
+                <a href="#" class="nav-item" onclick="switchView('documents', this)">
+                    <i data-lucide="files" size="18"></i> Documents
+                </a>
+                <a href="#" class="nav-item" onclick="switchView('slide-editor', this)">
+                    <i data-lucide="monitor" size="18"></i> Slide Editor
+                </a>
+                <a href="#" class="nav-item" onclick="switchView('revisions', this)">
+                    <i data-lucide="history" size="18"></i> Version History
+                </a>
+
+                <p class="nav-label">Global Intelligence</p>
+                <a href="#" class="nav-item" onclick="switchView('proof-bank', this)">
+                    <i data-lucide="database" size="18"></i> Proof Bank
+                </a>
+                <a href="#" class="nav-item" onclick="switchView('themes', this)">
+                    <i data-lucide="sparkles" size="18"></i> Win Themes
+                </a>
+                <a href="#" class="nav-item" onclick="switchView('team', this)">
+                    <i data-lucide="users" size="18"></i> Team & Roles
+                </a>
+                <a href="#" class="nav-item" onclick="switchView('persona', this)">
+                    <i data-lucide="cpu" size="18"></i> AI Persona
+                </a>
             </nav>
 
             <nav class="nav-section">
@@ -2313,73 +2440,51 @@
                 </div>
             </div>
 
-            <!-- View: Compliance Matrix -->
-            <div id="view-compliance" class="view-content">
-                <div class="view-header">
-                    <h2>Compliance Matrix</h2>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <button class="btn btn-ghost"><i data-lucide="download" size="16"></i> Export CSV</button>
-                        <button class="btn btn-primary" onclick="addPrompt('Generate compliance matrix')"><i
-                                data-lucide="refresh-cw" size="16"></i> Refresh Matrix</button>
-                    </div>
-                </div>
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Requirement Description</th>
-                                <th>Priority</th>
-                                <th>Status</th>
-                                <th>Evidence Reference</th>
-                            </tr>
-                        </thead>
-                        <tbody id="compliance-table-body">
-                            <!-- Rows will be populated by AI -->
-                            <tr>
-                                <td colspan="5" style="text-align:center; padding:3rem; color:var(--text-muted);">No
-                                    requirements extracted yet. Run "Analyze Tender" to populate.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <!-- Compliance Matrix View Removed -->
 
-            <!-- View: Win Themes -->
+            <!-- View: Win Themes (Global with Selector) -->
             <div id="view-themes" class="view-content">
                 <div class="view-header">
-                    <h2>Win Themes</h2>
-                    <button class="btn btn-primary" onclick="addPrompt('Refine win themes')"><i data-lucide="sparkles"
-                            size="16"></i> Refine Themes</button>
+                    <div>
+                        <h2>Global Win Themes</h2>
+                        <p style="color: var(--text-muted); font-size: 0.85rem;">Select themes to include in your current tender analysis.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="addGlobalTheme()"><i data-lucide="plus" size="16"></i> Add Theme</button>
                 </div>
                 <div class="themes-grid" id="themes-grid">
-                    <!-- Themes generated by AI -->
-                    <div class="theme-card">
-                        <div class="theme-icon"><i data-lucide="shield-check" size="20"></i></div>
-                        <h3>Unmatched Reliability</h3>
-                        <p>Leveraging our 99.99% uptime record across 12 global hubs to position us as the lowest-risk
-                            vendor.</p>
-                        <div class="theme-tag">High Impact</div>
+                    <!-- Populated by renderWinThemes() -->
+                </div>
+            </div>
+
+            <!-- View: Version History -->
+            <div id="view-revisions" class="view-content">
+                <div class="view-header">
+                    <div>
+                        <h2>Version History</h2>
+                        <p style="color: var(--text-muted); font-size: 0.875rem;">Manage snapshots and revert to previous states of this tender.</p>
                     </div>
-                    <div class="theme-card">
-                        <div class="theme-icon"><i data-lucide="cpu" size="20"></i></div>
-                        <h3>AI-Driven Efficiency</h3>
-                        <p>Utilizing predictive maintenance and automated workflows to reduce operational costs by 25%.
-                        </p>
-                        <div class="theme-tag">Differentiator</div>
+                    <button class="btn btn-primary" onclick="createManualCheckpoint()">
+                        <i data-lucide="save" size="16"></i> Create Checkpoint
+                    </button>
+                </div>
+                <div class="card" style="margin-top: 2rem; padding: 0;">
+                    <div id="sidebar-revision-list">
+                        <!-- Populated by JS -->
                     </div>
                 </div>
             </div>
 
-            <!-- View: Team -->
+            <!-- View: Team & Roles (Global with Selector) -->
             <div id="view-team" class="view-content">
                 <div class="view-header">
-                    <h2>Team & Roles</h2>
-                    <button class="btn btn-primary" onclick="addMember()"><i data-lucide="user-plus" size="16"></i> Add
-                        Member</button>
+                    <div>
+                        <h2>Team & Expertise</h2>
+                        <p style="color: var(--text-muted); font-size: 0.85rem;">Assign global experts to the current project.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="addGlobalTeamMember()"><i data-lucide="user-plus" size="16"></i> Add Expert</button>
                 </div>
-                <div class="team-list" id="team-list">
-                    <!-- Dynamic Team Members -->
+                <div class="team-grid" id="team-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
+                    <!-- Populated by renderTeam() -->
                 </div>
             </div>
 
@@ -2493,19 +2598,23 @@
                             </div>
                              <div class="divider"></div>
                             <div class="toolbar-group">
-                                <button class="btn btn-ghost btn-sm" onclick="addComponent('text')" title="Add Text Box">
+                                <button class="btn btn-ghost btn-sm" onclick="addComponent('text')" data-tooltip="Insert new resizable text box">
+                                    <i data-lucide="plus" size="12"></i>
                                     <i data-lucide="type" size="14"></i> <span>Text</span>
                                 </button>
-                                <button class="btn btn-ghost btn-sm" onclick="triggerImageUpload()" title="Add Image">
+                                <button class="btn btn-ghost btn-sm" onclick="triggerImageUpload()" data-tooltip="Upload and add image to slide">
+                                    <i data-lucide="plus" size="12"></i>
                                     <i data-lucide="image" size="14"></i> <span>Image</span>
                                 </button>
                             </div>
                             <div class="divider"></div>
                             <div class="toolbar-group">
-                                <button class="icon-btn" title="Add slide from template"
+                                <button class="icon-btn" data-tooltip="Choose from slide templates"
                                     onclick="openArchetypeModal()"><i data-lucide="plus-square" size="14"></i></button>
-                                <button class="icon-btn" title="Duplicate Slide" onclick="duplicateActiveSlide()"><i
+                                <button class="icon-btn" data-tooltip="Duplicate current slide" onclick="duplicateActiveSlide()"><i
                                         data-lucide="copy" size="14"></i></button>
+                                <button class="icon-btn" data-tooltip="Toggle Light/Dark Theme" onclick="toggleSlideTheme()"><i
+                                        data-lucide="palette" size="14"></i></button>
                             </div>
                             <div class="divider"></div>
                             <div class="toolbar-group">
@@ -2680,20 +2789,8 @@
     </div>
 
     <!-- History Modal -->
-    <div id="history-modal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h2>Version History</h2>
-                <p>Track changes and restore previous snapshots of this project.</p>
-            </div>
-            <div id="revision-list" style="max-height: 400px; overflow-y: auto; margin: 1.5rem 0;">
-                <!-- Populated by JS -->
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-ghost" onclick="closeHistoryModal()">Close</button>
-                <button class="btn btn-primary" onclick="createManualCheckpoint()">Create Checkpoint</button>
-            </div>
-        </div>
+    <div id="history-modal" class="modal-overlay" style="display: none;">
+        <!-- Deprecated: Now using Sidebar View -->
     </div>
 
     <div class="modal-overlay" id="new-tender-modal">
@@ -3622,6 +3719,16 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             updateSuggestions(slide);
         }
 
+        function toggleSlideTheme() {
+            if (activeSlideIndex === -1) return;
+            const slide = slidesData[activeSlideIndex];
+            slide.theme = slide.theme === 'dark' ? 'light' : 'dark';
+            updateEditorState();
+            renderThumbnails();
+            saveProjects();
+            addChatMessage(`Changed slide theme to **${slide.theme.toUpperCase()}** mode.`, 'ai');
+        }
+
         function loadSlide(index) {
             if (activeSlideIndex !== -1) saveCurrentSlide();
             activeSlideIndex = index;
@@ -4024,7 +4131,15 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 const current = projects.find(p => p.id === currentProjectId);
                 const persona = current?.masterPrompt || DEFAULT_MASTER_PROMPT;
 
-                let fullPrompt = `System Persona:\n${persona}\n\nUser Input: ${userInput}`;
+                let fullPrompt = `System Persona:\n${persona}\n\n`;
+                
+                // Capture current visual DNA to maintain consistency
+                const existingStyles = slidesData.slice(-3).map(s => ({ title: s.title, theme: s.theme }));
+                fullPrompt += `VISUAL DNA (Consistency Required):\nThe current deck uses these styles: ${JSON.stringify(existingStyles)}. Ensure new slides match existing themes.\n\n`;
+                
+                fullPrompt += `User Input: ${userInput}`;
+                fullPrompt += `\n\nACTION CAPABILITY: If you want to suggest creating a new slide or updating a slide based on the user's request, you MUST include a JSON block at the end of your response in the format: [SLIDE_JSON: {"title": "Slide Title", "body": "Slide Content HTML", "theme": "light/dark"}]. This will automatically trigger the creation in the editor.`;
+                
                 if (files.length > 0) {
                     fullPrompt += "\n\nUser has attached files/images. Please analyze the content of these attachments to provide your response.";
                 }
@@ -4051,9 +4166,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
                 if (data.ai_response) {
                     addChatMessage(data.ai_response, 'ai');
-                    if (data.ai_response.toLowerCase().includes("slide") && slidesData.length > 0) {
-                        handleAIAction(data.ai_response);
-                    }
+                    handleAIAction(data.ai_response);
                 } else {
                     const rawString = JSON.stringify(data);
                     addChatMessage('**Debug Info**: Received 200 OK but "ai_response" is missing. Raw data: ' + rawString, 'ai');
@@ -4068,9 +4181,38 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         }
 
         function handleAIAction(responseText) {
-            const slideMatch = responseText.toLowerCase().match(/slide (\d+)/);
-            if (slideMatch) {
-                const num = parseInt(slideMatch[1]);
+            // Check for JSON Slide generation
+            const jsonMatch = responseText.match(/\[SLIDE_JSON:\s*(\{.*?\})\]/s);
+            if (jsonMatch) {
+                try {
+                    const slideData = JSON.parse(jsonMatch[1]);
+                    const newSlide = {
+                        id: Date.now(),
+                        title: slideData.title || "New Slide",
+                        body: slideData.body || "",
+                        theme: slideData.theme || "light"
+                    };
+                    slidesData.push(newSlide);
+                    activeSlideIndex = slidesData.length - 1;
+                    
+                    renderThumbnails();
+                    updateEditorState();
+                    saveProjects();
+                    
+                    // Switch to editor
+                    const editorNav = document.querySelector('a.nav-item[onclick*="slide-editor"]');
+                    switchView('slide-editor', editorNav);
+                    
+                    addChatMessage(`I've added the **${newSlide.title}** to your deck in the editor.`, 'ai');
+                } catch (e) {
+                    console.warn("Failed to parse AI slide JSON", e);
+                }
+            }
+
+            // Legacy: check for slide navigation
+            const slideNavMatch = responseText.toLowerCase().match(/slide (\d+)/);
+            if (slideNavMatch) {
+                const num = parseInt(slideNavMatch[1]);
                 if (num > 0 && num <= slidesData.length) {
                     loadSlide(num - 1);
                 }
@@ -4192,7 +4334,11 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             const container = document.getElementById('chat-messages');
             const msgDiv = document.createElement('div');
             msgDiv.className = `message message-${type}`;
-            let html = `<div class="message-content">${text}</div>`;
+            
+            // Render Markdown if it's an AI message
+            const renderedContent = type === 'ai' ? marked.parse(text) : text;
+            
+            let html = `<div class="message-content">${renderedContent}</div>`;
             if (card) {
                 html += `<div class="ai-card"><div class="ai-card-title"><i data-lucide="${card.icon}" size="16"></i> ${card.title}</div>${card.content}</div>`;
             }
@@ -4222,13 +4368,28 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 const urls = (current?.referenceUrls || []).map(u => u.url).join(', ');
                 const docs = (current?.docs || []).map(d => d.name).join(', ');
                 
+                // Capture existing design patterns
+                const existingPatterns = slidesData.map(s => ({ title: s.title, theme: s.theme }));
+                
                 const prompt = `Based on the following context, generate a high-impact 8-slide tender response deck.
                 Context URLs: ${urls || 'None provided'}
                 Attached Documents: ${docs || 'None provided'}
                 System Persona: ${persona}
+                
+                EXISTING DECK STYLE (Maintain Consistency): ${JSON.stringify(existingPatterns)}
+
+                STRATEGIC STRUCTURE:
+                Slide 1: Title/Cover Slide (High impact)
+                Slide 2: Executive Summary
+                Slide 3: Win Themes & Strategic Pillars
+                Slide 4: Current State Analysis (Audit)
+                Slide 5: Proposed Strategic Framework
+                Slide 6: Implementation Roadmap & Timeline
+                Slide 7: Team Credibility & Governance
+                Slide 8: Commercial Investment Summary
 
                 Output ONLY a JSON array of slide objects. Each object MUST have: "title", "body" (HTML strings), and "theme" ("light" or "dark").
-                Ensure the theme is "dark" for section dividers and "light" for content slides.`;
+                Ensure the theme is "dark" for the Cover slide and section dividers, and "light" for content slides.`;
 
                 const response = await fetch(API_BASE_URL, {
                     method: 'POST',
@@ -4394,14 +4555,61 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             if (currentProjectId) loadProject(currentProjectId);
         }
 
-        function saveProjects() {
-            // Update current project data before saving
+        async function saveProjects() {
             const current = projects.find(p => p.id === currentProjectId);
             if (current) {
                 current.slides = [...slidesData];
-                current.team = [...teamData];
+                // Selections are saved per project
+                current.selectedTeamIds = selectedTeamIds;
+                current.selectedThemeIds = selectedThemeIds;
+                
+                current.lastModifiedBy = currentUser?.name || "System";
+                current.lastModifiedAt = new Date().toISOString();
             }
+            
+            // Save local
             localStorage.setItem('tender_projects', JSON.stringify(projects));
+            localStorage.setItem('tender_team_global', JSON.stringify(globalTeamData));
+            localStorage.setItem('tender_themes_global', JSON.stringify(globalThemesData));
+            
+            // Save global to Cloud
+            if (currentUser) {
+                updateCloudStatus('syncing');
+                try {
+                    await fetch(API_BASE_URL, {
+                        method: 'POST',
+                        mode: 'cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'save_projects',
+                            userId: 'mediaone_global_workspace',
+                            projects: projects,
+                            globalTeam: globalTeamData,
+                            globalThemes: globalThemesData
+                        })
+                    });
+                    updateCloudStatus('synced');
+                } catch (e) {
+                    updateCloudStatus('error');
+                }
+            }
+        }
+
+        function updateCloudStatus(status) {
+            const container = document.getElementById('cloud-sync-status');
+            if (!container) return;
+
+            if (status === 'syncing') {
+                container.classList.add('syncing');
+                container.innerHTML = `<i data-lucide="refresh-cw" class="sync-icon" size="14"></i><span>Syncing...</span>`;
+            } else if (status === 'synced') {
+                container.classList.remove('syncing');
+                container.innerHTML = `<i data-lucide="cloud-check" size="14"></i><span>Cloud Synced</span>`;
+            } else if (status === 'error') {
+                container.classList.remove('syncing');
+                container.innerHTML = `<i data-lucide="alert-circle" size="14" style="color:var(--danger)"></i><span style="color:var(--danger)">Sync Error</span>`;
+            }
+            lucide.createIcons();
         }
 
         // --- User Auth ---
@@ -4434,10 +4642,12 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         }
 
         function checkAuth() {
-            const saved = localStorage.getItem('tender_user');
-            if (saved) {
-                currentUser = JSON.parse(saved);
+            const storedUser = localStorage.getItem('tender_user');
+            if (storedUser) {
+                currentUser = JSON.parse(storedUser);
                 updateUserProfile();
+                initApp();
+                fetchProjectsFromCloud();
                 return true;
             } else {
                 document.getElementById('login-overlay').classList.add('active');
@@ -4488,6 +4698,40 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         }
 
         // --- Version Control ---
+        async function fetchProjectsFromCloud() {
+            if (!currentUser) return;
+
+            updateCloudStatus('syncing');
+            try {
+                const response = await fetch(API_BASE_URL, {
+                    method: 'POST',
+                    mode: 'cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'load_projects',
+                        userId: 'mediaone_global_workspace' // Shared across everyone
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.projects && data.projects.length > 0) {
+                        projects = data.projects;
+                        localStorage.setItem('tender_projects', JSON.stringify(projects));
+                        renderProjectList();
+                        updateCloudStatus('synced');
+                        
+                        if (!currentProjectId && projects.length > 0) {
+                            switchProject(projects[0].id);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Cloud Fetch Error:", e);
+                updateCloudStatus('error');
+            }
+        }
+
         function saveRevision(label = "Checkpoint") {
             const current = projects.find(p => p.id === currentProjectId);
             if (!current) return;
@@ -4508,26 +4752,26 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         }
 
         function openHistoryModal() {
-            renderRevisionList();
-            document.getElementById('history-modal').classList.add('active');
+            switchView('revisions', document.querySelector('.nav-item[onclick*="revisions"]'));
         }
 
         function closeHistoryModal() {
-            document.getElementById('history-modal').classList.remove('active');
+            // No-op
         }
 
         function renderRevisionList() {
-            const list = document.getElementById('revision-list');
+            const list = document.getElementById('sidebar-revision-list');
             const current = projects.find(p => p.id === currentProjectId);
             if (!list || !current) return;
 
             if (!current.revisions || current.revisions.length === 0) {
-                list.innerHTML = '<p style="text-align:center; padding:2rem; color:var(--text-muted);">No versions saved yet.</p>';
+                list.innerHTML = '<div style="text-align:center; padding:4rem; color:var(--text-muted);"><i data-lucide="history" size="48" style="margin-bottom:1rem; opacity:0.3;"></i><p>No versions saved yet.</p></div>';
+                lucide.createIcons();
                 return;
             }
 
             list.innerHTML = current.revisions.map(rev => `
-                <div class="revision-item">
+                <div class="revision-item" style="border: none; border-bottom: 1px solid var(--border); border-radius: 0; margin-bottom: 0;">
                     <div class="revision-info">
                         <h4>${rev.label}</h4>
                         <div class="revision-meta">
@@ -4535,7 +4779,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                         </div>
                     </div>
                     <button class="btn btn-ghost btn-sm" onclick="restoreRevision(${rev.id})">
-                        <i data-lucide="rotate-ccw" size="12"></i> Restore
+                        <i data-lucide="rotate-ccw" size="12"></i> Restore Version
                     </button>
                 </div>
             `).join('');
@@ -4549,12 +4793,12 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             const revision = current.revisions.find(r => r.id === id);
             
             if (revision) {
-                saveRevision("Before Restore"); // Save current state before restoring
+                saveRevision("Auto-save before restore"); 
                 slidesData.length = 0;
                 revision.snapshot.forEach(s => slidesData.push(s));
                 renderThumbnails();
                 if (slidesData.length > 0) loadSlide(0);
-                closeHistoryModal();
+                renderRevisionList();
                 addChatMessage(`Restored project to version: **${revision.label}**`, 'ai');
                 saveProjects();
             }
@@ -4726,7 +4970,9 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                     { id: 2, name: "June Goh", role: "Chief Operations Officer", initials: "JG", badge: "COO" },
                     { id: 3, name: "Kenneth Cheong", role: "Lead Strategist / Project Lead", initials: "KC", badge: "Lead" }
                 ],
-                docs: []
+                docs: [],
+                lastModifiedBy: currentUser?.name || "System",
+                lastModifiedAt: new Date().toISOString()
             };
 
             projects.push(newP);
