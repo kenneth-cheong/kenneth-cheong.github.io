@@ -13,6 +13,8 @@
         rel="stylesheet">
     <!-- Lucide Icons via CDN (UMD) -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- PptxGenJS for slide exports -->
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
     <style>
         :root {
             /* Color Palette */
@@ -42,7 +44,7 @@
             /* Sizing */
             --header-height: 64px;
             --sidebar-width: 260px;
-            --right-panel-width: 480px;
+            --right-panel-width: 320px;
         }
 
         * {
@@ -172,6 +174,32 @@
         }
 
         /* --- Sidebar --- */
+        .slide-panel {
+            width: var(--right-panel-width);
+            background: #fff;
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .resize-handle {
+            position: absolute;
+            left: -3px;
+            top: 0;
+            width: 6px;
+            height: 100%;
+            cursor: ew-resize;
+            z-index: 100;
+            transition: background 0.2s;
+        }
+
+        .resize-handle:hover,
+        .resize-handle.active {
+            background: var(--primary);
+        }
+
         aside.sidebar {
             width: var(--sidebar-width);
             background: var(--bg-sidebar);
@@ -397,7 +425,7 @@
 
         .input-box {
             display: flex;
-            align-items: flex-end;
+            align-items: center;
             gap: 0.75rem;
             background: #fff;
             border: 1px solid var(--border);
@@ -409,6 +437,62 @@
         .input-box:focus-within {
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .input-box.drag-over {
+            border-color: var(--primary);
+            background: var(--primary-light);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
+        }
+
+        .file-previews {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .file-preview-item {
+            position: relative;
+            width: 60px;
+            height: 60px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .file-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .file-preview-item .remove-preview {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            background: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .file-preview-item .file-icon {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-app);
+            color: var(--text-muted);
         }
 
         textarea {
@@ -437,13 +521,18 @@
             color: var(--primary);
         }
 
-        /* --- Right Panel (Slide Editor) --- */
+        /* --- Right Panel (AI Suggestions) --- */
         aside.slide-panel {
             width: var(--right-panel-width);
             background: #fff;
-            display: flex;
+            display: none;
             flex-direction: column;
             overflow: hidden;
+            border-left: 1px solid var(--border);
+        }
+
+        aside.slide-panel.visible {
+            display: flex;
         }
 
         .panel-header {
@@ -482,33 +571,108 @@
             position: relative;
             overflow: hidden;
             transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.6rem;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-align: center;
-            padding: 0.25rem;
+            flex-shrink: 0;
+            box-shadow: var(--shadow-sm);
         }
 
         .thumb:hover {
             border-color: var(--primary);
-            box-shadow: var(--shadow-sm);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
         }
 
         .thumb.active {
             border-color: var(--primary);
             border-width: 2px;
-            box-shadow: 0 0 0 2px var(--primary-light);
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+
+        .thumb-preview-container {
+            width: 1280px;
+            height: 720px;
+            /* Dynamically scale to fit exactly inside the rail (rail-width minus 24px horizontal padding) */
+            transform: scale(calc((var(--rail-width) - 24) / 1280));
+            transform-origin: top left;
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            padding: 3.5rem;
+        }
+
+        .thumb.active .thumb-preview-container {
+            /* Keep background white or dark based on theme */
         }
 
         .thumb-num {
             position: absolute;
-            top: 2px;
+            bottom: 4px;
             left: 4px;
             font-size: 0.6rem;
-            color: var(--text-muted);
+            font-weight: 800;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.5);
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 2px;
+            z-index: 10;
+        }
+
+        .rail-resize-handle:hover {
+            background: var(--primary);
+        }
+
+        .delete-thumb {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 18px;
+            height: 18px;
+            background: rgba(239, 68, 68, 0.9);
+            color: #fff;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 10;
+        }
+
+        .thumb:hover .delete-thumb {
+            opacity: 1;
+        }
+
+        .delete-thumb {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 16px;
+            height: 16px;
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 10;
+        }
+
+        .thumb:hover .delete-thumb {
+            opacity: 1;
+        }
+
+        .delete-thumb:hover {
+            background: var(--danger);
+            color: #fff;
         }
 
         /* --- Main Editor Canvas --- */
@@ -522,52 +686,273 @@
             gap: 1.5rem;
         }
 
-        .slide-canvas {
-            width: 100%;
-            aspect-ratio: 16/9;
-            background: #fff;
-            box-shadow: var(--shadow-lg);
-            border-radius: 4px;
-            padding: 2rem;
+        /* --- Main Slide Editor View (Full Width) --- */
+        .slide-editor-layout {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            --rail-width: 140;
+        }
+
+        .slide-editor-rail {
+            width: calc(var(--rail-width) * 1px);
+            min-width: 100px;
+            max-width: 300px;
+            border-right: 1px solid #1e293b;
+            overflow-y: auto;
+            padding: 1rem 0.75rem;
             display: flex;
             flex-direction: column;
+            gap: 1rem;
+            position: relative;
+        }
+
+        .rail-resize-handle {
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            cursor: ew-resize;
+            background: transparent;
+            transition: background 0.2s;
+            z-index: 10;
+        }
+
+        .rail-resize-handle:hover,
+        .rail-resize-handle.active {
+            background: var(--primary);
+        }
+
+        .slide-editor-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #f1f5f9;
+        }
+
+        .formatting-toolbar {
+            background: #fff;
+            border-bottom: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            flex-wrap: wrap;
+            z-index: 20;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .toolbar-group {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .formatting-toolbar .divider {
+            width: 1px;
+            height: 20px;
+            background: var(--border);
+            margin: 0 0.375rem;
+        }
+
+        .formatting-toolbar select {
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.2rem;
+            font-size: 0.75rem;
+            outline: none;
+        }
+
+        .formatting-toolbar input[type="color"] {
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            border: none;
+            background: none;
+            cursor: pointer;
+        }
+
+        .toolbar-label {
+            font-size: 0.6875rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            padding: 2rem;
+            position: relative;
+        }
+
+        .slide-canvas {
+            width: 1280px;
+            height: 720px;
+            background: #fff;
+            box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.15), 0 4px 16px -4px rgba(0, 0, 0, 0.1);
+            border-radius: 2px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.15s ease-out;
+            flex-shrink: 0;
+            transform-origin: center center;
+            padding: 3.5rem;
+        }
+
+        .slide-canvas.theme-dark,
+        .thumb-preview-container.theme-dark {
+            background: #1e3a8a !important; /* Solid fallback for speed */
+            background: linear-gradient(135deg, #1e3a8a 0%, #172554 100%) !important;
+            color: #fff !important;
+        }
+
+        .slide-count-badge {
+            position: absolute;
+            bottom: 1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.6875rem;
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 0.2rem 0.75rem;
+            border-radius: 999px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .theme-dark::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 6%;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .slide-logo {
+            position: absolute;
+            top: 2rem;
+            right: 3rem;
+            height: 24px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            color: #1e3a8a;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+        }
+
+        .theme-dark .slide-logo {
+            color: #fff;
+            opacity: 0.8;
+        }
+
+        .slide-header {
+            margin-bottom: 2rem;
             position: relative;
         }
 
         .slide-title {
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: #1e293b;
-            margin-bottom: 1.5rem;
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.25rem;
+            font-weight: 800;
+            color: #1e3a8a;
+            line-height: 1.1;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: -0.02em;
             outline: none;
             padding: 4px;
             border-radius: 4px;
-            transition: background 0.2s;
         }
 
-        .slide-title:hover,
-        .slide-body:hover {
-            background: rgba(37, 99, 235, 0.03);
+        .theme-dark .slide-title {
+            color: #fff;
+            font-size: 3.5rem;
         }
 
-        .slide-title:focus,
-        .slide-body:focus {
-            background: rgba(37, 99, 235, 0.05);
-            box-shadow: inset 0 0 0 1px var(--primary);
+        .slide-accent-line {
+            width: 60px;
+            height: 4px;
+            background: #f97316;
+            margin-top: 0.75rem;
         }
 
         .slide-body {
-            font-size: 0.95rem;
+            flex: 1;
+            font-size: 1.05rem;
             line-height: 1.6;
             color: #475569;
-            flex: 1;
             outline: none;
             padding: 4px;
             border-radius: 4px;
         }
 
-        .slide-body ul {
-            padding-left: 1.25rem;
+        .theme-dark .slide-body {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.25rem;
+        }
+
+        /* Slide Components */
+        .slide-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .slide-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-top: 3px solid #1e3a8a;
+            border-radius: var(--radius-sm);
+            padding: 1.25rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .slide-card h4 {
+            color: #1e3a8a;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .slide-card p {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin: 0;
+            line-height: 1.4;
+        }
+
+        .slide-tag {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            background: #f1f5f9;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #475569;
+            margin-bottom: 0.5rem;
+        }
+
+        .slide-icon-box {
+            width: 32px;
+            height: 32px;
+            background: #eff6ff;
+            color: #1e3a8a;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
         }
 
         .slide-body li {
@@ -634,34 +1019,7 @@
             font-size: 0.75rem;
         }
 
-        /* --- Version History Mini-Panel --- */
-        .version-panel {
-            border-top: 1px solid var(--border);
-            padding: 1rem 1.5rem;
-        }
 
-        .version-list {
-            display: flex;
-            gap: 1rem;
-            overflow-x: auto;
-            padding-bottom: 0.5rem;
-        }
-
-        .version-tag {
-            flex-shrink: 0;
-            font-size: 0.75rem;
-            padding: 0.25rem 0.75rem;
-            background: var(--bg-app);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            cursor: pointer;
-        }
-
-        .version-tag.active {
-            background: var(--primary);
-            color: #fff;
-            border-color: var(--primary);
-        }
 
         /* View Management */
         .main-workspace {
@@ -742,9 +1100,20 @@
             text-transform: uppercase;
         }
 
-        .status-compliant { background: #d1fae5; color: #065f46; }
-        .status-partial { background: #fef3c7; color: #92400e; }
-        .status-non { background: #fee2e2; color: #991b1b; }
+        .status-compliant {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-partial {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-non {
+            background: #fee2e2;
+            color: #991b1b;
+        }
 
         /* Win Themes Grid */
         .themes-grid {
@@ -805,12 +1174,108 @@
 
         /* Team List */
         .team-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 1rem;
         }
 
         .team-member {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            aspect-ratio: 1 / 1;
+            position: relative;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .team-member:hover {
+            border-color: var(--primary);
+            box-shadow: var(--shadow);
+            transform: translateY(-2px);
+        }
+
+        .member-avatar {
+            width: 56px;
+            height: 56px;
+            background: var(--primary-light);
+            color: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.125rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .member-info {
+            width: 100%;
+        }
+
+        .member-info strong {
+            display: block;
+            font-size: 0.9375rem;
+            margin-bottom: 0.25rem;
+            line-height: 1.2;
+        }
+
+        .member-info span {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: block;
+            line-height: 1.4;
+        }
+
+        .member-actions {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            display: flex;
+            gap: 0.25rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .team-member:hover .member-actions {
+            opacity: 1;
+        }
+
+        .team-member .badge {
+            position: absolute;
+            top: 0.5rem;
+            left: 0.5rem;
+            font-size: 0.6rem;
+            padding: 0.15rem 0.4rem;
+        }
+
+        .tab-item {
+            padding: 0.75rem 1rem;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab-item:hover {
+            color: var(--text-main);
+        }
+
+        .tab-item.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .doc-card {
             background: #fff;
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
@@ -818,24 +1283,589 @@
             display: flex;
             align-items: center;
             gap: 1rem;
+            transition: all 0.2s;
         }
 
-        .member-avatar {
+        .doc-card:hover {
+            border-color: var(--primary);
+            box-shadow: var(--shadow);
+        }
+
+        .doc-icon {
             width: 40px;
             height: 40px;
-            background: #e2e8f0;
-            color: #475569;
+            background: var(--primary-light);
+            color: var(--primary);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .doc-meta {
+            flex: 1;
+        }
+
+        .doc-meta strong {
+            display: block;
+            font-size: 0.875rem;
+            margin-bottom: 0.125rem;
+        }
+
+        .doc-meta span {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: var(--radius-sm);
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: var(--bg-app);
+        }
+
+        .action-btn-delete:hover {
+            color: var(--danger);
+            background: #fee2e2;
+        }
+
+        [contenteditable="true"]:hover {
+            background: rgba(37, 99, 235, 0.05);
+            outline: 1px dashed var(--primary);
+            border-radius: 2px;
+        }
+
+        /* --- Archetype Picker --- */
+        .archetype-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+
+        .archetype-card {
+            background: #fff;
+            border: 2px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .archetype-card:hover {
+            border-color: var(--primary);
+            box-shadow: var(--shadow);
+            transform: translateY(-2px);
+        }
+
+        .archetype-card .arch-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 0.75rem;
+            background: var(--primary-light);
+            color: var(--primary);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
+        }
+
+        .archetype-card h4 {
+            font-size: 0.8125rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .archetype-card p {
+            font-size: 0.6875rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        /* --- Value-Add Scorecard --- */
+        .scorecard {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1rem;
+            margin-top: 0.75rem;
+        }
+
+        .scorecard h4 {
+            font-size: 0.6875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .pillar-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.375rem 0;
+            font-size: 0.75rem;
+        }
+
+        .pillar-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .pillar-dot.covered {
+            background: var(--success);
+        }
+
+        .pillar-dot.missing {
+            background: var(--border);
+        }
+
+        .pillar-label {
+            flex: 1;
+            color: var(--text-main);
+        }
+
+        .pillar-label.missing {
+            color: var(--text-muted);
+        }
+
+        /* --- Deck Completeness Ring --- */
+        .completeness-widget {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1rem;
+            margin-top: 0.75rem;
+            text-align: center;
+        }
+
+        .completeness-widget h4 {
+            font-size: 0.6875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .ring-container {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 0.5rem;
+        }
+
+        .ring-container svg {
+            transform: rotate(-90deg);
+        }
+
+        .ring-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.125rem;
             font-weight: 700;
+            color: var(--primary);
+        }
+
+        .section-checklist {
+            text-align: left;
+            margin-top: 0.75rem;
+        }
+
+        .section-check-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0;
+            font-size: 0.6875rem;
+        }
+
+        .section-check-item.done {
+            color: var(--success);
+        }
+
+        .section-check-item.pending {
+            color: var(--text-muted);
+        }
+
+        /* --- Proof Bank --- */
+        .proof-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .proof-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+            transition: all 0.2s;
+        }
+
+        .proof-card:hover {
+            box-shadow: var(--shadow);
+            border-color: var(--primary);
+        }
+
+        .proof-card .proof-metric {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--primary);
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .proof-card .proof-label {
+            font-size: 0.8125rem;
+            font-weight: 600;
+            margin-top: 0.25rem;
+        }
+
+        .proof-card .proof-context {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.375rem;
+            line-height: 1.4;
+        }
+
+        .proof-card .proof-tags {
+            margin-top: 0.75rem;
+            display: flex;
+            gap: 0.375rem;
+            flex-wrap: wrap;
+        }
+
+        .proof-tag {
+            font-size: 0.625rem;
+            padding: 0.125rem 0.5rem;
+            border-radius: 1rem;
+            background: var(--primary-light);
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        /* --- Sector Preset Selector --- */
+        .sector-selector {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .sector-selector label {
+            font-size: 0.8125rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        /* --- Tone Badge --- */
+        .tone-result {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            font-size: 0.8125rem;
+            line-height: 1.5;
+        }
+
+        .tone-pass {
+            background: #d1fae5;
+            border: 1px solid #6ee7b7;
+            color: #065f46;
+        }
+
+        .tone-warn {
+            background: #fef3c7;
+            border: 1px solid #fcd34d;
+            color: #92400e;
+        }
+
+        /* --- Print Styles --- */
+        .print-only {
+            display: none !important;
+        }
+
+        @media print {
+            body>*:not(.print-only) {
+                display: none !important;
+            }
+
+            .print-only {
+                display: block !important;
+                background: #f1f5f9 !important;
+            }
+
+            .print-slide {
+                width: 100% !important;
+                height: auto !important;
+                aspect-ratio: 16 / 9;
+                background: white !important;
+                margin: 0 !important;
+                padding: 1in !important;
+                page-break-after: always;
+                display: flex;
+                flex-direction: column;
+                box-sizing: border-box;
+                position: relative;
+            }
+
+            .print-slide-title {
+                font-family: 'Outfit', sans-serif !important;
+                font-size: 28pt !important;
+                font-weight: 700 !important;
+                color: #1e293b !important;
+                margin-bottom: 2rem !important;
+                text-transform: uppercase;
+            }
+
+            .print-slide-body {
+                font-family: 'Inter', sans-serif !important;
+                font-size: 14pt !important;
+                color: #64748b !important;
+                line-height: 1.6 !important;
+                flex: 1;
+            }
+
+            .print-footer {
+                position: absolute;
+                bottom: 0.5in;
+                left: 1in;
+                right: 1in;
+                display: flex;
+                justify-content: space-between;
+                font-size: 9pt;
+                color: #cbd5e1;
+                border-top: 1px solid #f1f5f9;
+                padding-top: 0.25rem;
+            }
+        }
+
+        /* --- Focus Mode --- */
+        .app-container.focus-mode .sidebar {
+            display: none;
+        }
+
+        /* --- Dropdown Menu --- */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background-color: #fff;
+            min-width: 160px;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            z-index: 1000;
+            padding: 0.5rem 0;
+        }
+
+        .dropdown-content.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 0.5rem 1rem;
+            font-size: 0.8125rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .dropdown-item:hover {
+            background-color: var(--bg-app);
+        }
+
+        .dropdown-item i {
+            color: var(--text-muted);
+        }
+
+        .dropdown-item.danger {
+            color: var(--danger);
+        }
+
+        .dropdown-item.danger i {
+            color: var(--danger);
+        }
+
+        [contenteditable="true"]:focus {
+            background: #fff;
+            outline: 2px solid var(--primary);
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .modal-content {
+            background: #fff;
+            width: 100%;
+            max-width: 480px;
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-2xl);
+            padding: 2rem;
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.active .modal-content {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-header h2 {
+            font-size: 1.5rem;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+        }
+
+        .modal-header p {
+            color: var(--text-muted);
             font-size: 0.875rem;
         }
 
-        .member-info { flex: 1; }
-        .member-info strong { display: block; font-size: 0.9375rem; }
-        .member-info span { font-size: 0.8125rem; color: var(--text-muted); }
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            margin-top: 2rem;
+        }
+
+        .table-input {
+            border: 1px solid transparent;
+            background: transparent;
+            padding: 0.25rem 0.5rem;
+            border-radius: var(--radius-sm);
+            font-size: 0.8125rem;
+            color: var(--text-main);
+            width: 100%;
+            transition: all 0.2s;
+        }
+
+        .table-input:hover {
+            border-color: var(--border);
+            background: var(--bg-app);
+        }
+
+        .table-input:focus {
+            border-color: var(--primary);
+            background: #fff;
+            outline: none;
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+
+        select.table-input {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+            padding-right: 2rem;
+        }
+
+        .project-sidebar-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.75rem;
+            margin-bottom: 0.25rem;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 0.8125rem;
+            color: var(--text-main);
+            transition: all 0.2s;
+        }
+
+        .project-sidebar-item:hover {
+            background: var(--bg-app);
+        }
+
+        .project-sidebar-item.active {
+            background: var(--primary-light);
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        .project-name-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            overflow: hidden;
+        }
+
+        .project-name-wrapper span {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
 
         /* Responsive Tweaks */
         @media (max-width: 1200px) {
@@ -856,14 +1886,20 @@
                 <span>TenderAI</span>
             </div>
             <div class="project-info">
-                <span class="project-title">Active Tender Analysis</span>
-                <span class="badge">In Progress</span>
+                <span class="project-title" id="active-project-title" contenteditable="true"
+                    onblur="renameActiveProject(this.innerText)">Active Tender Analysis</span>
+                <span class="badge" id="active-project-status">In Progress</span>
             </div>
         </div>
         <div class="header-actions">
-            <button class="btn btn-ghost"><i data-lucide="share-2" size="16"></i> Share</button>
-            <button class="btn btn-ghost"><i data-lucide="file-down" size="16"></i> Export PPTX</button>
-            <button class="btn btn-primary"><i data-lucide="play-circle" size="16"></i> Generate Slides</button>
+            <button class="btn btn-ghost" onclick="toggleFocusMode()"><i data-lucide="share-2" size="16"></i> Focus
+                Mode</button>
+            <button class="btn btn-ghost" onclick="exportToPPTX()"><i data-lucide="file-down" size="16"></i> Export
+                PPTX</button>
+            <button class="btn btn-primary" onclick="generateSlides()">
+                <i data-lucide="play-circle" size="16"></i>
+                <span id="generate-btn-text">Generate Slides</span>
+            </button>
             <div class="avatar">
                 <i data-lucide="user" size="20"></i>
             </div>
@@ -874,12 +1910,37 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <nav class="nav-section">
+                <p class="nav-label">Active Tenders</p>
+                <div id="sidebar-project-list" style="padding: 0 0.5rem; margin-bottom: 1rem;">
+                    <!-- Projects will be listed here -->
+                </div>
+                <button class="btn btn-ghost"
+                    style="width: calc(100% - 2rem); margin: 0 1rem; justify-content: flex-start;"
+                    onclick="createNewProject()">
+                    <i data-lucide="plus" size="16"></i> New Tender
+                </button>
+            </nav>
+
+            <nav class="nav-section">
                 <p class="nav-label">Navigation</p>
-                <a href="javascript:void(0)" class="nav-item active" onclick="switchView('overview', this)"><i data-lucide="layout-grid" size="18"></i> Overview</a>
-                <a href="javascript:void(0)" class="nav-item" onclick="switchView('documents', this)"><i data-lucide="file-text" size="18"></i> Tender Documents</a>
-                <a href="javascript:void(0)" class="nav-item" onclick="switchView('compliance', this)"><i data-lucide="check-square" size="18"></i> Compliance Matrix</a>
-                <a href="javascript:void(0)" class="nav-item" onclick="switchView('themes', this)"><i data-lucide="award" size="18"></i> Win Themes</a>
-                <a href="javascript:void(0)" class="nav-item" onclick="switchView('team', this)"><i data-lucide="users" size="18"></i> Team & Roles</a>
+                <a href="javascript:void(0)" class="nav-item active" onclick="switchView('all-projects', this)"><i
+                        data-lucide="layout" size="18"></i> All Tenders</a>
+                <a href="javascript:void(0)" class="nav-item" onclick="switchView('overview', this)"><i
+                        data-lucide="layout-grid" size="18"></i> Tender AI Chat</a>
+                <a href="javascript:void(0)" class="nav-item" onclick="switchView('documents', this)"><i
+                        data-lucide="file-text" size="18"></i> Documents</a>
+                <a href="javascript:void(0)" class="nav-item" onclick="switchView('slide-editor', this)"><i
+                        data-lucide="presentation" size="18"></i> Slide Editor</a>
+                <a href="javascript:void(0)" class="nav-item" onclick="switchView('compliance', this)"><i
+                        data-lucide="check-square" size="18"></i> Compliance Matrix</a>
+                <a href="javascript:void(0)" class="nav-item" onclick="switchView('themes', this)"><i
+                        data-lucide="award" size="18"></i> Win Themes</a>
+                <a href="javascript:void(0)" class="nav-item" onclick="switchView('team', this)"><i data-lucide="users"
+                        size="18"></i> Team & Roles</a>
+                <a href="javascript:void(0)" class="nav-item" onclick="switchView('proof-bank', this)"><i
+                        data-lucide="database" size="18"></i> Proof Bank</a>
+                <a href="javascript:void(0)" class="nav-item" onclick="switchView('persona', this)"><i
+                        data-lucide="sparkles" size="18"></i> AI Persona</a>
             </nav>
 
             <nav class="nav-section">
@@ -891,73 +1952,115 @@
                 </div>
             </nav>
 
-            <div class="progress-card">
-                <h4>PROJECT PROGRESS</h4>
-                <div class="stat-row">
-                    <span>Documents ingested</span>
-                    <span id="stat-ingested">0%</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="bar-ingested" style="width: 0%;"></div>
-                </div>
+            <div id="value-add-scorecard" class="scorecard">
+                <h4>Value-Add Scorecard</h4>
+                <div id="scorecard-items"><!-- Populated by JS --></div>
+            </div>
 
-                <div class="stat-row" style="margin-top: 0.75rem;">
-                    <span>Requirements extracted</span>
-                    <span id="stat-extracted">0%</span>
+            <div id="deck-completeness" class="completeness-widget">
+                <h4>Deck Completeness</h4>
+                <div class="ring-container">
+                    <svg width="80" height="80" viewBox="0 0 80 80">
+                        <circle cx="40" cy="40" r="34" fill="none" stroke="var(--border)" stroke-width="6" />
+                        <circle id="completeness-ring" cx="40" cy="40" r="34" fill="none" stroke="var(--primary)"
+                            stroke-width="6" stroke-linecap="round" stroke-dasharray="213.6"
+                            stroke-dashoffset="213.6" />
+                    </svg>
+                    <span class="ring-label" id="completeness-pct">0%</span>
                 </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="bar-extracted" style="width: 0%;"></div>
-                </div>
-
-                <div class="stat-row" style="margin-top: 0.75rem;">
-                    <span>Slides drafted</span>
-                    <span id="stat-slides">0/0</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="bar-slides" style="width: 0%;"></div>
-                </div>
+                <div class="section-checklist" id="section-checklist"><!-- Populated by JS --></div>
             </div>
         </aside>
 
         <!-- Main Workspace -->
         <main class="main-workspace">
-            <!-- View: Overview (Chat) -->
-            <div id="view-overview" class="view-content active">
+            <!-- View: All Tenders Dashboard -->
+            <div id="view-all-projects" class="view-content active">
+                <div class="view-header">
+                    <h2>Tender Dashboard</h2>
+                    <button class="btn btn-primary" onclick="createNewProject()"><i data-lucide="plus" size="16"></i>
+                        New Tender</button>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Tender Name</th>
+                                <th>Client</th>
+                                <th>Due Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="all-projects-table-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- View: Tender AI Chat -->
+            <div id="view-overview" class="view-content">
                 <div class="chat-messages" id="chat-messages">
                     <div class="message message-ai">
                         <div class="message-content">
-                            Welcome! Please upload your tender documents (RFP, submission guidelines, etc.) to begin the analysis.
+                            Welcome! Please upload your tender documents (RFP, submission guidelines, etc.) to begin the
+                            analysis.
                         </div>
                     </div>
                 </div>
 
                 <!-- Chat Input -->
                 <div class="chat-input-wrapper">
+                    <div id="file-previews" class="file-previews"></div>
                     <div class="quick-actions">
-                        <button class="chip" onclick="addPrompt('Extract mandatory requirements')">Extract requirements</button>
+                        <button class="chip" onclick="addPrompt('Extract mandatory requirements')">Extract
+                            requirements</button>
                         <button class="chip" onclick="addPrompt('Show compliance matrix')">Compliance matrix</button>
                         <button class="chip" onclick="addPrompt('Draft executive summary')">Executive summary</button>
                         <button class="chip" onclick="addPrompt('Update win themes')">Update win themes</button>
                     </div>
-                    <div class="input-box">
-                        <button class="icon-btn" onclick="document.querySelector('input[type=file]').click()"><i data-lucide="paperclip" size="20"></i></button>
+                    <div class="input-box" id="chat-input-box">
+                        <button class="icon-btn" onclick="document.querySelector('input[type=file]').click()"><i
+                                data-lucide="paperclip" size="20"></i></button>
                         <textarea id="chat-input" placeholder="Ask AI to analyze or edit..." rows="1"></textarea>
-                        <button class="icon-btn" style="color: var(--primary);" onclick="sendMessage()"><i data-lucide="send" size="20"></i></button>
+                        <button class="icon-btn" style="color: var(--primary);" onclick="sendMessage()"><i
+                                data-lucide="send" size="20"></i></button>
                     </div>
                 </div>
             </div>
 
-            <!-- View: Tender Documents -->
+            <!-- View: Document Repository -->
             <div id="view-documents" class="view-content">
                 <div class="view-header">
-                    <h2>Tender Documents</h2>
-                    <button class="btn btn-primary" onclick="document.querySelector('input[type=file]').click()"><i data-lucide="upload" size="16"></i> Upload Document</button>
-                </div>
-                <div class="doc-grid" id="main-doc-list">
-                    <div class="empty-state">
-                        <i data-lucide="file-plus" size="48"></i>
-                        <p>No documents uploaded yet. Start by uploading the RFP or SOW.</p>
+                    <div>
+                        <h2>Document Repository</h2>
+                        <p style="color: var(--text-muted); font-size: 0.875rem;">Manage all tender and submission
+                            files.</p>
                     </div>
+                    <div style="display: flex; gap: 0.75rem;">
+                        <select id="doc-type-filter" class="table-input"
+                            style="width: 140px; border: 1px solid var(--border);" onchange="renderDocGrid()">
+                            <option value="all">All File Types</option>
+                            <option value="pdf">PDF Documents</option>
+                            <option value="docx">Word Files</option>
+                            <option value="pptx">Presentations</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="document.querySelector('input[type=file]').click()"><i
+                                data-lucide="upload" size="16"></i> Upload File</button>
+                    </div>
+                </div>
+
+                <div class="tabs"
+                    style="margin-bottom: 1.5rem; display: flex; gap: 1rem; border-bottom: 1px solid var(--border);">
+                    <button class="tab-item active" onclick="switchDocCategory('tender', this)">Tender
+                        Documents</button>
+                    <button class="tab-item" onclick="switchDocCategory('submission', this)">Submission
+                        Documents</button>
+                </div>
+
+                <div class="doc-grid" id="main-doc-list">
+                    <!-- Files populated by JS -->
                 </div>
             </div>
 
@@ -967,7 +2070,8 @@
                     <h2>Compliance Matrix</h2>
                     <div style="display: flex; gap: 0.5rem;">
                         <button class="btn btn-ghost"><i data-lucide="download" size="16"></i> Export CSV</button>
-                        <button class="btn btn-primary" onclick="addPrompt('Generate compliance matrix')"><i data-lucide="refresh-cw" size="16"></i> Refresh Matrix</button>
+                        <button class="btn btn-primary" onclick="addPrompt('Generate compliance matrix')"><i
+                                data-lucide="refresh-cw" size="16"></i> Refresh Matrix</button>
                     </div>
                 </div>
                 <div class="table-container">
@@ -983,7 +2087,10 @@
                         </thead>
                         <tbody id="compliance-table-body">
                             <!-- Rows will be populated by AI -->
-                            <tr><td colspan="5" style="text-align:center; padding:3rem; color:var(--text-muted);">No requirements extracted yet. Run "Analyze Tender" to populate.</td></tr>
+                            <tr>
+                                <td colspan="5" style="text-align:center; padding:3rem; color:var(--text-muted);">No
+                                    requirements extracted yet. Run "Analyze Tender" to populate.</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -993,20 +2100,23 @@
             <div id="view-themes" class="view-content">
                 <div class="view-header">
                     <h2>Win Themes</h2>
-                    <button class="btn btn-primary" onclick="addPrompt('Refine win themes')"><i data-lucide="sparkles" size="16"></i> Refine Themes</button>
+                    <button class="btn btn-primary" onclick="addPrompt('Refine win themes')"><i data-lucide="sparkles"
+                            size="16"></i> Refine Themes</button>
                 </div>
                 <div class="themes-grid" id="themes-grid">
                     <!-- Themes generated by AI -->
                     <div class="theme-card">
                         <div class="theme-icon"><i data-lucide="shield-check" size="20"></i></div>
                         <h3>Unmatched Reliability</h3>
-                        <p>Leveraging our 99.99% uptime record across 12 global hubs to position us as the lowest-risk vendor.</p>
+                        <p>Leveraging our 99.99% uptime record across 12 global hubs to position us as the lowest-risk
+                            vendor.</p>
                         <div class="theme-tag">High Impact</div>
                     </div>
                     <div class="theme-card">
                         <div class="theme-icon"><i data-lucide="cpu" size="20"></i></div>
                         <h3>AI-Driven Efficiency</h3>
-                        <p>Utilizing predictive maintenance and automated workflows to reduce operational costs by 25%.</p>
+                        <p>Utilizing predictive maintenance and automated workflows to reduce operational costs by 25%.
+                        </p>
                         <div class="theme-tag">Differentiator</div>
                     </div>
                 </div>
@@ -1016,121 +2126,798 @@
             <div id="view-team" class="view-content">
                 <div class="view-header">
                     <h2>Team & Roles</h2>
-                    <button class="btn btn-ghost"><i data-lucide="user-plus" size="16"></i> Invite Member</button>
+                    <button class="btn btn-primary" onclick="addMember()"><i data-lucide="user-plus" size="16"></i> Add
+                        Member</button>
                 </div>
-                <div class="team-list">
-                    <div class="team-member">
-                        <div class="member-avatar">SC</div>
-                        <div class="member-info">
-                            <strong>Dr. Sarah Chen</strong>
-                            <span>Project Sponsor / CTO</span>
-                        </div>
-                        <span class="badge">Lead</span>
+                <div class="team-list" id="team-list">
+                    <!-- Dynamic Team Members -->
+                </div>
+            </div>
+
+            <!-- View: Proof Bank -->
+            <div id="view-proof-bank" class="view-content">
+                <div class="view-header">
+                    <div>
+                        <h2>Proof Bank</h2>
+                        <p style="color: var(--text-muted); font-size: 0.875rem;">Reusable evidence and metrics for
+                            tender submissions.</p>
                     </div>
-                    <div class="team-member">
-                        <div class="member-avatar">JW</div>
-                        <div class="member-info">
-                            <strong>James Wilson</strong>
-                            <span>Lead Architect</span>
-                        </div>
+                    <button class="btn btn-primary" onclick="addProofPoint()"><i data-lucide="plus" size="16"></i> Add
+                        Proof Point</button>
+                </div>
+                <div class="proof-grid" id="proof-bank-grid">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- View: AI Persona -->
+            <div id="view-persona" class="view-content">
+                <div class="view-header">
+                    <div>
+                        <h2>AI Persona & Strategy</h2>
+                        <p style="color: var(--text-muted); font-size: 0.875rem;">Configure the strategic narrative and
+                            design DNA for this tender.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveMasterPrompt()"><i data-lucide="save" size="16"></i>
+                        Save Persona</button>
+                </div>
+
+                <div class="card"
+                    style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 1.5rem;">
+                    <div
+                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                        <h4 style="font-size: 0.8125rem; margin: 0;"><i data-lucide="link" size="14"></i> Client Context
+                            URLs</h4>
+                        <button class="btn btn-ghost" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;"
+                            onclick="addReferenceUrl()"><i data-lucide="plus" size="12"></i> Add URL</button>
+                    </div>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">Provide URLs (e.g.,
+                        client website, annual reports, news) to give the AI more context for slide generation.</p>
+                    <div id="reference-urls-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <div class="card"
+                    style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);">
+                    <div class="sector-selector">
+                        <label>Sector Preset:</label>
+                        <select class="table-input" style="flex: 1; border: 1px solid var(--border);"
+                            onchange="applySectorPreset(this.value)">
+                            <option value="default">General (Default MediaOne)</option>
+                            <option value="healthcare">Healthcare & Medical</option>
+                            <option value="finance">Financial Services</option>
+                            <option value="public">Public Sector / Government</option>
+                            <option value="education">Education & Institutions</option>
+                            <option value="ecommerce">E-Commerce & Retail</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Master System Prompt (Slide Generation DNA)</label>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem;">This prompt
+                            guides the AI in drafting content, choosing tone, and suggesting slide structures based on
+                            MediaOne's winning patterns.</p>
+                        <textarea id="master-prompt-input" class="form-control"
+                            style="min-height: 400px; font-family: monospace; font-size: 0.8125rem; line-height: 1.5;"></textarea>
+                    </div>
+
+                    <div style="display: flex; gap: 0.75rem; margin-top: 1rem;">
+                        <button class="btn btn-ghost" onclick="runToneCheck()"><i data-lucide="shield-check"
+                                size="16"></i> Run Tone Check</button>
+                    </div>
+                    <div id="tone-check-result"></div>
+
+                    <div
+                        style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-app); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
+                        <h4
+                            style="font-size: 0.8125rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i data-lucide="info" size="14"></i> Strategic Tip
+                        </h4>
+                        <p style="font-size: 0.75rem; color: var(--text-muted);">
+                            The current prompt emphasizes <strong>Low-risk continuity</strong> and <strong>Proprietary
+                                intelligence (Digimetrics.ai)</strong>. You can tweak this to focus more on specific
+                            sector fluencies for this client.
+                        </p>
                     </div>
                 </div>
             </div>
+
+            <!-- View: Slide Editor (Full Width) -->
+            <div id="view-slide-editor" class="view-content" style="padding: 0;">
+                <div class="slide-editor-layout" id="slide-editor-layout">
+                    <!-- Slide Rail -->
+                    <div class="slide-editor-rail" id="slide-rail-editor">
+                        <div class="rail-resize-handle" id="rail-resize-handle"></div>
+                        <!-- Thumbnails generated by JS -->
+                    </div>
+
+                    <!-- Editor Main -->
+                    <div class="slide-editor-main">
+                        <!-- Formatting Toolbar -->
+                        <div class="formatting-toolbar">
+                            <div class="toolbar-group">
+                                <button class="icon-btn" title="Undo (Ctrl+Z)" onclick="undo()"><i data-lucide="undo"
+                                        size="14"></i></button>
+                                <button class="icon-btn" title="Redo (Ctrl+Shift+Z)" onclick="redo()"><i
+                                        data-lucide="redo" size="14"></i></button>
+                            </div>
+                            <div class="divider"></div>
+                            <div class="toolbar-group">
+                                <button class="icon-btn" title="Add slide from template"
+                                    onclick="openArchetypeModal()"><i data-lucide="plus-square" size="14"></i></button>
+                                <button class="icon-btn" title="Duplicate Slide" onclick="duplicateActiveSlide()"><i
+                                        data-lucide="copy" size="14"></i></button>
+                            </div>
+                            <div class="divider"></div>
+                            <div class="toolbar-group">
+                                <select onchange="format('fontSize', this.value)" title="Font Size">
+                                    <option value="2">10px</option>
+                                    <option value="3">13px</option>
+                                    <option value="4" selected>16px</option>
+                                    <option value="5">18px</option>
+                                    <option value="6">24px</option>
+                                    <option value="7">36px</option>
+                                </select>
+                            </div>
+                            <div class="divider"></div>
+                            <div class="toolbar-group">
+                                <button class="icon-btn" onclick="format('bold')" title="Bold (Ctrl+B)"><i
+                                        data-lucide="bold" size="14"></i></button>
+                                <button class="icon-btn" onclick="format('italic')" title="Italic (Ctrl+I)"><i
+                                        data-lucide="italic" size="14"></i></button>
+                                <button class="icon-btn" onclick="format('underline')" title="Underline (Ctrl+U)"><i
+                                        data-lucide="underline" size="14"></i></button>
+                                <button class="icon-btn" onclick="format('strikethrough')" title="Strikethrough"><i
+                                        data-lucide="strikethrough" size="14"></i></button>
+                            </div>
+                            <div class="divider"></div>
+                            <div class="toolbar-group">
+                                <input type="color" onchange="format('foreColor', this.value)" title="Text Color"
+                                    value="#1e293b">
+                            </div>
+                            <div class="divider"></div>
+                            <div class="toolbar-group">
+                                <button class="icon-btn" onclick="format('justifyLeft')" title="Align Left"><i
+                                        data-lucide="align-left" size="14"></i></button>
+                                <button class="icon-btn" onclick="format('justifyCenter')" title="Align Center"><i
+                                        data-lucide="align-center" size="14"></i></button>
+                                <button class="icon-btn" onclick="format('justifyRight')" title="Align Right"><i
+                                        data-lucide="align-right" size="14"></i></button>
+                            </div>
+                            <div class="divider"></div>
+                            <div class="toolbar-group" style="margin-left: auto;">
+                                <button class="icon-btn" title="Export to PPTX" onclick="exportToPPTX()"><i
+                                        data-lucide="download" size="14"></i></button>
+                                <button class="icon-btn" title="Export to PDF" onclick="prepareAndPrint()"><i
+                                        data-lucide="file-text" size="14"></i></button>
+                                <div class="dropdown" style="position: relative;">
+                                    <button class="icon-btn" title="More Actions"
+                                        onclick="toggleSlideDropdown(event)"><i data-lucide="more-horizontal"
+                                            size="14"></i></button>
+                                    <div id="slide-more-dropdown" class="dropdown-content">
+                                        <div class="dropdown-item" onclick="downloadSlideAsImage()">
+                                            <i data-lucide="image" size="14"></i> Save as Image
+                                        </div>
+                                        <div class="dropdown-divider"
+                                            style="height: 1px; background: var(--border); margin: 0.25rem 0;"></div>
+                                        <div class="dropdown-item danger" onclick="clearAllSlides()">
+                                            <i data-lucide="trash-2" size="14"></i> Clear All Slides
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Feedback Workflow Badge -->
+                        <div id="feedback-alert"
+                            style="display:none; background: #fffbeb; border: 1px solid #fcd34d; padding: 0.75rem; border-radius: var(--radius); margin: 0.75rem 1rem 0 1rem;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div
+                                    style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; font-weight: 600; color: #92400e;">
+                                    <i data-lucide="sparkles" size="14"></i> AI Changes Proposed
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button class="apply-btn" onclick="acceptChanges()"
+                                        style="border:none; background:none; cursor:pointer;">Accept All</button>
+                                    <button class="apply-btn"
+                                        style="color: #64748b; border:none; background:none; cursor:pointer;">Review</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Canvas -->
+                        <div class="canvas-container">
+                            <div class="slide-canvas" id="slide-canvas">
+                                <div class="slide-title" contenteditable="true" id="current-slide-title">Untitled Slide
+                                </div>
+                                <div class="slide-body" contenteditable="true" id="current-slide-body">
+                                    <p style="color: var(--text-muted); font-style: italic;">Start typing or ask AI to
+                                        generate
+                                        content...</p>
+                                </div>
+                                <div class="canvas-controls">
+                                    <button class="btn btn-ghost" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;"
+                                        onclick="askAItoRewrite()"><i data-lucide="sparkles" size="12"></i> Ask AI to
+                                        rewrite</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
         </main>
 
-        <!-- Right Panel (Editor) -->
-        <aside class="slide-panel">
+        <!-- Right Panel (AI Suggestions) -->
+        <aside class="slide-panel" id="slide-panel">
             <div class="panel-header">
-                <h3 style="font-size: 0.9375rem; font-weight: 700;">SLIDE DECK PREVIEW</h3>
-                <div style="display: flex; gap: 0.5rem;">
-                    <button class="icon-btn"><i data-lucide="maximize-2" size="16"></i></button>
-                    <button class="icon-btn"><i data-lucide="more-horizontal" size="16"></i></button>
-                </div>
+                <h3 style="font-size: 0.8125rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;"><i
+                        data-lucide="wand-2" size="14" style="vertical-align: -2px;"></i> AI Suggestions</h3>
             </div>
-
-            <div class="panel-content">
-                <div class="slide-rail" id="slide-rail">
-                    <!-- Thumbnails generated by JS -->
-                </div>
-
-                <div class="editor-view">
-                    <!-- Feedback Workflow Badge -->
-                    <div id="feedback-alert"
-                        style="display:none; background: #fffbeb; border: 1px solid #fcd34d; padding: 0.75rem; border-radius: var(--radius); margin-bottom: 1rem;">
-                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                            <div
-                                style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; font-weight: 600; color: #92400e;">
-                                <i data-lucide="sparkles" size="14"></i> AI Changes Proposed
-                            </div>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <button class="apply-btn" onclick="acceptChanges()"
-                                    style="border:none; background:none; cursor:pointer;">Accept All</button>
-                                <button class="apply-btn"
-                                    style="color: #64748b; border:none; background:none; cursor:pointer;">Review</button>
-                            </div>
+            <div style="padding: 1rem; overflow-y: auto; flex: 1;">
+                <div class="suggestions-panel" id="suggestions-panel-content">
+                    <div class="suggestion-item"
+                        onclick="applySuggestion('Make it more persuasive', 'Strengthen the value proposition by emphasizing our 15-year track record and industry expertise.')">
+                        <strong>Increase Executive Impact</strong>
+                        <p style="color: var(--text-muted); margin-top: 0.25rem; font-size: 0.75rem;">Focus on the
+                            15-year track record
+                            and successful delivery at key regional sites.</p>
+                        <div class="suggestion-meta">
+                            <span class="apply-btn">Apply</span>
                         </div>
                     </div>
 
-                    <div class="slide-canvas" id="slide-canvas">
-                        <div class="slide-title" contenteditable="true" id="current-slide-title">Untitled Slide</div>
-                        <div class="slide-body" contenteditable="true" id="current-slide-body">
-                            <p style="color: var(--text-muted); font-style: italic;">Start typing or ask AI to generate
-                                content...</p>
-                        </div>
-                        <div class="canvas-controls">
-                            <button class="btn btn-ghost" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;"
-                                onclick="askAItoRewrite()"><i data-lucide="sparkles" size="12"></i> Ask AI to
-                                rewrite</button>
-                            <button class="btn btn-ghost" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;"><i
-                                    data-lucide="edit-3" size="12"></i> Design</button>
+                    <div class="suggestion-item"
+                        onclick="applySuggestion('Shorten for clarity', 'Streamline bullet points to focus on the top 3 high-impact outcomes.')">
+                        <strong>Condense Content</strong>
+                        <p style="color: var(--text-muted); margin-top: 0.25rem; font-size: 0.75rem;">Reduces text
+                            volume by 30% without
+                            losing core messaging.</p>
+                        <div class="suggestion-meta">
+                            <span class="apply-btn">Apply</span>
                         </div>
                     </div>
 
-                    <div class="suggestions-panel">
-                        <div class="suggestions-title"><i data-lucide="wand-2" size="14"></i> AI Suggestions</div>
-
-                        <div class="suggestion-item"
-                            onclick="applySuggestion('Make it more persuasive', 'Strengthen the value proposition by emphasizing our 15-year track record and industry expertise.')">
-                            <strong>Make it more persuasive</strong>
-                            <p style="color: var(--text-muted); margin-top: 0.25rem;">Focus on the 15-year track record
-                                and successful delivery at key regional sites.</p>
-                            <div class="suggestion-meta">
-                                <span class="apply-btn">Apply Suggestion</span>
-                            </div>
-                        </div>
-
-                        <div class="suggestion-item"
-                            onclick="applySuggestion('Shorten for clarity', 'Streamline bullet points to focus on the top 3 high-impact outcomes.')">
-                            <strong>Shorten for clarity</strong>
-                            <p style="color: var(--text-muted); margin-top: 0.25rem;">Reduces text volume by 30% without
-                                losing core messaging.</p>
-                            <div class="suggestion-meta">
-                                <span class="apply-btn">Apply Suggestion</span>
-                            </div>
+                    <div class="suggestion-item"
+                        onclick="applySuggestion('Add proof points', 'Insert relevant case study metrics and SLAs from the proof bank.')">
+                        <strong>Add Proof Points</strong>
+                        <p style="color: var(--text-muted); margin-top: 0.25rem; font-size: 0.75rem;">Insert relevant
+                            metrics and SLAs from the proof bank for credibility.</p>
+                        <div class="suggestion-meta">
+                            <span class="apply-btn">Apply</span>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <div class="version-panel">
-                <div class="nav-label" style="padding:0; margin-bottom: 0.5rem;">Version History</div>
-                <div class="version-list" id="version-list">
-                    <div class="version-tag">v1 Initial</div>
-                    <div class="version-tag">v2 Revisions</div>
-                    <div class="version-tag active">v3 Current</div>
                 </div>
             </div>
         </aside>
+    </div>
+
+    <div class="modal-overlay" id="new-tender-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New Tender</h2>
+                <p>Initialize a new workspace for your submission.</p>
+            </div>
+            <div class="form-group">
+                <label>Tender Name</label>
+                <input type="text" id="modal-project-name" class="form-control" placeholder="e.g. Government Cloud RFP">
+            </div>
+            <div class="form-group">
+                <label>Client Name</label>
+                <input type="text" id="modal-client-name" class="form-control" placeholder="e.g. Ministry of Health">
+            </div>
+            <div class="form-group">
+                <label>Due Date</label>
+                <input type="date" id="modal-due-date" class="form-control">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeTenderModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmCreateTender()">Create Project</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="media-preview-modal" onclick="closeMediaPreview()">
+        <div class="modal-content" style="max-width: 80%; padding: 1rem; position: relative;"
+            onclick="event.stopPropagation()">
+            <button class="icon-btn"
+                style="position: absolute; top: 1rem; right: 1rem; background: #fff; box-shadow: var(--shadow);"
+                onclick="closeMediaPreview()"><i data-lucide="x" size="20"></i></button>
+            <div id="media-preview-content"
+                style="display: flex; align-items: center; justify-content: center; min-height: 200px;">
+                <!-- Content injected by JS -->
+            </div>
+            <div id="media-preview-title"
+                style="margin-top: 1rem; text-align: center; font-weight: 600; color: var(--text-main);"></div>
+        </div>
+    </div>
+
+    <!-- Slide Archetype Picker Modal -->
+    <div class="modal-overlay" id="archetype-modal" onclick="closeArchetypeModal()">
+        <div class="modal-content" style="max-width: 700px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2>Add Slide from Template</h2>
+                <p>Choose an archetype based on MediaOne's winning slide patterns.</p>
+            </div>
+            <div class="archetype-grid" id="archetype-grid">
+                <!-- Populated by JS -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeArchetypeModal()">Cancel</button>
+            </div>
+        </div>
     </div>
 
     <script>
         // --- Configuration ---
         const API_BASE_URL = 'https://2zsxqwth46.execute-api.ap-southeast-1.amazonaws.com/claude';
 
+        const DEFAULT_MASTER_PROMPT = `Create a polished corporate tender proposal deck in the style of a premium strategy and performance agency (MediaOne). 
+
+Positioning: 
+- A senior, low-risk, governance-ready growth partner.
+- Focus on "Day 1 execution", "Zero onboarding lag", and "Institutional knowledge".
+- Differentiator: Proprietary intelligence platform (Digimetrics.ai) tracking search and AI visibility (GEO).
+- Portray as a Strategic Advisor, bridging strategy, operations, and analytics.
+
+Visual & Design DNA:
+- Corporate-strategic, evidence-led, boardroom-safe.
+- Mostly white backgrounds, dark navy/charcoal typography.
+- Clean sans-serif typography, large section numbers.
+- Grid discipline and structured spacing.
+- Accent Color Logic: Blue (Trust/Strategy), Purple-Blue Gradient (Innovation/AI/GEO), Red/Orange (Risk/Priority), Green (Success/Metrics).
+
+Slide Archetypes to Reproduce:
+1. Section-divider slides (Large number, short title).
+2. Comparison slides (Current vs Future, Generic vs Specialist).
+3. Audit and issue slides (Checklists, priority labels).
+4. Framework slides (Hub-and-spoke, phased process arrows).
+5. KPI slides (Executive dashboard feel, milestone views).
+6. Case study slides (Procurement-friendly proof exhibits).
+
+Tone of Voice:
+Confident, analytical, slightly formal, senior/consultative, risk-aware, and outcome-driven. Use phrases like "strategic framework", "governance model", and "visibility architecture".`;
+
+        function saveMasterPrompt() {
+            const current = projects.find(p => p.id === currentProjectId);
+            if (current) {
+                current.masterPrompt = document.getElementById('master-prompt-input').value;
+                saveProjects();
+                addChatMessage("AI Persona updated successfully for this tender.", 'ai');
+            }
+        }
+
+        // =============================================
+        // FEATURE 1: Slide Archetype Templates
+        // =============================================
+        const SLIDE_ARCHETYPES = [
+            { id: 'title', icon: 'layout', title: 'Title Slide', desc: 'Full-brand hero cover', template: { title: 'SEO & GEO STRATEGY', body: '<p style="color:rgba(255,255,255,0.7); font-size:1rem; margin-top:1rem;">Recovering organic growth and building AI visibility across consumer and advisory journeys.</p><div style="margin-top:4rem; display:flex; gap:3rem; font-size:0.75rem;"><div style="opacity:0.8;">PREPARED FOR<br><strong style="color:#fff;">Etiqa Insurance Pte Ltd</strong></div><div style="opacity:0.8;">PREPARED BY<br><strong style="color:#fff;">MediaOne Business Group</strong></div><div style="opacity:0.8;">DATE<br><strong style="color:#fff;">April 2026</strong></div></div>' } },
+            { id: 'divider', icon: 'hash', title: 'Section Divider', desc: 'Bold section transition', template: { title: 'PROBLEM & CONTEXT', body: '<div class="slide-tag" style="background:#f97316; color:#fff;">SECTION 01</div><p style="margin-top:1.5rem; opacity:0.9;">Navigating the shift from classic SEO to AI-led discovery in a competitive insurance landscape.</p>' } },
+            { id: 'exec-summary', icon: 'file-text', title: 'Executive Summary', desc: 'Pillar-based overview', template: { title: 'Executive Summary', body: '<div class="slide-card-grid"><div class="slide-card"><h4>The Business Challenge</h4><p>Visibility weakened across domains. High-intent demand leaking to aggregators.</p></div><div class="slide-card"><h4>The MediaOne Response</h4><p>A dual-domain strategy: Etiqa builds trust, Tiq captures quote-ready intent.</p></div><div class="slide-card"><h4>Measurable Outcomes</h4><p>30% YoY growth in traffic. 15%+ AI citation visibility target.</p></div></div>' } },
+            { id: 'comparison', icon: 'columns', title: 'Side-by-Side', desc: 'Contrast current vs future', template: { title: 'Classic vs AI-Led Search', body: '<div style="display:flex; gap:2rem; margin-top:1rem;"><div style="flex:1; padding:1.5rem; background:#f8fafc; border-radius:8px;"><strong>Classic Search</strong><ul style="font-size:0.8rem; margin-top:1rem; color:#64748b;"><li>Users compare multiple links</li><li>Several brands share clicks</li><li>Ranking position drives potential</li></ul></div><div style="flex:1; padding:1.5rem; border:2px solid #f97316; border-radius:8px;"><strong>AI-Led Search</strong><ul style="font-size:0.8rem; margin-top:1rem; color:#1e293b;"><li>Users see a summary first</li><li>Only a few brands get cited</li><li>Visibility and clicks decoupled</li></ul></div></div>' } },
+            { id: 'audit', icon: 'clipboard-check', title: 'Audit findings', desc: 'Issue diagnosis grid', template: { title: 'Current State Audit', body: '<div class="slide-card-grid"><div class="slide-card"><div class="slide-tag">TECHNICAL</div><h4>Technical State</h4><p>Metadata gaps and crawlability issues on deep pages.</p></div><div class="slide-card"><div class="slide-tag">CONTENT</div><h4>Content & Trust</h4><p>Authority assets underutilized. E-E-A-T signals not structured.</p></div><div class="slide-card"><div class="slide-tag">VISIBILITY</div><h4>Current Visibility</h4><p>Losing ground to aggregators on core comparison queries.</p></div></div>' } },
+            { id: 'kpi', icon: 'bar-chart-3', title: 'KPI Dashboard', desc: 'Big metrics with labels', template: { title: 'Key Performance Indicators', body: '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:1.5rem; margin-top:1rem;"><div style="text-align:center;"><div style="font-size:3rem; font-weight:800; color:#1e3a8a;">+142%</div><div style="font-size:0.8rem; color:#64748b;">Organic Growth</div></div><div style="text-align:center;"><div style="font-size:3rem; font-weight:800; color:#1e3a8a;">Top 3</div><div style="font-size:0.8rem; color:#64748b;">Rankings</div></div><div style="text-align:center;"><div style="font-size:3rem; font-weight:800; color:#1e3a8a;">4.2x</div><div style="font-size:0.8rem; color:#64748b;">ROAS</div></div></div>' } }
+        ];
+
+        function openArchetypeModal() {
+            const grid = document.getElementById('archetype-grid');
+            grid.innerHTML = SLIDE_ARCHETYPES.map(a => `
+                <div class="archetype-card" onclick="addSlideFromArchetype('${a.id}')">
+                    <div class="arch-icon"><i data-lucide="${a.icon}" size="24"></i></div>
+                    <h4>${a.title}</h4>
+                    <p>${a.desc}</p>
+                </div>
+            `).join('');
+            document.getElementById('archetype-modal').classList.add('active');
+            lucide.createIcons();
+        }
+
+        function closeArchetypeModal() {
+            document.getElementById('archetype-modal').classList.remove('active');
+        }
+
+        function addSlideFromArchetype(archetypeId) {
+            const arch = SLIDE_ARCHETYPES.find(a => a.id === archetypeId);
+            if (!arch) return;
+
+            const newSlide = {
+                id: Date.now(),
+                title: arch.template.title,
+                body: arch.template.body
+            };
+
+            slidesData.push(newSlide);
+            activeSlideIndex = slidesData.length - 1;
+            renderThumbnails();
+            updateEditorState();
+            saveProjects();
+            updateDeckCompleteness();
+            updateValueAddScorecard();
+            closeArchetypeModal();
+            addChatMessage(`Added new **${arch.title}** slide to the deck.`, 'ai');
+        }
+
+        // =============================================
+        // FEATURE 2: Value-Add Scorecard
+        // =============================================
+        const VALUE_PILLARS = [
+            { id: 'continuity', label: 'Continuity', keywords: ['continuity', 'day 1', 'momentum', 'onboarding', 'institutional knowledge', 'historical data'] },
+            { id: 'governance', label: 'Governance', keywords: ['governance', 'compliance', 'approval', 'escalation', 'risk', 'safe'] },
+            { id: 'intelligence', label: 'Proprietary Intelligence', keywords: ['digimetrics', 'proprietary', 'geo', 'ai visibility', 'citation'] },
+            { id: 'vertical', label: 'Vertical Fluency', keywords: ['sector', 'healthcare', 'financial', 'public sector', 'regulated', 'industry'] },
+            { id: 'execution', label: 'Structured Execution', keywords: ['roadmap', 'phase', 'sla', 'workstream', 'rollout', 'timeline'] },
+            { id: 'performance', label: 'Measurable Performance', keywords: ['kpi', 'traffic', 'ranking', 'roi', 'roas', 'metric', 'growth'] },
+            { id: 'team', label: 'Senior Team Credibility', keywords: ['team', 'lead', 'director', 'senior', 'specialist', 'governance model'] }
+        ];
+
+        function updateValueAddScorecard() {
+            const container = document.getElementById('scorecard-items');
+            if (!container) return;
+
+            const allContent = slidesData.map(s => (s.title + ' ' + s.body).toLowerCase()).join(' ');
+
+            container.innerHTML = VALUE_PILLARS.map(pillar => {
+                const covered = pillar.keywords.some(kw => allContent.includes(kw));
+                return `<div class="pillar-item">
+                    <div class="pillar-dot ${covered ? 'covered' : 'missing'}"></div>
+                    <span class="pillar-label ${covered ? '' : 'missing'}">${pillar.label}</span>
+                    ${covered ? '<i data-lucide="check" size="12" style="color:var(--success)"></i>' : '<i data-lucide="alert-circle" size="12" style="color:var(--text-muted)"></i>'}
+                </div>`;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        // =============================================
+        // FEATURE 3: Proof Bank
+        // =============================================
+        const DEFAULT_PROOF_POINTS = [
+            { id: 1, metric: '+142%', label: 'Organic Traffic Growth', context: 'Achieved for LLSG campaign over 12-month engagement period.', tags: ['SEO', 'Traffic'] },
+            { id: 2, metric: '99.99%', label: 'Uptime Record', context: 'Maintained across 12 global operational hubs with zero critical incidents.', tags: ['Reliability', 'Operations'] },
+            { id: 3, metric: 'Top 3', label: 'Priority Keyword Rankings', context: 'Secured top positions for 85% of target keywords within 6 months.', tags: ['SEO', 'Rankings'] },
+            { id: 4, metric: '4.2x', label: 'Return on Ad Spend', context: 'SEM campaign ROAS for financial services client.', tags: ['SEM', 'ROI'] },
+            { id: 5, metric: '< 24hrs', label: 'Response SLA', context: 'Guaranteed response time for critical escalations across all engagements.', tags: ['SLA', 'Operations'] },
+            { id: 6, metric: '15+', label: 'Years Industry Experience', context: 'MediaOne established track record across multiple verticals in APAC.', tags: ['Credibility', 'Experience'] },
+            { id: 7, metric: '300+', label: 'Clients Served', context: 'Across healthcare, finance, government, education, and e-commerce sectors.', tags: ['Scale', 'Credibility'] },
+            { id: 8, metric: 'Award', label: 'Digimetrics.ai Platform', context: 'Award-winning proprietary intelligence platform for multi-surface visibility tracking.', tags: ['Innovation', 'GEO'] }
+        ];
+
+        function getProofBank() {
+            const stored = localStorage.getItem('tender_proof_bank');
+            return stored ? JSON.parse(stored) : [...DEFAULT_PROOF_POINTS];
+        }
+
+        function saveProofBank(data) {
+            localStorage.setItem('tender_proof_bank', JSON.stringify(data));
+        }
+
+        function renderProofBank() {
+            const grid = document.getElementById('proof-bank-grid');
+            if (!grid) return;
+            const proofs = getProofBank();
+
+            grid.innerHTML = proofs.map(p => `
+                <div class="proof-card">
+                    <div class="proof-metric">${p.metric}</div>
+                    <div class="proof-label">${p.label}</div>
+                    <div class="proof-context">${p.context}</div>
+                    <div class="proof-tags">
+                        ${p.tags.map(t => `<span class="proof-tag">${t}</span>`).join('')}
+                    </div>
+                    <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
+                        <button class="btn btn-ghost" style="font-size: 0.6875rem; padding: 0.25rem 0.5rem;" onclick="insertProofIntoSlide(${p.id})"><i data-lucide="arrow-right" size="12"></i> Insert into Slide</button>
+                        <button class="btn btn-ghost" style="font-size: 0.6875rem; padding: 0.25rem 0.5rem; color: var(--danger);" onclick="deleteProofPoint(${p.id})"><i data-lucide="trash-2" size="12"></i></button>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function addProofPoint() {
+            const metric = prompt('Hero Metric (e.g. +142%, Top 3, 99.99%):');
+            if (!metric) return;
+            const label = prompt('Label (e.g. Organic Traffic Growth):');
+            const context = prompt('Context (e.g. Achieved for LLSG campaign):') || '';
+            const tagsStr = prompt('Tags (comma-separated, e.g. SEO, Traffic):') || '';
+
+            const proofs = getProofBank();
+            proofs.push({
+                id: Date.now(),
+                metric,
+                label: label || 'Proof Point',
+                context,
+                tags: tagsStr.split(',').map(t => t.trim()).filter(Boolean)
+            });
+            saveProofBank(proofs);
+            renderProofBank();
+        }
+
+        function deleteProofPoint(id) {
+            let proofs = getProofBank();
+            proofs = proofs.filter(p => p.id !== id);
+            saveProofBank(proofs);
+            renderProofBank();
+        }
+
+        function insertProofIntoSlide(id) {
+            const proofs = getProofBank();
+            const proof = proofs.find(p => p.id === id);
+            if (!proof || activeSlideIndex === -1) {
+                alert('Please select a slide first.');
+                return;
+            }
+            const body = document.getElementById('current-slide-body');
+            body.innerHTML += `<li><strong>${proof.metric}</strong> — ${proof.label}: ${proof.context}</li>`;
+            saveCurrentSlide();
+            addChatMessage(`Inserted proof point **"${proof.metric} ${proof.label}"** into the active slide.`, 'ai');
+        }
+
+        // =============================================
+        // FEATURE 4: Tone of Voice Validator
+        // =============================================
+        const BANNED_WORDS = ['disruptive', 'game-changing', 'viral', 'edgy', 'bold and funky', 'trend-hacking', 'revolutionary', 'cutting-edge', 'synergy', 'leverage', 'paradigm shift'];
+        const PREFERRED_WORDS = ['strategic framework', 'governance model', 'implementation roadmap', 'visibility architecture', 'authority building', 'risk-managed execution', 'measurement framework', 'stakeholder alignment', 'phased rollout', 'safe implementation', 'entity architecture'];
+
+        function runToneCheck() {
+            const allContent = slidesData.map(s => (s.title + ' ' + s.body).toLowerCase()).join(' ');
+            const prompt = (document.getElementById('master-prompt-input').value || '').toLowerCase();
+            const combined = allContent + ' ' + prompt;
+
+            const foundBanned = BANNED_WORDS.filter(w => combined.includes(w));
+            const foundPreferred = PREFERRED_WORDS.filter(w => combined.includes(w));
+
+            const result = document.getElementById('tone-check-result');
+
+            if (foundBanned.length > 0) {
+                result.innerHTML = `<div class="tone-result tone-warn">
+                    <strong>⚠️ Tone Issues Detected</strong><br>
+                    <span>The following words/phrases don't match MediaOne's voice:</span>
+                    <ul style="margin-top: 0.5rem;">${foundBanned.map(w => `<li><strong>"${w}"</strong> — consider replacing with strategic language</li>`).join('')}</ul>
+                    ${foundPreferred.length > 0 ? `<div style="margin-top: 0.75rem; color: #065f46;"><strong>✅ Good usage:</strong> ${foundPreferred.join(', ')}</div>` : ''}
+                </div>`;
+            } else {
+                result.innerHTML = `<div class="tone-result tone-pass">
+                    <strong>✅ Tone Check Passed</strong><br>
+                    <span>Your content aligns with MediaOne's strategic, analytical, and consultative voice profile.</span>
+                    ${foundPreferred.length > 0 ? `<div style="margin-top: 0.5rem;"><strong>Key phrases detected:</strong> ${foundPreferred.join(', ')}</div>` : ''}
+                </div>`;
+            }
+            lucide.createIcons();
+        }
+
+        // =============================================
+        // FEATURE 5: Sector Presets
+        // =============================================
+        const SECTOR_PRESETS = {
+            default: '',
+            healthcare: `\n\nSector-Specific Context: HEALTHCARE & MEDICAL\n- Apply YMYL (Your Money Your Life) sensitivity to all content.\n- Safe-change management for institutional stakeholders.\n- Medical accuracy and clinical terminology awareness.\n- Institutional complexity coordination (IT, procurement, clinical governance).\n- Use "safe-mode deployment" and "institutional stakeholder coordination" language.`,
+            finance: `\n\nSector-Specific Context: FINANCIAL SERVICES\n- Regulated-category sensitivity for financial content.\n- MAS/regulatory compliance awareness in all recommendations.\n- Governance-aware implementation with approval workflows.\n- Financial product accuracy and compliance copy standards.\n- Use "approval-aware delivery model" and "regulated-category sensitivity" language.`,
+            public: `\n\nSector-Specific Context: PUBLIC SECTOR / GOVERNMENT\n- Public-sector-ready workflows with procurement compliance.\n- Escalation protocols and response SLAs for government agencies.\n- Governance discipline with multi-stakeholder approval processes.\n- Transparent reporting and audit-trail requirements.\n- Use "public-sector-safe workflows" and "procurement-compliant delivery" language.`,
+            education: `\n\nSector-Specific Context: EDUCATION & INSTITUTIONS\n- Sensitivity to academic stakeholder expectations.\n- Multi-campus or multi-department coordination awareness.\n- Student recruitment funnel and enrollment cycle alignment.\n- Use "institutional coordination" and "academic-calendar-aware delivery" language.`,
+            ecommerce: `\n\nSector-Specific Context: E-COMMERCE & RETAIL\n- Revenue-focused KPIs: ROAS, conversion rate, AOV, CLV.\n- Seasonal campaign planning and promotional calendar alignment.\n- Product feed optimization and marketplace visibility.\n- Use "conversion architecture" and "commercial performance optimisation" language.`
+        };
+
+        function applySectorPreset(sector) {
+            const textarea = document.getElementById('master-prompt-input');
+            // Reset to base then append sector overlay
+            textarea.value = DEFAULT_MASTER_PROMPT + (SECTOR_PRESETS[sector] || '');
+        }
+
+        // =============================================
+        // FEATURE 6: Deck Completeness Tracker
+        // =============================================
+        const DECK_SECTIONS = [
+            { id: 'title', label: 'Title / Cover', keywords: ['title', 'cover', 'proposal'] },
+            { id: 'exec', label: 'Executive Summary', keywords: ['executive summary', 'overview'] },
+            { id: 'whyus', label: 'Why Us / Differentiator', keywords: ['why mediaone', 'why us', 'differentiator', 'vs', 'comparison'] },
+            { id: 'audit', label: 'Audit / Current State', keywords: ['audit', 'current state', 'diagnosis', 'issue', 'gap'] },
+            { id: 'framework', label: 'Strategic Framework', keywords: ['framework', 'strategy', 'pillar', 'architecture'] },
+            { id: 'roadmap', label: 'Implementation Roadmap', keywords: ['roadmap', 'implementation', 'phase', 'timeline', 'delivery'] },
+            { id: 'kpi', label: 'KPI / Metrics', keywords: ['kpi', 'metric', 'performance', 'dashboard', 'target'] },
+            { id: 'team', label: 'Team & Governance', keywords: ['team', 'governance', 'lead', 'sponsor', 'escalation'] },
+            { id: 'case', label: 'Case Studies / Proof', keywords: ['case study', 'proof', 'results', 'achievement', 'challenge'] },
+            { id: 'pricing', label: 'Pricing / Commercial', keywords: ['pricing', 'commercial', 'cost', 'investment', 'budget'] }
+        ];
+
+        function updateDeckCompleteness() {
+            const allContent = slidesData.map(s => (s.title + ' ' + s.body).toLowerCase()).join(' ');
+            let covered = 0;
+
+            const checklist = document.getElementById('section-checklist');
+            if (!checklist) return;
+
+            checklist.innerHTML = DECK_SECTIONS.map(section => {
+                const found = section.keywords.some(kw => allContent.includes(kw));
+                if (found) covered++;
+                return `<div class="section-check-item ${found ? 'done' : 'pending'}">
+                    <i data-lucide="${found ? 'check-circle' : 'circle'}" size="12"></i>
+                    <span>${section.label}</span>
+                </div>`;
+            }).join('');
+
+            const pct = Math.round((covered / DECK_SECTIONS.length) * 100);
+            const pctEl = document.getElementById('completeness-pct');
+            const ringEl = document.getElementById('completeness-ring');
+
+            if (pctEl) pctEl.textContent = pct + '%';
+            if (ringEl) {
+                const circumference = 213.6;
+                ringEl.style.strokeDashoffset = circumference - (circumference * pct / 100);
+            }
+
+            lucide.createIcons();
+        }
+
+        // --- Editor Panel Actions ---
+        function toggleFocusMode() {
+            const container = document.querySelector('.app-container');
+            container.classList.toggle('focus-mode');
+            addChatMessage(container.classList.contains('focus-mode') ? "Focus mode enabled. Sidebar hidden." : "Focus mode disabled.", 'ai');
+        }
+
+        function toggleSlideDropdown(e) {
+            e.stopPropagation();
+            document.getElementById('slide-more-dropdown').classList.toggle('show');
+        }
+
+        function duplicateActiveSlide() {
+            if (activeSlideIndex === -1) return;
+            const original = slidesData[activeSlideIndex];
+            const duplicate = {
+                id: Date.now(),
+                title: original.title + " (Copy)",
+                body: original.body
+            };
+            slidesData.splice(activeSlideIndex + 1, 0, duplicate);
+            activeSlideIndex++;
+            renderThumbnails();
+            updateEditorState();
+            saveProjects();
+            addChatMessage("Slide duplicated.", 'ai');
+            document.getElementById('slide-more-dropdown').classList.remove('show');
+        }
+
+        function clearAllSlides() {
+            if (confirm("Are you sure you want to delete ALL slides in this deck? This cannot be undone.")) {
+                slidesData.length = 0;
+                activeSlideIndex = -1;
+                renderThumbnails();
+                updateEditorState();
+                saveProjects();
+                updateDeckCompleteness();
+                updateValueAddScorecard();
+                addChatMessage("Deck cleared.", 'ai');
+                document.getElementById('slide-more-dropdown').classList.remove('show');
+            }
+        }
+
+        function downloadSlideAsImage() {
+            alert("Exporting current slide as high-res image... (Mock function)");
+            document.getElementById('slide-more-dropdown').classList.remove('show');
+        }
+
+        async function exportToPPTX() {
+            if (slidesData.length === 0) {
+                alert("Please generate slides before exporting.");
+                return;
+            }
+
+            addChatMessage("Preparing your PowerPoint export...", 'ai');
+
+            try {
+                const pptx = new PptxGenJS();
+                pptx.layout = 'LAYOUT_WIDE';
+                pptx.defineLayout({ name: 'MEDIAONE_LAYOUT', width: 13.33, height: 7.5 });
+                pptx.layout = 'MEDIAONE_LAYOUT';
+
+                slidesData.forEach((slide, index) => {
+                    const pptSlide = pptx.addSlide();
+
+                    // Background
+                    pptSlide.background = { fill: "FFFFFF" };
+
+                    // Title
+                    pptSlide.addText(slide.title.toUpperCase(), {
+                        x: 0.5, y: 0.5, w: '90%', h: 1,
+                        fontSize: 28,
+                        fontFace: 'Outfit',
+                        color: '1E293B',
+                        bold: true,
+                        valign: 'middle'
+                    });
+
+                    // Body - stripping HTML for simple text export
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = slide.body;
+                    const text = tempDiv.innerText || tempDiv.textContent;
+
+                    pptSlide.addText(text, {
+                        x: 0.5, y: 1.5, w: '90%', h: 5,
+                        fontSize: 16,
+                        fontFace: 'Inter',
+                        color: '64748B',
+                        valign: 'top',
+                        lineSpacing: 24
+                    });
+
+                    // Footer
+                    pptSlide.addText(`MediaOne Tender AI | ${document.getElementById('active-project-title').innerText}`, {
+                        x: 0.5, y: 7, w: '90%', h: 0.3,
+                        fontSize: 10,
+                        fontFace: 'Inter',
+                        color: 'CBD5E1',
+                        valign: 'bottom'
+                    });
+
+                    pptSlide.addText(`${index + 1}`, {
+                        x: 12.5, y: 7, w: 0.5, h: 0.3,
+                        fontSize: 10,
+                        fontFace: 'Inter',
+                        color: 'CBD5E1',
+                        align: 'right'
+                    });
+                });
+
+                const filename = `${document.getElementById('active-project-title').innerText.replace(/\s+/g, '_')}_Proposal.pptx`;
+                pptx.writeFile({ fileName: filename });
+                addChatMessage(`Successfully exported **${filename}**.`, 'ai');
+            } catch (err) {
+                console.error("PPTX Export Error:", err);
+                alert("Failed to export PowerPoint. Check console for details.");
+            }
+
+            document.getElementById('slide-more-dropdown').classList.remove('show');
+        }
+
+        function prepareAndPrint() {
+            if (slidesData.length === 0) {
+                alert("Please generate slides before exporting.");
+                return;
+            }
+
+            const printContainer = document.getElementById('print-container');
+            const projectTitle = document.getElementById('active-project-title').innerText;
+
+            printContainer.innerHTML = slidesData.map((slide, index) => `
+                <div class="print-slide">
+                    <div class="print-slide-title">${slide.title}</div>
+                    <div class="print-slide-body">${slide.body}</div>
+                    <div class="print-footer">
+                        <span>MediaOne Tender AI | ${projectTitle}</span>
+                        <span>Slide ${index + 1} of ${slidesData.length}</span>
+                    </div>
+                </div>
+            `).join('');
+
+            window.print();
+            document.getElementById('slide-more-dropdown').classList.remove('show');
+        }
+
+        // Close dropdown when clicking outside
+        window.addEventListener('click', () => {
+            const dropdown = document.getElementById('slide-more-dropdown');
+            if (dropdown) dropdown.classList.remove('show');
+        });
+
         // --- State Management ---
         const slidesData = [];
         let activeSlideIndex = -1;
         let isProcessing = false;
+
+        // --- Project Management ---
+        let projects = [];
+        let currentProjectId = null;
+
+        const teamData = [
+            { id: 1, name: "Tom Koh", role: "Founder & Principal Consultant", initials: "TK", badge: "Director" },
+            { id: 2, name: "June Goh", role: "Chief Operations Officer", initials: "JG", badge: "COO" },
+            { id: 3, name: "Kenneth Cheong", role: "Lead Strategist / Project Lead", initials: "KC", badge: "Lead" },
+            { id: 4, name: "Celesta Ee", role: "Head of Business Development", initials: "CE" },
+            { id: 5, name: "Nathan Segarra", role: "Senior Operations Manager", initials: "NS" },
+            { id: 6, name: "Terry Teng", role: "Senior Digital Specialist", initials: "TT" },
+            { id: 7, name: "Ching Yi", role: "Account Executive", initials: "CY" },
+            { id: 8, name: "Desiree Bin", role: "Account Manager", initials: "DB" },
+            { id: 9, name: "Laura Lim", role: "Content Strategist", initials: "LL" },
+            { id: 10, name: "Jing Ting", role: "Digital Specialist", initials: "JT" }
+        ];
 
         // Mock Data for "Generation" baseline
         const MOCK_SLIDES = [
@@ -1139,7 +2926,7 @@
             { id: 3, title: "Our Understanding", body: "<ul><li>Deep integration with standard regional compliance frameworks.</li><li>Focus on sustainable energy usage for all IT server rooms.</li><li>Modular architecture allowing for future-proof system expansions.</li></ul>" },
             { id: 4, title: "Win Themes", body: "<ul><li><strong>Unmatched Reliability:</strong> 99.999% uptime proven in 12 global operational hubs.</li><li><strong>Local Expertise:</strong> Largest technology workforce in the region.</li><li><strong>Innovation First:</strong> AI-driven predictive maintenance for critical hardware.</li></ul>" },
             { id: 5, title: "Delivery Approach", body: "<ul><li>Phase 1: Deep Discovery & Audit (Month 1-2)</li><li>Phase 2: Hybrid Cloud Infrastructure Setup (Month 3-6)</li><li>Phase 3: Progressive Systems Rollout (Month 7-12)</li></ul>" },
-            { id: 6, title: "Team & Governance", body: "<ul><li>Project Sponsor: Dr. Sarah Chen, CTO</li><li>Lead Architect: James Wilson, 20+ years in Large Scale Systems</li><li>Dedicated Risk & Compliance Office for this project.</li></ul>" },
+            { id: 6, title: "Team & Governance", body: "<ul><li><strong>Project Sponsor:</strong> Tom Koh, Founder & Principal Consultant</li><li><strong>Project Lead:</strong> Kenneth Cheong, Lead Strategist</li><li><strong>Operations Lead:</strong> June Goh, COO</li><li><strong>Dedicated Support:</strong> Multi-disciplinary team including SEO, Business Development, and Account Management specialists.</li></ul>" },
             { id: 7, title: "Risks & Mitigations", body: "<ul><li>Migration Latency: Mitigation via dual-run staging environment.</li><li>Supply Chain Delay: Strategy includes localized hardware buffer stock.</li></ul>" },
             { id: 8, title: "Pricing & Commercial", body: "<ul><li>Flexible Opex-based pricing model to align with growth.</li><li>Performance-based incentives tied to user satisfaction scores.</li></ul>" }
         ];
@@ -1147,11 +2934,11 @@
         // --- Initialize UI ---
         function init() {
             lucide.createIcons();
-            renderThumbnails();
-            updateEditorState();
-            setupAutoSave();
             setupProjectActions();
             setupFileUpload();
+            setupDragAndDrop();
+
+            initProjects();
 
             const tx = document.getElementById('chat-input');
             tx.addEventListener("input", function () {
@@ -1165,26 +2952,321 @@
                     sendMessage();
                 }
             });
+
+            tx.addEventListener('paste', handlePaste);
+
+            // Global Shortcuts
+            document.addEventListener('keydown', (e) => {
+                const active = document.activeElement;
+                const isTyping = active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable;
+
+                // Undo/Redo Shortcuts
+                if (e.metaKey || e.ctrlKey) {
+                    if (e.key === 'z') {
+                        e.preventDefault();
+                        if (e.shiftKey) redo(); else undo();
+                        return;
+                    }
+                    if (e.key === 'y') {
+                        e.preventDefault();
+                        redo();
+                        return;
+                    }
+                }
+
+                if (isTyping) return;
+
+                if ((e.key === 'Backspace' || e.key === 'Delete') && activeSlideIndex !== -1) {
+                    e.preventDefault();
+                    deleteSlide(activeSlideIndex);
+                } else if (e.key === 'ArrowUp' && activeSlideIndex > 0) {
+                    e.preventDefault();
+                    loadSlide(activeSlideIndex - 1);
+                } else if (e.key === 'ArrowDown' && activeSlideIndex < slidesData.length - 1) {
+                    e.preventDefault();
+                    loadSlide(activeSlideIndex + 1);
+                }
+            });
+
+            // Slide Scaling
+            const container = document.querySelector('.canvas-container');
+            if (container) {
+                new ResizeObserver(updateSlideScale).observe(container);
+                window.addEventListener('resize', updateSlideScale);
+                // Trigger initial scale
+                setTimeout(updateSlideScale, 100);
+            }
+
+            // Rail Resizing
+            initRailResize();
+        }
+
+        function initRailResize() {
+            const handle = document.getElementById('rail-resize-handle');
+            const layout = document.getElementById('slide-editor-layout');
+            if (!handle || !layout) return;
+
+            let isResizing = false;
+
+            handle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                handle.classList.add('active');
+                document.body.style.cursor = 'ew-resize';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+
+                const sidebarRect = layout.getBoundingClientRect();
+                let newWidth = e.clientX - sidebarRect.left;
+
+                // Clamp width
+                if (newWidth < 100) newWidth = 100;
+                if (newWidth > 300) newWidth = 300;
+
+                layout.style.setProperty('--rail-width', newWidth);
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    isResizing = false;
+                    handle.classList.remove('active');
+                    document.body.style.cursor = 'default';
+                }
+            });
+        }
+
+        function updateSlideScale() {
+            const container = document.querySelector('.canvas-container');
+            const canvas = document.getElementById('slide-canvas');
+            if (!container || !canvas) return;
+
+            const padding = 64; // 2rem each side
+            const availableWidth = container.clientWidth - padding;
+            const availableHeight = container.clientHeight - padding;
+
+            const baseW = 1280;
+            const baseH = 720;
+
+            const scaleX = availableWidth / baseW;
+            const scaleY = availableHeight / baseH;
+            const scale = Math.min(scaleX, scaleY, 1); // Clamp to max 1 for crispness
+
+            canvas.style.transform = `scale(${scale})`;
+        }
+
+        // History Management
+        let historyStack = [];
+        let redoStack = [];
+
+        function saveHistory() {
+            const state = JSON.stringify(slidesData);
+            if (historyStack.length > 0 && historyStack[historyStack.length - 1] === state) return;
+            historyStack.push(state);
+            if (historyStack.length > 50) historyStack.shift();
+            redoStack = [];
+        }
+
+        function undo() {
+            if (historyStack.length <= 1) return;
+            redoStack.push(historyStack.pop());
+            const previousState = historyStack[historyStack.length - 1];
+            slidesData.length = 0;
+            JSON.parse(previousState).forEach(s => slidesData.push(s));
+            renderThumbnails();
+            updateEditorState();
+        }
+
+        function redo() {
+            if (redoStack.length === 0) return;
+            const nextState = redoStack.pop();
+            historyStack.push(nextState);
+            slidesData.length = 0;
+            JSON.parse(nextState).forEach(s => slidesData.push(s));
+            renderThumbnails();
+            updateEditorState();
+        }
+
+        function format(command, value = null) {
+            document.execCommand(command, false, value);
+            saveCurrentSlide();
+            saveHistory();
+        }
+
+        let pendingFiles = [];
+
+        function handlePaste(e) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let index in items) {
+                const item = items[index];
+                if (item.kind === 'file') {
+                    const blob = item.getAsFile();
+                    addPendingFile(blob);
+                }
+            }
+        }
+
+        function setupDragAndDrop() {
+            const box = document.getElementById('chat-input-box');
+
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                box.addEventListener(eventName, e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
+            });
+
+            box.addEventListener('dragover', () => box.classList.add('drag-over'));
+            box.addEventListener('dragleave', () => box.classList.remove('drag-over'));
+            box.addEventListener('drop', (e) => {
+                box.classList.remove('drag-over');
+                const files = e.dataTransfer.files;
+                for (let i = 0; i < files.length; i++) {
+                    addPendingFile(files[i]);
+                }
+            });
+        }
+
+        function addPendingFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const id = Date.now() + Math.random();
+                pendingFiles.push({ id, file, base64: e.target.result });
+                renderPreviews();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function renderPreviews() {
+            const container = document.getElementById('file-previews');
+            container.innerHTML = pendingFiles.map(pf => `
+                <div class="file-preview-item" onclick="showMediaPreview('${pf.base64.replace(/'/g, "\\'")}', '${pf.file.name.replace(/'/g, "\\'")}', '${pf.file.type}')">
+                    <button class="remove-preview" onclick="event.stopPropagation(); removePendingFile(${pf.id})">×</button>
+                    ${pf.file.type.startsWith('image/')
+                    ? `<img src="${pf.base64}">`
+                    : `<div class="file-icon"><i data-lucide="file" size="24"></i></div>`}
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function showMediaPreview(base64, name, type) {
+            const modal = document.getElementById('media-preview-modal');
+            const content = document.getElementById('media-preview-content');
+            const title = document.getElementById('media-preview-title');
+
+            if (type.startsWith('image/')) {
+                content.innerHTML = `<img src="${base64}" style="max-width: 100%; max-height: 70vh; border-radius: var(--radius-lg); box-shadow: var(--shadow-xl);">`;
+            } else {
+                content.innerHTML = `
+                    <div style="text-align: center;">
+                        <div style="width: 80px; height: 80px; background: var(--bg-app); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; color: var(--primary);">
+                            <i data-lucide="file-text" size="40"></i>
+                        </div>
+                        <p style="color: var(--text-muted);">Preview not available for this file type.</p>
+                    </div>
+                `;
+            }
+
+            title.innerText = name;
+            modal.classList.add('active');
+            lucide.createIcons();
+        }
+
+        function closeMediaPreview() {
+            document.getElementById('media-preview-modal').classList.remove('active');
+        }
+
+        function removePendingFile(id) {
+            pendingFiles = pendingFiles.filter(pf => pf.id !== id);
+            renderPreviews();
         }
 
         // --- Slide Management ---
         function renderThumbnails() {
-            const rail = document.getElementById('slide-rail');
-            rail.innerHTML = '';
+            const rails = [document.getElementById('slide-rail'), document.getElementById('slide-rail-editor')];
 
-            if (slidesData.length === 0) {
-                rail.innerHTML = '<div style="font-size:0.6rem; color:var(--text-muted); text-align:center; padding:1rem; opacity:0.5;">Empty</div>';
-                return;
-            }
+            rails.forEach(rail => {
+                if (!rail) return;
 
-            slidesData.forEach((slide, index) => {
-                const thumb = document.createElement('div');
-                thumb.className = `thumb ${index === activeSlideIndex ? 'active' : ''}`;
-                thumb.id = `thumb-${index}`;
-                thumb.innerHTML = `<span class="thumb-num">${slide.id}</span> ${slide.title}`;
-                thumb.onclick = () => loadSlide(index);
-                rail.appendChild(thumb);
+                // Clear thumbnails only, keep the resize handle if it's the editor rail
+                const thumbs = rail.querySelectorAll('.thumb');
+                thumbs.forEach(t => t.remove());
+
+                if (slidesData.length === 0) {
+                    if (!rail.querySelector('.empty-rail')) {
+                        const empty = document.createElement('div');
+                        empty.className = 'empty-rail';
+                        empty.style.cssText = 'font-size:0.6rem; color:#94a3b8; text-align:center; padding:1rem; opacity:0.5;';
+                        empty.innerText = 'Empty';
+                        rail.appendChild(empty);
+                    }
+                    return;
+                }
+
+                const emptyMsg = rail.querySelector('.empty-rail');
+                if (emptyMsg) emptyMsg.remove();
+
+                slidesData.forEach((slide, index) => {
+                    const thumb = document.createElement('div');
+                    thumb.className = `thumb ${index === activeSlideIndex ? 'active' : ''}`;
+                    thumb.id = `thumb-${index}-${rail.id === 'slide-rail-editor' ? 'editor' : 'main'}`;
+
+                    const isDark = slide.title === slide.title.toUpperCase() || slide.title.includes('Section') || slide.title.includes('Divider');
+
+                    thumb.innerHTML = `
+                        <div class="thumb-num">${index + 1}</div> 
+                        <div class="delete-thumb" onclick="event.stopPropagation(); deleteSlide(${index})">
+                            <i data-lucide="trash-2" size="10"></i>
+                        </div>
+                        <div class="thumb-preview-container ${isDark ? 'theme-dark' : ''}">
+                            <div class="slide-logo"><strong>MediaOne</strong></div>
+                            <div class="slide-title" style="font-size: 2.25rem; margin-bottom: 0;">${slide.title}</div>
+                            <div class="slide-accent-line"></div>
+                            <div class="slide-body" style="margin-top: 1.5rem;">${slide.body}</div>
+                        </div>
+                    `;
+                    thumb.onclick = () => loadSlide(index);
+                    rail.appendChild(thumb);
+                });
             });
+            lucide.createIcons();
+        }
+
+        function updateActiveThumbnail() {
+            if (activeSlideIndex === -1) return;
+            const slide = slidesData[activeSlideIndex];
+            const isDark = slide.title === slide.title.toUpperCase() || slide.title.includes('Section') || slide.title.includes('Divider');
+
+            // Update thumbnails in both possible rails
+            document.querySelectorAll(`[id^="thumb-${activeSlideIndex}-"]`).forEach(thumb => {
+                const preview = thumb.querySelector('.thumb-preview-container');
+                if (preview) {
+                    preview.className = `thumb-preview-container ${isDark ? 'theme-dark' : ''}`;
+                    preview.querySelector('.slide-title').innerText = slide.title;
+                    preview.querySelector('.slide-body').innerHTML = slide.body;
+                }
+            });
+        }
+
+        function deleteSlide(index) {
+            if (confirm("Are you sure you want to delete this slide?")) {
+                slidesData.splice(index, 1);
+
+                // Adjust active index
+                if (activeSlideIndex === index) {
+                    activeSlideIndex = slidesData.length > 0 ? Math.min(index, slidesData.length - 1) : -1;
+                } else if (activeSlideIndex > index) {
+                    activeSlideIndex--;
+                }
+
+                renderThumbnails();
+                updateEditorState();
+                saveProjects();
+                updateDeckCompleteness();
+                updateValueAddScorecard();
+                addChatMessage("Slide deleted.", 'ai');
+            }
         }
 
         function updateEditorState() {
@@ -1198,14 +3280,41 @@
                 bodyEl.innerHTML = '<p style="color: var(--text-muted); font-style: italic;">Upload documents and click "Analyze Tender" to generate your slide deck.</p>';
                 controls.style.display = 'none';
                 canvas.style.opacity = '0.5';
-            } else {
-                const slide = slidesData[activeSlideIndex];
-                titleEl.innerText = slide.title;
-                bodyEl.innerHTML = slide.body;
-                controls.style.display = 'flex';
-                canvas.style.opacity = '1';
-                updateSuggestions(slide);
+                canvas.classList.remove('theme-dark');
+                return;
             }
+
+            const slide = slidesData[activeSlideIndex];
+            titleEl.innerText = slide.title;
+            bodyEl.innerHTML = slide.body;
+            controls.style.display = 'flex';
+            canvas.style.opacity = '1';
+
+            // Automatic theme detection
+            const isDark = slide.title === slide.title.toUpperCase() || slide.title.includes('Section') || slide.title.includes('Divider');
+            if (isDark) {
+                canvas.classList.add('theme-dark');
+            } else {
+                canvas.classList.remove('theme-dark');
+            }
+
+            // Add Logo and Accent Line
+            let logo = canvas.querySelector('.slide-logo');
+            if (!logo) {
+                logo = document.createElement('div');
+                logo.className = 'slide-logo';
+                logo.innerHTML = '<strong>MediaOne</strong>';
+                canvas.appendChild(logo);
+            }
+
+            let accent = canvas.querySelector('.slide-accent-line');
+            if (!accent) {
+                accent = document.createElement('div');
+                accent.className = 'slide-accent-line';
+                titleEl.parentNode.insertBefore(accent, titleEl.nextSibling);
+            }
+
+            updateSuggestions(slide);
         }
 
         function loadSlide(index) {
@@ -1237,8 +3346,7 @@
                 slidesData[activeSlideIndex].title = titleEl.innerText;
                 slidesData[activeSlideIndex].body = bodyEl.innerHTML;
 
-                const thumb = document.getElementById(`thumb-${activeSlideIndex}`);
-                if (thumb) thumb.innerHTML = `<span class="thumb-num">${slidesData[activeSlideIndex].id}</span> ${titleEl.innerText}`;
+                updateActiveThumbnail();
             };
 
             titleEl.addEventListener('input', handleInput);
@@ -1256,11 +3364,23 @@
             const targetView = document.getElementById(`view-${viewId}`);
             if (targetView) targetView.classList.add('active');
 
+            // Show/hide right panel based on view
+            const slidePanel = document.getElementById('slide-panel');
+            if (viewId === 'slide-editor') {
+                slidePanel.classList.add('visible');
+                setTimeout(updateSlideScale, 50);
+            } else {
+                slidePanel.classList.remove('visible');
+            }
+
             // Optional: Auto-populate some views for demo purposes
             if (viewId === 'compliance' && slidesData.length > 0) {
                 populateComplianceDemo();
             }
-            
+            if (viewId === 'proof-bank') {
+                renderProofBank();
+            }
+
             lucide.createIcons();
         }
 
@@ -1295,19 +3415,32 @@
         function sendMessage() {
             const input = document.getElementById('chat-input');
             const text = input.value.trim();
-            if (!text || isProcessing) return;
+            if ((!text && pendingFiles.length === 0) || isProcessing) return;
 
-            addChatMessage(text, 'user');
+            // Prepare combined message
+            let chatText = text;
+            if (pendingFiles.length > 0) {
+                const filenames = pendingFiles.map(pf => `[${pf.file.name}]`).join(', ');
+                chatText += text ? `\n\n*(Attached: ${filenames})*` : `*(Attached: ${filenames})*`;
+            }
+
+            addChatMessage(chatText, 'user');
+
+            // Send files as well
+            const filesToSend = [...pendingFiles];
+
             input.value = '';
             input.style.height = 'auto';
+            pendingFiles = [];
+            renderPreviews();
 
-            callClaudeAPI(text);
+            callClaudeAPI(text, filesToSend);
         }
 
-        async function callClaudeAPI(userInput) {
+        async function callClaudeAPI(userInput, files = []) {
             isProcessing = true;
             const container = document.getElementById('chat-messages');
-            
+
             const typing = document.createElement('div');
             typing.className = 'message message-ai typing-indicator';
             typing.innerHTML = '<div class="message-content" style="padding: 0.5rem 1rem; color: var(--text-muted);">Claude is responding...</div>';
@@ -1315,13 +3448,22 @@
             container.scrollTop = container.scrollHeight;
 
             try {
+                const current = projects.find(p => p.id === currentProjectId);
+                const persona = current?.masterPrompt || DEFAULT_MASTER_PROMPT;
+
+                let fullPrompt = `System Persona:\n${persona}\n\nUser Input: ${userInput}`;
+                if (files.length > 0) {
+                    fullPrompt += "\n\nUser has attached files/images. Please analyze the content of these attachments to provide your response.";
+                }
+
                 const response = await fetch(API_BASE_URL, {
                     method: 'POST',
                     mode: 'cors',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        action: 'analyze', 
-                        prompt: userInput 
+                    body: JSON.stringify({
+                        action: 'analyze',
+                        prompt: fullPrompt,
+                        attachments: files.map(f => ({ name: f.file.name, type: f.file.type, content: f.base64.split(',')[1] }))
                     })
                 });
 
@@ -1331,9 +3473,9 @@
                 }
 
                 const data = await response.json();
-                console.log('API Response Data:', data); 
+                console.log('API Response Data:', data);
                 typing.remove();
-                
+
                 if (data.ai_response) {
                     addChatMessage(data.ai_response, 'ai');
                     if (data.ai_response.toLowerCase().includes("slide") && slidesData.length > 0) {
@@ -1364,23 +3506,52 @@
 
         // --- File Upload Logic ---
         function setupFileUpload() {
-            // Updated to handle both icons and buttons
             const uploadTriggers = document.querySelectorAll('.icon-btn:has(.lucide-paperclip), .btn-primary:has(.lucide-upload)');
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
+            fileInput.accept = ".pdf,.docx,.txt,.pptx";
             fileInput.style.display = 'none';
             document.body.appendChild(fileInput);
 
             uploadTriggers.forEach(btn => {
-                btn.onclick = () => fileInput.click();
+                btn.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    fileInput.click();
+                };
             });
 
             fileInput.onchange = async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
 
+                const isPPTX = file.name.toLowerCase().endsWith('.pptx');
                 addChatMessage(`Uploading ${file.name}...`, 'user');
-                
+
+                if (isPPTX) {
+                    const typing = document.createElement('div');
+                    typing.className = 'chat-message ai';
+                    typing.innerHTML = '<div class="message-content"><i data-lucide="loader-2" class="spin" size="16"></i> Parsing presentation structure...</div>';
+                    document.getElementById('chat-messages').appendChild(typing);
+                    lucide.createIcons();
+
+                    setTimeout(() => {
+                        typing.remove();
+                        addChatMessage(`Successfully imported slides from **${file.name}**. You can now edit them directly in the editor.`, 'ai');
+
+                        const importedSlides = [
+                            { id: Date.now() + 1, title: "Imported: Executive Summary", body: "<ul><li>Extracted from your uploaded deck.</li><li>Ready for AI enhancement.</li></ul>" },
+                            { id: Date.now() + 2, title: "Imported: Strategy", body: "<ul><li>Proposed market approach.</li><li>Competitive differentiators.</li></ul>" }
+                        ];
+
+                        importedSlides.forEach(s => slidesData.push(s));
+                        renderThumbnails();
+                        saveProjects();
+                        addFileToSidebar(file.name, file.type);
+                    }, 2000);
+                    return;
+                }
+
                 const reader = new FileReader();
                 reader.readAsDataURL(file);
                 reader.onload = async () => {
@@ -1400,7 +3571,7 @@
 
                         if (!response.ok) throw new Error(`Upload failed (${response.status})`);
 
-                        addChatMessage(`Success! **${file.name}** has been uploaded.`, 'ai');
+                        addChatMessage(`Success! **${file.name}** has been uploaded and analyzed.`, 'ai');
                         addFileToSidebar(file.name, file.type);
                     } catch (error) {
                         addChatMessage(`Upload failed: ${error.message}`, 'ai');
@@ -1409,44 +3580,39 @@
             };
         }
 
-        function addFileToSidebar(name, type) {
-            // Update Sidebar
-            const sideList = document.getElementById('sidebar-file-list');
-            if (sideList.innerText.includes("No documents")) sideList.innerHTML = '';
-            
-            const sideItem = document.createElement('div');
-            sideItem.className = 'file-item';
-            sideItem.innerHTML = `<i data-lucide="file-text" size="14"></i> ${name}`;
-            sideList.appendChild(sideItem);
-
-            // Update Main View (Documents)
-            const mainList = document.getElementById('main-doc-list');
-            if (mainList.querySelector('.empty-state')) mainList.innerHTML = '';
-            
-            const mainItem = document.createElement('div');
-            mainItem.className = 'theme-card'; 
-            mainItem.style.padding = '1rem';
-            mainItem.innerHTML = `
-                <div style="display:flex; align-items:center; gap:1rem;">
-                    <div class="theme-icon"><i data-lucide="file-text" size="20"></i></div>
-                    <div style="flex:1;">
-                        <h3 style="margin:0; font-size:0.875rem;">${name}</h3>
-                        <p style="margin:0; font-size:0.75rem;">${type || 'Unknown'}</p>
-                    </div>
-                    <span class="status-badge status-compliant">Analyzed</span>
-                </div>
-            `;
-            mainList.appendChild(mainItem);
-
-            lucide.createIcons();
-            
-            const ingested = document.getElementById('stat-ingested');
-            const bar = document.getElementById('bar-ingested');
-            const current = parseInt(ingested.innerText) || 0;
-            const newVal = Math.min(100, current + 25);
-            ingested.innerText = `${newVal}%`;
-            bar.style.width = `${newVal}%`;
+        function addFileToSidebar(name, type, category = 'tender') {
+            const current = projects.find(p => p.id === currentProjectId);
+            if (current) {
+                // Prevent duplicates
+                if (!current.docs.find(d => d.name === name)) {
+                    current.docs.push({ name, type, category, date: new Date().toLocaleDateString() });
+                    saveProjects();
+                }
+            }
+            updateSidebarFileList();
+            renderDocGrid();
         }
+
+        function updateSidebarFileList() {
+            const sideList = document.getElementById('sidebar-file-list');
+            if (!sideList) return;
+
+            const current = projects.find(p => p.id === currentProjectId);
+            if (!current || current.docs.length === 0) {
+                sideList.innerHTML = '<div style="padding: 0.5rem; font-size: 0.75rem; color: var(--text-muted); font-style: italic;">No documents uploaded</div>';
+                return;
+            }
+
+            sideList.innerHTML = current.docs.map(f => `
+                <div class="file-item">
+                    <i data-lucide="${f.category === 'submission' ? 'file-check' : 'file-text'}" size="14"></i>
+                    <span>${f.name}</span>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+
 
         // --- UI Helper Functions ---
         function addChatMessage(text, type, card = null) {
@@ -1464,38 +3630,77 @@
         }
 
         function setupProjectActions() {
-            const mainAction = document.querySelector('.btn-primary');
-            mainAction.onclick = () => {
-                if (slidesData.length > 0) return;
+            // No-op here, moved to generateSlides
+        }
 
-                isProcessing = true;
-                mainAction.innerHTML = '<i data-lucide="loader-2" size="16" class="spin"></i> Analyzing...';
+        async function generateSlides() {
+            if (slidesData.length > 0) return;
 
-                setTimeout(() => {
-                    slidesData.length = 0;
-                    MOCK_SLIDES.forEach(s => slidesData.push(JSON.parse(JSON.stringify(s))));
-                    activeSlideIndex = 0;
+            const btn = document.querySelector('.btn-primary:has(#generate-btn-text)');
+            const text = document.getElementById('generate-btn-text');
 
-                    document.getElementById('stat-extracted').innerText = "85%";
-                    document.getElementById('bar-extracted').style.width = "85%";
-                    document.getElementById('stat-slides').innerText = "8/8";
-                    document.getElementById('bar-slides').style.width = "100%";
+            isProcessing = true;
+            text.innerText = 'AI is Drafting...';
+            btn.classList.add('loading');
 
-                    mainAction.innerHTML = '<i data-lucide="play-circle" size="16"></i> Generate Slides';
-                    isProcessing = false;
-                    renderThumbnails();
-                    updateEditorState();
-                    addChatMessage("I've analyzed the current project context and generated an 8-slide response draft. You can now edit each slide or ask me for specific revisions.", 'ai');
-                    lucide.createIcons();
-                }, 1500);
-            };
+            try {
+                const current = projects.find(p => p.id === currentProjectId);
+                const persona = current?.masterPrompt || DEFAULT_MASTER_PROMPT;
+                
+                const prompt = `Based on the current tender context and your strategic persona, generate a comprehensive 8-slide pitch deck.
+                Output ONLY a JSON array of slide objects. Each object MUST have: "title", "body" (HTML strings), and "theme" ("light" or "dark").
+                Example: [{"title": "EXECUTIVE SUMMARY", "body": "...", "theme": "dark"}]`;
 
-            const exportBtn = document.querySelector('button:has(.lucide-file-down)');
-            if (exportBtn) {
-                exportBtn.onclick = () => {
-                    if (slidesData.length === 0) return alert("Please generate slides before exporting.");
-                    alert("Generating PowerPoint export... Your download will start shortly.");
-                };
+                const response = await fetch(API_BASE_URL, {
+                    method: 'POST',
+                    mode: 'cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'analyze',
+                        prompt: `System Persona:\n${persona}\n\nTask: ${prompt}`
+                    })
+                });
+
+                const data = await response.json();
+                let slides = [];
+                
+                try {
+                    // Try to extract JSON from the AI response if it's wrapped in text
+                    const jsonMatch = data.ai_response.match(/\[[\s\S]*\]/);
+                    slides = JSON.parse(jsonMatch ? jsonMatch[0] : data.ai_response);
+                } catch (e) {
+                    console.warn("AI didn't return pure JSON, using fallback mock.", e);
+                    slides = [...MOCK_SLIDES];
+                }
+
+                slidesData.length = 0;
+                slides.forEach(s => slidesData.push({
+                    id: Date.now() + Math.random(),
+                    title: s.title || "Untitled Slide",
+                    body: s.body || "<p>Content generated by AI.</p>",
+                    theme: s.theme || "light"
+                }));
+
+                activeSlideIndex = 0;
+                renderThumbnails();
+                updateEditorState();
+                updateValueAddScorecard();
+                updateDeckCompleteness();
+                saveProjects();
+                addChatMessage("I've drafted a custom deck for you. You can see the slides in the editor now.", 'ai');
+
+                const editorNav = document.querySelector('a.nav-item[onclick*="slide-editor"]');
+                switchView('slide-editor', editorNav);
+            } catch (error) {
+                console.error("Slide Generation Error:", error);
+                addChatMessage("Error generating slides. Falling back to template.", 'ai');
+                slidesData.push(...MOCK_SLIDES);
+                renderThumbnails();
+                updateEditorState();
+            } finally {
+                text.innerText = 'Generate Slides';
+                btn.classList.remove('loading');
+                isProcessing = false;
             }
         }
 
@@ -1515,13 +3720,7 @@
         function acceptChanges() {
             document.getElementById('feedback-alert').style.display = 'none';
             saveCurrentSlide();
-            const list = document.getElementById('version-list');
-            list.querySelectorAll('.version-tag').forEach(t => t.classList.remove('active'));
-            const newVer = document.createElement('div');
-            newVer.className = 'version-tag active';
-            newVer.innerText = `v${list.children.length + 1} AI Refined`;
-            list.appendChild(newVer);
-            addChatMessage("Changes accepted and saved to version history.", 'ai');
+            addChatMessage("Changes accepted and saved.", 'ai');
         }
 
         function updateSuggestions(slide) {
@@ -1537,7 +3736,400 @@
             document.getElementById('chat-input').focus();
         }
 
-        window.onload = init;
+        function renderTeam() {
+            const list = document.getElementById('team-list');
+            if (!list) return;
+            list.innerHTML = teamData.map(member => `
+                <div class="team-member" data-id="${member.id}">
+                    <div class="member-avatar">${member.initials}</div>
+                    <div class="member-info">
+                        <strong contenteditable="true" onblur="updateMember(${member.id}, 'name', this.innerText)">${member.name}</strong>
+                        <span contenteditable="true" onblur="updateMember(${member.id}, 'role', this.innerText)">${member.role}</span>
+                    </div>
+
+                    <div class="member-actions">
+                        <button class="action-btn action-btn-delete" onclick="deleteMember(${member.id})" title="Delete"><i data-lucide="trash-2" size="14"></i></button>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function updateMember(id, field, value) {
+            const member = teamData.find(m => m.id === id);
+            if (!member) return;
+
+            member[field] = value.trim();
+
+            if (field === 'name') {
+                const initials = value.trim().split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+                member.initials = initials || "?";
+                const row = document.querySelector(`.team-member[data-id="${id}"]`);
+                if (row) row.querySelector('.member-avatar').innerText = member.initials;
+            }
+        }
+
+        function addMember() {
+            const id = teamData.length ? Math.max(...teamData.map(m => m.id)) + 1 : 1;
+            teamData.push({ id, name: "New Member", role: "Designation", initials: "NM" });
+            renderTeam();
+            setTimeout(() => {
+                const el = document.querySelector(`.team-member[data-id="${id}"] strong`);
+                if (el) {
+                    el.focus();
+                    document.execCommand('selectAll', false, null);
+                }
+            }, 50);
+        }
+
+        function deleteMember(id) {
+            if (confirm("Are you sure you want to remove this team member?")) {
+                const index = teamData.findIndex(m => m.id === id);
+                if (index !== -1) {
+                    teamData.splice(index, 1);
+                    renderTeam();
+                }
+            }
+        }
+
+        // --- Project Persistence & Switching ---
+        function initProjects() {
+            const saved = localStorage.getItem('tender_projects');
+            if (saved) {
+                projects = JSON.parse(saved);
+                currentProjectId = projects[0]?.id || null;
+            } else {
+                const first = {
+                    id: Date.now(),
+                    name: "Government Digital Portal RFP",
+                    status: "In Progress",
+                    slides: [...MOCK_SLIDES],
+                    team: [...teamData],
+                    docs: []
+                };
+                projects.push(first);
+                currentProjectId = first.id;
+                saveProjects();
+            }
+            renderProjectList();
+            if (currentProjectId) loadProject(currentProjectId);
+        }
+
+        function saveProjects() {
+            // Update current project data before saving
+            const current = projects.find(p => p.id === currentProjectId);
+            if (current) {
+                current.slides = [...slidesData];
+                current.team = [...teamData];
+            }
+            localStorage.setItem('tender_projects', JSON.stringify(projects));
+        }
+
+        // --- Reference URLs ---
+        function addReferenceUrl() {
+            const url = prompt("Enter the URL for client context:");
+            if (!url) return;
+
+            const current = projects.find(p => p.id === currentProjectId);
+            if (!current) return;
+
+            if (!current.referenceUrls) current.referenceUrls = [];
+            current.referenceUrls.push({ id: Date.now(), url, content: "" });
+            renderReferenceUrls();
+            saveProjects();
+        }
+
+        function renderReferenceUrls() {
+            const list = document.getElementById('reference-urls-list');
+            const current = projects.find(p => p.id === currentProjectId);
+            if (!list || !current) return;
+
+            if (!current.referenceUrls || current.referenceUrls.length === 0) {
+                list.innerHTML = '<p style="font-size: 0.7rem; color: var(--text-muted); font-style: italic;">No URLs added yet.</p>';
+                return;
+            }
+
+            list.innerHTML = current.referenceUrls.map(ref => `
+                <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--bg-app); border-radius: var(--radius); border: 1px solid var(--border);">
+                    <i data-lucide="globe" size="12" style="color: var(--primary);"></i>
+                    <span style="font-size: 0.75rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${ref.url}">${ref.url}</span>
+                    <button class="btn btn-ghost" style="padding: 0.2rem;" onclick="deleteReferenceUrl(${ref.id})" title="Remove"><i data-lucide="trash-2" size="12"></i></button>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function deleteReferenceUrl(id) {
+            const current = projects.find(p => p.id === currentProjectId);
+            if (!current || !current.referenceUrls) return;
+            current.referenceUrls = current.referenceUrls.filter(r => r.id !== id);
+            renderReferenceUrls();
+            saveProjects();
+        }
+
+        function renderProjectList() {
+            const list = document.getElementById('sidebar-project-list');
+            if (!list) return;
+            list.innerHTML = projects.map(p => `
+                <div class="project-sidebar-item ${p.id === currentProjectId ? 'active' : ''}" onclick="switchProject(${p.id})">
+                    <div class="project-name-wrapper">
+                        <i data-lucide="folder" size="14"></i>
+                        <span>${p.name}</span>
+                    </div>
+                    ${p.id === currentProjectId ? '<i data-lucide="check" size="12"></i>' : ''}
+                </div>
+            `).join('');
+            lucide.createIcons();
+            renderAllProjectsDashboard();
+        }
+
+        function renderAllProjectsDashboard() {
+            const tbody = document.getElementById('all-projects-table-body');
+            if (!tbody) return;
+
+            const statuses = ["New", "In Progress", "Submitted", "On Hold"];
+
+            tbody.innerHTML = projects.map(p => `
+                <tr>
+                    <td><strong contenteditable="true" onblur="updateProjectMeta(${p.id}, 'name', this.innerText)">${p.name}</strong></td>
+                    <td><span contenteditable="true" onblur="updateProjectMeta(${p.id}, 'client', this.innerText)">${p.client || '—'}</span></td>
+                    <td>
+                        <input type="date" class="table-input" value="${p.dueDate || ''}" 
+                               onchange="updateProjectMeta(${p.id}, 'dueDate', this.value)">
+                    </td>
+                    <td>
+                        <select class="table-input" onchange="updateProjectMeta(${p.id}, 'status', this.value)">
+                            ${statuses.map(s => `<option value="${s}" ${p.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+                        </select>
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-ghost btn-sm" onclick="switchProject(${p.id}); switchView('overview', document.querySelector('.nav-item:nth-child(2)'))">Open</button>
+                            <button class="btn btn-ghost btn-sm" style="color: var(--danger);" onclick="deleteProject(${p.id})">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function toggleProjectStatus(id) {
+            const p = projects.find(proj => proj.id === id);
+            if (p) {
+                const statuses = ["In Progress", "Submitted", "On Hold", "New"];
+                const currentIndex = statuses.indexOf(p.status);
+                p.status = statuses[(currentIndex + 1) % statuses.length];
+                saveProjects();
+                renderProjectList();
+            }
+        }
+
+        function updateProjectMeta(id, field, value) {
+            const p = projects.find(proj => proj.id === id);
+            if (p) {
+                p[field] = value.trim();
+                saveProjects();
+                if (id === currentProjectId) {
+                    document.getElementById('active-project-title').innerText = p.name;
+                }
+            }
+        }
+
+        function deleteProject(id) {
+            if (confirm("Are you sure you want to delete this tender? All data will be lost.")) {
+                projects = projects.filter(p => p.id !== id);
+                if (currentProjectId === id) {
+                    currentProjectId = projects[0]?.id || null;
+                }
+                saveProjects();
+                renderProjectList();
+                if (currentProjectId) loadProject(currentProjectId);
+            }
+        }
+
+        function createNewProject() {
+            document.getElementById('new-tender-modal').classList.add('active');
+            document.getElementById('modal-project-name').focus();
+        }
+
+        function closeTenderModal() {
+            document.getElementById('new-tender-modal').classList.remove('active');
+            // Reset fields
+            document.getElementById('modal-project-name').value = '';
+            document.getElementById('modal-client-name').value = '';
+            document.getElementById('modal-due-date').value = '';
+        }
+
+        function confirmCreateTender() {
+            const name = document.getElementById('modal-project-name').value;
+            const client = document.getElementById('modal-client-name').value;
+            const dueDate = document.getElementById('modal-due-date').value;
+
+            if (!name) {
+                alert("Please enter a tender name.");
+                return;
+            }
+
+            const newP = {
+                id: Date.now(),
+                name: name,
+                client: client || "TBD",
+                dueDate: dueDate || "TBD",
+                status: "New",
+                masterPrompt: DEFAULT_MASTER_PROMPT,
+                slides: [],
+                team: [
+                    { id: 1, name: "Tom Koh", role: "Founder & Principal Consultant", initials: "TK", badge: "Director" },
+                    { id: 2, name: "June Goh", role: "Chief Operations Officer", initials: "JG", badge: "COO" },
+                    { id: 3, name: "Kenneth Cheong", role: "Lead Strategist / Project Lead", initials: "KC", badge: "Lead" }
+                ],
+                docs: []
+            };
+
+            projects.push(newP);
+            saveProjects();
+            closeTenderModal();
+            switchProject(newP.id);
+            // After switching, take user to the Overview view
+            switchView('overview', document.querySelectorAll('.nav-item')[1]);
+        }
+
+        function switchProject(id) {
+            saveProjects(); // Save current state first
+            currentProjectId = id;
+            loadProject(id);
+            renderProjectList();
+        }
+
+        let activeDocCategory = 'tender';
+
+        function switchDocCategory(category, el) {
+            activeDocCategory = category;
+            document.querySelectorAll('.tab-item').forEach(tab => tab.classList.remove('active'));
+            el.classList.add('active');
+            renderDocGrid();
+        }
+
+        function renderDocGrid() {
+            const grid = document.getElementById('main-doc-list');
+            const filterType = document.getElementById('doc-type-filter').value;
+            const current = projects.find(p => p.id === currentProjectId);
+            if (!grid || !current) return;
+
+            let files = current.docs.filter(f => f.category === activeDocCategory);
+            if (filterType !== 'all') {
+                files = files.filter(f => f.name.toLowerCase().endsWith(filterType));
+            }
+
+            if (files.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state" style="grid-column: 1 / -1; padding: 4rem;">
+                        <i data-lucide="file-plus" size="48"></i>
+                        <p>No ${activeDocCategory} documents found${filterType !== 'all' ? ' for ' + filterType : ''}.</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            grid.innerHTML = files.map(f => `
+                <div class="doc-card">
+                    <div class="doc-icon">
+                        <i data-lucide="${f.name.endsWith('.pptx') ? 'presentation' : (f.name.endsWith('.pdf') ? 'file-text' : 'file')}" size="24"></i>
+                    </div>
+                    <div class="doc-meta">
+                        <strong>${f.name}</strong>
+                        <span>Uploaded: ${f.date || 'Today'}</span>
+                    </div>
+                    <button class="icon-btn" style="color: var(--danger);" onclick="removeFile('${f.name}')">
+                        <i data-lucide="trash-2" size="16"></i>
+                    </button>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function removeFile(name) {
+            const current = projects.find(p => p.id === currentProjectId);
+            if (current) {
+                current.docs = current.docs.filter(f => f.name !== name);
+                saveProjects();
+                renderDocGrid();
+                updateSidebarFileList();
+            }
+        }
+
+        function loadProject(id) {
+            const p = projects.find(proj => proj.id === id);
+            if (!p) return;
+
+            document.getElementById('active-project-title').innerText = p.name;
+            document.getElementById('active-project-status').innerText = p.status;
+
+            // Persona
+            document.getElementById('master-prompt-input').value = p.masterPrompt || DEFAULT_MASTER_PROMPT;
+
+            // Sync states
+            slidesData.length = 0;
+            p.slides.forEach(s => slidesData.push(s));
+
+            teamData.length = 0;
+            p.team.forEach(t => teamData.push(t));
+
+            activeSlideIndex = slidesData.length > 0 ? 0 : -1;
+
+            renderThumbnails();
+            renderTeam();
+            renderReferenceUrls();
+            updateEditorState();
+            updateValueAddScorecard();
+            updateDeckCompleteness();
+            renderProofBank();
+        }
+
+        function renameActiveProject(newName) {
+            const current = projects.find(p => p.id === currentProjectId);
+            if (current && newName.trim()) {
+                current.name = newName.trim();
+                saveProjects();
+                renderProjectList();
+            }
+        }
+
+        // --- Resizable Panel Logic ---
+        function initResizing() {
+            const handle = document.getElementById('resize-handle');
+            const panel = document.getElementById('slide-panel');
+            let isResizing = false;
+
+            handle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                handle.classList.add('active');
+                document.body.style.cursor = 'ew-resize';
+                document.body.style.userSelect = 'none';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+
+                const width = window.innerWidth - e.clientX;
+                if (width > 300 && width < 800) {
+                    document.documentElement.style.setProperty('--right-panel-width', `${width}px`);
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                isResizing = false;
+                handle.classList.remove('active');
+                document.body.style.cursor = 'default';
+                document.body.style.userSelect = 'auto';
+            });
+        }
+
+        window.onload = () => {
+            init();
+            initResizing();
+        };
     </script>
     <style>
         .spin {
@@ -1559,6 +4151,7 @@
             opacity: 0.8;
         }
     </style>
+    <div id="print-container" class="print-only"></div>
 </body>
 
 </html>

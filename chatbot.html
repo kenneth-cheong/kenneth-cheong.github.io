@@ -1288,12 +1288,151 @@
         .dynamic-filter .btn-remove:hover {
             color: #b91c1c;
         }
+
+        /* LLM Toggle & Tool Log Styles */
+        .llm-switch input:checked+.mode-slider {
+            background: linear-gradient(135deg, #7c3aed, #4f46e5) !important;
+        }
+        
+        .mode-label.claude-active {
+            color: #a78bfa !important;
+            opacity: 1 !important;
+        }
+
+        .tool-log {
+            margin-top: 10px;
+            background: rgba(59, 130, 246, 0.05);
+            border: 1px solid rgba(59, 130, 246, 0.15);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.72rem;
+            color: #2563eb;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .tool-log-label {
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: rgba(37, 99, 235, 0.7);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        /* Attachment & Drag-Drop Styles */
+        .input-bar.drag-over {
+            background: rgba(59, 130, 246, 0.1) !important;
+            border: 2px dashed #3b82f6 !important;
+        }
+
+        .attachment-preview {
+            display: none;
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            align-items: center;
+            gap: 12px;
+        }
+
+        .attachment-preview.visible {
+            display: flex;
+        }
+
+        .attachment-thumb {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            object-fit: cover;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .attachment-info {
+            flex: 1;
+            font-size: 0.75rem;
+            color: #cbd5e1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .attachment-remove {
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 0.9rem;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .attachment-remove:hover {
+            opacity: 1;
+        }
+
+        .input-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .upload-btn {
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: 4px;
+            transition: color 0.2s;
+        }
+
+        .upload-btn:hover {
+            color: #3b82f6;
+        }
+
+        /* Image Modal */
+        .image-modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            align-items: center;
+            justify-content: center;
+            cursor: zoom-out;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .image-modal.open {
+            display: flex;
+        }
+
+        .image-modal img {
+            max-width: 90%;
+            max-height: 90%;
+            border-radius: 8px;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+            cursor: default;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
     </style>
 </head>
 
 <body>
 
     <div class="app-container">
+        <!-- Image Modal -->
+        <div id="imageModal" class="image-modal" onclick="closeImageModal()">
+            <img id="modalImg" src="" onclick="event.stopPropagation()">
+        </div>
+        
         <header>
             <h1><i class="fas fa-robot"></i> <span id="headerTitle">Client Portal Chatbot Testing</span></h1>
             <div class="controls">
@@ -1304,6 +1443,14 @@
                         <span class="mode-slider"></span>
                     </label>
                     <span class="mode-label" id="internalModeLabel" onclick="setMode('internal')">Internal</span>
+                </div>
+                <div class="mode-toggle" style="margin-left: 8px;">
+                    <span class="mode-label active" id="gptLLMLabel" onclick="setLLM('gpt')">GPT</span>
+                    <label class="mode-switch llm-switch">
+                        <input type="checkbox" id="llmToggle" onchange="handleLLMToggle(this.checked)">
+                        <span class="mode-slider"></span>
+                    </label>
+                    <span class="mode-label" id="claudeLLMLabel" onclick="setLLM('claude')">Claude</span>
                 </div>
                 <div id="syncStatus" class="status-badge">
                     <i class="fas fa-circle-notch fa-spin" id="syncIcon"></i>
@@ -1705,7 +1852,17 @@
                 </div>
             </div>
 
-            <div class="input-bar">
+            <div id="attachmentPreview" class="attachment-preview">
+                <img id="previewImg" class="attachment-thumb" style="display:none; cursor:zoom-in;" onclick="openImageModal(this.src)">
+                <div id="previewIcon" class="attachment-thumb" style="display:none; align-items:center; justify-content:center; background:rgba(255,255,255,0.1);"><i class="fas fa-file"></i></div>
+                <div id="attachmentName" class="attachment-info"></div>
+                <i class="fas fa-times attachment-remove" onclick="removeAttachment()"></i>
+            </div>
+            <div class="input-bar" id="inputBar">
+                <input type="file" id="fileInput" style="display:none;" onchange="handleFileSelect(this)">
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()" title="Attach image or file">
+                    <i class="fas fa-paperclip"></i>
+                </button>
                 <textarea id="userInput" placeholder="Ask anything about your Monday board..." rows="1"></textarea>
                 <button class="icon-btn" id="sendBtn" onclick="handleSendMessage()">
                     <i class="fas fa-paper-plane"></i>
@@ -1720,6 +1877,7 @@
         let assistantId = localStorage.getItem('assistantId') || null;
         let vectorStoreId = localStorage.getItem('vectorStoreId') || null;
         let currentMode = localStorage.getItem('chatbotMode') || 'client'; // 'client' or 'internal'
+        let currentLLM = localStorage.getItem('chatbotLLM') || 'gpt'; // 'gpt' or 'claude'
         window.lastSyncedInternalState = { boards: [], items: [], staff: [] };
 
         const INTERNAL_CAMPAIGN_BOARD_ID = '2845615047';
@@ -1753,6 +1911,39 @@
             } else {
                 applyMode('client');
             }
+
+            // Restore LLM
+            if (currentLLM === 'claude') {
+                document.getElementById('llmToggle').checked = true;
+                applyLLM('claude');
+            } else {
+                applyLLM('gpt');
+            }
+
+            // Attachment Event Listeners
+            const inputArea = document.getElementById('userInput');
+            const inputBar = document.getElementById('inputBar');
+
+            inputArea.addEventListener('paste', handlePaste);
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                inputBar.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                inputBar.addEventListener(eventName, () => inputBar.classList.add('drag-over'), false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                inputBar.addEventListener(eventName, () => inputBar.classList.remove('drag-over'), false);
+            });
+
+            inputBar.addEventListener('drop', handleDrop, false);
 
             if (assistantId) {
                 updateSyncStatus("Assistant Ready", false, true);
@@ -1832,6 +2023,139 @@
                     }
                 }
             }
+        }
+
+        // ---- LLM Toggle Logic ----
+        function handleLLMToggle(isClaude) {
+            const llm = isClaude ? 'claude' : 'gpt';
+            setLLM(llm);
+        }
+
+        function setLLM(llm) {
+            currentLLM = llm;
+            localStorage.setItem('chatbotLLM', llm);
+            document.getElementById('llmToggle').checked = (llm === 'claude');
+            applyLLM(llm);
+        }
+
+        function applyLLM(llm) {
+            const gptLabel = document.getElementById('gptLLMLabel');
+            const claudeLabel = document.getElementById('claudeLLMLabel');
+
+            if (llm === 'claude') {
+                gptLabel.classList.remove('active');
+                claudeLabel.classList.add('active', 'claude-active');
+                showToast("Switched to Claude Haiku 4.5", "info");
+            } else {
+                gptLabel.classList.add('active');
+                claudeLabel.classList.remove('active', 'claude-active');
+                showToast("Switched to GPT-4o-mini", "info");
+            }
+        }
+
+        // ---- Attachment Handling ----
+        let currentAttachment = null;
+
+        function handlePaste(e) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let item of items) {
+                if (item.kind === 'file') {
+                    const file = item.getAsFile();
+                    processFile(file);
+                }
+            }
+        }
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        }
+
+        function handleFileSelect(input) {
+            if (input.files && input.files[0]) {
+                processFile(input.files[0]);
+            }
+        }
+
+        function processFile(file) {
+            currentAttachment = file;
+            const preview = document.getElementById('attachmentPreview');
+            const img = document.getElementById('previewImg');
+            const icon = document.getElementById('previewIcon');
+            const name = document.getElementById('attachmentName');
+
+            name.textContent = file.name;
+            preview.classList.add('visible');
+
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    img.src = e.target.result;
+                    img.style.display = 'block';
+                    icon.style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                img.style.display = 'none';
+                icon.style.display = 'flex';
+                icon.innerHTML = '<i class="fas fa-file"></i>';
+            }
+        }
+
+        function removeAttachment() {
+            currentAttachment = null;
+            document.getElementById('attachmentPreview').classList.remove('visible');
+            document.getElementById('fileInput').value = '';
+        }
+
+        async function uploadAttachmentToOpenAI(file) {
+            const reader = new FileReader();
+            const b64 = await new Promise((resolve) => {
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.readAsDataURL(file);
+            });
+
+            const res = await fetch(MONDAY_LAMBDA_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'openai_upload',
+                    content: b64,
+                    filename: file.name,
+                    purpose: file.type.startsWith('image/') ? 'vision' : 'assistants'
+                })
+            });
+            const data = await res.json();
+            const body = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
+            if (body.error) throw new Error(body.error.message);
+            return body.id;
+        }
+
+        async function getFileBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        // ---- Image Modal ----
+        function openImageModal(src) {
+            const modal = document.getElementById('imageModal');
+            const img = document.getElementById('modalImg');
+            img.src = src;
+            modal.classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeImageModal() {
+            const modal = document.getElementById('imageModal');
+            modal.classList.remove('open');
+            document.body.style.overflow = '';
         }
 
         function resetConversation() {
@@ -4080,6 +4404,9 @@ ${boardRegistryLines}`;
                 localStorage.removeItem('threadId');
                 threadId = null;
 
+                // Save for Claude
+                localStorage.setItem('syncedContext', JSON.stringify(combinedContext));
+
                 showToast("Internal Sync Complete!", 'success');
                 const totalItemCount = items.length + campaignBoardDrilldowns.reduce((sum, b) => sum + (b.total_items || 0), 0);
                 updateSyncStatus(`Internal Sync Done (${totalItemCount} campaigns)`, false, true);
@@ -4299,6 +4626,9 @@ You can now ask me anything about these campaigns.`);
                 }
 
                 console.log("FINAL COMBINED CONTEXT (FLAT):", combinedContext);
+
+                // Save for Claude
+                localStorage.setItem('syncedContext', JSON.stringify(combinedContext));
 
                 updateSyncStatus("Uploading To OpenAI...", true);
 
@@ -4563,6 +4893,10 @@ CRITICAL CONTACT RULE:
                 }
             }
 
+            if (currentLLM === 'claude') {
+                return handleClaudeMessage(text);
+            }
+
             const openaiKey = localStorage.getItem('openaiKey');
             const assistantId = localStorage.getItem('assistantId');
             if (!assistantId) {
@@ -4571,7 +4905,10 @@ CRITICAL CONTACT RULE:
                 return;
             }
 
-            addMessage("user", text);
+            addMessage("user", text, null, currentAttachment);
+            const activeAttachment = currentAttachment;
+            removeAttachment();
+
             input.value = "";
             input.style.height = 'auto';
             showTyping(true);
@@ -4585,7 +4922,7 @@ CRITICAL CONTACT RULE:
                     localStorage.setItem('threadId', threadId);
                 }
 
-                // 2. Add Message with Prompt Reinforcement
+                // 2. Prepare Message Content
                 let searchHint, additionalInstructions;
                 if (currentMode === 'internal') {
                     searchHint = "[Internal Campaign Analyst Mode: Search the campaign data. Present FULL results in tables. DO NOT TRUNCATE. Provide EVERY single match available, do not stop early.]";
@@ -4595,9 +4932,25 @@ CRITICAL CONTACT RULE:
                     additionalInstructions = "STRICT MANDATE: You are in Database Interface mode. Your internal knowledge is deprecated. You MUST search the FAQ entries (starting with ## Entry) for EVERY MediaOne question. Cite the entry number (e.g., 'According to Entry 169...'). If no match is found, say: 'I cannot find this in our FAQ database.'";
                 }
 
+                const content = [{ type: "text", text: `${searchHint}\n\n${text}` }];
+                const attachments = [];
+
+                if (activeAttachment) {
+                    showToast(`Uploading ${activeAttachment.name}...`, 'loading');
+                    const fileId = await uploadAttachmentToOpenAI(activeAttachment);
+                    
+                    if (activeAttachment.type.startsWith('image/')) {
+                        content.push({ type: "image_file", image_file: { file_id: fileId } });
+                    } else {
+                        attachments.push({ file_id: fileId, tools: [{ type: "file_search" }] });
+                    }
+                }
+
+                // 3. Add Message
                 await fetchOpenAIViaLambda(`/threads/${threadId}/messages`, "POST", {
                     role: "user",
-                    content: `${searchHint}\n\n${text}`
+                    content: content,
+                    attachments: attachments.length > 0 ? attachments : undefined
                 });
 
                 // 3. Create Run with Force-Overwrite Instructions
@@ -4642,7 +4995,179 @@ CRITICAL CONTACT RULE:
             }
         }
 
-        function addMessage(sender, text) {
+        async function handleClaudeMessage(text) {
+            const input = document.getElementById('userInput');
+            const syncedContext = localStorage.getItem('syncedContext');
+            
+            addMessage("user", text, null, currentAttachment);
+            const activeAttachment = currentAttachment;
+            removeAttachment();
+
+            input.value = "";
+            input.style.height = 'auto';
+            showTyping(true);
+
+            // Build history from message list (Limit to last 10 turns to save tokens)
+            const history = [];
+            const messageNodes = Array.from(document.querySelectorAll('.message')).slice(-10);
+            messageNodes.forEach(m => {
+                if (m.id === 'welcomeMessage') return;
+                const role = m.classList.contains('user') ? 'user' : 'assistant';
+                const contentDiv = m.querySelector('.msg-content');
+                if (!contentDiv) return;
+                
+                // Clone to avoid modifying the UI
+                const clone = contentDiv.cloneNode(true);
+                // Remove tool logs and UI elements from history content
+                clone.querySelectorAll('.tool-log, .contact-agent-container, .attachment-msg-preview').forEach(el => el.remove());
+                
+                const content = clone.innerText.trim();
+                if (!content) return;
+
+                // Merge consecutive messages from same role to satisfy Anthropic requirements
+                if (history.length > 0 && history[history.length - 1].role === role) {
+                    history[history.length - 1].content += "\n\n" + content;
+                } else {
+                    history.push({ role, content });
+                }
+            });
+
+            // Ensure history starts with 'user' (Anthropic requirement)
+            while (history.length > 0 && history[0].role !== 'user') {
+                history.shift();
+            }
+
+            // System prompt with context
+            let system = `You are the MediaOne Internal Campaign Analyst. 
+            You have access to a monday_graphql tool to query live data. 
+            
+            Always format results as Markdown tables. Cite sources.`;
+            
+            if (syncedContext) {
+                let contextObj;
+                try {
+                    contextObj = JSON.parse(syncedContext);
+                } catch(e) {
+                    contextObj = null;
+                }
+
+                if (contextObj) {
+                    const hasBoardSelection = contextObj.selected_campaign_boards && contextObj.selected_campaign_boards.length > 0;
+                    const totalItems = (contextObj.campaigns ? contextObj.campaigns.length : 0) + 
+                                     (contextObj.selected_campaign_boards ? contextObj.selected_campaign_boards.reduce((acc, b) => acc + (b.items ? b.items.length : 0), 0) : 0);
+                    
+                    // AGGRESSIVE COMPACTION: If focused on boards or >100 items, strip item details
+                    if (hasBoardSelection || totalItems > 100) {
+                        console.log(`[CLAUDE] Aggressive compaction for Rate Limit safety (${totalItems} items).`);
+                        
+                        if (contextObj.selected_campaign_boards) {
+                            contextObj.selected_campaign_boards.forEach(board => {
+                                if (totalItems > 150) {
+                                    // Ultra-compact: No items, just board identity
+                                    delete board.items;
+                                } else if (board.items) {
+                                    // Compact: Names and URLs only
+                                    board.items = board.items.map(item => ({
+                                        name: item.name,
+                                        url: item.url || item.item_url
+                                    }));
+                                }
+                            });
+                        }
+                        
+                        // If focusing on boards, completely remove summary board data
+                        if (hasBoardSelection) {
+                            delete contextObj.campaigns;
+                            delete contextObj.total_matching_campaigns;
+                            system += "\n\nFOCUS MODE: You are focused on specific campaign boards. The summary board data has been removed to save tokens. Use your 'monday_graphql' tool to search these specific boards for items and details.";
+                        } else if (contextObj.campaigns) {
+                            contextObj.campaigns = contextObj.campaigns.slice(0, 100).map(item => ({
+                                name: item.name,
+                                url: item.monday_url
+                            }));
+                        }
+                    }
+                }
+
+                // Hard limit at 60k characters (~15k tokens) to ensure room for multiple turns 
+                // in a 50k TPM limit environment.
+                let contextStr = JSON.stringify(contextObj || syncedContext);
+                if (contextStr.length > 60000) {
+                    contextStr = contextStr.substring(0, 60000) + "... [Hard Truncated]";
+                }
+                system += `\n\nSYNCED CONTEXT:\n${contextStr}`;
+            }
+
+            try {
+                // Prepare final content with attachment if present
+                const currentContent = [{ type: "text", text: text }];
+                if (activeAttachment && activeAttachment.type.startsWith('image/')) {
+                    const b64 = await getFileBase64(activeAttachment);
+                    currentContent.push({
+                        type: "image",
+                        source: {
+                            type: "base64",
+                            media_type: activeAttachment.type,
+                            data: b64
+                        }
+                    });
+                } else if (activeAttachment) {
+                    // For non-images, we just append a note (Claude doesn't support generic file uploads via messages API yet)
+                    currentContent[0].text += `\n\n[User attached file: ${activeAttachment.name}]`;
+                }
+
+                // Replace the last history item (which was the plain text user message) with the full content block
+                if (history.length > 0 && history[history.length - 1].role === 'user') {
+                    history[history.length - 1].content = currentContent;
+                }
+
+                const res = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'claude_chat_with_tools',
+                        system,
+                        messages: history,
+                        max_tokens: 4096
+                    })
+                });
+
+                const raw = await res.json();
+                const statusCode = raw.statusCode || res.status;
+                const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+
+                if (statusCode !== 200 || data.error) {
+                    // Extract more detailed error info if available
+                    let errorMsg = data.error || "Unknown Claude error";
+                    if (data.detail) {
+                        try {
+                            const detailObj = JSON.parse(data.detail);
+                            if (detailObj.error && detailObj.error.message) {
+                                errorMsg += `: ${detailObj.error.message}`;
+                            } else {
+                                errorMsg += `: ${data.detail}`;
+                            }
+                        } catch(e) {
+                            errorMsg += `: ${data.detail}`;
+                        }
+                    }
+                    throw new Error(errorMsg);
+                }
+
+                const reply = data.reply || '';
+                const toolLog = data.tool_calls_summary || null;
+
+                addMessage("bot", reply, toolLog);
+
+            } catch (error) {
+                console.error("Claude Error:", error);
+                addMessage("bot", `Claude Error: ${error.message}`);
+            } finally {
+                showTyping(false);
+            }
+        }
+
+        function addMessage(sender, text, toolLog = null, attachment = null) {
             const list = document.getElementById('messageList');
             const msg = document.createElement('div');
             msg.className = `message ${sender}`;
@@ -4664,14 +5189,32 @@ CRITICAL CONTACT RULE:
                 `);
             }
 
+            let attachmentHtml = '';
+            if (attachment) {
+                if (attachment.type.startsWith('image/')) {
+                    const url = URL.createObjectURL(attachment);
+                    attachmentHtml = `<div class="attachment-msg-preview"><img src="${url}" onclick="openImageModal('${url}')" style="max-width:200px; border-radius:8px; margin-top:8px; display:block; border:1px solid rgba(255,255,255,0.1); cursor:zoom-in;"></div>`;
+                } else {
+                    attachmentHtml = `<div class="attachment-msg-preview" style="margin-top:8px; font-size:0.75rem; color:#94a3b8;"><i class="fas fa-file"></i> ${attachment.name}</div>`;
+                }
+            }
+
+            const toolHtml = toolLog
+                ? `<div class="tool-log"><span class="tool-log-label"><i class="fas fa-database"></i> Monday.com queries</span>${escapeHtml(toolLog)}</div>`
+                : '';
+
             msg.innerHTML = `
-                <div class="msg-content">${htmlContent}</div>
+                <div class="msg-content">${htmlContent}${attachmentHtml}${toolHtml}</div>
                 <span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             `;
             list.appendChild(msg);
             setTimeout(() => {
                 list.scrollTop = list.scrollHeight;
             }, 50);
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
         async function openContactEmail() {
