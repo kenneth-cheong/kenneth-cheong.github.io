@@ -297,7 +297,7 @@
             border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
-            padding: 1.25rem 0;
+            padding: 1.25rem 0 2.5rem 0;
             overflow-y: auto;
         }
 
@@ -312,14 +312,19 @@
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.625rem;
+            margin-top: 1.75rem;
+        }
+
+        .nav-label:first-of-type {
+            margin-top: 0.5rem;
         }
 
         .nav-item {
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            padding: 0.625rem 1.5rem;
+            padding: 0.75rem 1.5rem;
             color: var(--text-main);
             text-decoration: none;
             font-size: 0.875rem;
@@ -401,7 +406,41 @@
             flex-direction: column;
             background: #f8fafc;
             border-right: 1px solid var(--border);
-            position: relative;
+            position: relative; /* Essential for overlay positioning */
+        }
+
+        .drag-drop-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(37, 99, 235, 0.8);
+            backdrop-filter: blur(4px);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            border: 3px dashed rgba(255, 255, 255, 0.4);
+            margin: 1rem;
+            border-radius: var(--radius-lg);
+            pointer-events: none;
+            transition: all 0.2s;
+        }
+
+        .drag-drop-overlay.active {
+            display: flex;
+        }
+
+        .overlay-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .overlay-content p {
+            font-size: 1.25rem;
+            font-weight: 700;
+            font-family: 'Outfit', sans-serif;
         }
 
         .chat-messages {
@@ -1666,21 +1705,40 @@
             line-height: 1.4;
         }
 
-        /* --- Value-Add Scorecard --- */
-        .scorecard {
+        /* --- Tender Checklist (Combined) --- */
+        .tender-checklist {
             background: #fff;
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
-            padding: 1rem;
-            margin-top: 0.75rem;
+            padding: 1.25rem 1rem;
+            margin: 2rem 1rem 0;
+            text-align: center;
         }
 
-        .scorecard h4 {
+        .tender-checklist h4 {
             font-size: 0.6875rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: var(--text-muted);
+            margin-bottom: 1.25rem;
+        }
+
+        .checklist-section {
+            margin-top: 1.25rem;
+            border-top: 1px solid var(--border);
+            padding-top: 1rem;
+            text-align: left;
+        }
+
+        .checklist-section h5 {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
             margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
         .pillar-item {
@@ -1713,24 +1771,6 @@
 
         .pillar-label.missing {
             color: var(--text-muted);
-        }
-
-        /* --- Deck Completeness Ring --- */
-        .completeness-widget {
-            background: #fff;
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 1rem;
-            margin-top: 0.75rem;
-            text-align: center;
-        }
-
-        .completeness-widget h4 {
-            font-size: 0.6875rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-muted);
-            margin-bottom: 0.75rem;
         }
 
         .ring-container {
@@ -2323,13 +2363,8 @@
                 </div>
             </nav>
 
-            <div id="value-add-scorecard" class="scorecard">
-                <h4>Value-Add Scorecard</h4>
-                <div id="scorecard-items"><!-- Populated by JS --></div>
-            </div>
-
-            <div id="deck-completeness" class="completeness-widget">
-                <h4>Deck Completeness</h4>
+            <div id="tender-checklist-widget" class="tender-checklist">
+                <h4>Tender Checklist</h4>
                 <div class="ring-container">
                     <svg width="80" height="80" viewBox="0 0 80 80">
                         <circle cx="40" cy="40" r="34" fill="none" stroke="var(--border)" stroke-width="6" />
@@ -2339,7 +2374,16 @@
                     </svg>
                     <span class="ring-label" id="completeness-pct">0%</span>
                 </div>
-                <div class="section-checklist" id="section-checklist"><!-- Populated by JS --></div>
+
+                <div class="checklist-section">
+                    <h5><i data-lucide="layout" size="12"></i> Deck Structure</h5>
+                    <div id="section-checklist"></div>
+                </div>
+
+                <div class="checklist-section">
+                    <h5><i data-lucide="sparkles" size="12"></i> Strategic Value</h5>
+                    <div id="scorecard-items"></div>
+                </div>
             </div>
         </aside>
 
@@ -2372,6 +2416,12 @@
 
             <!-- View: Tender AI Chat -->
             <div id="view-overview" class="view-content">
+                <div id="drag-drop-overlay" class="drag-drop-overlay">
+                    <div class="overlay-content">
+                        <i data-lucide="upload-cloud" size="48"></i>
+                        <p>Drop files to upload</p>
+                    </div>
+                </div>
                 <div class="chat-messages" id="chat-messages">
                     <div class="message message-ai">
                         <div class="message-content">
@@ -2983,12 +3033,13 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         ];
 
         function getProofBank() {
-            const stored = localStorage.getItem('tender_proof_bank');
-            return stored ? JSON.parse(stored) : [...DEFAULT_PROOF_POINTS];
+            if (proofBankData) return proofBankData;
+            return [...DEFAULT_PROOF_POINTS];
         }
 
         function saveProofBank(data) {
-            localStorage.setItem('tender_proof_bank', JSON.stringify(data));
+            proofBankData = data;
+            saveProjects(); // Trigger cloud sync
         }
 
         function renderProofBank() {
@@ -3308,6 +3359,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         // --- Project Management ---
         let projects = [];
         let currentProjectId = null;
+        let proofBankData = null; // Global state for Proof Bank
 
         const teamData = [
             { id: 1, name: "Tom Koh", role: "Founder & Principal Consultant", initials: "TK", badge: "Director" },
@@ -3527,20 +3579,40 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         }
 
         function setupDragAndDrop() {
-            const box = document.getElementById('chat-input-box');
+            const overview = document.getElementById('view-overview');
+            const overlay = document.getElementById('drag-drop-overlay');
+
+            if (!overview || !overlay) return;
 
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                box.addEventListener(eventName, e => {
+                overview.addEventListener(eventName, e => {
                     e.preventDefault();
                     e.stopPropagation();
                 }, false);
             });
 
-            box.addEventListener('dragover', () => box.classList.add('drag-over'));
-            box.addEventListener('dragleave', () => box.classList.remove('drag-over'));
-            box.addEventListener('drop', (e) => {
-                box.classList.remove('drag-over');
+            // Track drag depth to handle child elements correctly
+            let dragCounter = 0;
+
+            overview.addEventListener('dragenter', (e) => {
+                dragCounter++;
+                overlay.classList.add('active');
+            });
+
+            overview.addEventListener('dragleave', (e) => {
+                dragCounter--;
+                if (dragCounter === 0) {
+                    overlay.classList.remove('active');
+                }
+            });
+
+            overview.addEventListener('drop', (e) => {
+                dragCounter = 0;
+                overlay.classList.remove('active');
+                
                 const files = e.dataTransfer.files;
+                if (!files.length) return;
+
                 for (let i = 0; i < files.length; i++) {
                     addPendingFile(files[i]);
                 }
@@ -4109,6 +4181,11 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             // Send files as well
             const filesToSend = [...pendingFiles];
 
+            // Auto-add to project knowledge base (sidebar)
+            filesToSend.forEach(f => {
+                addFileToSidebar(f.file.name, f.file.type);
+            });
+
             input.value = '';
             input.style.height = 'auto';
             pendingFiles = [];
@@ -4130,8 +4207,12 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             try {
                 const current = projects.find(p => p.id === currentProjectId);
                 const persona = current?.masterPrompt || DEFAULT_MASTER_PROMPT;
+                const projectDocs = (current?.docs || []).map(d => d.name).join(', ');
 
                 let fullPrompt = `System Persona:\n${persona}\n\n`;
+                if (projectDocs) {
+                    fullPrompt += `PROJECT KNOWLEDGE BASE (Uploaded Documents): ${projectDocs}\n\n`;
+                }
                 
                 // Capture current visual DNA to maintain consistency
                 const existingStyles = slidesData.slice(-3).map(s => ({ title: s.title, theme: s.theme }));
@@ -4224,7 +4305,8 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             const uploadTriggers = document.querySelectorAll('.icon-btn:has(.lucide-paperclip), .btn-primary:has(.lucide-upload)');
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
-            fileInput.accept = ".pdf,.docx,.txt,.pptx";
+            fileInput.multiple = true; // Allow multiple
+            fileInput.accept = ".pdf,.docx,.txt,.pptx,.xlsx,.png,.jpg,.jpeg";
             fileInput.style.display = 'none';
             document.body.appendChild(fileInput);
 
@@ -4236,62 +4318,16 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 };
             });
 
-            fileInput.onchange = async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
+            fileInput.onchange = (e) => {
+                const files = e.target.files;
+                if (!files.length) return;
 
-                const isPPTX = file.name.toLowerCase().endsWith('.pptx');
-                addChatMessage(`Uploading ${file.name}...`, 'user');
-
-                if (isPPTX) {
-                    const typing = document.createElement('div');
-                    typing.className = 'chat-message ai';
-                    typing.innerHTML = '<div class="message-content"><i data-lucide="loader-2" class="spin" size="16"></i> Parsing presentation structure...</div>';
-                    document.getElementById('chat-messages').appendChild(typing);
-                    lucide.createIcons();
-
-                    setTimeout(() => {
-                        typing.remove();
-                        addChatMessage(`Successfully imported slides from **${file.name}**. You can now edit them directly in the editor.`, 'ai');
-
-                        const importedSlides = [
-                            { id: Date.now() + 1, title: "Imported: Executive Summary", body: "<ul><li>Extracted from your uploaded deck.</li><li>Ready for AI enhancement.</li></ul>" },
-                            { id: Date.now() + 2, title: "Imported: Strategy", body: "<ul><li>Proposed market approach.</li><li>Competitive differentiators.</li></ul>" }
-                        ];
-
-                        importedSlides.forEach(s => slidesData.push(s));
-                        renderThumbnails();
-                        saveProjects();
-                        addFileToSidebar(file.name, file.type);
-                    }, 2000);
-                    return;
+                for (let i = 0; i < files.length; i++) {
+                    addPendingFile(files[i]);
                 }
-
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = async () => {
-                    const base64Content = reader.result.split(',')[1];
-                    try {
-                        const response = await fetch(API_BASE_URL, {
-                            method: 'POST',
-                            mode: 'cors',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                action: 'upload',
-                                fileName: file.name,
-                                fileContent: base64Content,
-                                contentType: file.type
-                            })
-                        });
-
-                        if (!response.ok) throw new Error(`Upload failed (${response.status})`);
-
-                        addChatMessage(`Success! **${file.name}** has been uploaded and analyzed.`, 'ai');
-                        addFileToSidebar(file.name, file.type);
-                    } catch (error) {
-                        addChatMessage(`Upload failed: ${error.message}`, 'ai');
-                    }
-                };
+                
+                // Reset value to allow re-uploading same file if removed
+                fileInput.value = '';
             };
         }
 
@@ -4534,45 +4570,29 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
         // --- Project Persistence & Switching ---
         function initProjects() {
-            const saved = localStorage.getItem('tender_projects');
-            if (saved) {
-                projects = JSON.parse(saved);
-                currentProjectId = projects[0]?.id || null;
+            // No longer loading from localStorage.
+            // If projects is empty, we wait for the cloud fetch in checkAuth() -> fetchProjectsFromCloud()
+            if (projects.length === 0) {
+                // Show a placeholder or empty state if needed
+                renderProjectList();
             } else {
-                const first = {
-                    id: Date.now(),
-                    name: "Government Digital Portal RFP",
-                    status: "In Progress",
-                    slides: [...MOCK_SLIDES],
-                    team: [...teamData],
-                    docs: []
-                };
-                projects.push(first);
-                currentProjectId = first.id;
-                saveProjects();
+                renderProjectList();
+                if (currentProjectId) loadProject(currentProjectId);
             }
-            renderProjectList();
-            if (currentProjectId) loadProject(currentProjectId);
         }
 
         async function saveProjects() {
             const current = projects.find(p => p.id === currentProjectId);
             if (current) {
                 current.slides = [...slidesData];
-                // Selections are saved per project
                 current.selectedTeamIds = selectedTeamIds;
                 current.selectedThemeIds = selectedThemeIds;
-                
                 current.lastModifiedBy = currentUser?.name || "System";
                 current.lastModifiedAt = new Date().toISOString();
             }
             
-            // Save local
-            localStorage.setItem('tender_projects', JSON.stringify(projects));
-            localStorage.setItem('tender_team_global', JSON.stringify(globalTeamData));
-            localStorage.setItem('tender_themes_global', JSON.stringify(globalThemesData));
+            // Local storage removed as requested - everything synced to cloud
             
-            // Save global to Cloud
             if (currentUser) {
                 updateCloudStatus('syncing');
                 try {
@@ -4585,7 +4605,8 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                             userId: 'mediaone_global_workspace',
                             projects: projects,
                             globalTeam: globalTeamData,
-                            globalThemes: globalThemesData
+                            globalThemes: globalThemesData,
+                            proofBank: getProofBank() // Added to cloud sync
                         })
                     });
                     updateCloudStatus('synced');
@@ -4709,15 +4730,21 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'load_projects',
-                        userId: 'mediaone_global_workspace' // Shared across everyone
+                        userId: 'mediaone_global_workspace'
                     })
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    if (data && data.projects && data.projects.length > 0) {
+                    if (data && data.projects) {
                         projects = data.projects;
-                        localStorage.setItem('tender_projects', JSON.stringify(projects));
+                        // Populate Proof Bank from cloud if available
+                        if (data.proofBank) {
+                            proofBankData = data.proofBank;
+                            renderProofBank();
+                        }
+                        
+                        // Local storage removed
                         renderProjectList();
                         updateCloudStatus('synced');
                         
