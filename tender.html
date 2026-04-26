@@ -339,8 +339,18 @@
             border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
-            padding: 1.25rem 0 2.5rem 0;
+            position: relative;
+            overflow: visible;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .sidebar-inner {
+            height: 100%;
             overflow-y: auto;
+            padding: 1.25rem 0 2.5rem 0;
+            display: flex;
+            flex-direction: column;
         }
 
         .nav-section {
@@ -694,16 +704,13 @@
         }
 
         @keyframes spin-centered {
-            from { transform: translate(-50%, -50%) rotate(0deg); }
-            to { transform: translate(-50%, -50%) rotate(360deg); }
-        }
+            from {
+                transform: translate(-50%, -50%) rotate(0deg);
+            }
 
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--bg-app);
-            color: var(--text-muted);
+            to {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
         }
 
         textarea {
@@ -2053,7 +2060,37 @@
 
         /* --- Focus Mode --- */
         .app-container.focus-mode .sidebar {
-            display: none;
+            transform: translateX(-100%);
+            margin-right: -240px;
+        }
+
+        .focus-toggle {
+            position: absolute;
+            right: -12px;
+            top: 24px;
+            width: 24px;
+            height: 24px;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1001;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .focus-toggle:hover {
+            transform: scale(1.1);
+            background: var(--primary-dark, #1e40af);
+        }
+
+        .app-container.focus-mode .focus-toggle {
+            right: -36px;
+            transform: rotate(180deg);
         }
 
         /* --- Dropdown Menu --- */
@@ -2497,14 +2534,19 @@
         }
 
         @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         .spinner {
             width: 24px;
             height: 24px;
-            border: 3px solid rgba(255,255,255,0.3);
+            border: 3px solid rgba(255, 255, 255, 0.3);
             border-top-color: #fff;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
@@ -2512,8 +2554,11 @@
 
         .loading-overlay {
             position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(255,255,255,0.8);
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
             backdrop-filter: blur(4px);
             z-index: 9999;
             display: none;
@@ -2522,10 +2567,24 @@
             flex-direction: column;
             gap: 1rem;
         }
-        .loading-overlay.active { display: flex; }
-        .loading-overlay .spinner { border-top-color: var(--primary); border-color: var(--bg-app); width: 40px; height: 40px; border-width: 4px; }
-        .loading-overlay p { font-weight: 600; color: var(--text-main); font-size: 0.9rem; }
 
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-overlay .spinner {
+            border-top-color: var(--primary);
+            border-color: var(--bg-app);
+            width: 40px;
+            height: 40px;
+            border-width: 4px;
+        }
+
+        .loading-overlay p {
+            font-weight: 600;
+            color: var(--text-main);
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 
@@ -2549,8 +2608,6 @@
             </div>
         </div>
         <div class="header-actions">
-            <button class="btn btn-ghost" onclick="toggleFocusMode()"><i data-lucide="share-2" size="16"></i> Focus
-                Mode</button>
             <button class="btn btn-ghost" onclick="exportToPPTX()"><i data-lucide="file-down" size="16"></i> Export
                 PPTX</button>
             <button class="btn btn-primary" onclick="generateSlides()">
@@ -2579,6 +2636,10 @@
     <div class="app-container">
         <!-- Sidebar -->
         <aside class="sidebar">
+            <button class="focus-toggle" onclick="toggleFocusMode()" title="Toggle Focus Mode">
+                <i data-lucide="chevron-left" id="focus-icon" size="14"></i>
+            </button>
+            <div class="sidebar-inner">
             <nav class="nav-section">
                 <p class="nav-label">Global Dashboard</p>
                 <a href="#" class="nav-item active" onclick="switchView('all-projects', this)">
@@ -2603,14 +2664,11 @@
                 <a href="#" class="nav-item" onclick="switchView('proof-bank', this)">
                     <i data-lucide="database" size="18"></i> Proof Bank
                 </a>
-                <a href="#" class="nav-item" onclick="switchView('themes', this)">
-                    <i data-lucide="sparkles" size="18"></i> Win Themes
-                </a>
                 <a href="#" class="nav-item" onclick="switchView('team', this)">
                     <i data-lucide="users" size="18"></i> Team & Roles
                 </a>
                 <a href="#" class="nav-item" onclick="switchView('persona', this)">
-                    <i data-lucide="cpu" size="18"></i> AI Persona
+                    <i data-lucide="cpu" size="18"></i> AI Prompt
                 </a>
             </nav>
 
@@ -2645,6 +2703,7 @@
                     <div id="scorecard-items"></div>
                 </div>
             </div>
+            </div> <!-- End sidebar-inner -->
         </aside>
 
         <!-- Main Workspace -->
@@ -2697,9 +2756,8 @@
                     <div class="quick-actions">
                         <button class="chip" onclick="addPrompt('Extract mandatory requirements')">Extract
                             requirements</button>
-                        <button class="chip" onclick="addPrompt('Show compliance matrix')">Compliance matrix</button>
+                        <button class="chip" onclick="addPrompt('Check compliance')">Check compliance</button>
                         <button class="chip" onclick="addPrompt('Draft executive summary')">Executive summary</button>
-                        <button class="chip" onclick="addPrompt('Update win themes')">Update win themes</button>
                     </div>
                     <div class="chat-input-box" id="chat-input-box">
                         <div class="chat-input-actions">
@@ -2751,21 +2809,6 @@
 
             <!-- Compliance Matrix View Removed -->
 
-            <!-- View: Win Themes (Global with Selector) -->
-            <div id="view-themes" class="view-content">
-                <div class="view-header">
-                    <div>
-                        <h2>Global Win Themes</h2>
-                        <p style="color: var(--text-muted); font-size: 0.85rem;">Select themes to include in your
-                            current tender analysis.</p>
-                    </div>
-                    <button class="btn btn-primary" onclick="addGlobalTheme()"><i data-lucide="plus" size="16"></i> Add
-                        Theme</button>
-                </div>
-                <div class="themes-grid" id="themes-grid">
-                    <!-- Populated by renderWinThemes() -->
-                </div>
-            </div>
 
             <!-- View: Version History -->
             <div id="view-revisions" class="view-content">
@@ -2794,7 +2837,7 @@
                         <p style="color: var(--text-muted); font-size: 0.85rem;">Assign global experts to the current
                             project.</p>
                     </div>
-                    <button class="btn btn-primary" onclick="addGlobalTeamMember()"><i data-lucide="user-plus"
+                    <button class="btn btn-primary" onclick="addMember()"><i data-lucide="user-plus"
                             size="16"></i> Add Expert</button>
                 </div>
                 <div class="team-grid" id="team-grid"
@@ -2814,21 +2857,35 @@
                     <button class="btn btn-primary" onclick="addProofPoint()"><i data-lucide="plus" size="16"></i> Add
                         Proof Point</button>
                 </div>
+
+                <div style="margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="position: relative; width: 100%;">
+                        <i data-lucide="search" size="16"
+                            style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                        <input type="text" id="proof-search" class="table-input"
+                            placeholder="Search by metric, label or tags..."
+                            style="padding-left: 2.5rem; width: 100%; border: 1px solid var(--border);"
+                            oninput="renderProofBank()">
+                    </div>
+                    <div id="proof-tags-filter" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <!-- Tags populated by JS -->
+                    </div>
+                </div>
                 <div class="proof-grid" id="proof-bank-grid">
                     <!-- Populated by JS -->
                 </div>
             </div>
 
-            <!-- View: AI Persona -->
+            <!-- View: AI Prompt -->
             <div id="view-persona" class="view-content">
                 <div class="view-header">
                     <div>
-                        <h2>AI Persona & Strategy</h2>
+                        <h2>AI Prompt & Strategy</h2>
                         <p style="color: var(--text-muted); font-size: 0.875rem;">Configure the strategic narrative and
                             design DNA for this tender.</p>
                     </div>
                     <button class="btn btn-primary" onclick="saveMasterPrompt()"><i data-lucide="save" size="16"></i>
-                        Save Persona</button>
+                        Save Prompt</button>
                 </div>
 
                 <div class="card"
@@ -3144,6 +3201,7 @@
         </div>
     </div>
 
+
     <div class="modal-overlay" id="media-preview-modal" onclick="closeMediaPreview()">
         <div class="modal-content" style="max-width: 80%; padding: 1rem; position: relative;"
             onclick="event.stopPropagation()">
@@ -3179,7 +3237,6 @@
         const API_BASE_URL = 'https://2zsxqwth46.execute-api.ap-southeast-1.amazonaws.com/claude';
         const PERSISTENCE_API_URL = 'https://tsiv6ub9g2.execute-api.ap-southeast-1.amazonaws.com/tenderPersistence';
         let selectedTeamIds = [];
-        let selectedThemeIds = [];
 
         const DEFAULT_MASTER_PROMPT = `Create a polished corporate tender proposal deck in the style of a premium strategy and performance agency (MediaOne). 
 
@@ -3212,7 +3269,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             if (current) {
                 current.masterPrompt = document.getElementById('master-prompt-input').value;
                 saveProjects();
-                addChatMessage("AI Persona updated successfully for this tender.", 'ai');
+                addChatMessage("AI Prompt updated successfully for this tender.", 'ai');
             }
         }
 
@@ -3320,18 +3377,58 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             saveProjects(); // Trigger cloud sync
         }
 
+        let activeProofTag = 'All';
+
         function renderProofBank() {
             const grid = document.getElementById('proof-bank-grid');
+            const tagsContainer = document.getElementById('proof-tags-filter');
+            const searchInput = document.getElementById('proof-search');
             if (!grid) return;
-            const proofs = getProofBank();
+
+            let proofs = getProofBank();
+
+            // Extract all unique tags
+            const allTags = new Set(['All']);
+            proofs.forEach(p => p.tags.forEach(t => allTags.add(t)));
+
+            // Render Tag Filters
+            if (tagsContainer) {
+                tagsContainer.innerHTML = Array.from(allTags).map(tag => `
+                    <span class="proof-tag ${activeProofTag === tag ? 'active' : ''}" 
+                          onclick="filterByProofTag('${tag}')"
+                          style="cursor: pointer; padding: 0.4rem 0.8rem; font-size: 0.75rem; ${activeProofTag === tag ? 'background: var(--primary); color: #fff;' : ''}">
+                        ${tag}
+                    </span>
+                `).join('');
+            }
+
+            // Apply Filters
+            const query = searchInput ? searchInput.value.toLowerCase() : '';
+            if (activeProofTag !== 'All') {
+                proofs = proofs.filter(p => p.tags.includes(activeProofTag));
+            }
+            if (query) {
+                proofs = proofs.filter(p =>
+                    p.metric.toLowerCase().includes(query) ||
+                    p.label.toLowerCase().includes(query) ||
+                    p.context.toLowerCase().includes(query) ||
+                    p.tags.some(t => t.toLowerCase().includes(query))
+                );
+            }
+
+            if (proofs.length === 0) {
+                grid.innerHTML = `<div style="grid-column: 1/-1; padding: 3rem; text-align: center; color: var(--text-muted);">No proof points found matching your filters.</div>`;
+                return;
+            }
 
             grid.innerHTML = proofs.map(p => `
-                <div class="proof-card">
-                    <div class="proof-metric">${p.metric}</div>
-                    <div class="proof-label">${p.label}</div>
-                    <div class="proof-context">${p.context}</div>
+                <div class="proof-card" data-id="${p.id}">
+                    <div class="proof-metric" contenteditable="true" onblur="updateProofPoint(${p.id}, 'metric', this.innerText)">${p.metric || 'New Metric'}</div>
+                    <div class="proof-label" contenteditable="true" onblur="updateProofPoint(${p.id}, 'label', this.innerText)">${p.label || 'Enter Label'}</div>
+                    <div class="proof-context" contenteditable="true" onblur="updateProofPoint(${p.id}, 'context', this.innerText)">${p.context || 'Describe the achievement...'}</div>
                     <div class="proof-tags">
                         ${p.tags.map(t => `<span class="proof-tag">${t}</span>`).join('')}
+                        <span class="proof-tag" contenteditable="true" onblur="updateProofTags(${p.id}, this.innerText)" style="border: 1px dashed var(--border); background: none;">+ Add Tags</span>
                     </div>
                     <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
                         <button class="btn btn-ghost" style="font-size: 0.6875rem; padding: 0.25rem 0.5rem;" onclick="insertProofIntoSlide(${p.id})"><i data-lucide="arrow-right" size="12"></i> Insert into Slide</button>
@@ -3343,22 +3440,47 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         }
 
         function addProofPoint() {
-            const metric = prompt('Hero Metric (e.g. +142%, Top 3, 99.99%):');
-            if (!metric) return;
-            const label = prompt('Label (e.g. Organic Traffic Growth):');
-            const context = prompt('Context (e.g. Achieved for LLSG campaign):') || '';
-            const tagsStr = prompt('Tags (comma-separated, e.g. SEO, Traffic):') || '';
-
             const proofs = getProofBank();
-            proofs.push({
-                id: Date.now(),
-                metric,
-                label: label || 'Proof Point',
-                context,
-                tags: tagsStr.split(',').map(t => t.trim()).filter(Boolean)
+            const id = Date.now();
+            proofs.unshift({
+                id,
+                metric: "",
+                label: "",
+                context: "",
+                tags: []
             });
             saveProofBank(proofs);
             renderProofBank();
+            
+            // Focus the new card
+            setTimeout(() => {
+                const card = document.querySelector(`.proof-card[data-id="${id}"] .proof-metric`);
+                if (card) {
+                    card.focus();
+                    document.execCommand('selectAll', false, null);
+                }
+            }, 50);
+        }
+
+        function updateProofPoint(id, field, value) {
+            const proofs = getProofBank();
+            const proof = proofs.find(p => p.id === id);
+            if (proof) {
+                proof[field] = value.trim();
+                saveProofBank(proofs);
+            }
+        }
+
+        function updateProofTags(id, value) {
+            if (value === '+ Add Tags') return;
+            const proofs = getProofBank();
+            const proof = proofs.find(p => p.id === id);
+            if (proof) {
+                const newTags = value.split(',').map(t => t.trim()).filter(Boolean);
+                proof.tags = [...new Set([...proof.tags, ...newTags])];
+                saveProofBank(proofs);
+                renderProofBank();
+            }
         }
 
         function deleteProofPoint(id) {
@@ -3375,10 +3497,29 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 alert('Please select a slide first.');
                 return;
             }
-            const body = document.getElementById('current-slide-body');
-            body.innerHTML += `<li><strong>${proof.metric}</strong> — ${proof.label}: ${proof.context}</li>`;
-            saveCurrentSlide();
-            addChatMessage(`Inserted proof point **"${proof.metric} ${proof.label}"** into the active slide.`, 'ai');
+            
+            const slide = slidesData[activeSlideIndex];
+            const bodyComp = (slide.components || []).find(c => c.isBody);
+            
+            if (bodyComp) {
+                // Update data model
+                const newContent = `<li><strong>${proof.metric}</strong> — ${proof.label}: ${proof.context}</li>`;
+                bodyComp.content += newContent;
+                slide.body = bodyComp.content; // Sync legacy body field
+                
+                // Update UI
+                renderSlideCanvas();
+                saveProjects();
+                addChatMessage(`Inserted proof point **"${proof.metric} ${proof.label}"** into the active slide.`, 'ai');
+            } else {
+                // Fallback to static ID if canvas not initialized
+                const body = document.getElementById('current-slide-body');
+                if (body) {
+                    body.innerHTML += `<li><strong>${proof.metric}</strong> — ${proof.label}: ${proof.context}</li>`;
+                    saveCurrentSlide();
+                    addChatMessage(`Inserted proof point **"${proof.metric} ${proof.label}"** into the active slide.`, 'ai');
+                }
+            }
         }
 
         // =============================================
@@ -3904,11 +4045,11 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const id = Date.now() + Math.random();
-                const pf = { 
-                    id, 
-                    file, 
+                const pf = {
+                    id,
+                    file,
                     base64: e.target.result,
-                    status: 'processing' 
+                    status: 'processing'
                 };
                 pendingFiles.push(pf);
                 renderPreviews();
@@ -3923,7 +4064,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             try {
                 const content = await addFileToSidebar(pf.file, 'tender', pf.base64);
                 pf.status = 'done';
-                
+
                 // AI Rename logic: if this is the first file and project is still a Draft
                 const project = projects.find(p => p.id === currentProjectId);
                 if (project && project.name.startsWith('Draft Tender') && project.docs.length === 1) {
@@ -3952,7 +4093,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                         docsContext: ""
                     })
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     const suggestedName = data.response.trim().replace(/^"|"$/g, '');
@@ -3973,7 +4114,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
         async function showMediaPreview(base64, name, type) {
             let activeBase64 = base64;
-            
+
             // If base64 is missing (deduplicated in history), try to find it in the project docs
             if (!activeBase64) {
                 const current = projects.find(p => p.id === currentProjectId);
@@ -3987,7 +4128,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 alert('File content not available for preview. It may have been removed or not fully uploaded.');
                 return;
             }
-            
+
             const modal = document.getElementById('media-preview-modal');
             const content = document.getElementById('media-preview-content');
             const title = document.getElementById('media-preview-title');
@@ -4070,22 +4211,22 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         function renderPreviews() {
             const container = document.getElementById('file-previews');
             if (!container) return;
-            
+
             if (pendingFiles.length === 0) {
                 container.style.display = 'none';
                 container.innerHTML = '';
                 return;
             }
-            
+
             container.style.display = 'flex';
             container.innerHTML = pendingFiles.map(pf => {
                 const isImage = pf.file.type.startsWith('image/');
-                const content = isImage && pf.base64 
-                    ? `<img src="${pf.base64}" onclick="showMediaPreview('${pf.base64}', '${pf.file.name}', '${pf.file.type}')">` 
+                const content = isImage && pf.base64
+                    ? `<img src="${pf.base64}" onclick="showMediaPreview('${pf.base64}', '${pf.file.name}', '${pf.file.type}')">`
                     : `<div class="file-icon" onclick="showMediaPreview('${pf.base64 || ''}', '${pf.file.name}', '${pf.file.type}')">
                         <i data-lucide="file-text"></i>
                        </div>`;
-                
+
                 return `
                     <div class="file-preview-item ${pf.status === 'processing' ? 'processing' : ''}">
                         ${content}
@@ -4096,7 +4237,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                     </div>
                 `;
             }).join('');
-            
+
             lucide.createIcons();
         }
 
@@ -4281,7 +4422,9 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                             <i data-lucide="copy" size="12" title="Duplicate" onclick="duplicateComponent('${comp.id}')"></i>
                             <i data-lucide="trash-2" size="12" title="Delete" onclick="deleteComponent('${comp.id}')"></i>
                         </div>
-                        <div contenteditable="true" class="${comp.isTitle ? 'slide-title' : 'slide-body'}" 
+                        <div contenteditable="true" 
+                             id="${comp.isTitle ? 'current-slide-title' : (comp.isBody ? 'current-slide-body' : '')}"
+                             class="${comp.isTitle ? 'slide-title' : 'slide-body'}" 
                              style="width: 100%; height: 100%; overflow: visible;"
                              onblur="updateComponentContent('${comp.id}', this.innerHTML)">${comp.content}</div>
                         <div class="resize-handle" onmousedown="initResize(event, '${comp.id}')"></div>
@@ -4512,7 +4655,24 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         }
 
         function saveCurrentSlide() {
-            // Handled by inline updates and blurs now
+            const titleEl = document.getElementById('current-slide-title');
+            const bodyEl = document.getElementById('current-slide-body');
+            if (activeSlideIndex === -1 || !titleEl || !bodyEl) return;
+
+            const slide = slidesData[activeSlideIndex];
+            slide.title = titleEl.innerText;
+            slide.body = bodyEl.innerHTML;
+
+            // Sync back to components if they exist
+            if (slide.components) {
+                const titleComp = slide.components.find(c => c.isTitle);
+                const bodyComp = slide.components.find(c => c.isBody);
+                if (titleComp) titleComp.content = slide.title;
+                if (bodyComp) bodyComp.content = slide.body;
+            }
+
+            updateActiveThumbnail();
+            saveProjects();
         }
 
         function setupAutoSave() {
@@ -4618,14 +4778,14 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 currentProjectId = newP.id;
                 saveProjects();
                 renderProjectList();
-                
+
                 // Update UI state
                 document.getElementById('active-project-title').innerText = newP.name;
                 document.getElementById('active-project-status').innerText = newP.status;
-                
+
                 // Show file list (empty)
                 updateSidebarFileList();
-                
+
                 console.log("Auto-created new project context:", newP.id);
             }
         }
@@ -4911,7 +5071,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             const renderedContent = type === 'ai' ? marked.parse(text) : text;
 
             let html = `<div class="message-content">${renderedContent}</div>`;
-            
+
             if (attachments && attachments.length > 0) {
                 html += `<div class="chat-attachment-grid">`;
                 attachments.forEach(att => {
@@ -4965,7 +5125,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             const btn = document.querySelector('.btn-primary:has(#generate-btn-text)');
             const text = document.getElementById('generate-btn-text');
             const current = projects.find(p => p.id === currentProjectId);
-            
+
             if (!current) {
                 showToast("No active project selected");
                 return;
@@ -4976,11 +5136,11 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
             try {
                 // Build document context with truncation to stay within LLM limits
-                const docsContext = current.docs.map(d => 
+                const docsContext = current.docs.map(d =>
                     `[DOCUMENT: ${d.name}]\n${d.content ? d.content.substring(0, 15000) : "No text content available."}`
                 ).join('\n\n');
 
-                const conversationContext = current.chatHistory.map(m => 
+                const conversationContext = current.chatHistory.map(m =>
                     `${m.type === 'user' ? 'USER' : 'AI'}: ${m.text}`
                 ).join('\n');
 
@@ -5056,7 +5216,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 console.error("Slide Generation Error:", error);
                 addChatMessage("Error generating slides. Falling back to template.", 'ai');
                 slidesData.length = 0;
-                MOCK_SLIDES.forEach(s => slidesData.push({...s}));
+                MOCK_SLIDES.forEach(s => slidesData.push({ ...s }));
                 renderThumbnails();
                 updateEditorState();
             } finally {
@@ -5099,10 +5259,11 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         }
 
         function renderTeam() {
-            const list = document.getElementById('team-list');
+            const list = document.getElementById('team-list') || document.getElementById('team-grid');
             if (!list) return;
             list.innerHTML = teamData.map(member => `
                 <div class="team-member" data-id="${member.id}">
+                    ${member.badge ? `<span class="badge" style="background: var(--primary-light); color: var(--primary);">${member.badge}</span>` : ''}
                     <div class="member-avatar">${member.initials}</div>
                     <div class="member-info">
                         <strong contenteditable="true" onblur="updateMember(${member.id}, 'name', this.innerText)">${member.name}</strong>
@@ -5129,12 +5290,14 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 const row = document.querySelector(`.team-member[data-id="${id}"]`);
                 if (row) row.querySelector('.member-avatar').innerText = member.initials;
             }
+            saveProjects();
         }
 
         function addMember() {
             const id = teamData.length ? Math.max(...teamData.map(m => m.id)) + 1 : 1;
             teamData.push({ id, name: "New Member", role: "Designation", initials: "NM" });
             renderTeam();
+            saveProjects();
             setTimeout(() => {
                 const el = document.querySelector(`.team-member[data-id="${id}"] strong`);
                 if (el) {
@@ -5150,6 +5313,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 if (index !== -1) {
                     teamData.splice(index, 1);
                     renderTeam();
+                    saveProjects();
                 }
             }
         }
@@ -5169,7 +5333,6 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             if (current) {
                 current.slides = [...slidesData];
                 current.selectedTeamIds = selectedTeamIds;
-                current.selectedThemeIds = selectedThemeIds;
                 current.lastModifiedBy = currentUser?.name || "System";
                 current.lastModifiedAt = new Date().toISOString();
             }
@@ -5178,7 +5341,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 updateCloudStatus('syncing');
                 try {
                     const userId = currentUser.email || 'mediaone_global_workspace';
-                    
+
                     // CRITICAL: Deduplicate payload to avoid 10MB limit
                     const sanitizedProjects = projects.map(p => {
                         const newP = JSON.parse(JSON.stringify(p)); // Deep clone
@@ -5227,7 +5390,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
                     const rawData = await response.json();
                     const responseData = (rawData && rawData.body) ? (typeof rawData.body === 'string' ? JSON.parse(rawData.body) : rawData.body) : rawData;
-                    
+
                     if (responseData.success) {
                         updateCloudStatus('synced');
                         console.log('Cloud sync successful');
@@ -5267,20 +5430,19 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
             // Update state
             slidesData.length = 0;
-            (project.slides || []).forEach(s => slidesData.push({...s}));
+            (project.slides || []).forEach(s => slidesData.push({ ...s }));
             selectedTeamIds = [...(project.selectedTeamIds || [])];
-            selectedThemeIds = [...(project.selectedThemeIds || [])];
 
             // Update UI
             document.getElementById('active-project-title').innerText = project.name;
             document.getElementById('active-project-status').innerText = project.status || 'Draft';
-            
+
             renderThumbnails();
             updateSidebarFileList();
             renderDocGrid();
             updateValueAddScorecard();
             updateDeckCompleteness();
-            
+
             // Render chat history
             const chatMessages = document.getElementById('chat-messages');
             if (chatMessages) {
@@ -5289,7 +5451,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                     addChatMessage(msg.text, msg.type, msg.card, msg.attachments, true);
                 });
             }
-            
+
             // Update navigation highlights
             renderProjectList();
         }
@@ -5802,7 +5964,6 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             p.team.forEach(t => teamData.push(t));
 
             selectedTeamIds = p.selectedTeamIds || [];
-            selectedThemeIds = p.selectedThemeIds || [];
 
             activeSlideIndex = slidesData.length > 0 ? 0 : -1;
 
