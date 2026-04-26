@@ -11,6 +11,12 @@
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Document Extraction Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
     <!-- Fonts & Icons -->
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap"
@@ -4995,6 +5001,28 @@ CRITICAL CONTACT RULE:
             }
         }
 
+        async function extractText(file) {
+            const ext = file.name.split('.').pop().toLowerCase();
+            const arrayBuffer = await file.arrayBuffer();
+
+            if (ext === 'pdf') {
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                let fullText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    fullText += content.items.map(s => s.str).join(' ') + '\n';
+                }
+                return fullText;
+            } else if (ext === 'docx') {
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                return result.value;
+            } else if (['txt', 'csv', 'md'].includes(ext)) {
+                return await file.text();
+            }
+            return "";
+        }
+
         async function handleClaudeMessage(text) {
             const input = document.getElementById('userInput');
             const syncedContext = localStorage.getItem('syncedContext');
@@ -5112,8 +5140,13 @@ CRITICAL CONTACT RULE:
                         }
                     });
                 } else if (activeAttachment) {
-                    // For non-images, we just append a note (Claude doesn't support generic file uploads via messages API yet)
-                    currentContent[0].text += `\n\n[User attached file: ${activeAttachment.name}]`;
+                    // For non-images, we extract text and append it to the message
+                    const fileContent = await extractText(activeAttachment);
+                    if (fileContent) {
+                        currentContent[0].text += `\n\n--- CONTENT OF ${activeAttachment.name} ---\n${fileContent}\n--- END OF ${activeAttachment.name} ---`;
+                    } else {
+                        currentContent[0].text += `\n\n[User attached file: ${activeAttachment.name}]`;
+                    }
                 }
 
                 // Replace the last history item (which was the plain text user message) with the full content block

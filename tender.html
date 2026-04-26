@@ -19,6 +19,14 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Marked for Markdown rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- SheetJS for Excel previews -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Document Extraction Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
     <style>
         :root {
             /* Color Palette */
@@ -38,38 +46,71 @@
             --danger: #ef4444;
 
             /* Markdown & Chat Table Styles */
-        .message-content table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1rem 0;
-            background: rgba(255, 255, 255, 0.5);
-            border-radius: 8px;
-            overflow: hidden;
-            font-size: 0.85rem;
-        }
+            .message-content table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 1rem 0;
+                background: rgba(255, 255, 255, 0.5);
+                border-radius: 8px;
+                overflow: hidden;
+                font-size: 0.85rem;
+            }
 
-        .message-content th, .message-content td {
-            padding: 8px 12px;
-            border: 1px solid var(--border);
-            text-align: left;
-        }
+            .message-content th,
+            .message-content td {
+                padding: 8px 12px;
+                border: 1px solid var(--border);
+                text-align: left;
+            }
 
-        .message-content th {
-            background: rgba(0, 0, 0, 0.05);
-            font-weight: 600;
-        }
+            .message-content th {
+                background: rgba(0, 0, 0, 0.05);
+                font-weight: 600;
+            }
 
-        .message-content p { margin-bottom: 0.75rem; }
-        .message-content p:last-child { margin-bottom: 0; }
-        .message-content ul, .message-content ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
-        .message-content code { background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 4px; font-family: monospace; }
-        .message-content pre { background: var(--text-slate); color: white; padding: 1rem; border-radius: 8px; overflow-x: auto; margin: 1rem 0; }
-        .message-content h1, .message-content h2, .message-content h3 { margin: 1.5rem 0 0.75rem 0; font-family: var(--font-header); }
+            .message-content p {
+                margin-bottom: 0.75rem;
+            }
+
+            .message-content p:last-child {
+                margin-bottom: 0;
+            }
+
+            .message-content ul,
+            .message-content ol {
+                padding-left: 1.5rem;
+                margin-bottom: 0.75rem;
+            }
+
+            .message-content code {
+                background: rgba(0, 0, 0, 0.05);
+                padding: 2px 4px;
+                border-radius: 4px;
+                font-family: monospace;
+            }
+
+            .message-content pre {
+                background: var(--text-slate);
+                color: white;
+                padding: 1rem;
+                border-radius: 8px;
+                overflow-x: auto;
+                margin: 1rem 0;
+            }
+
+            .message-content h1,
+            .message-content h2,
+            .message-content h3 {
+                margin: 1.5rem 0 0.75rem 0;
+                font-family: var(--font-header);
+            }
 
             /* Shadows & Spacing */
             --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1),
+            0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1),
+            0 4px 6px -4px rgb(0 0 0 / 0.1);
             --radius-sm: 0.375rem;
             --radius: 0.5rem;
             --radius-lg: 0.75rem;
@@ -173,6 +214,7 @@
         .send-btn:hover {
             opacity: 0.9;
         }
+
         .header-left {
             display: flex;
             align-items: center;
@@ -406,7 +448,8 @@
             flex-direction: column;
             background: #f8fafc;
             border-right: 1px solid var(--border);
-            position: relative; /* Essential for overlay positioning */
+            position: relative;
+            /* Essential for overlay positioning */
         }
 
         .drag-drop-overlay {
@@ -617,6 +660,44 @@
 
         .file-preview-item .file-icon {
             width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+            background: var(--bg-app);
+        }
+
+        .file-preview-item.processing::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 5;
+        }
+
+        .preview-spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--primary-light);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin-centered 0.8s linear infinite;
+            z-index: 10;
+        }
+
+        @keyframes spin-centered {
+            from { transform: translate(-50%, -50%) rotate(0deg); }
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
             height: 100%;
             display: flex;
             align-items: center;
@@ -940,7 +1021,8 @@
 
         .slide-canvas.theme-dark,
         .thumb-preview-container.theme-dark {
-            background: #1e3a8a !important; /* Solid fallback for speed */
+            background: #1e3a8a !important;
+            /* Solid fallback for speed */
             background: linear-gradient(135deg, #1e3a8a 0%, #172554 100%) !important;
             color: #fff !important;
         }
@@ -1225,6 +1307,7 @@
         .data-table tr:last-child td {
             border-bottom: none;
         }
+
         /* User Profile & Auth */
         .user-profile {
             display: flex;
@@ -1319,6 +1402,7 @@
             font-size: 0.7rem;
             color: var(--text-muted);
         }
+
         /* Advanced Slide Components */
         .slide-element {
             position: absolute;
@@ -1448,7 +1532,8 @@
             margin-bottom: 1rem;
         }
 
-        .theme-card.selected, .team-card.selected {
+        .theme-card.selected,
+        .team-card.selected {
             border-color: var(--primary) !important;
             background: rgba(59, 130, 246, 0.05) !important;
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
@@ -2206,8 +2291,13 @@
         }
 
         @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         /* Responsive Tweaks */
@@ -2217,6 +2307,7 @@
                 --sidebar-width: 220px;
             }
         }
+
         /* Premium Tooltips */
         [data-tooltip] {
             position: relative;
@@ -2270,6 +2361,171 @@
             transform: translateX(-50%) translateY(4px);
         }
 
+        .chat-attachment-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .chat-attachment-item {
+            width: 100%;
+            height: 100px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            overflow: hidden;
+            position: relative;
+            background: var(--bg-card);
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .chat-attachment-item:hover {
+            transform: translateY(-2px);
+            border-color: white;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .chat-attachment-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .chat-attachment-item .file-card {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem;
+            text-align: center;
+            color: var(--text-main);
+        }
+
+        .chat-attachment-item .file-card i {
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .chat-attachment-item .file-card span {
+            font-size: 0.7rem;
+            font-weight: 500;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.2;
+            opacity: 0.9;
+        }
+
+        .message-ai .chat-attachment-item {
+            border-color: var(--border);
+            background: var(--bg-card);
+            color: var(--text-main);
+        }
+
+        .message-ai .chat-attachment-item .file-card {
+            color: var(--text-main);
+        }
+
+        .message-ai .chat-attachment-item .file-card i {
+            color: var(--primary);
+        }
+
+        .message-ai .chat-attachment-item:hover {
+            border-color: var(--primary);
+            background: var(--bg-app);
+        }
+
+        /* Staging Previews */
+        .chat-preview-item {
+            position: relative;
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: var(--bg-app);
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+        }
+
+        .chat-preview-item.processing {
+            opacity: 0.7;
+        }
+
+        .preview-spinner {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            z-index: 2;
+        }
+
+        .chat-preview-item .remove-btn {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 16px;
+            height: 16px;
+            background: rgba(0, 0, 0, 0.5);
+            color: #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            z-index: 3;
+            transition: background 0.2s;
+        }
+
+        .chat-preview-item .remove-btn:hover {
+            background: var(--danger);
+        }
+
+        .spin {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.8);
+            backdrop-filter: blur(4px);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .loading-overlay.active { display: flex; }
+        .loading-overlay .spinner { border-top-color: var(--primary); border-color: var(--bg-app); width: 40px; height: 40px; border-width: 4px; }
+        .loading-overlay p { font-weight: 600; color: var(--text-main); font-size: 0.9rem; }
+
     </style>
 </head>
 
@@ -2285,7 +2541,8 @@
                 <span class="project-title" id="active-project-title" contenteditable="true"
                     onblur="renameActiveProject(this.innerText)">Active Tender Analysis</span>
                 <span class="badge" id="active-project-status">In Progress</span>
-                <div id="cloud-sync-status" class="cloud-sync-status" data-tooltip="All changes are securely synced to AWS Cloud">
+                <div id="cloud-sync-status" class="cloud-sync-status"
+                    data-tooltip="All changes are securely synced to AWS Cloud">
                     <i data-lucide="cloud-check" size="14"></i>
                     <span>Cloud Synced</span>
                 </div>
@@ -2306,10 +2563,13 @@
                 <div class="user-name" id="header-username">Kenneth Cheong</div>
                 <i data-lucide="chevron-down" size="14"></i>
             </div>
-            
+
             <!-- User Dropdown -->
-            <div id="user-dropdown" class="card" style="position: absolute; top: 60px; right: 1.5rem; width: 160px; display: none; z-index: 1000; padding: 0.5rem; box-shadow: var(--shadow-lg);">
-                <button class="btn btn-ghost" style="width: 100%; justify-content: flex-start; gap: 0.75rem; font-size: 0.8rem;" onclick="logout()">
+            <div id="user-dropdown" class="card"
+                style="position: absolute; top: 60px; right: 1.5rem; width: 160px; display: none; z-index: 1000; padding: 0.5rem; box-shadow: var(--shadow-lg);">
+                <button class="btn btn-ghost"
+                    style="width: 100%; justify-content: flex-start; gap: 0.75rem; font-size: 0.8rem;"
+                    onclick="logout()">
                     <i data-lucide="log-out" size="14"></i> Log Out
                 </button>
             </div>
@@ -2450,8 +2710,7 @@
                         </div>
                         <textarea id="chat-input" placeholder="Ask AI to analyze tender or refine strategy..."
                             onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendMessage(); }"></textarea>
-                        <button class="send-btn" onclick="sendMessage()"><i data-lucide="send"
-                                size="18"></i></button>
+                        <button class="send-btn" onclick="sendMessage()"><i data-lucide="send" size="18"></i></button>
                     </div>
                 </div>
             </div>
@@ -2497,9 +2756,11 @@
                 <div class="view-header">
                     <div>
                         <h2>Global Win Themes</h2>
-                        <p style="color: var(--text-muted); font-size: 0.85rem;">Select themes to include in your current tender analysis.</p>
+                        <p style="color: var(--text-muted); font-size: 0.85rem;">Select themes to include in your
+                            current tender analysis.</p>
                     </div>
-                    <button class="btn btn-primary" onclick="addGlobalTheme()"><i data-lucide="plus" size="16"></i> Add Theme</button>
+                    <button class="btn btn-primary" onclick="addGlobalTheme()"><i data-lucide="plus" size="16"></i> Add
+                        Theme</button>
                 </div>
                 <div class="themes-grid" id="themes-grid">
                     <!-- Populated by renderWinThemes() -->
@@ -2511,7 +2772,8 @@
                 <div class="view-header">
                     <div>
                         <h2>Version History</h2>
-                        <p style="color: var(--text-muted); font-size: 0.875rem;">Manage snapshots and revert to previous states of this tender.</p>
+                        <p style="color: var(--text-muted); font-size: 0.875rem;">Manage snapshots and revert to
+                            previous states of this tender.</p>
                     </div>
                     <button class="btn btn-primary" onclick="createManualCheckpoint()">
                         <i data-lucide="save" size="16"></i> Create Checkpoint
@@ -2529,11 +2791,14 @@
                 <div class="view-header">
                     <div>
                         <h2>Team & Expertise</h2>
-                        <p style="color: var(--text-muted); font-size: 0.85rem;">Assign global experts to the current project.</p>
+                        <p style="color: var(--text-muted); font-size: 0.85rem;">Assign global experts to the current
+                            project.</p>
                     </div>
-                    <button class="btn btn-primary" onclick="addGlobalTeamMember()"><i data-lucide="user-plus" size="16"></i> Add Expert</button>
+                    <button class="btn btn-primary" onclick="addGlobalTeamMember()"><i data-lucide="user-plus"
+                            size="16"></i> Add Expert</button>
                 </div>
-                <div class="team-grid" id="team-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
+                <div class="team-grid" id="team-grid"
+                    style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
                     <!-- Populated by renderTeam() -->
                 </div>
             </div>
@@ -2646,13 +2911,15 @@
                                 <button class="icon-btn" title="Redo (Ctrl+Shift+Z)" onclick="redo()"><i
                                         data-lucide="redo" size="14"></i></button>
                             </div>
-                             <div class="divider"></div>
+                            <div class="divider"></div>
                             <div class="toolbar-group">
-                                <button class="btn btn-ghost btn-sm" onclick="addComponent('text')" data-tooltip="Insert new resizable text box">
+                                <button class="btn btn-ghost btn-sm" onclick="addComponent('text')"
+                                    data-tooltip="Insert new resizable text box">
                                     <i data-lucide="plus" size="12"></i>
                                     <i data-lucide="type" size="14"></i> <span>Text</span>
                                 </button>
-                                <button class="btn btn-ghost btn-sm" onclick="triggerImageUpload()" data-tooltip="Upload and add image to slide">
+                                <button class="btn btn-ghost btn-sm" onclick="triggerImageUpload()"
+                                    data-tooltip="Upload and add image to slide">
                                     <i data-lucide="plus" size="12"></i>
                                     <i data-lucide="image" size="14"></i> <span>Image</span>
                                 </button>
@@ -2661,10 +2928,10 @@
                             <div class="toolbar-group">
                                 <button class="icon-btn" data-tooltip="Choose from slide templates"
                                     onclick="openArchetypeModal()"><i data-lucide="plus-square" size="14"></i></button>
-                                <button class="icon-btn" data-tooltip="Duplicate current slide" onclick="duplicateActiveSlide()"><i
-                                        data-lucide="copy" size="14"></i></button>
-                                <button class="icon-btn" data-tooltip="Toggle Light/Dark Theme" onclick="toggleSlideTheme()"><i
-                                        data-lucide="palette" size="14"></i></button>
+                                <button class="icon-btn" data-tooltip="Duplicate current slide"
+                                    onclick="duplicateActiveSlide()"><i data-lucide="copy" size="14"></i></button>
+                                <button class="icon-btn" data-tooltip="Toggle Light/Dark Theme"
+                                    onclick="toggleSlideTheme()"><i data-lucide="palette" size="14"></i></button>
                             </div>
                             <div class="divider"></div>
                             <div class="toolbar-group">
@@ -2766,6 +3033,7 @@
 
         <!-- Right Panel (AI Suggestions) -->
         <aside class="slide-panel" id="slide-panel">
+            <div id="resize-handle" class="resize-handle"></div>
             <div class="panel-header">
                 <h3 style="font-size: 0.8125rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;"><i
                         data-lucide="wand-2" size="14" style="vertical-align: -2px;"></i> AI Suggestions</h3>
@@ -2820,20 +3088,24 @@
             </div>
             <div class="form-group" style="display: none;">
                 <label>Email Address</label>
-                <input type="email" id="login-email" class="form-control" placeholder="name@mediaone.com.sg" value="kenneth@mediaone.com.sg">
+                <input type="email" id="login-email" class="form-control" placeholder="name@mediaone.com.sg"
+                    value="kenneth@mediaone.com.sg">
             </div>
             <div class="form-group" style="display: none;">
                 <label>Password</label>
                 <input type="password" id="login-pass" class="form-control" placeholder="••••••••" value="password">
             </div>
-            
-            <div id="googleSignInButton" style="display: flex; justify-content: center; margin: 2rem 0;"></div>
-            
-            <div id="loginError" style="color: var(--danger); font-size: 0.8rem; text-align: center; margin-top: 1rem;"></div>
 
-            <button class="btn btn-primary" style="width: 100%; height: 48px; font-size: 1rem; display: none;" onclick="login()">Sign In</button>
+            <div id="googleSignInButton" style="display: flex; justify-content: center; margin: 2rem 0;"></div>
+
+            <div id="loginError" style="color: var(--danger); font-size: 0.8rem; text-align: center; margin-top: 1rem;">
+            </div>
+
+            <button class="btn btn-primary" style="width: 100%; height: 48px; font-size: 1rem; display: none;"
+                onclick="login()">Sign In</button>
             <div style="text-align: center; margin-top: 1.5rem;">
-                <p style="font-size: 0.75rem;">Don't have an account? <a href="#" style="color: var(--primary); font-weight: 600;">Contact IT</a></p>
+                <p style="font-size: 0.75rem;">Don't have an account? <a href="#"
+                        style="color: var(--primary); font-weight: 600;">Contact IT</a></p>
             </div>
         </div>
     </div>
@@ -2841,6 +3113,10 @@
     <!-- History Modal -->
     <div id="history-modal" class="modal-overlay" style="display: none;">
         <!-- Deprecated: Now using Sidebar View -->
+    </div>
+    <div class="loading-overlay" id="global-loader">
+        <div class="spinner"></div>
+        <p>Syncing Workspace...</p>
     </div>
 
     <div class="modal-overlay" id="new-tender-modal">
@@ -2900,8 +3176,10 @@
     </div>
 
     <script>
-        // --- Configuration ---
         const API_BASE_URL = 'https://2zsxqwth46.execute-api.ap-southeast-1.amazonaws.com/claude';
+        const PERSISTENCE_API_URL = 'https://tsiv6ub9g2.execute-api.ap-southeast-1.amazonaws.com/tenderPersistence';
+        let selectedTeamIds = [];
+        let selectedThemeIds = [];
 
         const DEFAULT_MASTER_PROMPT = `Create a polished corporate tender proposal deck in the style of a premium strategy and performance agency (MediaOne). 
 
@@ -3218,7 +3496,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             const duplicate = JSON.parse(JSON.stringify(original));
             duplicate.id = Date.now();
             duplicate.title += " (Copy)";
-            
+
             slidesData.splice(activeSlideIndex + 1, 0, duplicate);
             activeSlideIndex++;
             renderThumbnails();
@@ -3438,7 +3716,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                         deleteComponent(selectedElementId);
                         return;
                     }
-                    
+
                     // Only delete slide if the user is focused on the rail or specifically no element is selected
                     // and we are NOT in a state where an element was recently active.
                     // To be safe, we'll only allow rail-based deletion via shortcuts if the rail was the last clicked thing.
@@ -3609,7 +3887,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             overview.addEventListener('drop', (e) => {
                 dragCounter = 0;
                 overlay.classList.remove('active');
-                
+
                 const files = e.dataTransfer.files;
                 if (!files.length) return;
 
@@ -3619,50 +3897,165 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             });
         }
 
-        function addPendingFile(file) {
+        async function addPendingFile(file) {
+            // Auto-create project if none selected so the user sees progress immediately
+            ensureProjectExists();
+
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 const id = Date.now() + Math.random();
-                pendingFiles.push({ id, file, base64: e.target.result });
+                const pf = { 
+                    id, 
+                    file, 
+                    base64: e.target.result,
+                    status: 'processing' 
+                };
+                pendingFiles.push(pf);
                 renderPreviews();
+
+                // Process in background
+                processFileInBackground(pf);
             };
             reader.readAsDataURL(file);
         }
 
-        function renderPreviews() {
-            const container = document.getElementById('file-previews');
-            container.innerHTML = pendingFiles.map(pf => `
-                <div class="file-preview-item" onclick="showMediaPreview('${pf.base64.replace(/'/g, "\\'")}', '${pf.file.name.replace(/'/g, "\\'")}', '${pf.file.type}')">
-                    <button class="remove-preview" onclick="event.stopPropagation(); removePendingFile(${pf.id})">×</button>
-                    ${pf.file.type.startsWith('image/')
-                    ? `<img src="${pf.base64}">`
-                    : `<div class="file-icon"><i data-lucide="file" size="24"></i></div>`}
-                </div>
-            `).join('');
-            lucide.createIcons();
+        async function processFileInBackground(pf) {
+            try {
+                const content = await addFileToSidebar(pf.file, 'tender', pf.base64);
+                pf.status = 'done';
+                
+                // AI Rename logic: if this is the first file and project is still a Draft
+                const project = projects.find(p => p.id === currentProjectId);
+                if (project && project.name.startsWith('Draft Tender') && project.docs.length === 1) {
+                    renameProjectWithAI(project.id, content);
+                }
+            } catch (err) {
+                console.error("Failed to process file:", pf.file.name, err);
+                pf.status = 'error';
+                showToast(`Failed to extract text from ${pf.file.name}`);
+            }
+            renderPreviews();
         }
 
-        function showMediaPreview(base64, name, type) {
+        async function renameProjectWithAI(projectId, content) {
+            const project = projects.find(p => p.id === projectId);
+            if (!project || project.name !== "Draft Tender") return;
+
+            console.log("Requesting AI rename for project:", projectId);
+            try {
+                const response = await fetch('https://2zsxqwth46.execute-api.ap-southeast-1.amazonaws.com/claude', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: `Based on the following document content, suggest a short, professional project name for this tender (e.g., "Client Name - Service Type"). Return ONLY the name, nothing else. Document snippet: ${content.substring(0, 2000)}`,
+                        history: [],
+                        docsContext: ""
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const suggestedName = data.response.trim().replace(/^"|"$/g, '');
+                    if (project) {
+                        project.name = suggestedName;
+                        saveProjects();
+                        renderProjectList();
+                        if (currentProjectId === projectId) {
+                            document.getElementById('active-project-title').innerText = project.name;
+                        }
+                        console.log("Project renamed to:", suggestedName);
+                    }
+                }
+            } catch (err) {
+                console.warn("AI Rename failed:", err);
+            }
+        }
+
+        async function showMediaPreview(base64, name, type) {
+            let activeBase64 = base64;
+            
+            // If base64 is missing (deduplicated in history), try to find it in the project docs
+            if (!activeBase64) {
+                const current = projects.find(p => p.id === currentProjectId);
+                if (current && current.docs) {
+                    const doc = current.docs.find(d => d.name === name);
+                    if (doc) activeBase64 = doc.base64;
+                }
+            }
+
+            if (!activeBase64) {
+                alert('File content not available for preview. It may have been removed or not fully uploaded.');
+                return;
+            }
+            
             const modal = document.getElementById('media-preview-modal');
             const content = document.getElementById('media-preview-content');
             const title = document.getElementById('media-preview-title');
 
-            if (type.startsWith('image/')) {
-                content.innerHTML = `<img src="${base64}" style="max-width: 100%; max-height: 70vh; border-radius: var(--radius-lg); box-shadow: var(--shadow-xl);">`;
-            } else {
-                content.innerHTML = `
-                    <div style="text-align: center;">
-                        <div style="width: 80px; height: 80px; background: var(--bg-app); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; color: var(--primary);">
-                            <i data-lucide="file-text" size="40"></i>
-                        </div>
-                        <p style="color: var(--text-muted);">Preview not available for this file type.</p>
-                    </div>
-                `;
-            }
-
             title.innerText = name;
             modal.classList.add('active');
+            content.innerHTML = '<div class="preview-spinner spin"></div>'; // Loading state
+
+            try {
+                if (type.startsWith('image/')) {
+                    content.innerHTML = `<img src="${activeBase64}" style="max-width: 100%; max-height: 70vh; border-radius: var(--radius-lg); box-shadow: var(--shadow-xl);">`;
+                } else if (type === 'application/pdf') {
+                    content.innerHTML = `<iframe src="${activeBase64}" style="width: 100%; height: 70vh; border: none; border-radius: var(--radius-lg);"></iframe>`;
+                } else if (type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                    const arrayBuffer = base64ToArrayBuffer(activeBase64.split(',')[1]);
+                    const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
+                    content.innerHTML = `<div class="docx-preview" style="padding: 2.5rem; background: #fff; border-radius: var(--radius-lg); max-height: 70vh; overflow-y: auto; text-align: left; color: var(--text-main); font-family: 'Inter', sans-serif; line-height: 1.6;">${result.value || '<p>Empty document.</p>'}</div>`;
+                } else if (type === 'text/csv' || type === 'text/plain' || type === 'application/json') {
+                    const text = atob(activeBase64.split(',')[1]);
+                    content.innerHTML = `<pre style="padding: 1.5rem; background: #1e293b; color: #e2e8f0; border-radius: var(--radius-lg); max-height: 70vh; overflow: auto; text-align: left; font-size: 0.8rem; font-family: monospace; white-space: pre-wrap; word-break: break-all;">${text}</pre>`;
+                } else if (type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || type === 'application/vnd.ms-excel') {
+                    // XLSX
+                    try {
+                        const arrayBuffer = base64ToArrayBuffer(activeBase64.split(',')[1]);
+                        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const html = XLSX.utils.sheet_to_html(worksheet, { header: '', footer: '' });
+                        content.innerHTML = `
+                            <div class="excel-preview" style="background: #fff; border-radius: var(--radius-lg); max-height: 70vh; overflow: auto; padding: 1rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: #15803d; font-size: 0.8rem; font-weight: 600;">
+                                    <i data-lucide="table" size="14"></i> Sheet: ${firstSheetName} (Preview)
+                                </div>
+                                <div class="message-content" style="font-size: 0.75rem;">${html}</div>
+                            </div>
+                        `;
+                    } catch (e) {
+                        content.innerHTML = `<p style="color: var(--danger);">Failed to render Excel file.</p>`;
+                    }
+                } else {
+                    content.innerHTML = `
+                        <div style="text-align: center; padding: 3rem;">
+                            <div style="width: 80px; height: 80px; background: var(--bg-app); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; color: var(--primary);">
+                                <i data-lucide="file-text" size="40"></i>
+                            </div>
+                            <p style="color: var(--text-main); font-weight: 600;">Preview limited for this type</p>
+                            <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem;">${name}</p>
+                            <a href="${activeBase64}" download="${name}" class="btn btn-primary" style="margin-top: 1.5rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem;">
+                                <i data-lucide="download" size="16"></i> Download to View
+                            </a>
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                console.error('Preview error:', err);
+                content.innerHTML = `<p style="color: var(--danger); padding: 2rem;">Error generating preview. You can still download the file to view it.</p>`;
+            }
             lucide.createIcons();
+        }
+
+        function base64ToArrayBuffer(base64) {
+            const binary_string = window.atob(base64);
+            const len = binary_string.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binary_string.charCodeAt(i);
+            }
+            return bytes.buffer;
         }
 
         function closeMediaPreview() {
@@ -3672,6 +4065,39 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         function removePendingFile(id) {
             pendingFiles = pendingFiles.filter(pf => pf.id !== id);
             renderPreviews();
+        }
+
+        function renderPreviews() {
+            const container = document.getElementById('file-previews');
+            if (!container) return;
+            
+            if (pendingFiles.length === 0) {
+                container.style.display = 'none';
+                container.innerHTML = '';
+                return;
+            }
+            
+            container.style.display = 'flex';
+            container.innerHTML = pendingFiles.map(pf => {
+                const isImage = pf.file.type.startsWith('image/');
+                const content = isImage && pf.base64 
+                    ? `<img src="${pf.base64}" onclick="showMediaPreview('${pf.base64}', '${pf.file.name}', '${pf.file.type}')">` 
+                    : `<div class="file-icon" onclick="showMediaPreview('${pf.base64 || ''}', '${pf.file.name}', '${pf.file.type}')">
+                        <i data-lucide="file-text"></i>
+                       </div>`;
+                
+                return `
+                    <div class="file-preview-item ${pf.status === 'processing' ? 'processing' : ''}">
+                        ${content}
+                        ${pf.status === 'processing' ? '<div class="preview-spinner"></div>' : ''}
+                        <button class="remove-preview" onclick="removePendingFile(${pf.id})">
+                            <i data-lucide="x" size="10"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+            
+            lucide.createIcons();
         }
 
         // --- Slide Management ---
@@ -3774,13 +4200,13 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             }
 
             const slide = slidesData[activeSlideIndex];
-            
+
             // Automatic theme detection (if not explicitly set)
             if (!slide.theme) {
                 const isDark = slide.title === slide.title.toUpperCase() || slide.title.includes('Section') || slide.title.includes('Divider');
                 slide.theme = isDark ? 'dark' : 'light';
             }
-            
+
             if (slide.theme === 'dark') {
                 canvas.classList.add('theme-dark');
             } else {
@@ -3832,7 +4258,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             }
 
             canvas.innerHTML = '';
-            
+
             // Add Logo (Fixed for all slides)
             const logo = document.createElement('div');
             logo.className = 'slide-logo';
@@ -3888,7 +4314,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                     selectElement(null);
                 }
             };
-            
+
             lucide.createIcons();
         }
 
@@ -3972,7 +4398,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             if (key === 'ArrowDown') comp.y += amount;
             if (key === 'ArrowLeft') comp.x -= amount;
             if (key === 'ArrowRight') comp.x += amount;
-            
+
             renderSlideCanvas();
             saveProjects();
         }
@@ -4125,6 +4551,10 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 slidePanel.classList.remove('visible');
             }
 
+            if (viewId === 'documents') {
+                renderDocGrid();
+            }
+
             // Optional: Auto-populate some views for demo purposes
             if (viewId === 'compliance' && slidesData.length > 0) {
                 populateComplianceDemo();
@@ -4163,35 +4593,100 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             `;
         }
 
+        function ensureProjectExists() {
+            if (!currentProjectId) {
+                const draftName = `Draft Tender ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                const newP = {
+                    id: Date.now(),
+                    name: draftName,
+                    client: "TBD",
+                    dueDate: "TBD",
+                    status: "New",
+                    masterPrompt: DEFAULT_MASTER_PROMPT,
+                    slides: [],
+                    team: [
+                        { id: 1, name: "Tom Koh", role: "Founder & Principal Consultant", initials: "TK", badge: "Director" },
+                        { id: 2, name: "June Goh", role: "Chief Operations Officer", initials: "JG", badge: "COO" },
+                        { id: 3, name: "Kenneth Cheong", role: "Lead Strategist / Project Lead", initials: "KC", badge: "Lead" }
+                    ],
+                    docs: [],
+                    chatHistory: [],
+                    lastModifiedBy: currentUser?.name || "System",
+                    lastModifiedAt: new Date().toISOString()
+                };
+                projects.push(newP);
+                currentProjectId = newP.id;
+                saveProjects();
+                renderProjectList();
+                
+                // Update UI state
+                document.getElementById('active-project-title').innerText = newP.name;
+                document.getElementById('active-project-status').innerText = newP.status;
+                
+                // Show file list (empty)
+                updateSidebarFileList();
+                
+                console.log("Auto-created new project context:", newP.id);
+            }
+        }
+
         // --- Real API Interactions ---
-        function sendMessage() {
+        async function sendMessage() {
             const input = document.getElementById('chat-input');
             const text = input.value.trim();
             if ((!text && pendingFiles.length === 0) || isProcessing) return;
 
-            // Prepare combined message
-            let chatText = text;
-            if (pendingFiles.length > 0) {
-                const filenames = pendingFiles.map(pf => `[${pf.file.name}]`).join(', ');
-                chatText += text ? `\n\n*(Attached: ${filenames})*` : `*(Attached: ${filenames})*`;
+
+            // Check if any files are still processing
+            if (pendingFiles.some(pf => pf.status === 'processing')) {
+                showToast("Please wait for files to finish processing...");
+                return;
             }
 
-            addChatMessage(chatText, 'user');
+            // Auto-create project if none selected
+            ensureProjectExists();
 
-            // Send files as well
+            // Capture files before clearing pendingFiles
             const filesToSend = [...pendingFiles];
 
-            // Auto-add to project knowledge base (sidebar)
-            filesToSend.forEach(f => {
-                addFileToSidebar(f.file.name, f.file.type);
-            });
+            // Add User message with attachments
+            const attachments = filesToSend.map(pf => ({
+                name: pf.file.name,
+                type: pf.file.type,
+                base64: pf.base64
+            }));
+
+            addChatMessage(text, 'user', null, attachments);
 
             input.value = '';
             input.style.height = 'auto';
             pendingFiles = [];
             renderPreviews();
 
+            // NOTE: Files are already added to sidebar in addPendingFile/processFileInBackground
             callClaudeAPI(text, filesToSend);
+        }
+
+        async function extractText(file) {
+            const ext = file.name.split('.').pop().toLowerCase();
+            const arrayBuffer = await file.arrayBuffer();
+
+            if (ext === 'pdf') {
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                let fullText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    fullText += content.items.map(s => s.str).join(' ') + '\n';
+                }
+                return fullText;
+            } else if (ext === 'docx') {
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                return result.value;
+            } else if (['txt', 'csv', 'md'].includes(ext)) {
+                return await file.text();
+            }
+            return "";
         }
 
         async function callClaudeAPI(userInput, files = []) {
@@ -4213,16 +4708,30 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 if (projectDocs) {
                     fullPrompt += `PROJECT KNOWLEDGE BASE (Uploaded Documents): ${projectDocs}\n\n`;
                 }
-                
+
                 // Capture current visual DNA to maintain consistency
                 const existingStyles = slidesData.slice(-3).map(s => ({ title: s.title, theme: s.theme }));
                 fullPrompt += `VISUAL DNA (Consistency Required):\nThe current deck uses these styles: ${JSON.stringify(existingStyles)}. Ensure new slides match existing themes.\n\n`;
-                
+
                 fullPrompt += `User Input: ${userInput}`;
                 fullPrompt += `\n\nACTION CAPABILITY: If you want to suggest creating a new slide or updating a slide based on the user's request, you MUST include a JSON block at the end of your response in the format: [SLIDE_JSON: {"title": "Slide Title", "body": "Slide Content HTML", "theme": "light/dark"}]. This will automatically trigger the creation in the editor.`;
-                
+
+                if (current && current.name && current.name.startsWith('Draft Tender')) {
+                    fullPrompt += `\n\nIDENTIFICATION: Since this project is currently named "${current.name}", please analyze the uploaded documents and identify the official Tender Name and Client. Suggest a formal project name at the end of your response in the format: [PROJECT_NAME: "Tender Name - Client Name"].`;
+                }
+
                 if (files.length > 0) {
-                    fullPrompt += "\n\nUser has attached files/images. Please analyze the content of these attachments to provide your response.";
+                    fullPrompt += "\n\nUser has attached files. Analyzing content...";
+                    for (const f of files) {
+                        try {
+                            const content = await extractText(f.file);
+                            if (content) {
+                                fullPrompt += `\n\n--- CONTENT OF ${f.file.name} ---\n${content}\n--- END OF ${f.file.name} ---`;
+                            }
+                        } catch (err) {
+                            console.error(`Failed to extract text from ${f.file.name}:`, err);
+                        }
+                    }
                 }
 
                 const response = await fetch(API_BASE_URL, {
@@ -4275,18 +4784,32 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                     };
                     slidesData.push(newSlide);
                     activeSlideIndex = slidesData.length - 1;
-                    
+
                     renderThumbnails();
                     updateEditorState();
                     saveProjects();
-                    
+
                     // Switch to editor
                     const editorNav = document.querySelector('a.nav-item[onclick*="slide-editor"]');
                     switchView('slide-editor', editorNav);
-                    
+
                     addChatMessage(`I've added the **${newSlide.title}** to your deck in the editor.`, 'ai');
                 } catch (e) {
                     console.warn("Failed to parse AI slide JSON", e);
+                }
+            }
+
+            // Check for Project Renaming
+            const nameMatch = responseText.match(/\[PROJECT_NAME:\s*["']?([^"\]']+)["']?\]/);
+            if (nameMatch) {
+                const newName = nameMatch[1].trim();
+                const current = projects.find(p => p.id === currentProjectId);
+                if (current && (current.name.startsWith('Draft Tender') || current.name === "New Project")) {
+                    current.name = newName;
+                    document.getElementById('active-project-title').innerText = newName;
+                    renderProjectList();
+                    saveProjects();
+                    addChatMessage(`Project identified: I've renamed this tender to **${newName}**.`, 'ai');
                 }
             }
 
@@ -4325,23 +4848,36 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 for (let i = 0; i < files.length; i++) {
                     addPendingFile(files[i]);
                 }
-                
+
                 // Reset value to allow re-uploading same file if removed
                 fileInput.value = '';
             };
         }
 
-        function addFileToSidebar(name, type, category = 'tender') {
+        async function addFileToSidebar(file, category = 'tender', base64 = null) {
+            let extractedContent = "";
             const current = projects.find(p => p.id === currentProjectId);
             if (current) {
                 // Prevent duplicates
-                if (!current.docs.find(d => d.name === name)) {
-                    current.docs.push({ name, type, category, date: new Date().toLocaleDateString() });
+                const existing = current.docs.find(d => d.name === file.name);
+                if (!existing) {
+                    extractedContent = await extractText(file);
+                    current.docs.push({
+                        name: file.name,
+                        type: file.type,
+                        base64: base64, // Store the content for previews
+                        category,
+                        date: new Date().toLocaleDateString(),
+                        content: extractedContent
+                    });
                     saveProjects();
+                } else {
+                    extractedContent = existing.content;
                 }
             }
             updateSidebarFileList();
             renderDocGrid();
+            return extractedContent;
         }
 
         function updateSidebarFileList() {
@@ -4355,7 +4891,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             }
 
             sideList.innerHTML = current.docs.map(f => `
-                <div class="file-item">
+                <div class="file-item" onclick="showMediaPreview('${f.base64 || ''}', '${f.name}', '${f.type}')" style="cursor: pointer;">
                     <i data-lucide="${f.category === 'submission' ? 'file-check' : 'file-text'}" size="14"></i>
                     <span>${f.name}</span>
                 </div>
@@ -4366,15 +4902,40 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
 
         // --- UI Helper Functions ---
-        function addChatMessage(text, type, card = null) {
+        function addChatMessage(text, type, card = null, attachments = [], skipSave = false) {
             const container = document.getElementById('chat-messages');
             const msgDiv = document.createElement('div');
             msgDiv.className = `message message-${type}`;
-            
+
             // Render Markdown if it's an AI message
             const renderedContent = type === 'ai' ? marked.parse(text) : text;
-            
+
             let html = `<div class="message-content">${renderedContent}</div>`;
+            
+            if (attachments && attachments.length > 0) {
+                html += `<div class="chat-attachment-grid">`;
+                attachments.forEach(att => {
+                    const isImage = att.type.startsWith('image/');
+                    if (isImage && att.base64) {
+                        html += `
+                            <div class="chat-attachment-item" onclick="showMediaPreview('${att.base64}', '${att.name}', '${att.type}')">
+                                <img src="${att.base64}" alt="${att.name}">
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="chat-attachment-item" onclick="showMediaPreview('${att.base64 || ''}', '${att.name}', '${att.type}')">
+                                <div class="file-card">
+                                    <i data-lucide="file-text" size="24"></i>
+                                    <span title="${att.name}">${att.name}</span>
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+                html += `</div>`;
+            }
+
             if (card) {
                 html += `<div class="ai-card"><div class="ai-card-title"><i data-lucide="${card.icon}" size="16"></i> ${card.title}</div>${card.content}</div>`;
             }
@@ -4382,6 +4943,16 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             container.appendChild(msgDiv);
             container.scrollTop = container.scrollHeight;
             lucide.createIcons();
+
+            // Persist to project history
+            if (!skipSave) {
+                const current = projects.find(p => p.id === currentProjectId);
+                if (current) {
+                    if (!current.chatHistory) current.chatHistory = [];
+                    current.chatHistory.push({ text, type, card, attachments, timestamp: new Date().toISOString() });
+                    saveProjects();
+                }
+            }
         }
 
         function setupProjectActions() {
@@ -4393,35 +4964,47 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
             const btn = document.querySelector('.btn-primary:has(#generate-btn-text)');
             const text = document.getElementById('generate-btn-text');
+            const current = projects.find(p => p.id === currentProjectId);
+            
+            if (!current) {
+                showToast("No active project selected");
+                return;
+            }
 
-            isProcessing = true;
-            text.innerText = 'AI is Drafting...';
-            btn.classList.add('loading');
+            if (text) text.innerText = "AI is Drafting...";
+            if (btn) btn.disabled = true;
 
             try {
-                const current = projects.find(p => p.id === currentProjectId);
-                const persona = current?.masterPrompt || DEFAULT_MASTER_PROMPT;
-                const urls = (current?.referenceUrls || []).map(u => u.url).join(', ');
-                const docs = (current?.docs || []).map(d => d.name).join(', ');
-                
-                // Capture existing design patterns
-                const existingPatterns = slidesData.map(s => ({ title: s.title, theme: s.theme }));
-                
-                const prompt = `Based on the following context, generate a high-impact 8-slide tender response deck.
-                Context URLs: ${urls || 'None provided'}
-                Attached Documents: ${docs || 'None provided'}
-                System Persona: ${persona}
-                
-                EXISTING DECK STYLE (Maintain Consistency): ${JSON.stringify(existingPatterns)}
+                // Build document context with truncation to stay within LLM limits
+                const docsContext = current.docs.map(d => 
+                    `[DOCUMENT: ${d.name}]\n${d.content ? d.content.substring(0, 15000) : "No text content available."}`
+                ).join('\n\n');
 
-                STRATEGIC STRUCTURE:
-                Slide 1: Title/Cover Slide (High impact)
-                Slide 2: Executive Summary
-                Slide 3: Win Themes & Strategic Pillars
-                Slide 4: Current State Analysis (Audit)
-                Slide 5: Proposed Strategic Framework
-                Slide 6: Implementation Roadmap & Timeline
-                Slide 7: Team Credibility & Governance
+                const conversationContext = current.chatHistory.map(m => 
+                    `${m.type === 'user' ? 'USER' : 'AI'}: ${m.text}`
+                ).join('\n');
+
+                const prompt = `You are a world-class tender consultant. Draft a compelling tender response deck based on the provided context.
+                
+                ### ATTACHED DOCUMENTS CONTENT (CRITICAL KNOWLEDGE)
+                ${docsContext}
+
+                ### PREVIOUS CONVERSATION HISTORY
+                ${conversationContext}
+
+                ### INSTRUCTIONS
+                1. Use the specific company name, project scope, and requirements found in the documents.
+                2. If the user mentioned specific themes or value adds in the chat, prioritize them.
+                3. The slides MUST be professional, strategic, and persuasive.
+                
+                Structure exactly 8 slides:
+                Slide 1: Cover Slide (Project Title & Client)
+                Slide 2: Executive Summary (Key Value Proposition)
+                Slide 3: Our Understanding (Client Needs & Challenges)
+                Slide 4: Proposed Solution Architecture
+                Slide 5: Strategic Win Themes (Why Us)
+                Slide 6: Team Expertise & Experience
+                Slide 7: Implementation Timeline & Phases
                 Slide 8: Commercial Investment Summary
 
                 Output ONLY a JSON array of slide objects. Each object MUST have: "title", "body" (HTML strings), and "theme" ("light" or "dark").
@@ -4437,9 +5020,11 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                     })
                 });
 
+                if (!response.ok) throw new Error("API request failed");
+
                 const data = await response.json();
                 let slides = [];
-                
+
                 try {
                     // Try to extract JSON from the AI response if it's wrapped in text
                     const jsonMatch = data.ai_response.match(/\[[\s\S]*\]/);
@@ -4470,15 +5055,16 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             } catch (error) {
                 console.error("Slide Generation Error:", error);
                 addChatMessage("Error generating slides. Falling back to template.", 'ai');
-                slidesData.push(...MOCK_SLIDES);
+                slidesData.length = 0;
+                MOCK_SLIDES.forEach(s => slidesData.push({...s}));
                 renderThumbnails();
                 updateEditorState();
             } finally {
-                text.innerText = 'Generate Slides';
-                btn.classList.remove('loading');
-                isProcessing = false;
+                if (text) text.innerText = "Regenerate Deck";
+                if (btn) btn.disabled = false;
             }
         }
+
 
         function askAItoRewrite() {
             const currentContent = document.getElementById('current-slide-body').innerText;
@@ -4570,10 +5156,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
         // --- Project Persistence & Switching ---
         function initProjects() {
-            // No longer loading from localStorage.
-            // If projects is empty, we wait for the cloud fetch in checkAuth() -> fetchProjectsFromCloud()
             if (projects.length === 0) {
-                // Show a placeholder or empty state if needed
                 renderProjectList();
             } else {
                 renderProjectList();
@@ -4590,30 +5173,125 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 current.lastModifiedBy = currentUser?.name || "System";
                 current.lastModifiedAt = new Date().toISOString();
             }
-            
-            // Local storage removed as requested - everything synced to cloud
-            
+
             if (currentUser) {
                 updateCloudStatus('syncing');
                 try {
-                    await fetch(API_BASE_URL, {
+                    const userId = currentUser.email || 'mediaone_global_workspace';
+                    
+                    // CRITICAL: Deduplicate payload to avoid 10MB limit
+                    const sanitizedProjects = projects.map(p => {
+                        const newP = JSON.parse(JSON.stringify(p)); // Deep clone
+                        if (newP.chatHistory) {
+                            newP.chatHistory.forEach(msg => {
+                                if (msg.attachments) {
+                                    msg.attachments.forEach(att => {
+                                        const existsInDocs = p.docs.find(d => d.name === att.name);
+                                        if (existsInDocs) {
+                                            delete att.base64; // Reference only
+                                            att.isDocReference = true;
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                        return newP;
+                    });
+
+                    const payload = {
+                        action: 'save_projects',
+                        data: {
+                            userId: userId,
+                            projects: sanitizedProjects,
+                            globalTeam: teamData,
+                            globalThemes: [],
+                            proofBank: getProofBank()
+                        }
+                    };
+
+                    const payloadSize = JSON.stringify(payload).length;
+                    console.log(`Payload size: ${(payloadSize / 1024 / 1024).toFixed(2)} MB`);
+
+                    const response = await fetch(PERSISTENCE_API_URL, {
                         method: 'POST',
                         mode: 'cors',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'save_projects',
-                            userId: 'mediaone_global_workspace',
-                            projects: projects,
-                            globalTeam: globalTeamData,
-                            globalThemes: globalThemesData,
-                            proofBank: getProofBank() // Added to cloud sync
-                        })
+                        body: JSON.stringify(payload)
                     });
-                    updateCloudStatus('synced');
-                } catch (e) {
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`Cloud save failed (${response.status}):`, errorText);
+                        throw new Error(`Cloud save failed: ${response.status}`);
+                    }
+
+                    const rawData = await response.json();
+                    const responseData = (rawData && rawData.body) ? (typeof rawData.body === 'string' ? JSON.parse(rawData.body) : rawData.body) : rawData;
+                    
+                    if (responseData.success) {
+                        updateCloudStatus('synced');
+                        console.log('Cloud sync successful');
+                        return true;
+                    } else {
+                        throw new Error(responseData.error || 'Unknown server error');
+                    }
+                } catch (error) {
+                    console.error('Cloud save failed:', error);
                     updateCloudStatus('error');
+                    return false;
                 }
+            } else {
+                updateCloudStatus('synced'); // Local-only mode
+                return true;
             }
+        }
+
+        async function loadProject(projectId) {
+            currentProjectId = projectId;
+            const project = projects.find(p => p.id === projectId);
+            if (!project) return;
+
+            // Restore base64 references in chat history from docs
+            if (project.chatHistory) {
+                project.chatHistory.forEach(msg => {
+                    if (msg.attachments) {
+                        msg.attachments.forEach(att => {
+                            if (!att.base64) {
+                                const doc = project.docs.find(d => d.name === att.name);
+                                if (doc) att.base64 = doc.base64;
+                            }
+                        });
+                    }
+                });
+            }
+
+            // Update state
+            slidesData.length = 0;
+            (project.slides || []).forEach(s => slidesData.push({...s}));
+            selectedTeamIds = [...(project.selectedTeamIds || [])];
+            selectedThemeIds = [...(project.selectedThemeIds || [])];
+
+            // Update UI
+            document.getElementById('active-project-title').innerText = project.name;
+            document.getElementById('active-project-status').innerText = project.status || 'Draft';
+            
+            renderThumbnails();
+            updateSidebarFileList();
+            renderDocGrid();
+            updateValueAddScorecard();
+            updateDeckCompleteness();
+            
+            // Render chat history
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) {
+                chatMessages.innerHTML = '';
+                (project.chatHistory || []).forEach(msg => {
+                    addChatMessage(msg.text, msg.type, msg.card, msg.attachments, true);
+                });
+            }
+            
+            // Update navigation highlights
+            renderProjectList();
         }
 
         function updateCloudStatus(status) {
@@ -4643,23 +5321,23 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ credential: response.credential })
             })
-            .then(res => res.json())
-            .then(data => {
-                if (data.body.success) {
-                    currentUser = data.body.user;
-                    localStorage.setItem('tender_user', JSON.stringify(currentUser));
-                    document.getElementById('login-overlay').classList.remove('active');
-                    updateUserProfile();
-                    addChatMessage(`Welcome back, ${currentUser.name}!`, 'ai');
-                    location.reload(); // Refresh to ensure everything loads with user context
-                } else {
-                    document.getElementById('loginError').textContent = data.message || "Google login failed.";
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                document.getElementById('loginError').textContent = "An error occurred during sign-in.";
-            });
+                .then(res => res.json())
+                .then(data => {
+                    if (data.body.success) {
+                        currentUser = data.body.user;
+                        localStorage.setItem('tender_user', JSON.stringify(currentUser));
+                        document.getElementById('login-overlay').classList.remove('active');
+                        updateUserProfile();
+                        addChatMessage(`Welcome back, ${currentUser.name}!`, 'ai');
+                        location.reload(); // Refresh to ensure everything loads with user context
+                    } else {
+                        document.getElementById('loginError').textContent = data.message || "Google login failed.";
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('loginError').textContent = "An error occurred during sign-in.";
+                });
         }
 
         function checkAuth() {
@@ -4667,7 +5345,6 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             if (storedUser) {
                 currentUser = JSON.parse(storedUser);
                 updateUserProfile();
-                initApp();
                 fetchProjectsFromCloud();
                 return true;
             } else {
@@ -4700,14 +5377,14 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
         function updateUserProfile() {
             if (!currentUser) return;
-            
+
             // Fallbacks for Google Data
             const name = currentUser.name || "User";
             const initials = currentUser.initials || name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
             const picture = currentUser.picture; // Google profile img
 
             document.getElementById('header-username').innerText = name;
-            
+
             const avatarEl = document.getElementById('header-avatar');
             if (picture) {
                 avatarEl.innerHTML = `<img src="${picture}" style="width:100%; height:100%; border-radius:50%; object-fit:cover;" />`;
@@ -4717,45 +5394,75 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                 avatarEl.style.background = "var(--primary)";
             }
         }
+        function toggleLoader(show, text = "Syncing Workspace...") {
+            const loader = document.getElementById('global-loader');
+            if (!loader) return;
+            loader.querySelector('p').innerText = text;
+            if (show) loader.classList.add('active');
+            else loader.classList.remove('active');
+        }
 
         // --- Version Control ---
         async function fetchProjectsFromCloud() {
             if (!currentUser) return;
 
             updateCloudStatus('syncing');
+            toggleLoader(true, "Fetching Cloud Data...");
             try {
-                const response = await fetch(API_BASE_URL, {
+                const userId = currentUser.email || 'mediaone_global_workspace';
+                const payload = {
+                    action: 'fetch_projects',
+                    data: {
+                        userId: userId
+                    }
+                };
+                console.log("Fetching projects with payload:", payload);
+
+                const response = await fetch(PERSISTENCE_API_URL, {
                     method: 'POST',
                     mode: 'cors',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'load_projects',
-                        userId: 'mediaone_global_workspace'
-                    })
+                    body: JSON.stringify(payload)
                 });
 
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data && data.projects) {
-                        projects = data.projects;
-                        // Populate Proof Bank from cloud if available
-                        if (data.proofBank) {
-                            proofBankData = data.proofBank;
-                            renderProofBank();
-                        }
-                        
-                        // Local storage removed
-                        renderProjectList();
-                        updateCloudStatus('synced');
-                        
-                        if (!currentProjectId && projects.length > 0) {
-                            switchProject(projects[0].id);
-                        }
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`Cloud fetch failed (${response.status}):`, errorText);
+                    // If it's a 404 or 400 with "No projects found", it's not a fatal error
+                    if (response.status === 404 || errorText.includes('No projects found')) {
+                        updateCloudStatus('neutral');
+                        return;
+                    }
+                    throw new Error(`Cloud fetch failed: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('Raw Cloud Fetch Response:', data);
+
+                // Handle both direct response and Lambda proxy response
+                const result = (data && data.body) ? (typeof data.body === 'string' ? JSON.parse(data.body) : data.body) : data;
+                console.log('Parsed Cloud Fetch Result:', result);
+
+                if (result && result.projects) {
+                    projects = result.projects;
+                    // Populate Proof Bank from cloud if available
+                    if (result.proofBank) {
+                        proofBankData = result.proofBank;
+                        renderProofBank();
+                    }
+
+                    renderProjectList();
+                    updateCloudStatus('synced');
+
+                    if (!currentProjectId && projects.length > 0) {
+                        switchProject(projects[0].id);
                     }
                 }
             } catch (e) {
                 console.error("Cloud Fetch Error:", e);
                 updateCloudStatus('error');
+            } finally {
+                toggleLoader(false);
             }
         }
 
@@ -4764,7 +5471,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             if (!current) return;
 
             if (!current.revisions) current.revisions = [];
-            
+
             const revision = {
                 id: Date.now(),
                 timestamp: new Date().toISOString(),
@@ -4815,12 +5522,12 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
         function restoreRevision(id) {
             if (!confirm("Are you sure you want to restore this version? Current unsaved changes will be lost.")) return;
-            
+
             const current = projects.find(p => p.id === currentProjectId);
             const revision = current.revisions.find(r => r.id === id);
-            
+
             if (revision) {
-                saveRevision("Auto-save before restore"); 
+                saveRevision("Auto-save before restore");
                 slidesData.length = 0;
                 revision.snapshot.forEach(s => slidesData.push(s));
                 renderThumbnails();
@@ -4883,17 +5590,18 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
         function renderProjectList() {
             const list = document.getElementById('sidebar-project-list');
-            if (!list) return;
-            list.innerHTML = projects.map(p => `
-                <div class="project-sidebar-item ${p.id === currentProjectId ? 'active' : ''}" onclick="switchProject(${p.id})">
-                    <div class="project-name-wrapper">
-                        <i data-lucide="folder" size="14"></i>
-                        <span>${p.name}</span>
+            if (list) {
+                list.innerHTML = projects.map(p => `
+                    <div class="project-sidebar-item ${p.id === currentProjectId ? 'active' : ''}" onclick="switchProject(${p.id})">
+                        <div class="project-name-wrapper">
+                            <i data-lucide="folder" size="14"></i>
+                            <span>${p.name}</span>
+                        </div>
+                        ${p.id === currentProjectId ? '<i data-lucide="check" size="12"></i>' : ''}
                     </div>
-                    ${p.id === currentProjectId ? '<i data-lucide="check" size="12"></i>' : ''}
-                </div>
-            `).join('');
-            lucide.createIcons();
+                `).join('');
+                lucide.createIcons();
+            }
             renderAllProjectsDashboard();
         }
 
@@ -4974,7 +5682,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             document.getElementById('modal-due-date').value = '';
         }
 
-        function confirmCreateTender() {
+        async function confirmCreateTender() {
             const name = document.getElementById('modal-project-name').value;
             const client = document.getElementById('modal-client-name').value;
             const dueDate = document.getElementById('modal-due-date').value;
@@ -4998,20 +5706,21 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                     { id: 3, name: "Kenneth Cheong", role: "Lead Strategist / Project Lead", initials: "KC", badge: "Lead" }
                 ],
                 docs: [],
+                chatHistory: [],
                 lastModifiedBy: currentUser?.name || "System",
                 lastModifiedAt: new Date().toISOString()
             };
 
             projects.push(newP);
-            saveProjects();
+            await saveProjects();
             closeTenderModal();
-            switchProject(newP.id);
+            await switchProject(newP.id);
             // After switching, take user to the Overview view
             switchView('overview', document.querySelectorAll('.nav-item')[1]);
         }
 
-        function switchProject(id) {
-            saveProjects(); // Save current state first
+        async function switchProject(id) {
+            await saveProjects(); // Save current state first
             currentProjectId = id;
             loadProject(id);
             renderProjectList();
@@ -5049,7 +5758,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             }
 
             grid.innerHTML = files.map(f => `
-                <div class="doc-card">
+                <div class="doc-card" onclick="showMediaPreview('${f.base64 || ''}', '${f.name}', '${f.type}')" style="cursor: pointer;">
                     <div class="doc-icon">
                         <i data-lucide="${f.name.endsWith('.pptx') ? 'presentation' : (f.name.endsWith('.pdf') ? 'file-text' : 'file')}" size="24"></i>
                     </div>
@@ -5057,7 +5766,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
                         <strong>${f.name}</strong>
                         <span>Uploaded: ${f.date || 'Today'}</span>
                     </div>
-                    <button class="icon-btn" style="color: var(--danger);" onclick="removeFile('${f.name}')">
+                    <button class="icon-btn" style="color: var(--danger);" onclick="event.stopPropagation(); removeFile('${f.name}')">
                         <i data-lucide="trash-2" size="16"></i>
                     </button>
                 </div>
@@ -5092,6 +5801,9 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             teamData.length = 0;
             p.team.forEach(t => teamData.push(t));
 
+            selectedTeamIds = p.selectedTeamIds || [];
+            selectedThemeIds = p.selectedThemeIds || [];
+
             activeSlideIndex = slidesData.length > 0 ? 0 : -1;
 
             renderThumbnails();
@@ -5101,6 +5813,30 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
             updateValueAddScorecard();
             updateDeckCompleteness();
             renderProofBank();
+            renderDocGrid();
+            updateSidebarFileList();
+
+            // Restore Chat History
+            const chatContainer = document.getElementById('chat-messages');
+            if (chatContainer) {
+                chatContainer.innerHTML = '';
+                if (p.chatHistory && p.chatHistory.length > 0) {
+                    p.chatHistory.forEach(msg => {
+                        addChatMessage(msg.text, msg.type, msg.card, msg.attachments || [], true);
+                    });
+                } else {
+                    // Default welcome message if empty
+                    chatContainer.innerHTML = `
+                        <div class="message message-ai">
+                            <div class="message-content">
+                                Welcome! Please upload your tender documents (RFP, submission guidelines, etc.) to begin the analysis.
+                            </div>
+                        </div>
+                    `;
+                }
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+                lucide.createIcons();
+            }
         }
 
         function renameActiveProject(newName) {
@@ -5116,6 +5852,8 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
         function initResizing() {
             const handle = document.getElementById('resize-handle');
             const panel = document.getElementById('slide-panel');
+            if (!handle || !panel) return;
+
             let isResizing = false;
 
             handle.addEventListener('mousedown', (e) => {
