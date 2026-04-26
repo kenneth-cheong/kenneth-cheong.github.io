@@ -977,25 +977,35 @@
             /* Ensure tooltips are relative to toolbar if needed */
         }
 
-        /* Fix tooltips in toolbar to appear below to avoid clipping */
+        /* Fix tooltips in toolbar to appear below and be clearly visible */
         .formatting-toolbar [data-tooltip]::before {
             bottom: auto;
-            top: calc(100% + 8px);
+            top: calc(100% + 12px);
+            left: 50%;
+            transform: translateX(-50%) translateY(-10px);
+            z-index: 10000; /* Higher z-index */
         }
 
         .formatting-toolbar [data-tooltip]::after {
             bottom: auto;
-            top: 100%;
+            top: calc(100% + 2px);
+            left: 50%;
+            transform: translateX(-50%) translateY(0);
             border-top-color: transparent;
             border-bottom-color: var(--text-slate);
+            z-index: 10000;
         }
 
         .formatting-toolbar [data-tooltip]:hover::before {
-            transform: translateX(-50%) translateY(4px);
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
         }
 
         .formatting-toolbar [data-tooltip]:hover::after {
-            transform: translateX(-50%) translateY(-4px);
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
         }
 
         .toolbar-group {
@@ -5272,7 +5282,7 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 if (editorNav) { switchView('slide-editor', editorNav); }
                 else { switchView('slide-editor'); }
 
-                if (text) text.innerText = "Generating...";
+                if (text) text.innerText = "Initializing...";
                 if (btn) btn.disabled = true;
 
                 // Clear existing slides
@@ -5282,47 +5292,49 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 renderThumbnails();
                 updateEditorState();
 
-                // Build shared context (compact)
-                const docsContext = current.docs.map(d =>
-                    `[DOC: ${d.name}]\n${d.content ? d.content.substring(0, 4000) : "No text."}`
-                ).join('\n---\n');
+                // Prepare context
+                const attachments = (current.docs || []).map(d => ({
+                    name: d.name,
+                    type: d.type,
+                    content: d.base64 ? d.base64.split(',')[1] : ""
+                })).filter(a => a.content);
 
                 const proofs = getProofBank();
                 const proofContext = proofs.length > 0
-                    ? proofs.slice(0, 10).map(p => `• ${p.metric}: ${p.label}`).join('\n')
-                    : 'None.';
+                    ? proofs.slice(0, 15).map(p => `• ${p.metric}: ${p.label}`).join('\n')
+                    : 'None available.';
 
                 const teamContext = teamData.length > 0
-                    ? teamData.slice(0, 10).map(m => `• ${m.name} — ${m.role}`).join('\n')
-                    : 'None.';
+                    ? teamData.slice(0, 12).map(m => `• ${m.name} (${m.role})`).join('\n')
+                    : 'None listed.';
 
                 const urlContext = (current.referenceUrls || []).filter(r => r.content).map(r =>
-                    `[${r.url}]: ${r.content.substring(0, 2000)}`
+                    `[${r.url}]: ${r.content.substring(0, 3000)}`
                 ).join('\n');
 
-                // Define slide batches
+                // Define slide batches (Total 8 slides)
                 const batches = [
                     {
-                        label: "Cover & Strategy",
+                        label: "Strategy & Intro",
                         slides: [
-                            '1. Cover Slide — Project title, client name, "Prepared by MediaOne Business Group", date. theme:"dark"',
-                            '2. Executive Summary — 3 pillars: The Challenge, Our Response, Measurable Outcomes',
-                            '3. Our Understanding — Demonstrate deep understanding of client needs from documents'
+                            '1. Cover Slide — Compelling project title, client name, date. Theme: dark',
+                            '2. Executive Summary — The Challenge, Our Proposed Response, and Measurable Outcomes',
+                            '3. Client Understanding — Specific insights derived from the attached documents'
                         ]
                     },
                     {
-                        label: "Solution & Differentiators",
+                        label: "Solution & Team",
                         slides: [
-                            '4. Proposed Solution — Phased approach with clear deliverables',
-                            '5. Why Us — Competitive differentiators backed by REAL proof metrics listed above',
-                            '6. Team & Expertise — Name REAL team members from the roster above with their roles'
+                            '4. Proposed Solution Architecture — High-level phased approach with deliverables',
+                            '5. Why MediaOne? — Key differentiators using REAL proof metrics from the list above',
+                            '6. The Project Team — Professional bios of the team members listed above'
                         ]
                     },
                     {
-                        label: "Timeline & Commercial",
+                        label: "Delivery & Value",
                         slides: [
-                            '7. Implementation Timeline — Phased milestones (Month 1-3, 4-6, 7-12)',
-                            '8. Commercial Investment Summary — Value-based framing, ROI focus'
+                            '7. Implementation Roadmap — Critical milestones and timeline (Months 1-12)',
+                            '8. Commercial Proposal & ROI — Value-based summary and investment overview'
                         ]
                     }
                 ];
@@ -5332,24 +5344,27 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
                     const batch = batches[batchIdx];
                     if (text) text.innerText = `Drafting ${batch.label}... (${batchIdx + 1}/${batches.length})`;
+                    
+                    const batchPrompt = `Generate exactly ${batch.slides.length} slides for a tender presentation.
 
-                    const prompt = `Generate ${batch.slides.length} tender presentation slides as a JSON array.
-
-DOCUMENTS:
-${docsContext}
-
-${urlContext ? 'CLIENT CONTEXT:\n' + urlContext + '\n' : ''}PROOF METRICS:
+CONTEXT:
+${urlContext ? 'CLIENT WEB INSIGHTS:\n' + urlContext + '\n' : ''}
+PROOF METRICS TO USE:
 ${proofContext}
 
-TEAM:
+TEAM MEMBERS TO INCLUDE:
 ${teamContext}
 
-GENERATE THESE SLIDES ONLY:
+SPECIFIC SLIDES TO GENERATE IN THIS BATCH:
 ${batch.slides.join('\n')}
 
-FORMAT: Return ONLY a JSON array of ${batch.slides.length} objects. Each: {"title":"...","body":"<HTML>","theme":"light"}
-Use <strong>, <ul>, <li>, <div class="slide-card-grid"><div class="slide-card">...</div></div> for layout.
-Keep each slide body CONCISE. No markdown, no explanation, ONLY the JSON array.`;
+INSTRUCTIONS:
+1. Use the attached documents for deep context and specific project details.
+2. Return ONLY a valid JSON array of ${batch.slides.length} objects. 
+3. Each object MUST have: "title", "body" (HTML content), and "theme" ("light" or "dark").
+4. Use rich HTML for body: <strong>, <ul>, <li>, and <div class="slide-card-grid"><div class="slide-card">...</div></div> for modern layouts.
+5. Keep content persuasive, professional, and data-driven.
+6. NO markdown code blocks, NO preamble, NO explanation. Just the JSON array.`;
 
                     try {
                         const response = await fetch(API_BASE_URL, {
@@ -5358,18 +5373,20 @@ Keep each slide body CONCISE. No markdown, no explanation, ONLY the JSON array.`
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 action: 'analyze',
-                                prompt: prompt,
+                                prompt: batchPrompt,
+                                attachments: attachments,
                                 max_tokens: 4000
                             })
                         });
 
-                        if (!response.ok) throw new Error(`API failed for batch ${batchIdx + 1}`);
+                        if (!response.ok) throw new Error(`API error: ${response.statusText}`);
 
                         const data = await response.json();
                         let batchSlides = [];
 
                         try {
-                            let raw = data.ai_response;
+                            let raw = data.ai_response || "";
+                            // Clean up common AI artifacts
                             raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
 
                             const firstOpen = raw.indexOf('[');
@@ -5377,60 +5394,64 @@ Keep each slide body CONCISE. No markdown, no explanation, ONLY the JSON array.`
 
                             if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
                                 let jsonStr = raw.substring(firstOpen, lastClose + 1);
-
                                 try {
                                     batchSlides = JSON.parse(jsonStr);
                                 } catch (parseErr) {
-                                    // Truncation repair
+                                    // Robust truncation repair
                                     let depth = 0, lastValidEnd = -1;
                                     for (let i = 0; i < jsonStr.length; i++) {
                                         if (jsonStr[i] === '{') depth++;
-                                        if (jsonStr[i] === '}') { depth--; if (depth === 0) lastValidEnd = i; }
+                                        if (jsonStr[i] === '}') { 
+                                            depth--; 
+                                            if (depth === 0) lastValidEnd = i; 
+                                        }
                                     }
                                     if (lastValidEnd > 0) {
-                                        let repaired = jsonStr.substring(0, lastValidEnd + 1).replace(/,\s*$/, '');
+                                        let repaired = jsonStr.substring(0, lastValidEnd + 1);
+                                        if (!repaired.endsWith(']')) repaired += ']';
                                         if (!repaired.startsWith('[')) repaired = '[' + repaired;
-                                        repaired += ']';
                                         batchSlides = JSON.parse(repaired);
                                     }
                                 }
                             }
                         } catch (e) {
-                            console.warn(`Batch ${batchIdx + 1} parse failed:`, e);
+                            console.warn(`Batch ${batchIdx + 1} parse error:`, e);
                         }
 
-                        // Append slides progressively
-                        batchSlides.forEach(s => {
-                            slidesData.push({
-                                id: Date.now() + Math.random(),
-                                title: s.title || "Untitled Slide",
-                                body: s.body || "<p>Content pending.</p>",
-                                theme: s.theme || "light"
+                        if (batchSlides.length > 0) {
+                            batchSlides.forEach(s => {
+                                slidesData.push({
+                                    id: Date.now() + Math.random(),
+                                    title: s.title || "New Slide",
+                                    body: s.body || "<p>Content generated.</p>",
+                                    theme: s.theme || "light"
+                                });
                             });
-                        });
-
-                        totalGenerated += batchSlides.length;
-
-                        // Show progress immediately
-                        if (activeSlideIndex === -1 && slidesData.length > 0) activeSlideIndex = 0;
-                        selectedSlideIndices = activeSlideIndex >= 0 ? [activeSlideIndex] : [];
-                        renderThumbnails();
-                        updateEditorState();
-
-                        addChatMessage(`✅ Batch ${batchIdx + 1}/${batches.length} complete — ${batchSlides.length} slides drafted (${batch.label})`, 'ai');
+                            
+                            totalGenerated += batchSlides.length;
+                            if (activeSlideIndex === -1 && slidesData.length > 0) activeSlideIndex = 0;
+                            renderThumbnails();
+                            updateEditorState();
+                            
+                            addChatMessage(`✅ Drafted ${batchSlides.length} slides: ${batch.label}`, 'ai');
+                        } else {
+                            throw new Error("AI returned an empty or invalid slide set.");
+                        }
 
                     } catch (error) {
-                        console.error(`Batch ${batchIdx + 1} error:`, error);
-                        addChatMessage(`⚠️ Batch ${batchIdx + 1} failed: ${error.message}. Continuing...`, 'ai');
+                        console.error(`Batch ${batchIdx + 1} failed:`, error);
+                        addChatMessage(`⚠️ Batch ${batchIdx + 1} failed: ${error.message}`, 'ai');
                     }
+                    
+                    // Small delay to ensure UI updates and avoid potential rate issues
+                    await new Promise(r => setTimeout(r, 500));
                 }
 
-                // Final cleanup
                 updateValueAddScorecard();
                 updateDeckCompleteness();
                 saveProjects();
-                addChatMessage(`🎯 Deck complete — ${totalGenerated} slides generated across ${batches.length} batches.`, 'ai');
-
+                
+                addChatMessage(`🎯 Deck complete! Generated ${totalGenerated} slides across ${batches.length} batches.`, 'ai');
                 if (text) text.innerText = "Regenerate Deck";
                 if (btn) btn.disabled = false;
             }
