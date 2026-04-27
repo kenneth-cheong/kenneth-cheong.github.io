@@ -236,6 +236,8 @@
         }
 
         .collapsible-section.active .collapsible-content {
+            max-height: 2000px;
+            padding: 16px 12px;
             display: block !important;
             visibility: visible !important;
         }
@@ -604,6 +606,92 @@
         .status-badge.synced {
             background: #dcfce7;
             color: #166534;
+        }
+
+        .status-badge.syncing {
+            background: #fef9c3;
+            color: #854d0e;
+        }
+
+        .status-badge.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        /* History Sidebar */
+        .history-sidebar {
+            position: absolute;
+            top: 80px;
+            left: -400px;
+            width: 350px;
+            height: calc(100% - 80px);
+            background: #fff;
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.1);
+            z-index: 25;
+            display: flex;
+            flex-direction: column;
+            transition: left 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            border-right: 1px solid #e2e8f0;
+        }
+
+        .history-sidebar.active {
+            left: 0;
+        }
+
+        .history-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 16px 20px 16px;
+        }
+
+        .history-item {
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            position: relative;
+        }
+
+        .history-item:hover {
+            background: #f8fafc;
+            border-color: #e2e8f0;
+        }
+
+        .history-item.active {
+            background: var(--accent-light);
+            border-color: var(--accent-blue);
+        }
+
+        .history-item-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary-navy);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .history-item-meta {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cloud-badge {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: auto;
         }
 
         /* Mobile Adjustments */
@@ -1125,6 +1213,39 @@
             transition: all 0.15s;
         }
 
+        .action-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        .action-btn i {
+            font-size: 0.95rem;
+        }
+
+        .action-btn:hover {
+            color: #3b82f6;
+            border-color: #3b82f6;
+            background: #eff6ff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+        }
+
+        .action-btn.delete:hover {
+            color: #ef4444;
+            border-color: #fee2e2;
+            background: #fef2f2;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+        }
+
         .ms-option.selected .ms-check {
             background: #f59e0b;
             border-color: #f59e0b;
@@ -1299,7 +1420,7 @@
         .llm-switch input:checked+.mode-slider {
             background: linear-gradient(135deg, #7c3aed, #4f46e5) !important;
         }
-        
+
         .mode-label.claude-active {
             color: #a78bfa !important;
             opacity: 1 !important;
@@ -1307,25 +1428,113 @@
 
         .tool-log {
             margin-top: 10px;
-            background: rgba(59, 130, 246, 0.05);
-            border: 1px solid rgba(59, 130, 246, 0.15);
+            background: rgba(15, 23, 42, 0.03);
+            border: 1px solid rgba(15, 23, 42, 0.08);
             border-radius: 8px;
-            padding: 8px 12px;
-            font-size: 0.72rem;
-            color: #2563eb;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            white-space: pre-wrap;
-            word-break: break-word;
+            overflow: hidden;
         }
 
         .tool-log-label {
-            font-size: 0.65rem;
-            font-weight: 700;
-            color: rgba(37, 99, 235, 0.7);
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            transition: background 0.2s;
+            list-style: none;
+        }
+
+        .sidebar-select, 
+        .settings-sidebar input[type="text"],
+        .settings-sidebar input[type="number"],
+        .settings-sidebar select {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            font-size: 0.8rem;
+            background: #fff;
+            margin-top: 8px;
+            box-sizing: border-box !important;
             display: block;
+        }
+
+        /* Multi-Account Service Styles */
+        .service-connection-row {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+
+        .service-badge {
+            font-size: 0.65rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        .btn-service-connect, .btn-service-disconnect {
+            flex: 1;
+            padding: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 5px;
+        }
+
+        .btn-service-connect {
+            background: #f0fdf4;
+            color: #16a34a;
+            border-color: #bbf7d0;
+        }
+
+        .btn-service-connect:hover {
+            background: #dcfce7;
+        }
+
+        .btn-service-disconnect {
+            background: #fef2f2;
+            color: #e11d48;
+            border-color: #fecdd3;
+        }
+
+        .btn-service-disconnect:hover {
+            background: #ffe4e6;
+        }
+
+        .tool-log-label:hover {
+            background: rgba(15, 23, 42, 0.05);
+        }
+
+        .tool-log-content {
+            padding: 0 12px 10px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.65rem;
+            color: #475569;
+            white-space: pre-wrap;
+            border-top: 1px solid rgba(15, 23, 42, 0.05);
+            margin-top: 4px;
+            padding-top: 8px;
+        }
+
+        .tool-log[open] .tool-log-label {
+            background: rgba(15, 23, 42, 0.05);
+            border-bottom: 1px solid rgba(15, 23, 42, 0.05);
         }
 
         /* Attachment & Drag-Drop Styles */
@@ -1425,8 +1634,13 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
     </style>
 </head>
@@ -1438,7 +1652,7 @@
         <div id="imageModal" class="image-modal" onclick="closeImageModal()">
             <img id="modalImg" src="" onclick="event.stopPropagation()">
         </div>
-        
+
         <header>
             <h1><i class="fas fa-robot"></i> <span id="headerTitle">Client Portal Chatbot Testing</span></h1>
             <div class="controls">
@@ -1450,23 +1664,52 @@
                     </label>
                     <span class="mode-label" id="internalModeLabel" onclick="setMode('internal')">Internal</span>
                 </div>
-                <div class="mode-toggle" style="margin-left: 8px;">
-                    <span class="mode-label active" id="gptLLMLabel" onclick="setLLM('gpt')">GPT</span>
-                    <label class="mode-switch llm-switch">
-                        <input type="checkbox" id="llmToggle" onchange="handleLLMToggle(this.checked)">
-                        <span class="mode-slider"></span>
-                    </label>
-                    <span class="mode-label" id="claudeLLMLabel" onclick="setLLM('claude')">Claude</span>
+                <div class="mode-toggle" style="margin-left: 8px; opacity: 0.9; cursor: help;" title="Currently locked to Claude. The advanced autonomous agent for Monday.com and Google Integrations requires Claude's specific tool-calling architecture.">
+                    <span class="mode-label active" style="background: var(--accent-blue); color: #fff; padding-left: 12px; padding-right: 12px;"><i class="fas fa-brain"></i> Claude (Autonomous)</span>
                 </div>
                 <div id="syncStatus" class="status-badge">
                     <i class="fas fa-circle-notch fa-spin" id="syncIcon"></i>
                     <span id="syncText">No Context</span>
                 </div>
+                <div id="cloudStatus" class="status-badge synced">
+                    <i class="fas fa-cloud" id="cloudIcon"></i>
+                    <span id="cloudText">Cloud Ready</span>
+                </div>
+                <button class="btn btn-outline" onclick="toggleHistory()">
+                    <i class="fas fa-history"></i> History
+                </button>
                 <button class="btn btn-outline" onclick="toggleSettings()">
                     <i class="fas fa-cog"></i> Settings
                 </button>
             </div>
         </header>
+
+        <aside class="history-sidebar" id="historySidebar">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; padding: 24px 32px; border-bottom: 1px solid #f1f5f9;">
+                <h2 style="margin:0; font-family: 'Outfit', sans-serif;">History</h2>
+                <button class="btn btn-outline" onclick="toggleHistory()"
+                    style="padding: 5px 10px; border-color: #e2e8f0; color: var(--primary-navy);">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div style="padding: 20px 24px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <button class="btn btn-primary" style="flex:1; margin-right:10px; justify-content:center;"
+                        onclick="startNewChat()">
+                        <i class="fas fa-plus"></i> New Chat
+                    </button>
+                    <button class="btn btn-outline"
+                        style="width:44px; height:44px; padding:0; display:flex; align-items:center; justify-content:center; border-radius:12px;"
+                        onclick="fetchHistory()" title="Refresh History">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="historyList" class="history-list">
+                <!-- History items injected here -->
+            </div>
+        </aside>
 
         <aside class="settings-sidebar" id="settingsSidebar">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
@@ -1513,12 +1756,11 @@
                 </div>
             </div>
 
-            <!-- Google Workspace Integration -->
-            <div class="collapsible-section" id="googleChatSection">
-                <div class="collapsible-header"
-                    onclick="this.closest('.collapsible-section').classList.toggle('active')">
+            <!-- Google Multi-Account Connections -->
+            <div class="collapsible-section active" id="googleChatSection">
+                <div class="collapsible-header" onclick="this.closest('.collapsible-section').classList.toggle('active')">
                     <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i
-                            class="fab fa-google" style="margin-right: 8px; opacity: 0.5;"></i> Google Workspace</span>
+                            class="fab fa-google" style="margin-right: 8px; opacity: 0.5;"></i> Google Accounts</span>
                     <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
                 </div>
                 <div class="collapsible-content">
@@ -1527,39 +1769,69 @@
                         <input type="text" id="googleClientId" placeholder="xxxxxxx.apps.googleusercontent.com"
                             style="font-size: 0.75rem;">
                     </div>
-                    <div style="display: flex; gap: 8px; margin-top: 10px;">
-                        <button class="btn-sidebar" id="gchatConnectBtn" onclick="connectGoogleChat()"
-                            style="flex:1; border-color: #34a853; color: #34a853;">
-                            <i class="fab fa-google"></i> Connect
-                        </button>
-                        <button class="btn-sidebar" id="gchatDisconnectBtn" onclick="disconnectGoogleChat()"
-                            style="flex:1; border-color: #ef4444; color: #ef4444; display:none;">
-                            <i class="fas fa-unlink"></i> Disconnect
-                        </button>
-                    </div>
-                    <div id="gchatStatus"
-                        style="font-size: 0.7rem; color: #64748b; margin-top: 8px; text-align: center;"></div>
+                    <div id="gworkspaceServiceStatus" style="margin-top: 10px; display: flex; flex-direction: column; gap: 12px;">
+                        
+                        <!-- Workspace (Chat/Drive/Gmail) -->
+                        <div class="service-connection-row">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                <span style="font-size:0.75rem; font-weight:700; color:#334155;"><i class="fas fa-briefcase" style="width:14px; opacity:0.6;"></i> Workspace (Chat/Drive/Email)</span>
+                                <span id="statusBadgeWorkspace" class="service-badge">—</span>
+                            </div>
+                            <div style="display:flex; gap:5px;">
+                                <button class="btn-service-connect" onclick="connectService('Workspace')">Connect</button>
+                                <button class="btn-service-disconnect" id="btnDisconnectWorkspace" onclick="disconnectService('Workspace')" style="display:none;">Disconnect</button>
+                            </div>
+                        </div>
 
-                    <!-- Per-service access status -->
-                    <div id="gworkspaceServiceStatus"
-                        style="display:none; margin-top: 10px; display:none; flex-direction:column; gap:5px;">
-                        <div
-                            style="display:flex; justify-content:space-between; align-items:center; font-size:0.7rem; color:#475569;">
-                            <span><i class="fas fa-comments" style="width:14px;"></i> Google Chat</span>
-                            <span id="statusBadgeChat"
-                                style="font-size:0.65rem; padding:2px 8px; border-radius:10px; font-weight:600; background:#f1f5f9; color:#64748b;">—</span>
+                        <!-- Search Console -->
+                        <div class="service-connection-row">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                <span style="font-size:0.75rem; font-weight:700; color:#334155;"><i class="fas fa-search" style="width:14px; opacity:0.6;"></i> Search Console</span>
+                                <span id="statusBadgeGsc" class="service-badge">—</span>
+                            </div>
+                            <div style="display:flex; gap:5px;">
+                                <button class="btn-service-connect" onclick="connectService('Gsc')">Connect</button>
+                                <button class="btn-service-disconnect" id="btnDisconnectGsc" onclick="disconnectService('Gsc')" style="display:none;">Disconnect</button>
+                            </div>
+                            <div id="selectorGsc" style="display:none; margin-top:5px;">
+                                <select id="selectedGscSite" class="sidebar-select" onchange="saveMarketingSelection()">
+                                    <option value="">-- Select Site --</option>
+                                </select>
+                            </div>
                         </div>
-                        <div
-                            style="display:flex; justify-content:space-between; align-items:center; font-size:0.7rem; color:#475569;">
-                            <span><i class="fab fa-google-drive" style="width:14px;"></i> Google Drive</span>
-                            <span id="statusBadgeDrive"
-                                style="font-size:0.65rem; padding:2px 8px; border-radius:10px; font-weight:600; background:#f1f5f9; color:#64748b;">—</span>
+
+                        <!-- GA4 Analytics -->
+                        <div class="service-connection-row">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                <span style="font-size:0.75rem; font-weight:700; color:#334155;"><i class="fas fa-chart-pie" style="width:14px; opacity:0.6;"></i> GA4 Analytics</span>
+                                <span id="statusBadgeGa4" class="service-badge">—</span>
+                            </div>
+                            <div style="display:flex; gap:5px;">
+                                <button class="btn-service-connect" onclick="connectService('Ga4')">Connect</button>
+                                <button class="btn-service-disconnect" id="btnDisconnectGa4" onclick="disconnectService('Ga4')" style="display:none;">Disconnect</button>
+                            </div>
+                            <div id="selectorGa4" style="display:none; margin-top:5px;">
+                                <select id="selectedGa4Property" class="sidebar-select" onchange="saveMarketingSelection()">
+                                    <option value="">-- Select Property --</option>
+                                </select>
+                            </div>
                         </div>
-                        <div
-                            style="display:flex; justify-content:space-between; align-items:center; font-size:0.7rem; color:#475569;">
-                            <span><i class="fas fa-envelope" style="width:14px;"></i> Gmail</span>
-                            <span id="statusBadgeGmail"
-                                style="font-size:0.65rem; padding:2px 8px; border-radius:10px; font-weight:600; background:#f1f5f9; color:#64748b;">—</span>
+
+                        <!-- Google Ads -->
+                        <div class="service-connection-row">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                <span style="font-size:0.75rem; font-weight:700; color:#334155;"><i class="fas fa-ad" style="width:14px; opacity:0.6;"></i> Google Ads</span>
+                                <span id="statusBadgeAds" class="service-badge">—</span>
+                            </div>
+                            <div style="display:flex; gap:5px;">
+                                <button class="btn-service-connect" onclick="connectService('Ads')">Connect</button>
+                                <button class="btn-service-disconnect" id="btnDisconnectAds" onclick="disconnectService('Ads')" style="display:none;">Disconnect</button>
+                            </div>
+                            <div id="selectorAds" style="display:none; margin-top:5px;">
+                                <select id="selectedAdsAccount" class="sidebar-select" onchange="saveMarketingSelection()">
+                                    <option value="">-- Select Account --</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -1859,14 +2131,19 @@
             </div>
 
             <div id="attachmentPreview" class="attachment-preview">
-                <img id="previewImg" class="attachment-thumb" style="display:none; cursor:zoom-in;" onclick="openImageModal(this.src)">
-                <div id="previewIcon" class="attachment-thumb" style="display:none; align-items:center; justify-content:center; background:rgba(255,255,255,0.1);"><i class="fas fa-file"></i></div>
+                <img id="previewImg" class="attachment-thumb" style="display:none; cursor:zoom-in;"
+                    onclick="openImageModal(this.src)">
+                <div id="previewIcon" class="attachment-thumb"
+                    style="display:none; align-items:center; justify-content:center; background:rgba(255,255,255,0.1);">
+                    <i class="fas fa-file"></i>
+                </div>
                 <div id="attachmentName" class="attachment-info"></div>
                 <i class="fas fa-times attachment-remove" onclick="removeAttachment()"></i>
             </div>
             <div class="input-bar" id="inputBar">
                 <input type="file" id="fileInput" style="display:none;" onchange="handleFileSelect(this)">
-                <button class="upload-btn" onclick="document.getElementById('fileInput').click()" title="Attach image or file">
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()"
+                    title="Attach image or file">
                     <i class="fas fa-paperclip"></i>
                 </button>
                 <textarea id="userInput" placeholder="Ask anything about your Monday board..." rows="1"></textarea>
@@ -1885,6 +2162,321 @@
         let currentMode = localStorage.getItem('chatbotMode') || 'client'; // 'client' or 'internal'
         let currentLLM = localStorage.getItem('chatbotLLM') || 'gpt'; // 'gpt' or 'claude'
         window.lastSyncedInternalState = { boards: [], items: [], staff: [] };
+
+        // Persistence State
+        const PERSISTENCE_API_URL = 'https://t9pw69cg8d.execute-api.ap-southeast-1.amazonaws.com/chatbotPersistence';
+        let currentConversationId = localStorage.getItem('chatbot_conversationId') || null;
+        let chatHistory = JSON.parse(localStorage.getItem('chatbot_history') || '[]');
+        // User Identity for Persistence
+        let userId = localStorage.getItem('chatbot_userId');
+        if (!userId) {
+            const clientEmail = localStorage.getItem('clientEmail');
+            if (clientEmail && clientEmail.includes('@')) {
+                // Use email-based ID for better cross-device persistence
+                userId = 'user_' + clientEmail.replace(/[^a-zA-Z0-9]/g, '_');
+            } else {
+                userId = 'user_' + Math.random().toString(36).substr(2, 9);
+            }
+            localStorage.setItem('chatbot_userId', userId);
+        }
+        console.log(`[PERSISTENCE] Active User ID: ${userId}`);
+
+        function toggleHistory() {
+            const sidebar = document.getElementById('historySidebar');
+            sidebar.classList.toggle('active');
+            if (sidebar.classList.contains('active')) {
+                fetchHistory();
+            }
+        }
+
+        function updateCloudStatus(status, text) {
+            const badge = document.getElementById('cloudStatus');
+            const icon = document.getElementById('cloudIcon');
+            const textEl = document.getElementById('cloudText');
+            if (!badge || !icon || !textEl) return;
+
+            badge.className = 'status-badge ' + status;
+            textEl.innerText = text;
+
+            if (status === 'syncing') {
+                icon.className = 'fas fa-sync fa-spin';
+            } else if (status === 'error') {
+                icon.className = 'fas fa-exclamation-triangle';
+            } else {
+                icon.className = 'fas fa-cloud';
+            }
+        }
+
+        async function saveConversation() {
+            if (chatHistory.length === 0) return;
+
+            // Smart Title Logic: Don't use automated sync messages or short greetings as titles
+            let bestTitle = localStorage.getItem(`title_${currentConversationId}`);
+            if (!bestTitle) {
+                const firstRealMsg = chatHistory.find(m =>
+                    m.role === 'user' &&
+                    m.content.length > 5 &&
+                    !m.content.includes("Internal data loaded")
+                );
+                bestTitle = firstRealMsg ? firstRealMsg.content.substring(0, 50) + '...' : 'New Conversation';
+            }
+
+            const userEmail = localStorage.getItem('clientEmail') || 'Internal User';
+            const userLabel = userEmail.split('@')[0];
+
+            updateCloudStatus('syncing', 'Syncing...');
+
+            try {
+                const response = await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'save_conversation',
+                        data: {
+                            userId: userId,
+                            conversationId: currentConversationId,
+                            messages: chatHistory,
+                            threadId: localStorage.getItem('threadId'),
+                            mode: currentLLM,
+                            title: bestTitle,
+                            userLabel: userEmail,
+                            timestamp: new Date().toISOString() // Ensure fresh timestamp on every save
+                        }
+                    })
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const result = await response.json();
+                const data = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
+
+                if (data.conversationId) {
+                    currentConversationId = data.conversationId;
+                    localStorage.setItem('chatbot_conversationId', currentConversationId);
+                }
+                updateCloudStatus('synced', 'Cloud Synced');
+            } catch (error) {
+                console.error(`[PERSISTENCE SAVE ERROR]`, error);
+                updateCloudStatus('error', `Sync Failed`);
+            }
+        }
+
+        async function generateAiTitle() {
+            // Only generate if we have at least one exchange and no smart title yet
+            if (chatHistory.length < 2 || localStorage.getItem(`title_${currentConversationId}`)) return;
+
+            console.log("[AI-TITLE] Generating intelligent title...");
+            try {
+                const lastUserMsg = chatHistory.findLast(m => m.role === 'user')?.content || "";
+                const lastBotMsg = chatHistory.findLast(m => m.role === 'assistant')?.content || "";
+
+                const prompt = `Summarize this chat into a 3-5 word title. 
+                User: ${lastUserMsg.substring(0, 200)}
+                Bot: ${lastBotMsg.substring(0, 200)}
+                Title:`;
+
+                const res = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'openai_proxy',
+                        data: {
+                            model: "gpt-4o-mini",
+                            messages: [{ role: "user", content: prompt }],
+                            max_tokens: 20
+                        }
+                    })
+                });
+
+                const raw = await res.json();
+                const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+                const aiTitle = data.choices?.[0]?.message?.content?.replace(/["']/g, "").trim();
+
+                if (aiTitle && aiTitle.length > 3) {
+                    console.log(`[AI-TITLE] Set title to: ${aiTitle}`);
+                    localStorage.setItem(`title_${currentConversationId}`, aiTitle);
+                    saveConversation(); // Re-sync with new title
+                }
+            } catch (e) {
+                console.warn("[AI-TITLE] Failed to generate title", e);
+            }
+        }
+
+        async function fetchHistory() {
+            const list = document.getElementById('historyList');
+            list.innerHTML = '<div style="padding: 20px; text-align: center;"><i class="fas fa-spinner fa-spin"></i></div>';
+
+            console.log(`[PERSISTENCE] Fetching history...`);
+            try {
+                const response = await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'fetch_conversations',
+                        data: { userId: userId }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                const data = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
+                const convs = data.conversations || [];
+                console.log(`[PERSISTENCE] Loaded ${convs.length} items`);
+
+                if (convs.length === 0) {
+                    list.innerHTML = '<div style="padding: 32px; text-align: center; color: var(--text-muted);">No previous chats found</div>';
+                    return;
+                }
+
+                list.innerHTML = convs.map(c => `
+                    <div class="history-item ${c.conversationId === currentConversationId ? 'active' : ''}" onclick="loadConversation('${c.conversationId}')">
+                        <div style="font-weight:700; font-size:0.85rem; color:#1e293b; margin-bottom:4px; line-height:1.3; padding-right: 40px; position: relative;">
+                            ${escapeHtml(c.title || 'Untitled Chat').replace(/\*\*(.*?)\*\*/g, '$1')}
+                            <div class="history-item-actions" style="position: absolute; right: -8px; top: -4px; display: flex; gap: 6px;">
+                                <div class="action-btn" onclick="event.stopPropagation(); renameConversation('${c.conversationId}', '${escapeHtml(c.title || '').replace(/'/g, "\\'")}')" title="Rename">
+                                    <i class="fas fa-pencil-alt"></i>
+                                </div>
+                                <div class="action-btn delete" onclick="event.stopPropagation(); deleteConversation('${c.conversationId}')" title="Delete">
+                                    <i class="fas fa-trash"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="font-size:0.7rem; color:#94a3b8; display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
+                            <span>
+                                <i class="far fa-clock"></i> 
+                                ${(() => {
+                                    const d = new Date(c.updatedAt || c.timestamp);
+                                    return isNaN(d.getTime()) ? 'Recently' : d.toLocaleDateString();
+                                })()}
+                            </span>
+                            <span class="status-badge" style="font-size:0.6rem; padding:2px 6px; border-radius:10px; background:rgba(245,158,11,0.1); color:#d97706;">${c.mode || 'AI'}</span>
+                            ${c.userLabel ? `<span style="font-size:0.6rem; color:#64748b; background:#f1f5f9; padding:2px 6px; border-radius:10px;"><i class="fas fa-user"></i> ${c.userLabel.split('@')[0]}</span>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error(`[PERSISTENCE FETCH ERROR]`, error);
+                list.innerHTML = `<div style="padding: 20px; color: #ef4444; text-align: center; font-size: 0.8rem;">Failed to load history: ${error.message}</div>`;
+            }
+        }
+
+        async function loadConversation(id) {
+            updateCloudStatus('syncing', 'Loading...');
+            try {
+                const response = await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'get_conversation',
+                        data: { userId: userId, conversationId: id }
+                    })
+                });
+
+                const result = await response.json();
+                const conv = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
+                const convData = conv.conversation;
+
+                if (convData) {
+                    currentConversationId = convData.conversationId;
+                    chatHistory = convData.messages || [];
+                    localStorage.setItem('chatbot_conversationId', currentConversationId);
+                    localStorage.setItem('chatbot_history', JSON.stringify(chatHistory));
+
+                    if (convData.threadId) {
+                        localStorage.setItem('threadId', convData.threadId);
+                        threadId = convData.threadId;
+                    }
+
+                    if (convData.mode) {
+                        setLLM(convData.mode);
+                    }
+
+                    // Clear and re-render messages
+                    const list = document.getElementById('messageList');
+                    list.innerHTML = '';
+                    chatHistory.forEach(m => {
+                        addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, null, true);
+                    });
+
+                    toggleHistory();
+                    updateCloudStatus('synced', 'Restored');
+                }
+            } catch (error) {
+                console.error("Load error:", error);
+                updateCloudStatus('error', 'Load Failed');
+            }
+        }
+
+        function startNewChat() {
+            if (chatHistory.length > 0) {
+                if (!confirm("Start a fresh conversation? Current chat is saved to history.")) return;
+            }
+
+            currentConversationId = null;
+            chatHistory = [];
+            localStorage.removeItem('chatbot_conversationId');
+            localStorage.removeItem('chatbot_history');
+            localStorage.removeItem('threadId');
+            threadId = null;
+
+            document.getElementById('messageList').innerHTML = '';
+            const sidebar = document.getElementById('historySidebar');
+            if (sidebar.classList.contains('active')) toggleHistory();
+            updateCloudStatus('synced', 'New Chat Started');
+        }
+
+        async function renameConversation(id, oldTitle) {
+            const newTitle = prompt("Enter a new name for this conversation:", oldTitle);
+            if (!newTitle || newTitle === oldTitle) return;
+
+            try {
+                updateCloudStatus('syncing', 'Renaming...');
+                await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'save_conversation',
+                        data: {
+                            userId: userId,
+                            conversationId: id,
+                            title: newTitle,
+                            isTitleOnly: true // Hint to the Lambda to only update metadata
+                        }
+                    })
+                });
+                localStorage.setItem(`title_${id}`, newTitle);
+                updateCloudStatus('synced', 'Renamed');
+                fetchHistory(); // Refresh the list
+            } catch (error) {
+                console.error("Rename failed:", error);
+                updateCloudStatus('error', 'Rename failed');
+            }
+        }
+
+        async function deleteConversation(id) {
+            if (!confirm("Delete this conversation?")) return;
+
+            try {
+                await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'delete_conversation',
+                        data: { userId: userId, conversationId: id }
+                    })
+                });
+
+                if (id === currentConversationId) {
+                    startNewChat();
+                } else {
+                    fetchHistory();
+                }
+            } catch (error) {
+                alert("Failed to delete conversation");
+            }
+        }
 
         const INTERNAL_CAMPAIGN_BOARD_ID = '2845615047';
 
@@ -1910,6 +2502,14 @@
             loadSettings();
             renderFunctions();
 
+            // Load history if exists
+            if (chatHistory.length > 0) {
+                chatHistory.forEach(m => {
+                    addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, null, true);
+                });
+                updateCloudStatus('synced', 'Session Restored');
+            }
+
             // Restore mode
             if (currentMode === 'internal') {
                 document.getElementById('modeToggle').checked = true;
@@ -1931,7 +2531,7 @@
             const inputBar = document.getElementById('inputBar');
 
             inputArea.addEventListener('paste', handlePaste);
-            
+
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
                 inputBar.addEventListener(eventName, preventDefaults, false);
             });
@@ -2489,6 +3089,7 @@
         }
 
         async function fetchOpenAIViaLambda(endpoint, method = 'POST', data = {}) {
+            console.log(`[OPENAI PROXY] ${method} ${endpoint} via ${MONDAY_LAMBDA_URL}`);
             try {
                 const res = await fetch(MONDAY_LAMBDA_URL, {
                     method: 'POST',
@@ -2500,6 +3101,11 @@
                         data: data
                     })
                 });
+
+                if (!res.ok) {
+                    throw new Error(`Proxy HTTP Error ${res.status}: ${res.statusText}`);
+                }
+
                 const result = await res.json();
 
                 // Extract body if Lambda wrapped it in a JSON string
@@ -2833,7 +3439,7 @@
 
             optionsContainer.innerHTML = state.options.map(opt => {
                 const name = typeof opt === 'object' ? opt.name : opt;
-                const id = typeof opt === 'object' ? opt.id : name;
+                const id = typeof opt === 'object' ? opt.id : opt;
 
                 const isSelected = state.selected.some(sel => {
                     const selVal = typeof sel === 'object' ? sel.id || sel.name : sel;
@@ -3067,7 +3673,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'get_monday_data', query })
                 });
-                
+
                 const r = await res.json();
                 const mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
 
@@ -3078,7 +3684,7 @@
                 const boards = mData.boards || [];
                 // Filter out sub-item boards and boards with 'Subitems' in name
                 const filtered = boards.filter(b => b.board_kind !== 'sub_items_board' && !(b.name || '').toLowerCase().includes('subitems'));
-                
+
                 window.mondayBoardRegistry = filtered;
                 console.log(`[BOARD REGISTRY] Complete: ${filtered.length} active boards discovered (out of ${boards.length} total).`);
 
@@ -3150,15 +3756,17 @@
             const driveSection = document.getElementById('gdriveSection');
             const gmailSection = document.getElementById('gmailSection');
             const serviceStatusPanel = document.getElementById('gworkspaceServiceStatus');
+            const marketingSection = document.getElementById('marketingSelectors');
 
             if (connected) {
                 if (connectBtn) connectBtn.style.display = 'none';
                 if (disconnectBtn) disconnectBtn.style.display = 'flex';
-                if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#34a853;"></i> Google Workspace connected';
+                if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#34a853;"></i> Google Connected';
                 if (spacesSection) spacesSection.style.display = 'block';
                 if (driveSection) driveSection.style.display = 'block';
                 if (gmailSection) gmailSection.style.display = 'block';
                 if (serviceStatusPanel) serviceStatusPanel.style.display = 'flex';
+                if (marketingSection) marketingSection.style.display = 'block';
             } else {
                 if (connectBtn) connectBtn.style.display = 'flex';
                 if (disconnectBtn) disconnectBtn.style.display = 'none';
@@ -3167,10 +3775,9 @@
                 if (driveSection) driveSection.style.display = 'none';
                 if (gmailSection) gmailSection.style.display = 'none';
                 if (serviceStatusPanel) serviceStatusPanel.style.display = 'none';
+                if (marketingSection) marketingSection.style.display = 'none';
                 // Reset all badges
-                setServiceBadge('Chat', null);
-                setServiceBadge('Drive', null);
-                setServiceBadge('Gmail', null);
+                ['Chat', 'Drive', 'Gmail', 'Gsc', 'Ga4', 'Ads'].forEach(s => setServiceBadge(s, null));
             }
         }
 
@@ -3202,39 +3809,20 @@
                         filterBadge.style.display = 'inline';
                         filterBadge.style.background = '#dcfce7';
                         filterBadge.style.color = '#15803d';
-                    } else {
-                        filterBadge.textContent = '✗ No Access';
-                        filterBadge.style.display = 'inline';
-                        filterBadge.style.background = '#fee2e2';
-                        filterBadge.style.color = '#dc2626';
                     }
                 }
             }
         }
 
-        async function verifyGmailAccess() {
-            if (!window.gchatAccessToken) return;
-            try {
-                const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
-                    headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` }
-                });
-                const granted = res.ok;
-                setServiceBadge('Gmail', granted);
-                if (granted) {
-                    const profile = await res.json();
-                    console.log('[GMAIL] Access verified for:', profile.emailAddress);
-                    showToast(`Gmail access verified (${profile.emailAddress})`, 'success', 4000);
-                } else {
-                    console.warn('[GMAIL] Access denied. Enable Gmail API in Google Cloud Console.');
-                    showToast('Gmail access denied — enable Gmail API in Google Cloud Console', 'error', 6000);
-                }
-            } catch (err) {
-                setServiceBadge('Gmail', false);
-                console.error('[GMAIL] Verification error:', err);
-            }
-        }
+        // ========== MULTI-ACCOUNT GOOGLE INTEGRATION ==========
+        const SERVICE_SCOPES = {
+            'Workspace': 'https://www.googleapis.com/auth/chat.spaces.readonly https://www.googleapis.com/auth/chat.messages.readonly https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/gmail.readonly email profile openid',
+            'Gsc': 'https://www.googleapis.com/auth/webmasters.readonly email profile openid',
+            'Ga4': 'https://www.googleapis.com/auth/analytics.readonly email profile openid',
+            'Ads': 'https://www.googleapis.com/auth/adwords email profile openid'
+        };
 
-        function connectGoogleChat() {
+        function connectService(service) {
             const clientId = document.getElementById('googleClientId').value.trim();
             if (!clientId) {
                 showToast('Enter your Google Cloud Client ID first', 'error');
@@ -3242,74 +3830,200 @@
             }
             localStorage.setItem('googleClientId', clientId);
 
-            // Check if GIS library is loaded
             if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
-                showToast('Google Identity Services SDK not loaded. Check your internet connection.', 'error');
+                showToast('Google Identity Services SDK not loaded.', 'error');
                 return;
             }
 
             const codeClient = google.accounts.oauth2.initCodeClient({
                 client_id: clientId,
-                scope: 'https://www.googleapis.com/auth/chat.spaces.readonly https://www.googleapis.com/auth/chat.messages.readonly https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/gmail.readonly',
+                scope: SERVICE_SCOPES[service],
                 ux_mode: 'popup',
                 callback: async (response) => {
-                    if (response.error) {
-                        console.error('[GCHAT] OAuth error:', response);
-                        showToast(`Google Chat auth failed: ${response.error}`, 'error');
-                        return;
-                    }
+                    if (response.code) {
+                        showToast(`Connecting ${service}...`, 'loading');
+                        try {
+                            const res = await fetch(MONDAY_LAMBDA_URL, {
+                                method: 'POST',
+                                headers: { 'Content-type': 'application/json' },
+                                body: JSON.stringify({
+                                    action: 'google_token_exchange',
+                                    code: response.code,
+                                    client_id: clientId,
+                                    redirect_uri: 'postmessage'
+                                })
+                            }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
 
-                    showToast('Exchanging auth code...', 'loading', 5000);
-                    try {
-                        // Exchange auth code for access token via Lambda
-                        const tokenRes = await fetch(MONDAY_LAMBDA_URL, {
-                            method: 'POST',
-                            headers: { 'Content-type': 'application/json' },
-                            body: JSON.stringify({
-                                action: 'google_token_exchange',
-                                code: response.code,
-                                client_id: clientId,
-                                redirect_uri: 'postmessage'
-                            })
-                        }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
-
-                        if (tokenRes.error) {
-                            throw new Error(tokenRes.error_description || tokenRes.error);
-                        }
-
-                        window.gchatAccessToken = tokenRes.access_token;
-                        sessionStorage.setItem('gchat_access_token', tokenRes.access_token);
-
-                        updateGchatUI(true);
-                        showToast('Google Chat connected!', 'success');
-
-                        // Fetch spaces
-                        await fetchGoogleChatSpaces();
-                        await fetchGoogleDriveFolders();
-                        // Mark Chat and Drive as granted; verify Gmail separately
-                        setServiceBadge('Chat', true);
-                        setServiceBadge('Drive', true);
-                        verifyGmailAccess(); // async, non-blocking
-                    } catch (err) {
-                        console.error('[GCHAT] Token exchange failed:', err);
-                        showToast(`Token exchange failed: ${err.message}`, 'error');
+                            if (res.access_token) {
+                                localStorage.setItem(`googleToken_${service}`, res.access_token);
+                                if (res.refresh_token) localStorage.setItem(`googleRefresh_${service}`, res.refresh_token);
+                                
+                                showToast(`${service} Connected!`, 'success');
+                                updateServiceUI(service, true);
+                                initializeServiceData(service);
+                            }
+                        } catch (e) { console.error(`[${service}] Exchange failed`, e); }
                     }
                 }
             });
-
             codeClient.requestCode();
         }
 
-        function disconnectGoogleChat() {
-            window.gchatAccessToken = null;
-            window.gchatSpaces = [];
-            sessionStorage.removeItem('gchat_access_token');
-            msState.msChatSpaceDropdown.options = [];
-            msState.msChatSpaceDropdown.selected = [];
-            renderMsOptions('msChatSpaceDropdown');
-            renderMsTrigger('msChatSpaceDropdown');
-            updateGchatUI(false);
-            showToast('Google Chat disconnected', 'success');
+        function disconnectService(service) {
+            localStorage.removeItem(`googleToken_${service}`);
+            localStorage.removeItem(`googleRefresh_${service}`);
+            if (service === 'Workspace') {
+                window.gchatAccessToken = null;
+                window.gchatSpaces = [];
+            }
+            updateServiceUI(service, false);
+            showToast(`${service} disconnected`, 'success');
+        }
+
+        function updateServiceUI(service, connected) {
+            const btnDisconnect = document.getElementById(`btnDisconnect${service}`);
+            const selector = document.getElementById(`selector${service}`);
+            const badge = document.getElementById(`statusBadge${service}`);
+
+            if (connected) {
+                if (btnDisconnect) btnDisconnect.style.display = 'block';
+                if (selector) selector.style.display = 'block';
+                if (badge) {
+                    badge.innerText = 'Connected';
+                    badge.style.background = '#e6f4ea';
+                    badge.style.color = '#1e7e34';
+                }
+            } else {
+                if (btnDisconnect) btnDisconnect.style.display = 'none';
+                if (selector) selector.style.display = 'none';
+                if (badge) {
+                    badge.innerText = '—';
+                    badge.style.background = '#f1f5f9';
+                    badge.style.color = '#64748b';
+                }
+            }
+        }
+
+        async function initializeServiceData(service) {
+            const token = localStorage.getItem(`googleToken_${service}`);
+            if (!token) return;
+
+            if (service === 'Workspace') {
+                window.gchatAccessToken = token;
+                await fetchGoogleChatSpaces();
+                await fetchGoogleDriveFolders();
+            } else if (service === 'Gsc') {
+                fetchGscSites(token);
+            } else if (service === 'Ga4') {
+                fetchGa4Properties(token);
+            } else if (service === 'Ads') {
+                fetchAdsAccounts(token);
+            }
+        }
+
+        async function checkAllGoogleServices() {
+            ['Workspace', 'Gsc', 'Ga4', 'Ads'].forEach(async (s) => {
+                const token = localStorage.getItem(`googleToken_${s}`);
+                if (token) {
+                    // Quick verify
+                    try {
+                        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (res.ok) {
+                            updateServiceUI(s, true);
+                            if (s === 'Workspace') window.gchatAccessToken = token;
+                            // Pre-load data if selectors are empty
+                            if (s !== 'Workspace') {
+                                const select = document.getElementById(`selected${s}${s === 'Gsc' ? 'Site' : (s === 'Ads' ? 'Account' : 'Property')}`);
+                                if (select && select.options.length <= 1) initializeServiceData(s);
+                            }
+                        } else {
+                            updateServiceUI(s, false);
+                        }
+                    } catch (e) { updateServiceUI(s, false); }
+                }
+            });
+        }
+
+        async function fetchGscSites(token) {
+            try {
+                const res = await fetch('https://www.googleapis.com/webmasters/v3/sites', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                const select = document.getElementById('selectedGscSite');
+                select.innerHTML = '<option value="">-- Select Site --</option>';
+                if (data.siteEntry) {
+                    data.siteEntry.forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s.siteUrl;
+                        opt.textContent = s.siteUrl;
+                        select.appendChild(opt);
+                    });
+                    select.value = localStorage.getItem('selectedGscSite') || "";
+                }
+            } catch (e) { console.error("GSC fetch failed", e); }
+        }
+
+        async function fetchGa4Properties(token) {
+            try {
+                const res = await fetch('https://v5gyq2sqdd.execute-api.ap-southeast-1.amazonaws.com/gscIntegration', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'ga4ListProperties', access_token: token })
+                }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
+
+                const select = document.getElementById('selectedGa4Property');
+                select.innerHTML = '<option value="">-- Select Property --</option>';
+                if (res.accountSummaries) {
+                    res.accountSummaries.forEach(acc => {
+                        acc.propertySummaries?.forEach(p => {
+                            const opt = document.createElement('option');
+                            opt.value = p.property;
+                            opt.textContent = `${acc.displayName} > ${p.displayName}`;
+                            select.appendChild(opt);
+                        });
+                    });
+                    select.value = localStorage.getItem('selectedGa4Property') || "";
+                }
+            } catch (e) { console.error("GA4 fetch failed", e); }
+        }
+
+        async function fetchAdsAccounts(token) {
+            try {
+                const res = await fetch('https://v5gyq2sqdd.execute-api.ap-southeast-1.amazonaws.com/gscIntegration', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        action: 'adsListCustomers', 
+                        access_token: token,
+                        developerToken: 'mmWDgUpTcZSkkrj-7nnebg',
+                        loginCustomerId: '4695999392'
+                    })
+                }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
+
+                const select = document.getElementById('selectedAdsAccount');
+                select.innerHTML = '<option value="">-- Select Account --</option>';
+                if (res.results) {
+                    res.results.forEach(r => {
+                        const client = r.customerClient;
+                        if (!client) return;
+                        const opt = document.createElement('option');
+                        opt.value = client.clientCustomer.replace('customers/', '');
+                        opt.textContent = client.descriptiveName || opt.value;
+                        select.appendChild(opt);
+                    });
+                    select.value = localStorage.getItem('selectedAdsAccount') || "";
+                }
+            } catch (e) { console.error("Ads fetch failed", e); }
+        }
+
+        function saveMarketingSelection() {
+            localStorage.setItem('selectedGscSite', document.getElementById('selectedGscSite').value);
+            localStorage.setItem('selectedGa4Property', document.getElementById('selectedGa4Property').value);
+            localStorage.setItem('selectedAdsAccount', document.getElementById('selectedAdsAccount').value);
+            showToast('Property selection saved', 'success');
         }
 
         async function fetchGoogleChatSpaces() {
@@ -3951,15 +4665,24 @@
                     const BATCH_SIZE = 100;
                     for (let i = 0; i < selectedItemIds.length; i += BATCH_SIZE) {
                         const batchIds = selectedItemIds.slice(i, i + BATCH_SIZE);
-                        showToast(`Fetching project details (Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(selectedItemIds.length / BATCH_SIZE)})...`, 'loading', 3000);
+                        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+                        const totalBatches = Math.ceil(selectedItemIds.length / BATCH_SIZE);
+                        showToast(`Fetching project details (Batch ${batchNum}/${totalBatches})...`, 'loading', 3000);
                         const query = `{ items(ids: [${batchIds.join(',')}]) { name column_values { text value column { id title type } } updates (limit: 3) { text_body created_at creator { name } replies { text_body created_at creator { name } } } } }`;
-                        const res = await fetch(MONDAY_LAMBDA_URL, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ action: 'get_monday_data', query })
-                        });
-                        const r = await res.json();
-                        const mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
+                        let res, r, mData;
+                        try {
+                            res = await fetch(MONDAY_LAMBDA_URL, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: 'get_monday_data', query })
+                            });
+                            if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                            r = await res.json();
+                            mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
+                        } catch (batchErr) {
+                            console.error(`[SYNC] Batch ${batchNum}/${totalBatches} failed:`, batchErr);
+                            throw new Error(`Step 1/5: Fetching batch ${batchNum}/${totalBatches} from Monday failed — ${batchErr.message}`);
+                        }
                         if (mData.items) items = items.concat(mData.items);
                     }
                 } else {
@@ -3987,13 +4710,27 @@
                             query = `{ next_items_page(cursor: "${cursor}", limit: 100) { cursor items { id name column_values { text value column { id title type } } updates (limit: 3) { text_body created_at creator { name } replies { text_body created_at creator { name } } } } } }`;
                         }
 
-                        const res = await fetch(MONDAY_LAMBDA_URL, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ action: 'get_monday_data', query })
-                        });
-                        const r = await res.json();
-                        const mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
+                        let res, r, mData;
+                        try {
+                            res = await fetch(MONDAY_LAMBDA_URL, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: 'get_monday_data', query })
+                            });
+                            if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                            r = await res.json();
+                            mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
+                        } catch (pageErr) {
+                            console.error(`[SYNC] Page ${p} fetch failed:`, pageErr);
+                            // If first page fails, hard fail. Otherwise use partial data.
+                            if (p === 1) {
+                                throw new Error(`Step 1/5: Page 1 board data fetch failed — ${pageErr.message}`);
+                            } else {
+                                console.warn(`[SYNC] Page ${p} failed, using partial data (${items.length} items).`);
+                                showToast(`Page ${p} failed, using ${items.length} items loaded so far.`, 'warning', 5000);
+                                break;
+                            }
+                        }
 
                         const resultPage = !cursor ? mData.boards?.[0]?.items_page : mData.next_items_page;
                         if (resultPage?.items) items = items.concat(resultPage.items);
@@ -4190,13 +4927,14 @@
 
                 let jsonStr = JSON.stringify(combinedContext, null, 2);
                 const sizeInMB = (jsonStr.length / (1024 * 1024));
-                if (sizeInMB > 15) {
-                    console.warn(`[SYNC] Context too large (${sizeInMB.toFixed(2)}MB). Truncating updates/messages for 15MB safety limit.`);
-                    // Simple truncation strategy: Remove half of updates and chat messages until under limit
-                    if (combinedContext.chat_messages) combinedContext.chat_messages.forEach(s => s.messages = s.messages.slice(0, 50));
-                    if (combinedContext.campaigns) combinedContext.campaigns.forEach(c => c.recent_updates = (c.recent_updates || []).slice(0, 1));
+                if (sizeInMB > 4) {
+                    console.warn(`[SYNC] Context too large (${sizeInMB.toFixed(2)}MB). Truncating for AWS Lambda 6MB payload safety.`);
+                    // Aggressive truncation: Remove updates and limit messages
+                    if (combinedContext.chat_messages) combinedContext.chat_messages.forEach(s => s.messages = s.messages.slice(0, 20));
+                    if (combinedContext.campaigns) combinedContext.campaigns.forEach(c => c.recent_updates = []);
                     jsonStr = JSON.stringify(combinedContext, null, 2);
                 }
+                console.log(`[SYNC] Final Context Size: ${(jsonStr.length / (1024 * 1024)).toFixed(2)}MB`);
 
                 const blob = new Blob([jsonStr], { type: 'application/json' });
                 const reader2 = new FileReader();
@@ -4205,15 +4943,24 @@
                     reader2.readAsDataURL(blob);
                 });
 
-                const syncFileData = await fetch(MONDAY_LAMBDA_URL, {
-                    method: 'POST',
-                    headers: { 'Content-type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'openai_upload',
-                        content: jsonB64,
-                        filename: fileName
-                    })
-                }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
+                let syncFileData;
+                try {
+                    const uploadRes = await fetch(MONDAY_LAMBDA_URL, {
+                        method: 'POST',
+                        headers: { 'Content-type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'openai_upload',
+                            content: jsonB64,
+                            filename: fileName
+                        })
+                    });
+                    if (!uploadRes.ok) throw new Error(`HTTP ${uploadRes.status}: ${uploadRes.statusText}`);
+                    const uploadRaw = await uploadRes.json();
+                    syncFileData = typeof uploadRaw.body === 'string' ? JSON.parse(uploadRaw.body) : (uploadRaw.body || uploadRaw);
+                } catch (uploadErr) {
+                    console.error('[SYNC] Step 2/5 (Upload) failed:', uploadErr);
+                    throw new Error(`Step 2/5: Failed to upload context to OpenAI — ${uploadErr.message}`);
+                }
 
                 const allFileIds = [syncFileData.id];
 
@@ -4411,12 +5158,16 @@ ${boardRegistryLines}`;
                 threadId = null;
 
                 // Save for Claude
-                localStorage.setItem('syncedContext', JSON.stringify(combinedContext));
+                try {
+                    localStorage.setItem('syncedContext', JSON.stringify(combinedContext));
+                } catch (e) {
+                    console.warn("[SYNC] Could not save syncedContext to localStorage (Storage full).", e);
+                }
 
                 showToast("Internal Sync Complete!", 'success');
                 const totalItemCount = items.length + campaignBoardDrilldowns.reduce((sum, b) => sum + (b.total_items || 0), 0);
                 updateSyncStatus(`Internal Sync Done (${totalItemCount} campaigns)`, false, true);
-                
+
                 // Update synced state to prevent un-synced filter warnings
                 window.lastSyncedInternalState = {
                     boards: msState.msBoardDropdown.selected.map(b => typeof b === 'object' ? b.id : b),
@@ -4452,9 +5203,12 @@ ${boardRefLines}${chatRefLines}
 You can now ask me anything about these campaigns.`);
 
             } catch (error) {
-                console.error("Internal sync error:", error);
+                console.error(`[INTERNAL SYNC ERROR] Target: ${MONDAY_LAMBDA_URL}`, error);
                 updateSyncStatus("Internal Sync Failed", false);
-                addMessage("bot", `Internal sync failed: ${error.message}`);
+                addMessage("bot", `Internal sync failed at endpoint **${MONDAY_LAMBDA_URL}**: 
+> ${error.message}
+
+*Common causes: CORS blocked, Lambda timeout, or invalid API endpoint.*`);
             } finally {
                 isSyncing = false;
                 syncBtn.disabled = false;
@@ -4506,13 +5260,19 @@ You can now ask me anything about these campaigns.`);
                 updateSyncStatus("Fetching Boards (Parallel)...", true);
                 const boardPromises = boardIds.map(async (bId) => {
                     const query = `{ boards(ids: [${bId}]) { name items_page (limit: 500) { items { name assets { id name public_url } column_values { text column { title } } updates (limit: 5) { text_body created_at creator { name } assets { id name public_url } } } } } }`;
-                    const res = await fetch(MONDAY_LAMBDA_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'get_monday_data', query })
-                    });
-                    const r = await res.json();
-                    return { bId, data: typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r) };
+                    try {
+                        const res = await fetch(MONDAY_LAMBDA_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'get_monday_data', query })
+                        });
+                        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                        const r = await res.json();
+                        return { bId, data: typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r) };
+                    } catch (boardErr) {
+                        console.error(`[SYNC] Board ${bId} drilldown failed:`, boardErr);
+                        return { bId, data: null, error: boardErr.message };
+                    }
                 });
 
                 const boardResults = await Promise.all(boardPromises);
@@ -4634,7 +5394,11 @@ You can now ask me anything about these campaigns.`);
                 console.log("FINAL COMBINED CONTEXT (FLAT):", combinedContext);
 
                 // Save for Claude
-                localStorage.setItem('syncedContext', JSON.stringify(combinedContext));
+                try {
+                    localStorage.setItem('syncedContext', JSON.stringify(combinedContext));
+                } catch (e) {
+                    console.warn("[SYNC] Could not save syncedContext to localStorage (Storage full).", e);
+                }
 
                 updateSyncStatus("Uploading To OpenAI...", true);
 
@@ -4879,9 +5643,14 @@ CRITICAL CONTACT RULE:
         }
 
         async function handleSendMessage() {
+            if (isSyncing) {
+                const proceed = confirm("⚠️ Data is still loading from Monday.com.\n\nAsking a question now may lead to incomplete answers. Would you like to proceed anyway?");
+                if (!proceed) return;
+            }
+
             const input = document.getElementById('userInput');
             const text = input.value.trim();
-            if (!text || isSyncing) return;
+            if (!text) return;
 
             // --- Un-synced Filter Confirmation (Internal Mode) ---
             if (currentMode === 'internal') {
@@ -4944,7 +5713,7 @@ CRITICAL CONTACT RULE:
                 if (activeAttachment) {
                     showToast(`Uploading ${activeAttachment.name}...`, 'loading');
                     const fileId = await uploadAttachmentToOpenAI(activeAttachment);
-                    
+
                     if (activeAttachment.type.startsWith('image/')) {
                         content.push({ type: "image_file", image_file: { file_id: fileId } });
                     } else {
@@ -5026,7 +5795,7 @@ CRITICAL CONTACT RULE:
         async function handleClaudeMessage(text) {
             const input = document.getElementById('userInput');
             const syncedContext = localStorage.getItem('syncedContext');
-            
+
             addMessage("user", text, null, currentAttachment);
             const activeAttachment = currentAttachment;
             removeAttachment();
@@ -5043,12 +5812,12 @@ CRITICAL CONTACT RULE:
                 const role = m.classList.contains('user') ? 'user' : 'assistant';
                 const contentDiv = m.querySelector('.msg-content');
                 if (!contentDiv) return;
-                
+
                 // Clone to avoid modifying the UI
                 const clone = contentDiv.cloneNode(true);
                 // Remove tool logs and UI elements from history content
                 clone.querySelectorAll('.tool-log, .contact-agent-container, .attachment-msg-preview').forEach(el => el.remove());
-                
+
                 const content = clone.innerText.trim();
                 if (!content) return;
 
@@ -5066,28 +5835,41 @@ CRITICAL CONTACT RULE:
             }
 
             // System prompt with context
+            const gscSite = localStorage.getItem('selectedGscSite') || '';
+            const ga4Prop = localStorage.getItem('selectedGa4Property') || '';
+            const adsAcc = localStorage.getItem('selectedAdsAccount') || '';
+
             let system = `You are the MediaOne Internal Campaign Analyst. 
-            You have access to a monday_graphql tool to query live data. 
-            
-            Always format results as Markdown tables. Cite sources.`;
-            
+            You have access to live data via several tools:
+            1. monday_graphql: For workspace data, task statuses, and campaign items.
+            2. get_gsc_performance: For Google Search Console (clicks, impressions).
+            3. get_ga4_report: For Google Analytics (sessions, users, conversions).
+            4. get_ads_report: For Google Ads performance (cost, CPC, ROAS).
+
+            CURRENT CONTEXT:
+            - GSC Site: ${gscSite || 'None selected'}
+            - GA4 Property: ${ga4Prop || 'None selected'}
+            - Google Ads Account: ${adsAcc || 'None selected'}
+
+            Always format results as Markdown tables. If a marketing property is not selected, ask the user to select one in the settings.`;
+
             if (syncedContext) {
                 let contextObj;
                 try {
                     contextObj = JSON.parse(syncedContext);
-                } catch(e) {
+                } catch (e) {
                     contextObj = null;
                 }
 
                 if (contextObj) {
                     const hasBoardSelection = contextObj.selected_campaign_boards && contextObj.selected_campaign_boards.length > 0;
-                    const totalItems = (contextObj.campaigns ? contextObj.campaigns.length : 0) + 
-                                     (contextObj.selected_campaign_boards ? contextObj.selected_campaign_boards.reduce((acc, b) => acc + (b.items ? b.items.length : 0), 0) : 0);
-                    
+                    const totalItems = (contextObj.campaigns ? contextObj.campaigns.length : 0) +
+                        (contextObj.selected_campaign_boards ? contextObj.selected_campaign_boards.reduce((acc, b) => acc + (b.items ? b.items.length : 0), 0) : 0);
+
                     // AGGRESSIVE COMPACTION: If focused on boards or >100 items, strip item details
                     if (hasBoardSelection || totalItems > 100) {
                         console.log(`[CLAUDE] Aggressive compaction for Rate Limit safety (${totalItems} items).`);
-                        
+
                         if (contextObj.selected_campaign_boards) {
                             contextObj.selected_campaign_boards.forEach(board => {
                                 if (totalItems > 150) {
@@ -5102,7 +5884,7 @@ CRITICAL CONTACT RULE:
                                 }
                             });
                         }
-                        
+
                         // If focusing on boards, completely remove summary board data
                         if (hasBoardSelection) {
                             delete contextObj.campaigns;
@@ -5161,7 +5943,19 @@ CRITICAL CONTACT RULE:
                         action: 'claude_chat_with_tools',
                         system,
                         messages: history,
-                        max_tokens: 4096
+                        max_tokens: 4096,
+                        google_access_token: localStorage.getItem('googleToken_Workspace'),
+                        google_tokens: {
+                            workspace: localStorage.getItem('googleToken_Workspace'),
+                            gsc: localStorage.getItem('googleToken_Gsc'),
+                            ga4: localStorage.getItem('googleToken_Ga4'),
+                            ads: localStorage.getItem('googleToken_Ads')
+                        },
+                        google_marketing_creds: {
+                            siteUrl: gscSite,
+                            propertyId: ga4Prop,
+                            customerId: adsAcc
+                        }
                     })
                 });
 
@@ -5180,7 +5974,7 @@ CRITICAL CONTACT RULE:
                             } else {
                                 errorMsg += `: ${data.detail}`;
                             }
-                        } catch(e) {
+                        } catch (e) {
                             errorMsg += `: ${data.detail}`;
                         }
                     }
@@ -5200,13 +5994,35 @@ CRITICAL CONTACT RULE:
             }
         }
 
-        function addMessage(sender, text, toolLog = null, attachment = null) {
+        function addMessage(sender, text, toolLog = null, attachment = null, isRestoring = false) {
             const list = document.getElementById('messageList');
             const msg = document.createElement('div');
             msg.className = `message ${sender}`;
 
             // Clean OpenAI source citations (e.g., 【82:0†source】)
             const cleanText = text.replace(/【\d+:\d+†source】/g, '').trim();
+
+            // Update local history
+            if (!isRestoring) {
+                chatHistory.push({
+                    role: sender === 'user' ? 'user' : 'assistant',
+                    content: cleanText,
+                    toolLog: toolLog,
+                    timestamp: new Date().toISOString()
+                });
+                try {
+                    localStorage.setItem('chatbot_history', JSON.stringify(chatHistory));
+                } catch (e) {
+                    console.warn("[HISTORY] Could not save chatHistory to localStorage (Storage full)", e);
+                }
+                if (sender === 'bot') {
+                    saveConversation();
+                    // Generate a smart AI title after the first bot response
+                    if (chatHistory.length >= 2 && chatHistory.length <= 4) {
+                        setTimeout(generateAiTitle, 1000);
+                    }
+                }
+            }
 
             // Render Markdown (using marked.js)
             let htmlContent = marked.parse(cleanText);
@@ -5233,7 +6049,10 @@ CRITICAL CONTACT RULE:
             }
 
             const toolHtml = toolLog
-                ? `<div class="tool-log"><span class="tool-log-label"><i class="fas fa-database"></i> Monday.com queries</span>${escapeHtml(toolLog)}</div>`
+                ? `<details class="tool-log">
+                    <summary class="tool-log-label"><i class="fas fa-database"></i> Monday.com queries</summary>
+                    <div class="tool-log-content">${escapeHtml(toolLog)}</div>
+                   </details>`
                 : '';
 
             msg.innerHTML = `
@@ -5294,9 +6113,8 @@ CRITICAL CONTACT RULE:
                 setTimeout(syncMondayToOpenAI, 1000);
             }
 
-            // Note: The Google Workspace connection prompt is handled by showGworkspaceModal() 
-            // initialized earlier to prevent popup blockers and double-auth requests.
-
+            // Auto-check connection status for all Google accounts
+            checkAllGoogleServices();
         });
     </script>
 
@@ -5367,7 +6185,7 @@ CRITICAL CONTACT RULE:
             }
             var section = document.getElementById('googleChatSection');
             if (section) section.classList.add('active');
-            setTimeout(function () { connectGoogleChat(); }, 350);
+            setTimeout(function () { connectService('Workspace'); }, 350);
         }
         var gModal = document.getElementById('gworkspaceModal');
         if (gModal) {

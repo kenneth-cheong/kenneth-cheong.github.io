@@ -156,6 +156,88 @@
             z-index: 50;
         }
 
+        /* LLM Model Selector */
+        .model-selector {
+            display: flex;
+            gap: 2px;
+            background: #f1f5f9;
+            padding: 2px;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+            user-select: none;
+            width: fit-content;
+        }
+
+        .model-btn {
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .model-btn:hover {
+            color: var(--primary);
+        }
+
+        .model-btn.active {
+            background: #fff;
+            color: var(--primary);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .model-btn.active[data-model*="claude"] {
+            color: #d97706; /* Claude Amber */
+        }
+        
+        .model-btn.active[data-model*="gpt"] {
+            color: #10a37f; /* OpenAI Green */
+        }
+
+        /* Toast Notification Styles */
+        .toast-container {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            z-index: 9999;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: #fff;
+            color: var(--text-main);
+            padding: 0.75rem 1.25rem;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border);
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            pointer-events: auto;
+            animation: slideUp 0.3s ease-out forwards;
+            min-width: 200px;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(10px); }
+        }
+
         .chat-input-box {
             background: #fff;
             border: 1px solid var(--border);
@@ -176,6 +258,22 @@
         .chat-input-box.drag-over {
             border-color: var(--primary);
             background: rgba(37, 99, 235, 0.05);
+        }
+
+        .agent-card {
+            transition: all 0.2s ease;
+        }
+
+        .agent-card:hover {
+            border-color: var(--primary) !important;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .agent-card.dragging {
+            opacity: 0.4;
+            transform: scale(0.98);
+            border: 2px dashed var(--primary) !important;
         }
 
         .chat-input-actions {
@@ -2714,7 +2812,7 @@
                         <i data-lucide="users" size="18"></i> Team & Roles
                     </a>
                     <a href="#" class="nav-item" onclick="switchView('persona', this)">
-                        <i data-lucide="cpu" size="18"></i> AI Prompt
+                        <i data-lucide="cpu" size="18"></i> Workflow & Prompts
                     </a>
                 </nav>
 
@@ -2800,11 +2898,18 @@
                 <!-- Chat Input -->
                 <div class="chat-input-wrapper">
                     <div id="file-previews" class="file-previews"></div>
-                    <div class="quick-actions">
-                        <button class="chip" onclick="addPrompt('Extract mandatory requirements')">Extract
-                            requirements</button>
-                        <button class="chip" onclick="addPrompt('Check compliance')">Check compliance</button>
-                        <button class="chip" onclick="addPrompt('Draft executive summary')">Executive summary</button>
+                    <div class="quick-actions" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="chip" onclick="addPrompt('Extract mandatory requirements')">Extract
+                                requirements</button>
+                            <button class="chip" onclick="addPrompt('Check compliance')">Check compliance</button>
+                            <button class="chip" onclick="addPrompt('Draft executive summary')">Executive summary</button>
+                        </div>
+                        <div class="model-selector" style="transform: scale(0.9); transform-origin: right center;">
+                            <button class="model-btn active" id="btn-claude-sonnet" onclick="setLLM('claude-sonnet')" data-model="claude">Sonnet</button>
+                            <button class="model-btn" id="btn-claude-haiku" onclick="setLLM('claude-haiku')" data-model="claude">Haiku</button>
+                            <button class="model-btn" id="btn-gpt-mini" onclick="setLLM('gpt-mini')" data-model="gpt">GPT-4o</button>
+                        </div>
                     </div>
                     <div class="chat-input-box" id="chat-input-box">
                         <div class="chat-input-actions">
@@ -2923,11 +3028,11 @@
                 </div>
             </div>
 
-            <!-- View: AI Prompt -->
+            <!-- View: Workflow & Prompts -->
             <div id="view-persona" class="view-content">
                 <div class="view-header">
                     <div>
-                        <h2>AI Prompt & Strategy</h2>
+                        <h2>Workflow & Prompts</h2>
                         <p style="color: var(--text-muted); font-size: 0.875rem;">Configure the strategic narrative and
                             design DNA for this tender.</p>
                     </div>
@@ -2951,47 +3056,105 @@
                     </div>
                 </div>
 
-                <div class="card"
-                    style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);">
-                    <div class="sector-selector">
-                        <label>Sector Preset:</label>
-                        <select class="table-input" style="flex: 1; border: 1px solid var(--border);"
-                            onchange="applySectorPreset(this.value)">
-                            <option value="default">General (Default MediaOne)</option>
-                            <option value="healthcare">Healthcare & Medical</option>
-                            <option value="finance">Financial Services</option>
-                            <option value="public">Public Sector / Government</option>
-                            <option value="education">Education & Institutions</option>
-                            <option value="ecommerce">E-Commerce & Retail</option>
-                        </select>
+                <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 1.5rem; align-items: start;">
+                    <!-- Left Column: AI Agents Diagram -->
+                    <div class="card"
+                        style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);">
+                        <div style="margin-bottom: 1.5rem;">
+                            <h4 style="font-size: 0.8125rem; margin: 0;"><i data-lucide="bot" size="14"></i> AI Specialist
+                                Agents</h4>
+                            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">Select a step in the
+                                strategic workflow to load the agent persona.</p>
+                        </div>
+                        <div id="ai-agents-grid">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div style="margin-top: 2rem; display: flex; justify-content: center;">
+                            <button class="btn btn-ghost" onclick="openAgentModal()"><i data-lucide="plus" size="14"></i> Add New Agent Step</button>
+                        </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Master System Prompt (Slide Generation DNA)</label>
-                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem;">This prompt
-                            guides the AI in drafting content, choosing tone, and suggesting slide structures based on
-                            MediaOne's winning patterns.</p>
-                        <textarea id="master-prompt-input" class="form-control"
-                            style="min-height: 400px; font-family: monospace; font-size: 0.8125rem; line-height: 1.5;"></textarea>
-                    </div>
+                    <!-- Right Column: Prompt & Context -->
+                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div class="card"
+                            style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);">
+                            <div class="sector-selector">
+                                <label>Sector Preset:</label>
+                                <select class="table-input" style="flex: 1; border: 1px solid var(--border);"
+                                    onchange="applySectorPreset(this.value)">
+                                    <option value="default">General (Default MediaOne)</option>
+                                    <option value="healthcare">Healthcare & Medical</option>
+                                    <option value="finance">Financial Services</option>
+                                    <option value="public">Public Sector / Government</option>
+                                    <option value="education">Education & Institutions</option>
+                                    <option value="ecommerce">E-Commerce & Retail</option>
+                                </select>
+                            </div>
 
-                    <div style="display: flex; gap: 0.75rem; margin-top: 1rem;">
-                        <button class="btn btn-ghost" onclick="runToneCheck()"><i data-lucide="shield-check"
-                                size="16"></i> Run Tone Check</button>
-                    </div>
-                    <div id="tone-check-result"></div>
+                            <div class="form-group">
+                                <label>Master System Prompt (Slide Generation DNA)</label>
+                                <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem;">This prompt
+                                    guides the AI in drafting content, choosing tone, and suggesting slide structures based on
+                                    MediaOne's winning patterns.</p>
+                                <textarea id="master-prompt-input" class="form-control"
+                                    style="min-height: 500px; font-family: monospace; font-size: 0.8125rem; line-height: 1.5;"></textarea>
+                            </div>
 
-                    <div
-                        style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-app); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
-                        <h4
-                            style="font-size: 0.8125rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                            <i data-lucide="info" size="14"></i> Strategic Tip
-                        </h4>
-                        <p style="font-size: 0.75rem; color: var(--text-muted);">
-                            The current prompt emphasizes <strong>Low-risk continuity</strong> and <strong>Proprietary
-                                intelligence (Digimetrics.ai)</strong>. You can tweak this to focus more on specific
-                            sector fluencies for this client.
-                        </p>
+                            <div style="display: flex; gap: 0.75rem; margin-top: 1rem;">
+                                <button class="btn btn-ghost" onclick="runToneCheck()"><i data-lucide="shield-check"
+                                        size="16"></i> Run Tone Check</button>
+                            </div>
+                            <div id="tone-check-result"></div>
+
+                            <div
+                                style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-app); border-radius: var(--radius-md); border-left: 4px solid var(--primary);">
+                                <h4
+                                    style="font-size: 0.8125rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                    <i data-lucide="info" size="14"></i> Strategic Tip
+                                </h4>
+                                <p style="font-size: 0.75rem; color: var(--text-muted);">
+                                    The current prompt emphasizes <strong>Low-risk continuity</strong> and <strong>Proprietary
+                                        intelligence (Digimetrics.ai)</strong>. You can tweak this to focus more on specific
+                                    sector fluencies for this client.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal: Edit Agent -->
+            <div id="agent-modal" class="modal-overlay">
+                <div class="modal-card" style="max-width: 600px;">
+                    <div class="modal-header">
+                        <h3 id="agent-modal-title">Edit Specialist Agent</h3>
+                        <button class="icon-btn" onclick="closeAgentModal()"><i data-lucide="x" size="20"></i></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="edit-agent-id">
+                        <div class="form-group">
+                            <label>Agent Name</label>
+                            <input type="text" id="edit-agent-name" class="form-control" placeholder="e.g. Compliance Auditor">
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label>Icon (Lucide Icon Name)</label>
+                            <input type="text" id="edit-agent-icon" class="form-control" placeholder="e.g. shield-check, search, target">
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label>Short Description</label>
+                            <input type="text" id="edit-agent-desc" class="form-control" placeholder="Briefly describe the agent's role">
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label>Agent System Prompt</label>
+                            <textarea id="edit-agent-prompt" class="form-control" style="min-height: 300px; font-family: monospace; font-size: 0.8rem;"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="display: flex; justify-content: space-between;">
+                        <button class="btn btn-danger" id="delete-agent-btn" onclick="handleDeleteAgent()">Delete Agent</button>
+                        <div style="display: flex; gap: 0.75rem;">
+                            <button class="btn btn-ghost" onclick="closeAgentModal()">Cancel</button>
+                            <button class="btn btn-primary" onclick="saveAgentEdits()">Save Agent</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3258,6 +3421,63 @@
         </div>
 
         <script>
+            // LLM Switcher Logic
+            let currentLLM = localStorage.getItem('tenderLLM') || 'claude';
+
+            function handleLLMToggle(isClaude) {
+                const llm = isClaude ? 'claude' : 'gpt';
+                setLLM(llm);
+            }
+
+            let currentLLM = localStorage.getItem('tenderLLM') || 'claude-sonnet';
+
+            function setLLM(llm) {
+                currentLLM = llm;
+                localStorage.setItem('tenderLLM', llm);
+                
+                // Update UI buttons
+                document.querySelectorAll('.model-btn').forEach(btn => btn.classList.remove('active'));
+                const activeBtn = document.getElementById(`btn-${llm}`);
+                if (activeBtn) activeBtn.classList.add('active');
+                
+                let label = "Claude 3.5 Sonnet";
+                if (llm === 'claude-haiku') label = "Claude 3 Haiku";
+                if (llm === 'gpt-mini') label = "GPT-4o-mini";
+                
+                if (typeof showToast === 'function') showToast(`Switched to ${label}`, "info");
+            }
+
+            // Missing Toast System (Fixing bug in tender.html)
+            function showToast(message, type = 'info', duration = 4000) {
+                let container = document.querySelector('.toast-container');
+                if (!container) {
+                    container = document.createElement('div');
+                    container.className = 'toast-container';
+                    document.body.appendChild(container);
+                }
+
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+
+                const icon = type === 'success' ? 'check-circle' : (type === 'warning' ? 'alert-triangle' : 'info');
+                toast.innerHTML = `<i data-lucide="${icon}" size="18"></i><span>${message}</span>`;
+                container.appendChild(toast);
+                if (window.lucide) lucide.createIcons();
+
+                const remove = () => {
+                    toast.style.animation = 'fadeOut 0.3s ease-in forwards';
+                    setTimeout(() => toast.remove(), 300);
+                };
+
+                if (duration > 0) setTimeout(remove, duration);
+                return { remove };
+            }
+
+            // Initialize on load
+            document.addEventListener('DOMContentLoaded', () => {
+                setLLM(currentLLM);
+            });
+
             const API_BASE_URL = 'https://2zsxqwth46.execute-api.ap-southeast-1.amazonaws.com/claude';
             const PERSISTENCE_API_URL = 'https://tsiv6ub9g2.execute-api.ap-southeast-1.amazonaws.com/tenderPersistence';
             let selectedTeamIds = [];
@@ -3295,7 +3515,7 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 if (current) {
                     current.masterPrompt = document.getElementById('master-prompt-input').value;
                     saveProjects();
-                    addChatMessage("AI Prompt updated successfully for this tender.", 'ai');
+                    addChatMessage("Workflow & Prompts updated successfully for this tender.", 'ai');
                 }
             }
 
@@ -3392,6 +3612,357 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 { id: 7, metric: '300+', label: 'Clients Served', context: 'Across healthcare, finance, government, education, and e-commerce sectors.', tags: ['Scale', 'Credibility'] },
                 { id: 8, metric: 'Award', label: 'Digimetrics.ai Platform', context: 'Award-winning proprietary intelligence platform for multi-surface visibility tracking.', tags: ['Innovation', 'GEO'] }
             ];
+
+            // =============================================
+            // FEATURE 4: AI Specialist Agents (Editable & Persistent)
+            // =============================================
+            const INITIAL_AI_AGENTS = [
+                {
+                    id: 'strategy',
+                    name: 'Strategic Lead',
+                    icon: 'target',
+                    desc: 'The default master strategist for MediaOne decks.',
+                    prompt: DEFAULT_MASTER_PROMPT
+                },
+                {
+                    id: 'client-research',
+                    name: 'Client Researcher',
+                    icon: 'search',
+                    desc: 'Deep dives into client needs, culture, and pain points.',
+                    prompt: `Acting as a Senior Client Researcher for MediaOne:
+- Analyze the uploaded documents and provided URLs to identify the client's core values, recent news, and organizational culture.
+- Identify the "unspoken" needs and strategic priorities mentioned in annual reports or CSR statements.
+- Extract key stakeholder names and roles if mentioned.
+- Tone: Highly analytical, empathetic to client needs, and detail-oriented.
+- Goal: Provide a comprehensive background brief that ensures our proposal feels "inside out" rather than "outside in".`
+                },
+                {
+                    id: 'requirements',
+                    name: 'Requirements Lead',
+                    icon: 'list-checks',
+                    desc: 'Consolidates and tracks all tender requirements.',
+                    prompt: `Acting as a Tender Compliance & Requirements Specialist:
+- Extract every single mandatory and optional requirement from the RFP/tender documents.
+- Categorize requirements into Technical, Commercial, Operational, and Administrative.
+- Identify all "must-haves" vs "nice-to-haves".
+- Create a requirements traceability matrix summary.
+- Highlight any high-risk requirements that require special attention or legal review.`
+                },
+                {
+                    id: 'competitor',
+                    name: 'Competitor Analyst',
+                    icon: 'users',
+                    desc: 'Maps competitive landscape and identifies win themes.',
+                    prompt: `Acting as a Senior Competitor Analyst:
+- Based on the tender documents and industry knowledge, identify the likely competitors for this contract.
+- Perform a SWOT analysis comparing MediaOne's strengths against these competitors for this specific scope.
+- Identify "Win Themes" that differentiate MediaOne (e.g., proprietary tech, local team, track record).
+- Suggest "Ghosting" strategies (highlighting our strengths where competitors are known to be weak without naming them).`
+                },
+                {
+                    id: 'slide-writer',
+                    name: 'Slide Architect',
+                    icon: 'presentation',
+                    desc: 'Crafts persuasive, high-impact slide content.',
+                    prompt: `Acting as a Lead Slide Copywriter & Presentation Designer:
+- Focus on "Pyramid Principle" communication: Lead with the conclusion, support with evidence.
+- Transform complex data into simple, boardroom-ready narrative bullets.
+- Ensure every slide has a clear "So What?" for the evaluator.
+- Maintain the MediaOne Design DNA: strategic, clean, and evidence-led.
+- Use powerful action verbs and avoid passive corporate jargon.`
+                },
+                {
+                    id: 'editor',
+                    name: 'Quality Editor',
+                    icon: 'edit-3',
+                    desc: 'Checks spelling, grammar, and brand consistency.',
+                    prompt: `Acting as a Senior Editor and Brand Guardian:
+- Review the content for absolute grammatical perfection and spelling accuracy (UK/Singapore English).
+- Ensure consistent tone of voice throughout the deck (Senior, consultative, confident).
+- Check for consistent terminology (e.g., if we use "Partner", don't switch to "Vendor").
+- Flag any overly complex sentences that could be simplified for clarity.
+- Verify that all claims are backed by the provided data/proof points.`
+                },
+                {
+                    id: 'compliance',
+                    name: 'Compliance Auditor',
+                    icon: 'shield-check',
+                    desc: 'Checks against tender evaluation criteria.',
+                    prompt: `Acting as a Final Compliance Auditor:
+- Review the generated slides against the specific evaluation criteria and weightings mentioned in the tender.
+- Score each section based on how well it addresses the scoring rubric.
+- Flag any missing mandatory components.
+- Ensure all formatting guidelines (font size, page limits, mandatory annexes) are respected.
+- Goal: Ensure a 100% compliant and high-scoring submission.`
+                }
+            ];
+
+            let aiAgents = [];
+            const GLOBAL_AGENTS_ID = 'mediaone_global_agents';
+
+            async function syncAgentsWithCloud(action = 'load') {
+                try {
+                    if (action === 'load') {
+                        const payload = { 
+                            action: 'get_projects', 
+                            data: { userId: GLOBAL_AGENTS_ID } 
+                        };
+                        const response = await fetch(PERSISTENCE_API_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            const result = (data && data.body) ? (typeof data.body === 'string' ? JSON.parse(data.body) : data.body) : data;
+                            if (result && result.aiAgents) {
+                                aiAgents = result.aiAgents;
+                                localStorage.setItem('tenderAIAgents', JSON.stringify(aiAgents));
+                                renderAIAgents();
+                                return true;
+                            }
+                        }
+                    } else if (action === 'save') {
+                        const payload = {
+                            action: 'save_projects',
+                            data: {
+                                userId: GLOBAL_AGENTS_ID,
+                                projects: [],
+                                aiAgents: aiAgents
+                            }
+                        };
+                        await fetch(PERSISTENCE_API_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        return true;
+                    }
+                } catch (e) {
+                    console.error(`Agents Cloud ${action} failed:`, e);
+                }
+                return false;
+            }
+
+            function getAIAgents() {
+                if (aiAgents.length > 0) return aiAgents;
+
+                const stored = localStorage.getItem('tenderAIAgents');
+                if (stored) {
+                    aiAgents = JSON.parse(stored);
+                } else {
+                    aiAgents = INITIAL_AI_AGENTS.map((a, index) => ({ ...a, step: index + 1 }));
+                }
+                return aiAgents;
+            }
+
+            function saveAIAgents() {
+                localStorage.setItem('tenderAIAgents', JSON.stringify(aiAgents));
+                renderAIAgents();
+                syncAgentsWithCloud('save'); // background cloud save
+            }
+
+            function renderAIAgents() {
+                const grid = document.getElementById('ai-agents-grid');
+                if (!grid) return;
+
+                const agents = getAIAgents();
+
+                grid.style.display = 'flex';
+                grid.style.flexDirection = 'column';
+                grid.style.alignItems = 'center';
+                grid.style.gap = '0';
+                grid.style.paddingLeft = '20px';
+
+                grid.innerHTML = agents.map((agent, index) => {
+                    const isLast = index === agents.length - 1;
+                    const stepNum = index + 1;
+
+                    return `
+                        <div class="agent-workflow-item" style="display: flex; flex-direction: column; align-items: center; width: 100%;"
+                             draggable="true" 
+                             ondragstart="handleAgentDragStart(${index})" 
+                             ondragover="handleAgentDragOver(event)" 
+                             ondragleave="handleAgentDragLeave(event)"
+                             ondrop="handleAgentDrop(${index})"
+                             ondragend="this.classList.remove('dragging')">
+                            <div class="agent-card" onclick="selectAIAgent('${agent.id}')" id="agent-${agent.id}" 
+                                 style="cursor: grab; padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-lg); 
+                                        width: 100%; max-width: 600px; position: relative; background: #fff;">
+                                <div style="position: absolute; left: -15px; top: 50%; transform: translateY(-50%); 
+                                            background: var(--primary); color: #fff; width: 30px; height: 30px; 
+                                            border-radius: 50%; display: flex; align-items: center; justify-content: center; 
+                                            font-size: 0.75rem; font-weight: 800; border: 3px solid #fff; box-shadow: var(--shadow-sm); z-index: 2;">
+                                    ${stepNum}
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 1rem; margin-left: 1rem;">
+                                    <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--bg-app); 
+                                                display: flex; align-items: center; justify-content: center; color: var(--primary);">
+                                        <i data-lucide="${agent.icon}" size="20"></i>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                            <h5 style="margin: 0; font-size: 0.875rem;">${agent.name}</h5>
+                                            <span style="font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Step ${stepNum}</span>
+                                        </div>
+                                        <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0.25rem 0 0 0; line-height: 1.4;">${agent.desc}</p>
+                                    </div>
+                                    <div style="display: flex; gap: 0.25rem;">
+                                        <button class="icon-btn" onclick="event.stopPropagation(); openAgentModal('${agent.id}')" title="Edit Agent"><i data-lucide="edit-2" size="14"></i></button>
+                                        <i data-lucide="chevron-right" size="16" style="opacity: 0.3;"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            ${!isLast ? `
+                                <div style="width: 2px; height: 30px; background: linear-gradient(to bottom, var(--primary), var(--border)); opacity: 0.5;"></div>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+                lucide.createIcons();
+            }
+
+            // Drag and Drop Logic
+            let draggedAgentIndex = null;
+
+            function handleAgentDragStart(index) {
+                draggedAgentIndex = index;
+                event.currentTarget.classList.add('dragging');
+                event.dataTransfer.effectAllowed = 'move';
+            }
+
+            function handleAgentDragOver(e) {
+                e.preventDefault();
+                const item = e.currentTarget;
+                item.style.transform = 'translateY(10px)';
+            }
+
+            function handleAgentDragLeave(e) {
+                const item = e.currentTarget;
+                item.style.transform = 'translateY(0)';
+            }
+
+            function handleAgentDrop(targetIndex) {
+                event.preventDefault();
+                const item = event.currentTarget;
+                item.style.transform = 'translateY(0)';
+                
+                if (draggedAgentIndex === null || draggedAgentIndex === targetIndex) return;
+
+                const agents = [...getAIAgents()];
+                const movedAgent = agents.splice(draggedAgentIndex, 1)[0];
+                agents.splice(targetIndex, 0, movedAgent);
+                
+                aiAgents = agents;
+                saveAIAgents();
+                showToast('Workflow sequence updated', 'success');
+            }
+
+            function selectAIAgent(agentId) {
+                const agents = getAIAgents();
+                const agent = agents.find(a => a.id === agentId);
+                if (!agent) return;
+
+                document.getElementById('master-prompt-input').value = agent.prompt;
+
+                // Highlight active card
+                document.querySelectorAll('.agent-card').forEach(c => {
+                    c.style.borderColor = 'var(--border)';
+                    c.style.background = 'transparent';
+                    c.style.boxShadow = 'none';
+                });
+
+                const card = document.getElementById(`agent-${agentId}`);
+                if (card) {
+                    card.style.borderColor = 'var(--primary)';
+                    card.style.background = 'rgba(37, 99, 235, 0.05)';
+                    card.style.boxShadow = 'var(--shadow-sm)';
+                }
+
+                if (typeof showToast === 'function') showToast(`Switched to ${agent.name} persona`, 'info');
+            }
+
+            // Modal Logic for Agents
+            function openAgentModal(agentId = null) {
+                const modal = document.getElementById('agent-modal');
+                const title = document.getElementById('agent-modal-title');
+                const deleteBtn = document.getElementById('delete-agent-btn');
+                
+                if (agentId) {
+                    const agent = aiAgents.find(a => a.id === agentId);
+                    if (!agent) return;
+                    
+                    title.innerText = 'Edit Specialist Agent';
+                    document.getElementById('edit-agent-id').value = agent.id;
+                    document.getElementById('edit-agent-name').value = agent.name;
+                    document.getElementById('edit-agent-icon').value = agent.icon;
+                    document.getElementById('edit-agent-desc').value = agent.desc;
+                    document.getElementById('edit-agent-prompt').value = agent.prompt;
+                    deleteBtn.style.display = 'block';
+                } else {
+                    title.innerText = 'Create New Specialist Agent';
+                    document.getElementById('edit-agent-id').value = '';
+                    document.getElementById('edit-agent-name').value = '';
+                    document.getElementById('edit-agent-icon').value = 'bot';
+                    document.getElementById('edit-agent-desc').value = '';
+                    document.getElementById('edit-agent-prompt').value = '';
+                    deleteBtn.style.display = 'none';
+                }
+                
+                modal.classList.add('active');
+                lucide.createIcons();
+            }
+
+            function closeAgentModal() {
+                document.getElementById('agent-modal').classList.remove('active');
+            }
+
+            function saveAgentEdits() {
+                const id = document.getElementById('edit-agent-id').value;
+                const name = document.getElementById('edit-agent-name').value;
+                const icon = document.getElementById('edit-agent-icon').value;
+                const desc = document.getElementById('edit-agent-desc').value;
+                const prompt = document.getElementById('edit-agent-prompt').value;
+
+                if (!name || !prompt) {
+                    showToast('Name and Prompt are required', 'error');
+                    return;
+                }
+
+                if (id) {
+                    // Update
+                    const index = aiAgents.findIndex(a => a.id === id);
+                    if (index !== -1) {
+                        aiAgents[index] = { ...aiAgents[index], name, icon, desc, prompt };
+                    }
+                } else {
+                    // Create
+                    const newId = 'agent-' + Date.now();
+                    aiAgents.push({
+                        id: newId,
+                        name,
+                        icon,
+                        desc,
+                        prompt
+                    });
+                }
+
+                saveAIAgents();
+                closeAgentModal();
+                showToast(id ? 'Agent updated' : 'New agent created', 'success');
+            }
+
+            function handleDeleteAgent() {
+                const id = document.getElementById('edit-agent-id').value;
+                if (!id) return;
+
+                if (confirm('Are you sure you want to delete this agent?')) {
+                    aiAgents = aiAgents.filter(a => a.id !== id);
+                    saveAIAgents();
+                    closeAgentModal();
+                    showToast('Agent deleted', 'success');
+                }
+            }
 
             function getProofBank() {
                 const current = projects.find(p => p.id === currentProjectId);
@@ -4834,6 +5405,12 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     renderProofBank();
                 }
 
+                if (viewId === 'persona') {
+                    getAIAgents(); // Ensure local is ready
+                    renderAIAgents();
+                    syncAgentsWithCloud('load'); // Pull global updates
+                }
+
                 lucide.createIcons();
             }
 
@@ -4935,7 +5512,7 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 renderPreviews();
 
                 // NOTE: Files are already added to sidebar in addPendingFile/processFileInBackground
-                callClaudeAPI(text, filesToSend);
+                callAIAPI(text, filesToSend);
             }
 
             async function extractText(file) {
@@ -4960,13 +5537,14 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 return "";
             }
 
-            async function callClaudeAPI(userInput, files = []) {
+            async function callAIAPI(userInput, files = []) {
                 isProcessing = true;
                 const container = document.getElementById('chat-messages');
 
                 const typing = document.createElement('div');
                 typing.className = 'message message-ai typing-indicator';
-                typing.innerHTML = '<div class="message-content" style="padding: 0.5rem 1rem; color: var(--text-muted);">Claude is responding...</div>';
+                const aiName = currentLLM.includes('claude') ? 'Claude' : 'GPT';
+                typing.innerHTML = `<div class="message-content" style="padding: 0.5rem 1rem; color: var(--text-muted);">${aiName} is responding...</div>`;
                 container.appendChild(typing);
                 container.scrollTop = container.scrollHeight;
 
@@ -5038,12 +5616,16 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                         }
                     }
 
+                    const apiModel = currentLLM === 'gpt-mini' ? 'gpt-4o-mini' : 
+                                   (currentLLM === 'claude-haiku' ? 'claude-3-haiku' : 'claude-3-5-sonnet');
+
                     const response = await fetch(API_BASE_URL, {
                         method: 'POST',
                         mode: 'cors',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             action: 'analyze',
+                            model: apiModel,
                             prompt: fullPrompt,
                             attachments: files.map(f => ({ name: f.file.name, type: f.file.type, content: f.base64.split(',')[1] }))
                         })
@@ -5460,7 +6042,7 @@ INSTRUCTIONS:
             function askAItoRewrite() {
                 const currentContent = document.getElementById('current-slide-body').innerText;
                 addChatMessage(`Please rewrite the current slide to be more professional: "${slidesData[activeSlideIndex].title}"`, 'user');
-                callClaudeAPI(`Rewrite the following slide content for an executive audience, keeping the same core meaning but making it more persuasive and professional: ${currentContent}`);
+                callAIAPI(`Rewrite the following slide content for an executive audience, keeping the same core meaning but making it more persuasive and professional: ${currentContent}`);
             }
 
             function applySuggestion(type, explanation) {

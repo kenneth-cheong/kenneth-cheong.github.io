@@ -1,0 +1,1950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automated Task Manager</title>
+    <!-- Cron parser for human readable strings -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cronstrue/2.27.0/cronstrue.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f6f8fb;
+            --card-bg: #ffffff;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --success: #16a34a;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --transition: all 0.2s ease-in-out;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.5;
+            font-size: 14px;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        button {
+            cursor: pointer;
+            font-family: inherit;
+            border: none;
+            background: none;
+        }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* Layout */
+        .app-container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .header {
+            background: var(--card-bg);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .header-titles h1 {
+            font-size: 1.25rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .header-titles p {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .content-body {
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-md);
+            font-weight: 500;
+            font-size: 0.875rem;
+            transition: var(--transition);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-secondary {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-color);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            opacity: 0.9;
+        }
+
+        .btn-icon {
+            padding: 0.5rem;
+            border-radius: var(--radius-md);
+            color: var(--text-muted);
+        }
+
+        .btn-icon:hover {
+            background: var(--border);
+            color: var(--text-main);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Summary Cards */
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .stat-card-title {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
+        .stat-card-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            background: var(--card-bg);
+            padding: 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            margin-bottom: 1rem;
+            align-items: center;
+        }
+
+        .form-control {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .form-control label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .input-field {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 0.875rem;
+            font-family: inherit;
+            outline: none;
+            transition: var(--transition);
+            background: var(--card-bg);
+            color: var(--text-main);
+            width: 100%;
+        }
+
+        .input-field:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+        }
+
+        .search-input-wrapper {
+            position: relative;
+            flex-grow: 1;
+            min-width: 250px;
+        }
+
+        .search-input-wrapper svg {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        .search-input-wrapper input {
+            padding-left: 2.25rem;
+            width: 100%;
+        }
+
+        /* Table */
+        .table-container {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow-x: auto;
+            box-shadow: var(--shadow-sm);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        tbody tr:hover {
+            background: var(--bg-color);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.125rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .badge-success { background: #dcfce7; color: #166534; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+        .badge-danger { background: #fee2e2; color: #991b1b; }
+        .badge-info { background: #dbeafe; color: #1e40af; }
+        .badge-neutral { background: #f1f5f9; color: #475569; }
+
+        .action-menu {
+            position: relative;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-md);
+            min-width: 160px;
+            z-index: 50;
+            padding: 0.5rem 0;
+        }
+
+        .dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            color: var(--text-main);
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+
+        .dropdown-item:hover {
+            background: var(--bg-color);
+        }
+
+        /* Activity Panel */
+        .activity-panel {
+            width: 320px;
+            background: var(--card-bg);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s ease;
+        }
+
+        .activity-panel.collapsed {
+            width: 0;
+            border-left: none;
+        }
+
+        .activity-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .activity-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .activity-item {
+            border-left: 3px solid var(--border);
+            padding-left: 0.75rem;
+        }
+
+        .activity-item.success { border-color: var(--success); }
+        .activity-item.error { border-color: var(--danger); }
+        .activity-item.info { border-color: var(--primary); }
+
+        .activity-time {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .activity-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .activity-desc {
+            font-size: 0.8125rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Modals */
+        .modal-backdrop {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            padding: 1rem;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .modal-backdrop.show {
+            display: flex;
+            opacity: 1;
+        }
+
+        .modal {
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            width: 100%;
+            max-width: 800px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-lg);
+            transform: scale(0.95);
+            transition: transform 0.2s ease;
+        }
+
+        .modal-backdrop.show .modal {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-footer {
+            padding: 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+        }
+
+        /* Wizard */
+        .wizard-steps {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 1.5rem;
+            overflow-x: auto;
+        }
+
+        .wizard-step {
+            padding: 0.75rem 1rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .wizard-step.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .wizard-step.completed {
+            color: var(--success);
+        }
+
+        .wizard-content {
+            display: none;
+        }
+
+        .wizard-content.active {
+            display: block;
+        }
+
+        /* Forms Layout */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .form-label {
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .form-hint {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .form-error {
+            color: var(--danger);
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+            display: none;
+        }
+
+        .textarea-field {
+            resize: vertical;
+            min-height: 100px;
+            font-family: monospace;
+        }
+
+        /* Toggle switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #cbd5e1;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: var(--primary);
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Toast Container */
+        #toast-container {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            z-index: 1000;
+        }
+
+        .toast {
+            min-width: 300px;
+            background: var(--card-bg);
+            border-left: 4px solid var(--primary);
+            box-shadow: var(--shadow-lg);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            animation: slideIn 0.3s ease-out forwards;
+        }
+
+        .toast.success { border-color: var(--success); }
+        .toast.error { border-color: var(--danger); }
+        .toast.warning { border-color: var(--warning); }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Utilities */
+        .hidden { display: none !important; }
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-2 { gap: 0.5rem; }
+        .gap-4 { gap: 1rem; }
+        .mt-4 { margin-top: 1rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .text-center { text-align: center; }
+        .text-muted { color: var(--text-muted); }
+        .p-4 { padding: 1rem; }
+        .p-8 { padding: 2rem; }
+
+        /* Detail Modal specific */
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .detail-item .label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+        }
+        .detail-item .value {
+            font-weight: 500;
+            word-break: break-all;
+        }
+        .schedules-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .schedule-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            background: var(--bg-color);
+        }
+        .schedule-card-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            border: 3px solid rgba(0,0,0,0.1);
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border-left-color: currentColor;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Skeleton loader */
+        .skeleton {
+            background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+            background-size: 200% 100%;
+            animation: skeleton-loading 1.5s infinite;
+            border-radius: 4px;
+        }
+        @keyframes skeleton-loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* AI Chat Panel */
+        #ai-chat-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 56px;
+            height: 56px;
+            border-radius: 28px;
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            color: white;
+            border: none;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+            cursor: pointer;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        #ai-chat-btn:hover {
+            transform: scale(1.05);
+        }
+        #ai-chat-panel {
+            position: fixed;
+            bottom: 90px;
+            right: 24px;
+            width: 360px;
+            height: 500px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            transition: opacity 0.2s, transform 0.2s;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(10px);
+        }
+        #ai-chat-panel.open {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
+        .chat-header {
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            color: white;
+            padding: 16px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chat-messages {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            font-size: 0.85rem;
+            background: #f8fafc;
+        }
+        .chat-bubble {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            line-height: 1.4;
+        }
+        .chat-bubble.user {
+            background: #e2e8f0;
+            color: #1e293b;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+        .chat-bubble.ai {
+            background: white;
+            border: 1px solid #e2e8f0;
+            color: #334155;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+        .chat-input-area {
+            padding: 12px;
+            background: #fff;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 8px;
+        }
+        .chat-input-area input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            outline: none;
+        }
+        .chat-input-area input:focus {
+            border-color: #4f46e5;
+        }
+        .chat-input-area button {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0 16px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            .app-container { flex-direction: column; }
+            .activity-panel { width: 100%; height: 300px; border-left: none; border-top: 1px solid var(--border); }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .form-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="header">
+            <div class="header-titles">
+                <h1>Automated Task Manager</h1>
+                <p>Create, inspect, and manage automated background tasks</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="toggleActivityPanel()" title="Toggle Activity Panel">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+                <button class="btn btn-secondary" onclick="refreshAll()" id="btn-refresh-all">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Refresh All
+                </button>
+                <button class="btn btn-primary" onclick="openCreateWizard()">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    Create Task
+                </button>
+            </div>
+        </header>
+
+        <div class="content-body">
+            <!-- Summary Cards -->
+            <div class="summary-cards" id="summary-cards">
+                <div class="card skeleton" style="height: 100px;"></div>
+                <div class="card skeleton" style="height: 100px;"></div>
+                <div class="card skeleton" style="height: 100px;"></div>
+                <div class="card skeleton" style="height: 100px;"></div>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="toolbar">
+                <div class="search-input-wrapper">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input type="text" id="filter-search" class="input-field" placeholder="Search task name, ARN..." oninput="handleFilterChange()">
+                </div>
+                
+                <div class="form-control">
+                    <select id="filter-region" class="input-field" onchange="handleFilterChange()">
+                        <option value="All">All Regions</option>
+                        <option value="us-east-1">us-east-1</option>
+                        <option value="us-west-2">us-west-2</option>
+                        <option value="eu-west-1">eu-west-1</option>
+                    </select>
+                </div>
+
+                <div class="form-control">
+                    <select id="filter-runtime" class="input-field" onchange="handleFilterChange()">
+                        <option value="All">All Languages</option>
+                        <option value="nodejs20.x">Node.js 20.x</option>
+                        <option value="python3.12">Python 3.12</option>
+                        <option value="go1.x">Go 1.x</option>
+                        <option value="java21">Java 21</option>
+                    </select>
+                </div>
+
+                <div class="form-control">
+                    <select id="filter-status" class="input-field" onchange="handleFilterChange()">
+                        <option value="All">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                    </select>
+                </div>
+
+                <div class="form-control">
+                    <label class="flex items-center gap-2" style="cursor:pointer; flex-direction: row; margin-top: 0.5rem;">
+                        <input type="checkbox" id="filter-has-schedule" onchange="handleFilterChange()" checked>
+                        Show only with schedules
+                    </label>
+                </div>
+                
+                <div style="margin-left: auto;" class="form-control">
+                    <select id="filter-sort" class="input-field" onchange="handleFilterChange()">
+                        <option value="Name">Sort by Name</option>
+                        <option value="Recently Updated">Recently Updated</option>
+                        <option value="Schedule Count">Schedule Count</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Main Table -->
+            <div class="table-container">
+                <table id="main-table">
+                    <thead>
+                        <tr>
+                            <th>Task Name</th>
+                            <th>Language</th>
+                            <th>Last Updated</th>
+                            <th>Schedules</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Rendered via JS -->
+                        <tr><td colspan="6" class="text-center p-8"><div class="spinner"></div> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Activity Panel -->
+    <aside class="activity-panel" id="activity-panel">
+        <div class="activity-header">
+            <h3>Recent Activity</h3>
+            <button class="btn-icon" onclick="clearActivity()" title="Clear Activity">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            </button>
+        </div>
+        <div class="activity-list" id="activity-list">
+            <!-- Rendered via JS -->
+            <div class="text-center text-muted mt-4">No recent activity</div>
+        </div>
+    </aside>
+</div>
+
+<!-- AI Chat Helper -->
+<button id="ai-chat-btn" onclick="toggleChat()">
+    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+</button>
+<div id="ai-chat-panel">
+    <div class="chat-header">
+        <div>Claude Assistant</div>
+        <button class="btn-icon" style="color:white;" onclick="toggleChat()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+        <div class="chat-bubble ai">Hi! I can help you create a new automated task. What do you need to schedule? (e.g. "I want to run a python script every Monday at 9am to clean up data")</div>
+    </div>
+    <div class="chat-input-area">
+        <input type="text" id="chat-input" placeholder="Type your request..." onkeypress="if(event.key==='Enter') sendChatMessage()">
+        <button onclick="sendChatMessage()">Send</button>
+    </div>
+</div>
+
+<!-- Lambda Detail Modal -->
+<div class="modal-backdrop" id="lambda-detail-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <div>
+                <h2 id="detail-title">Task Details</h2>
+                <p class="text-muted" id="detail-arn">arn:aws:lambda:...</p>
+            </div>
+            <button class="btn-icon" onclick="closeModal('lambda-detail-modal')">
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <div class="modal-body" id="detail-body">
+            <div class="text-center p-8"><div class="spinner"></div></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('lambda-detail-modal')">Close</button>
+            <button class="btn btn-primary" id="detail-create-schedule-btn">Create Schedule</button>
+        </div>
+    </div>
+</div>
+
+<!-- Create Lambda Modal -->
+<div class="modal-backdrop" id="create-lambda-modal">
+    <div class="modal" style="height: 80vh;">
+        <div class="modal-header">
+            <h2>Create New Task</h2>
+            <button class="btn-icon" onclick="closeModal('create-lambda-modal')">
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <div class="wizard-steps" id="create-lambda-steps">
+            <div class="wizard-step active" data-step="1">1. Basic Info</div>
+            <div class="wizard-step" data-step="2">2. Code Source</div>
+            <div class="wizard-step" data-step="3">3. Execution</div>
+            <div class="wizard-step" data-step="4">4. Schedule</div>
+            <div class="wizard-step" data-step="5">5. Review</div>
+        </div>
+        <div class="modal-body" id="create-lambda-form">
+            <!-- Step 1 -->
+            <div class="wizard-content active" id="wizard-step-1">
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label class="form-label">Task Name *</label>
+                        <input type="text" id="cl-name" class="input-field" placeholder="e.g. daily-report-generator">
+                    </div>
+                    <div class="form-group full-width">
+                        <label class="form-label">Description</label>
+                        <input type="text" id="cl-desc" class="input-field" placeholder="What does this function do?">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Package Type *</label>
+                        <select id="cl-package" class="input-field" onchange="toggleCodeSourceFields()">
+                            <option value="Zip">Zip file / Inline code</option>
+                            <option value="Image">Container Image</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Language *</label>
+                        <select id="cl-runtime" class="input-field">
+                            <option value="nodejs20.x">Node.js 20.x</option>
+                            <option value="python3.12">Python 3.12</option>
+                            <option value="go1.x">Go 1.x</option>
+                            <option value="java21">Java 21</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Region *</label>
+                        <select id="cl-region" class="input-field">
+                            <option value="us-east-1">us-east-1</option>
+                            <option value="us-west-2">us-west-2</option>
+                            <option value="eu-west-1">eu-west-1</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Architecture</label>
+                        <select id="cl-arch" class="input-field">
+                            <option value="x86_64">x86_64</option>
+                            <option value="arm64">arm64</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 2 -->
+            <div class="wizard-content" id="wizard-step-2">
+                <div class="form-grid" id="cl-zip-fields">
+                    <div class="form-group full-width">
+                        <label class="form-label">Handler *</label>
+                        <input type="text" id="cl-handler" class="input-field" value="index.handler">
+                        <span class="form-hint">Filename.method, e.g., index.handler or app.lambda_handler</span>
+                    </div>
+                    <div class="form-group full-width">
+                        <label class="form-label flex justify-between">
+                            Inline Code
+                            <a href="#" onclick="applyTemplate('node'); return false;" style="font-size: 12px; font-weight:normal;">Load Node.js Template</a>
+                        </label>
+                        <textarea id="cl-code" class="input-field textarea-field">exports.handler = async (event) => {
+    console.log("Event: ", JSON.stringify(event));
+    return { statusCode: 200, body: 'Hello World' };
+};</textarea>
+                    </div>
+                </div>
+                <div class="form-grid hidden" id="cl-image-fields">
+                    <div class="form-group full-width">
+                        <label class="form-label">ECR Image URI *</label>
+                        <input type="text" id="cl-image-uri" class="input-field" placeholder="123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="wizard-content" id="wizard-step-3">
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label class="form-label">Execution Role ARN *</label>
+                        <input type="text" id="cl-role" class="input-field" placeholder="arn:aws:iam::123456789012:role/my-lambda-role">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Memory (MB) *</label>
+                        <input type="number" id="cl-memory" class="input-field" value="128" min="128" max="10240">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Timeout (seconds) *</label>
+                        <input type="number" id="cl-timeout" class="input-field" value="3" min="1" max="900">
+                    </div>
+                    <div class="form-group full-width">
+                        <label class="form-label">Environment Variables (JSON)</label>
+                        <textarea id="cl-env" class="input-field textarea-field" style="min-height: 80px;">{
+  "NODE_ENV": "production"
+}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4 -->
+            <div class="wizard-content" id="wizard-step-4">
+                <div class="form-group flex items-center justify-between p-4 mb-4" style="background: var(--bg-color); border-radius: var(--radius-md);">
+                    <div>
+                        <div style="font-weight: 500;">Create Schedule</div>
+                        <div class="form-hint">Automatically trigger this task on a schedule</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="cl-has-schedule" onchange="toggleScheduleFields('cl')">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div id="cl-schedule-fields" class="hidden">
+                    <!-- Schedule fields injected here or copied from Create Schedule modal logic -->
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <label class="form-label">Schedule Name *</label>
+                            <input type="text" id="cl-sch-name" class="input-field">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Expression Type *</label>
+                            <select id="cl-sch-type" class="input-field" onchange="updateScheduleHint('cl')">
+                                <option value="cron">Cron</option>
+                                <option value="rate">Rate</option>
+                                <option value="at">At (One-time)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Expression *</label>
+                            <input type="text" id="cl-sch-expr" class="input-field" placeholder="cron(0 8 ? * MON-FRI *)">
+                            <span class="form-hint" id="cl-sch-hint">e.g. cron(0 8 ? * MON-FRI *)</span>
+                        </div>
+                        <div class="form-group full-width">
+                            <label class="form-label">Payload (JSON) optionally passed to Task</label>
+                            <textarea id="cl-sch-payload" class="input-field textarea-field" style="min-height:60px;">{}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 5 -->
+            <div class="wizard-content" id="wizard-step-5">
+                <div class="p-4 mb-4" style="background: var(--bg-color); border-radius: var(--radius-md);">
+                    <h3 class="mb-4">Review Configuration</h3>
+                    <div class="detail-grid" id="cl-review-content">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('create-lambda-modal')">Cancel</button>
+            <button class="btn btn-secondary" id="cl-btn-prev" onclick="wizardNav(-1)" style="display:none;">Previous</button>
+            <button class="btn btn-primary" id="cl-btn-next" onclick="wizardNav(1)">Next</button>
+            <button class="btn btn-primary" id="cl-btn-submit" onclick="submitCreateLambda()" style="display:none;">Create Task</button>
+        </div>
+    </div>
+</div>
+
+<!-- Create Schedule Modal -->
+<div class="modal-backdrop" id="create-schedule-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>Create Schedule</h2>
+            <button class="btn-icon" onclick="closeModal('create-schedule-modal')">
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label class="form-label">Target Task *</label>
+                    <input type="text" id="cs-target" class="input-field" disabled>
+                </div>
+                <div class="form-group full-width">
+                    <label class="form-label">Schedule Name *</label>
+                    <input type="text" id="cs-name" class="input-field" placeholder="e.g. hourly-trigger">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Source Type</label>
+                    <select id="cs-source" class="input-field">
+                        <option value="EventBridge Scheduler">EventBridge Scheduler</option>
+                        <option value="Legacy Rule">Legacy Scheduled Rule</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Timezone</label>
+                    <select id="cs-tz" class="input-field">
+                        <option value="UTC">UTC</option>
+                        <option value="America/New_York">America/New_York</option>
+                        <option value="Europe/London">Europe/London</option>
+                        <option value="Asia/Tokyo">Asia/Tokyo</option>
+                        <option value="Asia/Singapore">Asia/Singapore</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Expression Type *</label>
+                    <select id="cs-type" class="input-field" onchange="updateScheduleHint('cs')">
+                        <option value="cron">Cron</option>
+                        <option value="rate">Rate</option>
+                        <option value="at">At (One-time)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Expression *</label>
+                    <input type="text" id="cs-expr" class="input-field" placeholder="cron(0 8 ? * MON-FRI *)">
+                    <span class="form-hint" id="cs-hint">e.g. cron(0 8 ? * MON-FRI *)</span>
+                </div>
+                <div class="form-group full-width">
+                    <label class="form-label flex justify-between">
+                        Payload (JSON)
+                        <button class="btn btn-secondary" style="padding: 0.1rem 0.5rem; font-size: 0.75rem;" onclick="validateJSON('cs-payload')">Validate JSON</button>
+                    </label>
+                    <textarea id="cs-payload" class="input-field textarea-field">{}</textarea>
+                </div>
+                <div class="form-group full-width flex items-center gap-2">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="cs-enabled" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <label style="font-weight: 500;">Enable schedule immediately</label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('create-schedule-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitCreateSchedule()" id="cs-btn-submit">Create Schedule</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<script>
+    /** 
+     * CONFIG & STATE 
+     */
+    const API_BASE_URL = 'https://uax1t52ad4.execute-api.ap-southeast-1.amazonaws.com/scheduler';
+    const AI_API_URL = 'https://v5gyq2sqdd.execute-api.ap-southeast-1.amazonaws.com/mondayIntegration';
+    const API_TOKEN = ''; // Add API key here if you secure the API later
+
+    let state = {
+        lambdas: [],
+        filteredLambdas: [],
+        activity: [],
+        wizardStep: 1,
+        selectedLambdaNameForSchedule: null
+    };
+
+
+
+    /**
+     * API LAYER
+     */
+    async function apiCall(action, payload = {}) {
+        const headers = { 'Content-Type': 'application/json' };
+        
+        if (API_TOKEN) {
+            headers['Authorization'] = API_TOKEN.startsWith('Bearer') ? API_TOKEN : `Bearer ${API_TOKEN}`;
+            headers['x-api-key'] = API_TOKEN;
+        }
+
+        const bodyData = { action, ...payload };
+        const options = { method: 'POST', headers, body: JSON.stringify(bodyData) };
+
+        try {
+            const response = await fetch(API_BASE_URL, options);
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(errText || `HTTP error ${response.status}`);
+            }
+            let data = await response.json();
+
+            // Handle API Gateway without Lambda Proxy Integration
+            if (data && data.statusCode && data.body !== undefined) {
+                if (data.statusCode >= 400) {
+                    throw new Error(data.body);
+                }
+                data = typeof data.body === 'string' ? JSON.parse(data.body) : data.body;
+            }
+
+            return data;
+        } catch (error) {
+            console.error('API Error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * INIT & DATA LOADING
+     */
+    async function init() {
+        document.getElementById('btn-refresh-all').disabled = true;
+        try {
+            state.lambdas = await apiCall('list_lambdas');
+            logActivity('info', 'System Refresh', 'Loaded Tasks');
+            applyFilters();
+        } catch (error) {
+            showToast('Failed to load Tasks', 'error');
+            logActivity('error', 'Load Failed', error.message);
+            document.getElementById('table-body').innerHTML = `<tr><td colspan="6" class="text-center p-8 text-danger">Failed to load data. Backend unavailable.</td></tr>`;
+        } finally {
+            document.getElementById('btn-refresh-all').disabled = false;
+        }
+    }
+
+    async function refreshAll() {
+        showToast('Refreshing data...', 'info');
+        try {
+            await apiCall('refresh');
+            await init();
+            showToast('Data refreshed successfully', 'success');
+        } catch (err) {
+            showToast('Refresh failed', 'error');
+        }
+    }
+
+    /**
+     * UI RENDERING
+     */
+    function applyFilters() {
+        const search = document.getElementById('filter-search').value.toLowerCase();
+        const region = document.getElementById('filter-region').value;
+        const runtime = document.getElementById('filter-runtime').value;
+        const status = document.getElementById('filter-status').value;
+        const hasSchedule = document.getElementById('filter-has-schedule').checked;
+        const sort = document.getElementById('filter-sort').value;
+
+        state.filteredLambdas = state.lambdas.filter(l => {
+            if (search && !l.functionName.toLowerCase().includes(search) && !l.functionArn.toLowerCase().includes(search)) return false;
+            if (region !== 'All' && l.region !== region) return false;
+            if (runtime !== 'All' && l.runtime !== runtime) return false;
+            if (status !== 'All' && l.status !== status) return false;
+            if (hasSchedule && !l.hasSchedule) return false;
+            return true;
+        });
+
+        state.filteredLambdas.sort((a, b) => {
+            if (sort === 'Name') return a.functionName.localeCompare(b.functionName);
+            if (sort === 'Recently Updated') return new Date(b.lastModified) - new Date(a.lastModified);
+            if (sort === 'Schedule Count') return b.scheduleCount - a.scheduleCount;
+            return 0;
+        });
+
+        renderSummary();
+        renderTable();
+    }
+
+    function handleFilterChange() {
+        applyFilters();
+    }
+
+    function renderSummary() {
+        const total = state.lambdas.length;
+        const withSchedules = state.lambdas.filter(l => l.hasSchedule).length;
+        const totalSchedules = state.lambdas.reduce((acc, l) => acc + l.scheduleCount, 0);
+        
+        const html = `
+            <div class="card">
+                <div class="stat-card-title">Total Tasks</div>
+                <div class="stat-card-value">${total}</div>
+                <div class="stat-card-subtitle">across all regions</div>
+            </div>
+            <div class="card">
+                <div class="stat-card-title">With Schedules</div>
+                <div class="stat-card-value">${withSchedules}</div>
+                <div class="stat-card-subtitle">${total > 0 ? Math.round((withSchedules/total)*100) : 0}% of total</div>
+            </div>
+            <div class="card">
+                <div class="stat-card-title">Total Schedules</div>
+                <div class="stat-card-value">${totalSchedules}</div>
+                <div class="stat-card-subtitle">Active triggers</div>
+            </div>
+            <div class="card">
+                <div class="stat-card-title">Last Refresh</div>
+                <div class="stat-card-value" style="font-size: 1.25rem; margin-top: 0.5rem;">${new Date().toLocaleTimeString()}</div>
+                <div class="stat-card-subtitle">Auto-sync enabled</div>
+            </div>
+        `;
+        document.getElementById('summary-cards').innerHTML = html;
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('table-body');
+        if (state.filteredLambdas.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-muted">No Tasks match your criteria.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = state.filteredLambdas.map((l, index) => {
+            const schBadge = l.hasSchedule ? `<span class="badge badge-success">Yes (${l.scheduleCount})</span>` : `<span class="badge badge-neutral">No</span>`;
+            const statusBadge = l.status === 'Active' ? `<span class="badge badge-success">Active</span>` : `<span class="badge badge-warning">${l.status}</span>`;
+            
+            return `
+            <tr>
+                <td><strong><a href="#" onclick="openLambdaDetail('${l.functionName}'); return false;">${l.functionName}</a></strong></td>
+                <td>${l.runtime}</td>
+                <td class="text-muted">${new Date(l.lastModified).toLocaleDateString()}</td>
+                <td>${schBadge}</td>
+                <td>${statusBadge}</td>
+                <td>
+                    <div class="action-menu">
+                        <button class="btn-icon" onclick="toggleDropdown(${index}, event)">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M3 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg>
+                        </button>
+                        <div class="dropdown-menu" id="dropdown-${index}">
+                            <button class="dropdown-item" onclick="openLambdaDetail('${l.functionName}')">View Details</button>
+                            <button class="dropdown-item" onclick="openCreateScheduleModal('${l.functionName}')">Create Schedule</button>
+                            <button class="dropdown-item" onclick="copyToClipboard('${l.functionArn}')">Copy ARN</button>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            `;
+        }).join('');
+    }
+
+    function toggleDropdown(index, event) {
+        event.stopPropagation();
+        const menus = document.querySelectorAll('.dropdown-menu');
+        menus.forEach((m, i) => { if (i !== index) m.classList.remove('show'); });
+        document.getElementById(`dropdown-${index}`).classList.toggle('show');
+    }
+
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
+    });
+
+    /**
+     * MODAL & WIZARD LOGIC
+     */
+    function openModal(id) {
+        document.getElementById(id).classList.add('show');
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('show');
+    }
+
+    // Detail Modal
+    function escapeHtml(unsafe) {
+        return (unsafe || '').toString()
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/"/g, "&quot;")
+             .replace(/'/g, "&#039;");
+    }
+
+    async function openLambdaDetail(functionName) {
+        openModal('lambda-detail-modal');
+        const body = document.getElementById('detail-body');
+        body.innerHTML = `<div class="text-center p-8"><div class="spinner"></div></div>`;
+        document.getElementById('detail-create-schedule-btn').onclick = () => {
+            closeModal('lambda-detail-modal');
+            openCreateScheduleModal(functionName);
+        };
+
+        try {
+            const data = await apiCall('get_lambda_detail', { functionName });
+            document.getElementById('detail-title').innerText = data.functionName;
+            document.getElementById('detail-arn').innerText = data.functionArn;
+            
+            let html = `
+                <div class="detail-grid">
+                    <div class="detail-item"><div class="label">Runtime</div><div class="value">${data.runtime}</div></div>
+                    <div class="detail-item"><div class="label">Handler</div><div class="value">${data.handler}</div></div>
+                    <div class="detail-item"><div class="label">Memory Size</div><div class="value">${data.memorySize} MB</div></div>
+                    <div class="detail-item"><div class="label">Timeout</div><div class="value">${data.timeout}s</div></div>
+                    <div class="detail-item"><div class="label">Description</div><div class="value">${data.description || '-'}</div></div>
+                    <div class="detail-item"><div class="label">Last Modified</div><div class="value">${new Date(data.lastModified).toLocaleString()}</div></div>
+                </div>
+                
+                <details style="margin-top: 16px; margin-bottom: 24px; background: #1e293b; color: #f8fafc; border-radius: 8px; overflow: hidden;">
+                    <summary style="padding: 12px 16px; font-weight: 600; cursor: pointer; user-select: none; display: flex; align-items: center; font-size: 0.85rem;">
+                        <i class="fas fa-code" style="margin-right: 8px; color: var(--aws-orange);"></i> View Source Code
+                    </summary>
+                    <div style="padding: 16px; overflow-x: auto; max-height: 400px; overflow-y: auto; border-top: 1px solid #334155;">
+                        <pre style="margin:0; font-family: monospace; font-size: 0.8rem; line-height: 1.5;"><code>${data.code ? escapeHtml(data.code) : '// Source code not available in deployment package.'}</code></pre>
+                    </div>
+                </details>
+
+                <h3 style="margin-top: 24px; margin-bottom: 12px;">Schedules (${data.schedules.length})</h3>
+                <div class="mt-4 schedules-list">
+            `;
+
+            if (data.schedules.length === 0) {
+                html += `<div class="text-muted">No schedules configured for this function.</div>`;
+            } else {
+                html += data.schedules.map(s => {
+                    const stateBadge = s.state === 'ENABLED' ? `<span class="badge badge-success">ENABLED</span>` : `<span class="badge badge-neutral">DISABLED</span>`;
+                    return `
+                    <div class="schedule-card">
+                        <div class="schedule-card-header">
+                            <strong>${s.scheduleName}</strong>
+                            ${stateBadge}
+                        </div>
+                        <div style="font-size:0.875rem; display:grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                            <div><span class="text-muted">Source:</span> ${s.source}</div>
+                            <div>
+                                <span class="text-muted">Expression:</span> <code>${s.expression}</code>
+                                <div style="font-size: 0.75rem; color: var(--aws-orange); margin-top: 4px;" id="human-${s.scheduleName}"></div>
+                            </div>
+                            <div><span class="text-muted">Timezone:</span> ${s.timezone}</div>
+                            <div><span class="text-muted">Next Run:</span> ${s.nextRun}</div>
+                        </div>
+                        <div class="mt-4 flex gap-2">
+                            ${s.state === 'ENABLED' 
+                                ? `<button class="btn btn-secondary btn-sm" onclick="toggleScheduleState('${s.scheduleName}', 'disable', '${data.functionName}')">Disable</button>`
+                                : `<button class="btn btn-secondary btn-sm" onclick="toggleScheduleState('${s.scheduleName}', 'enable', '${data.functionName}')">Enable</button>`
+                            }
+                        <button class="btn btn-sm" style="background: #ef4444; color: white; border:none;" onclick="deleteSchedule('${s.scheduleName}', '${data.functionName}')">Delete</button>
+                    </div>
+                </div>
+                    `;
+                }).join('');
+            }
+            html += `</div>`;
+            body.innerHTML = html;
+
+            // Generate human readable crons after rendering
+            setTimeout(() => {
+                data.schedules.forEach(s => {
+                    if (s.expression.startsWith('cron(')) {
+                        try {
+                            const inner = s.expression.slice(5, -1).trim();
+                            const parts = inner.split(' ');
+                            const stdParts = parts.slice(0, 5).map(p => p === '?' ? '*' : p).join(' ');
+                            const human = cronstrue.toString(stdParts);
+                            document.getElementById(`human-${s.scheduleName}`).innerText = human;
+                        } catch(e) {}
+                    } else if (s.expression.startsWith('rate(')) {
+                        document.getElementById(`human-${s.scheduleName}`).innerText = "Every " + s.expression.slice(5, -1);
+                    }
+                });
+            }, 0);
+        } catch (error) {
+            body.innerHTML = `<div class="text-danger p-8">Failed to load details: ${error.message}</div>`;
+        }
+    }
+
+    // Create Lambda Modal
+    function openCreateWizard() {
+        state.wizardStep = 1;
+        updateWizardUI();
+        openModal('create-lambda-modal');
+    }
+
+    function wizardNav(dir) {
+        if (dir === 1 && !validateCurrentStep()) return;
+        state.wizardStep += dir;
+        if (state.wizardStep < 1) state.wizardStep = 1;
+        if (state.wizardStep > 5) state.wizardStep = 5;
+        
+        if (state.wizardStep === 5) populateReview();
+        updateWizardUI();
+    }
+
+    function updateWizardUI() {
+        // Steps header
+        document.querySelectorAll('.wizard-step').forEach(el => {
+            const step = parseInt(el.dataset.step);
+            el.classList.remove('active', 'completed');
+            if (step === state.wizardStep) el.classList.add('active');
+            else if (step < state.wizardStep) el.classList.add('completed');
+        });
+
+        // Content
+        document.querySelectorAll('.wizard-content').forEach((el, i) => {
+            if (i + 1 === state.wizardStep) el.classList.add('active');
+            else el.classList.remove('active');
+        });
+
+        // Buttons
+        document.getElementById('cl-btn-prev').style.display = state.wizardStep > 1 ? 'inline-flex' : 'none';
+        document.getElementById('cl-btn-next').style.display = state.wizardStep < 5 ? 'inline-flex' : 'none';
+        document.getElementById('cl-btn-submit').style.display = state.wizardStep === 5 ? 'inline-flex' : 'none';
+    }
+
+    function toggleCodeSourceFields() {
+        const pkg = document.getElementById('cl-package').value;
+        if (pkg === 'Zip') {
+            document.getElementById('cl-zip-fields').classList.remove('hidden');
+            document.getElementById('cl-image-fields').classList.add('hidden');
+            document.getElementById('cl-runtime').disabled = false;
+        } else {
+            document.getElementById('cl-zip-fields').classList.add('hidden');
+            document.getElementById('cl-image-fields').classList.remove('hidden');
+            document.getElementById('cl-runtime').disabled = true;
+        }
+    }
+
+    function toggleScheduleFields(prefix) {
+        const checked = document.getElementById(`${prefix}-has-schedule`).checked;
+        const fields = document.getElementById(`${prefix}-schedule-fields`);
+        if (checked) fields.classList.remove('hidden');
+        else fields.classList.add('hidden');
+    }
+
+    function updateScheduleHint(prefix) {
+        const type = document.getElementById(`${prefix}-sch-type`) ? document.getElementById(`${prefix}-sch-type`).value : document.getElementById(`${prefix}-type`).value;
+        const hint = document.getElementById(`${prefix}-sch-hint`) || document.getElementById(`${prefix}-hint`);
+        if (type === 'cron') hint.innerText = 'e.g. cron(0 8 ? * MON-FRI *)';
+        else if (type === 'rate') hint.innerText = 'e.g. rate(5 minutes)';
+        else hint.innerText = 'e.g. at(2026-05-01T12:00:00)';
+    }
+
+    function applyTemplate(type) {
+        if(type === 'node') {
+            document.getElementById('cl-code').value = `exports.handler = async (event) => {\n    return { statusCode: 200, body: 'Template Loaded' };\n};`;
+            showToast('Template loaded', 'info');
+        }
+    }
+
+    function validateCurrentStep() {
+        // Simple client-side validation
+        if (state.wizardStep === 1) {
+            const name = document.getElementById('cl-name').value;
+            if (!name.match(/^[a-zA-Z0-9-_]+$/)) { showToast('Invalid function name', 'error'); return false; }
+        }
+        if (state.wizardStep === 2) {
+            const pkg = document.getElementById('cl-package').value;
+            if (pkg === 'Image' && !document.getElementById('cl-image-uri').value) { showToast('Image URI required', 'error'); return false; }
+            if (pkg === 'Zip' && !document.getElementById('cl-handler').value) { showToast('Handler required', 'error'); return false; }
+        }
+        if (state.wizardStep === 3) {
+            if (!document.getElementById('cl-role').value) { showToast('Role ARN required', 'error'); return false; }
+        }
+        if (state.wizardStep === 4 && document.getElementById('cl-has-schedule').checked) {
+            if (!document.getElementById('cl-sch-name').value) { showToast('Schedule name required', 'error'); return false; }
+            if (!document.getElementById('cl-sch-expr').value) { showToast('Expression required', 'error'); return false; }
+            try { JSON.parse(document.getElementById('cl-sch-payload').value || '{}'); } 
+            catch(e) { showToast('Invalid JSON Payload', 'error'); return false; }
+        }
+        return true;
+    }
+
+    function populateReview() {
+        const html = `
+            <div class="detail-item"><div class="label">Function Name</div><div class="value">${document.getElementById('cl-name').value}</div></div>
+            <div class="detail-item"><div class="label">Package Type</div><div class="value">${document.getElementById('cl-package').value}</div></div>
+            <div class="detail-item"><div class="label">Runtime</div><div class="value">${document.getElementById('cl-package').value === 'Zip' ? document.getElementById('cl-runtime').value : 'N/A'}</div></div>
+            <div class="detail-item"><div class="label">Memory / Timeout</div><div class="value">${document.getElementById('cl-memory').value} MB / ${document.getElementById('cl-timeout').value}s</div></div>
+            <div class="detail-item"><div class="label">Role ARN</div><div class="value text-muted" style="font-size:0.75rem;">${document.getElementById('cl-role').value}</div></div>
+            <div class="detail-item full-width mt-4"><div class="label">Schedule</div><div class="value">${document.getElementById('cl-has-schedule').checked ? 'Yes: ' + document.getElementById('cl-sch-name').value : 'None'}</div></div>
+        `;
+        document.getElementById('cl-review-content').innerHTML = html;
+    }
+
+    async function submitCreateLambda() {
+        const btn = document.getElementById('cl-btn-submit');
+        btn.disabled = true;
+        btn.innerHTML = `<div class="spinner"></div> Creating...`;
+
+        const payload = {
+            functionName: document.getElementById('cl-name').value,
+            description: document.getElementById('cl-desc').value,
+            runtime: document.getElementById('cl-runtime').value,
+            packageType: document.getElementById('cl-package').value,
+            region: document.getElementById('cl-region').value,
+            handler: document.getElementById('cl-handler').value,
+            inlineCode: document.getElementById('cl-code').value,
+            imageUri: document.getElementById('cl-image-uri').value,
+            roleArn: document.getElementById('cl-role').value,
+            timeout: parseInt(document.getElementById('cl-timeout').value),
+            memorySize: parseInt(document.getElementById('cl-memory').value),
+            environmentVariables: JSON.parse(document.getElementById('cl-env').value || '{}'),
+            architecture: document.getElementById('cl-arch').value
+        };
+
+        const hasSch = document.getElementById('cl-has-schedule').checked;
+        let schPayload = null;
+        if (hasSch) {
+            schPayload = {
+                scheduleName: document.getElementById('cl-sch-name').value,
+                sourceType: 'EventBridge Scheduler',
+                expressionType: document.getElementById('cl-sch-type').value,
+                expression: document.getElementById('cl-sch-expr').value,
+                payload: JSON.parse(document.getElementById('cl-sch-payload').value || '{}'),
+                enabled: true
+            };
+        }
+
+        try {
+            if (hasSch) {
+                await apiCall('create_lambda_with_schedule', { lambda: payload, schedule: schPayload });
+                logActivity('success', 'Created Lambda & Schedule', payload.functionName);
+                showToast('Lambda and Schedule created', 'success');
+            } else {
+                await apiCall('create_lambda', payload);
+                logActivity('success', 'Created Lambda', payload.functionName);
+                showToast('Lambda created successfully', 'success');
+            }
+            closeModal('create-lambda-modal');
+            await init();
+        } catch (error) {
+            showToast(error.message, 'error');
+            logActivity('error', 'Creation Failed', error.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `Create Function`;
+        }
+    }
+
+    // Create Schedule Modal
+    function openCreateScheduleModal(lambdaName) {
+        state.selectedLambdaNameForSchedule = lambdaName;
+        document.getElementById('cs-target').value = lambdaName;
+        document.getElementById('cs-name').value = lambdaName + '-trigger';
+        document.getElementById('cs-expr').value = '';
+        openModal('create-schedule-modal');
+    }
+
+    function validateJSON(id) {
+        try {
+            JSON.parse(document.getElementById(id).value || '{}');
+            showToast('Valid JSON', 'success');
+        } catch(e) {
+            showToast('Invalid JSON syntax', 'error');
+        }
+    }
+
+    async function submitCreateSchedule() {
+        const name = document.getElementById('cs-name').value;
+        const expr = document.getElementById('cs-expr').value;
+        
+        if (!name || !expr) { showToast('Please fill required fields', 'error'); return; }
+
+        const btn = document.getElementById('cs-btn-submit');
+        btn.disabled = true;
+        btn.innerHTML = `<div class="spinner"></div> Creating...`;
+
+        const payload = {
+            targetFunctionName: state.selectedLambdaNameForSchedule,
+            scheduleName: name,
+            sourceType: document.getElementById('cs-source').value,
+            expressionType: document.getElementById('cs-type').value,
+            expression: expr,
+            timezone: document.getElementById('cs-tz').value,
+            payload: JSON.parse(document.getElementById('cs-payload').value || '{}'),
+            enabled: document.getElementById('cs-enabled').checked
+        };
+
+        try {
+            await apiCall('create_schedule', payload);
+            logActivity('success', 'Created Schedule', `${name} for ${payload.targetFunctionName}`);
+            showToast('Schedule created successfully', 'success');
+            closeModal('create-schedule-modal');
+            await init();
+        } catch (error) {
+            showToast(error.message, 'error');
+            logActivity('error', 'Schedule Creation Failed', error.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `Create Schedule`;
+        }
+    }
+
+    // Schedule Actions
+    async function toggleScheduleState(schName, action, lambdaName) {
+        try {
+            await apiCall('toggle_schedule', { scheduleName: schName, state: action });
+            logActivity('success', `${action.toUpperCase()} Schedule`, schName);
+            showToast(`Schedule ${action}d`, 'success');
+            openLambdaDetail(lambdaName); // refresh modal
+            init(); // refresh table silently
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    }
+
+    async function deleteSchedule(schName, lambdaName) {
+        if(!confirm(`Delete schedule ${schName}?`)) return;
+        try {
+            await apiCall('delete_schedule', { scheduleName: schName });
+            logActivity('success', 'Deleted Schedule', schName);
+            showToast(`Schedule deleted`, 'success');
+            openLambdaDetail(lambdaName); // refresh modal
+            init(); // refresh table silently
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    }
+
+    /**
+     * ACTIVITY & UTILS
+     */
+    function toggleActivityPanel() {
+        document.getElementById('activity-panel').classList.toggle('collapsed');
+    }
+
+    function logActivity(type, title, desc) {
+        state.activity.unshift({ type, title, desc, time: new Date() });
+        if (state.activity.length > 50) state.activity.pop();
+        renderActivity();
+    }
+
+    function renderActivity() {
+        const list = document.getElementById('activity-list');
+        if (state.activity.length === 0) {
+            list.innerHTML = `<div class="text-center text-muted mt-4">No recent activity</div>`;
+            return;
+        }
+        list.innerHTML = state.activity.map(a => `
+            <div class="activity-item ${a.type}">
+                <div class="activity-title">${a.title}</div>
+                <div class="activity-desc">${a.desc}</div>
+                <div class="activity-time mt-4">${a.time.toLocaleTimeString()}</div>
+            </div>
+        `).join('');
+    }
+
+    function clearActivity() {
+        state.activity = [];
+        renderActivity();
+    }
+
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        
+        let icon = '';
+        if(type === 'success') icon = '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+        else if(type === 'error') icon = '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+        else icon = '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+
+        toast.innerHTML = `<div>${icon}</div><div>${message}</div>`;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('Copied to clipboard', 'success');
+        }).catch(err => {
+            showToast('Failed to copy', 'error');
+        });
+    }
+
+    // Close modals on escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-backdrop.show').forEach(m => m.classList.remove('show'));
+        }
+    });
+
+    /**
+     * CLAUDE AI ASSISTANT
+     */
+    let chatHistory = [];
+    const CLAUDE_API = 'https://v5gyq2sqdd.execute-api.ap-southeast-1.amazonaws.com/mondayIntegration';
+    
+    function toggleChat() {
+        document.getElementById('ai-chat-panel').classList.toggle('open');
+    }
+
+    async function sendChatMessage() {
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim();
+        if (!text) return;
+
+        appendMessage('user', text);
+        input.value = '';
+        input.disabled = true;
+
+        chatHistory.push({ role: 'user', content: text });
+        
+        const typingId = appendMessage('ai', '<i class="fas fa-ellipsis-h fa-fade"></i> Thinking...');
+
+        const systemPrompt = `You are a helpful AI assistant for an Automated Task Manager. The user wants to create a new background task (AWS Lambda + EventBridge).
+Your goal is to gather exactly three things from the user naturally:
+1. Task Name (a short hyphenated string like 'daily-report')
+2. Language (must be exactly 'nodejs20.x', 'python3.12', or 'go1.x')
+3. Schedule Expression (convert their time into an AWS EventBridge format, either rate(...) or cron(...) expression).
+
+Chat with the user to gather these. Once you have all three, reply with a JSON code block like this:
+\`\`\`json
+{
+  "taskName": "daily-report",
+  "language": "python3.12",
+  "schedule": "cron(0 8 ? * MON-FRI *)"
+}
+\`\`\`
+If you output the JSON, also say a brief confirmation message saying you've filled out the form for them. Do NOT invent a schedule if they haven't given you a time. Ask them for it.`;
+
+        try {
+            const response = await fetch(CLAUDE_API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'claude_chat_with_tools',
+                    system: systemPrompt,
+                    messages: chatHistory,
+                    max_tokens: 1024
+                })
+            });
+            const raw = await response.json();
+            const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+
+            let aiReply = data.reply || "I encountered an error connecting to my brain.";
+            chatHistory.push({ role: 'assistant', content: aiReply });
+
+            // Check if JSON block exists
+            const jsonMatch = aiReply.match(/```json\n([\s\S]*?)\n```/);
+            if (jsonMatch) {
+                try {
+                    const parsed = JSON.parse(jsonMatch[1]);
+                    prefillCreateWizard(parsed);
+                    aiReply = aiReply.replace(/```json\n([\s\S]*?)\n```/, '').trim();
+                } catch(e) { console.error('Failed to parse JSON from Claude', e); }
+            }
+
+            document.getElementById(typingId).innerHTML = aiReply;
+
+        } catch (error) {
+            console.error('AI Error:', error);
+            document.getElementById(typingId).innerHTML = "Sorry, I couldn't connect to Claude right now.";
+        } finally {
+            input.disabled = false;
+            input.focus();
+        }
+    }
+
+    function appendMessage(role, text) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `chat-bubble ${role}`;
+        msgDiv.id = 'msg-' + Date.now();
+        msgDiv.innerHTML = text;
+        const container = document.getElementById('chat-messages');
+        container.appendChild(msgDiv);
+        container.scrollTop = container.scrollHeight;
+        return msgDiv.id;
+    }
+
+    function prefillCreateWizard(data) {
+        openCreateWizard();
+        if(data.taskName) document.getElementById('cl-name').value = data.taskName;
+        if(data.language) document.getElementById('cl-runtime').value = data.language;
+        if(data.schedule) {
+            document.getElementById('cl-has-schedule').checked = true;
+            toggleScheduleFields('cl');
+            document.getElementById('cl-sch-expression').value = data.schedule;
+            
+            if (data.schedule.startsWith('rate')) {
+                document.getElementById('cl-sch-type').value = 'rate';
+            } else {
+                document.getElementById('cl-sch-type').value = 'cron';
+            }
+        }
+        showToast('Form pre-filled by Claude!', 'success');
+        document.getElementById('ai-chat-panel').classList.remove('open');
+    }
+
+    // Boot
+    document.addEventListener('DOMContentLoaded', init);
+
+</script>
+</body>
+</html>
