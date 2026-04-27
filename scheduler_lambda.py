@@ -50,8 +50,66 @@ def lambda_handler(event, context):
                 return {"statusCode": 400, "headers": headers, "body": json.dumps({"error": "functionName is required"})}
             return get_lambda_detail(function_name, headers)
             
-        # TODO: Implement 'create_lambda', 'create_schedule', etc.
-        
+        elif action == 'create_lambda':
+            return create_lambda_function(body, headers)
+            
+        elif action == 'create_schedule':
+            return create_scheduler_schedule(body, headers, context)
+            
+        elif action == 'create_lambda_with_schedule':
+            lam_arn = create_lambda_function(body.get('lambda', {}), headers, return_arn=True)
+            sch_payload = body.get('schedule', {})
+            sch_payload['targetFunctionArn'] = lam_arn
+            return create_scheduler_schedule(sch_payload, headers, context)
+            
+        elif action in ['enable_schedule', 'disable_schedule']:
+            sch_name = body.get('scheduleName')
+            state = 'ENABLED' if action == 'enable_schedule' else 'DISABLED'
+            sch = scheduler_client.get_schedule(Name=sch_name)
+            
+            kwargs = {
+                'Name': sch_name,
+                'ScheduleExpression': sch['ScheduleExpression'],
+                'State': state,
+                'Target': sch['Target'],
+                'FlexibleTimeWindow': sch.get('FlexibleTimeWindow', {'Mode': 'OFF'})
+            }
+            if 'ScheduleExpressionTimezone' in sch: kwargs['ScheduleExpressionTimezone'] = sch['ScheduleExpressionTimezone']
+            if 'Description' in sch: kwargs['Description'] = sch['Description']
+            if 'GroupName' in sch: kwargs['GroupName'] = sch['GroupName']
+            
+            scheduler_client.update_schedule(**kwargs)
+            return {"statusCode": 200, "headers": headers, "body": json.dumps({"success": True})}
+            
+        elif action == 'update_schedule':
+            sch_name = body['scheduleName']
+            sch = scheduler_client.get_schedule(Name=sch_name)
+            target = sch['Target']
+            if 'payload' in body:
+                target['Input'] = json.dumps(body['payload'])
+                
+            kwargs = {
+                'Name': sch_name,
+                'ScheduleExpression': body.get('expression', sch['ScheduleExpression']),
+                'State': 'ENABLED' if body.get('enabled', True) else 'DISABLED',
+                'Target': target,
+                'FlexibleTimeWindow': {'Mode': 'OFF'}
+            }
+            if 'timezone' in body:
+                kwargs['ScheduleExpressionTimezone'] = body['timezone']
+            elif 'ScheduleExpressionTimezone' in sch:
+                kwargs['ScheduleExpressionTimezone'] = sch['ScheduleExpressionTimezone']
+            
+            if 'Description' in sch: kwargs['Description'] = sch['Description']
+            if 'GroupName' in sch: kwargs['GroupName'] = sch['GroupName']
+            
+            scheduler_client.update_schedule(**kwargs)
+            return {"statusCode": 200, "headers": headers, "body": json.dumps({"success": True})}
+            
+        elif action == 'delete_schedule':
+            sch_name = body.get('scheduleName')
+            scheduler_client.delete_schedule(Name=sch_name)
+            return {"statusCode": 200, "headers": headers, "body": json.dumps({"success": True})}
         return {"statusCode": 404, "headers": headers, "body": json.dumps({"error": f"Action '{action}' not supported yet"})}
         
     except Exception as e:
@@ -156,6 +214,7 @@ def get_lambda_detail(function_name, headers):
         "lastModified": fn['LastModified'],
         "description": fn.get('Description', ''),
         "tags": tags,
+        "environmentVariables": fn.get('Environment', {}).get('Variables', {}),
         "code": code_content,
         "schedules": []
     }
@@ -189,3 +248,64 @@ def get_lambda_detail(function_name, headers):
         "headers": headers,
         "body": json.dumps(detail, default=str)
     }
+
+def create_lambda_function(payload, headers, return_arn=False):
+    import zipfile
+    from io import BytesIO
+    
+    inline_code = payload.get('inlineCode', '')
+    handler = payload.get('handler', 'lambda_function.lambda_handler')
+    
+    main_file = handler.split('.')[0] + '.py'
+    if 'node' in payload.get('runtime', ''):
+        main_file = handler.split('.')[0] + '.js'
+        
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'a', zipfile.ZIP_DEFLATED) as zip_file:
+        zip_file.writestr(main_file, inline_code)
+        
+    kwargs = {
+        'FunctionName': payload['functionName'],
+        'Runtime': payload['runtime'],
+        'Role': payload['roleArn'],
+        'Handler': handler,
+        'Code': {'ZipFile': zip_buffer.getvalue()},
+        'Timeout': payload.get('timeout', 3),
+        'MemorySize': payload.get('memorySize', 128),
+        'Description': payload.get('description', '')
+    }
+    
+    env_vars = payload.get('environmentVariables', {})
+    if env_vars:
+        kwargs['Environment'] = {'Variables': {k: str(v) for k, v in env_vars.items()}}
+        
+    resp = lambda_client.create_function(**kwargs)
+    if return_arn:
+        return resp['FunctionArn']
+    return {"statusCode": 200, "headers": headers, "body": json.dumps({"functionArn": resp['FunctionArn']})}
+
+def create_scheduler_schedule(payload, headers, context):
+    target_arn = payload.get('targetFunctionArn')
+    
+    # Extract the current Lambda's IAM Role to reuse for the schedule
+    sts = boto3.client('sts')
+    caller = sts.get_caller_identity()
+    role_name = caller['Arn'].split('/')[-2]
+    account_id = caller['Account']
+    schedule_role_arn = f"arn:aws:iam::{account_id}:role/{role_name}"
+    
+    target = {
+        'Arn': target_arn,
+        'RoleArn': schedule_role_arn,
+        'Input': json.dumps(payload.get('payload', {}))
+    }
+    
+    resp = scheduler_client.create_schedule(
+        Name=payload['scheduleName'],
+        ScheduleExpression=payload['expression'],
+        State='ENABLED' if payload.get('enabled', True) else 'DISABLED',
+        Target=target,
+        FlexibleTimeWindow={'Mode': 'OFF'}
+    )
+    
+    return {"statusCode": 200, "headers": headers, "body": json.dumps({"scheduleArn": resp['ScheduleArn']})}

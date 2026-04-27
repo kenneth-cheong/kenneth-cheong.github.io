@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Campaign Auditor | Overdue Crawler</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root {
             --bg: #0f172a;
@@ -663,8 +664,13 @@
             z-index: 2000;
             transform: translateY(150px);
             opacity: 0;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             width: 320px;
+            cursor: grab;
+            user-select: none;
+        }
+        #loading-toast:active {
+            cursor: grabbing;
         }
 
         #loading-toast.show {
@@ -1046,6 +1052,231 @@
             font-size: 12px;
             padding: 12px;
         }
+
+        /* Chat UI Styles */
+        .chat-toggle-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+            background: var(--primary);
+            color: var(--bg);
+            border: none;
+            border-radius: 24px;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 700;
+            box-shadow: var(--shadow);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        .chat-toggle-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(56, 189, 248, 0.4);
+        }
+        .chat-sidebar {
+            position: relative;
+            width: 400px;
+            min-width: 250px;
+            max-width: 50vw;
+            height: 100%;
+            background: rgba(30, 41, 59, 0.95);
+            border-left: 1px solid var(--border);
+            box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+            z-index: 1500;
+            display: none;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        .chat-sidebar.open {
+            display: flex;
+        }
+        .chat-resizer {
+            width: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            cursor: col-resize;
+            z-index: 1510;
+            flex-shrink: 0;
+            transition: background 0.2s;
+            display: none;
+        }
+        .chat-resizer.open, .chat-resizer.active {
+            display: block;
+        }
+        .chat-resizer:hover, .chat-resizer.active {
+            background: var(--primary);
+        }
+        .main-wrapper {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            width: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+        .chat-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .chat-header h3 {
+            margin: 0;
+            font-size: 16px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .chat-header button {
+            background: none;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 16px;
+            transition: color 0.2s;
+        }
+        .chat-header button:hover {
+            color: var(--text);
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .chat-message {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 13px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .chat-message.user {
+            align-self: flex-end;
+            background: var(--primary);
+            color: var(--bg);
+            border-bottom-right-radius: 4px;
+        }
+        .chat-message.bot {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-bottom-left-radius: 4px;
+        }
+        .chat-message table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+            font-size: 12px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            overflow: auto;
+            display: block;
+        }
+        .chat-message th {
+            background: rgba(255,255,255,0.05);
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            color: var(--primary);
+        }
+        .chat-message td {
+            padding: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .chat-message a {
+            color: var(--primary);
+            text-decoration: underline;
+        }
+        .chat-message.user a {
+            color: var(--bg);
+        }
+        .chat-input-bar {
+            padding: 16px;
+            border-top: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.2);
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+        .chat-input-bar textarea {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 13px;
+            resize: none;
+            max-height: 120px;
+            min-height: 44px;
+            outline: none;
+        }
+        .chat-input-bar textarea:focus {
+            border-color: var(--primary);
+        }
+        .chat-input-bar button {
+            background: var(--primary);
+            color: var(--bg);
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+        .chat-input-bar button:hover {
+            transform: scale(1.05);
+        }
+        .chat-input-bar button:disabled {
+            background: var(--muted);
+            cursor: not-allowed;
+            transform: none;
+        }
+        .chat-typing {
+            display: none;
+            align-self: flex-start;
+            margin-bottom: 12px;
+        }
+        .chat-typing .typing-bubble {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px 18px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            border-bottom-left-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .chat-typing .typing-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--primary);
+            border-radius: 50%;
+            opacity: 0.6;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .chat-typing .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .chat-typing .typing-dot:nth-child(2) { animation-delay: -0.16s; }
     </style>
 </head>
 
@@ -1056,6 +1287,7 @@
         </div>
     </header>
     <div id="settings-backdrop" class="settings-backdrop" onclick="toggleSettings()"></div>
+    <div class="main-wrapper">
     <div class="container">
         <div id="error-message"></div>
         <div class="card" id="step-auth">
@@ -1219,6 +1451,28 @@
             </div>
         </div>
     </div>
+    <div id="chat-resizer" class="chat-resizer" onmousedown="initChatResize(event)"></div>
+    <div id="chat-panel" class="chat-sidebar">
+        <div class="chat-header">
+            <h3><i class="fas fa-robot"></i> Campaign Analyst AI</h3>
+            <button onclick="toggleChat()"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="chat-messages" class="chat-messages">
+            <div class="chat-message bot">
+                Hello! I am ready to help you analyze the currently visible campaigns. What would you like to know?
+            </div>
+            <div class="chat-typing" id="chat-typing">
+                <div class="typing-bubble">
+                    <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+                </div>
+            </div>
+        </div>
+        <div class="chat-input-bar">
+            <textarea id="chat-input" placeholder="Ask about the current campaigns... (e.g. 'Which campaigns are overdue?')" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendChatMessage(); }"></textarea>
+            <button id="chat-send-btn" onclick="sendChatMessage()"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+    </div>
 
     <!-- Lookup Modal -->
     <div id="lookup-backdrop" class="settings-backdrop" onclick="toggleLookupModal(false)"></div>
@@ -1251,6 +1505,11 @@
         <div id="progress-text" style="display: none; color: var(--muted);">Initializing...</div>
     </div>
 
+    <!-- Chat UI Toggle -->
+    <button class="chat-toggle-btn" onclick="toggleChat()">
+        <i class="fas fa-robot"></i> Ask AI Analyst
+    </button>
+
     <script>
         const LAMBDA = "https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday";
         let state = {
@@ -1281,7 +1540,7 @@
         window.onload = () => { if (state.apiKey) { document.getElementById('api-key').value = state.apiKey; connectMonday(); } };
 
         async function monday(query, variables = {}, toastMsg = "Connecting to Monday...") {
-            showToast(toastMsg);
+            if (toastMsg !== false) showToast(toastMsg);
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 60000); // Increased to 60s
             try {
@@ -1301,7 +1560,7 @@
                 if (err.name === 'AbortError') throw new Error("Connection Timeout (25s). Monday is responding slowly.");
                 throw err;
             } finally {
-                hideToast();
+                if (toastMsg !== false) hideToast();
             }
         }
 
@@ -2221,7 +2480,7 @@
                                 }
                             }
                         }
-                    }`, { id: [masterBoardId], c: cursor }, `Fetching master data (Page ${page})...`);
+                    }`, { id: [masterBoardId], c: cursor }, false);
                     
                     const p = idata.boards?.[0]?.items_page;
                     if (!p) break;
@@ -2486,6 +2745,205 @@
         });
 
         function showError(m) { const e = document.getElementById('error-message'); e.innerText = m; e.style.display = m ? 'block' : 'none'; }
+
+        // --- Chat AI Logic ---
+        let chatHistory = [];
+
+        function toggleChat() {
+            const panel = document.getElementById('chat-panel');
+            const resizer = document.getElementById('chat-resizer');
+            panel.classList.toggle('open');
+            resizer.classList.toggle('open');
+        }
+
+        // Chat Resizing Logic
+        let isResizingChat = false;
+        function initChatResize(e) {
+            isResizingChat = true;
+            document.getElementById('chat-resizer').classList.add('active');
+            document.body.style.cursor = 'col-resize';
+            document.addEventListener('mousemove', handleChatResize);
+            document.addEventListener('mouseup', stopChatResize);
+            e.preventDefault();
+        }
+        function handleChatResize(e) {
+            if (!isResizingChat) return;
+            const containerWidth = document.body.clientWidth;
+            const newWidth = containerWidth - e.clientX;
+            if (newWidth > 250 && newWidth < containerWidth * 0.5) {
+                document.getElementById('chat-panel').style.width = newWidth + 'px';
+            }
+        }
+        function stopChatResize(e) {
+            isResizingChat = false;
+            document.getElementById('chat-resizer').classList.remove('active');
+            document.body.style.cursor = '';
+            document.removeEventListener('mousemove', handleChatResize);
+            document.removeEventListener('mouseup', stopChatResize);
+        }
+
+        function buildChatContext() {
+            // Replicate updateFilteredUI filtering logic to get currently visible items
+            const queryText = document.getElementById('filter-text').value.toLowerCase();
+            const queryPerson = document.getElementById('filter-person-input').value.toLowerCase();
+
+            let filtered = state.auditedItems.filter(i => {
+                if (state.excludedStatusLabels.has(i.itemStatus)) return false;
+                if (state.filters.status !== 'all' && i.status !== state.filters.status) return false;
+                if (state.filters.people.size > 0) {
+                    const hasMatch = i.people.some(p => state.filters.people.has(p));
+                    if (!hasMatch) return false;
+                }
+                if (state.filters.csManagers.size > 0) {
+                    const hasMatch = i.csManagers.some(p => state.filters.csManagers.has(p));
+                    if (!hasMatch) return false;
+                }
+                const matchesText = i.name.toLowerCase().includes(queryText) || i.bName.toLowerCase().includes(queryText);
+                if (!matchesText) return false;
+                if (queryPerson && !i.people.some(p => p.toLowerCase().includes(queryPerson))) return false;
+                return true;
+            });
+
+            // If in manager view and a specific person is expanded, scope down to that person
+            if (state.viewMode === 'manager' && state.selectedStaffName) {
+                filtered = filtered.filter(i => i.people.includes(state.selectedStaffName));
+            }
+
+            // If we have too many items, sample them to avoid token limit issues (max ~150 items)
+            const contextItems = filtered.slice(0, 150).map(i => ({
+                campaign: i.name,
+                board: i.bName,
+                assignedTo: i.people,
+                csManager: i.csManagers,
+                itemStatus: i.itemStatus,
+                masterStatus: i.masterStatus,
+                deadline: i.deadlineDisplay,
+                daysOverdue: i.daysOverdue
+            }));
+
+            return {
+                viewMode: state.viewMode,
+                totalVisibleItems: filtered.length,
+                itemsShownInContext: contextItems.length,
+                items: contextItems
+            };
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const btn = document.getElementById('chat-send-btn');
+            const text = input.value.trim();
+            if (!text) return;
+
+            // Add user message to UI
+            appendMessage('user', text);
+            input.value = '';
+            input.style.height = 'auto';
+
+            // Prepare UI for loading
+            document.getElementById('chat-typing').style.display = 'flex';
+            btn.disabled = true;
+
+            const contextData = buildChatContext();
+            
+            const system = `You are the Campaign Auditor AI Assistant, an expert analyst. You have access to the currently visible/filtered campaigns. Answer user questions based ONLY on this data unless general knowledge is requested. Present data clearly, use markdown tables if appropriate.\n\nCURRENT VISIBLE CAMPAIGNS CONTEXT:\n${JSON.stringify(contextData)}`;
+
+            chatHistory.push({ role: 'user', content: text });
+
+            // Ensure history limit to prevent huge token usage over time
+            if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
+
+            try {
+                const res = await fetch(LAMBDA, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'claude_chat_with_tools',
+                        system,
+                        messages: chatHistory,
+                        max_tokens: 4096,
+                        google_access_token: null,
+                        google_tokens: {},
+                        google_marketing_creds: {}
+                    })
+                });
+
+                const raw = await res.json();
+                const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+
+                if (data.error || (raw.statusCode && raw.statusCode !== 200)) {
+                    throw new Error(data.error || "Unknown Claude error");
+                }
+
+                const reply = data.reply || '';
+                chatHistory.push({ role: 'assistant', content: reply });
+                appendMessage('bot', reply);
+            } catch (e) {
+                console.error("Chat Error:", e);
+                appendMessage('bot', `Error: ${e.message}`);
+                // Remove the failed message from history
+                chatHistory.pop();
+            } finally {
+                document.getElementById('chat-typing').style.display = 'none';
+                btn.disabled = false;
+            }
+        }
+
+        function appendMessage(role, text) {
+            const container = document.getElementById('chat-messages');
+            const typingIndicator = document.getElementById('chat-typing');
+            
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `chat-message ${role}`;
+            
+            // Format text using marked if available
+            try {
+                msgDiv.innerHTML = text ? marked.parse(text) : '';
+            } catch(e) {
+                // Fallback if marked fails or is missing
+                msgDiv.textContent = text;
+            }
+
+            // Insert before typing indicator
+            container.insertBefore(msgDiv, typingIndicator);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Auto-resize textarea
+        document.getElementById('chat-input').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        // Make loading toast draggable
+        const toastEl = document.getElementById('loading-toast');
+        let isDraggingToast = false;
+        let toastOffsetX = 0, toastOffsetY = 0;
+
+        toastEl.addEventListener('mousedown', (e) => {
+            isDraggingToast = true;
+            const rect = toastEl.getBoundingClientRect();
+            toastOffsetX = e.clientX - rect.left;
+            toastOffsetY = e.clientY - rect.top;
+            toastEl.style.cursor = 'grabbing';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDraggingToast) return;
+            toastEl.style.bottom = 'auto';
+            toastEl.style.right = 'auto';
+            toastEl.style.left = (e.clientX - toastOffsetX) + 'px';
+            toastEl.style.top = (e.clientY - toastOffsetY) + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDraggingToast) {
+                isDraggingToast = false;
+                toastEl.style.cursor = 'grab';
+            }
+        });
+
     </script>
 </body>
 
