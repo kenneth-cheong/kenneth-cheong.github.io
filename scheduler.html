@@ -8,6 +8,7 @@
     <link rel="icon" href="/MO_Logo2.png" sizes="32x32">
     <!-- Cron parser for human readable strings -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cronstrue/2.27.0/cronstrue.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root {
             --bg-color: #f6f8fb;
@@ -1007,12 +1008,59 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        /* Login Form */
+        #loginForm {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #f6f8fb 0%, #e2e8f0 100%);
+            z-index: 9999;
+        }
+
+        .login-card {
+            background: white;
+            padding: 3rem;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            border: 1px solid var(--border);
+        }
+
+        .login-card h2 {
+            margin-bottom: 0.5rem;
+            font-size: 1.5rem;
+        }
+
+        #googleSignInButton {
+            display: flex;
+            justify-content: center;
+            margin-top: 1rem;
+        }
     </style>
 </head>
 
 <body>
 
-    <div class="app-container">
+    <div id="loginForm" style="display: none;">
+        <div class="login-card">
+            <img src="/MO_Logo2.png" alt="Logo" style="width: 64px; margin-bottom: 1.5rem;">
+            <h2>Management Portal</h2>
+            <p style="color: var(--text-muted); margin-bottom: 2rem;">Please sign in to access the task manager</p>
+            <div id="googleSignInButton"></div>
+            <p id="loginError" style="color: var(--danger); margin-top: 1rem; font-size: 0.875rem;"></p>
+        </div>
+    </div>
+
+    <div class="app-container" style="display: none;">
         <!-- Main Content -->
         <main class="main-content">
             <header class="header">
@@ -1041,6 +1089,11 @@
                             </path>
                         </svg>
                         Create Task
+                    </button>
+                    <button class="btn btn-secondary" onclick="logout()" title="Logout">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                        </svg>
                     </button>
                 </div>
             </header>
@@ -1236,17 +1289,22 @@
                             <div class="template-card" id="template-card-daily-report" onclick="applyTaskTemplate('daily-report')">
                                 <div class="template-icon">📊</div>
                                 <div class="template-title">Daily Report Generator</div>
-                                <div class="template-desc">Python • Runs daily at 8am</div>
+                                <div class="template-desc">Runs daily at 8am</div>
                             </div>
                             <div class="template-card" id="template-card-db-cleanup" onclick="applyTaskTemplate('db-cleanup')">
                                 <div class="template-icon">🧹</div>
                                 <div class="template-title">Database Cleanup</div>
-                                <div class="template-desc">Node.js • Runs weekly</div>
+                                <div class="template-desc">Runs weekly</div>
                             </div>
                             <div class="template-card" id="template-card-health-check" onclick="applyTaskTemplate('health-check')">
                                 <div class="template-icon">💓</div>
                                 <div class="template-title">System Health Check</div>
-                                <div class="template-desc">Go • Runs every 5 mins</div>
+                                <div class="template-desc">Runs every 5 mins</div>
+                            </div>
+                            <div class="template-card" id="template-card-reminder-email" onclick="applyTaskTemplate('reminder-email')">
+                                <div class="template-icon">✉️</div>
+                                <div class="template-title">Reminder Emails</div>
+                                <div class="template-desc">Sends automatic alerts</div>
                             </div>
                         </div>
                     </div>
@@ -1261,22 +1319,8 @@
                             <input type="text" id="cl-desc" class="input-field"
                                 placeholder="What does this function do?">
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Package Type *</label>
-                            <select id="cl-package" class="input-field" onchange="toggleCodeSourceFields()">
-                                <option value="Zip">Zip file / Inline code</option>
-                                <option value="Image">Container Image</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Language *</label>
-                            <select id="cl-runtime" class="input-field">
-                                <option value="python3.10" selected>Python 3.10</option>
-                                <option value="nodejs20.x">Node.js 20.x</option>
-                                <option value="go1.x">Go 1.x</option>
-                                <option value="java21">Java 21</option>
-                            </select>
-                        </div>
+                        <input type="hidden" id="cl-package" value="Zip">
+                        <input type="hidden" id="cl-runtime" value="python3.10">
                         <input type="hidden" id="cl-region" value="ap-southeast-1">
                         <input type="hidden" id="cl-arch" value="x86_64">
                     </div>
@@ -1284,22 +1328,20 @@
 
                 <!-- Step 2 -->
                 <div class="wizard-content" id="wizard-step-2">
+                    <input type="hidden" id="cl-handler" value="lambda_function.lambda_handler">
                     <div class="form-grid" id="cl-zip-fields">
                         <div class="form-group full-width">
-                            <label class="form-label">Handler *</label>
-                            <input type="text" id="cl-handler" class="input-field" value="index.handler">
-                            <span class="form-hint">Filename.method, e.g., index.handler or app.lambda_handler</span>
+                            <label class="form-label">What should this task do? (AI Prompt)</label>
+                            <textarea id="cl-ai-prompt" class="input-field textarea-field" style="min-height: 80px;"
+                                placeholder="e.g. Fetch the latest news from an API and send a summary to my Slack webhook..."></textarea>
+                        </div>
+                        <div class="form-group full-width text-center" style="margin-top: -10px; margin-bottom: 20px;">
+                            <button class="btn btn-primary" id="btn-ai-gen-code" onclick="aiGenerateCode(); return false;" 
+                                style="width: 100%; max-width: 300px;">✨ Generate Python Code with AI</button>
                         </div>
                         <div class="form-group full-width">
-                            <label class="form-label flex justify-between">
-                                Inline Code
-                                <a href="#" onclick="applyTemplate('node'); return false;"
-                                    style="font-size: 12px; font-weight:normal;">Load Node.js Template</a>
-                            </label>
-                            <textarea id="cl-code" class="input-field textarea-field">exports.handler = async (event) => {
-    console.log("Event: ", JSON.stringify(event));
-    return { statusCode: 200, body: 'Hello World' };
-};</textarea>
+                            <label class="form-label">Generated Code</label>
+                            <textarea id="cl-code" class="input-field textarea-field" style="min-height: 250px; font-family: monospace; font-size: 12px;"># AI generated code will appear here...</textarea>
                         </div>
                     </div>
                     <div class="form-grid hidden" id="cl-image-fields">
@@ -1488,6 +1530,112 @@
         const API_BASE_URL = 'https://uax1t52ad4.execute-api.ap-southeast-1.amazonaws.com/scheduler';
         const AI_API_URL = 'https://v5gyq2sqdd.execute-api.ap-southeast-1.amazonaws.com/mondayIntegration';
         const API_TOKEN = ''; // Add API key here if you secure the API later
+
+        // Auth variables
+        let googleUser = null;
+        const codeReceiverURI = 'https://ts9k398yn8.execute-api.ap-southeast-1.amazonaws.com/googleLogin';
+
+        // Auth functions
+        function handleCredentialResponse(response) {
+            fetch(codeReceiverURI, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ credential: response.credential })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.body.success) {
+                    googleUser = data.body.user;
+                    localStorage.setItem('googleUser', JSON.stringify(googleUser));
+                    updateUI(true);
+                    init();
+                } else {
+                    document.getElementById('loginError').textContent = data.message || "Login failed.";
+                }
+            })
+            .catch(err => {
+                document.getElementById('loginError').textContent = "An error occurred.";
+            });
+        }
+
+        function checkGoogleLogin() {
+            const storedUser = localStorage.getItem('googleUser');
+            if (storedUser) {
+                googleUser = JSON.parse(storedUser);
+                updateUI(true);
+                return true;
+            }
+
+            google.accounts.id.initialize({
+                client_id: '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com',
+                callback: handleCredentialResponse
+            });
+            google.accounts.id.renderButton(
+                document.getElementById('googleSignInButton'),
+                { theme: "outline", size: "large" }
+            );
+            return false;
+        }
+
+        function updateUI(isLoggedIn) {
+            document.getElementById('loginForm').style.display = isLoggedIn ? 'none' : 'flex';
+            const mainUI = document.querySelector('.app-container');
+            if (mainUI) mainUI.style.display = isLoggedIn ? 'flex' : 'none';
+            
+            const chatBtn = document.getElementById('ai-chat-btn');
+            if (chatBtn) chatBtn.style.display = isLoggedIn ? 'flex' : 'none';
+            const chatPanel = document.getElementById('ai-chat-panel');
+            if (chatPanel) chatPanel.style.display = isLoggedIn ? 'flex' : 'none';
+        }
+
+        function logout() {
+            localStorage.removeItem('googleUser');
+            location.reload();
+        }
+
+        async function aiGenerateCode() {
+            const name = document.getElementById('cl-name').value;
+            const desc = document.getElementById('cl-desc').value;
+            const customPrompt = document.getElementById('cl-ai-prompt').value;
+            const btn = document.getElementById('btn-ai-gen-code');
+            
+            const promptToUse = customPrompt || desc;
+
+            if (!name || !promptToUse) {
+                showToast('Please provide a Task Name and a Description/Prompt.', 'warning');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+            
+            try {
+                const prompt = `Write a high-quality AWS Lambda function in Python 3.10 for a task named "${name}". 
+                Requirements: ${promptToUse}.
+                Return ONLY the Python code, no markdown, no explanation. 
+                Use 'lambda_handler(event, context)' as the entry point.`;
+                
+                const response = await fetch(AI_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'analyze', prompt: prompt })
+                });
+                
+                const data = await response.json();
+                let code = data.ai_response || "";
+                
+                // Clean up any markdown code blocks
+                code = code.replace(/```python/g, '').replace(/```/g, '').trim();
+                
+                document.getElementById('cl-code').value = code;
+                showToast('Python code generated by AI!', 'success');
+            } catch (err) {
+                showToast('AI Generation failed', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '✨ Generate Python Code with AI';
+            }
+        }
 
         let state = {
             lambdas: [],
@@ -1854,6 +2002,15 @@
             document.getElementById('cl-btn-prev').style.display = state.wizardStep > 1 ? 'inline-flex' : 'none';
             document.getElementById('cl-btn-next').style.display = state.wizardStep < 5 ? 'inline-flex' : 'none';
             document.getElementById('cl-btn-submit').style.display = state.wizardStep === 5 ? 'inline-flex' : 'none';
+
+            // Pre-populate AI prompt if entering step 2
+            if (state.wizardStep === 2) {
+                const promptField = document.getElementById('cl-ai-prompt');
+                const desc = document.getElementById('cl-desc').value;
+                if (promptField && !promptField.value.trim() && desc) {
+                    promptField.value = desc;
+                }
+            }
         }
 
         function toggleCodeSourceFields() {
@@ -1913,8 +2070,8 @@
                 'db-cleanup': {
                     name: 'database-cleanup',
                     desc: 'Cleans up old records from the database',
-                    runtime: 'nodejs20.x',
-                    code: 'exports.handler = async (event) => {\n    console.log("Cleaning up database...");\n    return { statusCode: 200, body: "Cleanup complete" };\n};',
+                    runtime: 'python3.10',
+                    code: 'def lambda_handler(event, context):\n    print("Cleaning up database...")\n    return {\n        "statusCode": 200,\n        "body": "Cleanup complete"\n    }',
                     hasSchedule: true,
                     schName: 'weekly-cleanup-schedule',
                     schType: 'cron',
@@ -1923,12 +2080,22 @@
                 'health-check': {
                     name: 'system-health-check',
                     desc: 'Pings endpoints to verify system health',
-                    runtime: 'go1.x',
-                    code: 'package main\n\nimport (\n\t"context"\n\t"fmt"\n\t"github.com/aws/aws-lambda-go/lambda"\n)\n\nfunc HandleRequest(ctx context.Context, event interface{}) (string, error) {\n\treturn fmt.Sprintf("System is healthy"), nil\n}\n\nfunc main() {\n\tlambda.Start(HandleRequest)\n}',
+                    runtime: 'python3.10',
+                    code: 'import json\n\ndef lambda_handler(event, context):\n    print("System is healthy")\n    return {\n        "statusCode": 200,\n        "body": json.dumps("System is healthy")\n    }',
                     hasSchedule: true,
                     schName: 'health-check-schedule',
                     schType: 'rate',
                     schExpr: 'rate(5 minutes)'
+                },
+                'reminder-email': {
+                    name: 'task-reminder-bot',
+                    desc: 'Sends automatic email reminders for pending tasks',
+                    runtime: 'python3.10',
+                    code: 'import json\nimport boto3\n\ndef lambda_handler(event, context):\n    print("Scanning for pending tasks...")\n    # Example: Integrate with SES to send emails\n    # ses = boto3.client("ses")\n    # ses.send_email(Source="alerts@example.com", Destination={"ToAddresses": ["user@example.com"]}, Message={...})\n    \n    return {\n        "statusCode": 200,\n        "body": json.dumps("Reminders processed")\n    }',
+                    hasSchedule: true,
+                    schName: 'reminder-schedule',
+                    schType: 'cron',
+                    schExpr: 'cron(0 9 ? * * *)'
                 }
             };
             
@@ -1985,8 +2152,7 @@
         function populateReview() {
             const html = `
             <div class="detail-item"><div class="label">Function Name</div><div class="value">${document.getElementById('cl-name').value}</div></div>
-            <div class="detail-item"><div class="label">Package Type</div><div class="value">${document.getElementById('cl-package').value}</div></div>
-            <div class="detail-item"><div class="label">Runtime</div><div class="value">${document.getElementById('cl-package').value === 'Zip' ? document.getElementById('cl-runtime').value : 'N/A'}</div></div>
+            <div class="detail-item"><div class="label">Description</div><div class="value">${document.getElementById('cl-desc').value || 'N/A'}</div></div>
             <div class="detail-item"><div class="label">Memory / Timeout</div><div class="value">${document.getElementById('cl-memory').value} MB / ${document.getElementById('cl-timeout').value}s</div></div>
             <div class="detail-item"><div class="label">Role ARN</div><div class="value text-muted" style="font-size:0.75rem;">${document.getElementById('cl-role').value}</div></div>
             <div class="detail-item full-width mt-4"><div class="label">Schedule</div><div class="value">${document.getElementById('cl-has-schedule').checked ? 'Yes: ' + document.getElementById('cl-sch-name').value : 'None'}</div></div>
@@ -2247,9 +2413,10 @@
 
             const systemPrompt = `You are a helpful AI assistant for an Automated Task Manager. The user wants to create a new background task (AWS Lambda + EventBridge).
 You have access to 3 ready-made templates that you can offer to the user:
-- "Daily Report Generator": Python task running daily at 8 AM (cron(0 8 ? * MON-FRI *))
-- "Database Cleanup": Node.js task running weekly on Sunday at 2 AM (cron(0 2 ? * SUN *))
-- "System Health Check": Go task running every 5 minutes (rate(5 minutes))
+- "Daily Report Generator": task running daily at 8 AM (cron(0 8 ? * MON-FRI *))
+- "Database Cleanup": task running weekly on Sunday at 2 AM (cron(0 2 ? * SUN *))
+- "System Health Check": task running every 5 minutes (rate(5 minutes))
+- "Reminder Emails": task running daily at 9 AM (cron(0 9 ? * * *))
 
 Your goal is to gather exactly three things from the user naturally (or apply them automatically if they choose a template):
 1. Task Name (a short hyphenated string like 'daily-report')
@@ -2337,7 +2504,11 @@ If you output the JSON, also say a brief confirmation message saying you've fill
 
         // Boot
         document.addEventListener('DOMContentLoaded', () => {
-            init();
+            if (checkGoogleLogin()) {
+                init();
+            } else {
+                document.getElementById('loginForm').style.display = 'flex';
+            }
 
             // Make toast container draggable
             const toastContainer = document.getElementById('toast-container');
