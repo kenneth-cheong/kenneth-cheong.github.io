@@ -260,9 +260,9 @@
             background: #fff;
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
-            padding: 0.5rem;
+            padding: 4px 8px; /* Slightly tighter padding */
             display: flex;
-            align-items: flex-end;
+            align-items: center; /* Changed from flex-end to center */
             gap: 0.5rem;
             box-shadow: var(--shadow-sm);
             transition: all 0.2s;
@@ -324,7 +324,7 @@
             justify-content: center;
             cursor: pointer;
             transition: opacity 0.2s;
-            margin-bottom: 0.15rem;
+            flex-shrink: 0;
         }
 
         .send-btn:hover {
@@ -837,11 +837,13 @@
             font-family: inherit;
             font-size: 0.875rem;
             resize: none;
-            max-height: 200px;
-            min-height: 24px;
-            padding: 8px 0;
-            line-height: 1.5;
+            max-height: 180px;
+            padding: 8px 4px;
+            line-height: 1.4;
             color: var(--text);
+            margin: 0;
+            overflow-y: hidden;
+            height: 36px; /* Initial single-line height */
         }
 
         .icon-btn {
@@ -3035,10 +3037,27 @@
 
         .chat-input-wrapper {
             border-top: 1px solid var(--border);
-            padding: 1rem 1rem 2.5rem 1rem;
+            padding: 0.5rem 1rem 2.5rem 1rem;
             background: #f8fafc;
             flex-shrink: 0;
             z-index: 10;
+            position: relative;
+            min-height: 100px;
+        }
+
+        .chat-input-resizer {
+            position: absolute;
+            top: -3px;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            cursor: ns-resize;
+            z-index: 20;
+            transition: background 0.2s;
+        }
+
+        .chat-input-resizer:hover {
+            background: rgba(37, 99, 235, 0.2);
         }
 
         /* Premium Tooltips */
@@ -3455,8 +3474,9 @@
                 </div>
 
                 <div class="chat-input-wrapper" id="chat-input-container">
+                    <div class="chat-input-resizer" id="chat-input-resizer"></div>
                     <div id="file-previews" class="file-previews"></div>
-                    <div class="quick-actions" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <div class="quick-actions" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; padding-top: 0.5rem;">
                         <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
                             <button class="chip" onclick="addPrompt('Make this slide dark')">Dark Mode</button>
                             <button class="chip" onclick="addPrompt('Add executive summary')">+ Summary</button>
@@ -3467,7 +3487,8 @@
                         </div>
                     </div>
                     <div class="chat-input-box" id="chat-input-box">
-                        <textarea id="chat-input" placeholder="Request changes to slides..." onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendMessage(); }"></textarea>
+                        <button class="icon-btn attach-btn" data-tooltip="Attach File" style="color: var(--secondary); margin-left: 0.5rem;"><i data-lucide="paperclip" size="18"></i></button>
+                        <textarea id="chat-input" rows="1" placeholder="Request changes to slides..." onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendMessage(); }"></textarea>
                         <button class="send-btn" onclick="sendMessage()"><i data-lucide="send" size="18"></i></button>
                     </div>
                 </div>
@@ -6163,17 +6184,55 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     copilotMount.appendChild(source);
                     // Ensure scrolling is possible after move
                     const chatMsgs = document.getElementById('chat-messages');
+                    const chatInput = document.getElementById('chat-input');
                     if (chatMsgs) {
                         chatMsgs.style.overflowY = 'auto';
                         chatMsgs.scrollTop = chatMsgs.scrollHeight;
                     }
+                    if (chatInput && chatInput.adjustHeight) {
+                        chatInput.adjustHeight();
+                    }
                 } else {
                     standaloneMount.appendChild(source);
+                    const chatInput = document.getElementById('chat-input');
+                    if (chatInput && chatInput.adjustHeight) {
+                        chatInput.adjustHeight();
+                    }
                 }
             }
 
             // Copilot Resizer
             let isResizingCopilot = false;
+            function initChatInputResizer() {
+                const resizer = document.getElementById('chat-input-resizer');
+                const inputContainer = document.getElementById('chat-input-container');
+                if (!resizer || !inputContainer) return;
+
+                let startY, startHeight;
+
+                resizer.addEventListener('mousedown', (e) => {
+                    startY = e.clientY;
+                    startHeight = inputContainer.offsetHeight;
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                    resizer.classList.add('resizing');
+                    document.body.style.cursor = 'ns-resize';
+                });
+
+                function onMouseMove(e) {
+                    const dy = startY - e.clientY;
+                    const newHeight = Math.max(100, Math.min(startHeight + dy, 500));
+                    inputContainer.style.height = newHeight + 'px';
+                }
+
+                function onMouseUp() {
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                    resizer.classList.remove('resizing');
+                    document.body.style.cursor = 'default';
+                }
+            }
+
             function initCopilotResizer() {
                 const resizer = document.getElementById('copilot-resizer');
                 if (!resizer) return;
@@ -6206,12 +6265,14 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 if (!tx) return;
                 
                 const adjustHeight = () => {
-                    tx.style.height = 'auto';
-                    tx.style.height = Math.min(tx.scrollHeight, 200) + 'px';
+                    tx.style.height = '36px'; // Reset to single line height
+                    const newHeight = Math.max(36, Math.min(tx.scrollHeight, 180));
+                    tx.style.height = newHeight + 'px';
+                    tx.style.overflowY = tx.scrollHeight > 180 ? 'auto' : 'hidden';
                 };
                 
                 tx.addEventListener('input', adjustHeight);
-                // Initial adjustment
+                tx.adjustHeight = adjustHeight; // Attach for external calls
                 adjustHeight();
             }
 
@@ -6220,6 +6281,7 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 initCopilotResizer();
                 initRailResize();
                 initChatAutoExpand();
+                initChatInputResizer();
             });
 
             function switchView(viewId, element) {
@@ -6622,7 +6684,7 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
 
             // --- File Upload Logic ---
             function setupFileUpload() {
-                const uploadTriggers = document.querySelectorAll('.icon-btn:has(.lucide-paperclip), .btn-primary:has(.lucide-upload)');
+                const uploadTriggers = document.querySelectorAll('.attach-btn, .icon-btn:has(.lucide-paperclip), .btn-primary:has(.lucide-upload)');
                 const fileInput = document.createElement('input');
                 fileInput.type = 'file';
                 fileInput.multiple = true; // Allow multiple
