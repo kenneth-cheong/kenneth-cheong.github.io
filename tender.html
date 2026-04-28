@@ -4363,7 +4363,7 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
             function saveAIAgents() {
                 localStorage.setItem('tenderAIAgents', JSON.stringify(aiAgents));
                 renderAIAgents();
-                saveProjects(); // Now integrated with main project persistence
+                triggerAutoSave();
             }
 
             function renderAIAgents() {
@@ -4624,8 +4624,8 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
 
             function getProofBank() {
                 const current = projects.find(p => p.id === currentProjectId);
-                if (current && current.proofs) return current.proofs;
-                return []; // No longer defaulting to MediaOne mock data
+                if (current && current.proofs && current.proofs.length > 0) return current.proofs;
+                return MEDIAONE_EXPERTISE;
             }
 
             function saveProofBank(data) {
@@ -4723,21 +4723,23 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
 
             function updateProofPoint(id, field, value) {
                 const proofs = getProofBank();
-                const proof = proofs.find(p => p.id === id);
-                if (proof) {
-                    proof[field] = value.trim();
+                const p = proofs.find(item => item.id == id);
+                if (p) {
+                    p[field] = value;
                     saveProofBank(proofs);
+                    saveHistory();
+                    triggerAutoSave();
                 }
             }
 
             function updateProofTags(id, value) {
-                if (value === '+ Add Tags') return;
                 const proofs = getProofBank();
-                const proof = proofs.find(p => p.id === id);
-                if (proof) {
-                    const newTags = value.split(',').map(t => t.trim()).filter(Boolean);
-                    proof.tags = [...new Set([...proof.tags, ...newTags])];
+                const p = proofs.find(item => item.id == id);
+                if (p) {
+                    p.tags = value.split(',').map(t => t.trim()).filter(t => t !== "");
                     saveProofBank(proofs);
+                    saveHistory();
+                    triggerAutoSave();
                     renderProofBank();
                 }
             }
@@ -5057,27 +5059,63 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
             // --- Project Management ---
             let projects = [];
             let currentProjectId = null;
+            const MEDIAONE_EXPERTISE = [
+                {
+                    id: 1001,
+                    metric: "20+ Years",
+                    label: "SEO Mastery",
+                    context: "Over 20 years of experience in SEO. Specializing in technical audits, site migrations, and sustainable organic growth. Features Google Product Experts (Search) on the core team.",
+                    tags: ["SEO", "Technical SEO", "Growth"]
+                },
+                {
+                    id: 1002,
+                    metric: "Certified Partner",
+                    label: "High-Performance SEM",
+                    context: "Certified Google Partners. Managing multi-million dollar budgets with a focus on ROAS and conversion architecture across Google Ads, Display, and Video.",
+                    tags: ["SEM", "PPC", "Conversion"]
+                },
+                {
+                    id: 1003,
+                    metric: "Full-Funnel",
+                    label: "SMM & Branding",
+                    context: "Cross-platform social media growth across FB, IG, LinkedIn, and TikTok. Combining creative storytelling with data-driven audience targeting.",
+                    tags: ["SMM", "Social", "Branding"]
+                },
+                {
+                    id: 1004,
+                    metric: "Omni-Channel",
+                    label: "Digital Transformation",
+                    context: "Conversion-focused web development, CRM integration (HubSpot, Salesforce), and marketing automation to streamline the lead-to-sale journey.",
+                    tags: ["Web Dev", "UX/UI", "CRM"]
+                },
+                {
+                    id: 1005,
+                    metric: "Strategic Narrative",
+                    label: "Content Strategy",
+                    context: "Strategic content creation that aligns with brand DNA and drives engagement. Expertise in whitepapers, case studies, and high-conversion ad copy.",
+                    tags: ["Content", "Copywriting", "Creative"]
+                }
+            ];
+
             let proofBankData = null; // Global state for Proof Bank
 
             const teamData = [
                 {
                     id: 1,
                     name: "Tom Koh",
-                    role: "CEO, MediaOne",
+                    role: "Founder & CEO, MediaOne",
                     initials: "TK",
-                    badge: "CEO",
-                    experience: "Former senior manager at Thomson, SPH, POAD; Google Product Expert (Search); enterprise/government audits, optimisation, migration.",
-                    skills: ["SEO", "Technical SEO", "Site Audits", "Site Migration"],
-                    brands: "SingTel, China Telecom, SingHealth, The Hour Glass, Dairy Farm Group, Enterprise Singapore, Changi Airports International"
+                    experience: "A leading SEO/SEM consultant in Singapore with over 20 years of experience. Former senior manager at Thomson, SPH, and POAD. Google Product Expert (Search).",
+                    skills: ["SEO", "SEM", "Technical Audits", "Site Migration", "Digital Strategy"],
+                    brands: "SingTel, China Telecom, SingHealth, Changi Airports International"
                 },
                 {
                     id: 2,
                     name: "June Goh",
-                    role: "Marketing Strategist (Regional)",
+                    role: "Chief Operating Officer (COO)",
                     initials: "JG",
-                    badge: "Strategist",
-                    experience: "Direct-to-consumer and cross-border direct marketing across Asia-Pacific.",
-                    skills: ["Direct Marketing", "Regional Expansion", "Performance Marketing"],
+                    experience: "Expert in direct-to-consumer and cross-border direct marketing across Asia-Pacific. Specializes in performance marketing and operational excellence.",
+                    skills: ["Performance Marketing", "Regional Expansion", "Direct Marketing", "Operations"],
                     brands: "SG, MY, TH, ID, PH, JP, HK, KR, TW, AU, NZ"
                 },
                 {
@@ -5085,8 +5123,8 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     name: "Celesta Ee",
                     role: "Digital Marketing Consultant",
                     initials: "CE",
-                    experience: "10 years' experience in digital strategy and client communications.",
-                    skills: ["Sales Management", "Negotiations", "Communications", "Digital Presence Strategy"],
+                    experience: "Specialist in digital strategy and client communications with a focus on high-impact growth for SMEs and corporate clients.",
+                    skills: ["Sales Management", "Negotiations", "Digital Strategy", "Communications"],
                     brands: "MediaOne; Multiple SME & Corporate clients"
                 },
                 {
@@ -5103,9 +5141,9 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     name: "Desiree Bin",
                     role: "SEO Consultant",
                     initials: "DB",
-                    experience: "Former banking/payments background; SkillsIgnition; Google trainee; transitioned into SEO consulting.",
-                    skills: ["SEO", "Project Management", "Social Media Marketing", "Content Creation"],
-                    brands: "Singapore Chinese Orchestra, StorHub, SATA, CS Connect, Diverace, Ultra Vault, GL Power, Mr Bucket, Propup"
+                    experience: "Transitioned from a banking/payments background into high-performance SEO. Google SkillsIgnition graduate with expertise in content and project management.",
+                    skills: ["SEO", "Project Management", "Content Marketing", "Digital Advertising"],
+                    brands: "Singapore Chinese Orchestra, StorHub, SATA, CS Connect, Diverace, Ultra Vault"
                 }
             ];
 
@@ -5279,31 +5317,59 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
             let redoStack = [];
 
             function saveHistory() {
-                const state = JSON.stringify(slidesData);
+                const state = JSON.stringify({
+                    projects: projects,
+                    team: teamData,
+                    proofs: getProofBank(),
+                    agents: aiAgents,
+                    activeProjectId: currentProjectId,
+                    slides: slidesData
+                });
+                
                 if (historyStack.length > 0 && historyStack[historyStack.length - 1] === state) return;
                 historyStack.push(state);
                 if (historyStack.length > 50) historyStack.shift();
                 redoStack = [];
             }
 
+            function applyState(stateJson) {
+                const state = JSON.parse(stateJson);
+                
+                // Restore Data
+                projects = state.projects;
+                currentProjectId = state.activeProjectId;
+                teamData.length = 0;
+                state.team.forEach(t => teamData.push(t));
+                aiAgents = state.agents;
+                slidesData.length = 0;
+                state.slides.forEach(s => slidesData.push(s));
+                
+                // Restore Proofs (if current project context exists)
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (p) p.proofs = state.proofs;
+                
+                // Global UI Refresh
+                renderProjectList();
+                renderTeam();
+                renderProofBank();
+                renderAIAgents();
+                renderThumbnails();
+                updateEditorState();
+            }
+
             function undo() {
                 if (historyStack.length <= 1) return;
                 redoStack.push(historyStack.pop());
-                const previousState = historyStack[historyStack.length - 1];
-                slidesData.length = 0;
-                JSON.parse(previousState).forEach(s => slidesData.push(s));
-                renderThumbnails();
-                updateEditorState();
+                applyState(historyStack[historyStack.length - 1]);
+                triggerAutoSave();
             }
 
             function redo() {
                 if (redoStack.length === 0) return;
                 const nextState = redoStack.pop();
                 historyStack.push(nextState);
-                slidesData.length = 0;
-                JSON.parse(nextState).forEach(s => slidesData.push(s));
-                renderThumbnails();
-                updateEditorState();
+                applyState(nextState);
+                triggerAutoSave();
             }
 
             function format(command, value = null) {
@@ -6329,6 +6395,10 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     renderProofBank();
                 }
 
+                if (viewId === 'team') {
+                    renderTeam();
+                }
+
                 if (viewId === 'persona') {
                     getAIAgents(); // Load from localStorage
                     renderAIAgents();
@@ -7127,7 +7197,6 @@ ${slide.body}`;
                 if (!list) return;
                 list.innerHTML = teamData.map(member => `
                 <div class="team-member" data-id="${member.id}">
-                    ${member.badge ? `<span class="badge" style="background: var(--primary-light); color: var(--primary); position: absolute; top: 1rem; right: 1rem; font-size: 0.65rem;">${member.badge}</span>` : ''}
                     
                     <div class="member-header">
                         <div class="member-avatar">${member.initials}</div>
@@ -7162,6 +7231,15 @@ ${slide.body}`;
                 lucide.createIcons();
             }
 
+            let autoSaveTimer = null;
+            function triggerAutoSave() {
+                if (autoSaveTimer) clearTimeout(autoSaveTimer);
+                autoSaveTimer = setTimeout(() => {
+                    console.log("Auto-syncing to cloud...");
+                    saveProjects();
+                }, 2000); // 2 second debounce
+            }
+
             function updateMember(id, field, value) {
                 const member = teamData.find(m => m.id === id);
                 if (!member) return;
@@ -7174,14 +7252,29 @@ ${slide.body}`;
                     const row = document.querySelector(`.team-member[data-id="${id}"]`);
                     if (row) row.querySelector('.member-avatar').innerText = member.initials;
                 }
-                saveProjects();
+
+                saveHistory();
+                triggerAutoSave();
+            }
+
+            function deleteMember(id) {
+                const idx = teamData.findIndex(m => m.id === id);
+                if (idx !== -1) {
+                    if (confirm("Remove this team member?")) {
+                        teamData.splice(idx, 1);
+                        saveHistory();
+                        triggerAutoSave();
+                        renderTeam();
+                    }
+                }
             }
 
             function addMember() {
                 const id = teamData.length ? Math.max(...teamData.map(m => m.id)) + 1 : 1;
                 teamData.push({ id, name: "New Member", role: "Designation", initials: "NM", experience: "", skills: [], brands: "" });
                 renderTeam();
-                saveProjects();
+                saveHistory();
+                triggerAutoSave();
                 setTimeout(() => {
                     const el = document.querySelector(`.team-member[data-id="${id}"] strong`);
                     if (el) {
@@ -7189,17 +7282,6 @@ ${slide.body}`;
                         document.execCommand('selectAll', false, null);
                     }
                 }, 50);
-            }
-
-            function deleteMember(id) {
-                if (confirm("Are you sure you want to remove this team member?")) {
-                    const index = teamData.findIndex(m => m.id === id);
-                    if (index !== -1) {
-                        teamData.splice(index, 1);
-                        renderTeam();
-                        saveProjects();
-                    }
-                }
             }
 
             // --- Project Persistence & Switching ---
@@ -7487,6 +7569,14 @@ ${slide.body}`;
 
                     if (result && result.projects) {
                         projects = result.projects;
+                        
+                        // Populate Global Team Registry
+                        if (result.globalTeam && result.globalTeam.length > 0) {
+                            teamData.length = 0;
+                            result.globalTeam.forEach(t => teamData.push(t));
+                            renderTeam();
+                        }
+
                         // Populate Proof Bank from cloud if available
                         if (result.proofBank) {
                             proofBankData = result.proofBank;
@@ -7880,9 +7970,6 @@ ${slide.body}`;
                 // Sync states
                 slidesData.length = 0;
                 p.slides.forEach(s => slidesData.push(s));
-
-                teamData.length = 0;
-                p.team.forEach(t => teamData.push(t));
 
                 selectedTeamIds = p.selectedTeamIds || [];
 
