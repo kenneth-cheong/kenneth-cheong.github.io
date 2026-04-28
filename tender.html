@@ -45,6 +45,7 @@
             --success: #10b981;
             --warning: #f59e0b;
             --danger: #ef4444;
+            --text-slate: #0f172a; /* Dark slate for tooltips and contrast */
 
             /* Markdown & Chat Table Styles */
             .message-content table {
@@ -828,15 +829,19 @@
             }
         }
 
-        textarea {
+        .chat-input-box textarea {
             flex: 1;
+            background: transparent;
             border: none;
-            resize: none;
-            font-family: inherit;
-            font-size: 0.9375rem;
-            padding: 0.25rem;
-            max-height: 120px;
             outline: none;
+            font-family: inherit;
+            font-size: 0.875rem;
+            resize: none;
+            max-height: 200px;
+            min-height: 24px;
+            padding: 8px 0;
+            line-height: 1.5;
+            color: var(--text);
         }
 
         .icon-btn {
@@ -1112,7 +1117,7 @@
             left: 50%;
             transform: translateX(-50%) translateY(0);
             border-top-color: transparent;
-            border-bottom-color: var(--text-slate);
+            border-bottom-color: #0f172a;
             z-index: 10000;
         }
 
@@ -1211,7 +1216,28 @@
             padding: 0.2rem 0.75rem;
             border-radius: 999px;
             box-shadow: var(--shadow-sm);
+            z-index: 5;
         }
+
+        /* Vertical Accents for Cover Slides */
+        .slide-vertical-accents {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 80px;
+            display: flex;
+            z-index: 1;
+        }
+
+        .slide-accent-bar {
+            flex: 1;
+            height: 100%;
+        }
+
+        .slide-accent-bar:nth-child(1) { background: rgba(255, 255, 255, 0.05); }
+        .slide-accent-bar:nth-child(2) { background: rgba(255, 255, 255, 0.1); }
+        .slide-accent-bar:nth-child(3) { background: rgba(255, 255, 255, 0.15); }
 
         .theme-dark::after {
             content: '';
@@ -1383,6 +1409,261 @@
             margin-bottom: 0.5rem;
         }
 
+        /* --- New Layout Patterns --- */
+        
+        /* Footer Meta (Cover Slides) */
+        .slide-footer-meta {
+            position: absolute;
+            bottom: 3rem;
+            left: 3.5rem;
+            right: 3.5rem;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .meta-item label {
+            display: block;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #f97316;
+            text-transform: uppercase;
+            margin-bottom: 0.25rem;
+        }
+
+        .meta-item value {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .meta-item subtext {
+            display: block;
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.6);
+            margin-top: 0.125rem;
+        }
+
+        /* TOC / Sidebar Layout */
+        .slide-layout-sidebar {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            height: 100%;
+            margin: -3rem; /* Negate canvas padding */
+        }
+
+        .slide-sidebar {
+            background: #f8fafc;
+            border-right: 1px solid #e2e8f0;
+            padding: 3rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .slide-sidebar-content {
+            padding: 3rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        /* TOC Grid */
+        .toc-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+
+        .toc-item {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .toc-num {
+            font-size: 1rem;
+            font-weight: 800;
+            color: #f97316;
+        }
+
+        .toc-content h4 {
+            font-size: 1rem;
+            font-weight: 800;
+            color: #1e3a8a;
+            margin: 0 0 0.25rem 0;
+        }
+
+        .toc-content p {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin: 0;
+        }
+
+        /* Summary Boxes (Checklist) */
+        .slide-checklist-box {
+            background: #eff6ff;
+            border: 1px solid #dbeafe;
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            margin-top: auto;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #1e3a8a;
+        }
+
+        .checklist-item i {
+            color: #10b981;
+        }
+
+        /* Status Badges (Audit Findings) */
+        .slide-status-badge {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.65rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #fff;
+        }
+
+        .status-critical { background: #be123c; }
+        .status-warning { background: #f59e0b; }
+        .status-high { background: #e11d48; }
+        .status-medium { background: #fbbf24; color: #92400e; }
+        .status-pass { background: #10b981; }
+
+        /* Insight Box (Bottom Highlight) */
+        .slide-insight-box {
+            background: #eff6ff;
+            border-left: 4px solid #2563eb;
+            border-radius: 4px;
+            padding: 1.25rem;
+            margin-top: 2rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            font-size: 0.875rem;
+            color: #1e3a8a;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .slide-insight-box i {
+            color: #2563eb;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        /* Premium Table Styles */
+        .slide-premium-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+            background: #fff;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .slide-premium-table th {
+            background: #1e3a8a;
+            color: #fff;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        .slide-premium-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: top;
+            color: #475569;
+        }
+
+        .slide-premium-table tr:nth-child(even) {
+            background: #f8fafc;
+        }
+
+        /* Comparison Domain Card */
+        .slide-domain-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+
+        .slide-domain-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            box-shadow: var(--shadow-md);
+        }
+
+        .slide-domain-card h3 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #1e3a8a;
+            margin-bottom: 0.25rem;
+        }
+
+        .slide-domain-card sub {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #f97316;
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+            bottom: 0;
+        }
+
+        .domain-item {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .domain-item-icon {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 2px;
+        }
+
+        .domain-item-content h5 {
+            font-size: 0.875rem;
+            font-weight: 800;
+            color: #1e293b;
+            margin-bottom: 0.125rem;
+        }
+
+        .domain-item-content p {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin: 0;
+            line-height: 1.3;
+        }
+
         .canvas-controls {
             position: absolute;
             bottom: 1rem;
@@ -1470,6 +1751,12 @@
 
         .view-content.active {
             display: flex;
+        }
+
+        /* Slide Editor and Overview Chat should not scroll their entire containers, internal areas handle scrolling */
+        #view-slide-editor, #view-overview {
+            overflow: hidden;
+            padding: 0;
         }
 
         .view-header {
@@ -2648,9 +2935,110 @@
         /* Responsive Tweaks */
         @media (max-width: 1200px) {
             :root {
-                --right-panel-width: 400px;
+                --right-panel-width: 450px;
                 --sidebar-width: 220px;
             }
+        }
+
+        /* Co-pilot Layout */
+        .copilot-active .slide-editor-layout {
+            display: grid;
+            grid-template-columns: var(--sidebar-width) 1fr var(--right-panel-width);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .copilot-active .slide-editor-main {
+            border-right: 1px solid var(--border);
+        }
+
+        .copilot-panel {
+            display: none;
+            flex-direction: column;
+            background: #fff;
+            height: 100%; /* Changed from 100vh to fit workspace */
+            position: relative;
+            box-shadow: -4px 0 15px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+
+        .copilot-active .copilot-panel {
+            display: flex;
+        }
+
+        .copilot-resizer {
+            position: absolute;
+            top: 0;
+            left: -2px;
+            width: 4px;
+            height: 100%;
+            cursor: ew-resize;
+            z-index: 100;
+            transition: background 0.2s;
+        }
+
+        .copilot-resizer:hover {
+            background: var(--primary);
+        }
+
+        .copilot-panel-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: #f8fafc;
+            flex-shrink: 0;
+        }
+
+        .copilot-panel-header h3 {
+            font-size: 0.875rem;
+            font-weight: 700;
+            margin: 0;
+            color: #1e3a8a;
+        }
+
+        .copilot-chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        #chat-view-mount, #copilot-view-mount {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+        }
+
+        #chat-ui-source {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto !important;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .chat-input-wrapper {
+            border-top: 1px solid var(--border);
+            padding: 1rem 1rem 2.5rem 1rem;
+            background: #f8fafc;
+            flex-shrink: 0;
+            z-index: 10;
         }
 
         /* Premium Tooltips */
@@ -2665,8 +3053,8 @@
             bottom: 100%;
             left: 50%;
             transform: translateX(-50%) translateY(-8px);
-            background: var(--text-slate);
-            color: white;
+            background: #0f172a; /* Explicit dark background */
+            color: #ffffff; /* Explicit white text */
             padding: 6px 12px;
             border-radius: 8px;
             font-size: 0.75rem;
@@ -2675,8 +3063,8 @@
             opacity: 0;
             visibility: hidden;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 1000;
-            box-shadow: var(--shadow-lg);
+            z-index: 10000; /* Ensure it is above EVERYTHING */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
             pointer-events: none;
         }
 
@@ -2687,7 +3075,7 @@
             left: 50%;
             transform: translateX(-50%) translateY(0);
             border: 6px solid transparent;
-            border-top-color: var(--text-slate);
+            border-top-color: #0f172a;
             opacity: 0;
             visibility: hidden;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -2955,9 +3343,17 @@
                     </a>
 
                     <p class="nav-label">Project Workspace</p>
-                    <a href="#" class="nav-item" onclick="switchView('overview', this)">
-                        <i data-lucide="message-square" size="18"></i> Tender AI Chat
+                    <a class="nav-item" onclick="switchView('overview', this)">
+                        <i data-lucide="message-square" size="18"></i> <span>Tender AI Chat</span>
                     </a>
+                    <a class="nav-item" onclick="switchView('copilot', this)">
+                        <div style="position: relative; display: flex; align-items: center;">
+                            <i data-lucide="layout" size="18"></i>
+                            <span class="badge" style="position:absolute; top:-8px; right:-18px; background:var(--primary); color:#fff; font-size:0.45rem; padding:1px 3px; border-radius:3px; border: 2px solid var(--bg-sidebar); line-height: 1; pointer-events: none; font-weight:800;">NEW</span>
+                        </div>
+                        <span style="margin-left: 16px;">AI Co-pilot</span>
+                    </a>
+                    <div class="nav-label">Strategy Building</div>
                     <a href="#" class="nav-item" onclick="switchView('documents', this)">
                         <i data-lucide="files" size="18"></i> Documents
                     </a>
@@ -3042,8 +3438,8 @@
                 </div>
             </div>
 
-            <!-- View: Tender AI Chat -->
-            <div id="view-overview" class="view-content">
+            <!-- Chat Elements Source (Wrapped for moving) -->
+            <div id="chat-ui-source">
                 <div id="drag-drop-overlay" class="drag-drop-overlay">
                     <div class="overlay-content">
                         <i data-lucide="upload-cloud" size="48"></i>
@@ -3053,45 +3449,33 @@
                 <div class="chat-messages" id="chat-messages">
                     <div class="message message-ai">
                         <div class="message-content">
-                            Welcome! Please upload your tender documents (RFP, submission guidelines, etc.) to begin the
-                            analysis.
+                            Welcome! I am your **Tender Co-pilot**. You can upload documents here, or ask me to generate and edit slides directly in the editor.
                         </div>
                     </div>
                 </div>
 
-                <!-- Chat Input -->
-                <div class="chat-input-wrapper">
+                <div class="chat-input-wrapper" id="chat-input-container">
                     <div id="file-previews" class="file-previews"></div>
-                    <div class="quick-actions"
-                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
-                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                            <button class="chip" onclick="addPrompt('Extract mandatory requirements')">Extract
-                                requirements</button>
-                            <button class="chip" onclick="addPrompt('Check compliance')">Check compliance</button>
-                            <button class="chip" onclick="addPrompt('Draft executive summary')">Executive
-                                summary</button>
+                    <div class="quick-actions" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                            <button class="chip" onclick="addPrompt('Make this slide dark')">Dark Mode</button>
+                            <button class="chip" onclick="addPrompt('Add executive summary')">+ Summary</button>
                         </div>
-                        <div class="model-selector" style="transform: scale(0.9); transform-origin: right center;">
-                            <button class="model-btn" id="btn-claude-sonnet" onclick="setLLM('claude-sonnet')"
-                                data-model="claude">Sonnet</button>
-                            <button class="model-btn active" id="btn-claude-haiku" onclick="setLLM('claude-haiku')"
-                                data-model="claude">Haiku</button>
-                            <button class="model-btn" id="btn-gpt-mini" onclick="setLLM('gpt-mini')"
-                                data-model="gpt">GPT-4o</button>
+                        <div class="model-selector" style="transform: scale(0.8); transform-origin: right center;">
+                            <button class="model-btn active" id="btn-claude-haiku" onclick="setLLM('claude-haiku')">Haiku</button>
+                            <button class="model-btn" id="btn-gpt-mini" onclick="setLLM('gpt-mini')">GPT</button>
                         </div>
                     </div>
                     <div class="chat-input-box" id="chat-input-box">
-                        <div class="chat-input-actions">
-                            <button class="icon-btn" title="Attach Document" onclick="setupFileUpload()"><i
-                                    data-lucide="paperclip" size="18"></i></button>
-                            <button class="icon-btn" title="Add Website URL" onclick="addReferenceUrl()"><i
-                                    data-lucide="globe" size="18"></i></button>
-                        </div>
-                        <textarea id="chat-input" placeholder="Ask AI to analyze tender or refine strategy..."
-                            onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendMessage(); }"></textarea>
+                        <textarea id="chat-input" placeholder="Request changes to slides..." onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendMessage(); }"></textarea>
                         <button class="send-btn" onclick="sendMessage()"><i data-lucide="send" size="18"></i></button>
                     </div>
                 </div>
+            </div>
+
+            <!-- View: Tender AI Chat (Standalone) -->
+            <div id="view-overview" class="view-content">
+                <div id="chat-view-mount"></div>
             </div>
 
             <!-- View: Document Repository -->
@@ -3522,6 +3906,18 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Co-pilot Panel -->
+                    <div class="copilot-panel" id="copilot-panel-el">
+                        <div class="copilot-resizer" id="copilot-resizer"></div>
+                        <div class="copilot-panel-header">
+                            <i data-lucide="bot" size="16"></i>
+                            <h3>AI Co-pilot</h3>
+                        </div>
+                        <div class="copilot-chat-container" id="copilot-view-mount" style="overflow-y: auto;">
+                            <!-- Chat content moved here -->
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
@@ -3632,6 +4028,20 @@
         <script>
             // LLM Switcher Logic
             let currentLLM = localStorage.getItem('tenderLLM') || 'claude-haiku';
+            let currentScale = 1;
+
+
+            function moveChatUI(target) {
+                const source = document.getElementById('chat-ui-source');
+                const standaloneMount = document.getElementById('chat-view-mount');
+                const copilotMount = document.getElementById('copilot-view-mount');
+                
+                if (target === 'copilot') {
+                    copilotMount.appendChild(source);
+                } else {
+                    standaloneMount.appendChild(source);
+                }
+            }
 
             function setLLM(llm, silent = false) {
                 currentLLM = llm;
@@ -3725,12 +4135,12 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
             // FEATURE 1: Slide Archetype Templates
             // =============================================
             const SLIDE_ARCHETYPES = [
-                { id: 'title', icon: 'layout', title: 'Title Slide', desc: 'Full-brand hero cover', template: { title: 'SEO & GEO STRATEGY', body: '<p style="color:rgba(255,255,255,0.7); font-size:1rem; margin-top:1rem;">Recovering organic growth and building AI visibility across consumer and advisory journeys.</p><div style="margin-top:4rem; display:flex; gap:3rem; font-size:0.75rem;"><div style="opacity:0.8;">PREPARED FOR<br><strong style="color:#fff;">Etiqa Insurance Pte Ltd</strong></div><div style="opacity:0.8;">PREPARED BY<br><strong style="color:#fff;">MediaOne Business Group</strong></div><div style="opacity:0.8;">DATE<br><strong style="color:#fff;">April 2026</strong></div></div>' } },
-                { id: 'divider', icon: 'hash', title: 'Section Divider', desc: 'Bold section transition', template: { title: 'PROBLEM & CONTEXT', body: '<div class="slide-tag" style="background:#f97316; color:#fff;">SECTION 01</div><p style="margin-top:1.5rem; opacity:0.9;">Navigating the shift from classic SEO to AI-led discovery in a competitive insurance landscape.</p>' } },
-                { id: 'exec-summary', icon: 'file-text', title: 'Executive Summary', desc: 'Pillar-based overview', template: { title: 'Executive Summary', body: '<div class="slide-card-grid"><div class="slide-card"><h4>The Business Challenge</h4><p>Visibility weakened across domains. High-intent demand leaking to aggregators.</p></div><div class="slide-card"><h4>The MediaOne Response</h4><p>A dual-domain strategy: Etiqa builds trust, Tiq captures quote-ready intent.</p></div><div class="slide-card"><h4>Measurable Outcomes</h4><p>30% YoY growth in traffic. 15%+ AI citation visibility target.</p></div></div>' } },
-                { id: 'comparison', icon: 'columns', title: 'Side-by-Side', desc: 'Contrast current vs future', template: { title: 'Classic vs AI-Led Search', body: '<div style="display:flex; gap:2rem; margin-top:1rem;"><div style="flex:1; padding:1.5rem; background:#f8fafc; border-radius:8px;"><strong>Classic Search</strong><ul style="font-size:0.8rem; margin-top:1rem; color:#64748b;"><li>Users compare multiple links</li><li>Several brands share clicks</li><li>Ranking position drives potential</li></ul></div><div style="flex:1; padding:1.5rem; border:2px solid #f97316; border-radius:8px;"><strong>AI-Led Search</strong><ul style="font-size:0.8rem; margin-top:1rem; color:#1e293b;"><li>Users see a summary first</li><li>Only a few brands get cited</li><li>Visibility and clicks decoupled</li></ul></div></div>' } },
-                { id: 'audit', icon: 'clipboard-check', title: 'Audit findings', desc: 'Issue diagnosis grid', template: { title: 'Current State Audit', body: '<div class="slide-card-grid"><div class="slide-card"><div class="slide-tag">TECHNICAL</div><h4>Technical State</h4><p>Metadata gaps and crawlability issues on deep pages.</p></div><div class="slide-card"><div class="slide-tag">CONTENT</div><h4>Content & Trust</h4><p>Authority assets underutilized. E-E-A-T signals not structured.</p></div><div class="slide-card"><div class="slide-tag">VISIBILITY</div><h4>Current Visibility</h4><p>Losing ground to aggregators on core comparison queries.</p></div></div>' } },
-                { id: 'kpi', icon: 'bar-chart-3', title: 'KPI Dashboard', desc: 'Big metrics with labels', template: { title: 'Key Performance Indicators', body: '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:1.5rem; margin-top:1rem;"><div style="text-align:center;"><div style="font-size:3rem; font-weight:800; color:#1e3a8a;">+142%</div><div style="font-size:0.8rem; color:#64748b;">Organic Growth</div></div><div style="text-align:center;"><div style="font-size:3rem; font-weight:800; color:#1e3a8a;">Top 3</div><div style="font-size:0.8rem; color:#64748b;">Rankings</div></div><div style="text-align:center;"><div style="font-size:3rem; font-weight:800; color:#1e3a8a;">4.2x</div><div style="font-size:0.8rem; color:#64748b;">ROAS</div></div></div>' } }
+                { id: 'title', icon: 'layout', title: 'Premium Cover', desc: 'Hero strategy cover with vertical accents', template: { theme: 'dark', title: 'SEO & GEO STRATEGY', body: '<div class="slide-vertical-accents"><div class="slide-accent-bar"></div><div class="slide-accent-bar"></div><div class="slide-accent-bar"></div></div><p style="color:rgba(255,255,255,0.8); font-size:1.25rem; margin-top:2rem; max-width:800px;">Recovering organic growth and building AI visibility across consumer and advisory journeys.</p><div class="slide-footer-meta"><div class="meta-item"><label>Prepared For</label><value>Etiqa Insurance Pte Ltd</value><subtext>Maybank Ageas Holdings</subtext></div><div class="meta-item"><label>Prepared By</label><value>MediaOne Business Group</value><subtext>Search & AI Intelligence</subtext></div><div class="meta-item"><label>Date</label><value>April 2026</value></div></div>' } },
+                { id: 'toc', icon: 'list', title: 'Table of Contents', desc: 'Sidebar-based navigation grid', template: { theme: 'light', title: 'TABLE OF CONTENTS', body: '<div class="slide-layout-sidebar"><div class="slide-sidebar"><h2 style="font-size:3rem; font-weight:800; color:#1e3a8a; line-height:1;">TABLE OF CONTENTS</h2><div class="slide-accent-line"></div><p style="margin-top:2rem; font-size:0.875rem; color:#64748b;">This proposal outlines a comprehensive strategy to recover organic growth and secure AI visibility.</p></div><div class="slide-sidebar-content"><div class="toc-grid"><div class="toc-item"><div class="toc-num">01</div><div class="toc-content"><h4>Problem & Context</h4><p>Navigating the shift to AI-led discovery</p></div></div><div class="toc-item"><div class="toc-num">02</div><div class="toc-content"><h4>Audit Findings</h4><p>Data-driven evidence of technical gaps</p></div></div><div class="toc-item"><div class="toc-num">03</div><div class="toc-content"><h4>Strategic Framework</h4><p>Control, intent capture & entity architecture</p></div></div><div class="toc-item"><div class="toc-num">04</div><div class="toc-content"><h4>Audience Strategy</h4><p>Mapping decision moments to search behavior</p></div></div><div class="toc-item"><div class="toc-num">05</div><div class="toc-content"><h4>Implementation</h4><p>Measurement frameworks & delivery roadmap</p></div></div><div class="toc-item"><div class="toc-num">06</div><div class="toc-content"><h4>Investment</h4><p>Pricing, scope & guarantees</p></div></div></div></div></div>' } },
+                { id: 'exec-summary', icon: 'file-text', title: 'Executive Summary', desc: 'Premium grid with checklist', template: { theme: 'light', title: 'Executive Summary', body: '<div class="slide-card-grid"><div class="slide-card"><div class="slide-icon-box"><i data-lucide="target" size="18"></i></div><h4>The Business Challenge</h4><p>Visibility weakened across domains. High-intent demand leaking to aggregators and AI answers.</p></div><div class="slide-card"><div class="slide-icon-box"><i data-lucide="git-branch" size="18"></i></div><h4>The MediaOne Response</h4><p>A dual-domain strategy: <strong>Etiqa</strong> builds trust/advisory. <strong>Tiq</strong> captures quote-ready intent.</p></div><div class="slide-card"><div class="slide-icon-box"><i data-lucide="trending-up" size="18"></i></div><h4>Measurable Outcomes</h4><p>30% YoY growth in high-intent traffic. 15%+ AI citation visibility target.</p></div><div class="slide-card"><div class="slide-icon-box"><i data-lucide="award" size="18"></i></div><h4>Why MediaOne</h4><p>Local search depth + insurance-relevant delivery + governed implementation.</p></div></div><div class="slide-checklist-box"><div class="checklist-item"><i data-lucide="check-circle" size="16"></i> Dual-domain strategy</div><div class="checklist-item"><i data-lucide="check-circle" size="16"></i> Regulated governance</div><div class="checklist-item"><i data-lucide="check-circle" size="16"></i> AI measurement layer</div><div class="checklist-item"><i data-lucide="check-circle" size="16"></i> Budget-aligned execution</div></div>' } },
+                { id: 'divider', icon: 'hash', title: 'Section Divider', desc: 'Bold transition slide', template: { theme: 'dark', title: 'PROBLEM & CONTEXT', body: '<div class="slide-tag" style="background:#f97316; color:#fff;">SECTION 01</div><p style="margin-top:2rem; font-size:1.5rem; opacity:0.9; max-width:700px;">Navigating the shift from classic SEO to AI-led discovery in a competitive insurance landscape.</p><div class="slide-vertical-accents"><div class="slide-accent-bar"></div><div class="slide-accent-bar"></div><div class="slide-accent-bar"></div></div>' } },
+                { id: 'domain-comp', icon: 'columns', title: 'Domain Comparison', desc: 'Side-by-side brand analysis', template: { theme: 'light', title: 'Current State: Etiqa vs TIQ', body: '<div class="slide-domain-grid"><div class="slide-domain-card"><h3>etiqa.com.sg</h3><sub>Advisory & Authority</sub><div class="domain-item"><div class="domain-item-icon" style="background:#fbbf24; color:#92400e;"><i data-lucide="alert-circle" size="12"></i></div><div class="domain-item-content"><h5>Current Visibility</h5><p>Declining footprint on high-intent advisory terms.</p></div></div><div class="domain-item"><div class="domain-item-icon" style="background:#fbbf24; color:#92400e;"><i data-lucide="alert-circle" size="12"></i></div><div class="domain-item-content"><h5>Technical State</h5><p>Metadata gaps and crawlability issues on deep pages.</p></div></div><div class="domain-item"><div class="domain-item-icon" style="background:#10b981; color:#fff;"><i data-lucide="check" size="12"></i></div><div class="domain-item-content"><h5>Commercial Recovery</h5><p>High potential for life and wealth enquiry capture.</p></div></div></div><div class="slide-domain-card"><h3>tiq.com.sg</h3><sub>Direct-to-Consumer Quotes</sub><div class="domain-item"><div class="domain-item-icon" style="background:#e11d48; color:#fff;"><i data-lucide="x" size="12"></i></div><div class="domain-item-content"><h5>Current Visibility</h5><p>Losing ground to aggregators on comparison queries.</p></div></div><div class="domain-item"><div class="domain-item-icon" style="background:#fbbf24; color:#92400e;"><i data-lucide="alert-circle" size="12"></i></div><div class="domain-item-content"><h5>Technical State</h5><p>Missing schema markup impacting mobile rankings.</p></div></div><div class="domain-item"><div class="domain-item-icon" style="background:#10b981; color:#fff;"><i data-lucide="check" size="12"></i></div><div class="domain-item-content"><h5>Commercial Recovery</h5><p>High potential for quote and purchase demand.</p></div></div></div></div>' } },
+                { id: 'tech-audit', icon: 'shield-alert', title: 'Technical Audit', desc: 'Detailed findings with status pills', template: { theme: 'light', title: 'Preliminary Audit Findings', body: '<p style="font-size:0.875rem; color:#64748b; margin-bottom:1.5rem;">Two domains audited. Two sets of critical findings based on preliminary technical crawls.</p><div class="slide-card-grid"><div class="slide-card"><h4>tiq.com.sg</h4><div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.75rem;"><span>Load Time: 3.6s</span><span class="slide-status-badge status-warning">WARNING</span></div><div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.75rem;"><span>Missing H1 Tags: 24.4%</span><span class="slide-status-badge status-warning">WARNING</span></div><div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.75rem;"><span>Missing Canonicals: 8.5%</span><span class="slide-status-badge status-high">HIGH</span></div></div><div class="slide-card"><h4>etiqa.com.sg</h4><div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.75rem;"><span>Load Time: 13.2s</span><span class="slide-status-badge status-critical">CRITICAL</span></div><div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.75rem;"><span>Missing H1 Tags: 66.9%</span><span class="slide-status-badge status-critical">CRITICAL</span></div><div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.75rem;"><span>Oversized Images: 31.1%</span><span class="slide-status-badge status-high">HIGH</span></div></div></div><div class="slide-insight-box"><i data-lucide="lightbulb" size="18"></i><div>tiq.com.sg: Issues are serious but contained. etiqa.com.sg: Structural failures are site-wide.</div></div>' } }
             ];
 
             function openArchetypeModal() {
@@ -3756,6 +4166,7 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
 
                 const newSlide = {
                     id: Date.now(),
+                    theme: arch.template.theme || 'light',
                     title: arch.template.title,
                     body: arch.template.body
                 };
@@ -4717,6 +5128,7 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 setLLM(currentLLM, true);
 
                 initProjects();
+                switchView('all-projects'); // Ensure clean start
 
                 const tx = document.getElementById('chat-input');
                 tx.addEventListener("input", function () {
@@ -4755,14 +5167,24 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     if (isTyping) return;
 
                     if ((e.key === 'Backspace' || e.key === 'Delete')) {
+                        // 1. If an element is selected, delete it
                         if (selectedElementId) {
                             e.preventDefault();
                             deleteComponent(selectedElementId);
                             return;
                         }
 
-                        // Allow Delete/Backspace to delete the active slide when
-                        // the user is in the slide editor view and not typing in an input.
+                        // 2. If no element is selected, delete selected slides in the rail
+                        if (selectedSlideIndices.length > 0) {
+                            e.preventDefault();
+                            // Sort indices descending to delete without shifting issues
+                            const sorted = [...selectedSlideIndices].sort((a, b) => b - a);
+                            sorted.forEach(idx => deleteSlide(idx));
+                            selectedSlideIndices = [];
+                            return;
+                        }
+
+                        // 3. Fallback: delete active slide
                         const inSlideEditor = !!document.getElementById('view-slide-editor')?.classList.contains('active');
                         if (inSlideEditor && activeSlideIndex !== -1) {
                             e.preventDefault();
@@ -4771,12 +5193,12 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     } else if (e.key.startsWith('Arrow') && selectedElementId) {
                         e.preventDefault();
                         nudgeElement(e.key, e.shiftKey ? 10 : 1);
-                    } else if (e.key === 'ArrowUp' && activeSlideIndex > 0) {
+                    } else if (e.key === 'ArrowUp' && !selectedElementId) {
                         e.preventDefault();
-                        loadSlide(activeSlideIndex - 1);
-                    } else if (e.key === 'ArrowDown' && activeSlideIndex < slidesData.length - 1) {
+                        if (activeSlideIndex > 0) loadSlide(activeSlideIndex - 1);
+                    } else if (e.key === 'ArrowDown' && !selectedElementId) {
                         e.preventDefault();
-                        loadSlide(activeSlideIndex + 1);
+                        if (activeSlideIndex < slidesData.length - 1) loadSlide(activeSlideIndex + 1);
                     }
                 });
 
@@ -4817,6 +5239,7 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     if (newWidth > 400) newWidth = 400;
 
                     layout.style.setProperty('--rail-width', newWidth);
+                    updateSlideScale(); // Re-center canvas
                 });
 
                 document.addEventListener('mouseup', () => {
@@ -4843,7 +5266,7 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 const scaleX = availableWidth / baseW;
                 const scaleY = availableHeight / baseH;
                 const scale = Math.min(scaleX, scaleY, 1); // Clamp to max 1 for crispness
-
+                currentScale = scale;
                 canvas.style.transform = `scale(${scale})`;
             }
 
@@ -5627,14 +6050,15 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 startY = e.clientY;
                 startLeft = comp.x;
                 startTop = comp.y;
+                document.body.style.cursor = 'grabbing';
                 document.addEventListener('mousemove', handleDrag);
                 document.addEventListener('mouseup', stopDrag);
             }
 
             function handleDrag(e) {
                 if (!dragTarget) return;
-                const dx = e.clientX - startX;
-                const dy = e.clientY - startY;
+                const dx = (e.clientX - startX) / currentScale;
+                const dy = (e.clientY - startY) / currentScale;
                 const comp = slidesData[activeSlideIndex].components.find(c => c.id === dragTarget);
                 comp.x = startLeft + dx;
                 comp.y = startTop + dy;
@@ -5651,6 +6075,7 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     saveProjects();
                 }
                 dragTarget = null;
+                document.body.style.cursor = '';
                 document.removeEventListener('mousemove', handleDrag);
                 document.removeEventListener('mouseup', stopDrag);
             }
@@ -5723,29 +6148,125 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
 
                     updateActiveThumbnail();
                 };
-
                 titleEl.addEventListener('input', handleInput);
                 bodyEl.addEventListener('input', handleInput);
             }
 
-            // --- View Navigation ---
+            function moveChatUI(target) {
+                const source = document.getElementById('chat-ui-source');
+                const standaloneMount = document.getElementById('chat-view-mount');
+                const copilotMount = document.getElementById('copilot-view-mount');
+                
+                if (!source || !standaloneMount || !copilotMount) return;
+
+                if (target === 'copilot') {
+                    copilotMount.appendChild(source);
+                    // Ensure scrolling is possible after move
+                    const chatMsgs = document.getElementById('chat-messages');
+                    if (chatMsgs) {
+                        chatMsgs.style.overflowY = 'auto';
+                        chatMsgs.scrollTop = chatMsgs.scrollHeight;
+                    }
+                } else {
+                    standaloneMount.appendChild(source);
+                }
+            }
+
+            // Copilot Resizer
+            let isResizingCopilot = false;
+            function initCopilotResizer() {
+                const resizer = document.getElementById('copilot-resizer');
+                if (!resizer) return;
+
+                resizer.addEventListener('mousedown', (e) => {
+                    isResizingCopilot = true;
+                    document.body.style.cursor = 'ew-resize';
+                    document.addEventListener('mousemove', handleCopilotResize);
+                    document.addEventListener('mouseup', stopCopilotResize);
+                });
+            }
+
+            function handleCopilotResize(e) {
+                if (!isResizingCopilot) return;
+                const width = window.innerWidth - e.clientX;
+                const clampedWidth = Math.max(350, Math.min(800, width));
+                document.documentElement.style.setProperty('--right-panel-width', `${clampedWidth}px`);
+                updateSlideScale(); // Re-scale canvas to fit new width
+            }
+
+            function stopCopilotResize() {
+                isResizingCopilot = false;
+                document.body.style.cursor = '';
+                document.removeEventListener('mousemove', handleCopilotResize);
+                document.removeEventListener('mouseup', stopCopilotResize);
+            }
+
+            function initChatAutoExpand() {
+                const tx = document.getElementById('chat-input');
+                if (!tx) return;
+                
+                const adjustHeight = () => {
+                    tx.style.height = 'auto';
+                    tx.style.height = Math.min(tx.scrollHeight, 200) + 'px';
+                };
+                
+                tx.addEventListener('input', adjustHeight);
+                // Initial adjustment
+                adjustHeight();
+            }
+
+            // Initialize all resizers
+            document.addEventListener('DOMContentLoaded', () => {
+                initCopilotResizer();
+                initRailResize();
+                initChatAutoExpand();
+            });
+
             function switchView(viewId, element) {
+                // Exit copilot mode if moving to a non-editor view
+                if (viewId !== 'copilot' && viewId !== 'slide-editor') {
+                    document.body.classList.remove('copilot-active');
+                    moveChatUI('standalone');
+                }
+
+                if (viewId === 'copilot') {
+                    document.body.classList.add('copilot-active');
+                    moveChatUI('copilot');
+                    viewId = 'slide-editor'; // Copilot uses the editor view as base
+                }
+
                 // Update Nav Items
                 document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
                 if (element) element.classList.add('active');
 
                 // Update View Content
-                document.querySelectorAll('.view-content').forEach(view => view.classList.remove('active'));
-                const targetView = document.getElementById(`view-${viewId}`);
-                if (targetView) targetView.classList.add('active');
+                document.querySelectorAll('.view-content').forEach(view => {
+                    view.classList.remove('active');
+                    view.style.display = 'none'; // Force hide
+                });
 
-                // Show/hide right panel based on view (panel may not exist if removed)
+                const targetView = document.getElementById(`view-${viewId}`);
+                if (targetView) {
+                    targetView.classList.add('active');
+                    targetView.style.display = (viewId === 'slide-editor' || viewId === 'overview') ? 'flex' : 'block';
+                }
+
+                // Layout adjustments for Slide Editor
+                if (viewId === 'slide-editor') {
+                    setTimeout(updateSlideScale, 100);
+                }
+
+                // Close sidebar on mobile
+                if (window.innerWidth <= 768) {
+                    toggleSidebar(false);
+                }
+
+                // Show/hide right panel based on view
                 const slidePanel = document.getElementById('slide-panel');
                 const mainWorkspace = document.querySelector('.main-workspace');
                 if (viewId === 'slide-editor') {
                     if (slidePanel) slidePanel.classList.add('visible');
                     if (mainWorkspace) mainWorkspace.classList.add('panel-open');
-                    setTimeout(updateSlideScale, 50);
                 } else {
                     if (slidePanel) slidePanel.classList.remove('visible');
                     if (mainWorkspace) mainWorkspace.classList.remove('panel-open');
@@ -5954,7 +6475,10 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     fullPrompt += `VISUAL DNA (Consistency Required):\nThe current deck uses these styles: ${JSON.stringify(existingStyles)}. Ensure new slides match existing themes.\n\n`;
 
                     fullPrompt += `User Input: ${userInput}`;
-                    fullPrompt += `\n\nACTION CAPABILITY: If you want to suggest creating a new slide or updating a slide based on the user's request, you MUST include a JSON block at the end of your response in the format: [SLIDE_JSON: {"title": "Slide Title", "body": "Slide Content HTML", "theme": "light/dark"}]. This will automatically trigger the creation in the editor.`;
+                    fullPrompt += `\n\nACTION CAPABILITY:
+1. Create New Slide: Include [SLIDE_JSON: {"title": "Title", "body": "HTML", "theme": "light/dark"}] at the end of your response.
+2. Update Specific Slide: Include [UPDATE_SLIDE_JSON: {"index": 1, "title": "New Title", "body": "New HTML", "theme": "light/dark"}] to modify an existing slide.
+Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updating if the user asks for a change to an existing slide.`;
 
                     if (current && current.name && current.name.startsWith('Draft Tender')) {
                         fullPrompt += `\n\nIDENTIFICATION: Since this project is currently named "${current.name}", please analyze the uploaded documents and identify the official Tender Name and Client. Suggest a formal project name at the end of your response in the format: [PROJECT_NAME: "Tender Name - Client Name"].`;
@@ -6040,6 +6564,35 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                         addChatMessage(`I've added the **${newSlide.title}** to your deck in the editor.`, 'ai');
                     } catch (e) {
                         console.warn("Failed to parse AI slide JSON", e);
+                    }
+                }
+
+                // Check for JSON Slide Update
+                const updateMatch = responseText.match(/\[UPDATE_SLIDE_JSON:\s*(\{.*?\})\]/s);
+                if (updateMatch) {
+                    try {
+                        const updateData = JSON.parse(updateMatch[1]);
+                        const idx = parseInt(updateData.index) - 1; // 1-based to 0-based
+                        if (slidesData[idx]) {
+                            saveHistory(); // Save state before AI edit
+                            if (updateData.title) slidesData[idx].title = updateData.title;
+                            if (updateData.body) slidesData[idx].body = updateData.body;
+                            if (updateData.theme) slidesData[idx].theme = updateData.theme;
+                            
+                            // Re-init components if body changed significantly
+                            if (updateData.body) {
+                                slidesData[idx].components = null; // Forces re-render from body HTML
+                            }
+
+                            activeSlideIndex = idx;
+                            renderThumbnails();
+                            updateEditorState();
+                            saveProjects();
+
+                            addChatMessage(`I've updated **Slide ${updateData.index}** for you.`, 'ai');
+                        }
+                    } catch (e) {
+                        console.warn("Failed to parse AI update JSON", e);
                     }
                 }
 
@@ -6407,13 +6960,27 @@ INSTRUCTIONS:
                 btnText.innerText = "Beautifying...";
 
                 const prompt = `TASK: Beautify the following plain HTML slide content using premium CSS, modern layouts, and professional colors.
+                
+DESIGN SYSTEM TO USE:
+1. .slide-card-grid: A multi-column grid of cards (.slide-card).
+2. .slide-layout-sidebar: A split layout with a left sidebar (.slide-sidebar) and main content (.slide-sidebar-content).
+3. .toc-grid: 2-column grid for lists with numbers (.toc-num) and content (.toc-content).
+4. .slide-checklist-box: A bottom bar for checkable items (.checklist-item).
+5. .slide-footer-meta: A 3-column metadata footer for cover slides.
+6. .slide-vertical-accents: Vertical bars on the right for dark cover/divider slides.
+7. .slide-domain-grid & .slide-domain-card: Side-by-side brand/domain comparison cards.
+8. .slide-status-badge: Color-coded pills (status-critical, status-warning, status-high, status-pass).
+9. .slide-insight-box: A bottom highlight box for key takeaways.
+10. .slide-premium-table: High-contrast tables with alternating row colors.
+11. .slide-tag: Small highlighted badges.
+12. .slide-accent-line: Small orange horizontal line.
 
 RESTRAINTS:
-1. Keep the CORE TEXT CONTENT exactly as provided. Do not change the wording.
+1. Keep the CORE TEXT CONTENT exactly as provided.
 2. Return ONLY the enhanced HTML code. No preamble.
-3. Use rich layouts: .slide-card-grid, .slide-card, tables with styled headers, bold accents, etc.
-4. If the theme is "dark", use high-contrast dark backgrounds (e.g. #0f172a) and vibrant accents.
-5. Focus on making it look like a high-end McKinsey/Boston Consulting Group presentation.
+3. If comparing two domains/brands, use .slide-domain-grid.
+4. If presenting audit data, use .slide-status-badge and .slide-insight-box.
+5. If presenting a process or leakage, use .slide-premium-table.
 
 CURRENT THEME: ${slide.theme || 'light'}
 PLAIN CONTENT TO BEAUTIFY:
