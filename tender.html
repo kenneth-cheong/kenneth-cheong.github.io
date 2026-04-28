@@ -3610,8 +3610,6 @@
                         <p style="color: var(--text-muted); font-size: 0.875rem;">Configure the strategic narrative and
                             design DNA for this tender.</p>
                     </div>
-                    <button class="btn btn-primary" onclick="saveMasterPrompt()"><i data-lucide="save" size="16"></i>
-                        Save Prompt</button>
                 </div>
 
                 <div class="card"
@@ -3645,9 +3643,15 @@
                         <div id="ai-agents-grid">
                             <!-- Populated by JS -->
                         </div>
-                        <div style="margin-top: 2rem; display: flex; justify-content: center;">
-                            <button class="btn btn-ghost" onclick="openAgentModal()"><i data-lucide="plus"
-                                    size="14"></i> Add New Agent Step</button>
+                        <div style="margin-top: 2rem; display: flex; flex-direction: column; gap: 0.75rem; align-items: center;">
+                            <button class="btn btn-primary" style="width: 100%; max-width: 400px;" onclick="openAgentModal()">
+                                <i data-lucide="plus-circle" size="16"></i> Create New Agent
+                            </button>
+                            <div style="display: flex; gap: 0.75rem;">
+                                <button class="btn btn-ghost btn-sm" onclick="resetAgentsToDefault()" data-tooltip="Reset to factory settings">
+                                    <i data-lucide="rotate-ccw" size="14"></i> Reset Defaults
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -3675,8 +3679,13 @@
                                     guides the AI in drafting content, choosing tone, and suggesting slide structures
                                     based on
                                     MediaOne's winning patterns.</p>
-                                <textarea id="master-prompt-input" class="form-control"
-                                    style="min-height: 500px; font-family: monospace; font-size: 0.8125rem; line-height: 1.5;"></textarea>
+                                <div id="master-prompt-container" style="position: relative;">
+                                    <pre id="master-prompt-display" 
+                                         style="min-height: 400px; max-height: 600px; overflow-y: auto; padding: 1.5rem; 
+                                                background: var(--bg-app); border: 1px solid var(--border); border-radius: var(--radius-md); 
+                                                font-family: monospace; font-size: 0.8125rem; line-height: 1.6; color: var(--text); 
+                                                white-space: pre-wrap; margin: 0;"></pre>
+                                </div>
                             </div>
 
                             <div style="display: flex; gap: 0.75rem; margin-top: 1rem;">
@@ -4143,14 +4152,7 @@ Confident, analytical, slightly formal, senior/consultative, risk-aware, and out
 
 IMPORTANT: Base all claims and strategies ONLY on the specific data found in the uploaded tender documents and any explicitly provided proof points. Do not use generic industry benchmarks unless the document lacks specific targets.`;
 
-            function saveMasterPrompt() {
-                const current = projects.find(p => p.id === currentProjectId);
-                if (current) {
-                    current.masterPrompt = document.getElementById('master-prompt-input').value;
-                    saveProjects();
-                    addChatMessage("Workflow & Prompts updated successfully for this tender.", 'ai');
-                }
-            }
+            // Master Prompt is now read-only in this view
 
             // =============================================
             // FEATURE 1: Slide Archetype Templates
@@ -4334,48 +4336,16 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
             let aiAgents = [];
             const GLOBAL_AGENTS_ID = 'mediaone_global_agents';
 
-            async function syncAgentsWithCloud(action = 'load') {
-                try {
-                    if (action === 'load') {
-                        const payload = {
-                            action: 'get_projects',
-                            data: { userId: GLOBAL_AGENTS_ID }
-                        };
-                        const response = await fetch(PERSISTENCE_API_URL, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        if (response.ok) {
-                            const data = await response.json();
-                            const result = (data && data.body) ? (typeof data.body === 'string' ? JSON.parse(data.body) : data.body) : data;
-                            if (result && result.aiAgents) {
-                                aiAgents = result.aiAgents;
-                                localStorage.setItem('tenderAIAgents', JSON.stringify(aiAgents));
-                                renderAIAgents();
-                                return true;
-                            }
-                        }
-                    } else if (action === 'save') {
-                        const payload = {
-                            action: 'save_projects',
-                            data: {
-                                userId: GLOBAL_AGENTS_ID,
-                                projects: [],
-                                aiAgents: aiAgents
-                            }
-                        };
-                        await fetch(PERSISTENCE_API_URL, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        return true;
-                    }
-                } catch (e) {
-                    console.error(`Agents Cloud ${action} failed:`, e);
+            // Removed separate syncAgentsWithCloud - now integrated into main saveProjects/fetch_projects
+
+            function resetAgentsToDefault() {
+                if (confirm('Are you sure? This will replace all custom agents with the default set.')) {
+                    localStorage.removeItem('tenderAIAgents');
+                    aiAgents = [];
+                    getAIAgents();
+                    renderAIAgents();
+                    showToast('Agents reset to defaults', 'info');
                 }
-                return false;
             }
 
             function getAIAgents() {
@@ -4393,7 +4363,7 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
             function saveAIAgents() {
                 localStorage.setItem('tenderAIAgents', JSON.stringify(aiAgents));
                 renderAIAgents();
-                syncAgentsWithCloud('save'); // background cloud save
+                saveProjects(); // Now integrated with main project persistence
             }
 
             function renderAIAgents() {
@@ -4497,7 +4467,8 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 const agent = agents.find(a => a.id === agentId);
                 if (!agent) return;
 
-                document.getElementById('master-prompt-input').value = agent.prompt;
+                const display = document.getElementById('master-prompt-display');
+                if (display) display.innerText = agent.prompt;
 
                 // Highlight active card
                 document.querySelectorAll('.agent-card').forEach(c => {
@@ -4818,7 +4789,8 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
 
             function runToneCheck() {
                 const allContent = slidesData.map(s => (s.title + ' ' + s.body).toLowerCase()).join(' ');
-                const prompt = (document.getElementById('master-prompt-input').value || '').toLowerCase();
+                const display = document.getElementById('master-prompt-display');
+                const prompt = (display ? display.innerText : '').toLowerCase();
                 const combined = allContent + ' ' + prompt;
 
                 const foundBanned = BANNED_WORDS.filter(w => combined.includes(w));
@@ -4856,9 +4828,19 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
             };
 
             function applySectorPreset(sector) {
-                const textarea = document.getElementById('master-prompt-input');
-                // Reset to base then append sector overlay
-                textarea.value = DEFAULT_MASTER_PROMPT + (SECTOR_PRESETS[sector] || '');
+                const display = document.getElementById('master-prompt-display');
+                if (!display) return;
+                
+                const newPrompt = DEFAULT_MASTER_PROMPT + (SECTOR_PRESETS[sector] || '');
+                display.innerText = newPrompt;
+                
+                // Persistence: If a project is active, update its DNA
+                const current = projects.find(p => p.id == currentProjectId);
+                if (current) {
+                    current.masterPrompt = newPrompt;
+                    saveProjects();
+                    showToast(`Applied ${sector} preset to DNA`, "success");
+                }
             }
 
             // =============================================
@@ -5149,6 +5131,7 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 setLLM(currentLLM, true);
 
                 initProjects();
+                getAIAgents(); // Load agents into memory on startup
                 switchView('all-projects'); // Ensure clean start
 
                 const tx = document.getElementById('chat-input');
@@ -6347,9 +6330,20 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 }
 
                 if (viewId === 'persona') {
-                    getAIAgents(); // Ensure local is ready
+                    getAIAgents(); // Load from localStorage
                     renderAIAgents();
-                    syncAgentsWithCloud('load'); // Pull global updates
+                    
+                    const promptDisplay = document.getElementById('master-prompt-display');
+                    if (promptDisplay) {
+                        if (!currentProjectId) {
+                            promptDisplay.innerText = "No active project. Load a project to view its DNA.";
+                            promptDisplay.style.opacity = '0.6';
+                        } else {
+                            promptDisplay.style.opacity = '1';
+                            const current = projects.find(p => p.id == currentProjectId);
+                            promptDisplay.innerText = (current && current.masterPrompt) ? current.masterPrompt : DEFAULT_MASTER_PROMPT;
+                        }
+                    }
                 }
 
                 lucide.createIcons();
@@ -7258,7 +7252,8 @@ ${slide.body}`;
                                 projects: sanitizedProjects,
                                 globalTeam: teamData,
                                 globalThemes: [],
-                                proofBank: getProofBank()
+                                proofBank: getProofBank(),
+                                aiAgents: getAIAgents()
                             }
                         };
 
@@ -7496,6 +7491,12 @@ ${slide.body}`;
                         if (result.proofBank) {
                             proofBankData = result.proofBank;
                             renderProofBank();
+                        }
+                        
+                        if (result.aiAgents) {
+                            aiAgents = result.aiAgents;
+                            localStorage.setItem('tenderAIAgents', JSON.stringify(aiAgents));
+                            renderAIAgents();
                         }
 
                         renderProjectList();
@@ -7873,7 +7874,8 @@ ${slide.body}`;
                 document.getElementById('active-project-status').innerText = p.status;
 
                 // Persona
-                document.getElementById('master-prompt-input').value = p.masterPrompt || DEFAULT_MASTER_PROMPT;
+                const promptDisplay = document.getElementById('master-prompt-display');
+                if (promptDisplay) promptDisplay.innerText = p.masterPrompt || DEFAULT_MASTER_PROMPT;
 
                 // Sync states
                 slidesData.length = 0;
