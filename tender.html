@@ -3487,13 +3487,7 @@
                     <p class="nav-label">Tender Specific</p>
                     <a class="nav-item" onclick="switchView('copilot', this)">
                         <i data-lucide="message-square" size="18"></i>
-                        <span>AI Chat</span>
-                    </a>
-                    <a href="#" class="nav-item" onclick="switchView('market-research', this)">
-                        <i data-lucide="globe" size="18"></i> Market Research
-                    </a>
-                    <a href="#" class="nav-item" onclick="switchView('competitors', this)">
-                        <i data-lucide="trending-up" size="18"></i> Competitors
+                        <span>AI Chat / Slides</span>
                     </a>
 
                     <div class="nav-label">Strategy Building</div>
@@ -5508,7 +5502,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                     agentId: "mediaone-knowledge", 
                     model: "claude-3-5-sonnet",
                     desc: "Aligning proposal with MediaOne IP: Strategic Frameworks, USPs, and Case Studies.",
-                    prompt: "You are the MediaOne Institutional Knowledge Agent. Your goal is to move the proposal from 'Generic Agency' to 'MediaOne Premium'. 1) Select the best-fit MediaOne proprietary frameworks (e.g., SEO Velocity, GEO Intelligence) for this client's problem. 2) Match the client's industry to our top 3 most relevant APAC case studies. 3) Inject specific MediaOne USPs (e.g., Singapore-based core team, Digimetrics.ai tech). 4) Identify the best team leads from our roster to highlight for credibility."
+                    prompt: "You are the MediaOne Institutional Knowledge Agent. Your goal is to move the proposal from 'Generic Agency' to 'MediaOne Premium'. 1) Select the best-fit MediaOne proprietary frameworks (e.g., SEO Velocity, GEO Intelligence) for this client's problem. 2) Match the client's industry to our top 3 most relevant APAC case studies and past submissions (IMPORTANT: Note that these submissions represent strategic reference points that may or may not have been won by MediaOne; treat them as benchmarks for strategic intent and structure, not as guaranteed win proofs). 3) Inject specific MediaOne USPs (e.g., Singapore-based core team, Digimetrics.ai tech). 4) Identify the best team leads from our roster to highlight for credibility."
                 },
                 { 
                     id: 5, 
@@ -5720,9 +5714,16 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                                         <i data-lucide="zap" size="14"></i>
                                     </div>
                                     <h5 style="font-family: 'Outfit', sans-serif; font-weight: 700; color: #0369a1; margin: 0;">Latest Strategic Output</h5>
-                                    <button class="btn btn-sm" onclick="continueAnalysis(null, ${step.id})" style="margin-left: auto; background: #0369a1; color: white; font-size: 0.65rem; padding: 4px 10px; border-radius: 6px; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border:none; cursor:pointer;">
-                                        <i data-lucide="play-circle" size="12"></i> Continue AI Generation
-                                    </button>
+                                    <div style="margin-left: auto; display: flex; gap: 8px;">
+                                        ${step.id === 8 ? `
+                                        <button class="btn btn-sm" onclick="switchView('copilot')" style="background: #0284c7; color: white; font-size: 0.65rem; padding: 4px 10px; border-radius: 6px; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border:none; cursor:pointer;">
+                                            <i data-lucide="monitor" size="12"></i> Generate & View Slides in AI Chat
+                                        </button>
+                                        ` : ''}
+                                        <button class="btn btn-sm" onclick="continueAnalysis(null, ${step.id})" style="background: #0369a1; color: white; font-size: 0.65rem; padding: 4px 10px; border-radius: 6px; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border:none; cursor:pointer;">
+                                            <i data-lucide="play-circle" size="12"></i> Force Continue AI Generation
+                                        </button>
+                                    </div>
                                 </div>
                                 <div id="phase-output-text" class="markdown-body" style="font-size: 0.875rem; line-height: 1.7; color: #0c4a6e;">
                                     ${step.output ? marked.parse(step.output) : ''}
@@ -5771,10 +5772,21 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
             }
 
             function activateAgent(agentId, stepId) {
-                const step = WIZARD_STEPS[stepId !== undefined ? stepId : currentWorkflowStep];
+                const stepIdx = stepId !== undefined ? stepId : currentWorkflowStep;
+                const step = WIZARD_STEPS[stepIdx];
                 const agent = INITIAL_AI_AGENTS.find(a => a.id === agentId);
                 
                 if (agent) {
+                    // 0. Clear existing strategic output for this phase to ensure a fresh start
+                    step.output = "";
+                    const wizardView = document.getElementById('view-setup-wizard');
+                    if (wizardView && stepIdx === currentWorkflowStep) {
+                        const outputContainer = wizardView.querySelector('#phase-strategic-output');
+                        const outputText = wizardView.querySelector('#phase-output-text');
+                        if (outputContainer) outputContainer.style.display = 'none';
+                        if (outputText) outputText.innerHTML = '';
+                    }
+
                     // 1. Set the correct LLM Engine for this phase
                     currentLLM = step.model || 'claude-3-haiku';
                     localStorage.setItem('tenderLLM', currentLLM);
@@ -5790,12 +5802,52 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                         // Show persistent status immediately
                         const loadingToast = showToast(`Consulting the ${agent.name} using ${currentLLM}...`, "info", 0);
                         
+                        // If Phase 8, show specific "Storyboarding" indicator
+                        if (step.id === 8) {
+                            addChatMessage("I am now analyzing your strategic win themes and requirements to build a comprehensive storyboard. This may take a moment...", "ai", { icon: "monitor", title: "Slide Architect Active" }, [], true, 8);
+                        }
+
                         // Call AI directly with the explicit phase index to avoid any race conditions
                         callAIAPI(initMessage, [], loadingToast, step.id);
                         
                         // Clear input just in case
                         input.value = '';
                     }
+                }
+            }
+
+            function applyAIToDeck(slidesJson) {
+                try {
+                    const slides = typeof slidesJson === 'string' ? JSON.parse(slidesJson) : slidesJson;
+                    if (!Array.isArray(slides)) return;
+
+                    if (slidesData.length > 0) {
+                        if (!confirm(`You already have ${slidesData.length} slides in your deck. This will REPLACE them with the AI's new storyboard. Continue?`)) return;
+                    }
+
+                    // Map AI format to internal format
+                    slidesData.length = 0;
+                    slides.forEach((s, idx) => {
+                        slidesData.push({
+                            id: Date.now() + idx,
+                            title: s.title || `Slide ${idx + 1}`,
+                            body: s.body || s.content || "No content provided.",
+                            theme: s.theme || 'light',
+                            notes: s.hook ? `Visual Hook: ${s.hook}` : ""
+                        });
+                    });
+
+                    activeSlideIndex = 0;
+                    selectedSlideIndices = [];
+                    renderThumbnails();
+                    updateEditorState();
+                    showToast(`Successfully applied ${slidesData.length} slides to the editor.`, "success");
+                    
+                    // Switch to editor view
+                    switchView('slide-editor');
+                } catch (e) {
+                    console.error("[APPLY_TO_DECK] Error:", e);
+                    showToast("Failed to apply slides to deck.", "error");
                 }
             }
 
@@ -7891,7 +7943,8 @@ Respond with: [AUDIT_SCORES: {"strategy": 85, "compliance": 90, "quality": 80}] 
                 
                 // Show persistent toast if not provided
                 const isClaude = apiModel.toLowerCase().includes('claude');
-                const chatToast = existingToast || showToast(`${isClaude ? 'Claude' : 'GPT'} is thinking...`, "info", 0);
+                const isSlides = userInput.toLowerCase().includes('slide') || userInput.toLowerCase().includes('storyboard');
+                const chatToast = existingToast || showToast(`${isClaude ? 'Claude' : 'GPT'} is ${isSlides ? 'generating slides' : 'thinking'}...`, "info", 0);
 
                 const container = document.getElementById('chat-messages');
 
@@ -8008,7 +8061,7 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
                     }
 
                     if (files.length > 0) {
-                        fullPrompt += "\n\nUser has attached files. Analyzing content...";
+                        fullPrompt += "\n\nUser has attached files (potentially including past submissions). Analyzing content... (IMPORTANT: Note that any past submissions represent strategic reference points that may or may not have been won by MediaOne; treat them as benchmarks for intent and structure rather than guaranteed success proofs).";
                         for (const f of files) {
                             try {
                                 const content = await extractText(f.file);
@@ -8448,6 +8501,51 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
                     }
                 }
 
+                // --- SLIDE JSON PARSER ---
+                const slideRegex = /\[SLIDE_JSON:([\s\S]*?)\]/g;
+                let slideMatch;
+                while ((slideMatch = slideRegex.exec(text)) !== null) {
+                    try {
+                        const slides = JSON.parse(slideMatch[1].trim());
+                        if (Array.isArray(slides)) {
+                            const slideContainer = document.createElement('div');
+                            slideContainer.className = 'slide-preview-carousel';
+                            slideContainer.style = 'margin-top: 1.5rem; display: flex; gap: 1rem; overflow-x: auto; padding-bottom: 1rem; scroll-snap-type: x mandatory;';
+                            
+                            slides.forEach((s, idx) => {
+                                const slideEl = document.createElement('div');
+                                slideEl.style = 'flex: 0 0 280px; aspect-ratio: 16/9; background: white; border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; box-shadow: var(--shadow-sm); scroll-snap-align: start; display: flex; flex-direction: column; border-top: 4px solid var(--primary);';
+                                slideEl.innerHTML = `
+                                    <div style="font-size: 0.6rem; color: var(--text-muted); font-weight: 800; text-transform: uppercase; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+                                        <span>Slide ${idx + 1}</span>
+                                        <i data-lucide="monitor" size="10"></i>
+                                    </div>
+                                    <div style="font-size: 0.85rem; font-weight: 800; color: var(--primary); margin-bottom: 10px; line-height: 1.3;">${s.title || 'Untitled Slide'}</div>
+                                    <div style="font-size: 0.7rem; color: var(--text-main); line-height: 1.5; flex: 1; overflow-y: auto; padding-right: 4px;">${s.body || s.content || ''}</div>
+                                    ${s.hook ? `<div style="margin-top: 10px; font-size: 0.6rem; font-weight: 600; color: #0369a1; background: #f0f9ff; padding: 6px; border-radius: 6px; border-left: 2px solid #0ea5e9;">Hook: ${s.hook}</div>` : ''}
+                                `;
+                                slideContainer.appendChild(slideEl);
+                            });
+                            msgDiv.appendChild(slideContainer);
+
+                            // Add "Apply to Deck" button
+                            const applyBtn = document.createElement('button');
+                            applyBtn.className = 'btn btn-sm';
+                            applyBtn.style = 'margin-top: 10px; background: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 700; display: flex; align-items: center; gap: 6px; box-shadow: var(--shadow-sm); transition: all 0.2s;';
+                            applyBtn.innerHTML = '<i data-lucide="check-circle" size="14"></i> Apply These Slides to My Deck';
+                            applyBtn.onmouseover = () => applyBtn.style.background = '#059669';
+                            applyBtn.onmouseout = () => applyBtn.style.background = '#10b981';
+                            
+                            const slidesStr = JSON.stringify(slides);
+                            applyBtn.onclick = () => applyAIToDeck(slidesStr);
+                            
+                            msgDiv.appendChild(applyBtn);
+                        }
+                    } catch (e) {
+                        console.warn("[SLIDE_JSON] Parse Error:", e);
+                    }
+                }
+
                 lucide.createIcons();
 
                 // Persist to project history
@@ -8502,8 +8600,13 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
 
                 const generationToast = showToast("Preparing full-scale deck generation...", "info", 0);
 
-                if (text) text.innerText = "Initializing...";
-                if (btn) btn.disabled = true;
+                if (text) {
+                    text.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Initializing...';
+                }
+                if (btn) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.7';
+                }
 
                 // Clear existing slides
                 slidesData.length = 0;
@@ -8513,7 +8616,8 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
                 updateEditorState();
 
                 // 1. Pre-extract text from all documents
-                if (text) text.innerText = "Analyzing documents...";
+                if (text) text.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right: 8px;"></i> Analyzing documents...';
+                if (generationToast) generationToast.update("Analyzing uploaded documents & project context...", "info");
                 let docContext = "";
                 for (const d of (current.docs || [])) {
                     if (d.base64) {
