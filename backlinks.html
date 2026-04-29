@@ -2902,9 +2902,13 @@
                 const whitelist = ['project type', 'campaign code', 'client success manager', 'aast csm', 'sales', 'seo/seo', 'seo campaign status', 'geo campaign status', '[bd] seo contract value', '[bd] geo contract value', 'budget_seo', 'budget_geo'];
                 state.mondayVisibleCols = allColIds.filter(id => {
                     const title = (columnMap[id] || '').toLowerCase();
-                    return whitelist.some(wl => title.includes(wl)) || ['numeric_mm2g2ma3', 'numeric_mm2q4v1t'].includes(id);
+                    return whitelist.some(wl => title.includes(wl)) || ['numeric_mm2g2ma3', 'numeric_mm2q4v1t', 'budget_seo', 'budget_geo'].includes(id);
                 });
                 state.mondayColsInitialized = true;
+            } else if (state.mondayColsInitialized && !state.mondayVisibleCols.includes('budget_seo')) {
+                // Migration: ensure new budget columns are added to existing selection if not present
+                if (allColIds.includes('budget_seo') && !state.mondayVisibleCols.includes('budget_seo')) state.mondayVisibleCols.push('budget_seo');
+                if (allColIds.includes('budget_geo') && !state.mondayVisibleCols.includes('budget_geo')) state.mondayVisibleCols.push('budget_geo');
             }
 
             // Ensure default filters are present if not already modified by user

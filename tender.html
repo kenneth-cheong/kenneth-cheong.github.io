@@ -1407,6 +1407,112 @@
             margin-bottom: 1rem;
         }
 
+        /* --- Strategic Workflow Stepper --- */
+        .workflow-steps-container {
+            padding: 1.5rem;
+            background: #fff;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 2rem;
+        }
+
+        .workflow-stepper {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1000px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .workflow-stepper::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 50px;
+            right: 50px;
+            height: 2px;
+            background: var(--border);
+            z-index: 1;
+        }
+
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            position: relative;
+            z-index: 2;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .step-num {
+            width: 32px;
+            height: 32px;
+            background: #fff;
+            border: 2px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .step.active .step-num {
+            border-color: var(--primary);
+            background: var(--primary);
+            color: #fff;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+        }
+
+        .step.completed .step-num {
+            border-color: var(--success);
+            background: var(--success);
+            color: #fff;
+        }
+
+        .step-label {
+            font-size: 0.6875rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .step.active .step-label {
+            color: var(--primary);
+        }
+
+        .wizard-pane {
+            flex: 1;
+            padding: 0 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .wizard-footer {
+            padding: 2rem;
+            border-top: 1px solid var(--border);
+            background: #fff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 2rem;
+        }
+
+        .agent-call-card {
+            background: var(--primary-light);
+            border: 1px solid rgba(37, 99, 235, 0.1);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
         .slide-body li {
             margin-bottom: 0.5rem;
         }
@@ -3399,8 +3505,11 @@
                     <a href="#" class="nav-item" onclick="switchView('pricing', this)">
                         <i data-lucide="dollar-sign" size="18"></i> Pricing & Costing
                     </a>
-                    <a href="#" class="nav-item" onclick="switchView('persona', this)">
-                        <i data-lucide="cpu" size="18"></i> Workflow & Prompts
+                    <a href="#" class="nav-item" onclick="switchView('past-submissions', this)">
+                        <i data-lucide="archive" size="18"></i> Past Submissions
+                    </a>
+                    <a href="#" class="nav-item" onclick="switchView('setup-wizard', this)">
+                        <i data-lucide="layers" size="18"></i> Strategic Setup
                     </a>
                 </nav>
 
@@ -3785,6 +3894,77 @@
                     <div class="empty-state">
                         <i data-lucide="trending-up" size="48"></i>
                         <p>No competitor analysis data generated yet. Ask the **Competitor Analyst** agent to begin.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View: Strategic Setup Wizard (Requirement 1 & Guided Workflow) -->
+            <div id="view-setup-wizard" class="view-content" style="flex-direction: column;">
+                <div class="view-header">
+                    <div>
+                        <h2>Strategic Tender Setup</h2>
+                        <p style="color: var(--text-muted); font-size: 0.875rem;">Complete each phase to build a winning foundation before generating the deck.</p>
+                    </div>
+                </div>
+
+                <div class="workflow-steps-container">
+                    <div class="workflow-stepper">
+                        <div class="step active" id="step-0" onclick="goToStep(0)">
+                            <div class="step-num">1</div>
+                            <div class="step-label">RFQ Analysis</div>
+                        </div>
+                        <div class="step" id="step-1" onclick="goToStep(1)">
+                            <div class="step-num">2</div>
+                            <div class="step-label">Market Research</div>
+                        </div>
+                        <div class="step" id="step-2" onclick="goToStep(2)">
+                            <div class="step-num">3</div>
+                            <div class="step-label">Competitors</div>
+                        </div>
+                        <div class="step" id="step-3" onclick="goToStep(3)">
+                            <div class="step-num">4</div>
+                            <div class="step-label">Compliance Audit</div>
+                        </div>
+                        <div class="step" id="step-4" onclick="goToStep(4)">
+                            <div class="step-num">5</div>
+                            <div class="step-label">Win Themes</div>
+                        </div>
+                        <div class="step" id="step-5" onclick="goToStep(5)">
+                            <div class="step-num">6</div>
+                            <div class="step-label">Deck Generation</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="wizard-step-content" class="wizard-pane">
+                    <!-- Dynamic content based on step -->
+                </div>
+                
+                <div class="wizard-footer">
+                    <button class="btn btn-ghost" onclick="prevStep()"><i data-lucide="chevron-left" size="16"></i> Previous</button>
+                    <button class="btn btn-primary" onclick="nextStep()" id="wizard-next-btn">Next Step <i data-lucide="chevron-right" size="16"></i></button>
+                </div>
+            </div>
+
+            <!-- View: Past Submissions (Requirement: Global Repository) -->
+            <div id="view-past-submissions" class="view-content">
+                <div class="view-header">
+                    <div>
+                        <h2>Past Submissions Repository</h2>
+                        <p style="color: var(--text-muted); font-size: 0.875rem;">Global library of previous winning tenders and proposals for AI reference.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="triggerGlobalUpload()">
+                        <i data-lucide="upload-cloud" size="16"></i> Upload Past Tender
+                    </button>
+                </div>
+                
+                <div class="card" style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);">
+                    <div id="global-submissions-list" class="doc-grid">
+                        <!-- Populated by JS -->
+                        <div class="empty-state">
+                            <i data-lucide="folder-open" size="48"></i>
+                            <p>No past submissions uploaded. Add PDF/Docx files to build your global intelligence.</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -4250,6 +4430,60 @@
         </div>
 
         <script>
+            // --- HYBRID STORAGE SYSTEM (IndexedDB for Large Binaries) ---
+            const DB_NAME = 'TenderAI_BinaryStore';
+            const DB_VERSION = 1;
+            const STORE_NAME = 'binaries';
+
+            function getBinaryDB() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(DB_NAME, DB_VERSION);
+                    request.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains(STORE_NAME)) {
+                            db.createObjectStore(STORE_NAME);
+                        }
+                    };
+                    request.onsuccess = (e) => resolve(e.target.result);
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            }
+
+            async function saveBinaryLocally(key, base64) {
+                if (!base64 || !key) return;
+                try {
+                    const db = await getBinaryDB();
+                    const tx = db.transaction(STORE_NAME, 'readwrite');
+                    tx.objectStore(STORE_NAME).put(base64, key);
+                    return new Promise((resolve, reject) => {
+                        tx.oncomplete = () => resolve();
+                        tx.onerror = () => reject(tx.error);
+                    });
+                } catch (err) { console.error("IndexedDB Save Error:", err); }
+            }
+
+            async function getLocalBinary(key) {
+                if (!key) return null;
+                try {
+                    const db = await getBinaryDB();
+                    const tx = db.transaction(STORE_NAME, 'readonly');
+                    const request = tx.objectStore(STORE_NAME).get(key);
+                    return new Promise((resolve, reject) => {
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = () => reject(request.error);
+                    });
+                } catch (err) { return null; }
+            }
+
+            async function removeLocalBinary(key) {
+                if (!key) return;
+                try {
+                    const db = await getBinaryDB();
+                    const tx = db.transaction(STORE_NAME, 'readwrite');
+                    tx.objectStore(STORE_NAME).delete(key);
+                } catch (err) { }
+            }
+
             // LLM Switcher Logic
             let currentLLM = localStorage.getItem('tenderLLM') || 'claude-haiku';
             let currentScale = 1;
@@ -4503,7 +4737,9 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
 - Study the broad market and addressable market for the client's products/services.
 - Identify key industry trends, best practices, and emerging customer behaviors.
 - Map out relevant marketing opportunities and potential growth areas.
-- Provide data-driven insights to support our proposed campaign strategy.`
+- Provide data-driven insights to support our proposed campaign strategy.
+- Goal: Provide a comprehensive market brief. 
+At the end of your response, you MUST include a [MARKET_RESEARCH_JSON: {...}] block with trends, opportunities, and a summary.`
                 },
                 {
                     id: 'competitor',
@@ -4515,7 +4751,9 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
 - Identify competitor tone of voice, offers, discounts, and platform usage.
 - Identify “blue ocean” opportunities (uncontested market space) to propose.
 - Identify “red ocean” areas (highly competitive/saturated) to avoid or approach with extreme caution.
-- Perform a SWOT analysis comparing MediaOne's strengths against these competitors.`
+- Perform a SWOT analysis comparing MediaOne's strengths against these competitors.
+- Goal: Provide a detailed competitor map.
+At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}] block with landscape, blueOcean, and redOcean.`
                 },
                 {
                     id: 'legal-compliance',
@@ -5059,6 +5297,332 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
             }
 
             // --- Pricing & Costing Logic (Requirement 7 & 8) ---
+            function renderMarketResearch() {
+                const container = document.getElementById('market-research-content');
+                if (!container) return;
+
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (!p || !p.marketResearch || (!p.marketResearch.summary && (!p.marketResearch.trends || p.marketResearch.trends.length === 0))) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i data-lucide="globe" size="48"></i>
+                            <p>No market research data generated yet. Ask the **Market Researcher** agent to begin.</p>
+                        </div>
+                    `;
+                    lucide.createIcons();
+                    return;
+                }
+
+                const mr = p.marketResearch;
+                container.innerHTML = `
+                    <div style="padding: 1.5rem;">
+                        <div class="card" style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 1.5rem;">
+                            <h3 style="margin-bottom: 1rem; color: var(--primary);">Summary & Insights</h3>
+                            <div class="formatted-content">${mr.summary || 'No summary available.'}</div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                            <div class="card" style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);">
+                                <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; font-size: 1rem;">
+                                    <i data-lucide="trending-up" size="18" style="color: var(--success);"></i> Industry Trends
+                                </h3>
+                                <ul style="padding-left: 1.25rem; font-size: 0.875rem; color: var(--text-muted);">
+                                    ${(mr.trends || []).map(t => `<li style="margin-bottom:0.5rem">${t}</li>`).join('') || '<li>No trends identified.</li>'}
+                                </ul>
+                            </div>
+                            <div class="card" style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);">
+                                <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; font-size: 1rem;">
+                                    <i data-lucide="zap" size="18" style="color: var(--warning);"></i> Opportunities
+                                </h3>
+                                <ul style="padding-left: 1.25rem; font-size: 0.875rem; color: var(--text-muted);">
+                                    ${(mr.opportunities || []).map(o => `<li style="margin-bottom:0.5rem">${o}</li>`).join('') || '<li>No opportunities identified.</li>'}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons();
+            }
+
+            function renderCompetitorAnalysis() {
+                const container = document.getElementById('competitor-analysis-content');
+                if (!container) return;
+
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (!p || !p.competitorAnalysis || ((!p.competitorAnalysis.landscape || p.competitorAnalysis.landscape.length === 0) && !p.competitorAnalysis.blueOcean)) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i data-lucide="trending-up" size="48"></i>
+                            <p>No competitor analysis data generated yet. Ask the **Competitor Analyst** agent to begin.</p>
+                        </div>
+                    `;
+                    lucide.createIcons();
+                    return;
+                }
+
+                const ca = p.competitorAnalysis;
+                container.innerHTML = `
+                    <div style="padding: 1.5rem;">
+                        <div class="card" style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 1.5rem;">
+                            <h3 style="margin-bottom: 1rem; color: var(--primary);">Competitor Landscape</h3>
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Competitor</th>
+                                            <th>SWOT / Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${(ca.landscape || []).map(c => `
+                                            <tr>
+                                                <td style="font-weight: 600;">${c.name}</td>
+                                                <td style="font-size: 0.8125rem;">${c.swot}</td>
+                                            </tr>
+                                        `).join('') || '<tr><td colspan="2" style="text-align:center;">No competitors analyzed.</td></tr>'}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                            <div class="card" style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); border-left: 4px solid var(--success);">
+                                <h3 style="margin-bottom: 1rem; color: var(--success); font-size: 1rem;">Blue Ocean Opportunities</h3>
+                                <p style="font-size: 0.875rem; color: var(--text-muted);">${ca.blueOcean || 'No blue ocean strategies identified yet.'}</p>
+                            </div>
+                            <div class="card" style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); border-left: 4px solid var(--danger);">
+                                <h3 style="margin-bottom: 1rem; color: var(--danger); font-size: 1rem;">Red Ocean (Avoid)</h3>
+                                <p style="font-size: 0.875rem; color: var(--text-muted);">${ca.redOcean || 'No red ocean areas identified yet.'}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons();
+            }
+
+            function triggerGlobalUpload() {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.multiple = true;
+                fileInput.accept = ".pdf,.docx,.txt";
+                fileInput.onchange = async (e) => {
+                    const files = e.target.files;
+                    if (!files.length) return;
+                    
+                    showToast(`Uploading ${files.length} past submissions...`, "info");
+                    
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        const reader = new FileReader();
+                        reader.onload = async (event) => {
+                            const base64 = event.target.result;
+                            const text = await extractText(file);
+                            const docId = Date.now() + i;
+                            
+                            // Save to local high-fidelity store (IndexedDB)
+                            await saveBinaryLocally(`global_${docId}`, base64);
+                            
+                            globalSubmissions.push({
+                                id: docId,
+                                name: file.name,
+                                type: file.type,
+                                size: file.size,
+                                base64: base64,
+                                content: text,
+                                uploadedAt: new Date().toISOString()
+                            });
+                            renderGlobalSubmissions();
+                            saveProjects();
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                };
+                fileInput.click();
+            }
+
+            function renderGlobalSubmissions() {
+                const container = document.getElementById('global-submissions-list');
+                if (!container) return;
+
+                if (globalSubmissions.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i data-lucide="folder-open" size="48"></i>
+                            <p>No past submissions uploaded. Add PDF/Docx files to build your global intelligence.</p>
+                        </div>
+                    `;
+                    lucide.createIcons();
+                    return;
+                }
+
+                container.innerHTML = globalSubmissions.map(doc => {
+                    const sizeStr = doc.size > 1024 * 1024 
+                        ? `${(doc.size / (1024 * 1024)).toFixed(2)} MB` 
+                        : `${(doc.size / 1024).toFixed(1)} KB`;
+                        
+                    return `
+                    <div class="doc-card" onclick="showMediaPreview('${doc.base64 || ''}', '${doc.name}', '${doc.type}')" style="display: flex; align-items: center; justify-content: space-between; padding: 1rem; background: var(--bg-app); border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: 0.5rem; cursor: pointer; transition: all 0.2s ease;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div class="doc-icon"><i data-lucide="file-text" size="24" style="color: var(--primary);"></i></div>
+                            <div class="doc-info">
+                                <div class="doc-name" style="font-weight: 600; font-size: 0.875rem;">${doc.name}</div>
+                                <div class="doc-meta" style="font-size: 0.75rem; color: var(--text-muted);">
+                                    ${sizeStr} • ${new Date(doc.uploadedAt).toLocaleDateString()}
+                                    ${doc.isLargeFile ? ' • <span style="color:var(--primary); font-weight: 600;">Text Only Sync</span>' : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;" onclick="event.stopPropagation()">
+                            <button class="btn btn-ghost btn-sm" onclick="renameGlobalSubmission(${doc.id})" title="Rename"><i data-lucide="edit-3" size="14"></i></button>
+                            <button class="btn btn-ghost btn-sm" onclick="showMediaPreview('${doc.base64 || ''}', '${doc.name}', '${doc.type}')" title="Preview"><i data-lucide="eye" size="14"></i></button>
+                            <button class="btn btn-ghost btn-sm" onclick="deleteGlobalSubmission(${doc.id})" title="Delete"><i data-lucide="trash-2" size="14"></i></button>
+                        </div>
+                    </div>
+                `}).join('');
+                lucide.createIcons();
+            }
+
+            function deleteGlobalSubmission(id) {
+                if (confirm("Delete this past submission from the global repository?")) {
+                    globalSubmissions = globalSubmissions.filter(d => d.id !== id);
+                    renderGlobalSubmissions();
+                    saveProjects();
+                }
+            }
+
+            function renameGlobalSubmission(id) {
+                const doc = globalSubmissions.find(d => d.id === id);
+                if (!doc) return;
+
+                const newName = prompt("Enter new filename:", doc.name);
+                if (newName && newName.trim() && newName !== doc.name) {
+                    doc.name = newName.trim();
+                    renderGlobalSubmissions();
+                    saveProjects();
+                }
+            }
+
+            const WIZARD_STEPS = [
+                { id: 0, title: "RFQ Analysis", agentId: "requirements", desc: "Extract key requirements and compliance points from the RFP." },
+                { id: 1, title: "Market Research", agentId: "market-research", desc: "Analyze industry trends and growth opportunities specific to this tender." },
+                { id: 2, title: "Competitor Analysis", agentId: "competitor", desc: "Map the competitive landscape and identify Blue/Red Ocean strategies." },
+                { id: 3, title: "Compliance Audit", agentId: "strategy", desc: "Verify that all mandatory requirements are addressed in our approach." },
+                { id: 4, title: "Win Themes", agentId: "strategy", desc: "Finalize the strategic narrative and key differentiators." },
+                { id: 5, title: "Deck Generation", agentId: "strategy", desc: "Draft the final slide deck based on all collected intelligence." }
+            ];
+
+            function goToStep(stepIndex) {
+                currentWorkflowStep = stepIndex;
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (p) p.workflowStep = stepIndex;
+
+                renderWizardStep();
+                
+                // Update Stepper UI
+                document.querySelectorAll('.step').forEach((el, idx) => {
+                    el.classList.remove('active', 'completed');
+                    if (idx === stepIndex) el.classList.add('active');
+                    if (idx < stepIndex) el.classList.add('completed');
+                });
+                saveProjects();
+            }
+
+            function nextStep() {
+                if (currentWorkflowStep < WIZARD_STEPS.length - 1) {
+                    goToStep(currentWorkflowStep + 1);
+                } else {
+                    // Final step: switch to slide editor
+                    const editorNav = document.querySelector('.nav-item[onclick*="slide-editor"]');
+                    switchView('slide-editor', editorNav);
+                }
+            }
+
+            function prevStep() {
+                if (currentWorkflowStep > 0) {
+                    goToStep(currentWorkflowStep - 1);
+                }
+            }
+
+            function renderWizardStep() {
+                const container = document.getElementById('wizard-step-content');
+                if (!container) return;
+
+                const step = WIZARD_STEPS[currentWorkflowStep];
+                const agent = INITIAL_AI_AGENTS.find(a => a.id === step.agentId);
+                
+                let contentHTML = `
+                    <div style="animation: fadeIn 0.4s ease-out;">
+                        <h3 style="font-size: 1.5rem; margin-bottom: 0.5rem; font-family: 'Outfit', sans-serif; font-weight: 800; color: var(--primary);">Phase ${step.id + 1}: ${step.title}</h3>
+                        <p style="color: var(--text-muted); margin-bottom: 2rem; font-size: 0.875rem;">${step.desc}</p>
+                        
+                        <div class="agent-call-card">
+                            <div style="background: #fff; width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; box-shadow: var(--shadow-sm);">
+                                <i data-lucide="${agent?.icon || 'bot'}" size="32" style="color: var(--primary);"></i>
+                            </div>
+                            <h4 style="margin-bottom: 0.5rem; font-family: 'Outfit', sans-serif;">Collaborate with the ${agent?.name}</h4>
+                            <p style="font-size: 0.8125rem; color: var(--text-muted); max-width: 500px; margin: 0 auto 1.5rem;">
+                                This specialist agent will guide you through the mandatory requirements of this phase to ensure a high-scoring submission.
+                            </p>
+                            <button class="btn btn-primary" onclick="activateAgent('${step.agentId}')">
+                                <i data-lucide="message-square" size="16"></i> Start ${step.title} Session
+                            </button>
+                        </div>
+                        
+                        <div id="step-preview-container" style="margin-top: 2rem;">
+                            <!-- Content will be injected here if results exist -->
+                        </div>
+                    </div>
+                `;
+                
+                container.innerHTML = contentHTML;
+                lucide.createIcons();
+                
+                // Render previews based on step
+                if (step.id === 1) renderMarketResearchPreview();
+                if (step.id === 2) renderCompetitorPreview();
+            }
+
+            function renderMarketResearchPreview() {
+                const container = document.getElementById('step-preview-container');
+                if (!container) return;
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (p && p.marketResearch && (p.marketResearch.summary || (p.marketResearch.trends && p.marketResearch.trends.length > 0))) {
+                    container.innerHTML = `<h4 style="margin-bottom:1rem; font-size:0.875rem; text-transform:uppercase; color:var(--text-muted);">Current Intelligence Snapshot:</h4>`;
+                    const preview = document.createElement('div');
+                    preview.id = 'market-research-content';
+                    container.appendChild(preview);
+                    renderMarketResearch();
+                }
+            }
+
+            function renderCompetitorPreview() {
+                const container = document.getElementById('step-preview-container');
+                if (!container) return;
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (p && p.competitorAnalysis && (p.competitorAnalysis.blueOcean || (p.competitorAnalysis.landscape && p.competitorAnalysis.landscape.length > 0))) {
+                    container.innerHTML = `<h4 style="margin-bottom:1rem; font-size:0.875rem; text-transform:uppercase; color:var(--text-muted);">Competitor Map Snapshot:</h4>`;
+                    const preview = document.createElement('div');
+                    preview.id = 'competitor-analysis-content';
+                    container.appendChild(preview);
+                    renderCompetitorAnalysis();
+                }
+            }
+
+            function activateAgent(agentId) {
+                // Open the chat side-panel and switch agent
+                moveChatUI('copilot'); // Switch to copilot view
+                const agent = INITIAL_AI_AGENTS.find(a => a.id === agentId);
+                if (agent) {
+                    const input = document.getElementById('chat-input');
+                    input.value = `Hello ${agent.name}, let's begin Phase ${currentWorkflowStep + 1}: ${WIZARD_STEPS[currentWorkflowStep].title}. Please analyze the current tender and provide your strategic insights.`;
+                    input.focus();
+                    // Optional: auto-send
+                    // sendMessage();
+                }
+                
+                // Switch back to chat view if needed
+                const chatNav = document.querySelector('.nav-item[onclick*="switchView(\'chat\'"]');
+                if (chatNav) chatNav.click();
+            }
+
             function renderPricing() {
                 const tbody = document.getElementById('pricing-table-body');
                 if (!tbody) return;
@@ -5512,6 +6076,8 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
             // --- Project Management ---
             let projects = [];
             let currentProjectId = null;
+            let globalSubmissions = [];
+            let currentWorkflowStep = 0; // 0: RFQ Analysis, 1: Market Research, 2: Competitor Analysis, 3: Compliance, 4: Strategy, 5: Generation
             const MEDIAONE_EXPERTISE = [
                 {
                     id: 1001,
@@ -5976,24 +6542,53 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
 
             async function showMediaPreview(base64, name, type) {
                 let activeBase64 = base64;
+                const modal = document.getElementById('media-preview-modal');
+                const content = document.getElementById('media-preview-content');
+                const title = document.getElementById('media-preview-title');
 
-                // If base64 is missing (deduplicated in history), try to find it in the project docs
+                if (!modal || !content || !title) return;
+
+                // 1. Try to find local high-fidelity binary (IndexedDB)
+                const gDocData = globalSubmissions.find(d => d.name === name);
+                if (gDocData) {
+                    const localBinary = await getLocalBinary(`global_${gDocData.id}`);
+                    if (localBinary) activeBase64 = localBinary;
+                }
+
+                // 2. If base64 is missing (deduplicated in history), try to find it in the project docs
                 if (!activeBase64) {
                     const current = projects.find(p => p.id === currentProjectId);
                     if (current && current.docs) {
                         const doc = current.docs.find(d => d.name === name);
                         if (doc) activeBase64 = doc.base64;
                     }
+                    if (!activeBase64) {
+                        const gDoc = globalSubmissions.find(d => d.name === name);
+                        if (gDoc && gDoc.base64) activeBase64 = gDoc.base64;
+                    }
                 }
 
                 if (!activeBase64) {
-                    alert('File content not available for preview. It may have been removed or not fully uploaded.');
-                    return;
+                    // 3. Fallback to text preview if no binary found
+                    const gDoc = globalSubmissions.find(d => d.name === name);
+                    if (gDoc && gDoc.content) {
+                        title.innerText = name;
+                        modal.classList.add('active');
+                        content.innerHTML = `<div class="docx-preview" style="padding: 2.5rem; background: #fff; border-radius: var(--radius-lg); max-height: 70vh; overflow-y: auto; text-align: left; color: var(--text-main); font-family: 'Inter', sans-serif; line-height: 1.6;">
+                            <div style="margin-bottom: 1rem; color: var(--primary); font-weight: 600; font-size: 0.75rem; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--bg-app); border-radius: 4px;">
+                                <i data-lucide="info" size="14"></i> Large file: Displaying extracted text for reference. (Visual preview only available on the device that uploaded it)
+                            </div>
+                            <div style="white-space: pre-wrap;">${gDoc.content}</div>
+                        </div>`;
+                        lucide.createIcons();
+                        return;
+                    }
                 }
 
-                const modal = document.getElementById('media-preview-modal');
-                const content = document.getElementById('media-preview-content');
-                const title = document.getElementById('media-preview-title');
+                if (!activeBase64) {
+                    alert('File content not available for preview. It may be too large for cloud storage or not fully uploaded.');
+                    return;
+                }
 
                 title.innerText = name;
                 modal.classList.add('active');
@@ -6879,7 +7474,7 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 const targetView = document.getElementById(`view-${viewId}`);
                 if (targetView) {
                     targetView.classList.add('active');
-                    targetView.style.display = (viewId === 'slide-editor' || viewId === 'overview') ? 'flex' : 'block';
+                    targetView.style.display = (viewId === 'slide-editor' || viewId === 'overview' || viewId === 'setup-wizard') ? 'flex' : 'block';
                 }
 
                 // Layout adjustments for Slide Editor
@@ -7135,6 +7730,22 @@ Respond with: [AUDIT_SCORES: {"strategy": 85, "compliance": 90, "quality": 80}] 
                         fullPrompt += `CLIENT CONTEXT (from public URLs):\n${urlSummary}\n\n`;
                     }
 
+                    // --- INJECT GLOBAL SUBMISSIONS ---
+                    const globalSubSummary = (globalSubmissions || []).length > 0
+                        ? globalSubmissions.slice(0, 5).map(d => `[HISTORICAL WINNING TENDER: ${d.name}]\n${d.content ? d.content.substring(0, 3000) : 'No content'}`).join('\n\n')
+                        : '';
+                    if (globalSubSummary) {
+                        fullPrompt += `GLOBAL HISTORICAL DATA (Use these as reference for winning language and structure):\n${globalSubSummary}\n\n`;
+                    }
+
+                    // --- INJECT TENDER-SPECIFIC RESEARCH ---
+                    if (current?.marketResearch?.summary) {
+                        fullPrompt += `MARKET RESEARCH (FOR THIS TENDER):\n${current.marketResearch.summary}\n\nTrends: ${(current.marketResearch.trends || []).join(', ')}\nOpportunities: ${(current.marketResearch.opportunities || []).join(', ')}\n\n`;
+                    }
+                    if (current?.competitorAnalysis?.blueOcean) {
+                        fullPrompt += `COMPETITOR ANALYSIS (FOR THIS TENDER):\nBlue Ocean: ${current.competitorAnalysis.blueOcean}\nRed Ocean: ${current.competitorAnalysis.redOcean}\nLandscape: ${JSON.stringify(current.competitorAnalysis.landscape)}\n\n`;
+                    }
+
                     // --- INJECT TONE INSTRUCTIONS (Requirement 5.1) ---
                     const toneInstructions = {
                         'consultative': 'Tone: Consultative, senior, and objective. Focus on long-term partnership and risk mitigation. Use words like "strategic partner", "sustainability", and "continuity".',
@@ -7151,6 +7762,9 @@ Respond with: [AUDIT_SCORES: {"strategy": 85, "compliance": 90, "quality": 80}] 
                     fullPrompt += `\n\nACTION CAPABILITY:
 1. Create New Slide: Include [SLIDE_JSON: {"title": "Title", "body": "HTML", "theme": "light/dark"}] at the end of your response.
 2. Update Specific Slide: Include [UPDATE_SLIDE_JSON: {"index": 1, "title": "New Title", "body": "New HTML", "theme": "light/dark"}] to modify an existing slide.
+3. Update Market Research: [MARKET_RESEARCH_JSON: {"trends": ["Trend 1", ...], "opportunities": ["Opp 1", ...], "summary": "Full HTML summary"}]
+4. Update Competitor Analysis: [COMPETITOR_ANALYSIS_JSON: {"landscape": [{"name": "Comp 1", "swot": "..."}], "blueOcean": "...", "redOcean": "..."}]
+5. Audit Scorecard: [AUDIT_SCORES: {"strategy": 85, "compliance": 90, "quality": 88}]
 Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updating if the user asks for a change to an existing slide.`;
 
                     if (current && current.name && current.name.startsWith('Draft Tender')) {
@@ -7297,6 +7911,40 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
                         }
                     } catch (e) {
                         console.error("Failed to parse audit scores:", e);
+                    }
+                }
+
+                // Check for Market Research JSON (Requirement 2.2)
+                const marketMatch = responseText.match(/\[MARKET_RESEARCH_JSON:\s*(\{.*?\})\]/s);
+                if (marketMatch) {
+                    try {
+                        const mrData = JSON.parse(marketMatch[1]);
+                        const p = projects.find(proj => proj.id === currentProjectId);
+                        if (p) {
+                            p.marketResearch = mrData;
+                            renderMarketResearch();
+                            saveProjects();
+                            addChatMessage(`Market research updated for this tender.`, 'ai');
+                        }
+                    } catch (e) {
+                        console.warn("Failed to parse market research JSON", e);
+                    }
+                }
+
+                // Check for Competitor Analysis JSON (Requirement 2.3)
+                const compMatch = responseText.match(/\[COMPETITOR_ANALYSIS_JSON:\s*(\{.*?\})\]/s);
+                if (compMatch) {
+                    try {
+                        const compData = JSON.parse(compMatch[1]);
+                        const p = projects.find(proj => proj.id === currentProjectId);
+                        if (p) {
+                            p.competitorAnalysis = compData;
+                            renderCompetitorAnalysis();
+                            saveProjects();
+                            addChatMessage(`Competitor analysis updated for this tender.`, 'ai');
+                        }
+                    } catch (e) {
+                        console.warn("Failed to parse competitor analysis JSON", e);
                     }
                 }
 
@@ -7873,19 +8521,42 @@ ${slide.body}`;
                         const userId = currentUser.email || 'mediaone_global_workspace';
 
                         // CRITICAL: Deduplicate payload to avoid 10MB limit
+                        // Payload size optimization: Strip base64 from large files to stay under 10MB Lambda limit
+                        const sanitizeSubmissions = (subs) => {
+                            return subs.map(s => {
+                                if (s.base64 && s.base64.length > 1.5 * 1024 * 1024) { // Roughly > 1.5MB in base64
+                                    const cleaned = { ...s };
+                                    delete cleaned.base64; // Keep content (text) for AI
+                                    cleaned.isLargeFile = true;
+                                    return cleaned;
+                                }
+                                return s;
+                            });
+                        };
+
                         const sanitizedProjects = projects.map(p => {
-                            const newP = JSON.parse(JSON.stringify(p)); // Deep clone
+                            const newP = { ...p };
+                            if (newP.docs) {
+                                newP.docs = sanitizeSubmissions(newP.docs);
+                            }
                             if (newP.chatHistory) {
-                                newP.chatHistory.forEach(msg => {
+                                newP.chatHistory = newP.chatHistory.map(msg => {
                                     if (msg.attachments) {
-                                        msg.attachments.forEach(att => {
-                                            const existsInDocs = p.docs.find(d => d.name === att.name);
-                                            if (existsInDocs) {
-                                                delete att.base64; // Reference only
-                                                att.isDocReference = true;
-                                            }
-                                        });
+                                        return {
+                                            ...msg,
+                                            attachments: msg.attachments.map(att => {
+                                                const exists = (newP.docs || []).find(d => d.name === att.name);
+                                                if (exists) {
+                                                    const cleanedAtt = { ...att };
+                                                    delete cleanedAtt.base64;
+                                                    cleanedAtt.isDocReference = true;
+                                                    return cleanedAtt;
+                                                }
+                                                return att;
+                                            })
+                                        };
                                     }
+                                    return msg;
                                 });
                             }
                             return newP;
@@ -7899,7 +8570,8 @@ ${slide.body}`;
                                 globalTeam: teamData,
                                 globalThemes: [],
                                 proofBank: getProofBank(),
-                                aiAgents: getAIAgents()
+                                aiAgents: getAIAgents(),
+                                globalSubmissions: sanitizeSubmissions(globalSubmissions)
                             }
                         };
 
@@ -8100,6 +8772,15 @@ ${slide.body}`;
                             proofBankData = result.proofBank;
                             renderProofBank();
                         }
+
+                        // Populate Global Submissions
+                        if (result.globalSubmissions) {
+                            globalSubmissions = result.globalSubmissions;
+                            renderGlobalSubmissions();
+                        }
+
+                        // Initialize Wizard
+                        goToStep(0);
                         
                         if (result.aiAgents) {
                             aiAgents = result.aiAgents;
@@ -8402,6 +9083,9 @@ ${slide.body}`;
                     pricingConfidence: 'moderate',
                     satisfactionScores: { strategy: 0, compliance: 0, quality: 0 },
                     manualInputs: { briefingNotes: '', pastWinPrice: '', clientBudget: '', competitorIntel: '' },
+                    marketResearch: { trends: [], opportunities: [], summary: '' },
+                    competitorAnalysis: { landscape: [], blueOcean: '', redOcean: '' },
+                    workflowStep: 0,
                     lastModifiedBy: currentUser?.name || "System",
                     lastModifiedAt: new Date().toISOString()
                 };
@@ -8526,6 +9210,9 @@ ${slide.body}`;
                 updateSatisfactionScores();
                 renderPricing();
                 loadManualInputs();
+                renderMarketResearch();
+                renderCompetitorAnalysis();
+                goToStep(p.workflowStep || 0);
 
                 // Restore Chat History
                 const chatContainer = document.getElementById('chat-messages');
