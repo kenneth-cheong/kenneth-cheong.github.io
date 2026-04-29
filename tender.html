@@ -1418,16 +1418,17 @@
         .workflow-stepper {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            max-width: 1000px;
+            align-items: flex-start;
+            min-width: 1200px;
             margin: 0 auto;
             position: relative;
+            padding: 1.5rem 0 3rem; /* Added padding for labels */
         }
 
         .workflow-stepper::before {
             content: '';
             position: absolute;
-            top: 15px;
+            top: calc(1.5rem + 16px); /* Center with circle (1.5rem padding + 16px half-height) */
             left: 50px;
             right: 50px;
             height: 2px;
@@ -1439,7 +1440,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 0.5rem;
+            gap: 1rem;
             position: relative;
             z-index: 2;
             cursor: pointer;
@@ -1459,6 +1460,7 @@
             font-weight: 800;
             color: var(--text-muted);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            flex-shrink: 0;
         }
 
         .step.active .step-num {
@@ -1475,9 +1477,16 @@
         }
 
         .step-label {
-            font-size: 0.6875rem;
+            font-size: 0.65rem;
             font-weight: 700;
             color: var(--text-muted);
+            text-align: center;
+            line-height: 1.3;
+            width: 100%;
+            max-width: 110px;
+            transition: color 0.3s ease;
+            position: absolute;
+            top: 40px; /* Position labels below the circles */
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -3467,7 +3476,7 @@
                         <i data-lucide="layout-grid" size="18"></i> All Tenders
                     </a>
 
-                    <p class="nav-label">Project Workspace</p>
+                    <p class="nav-label">Tender Specific</p>
                     <a class="nav-item" onclick="switchView('overview', this)">
                         <i data-lucide="message-square" size="18"></i> <span>Tender AI Chat</span>
                     </a>
@@ -3478,6 +3487,13 @@
                         </div>
                         <span style="margin-left: 16px;">AI Co-pilot</span>
                     </a>
+                    <a href="#" class="nav-item" onclick="switchView('market-research', this)">
+                        <i data-lucide="globe" size="18"></i> Market Research
+                    </a>
+                    <a href="#" class="nav-item" onclick="switchView('competitors', this)">
+                        <i data-lucide="trending-up" size="18"></i> Competitors
+                    </a>
+
                     <div class="nav-label">Strategy Building</div>
                     <a href="#" class="nav-item" onclick="switchView('documents', this)">
                         <i data-lucide="files" size="18"></i> Documents
@@ -3489,27 +3505,21 @@
                         <i data-lucide="history" size="18"></i> Version History
                     </a>
 
-                    <p class="nav-label">Global Intelligence</p>
+                    <p class="nav-label">For All Tenders</p>
+                    <a href="#" class="nav-item" onclick="switchView('setup-wizard', this)">
+                        <i data-lucide="layers" size="18"></i> Strategic Setup
+                    </a>
                     <a href="#" class="nav-item" onclick="switchView('proof-bank', this)">
                         <i data-lucide="database" size="18"></i> Proof Bank
                     </a>
                     <a href="#" class="nav-item" onclick="switchView('team', this)">
                         <i data-lucide="users" size="18"></i> Team & Roles
                     </a>
-                    <a href="#" class="nav-item" onclick="switchView('market-research', this)">
-                        <i data-lucide="globe" size="18"></i> Market Research
-                    </a>
-                    <a href="#" class="nav-item" onclick="switchView('competitors', this)">
-                        <i data-lucide="trending-up" size="18"></i> Competitors
-                    </a>
                     <a href="#" class="nav-item" onclick="switchView('pricing', this)">
                         <i data-lucide="dollar-sign" size="18"></i> Pricing & Costing
                     </a>
                     <a href="#" class="nav-item" onclick="switchView('past-submissions', this)">
                         <i data-lucide="archive" size="18"></i> Past Submissions
-                    </a>
-                    <a href="#" class="nav-item" onclick="switchView('setup-wizard', this)">
-                        <i data-lucide="layers" size="18"></i> Strategic Setup
                     </a>
                 </nav>
 
@@ -3907,32 +3917,9 @@
                     </div>
                 </div>
 
-                <div class="workflow-steps-container">
-                    <div class="workflow-stepper">
-                        <div class="step active" id="step-0" onclick="goToStep(0)">
-                            <div class="step-num">1</div>
-                            <div class="step-label">RFQ Analysis</div>
-                        </div>
-                        <div class="step" id="step-1" onclick="goToStep(1)">
-                            <div class="step-num">2</div>
-                            <div class="step-label">Market Research</div>
-                        </div>
-                        <div class="step" id="step-2" onclick="goToStep(2)">
-                            <div class="step-num">3</div>
-                            <div class="step-label">Competitors</div>
-                        </div>
-                        <div class="step" id="step-3" onclick="goToStep(3)">
-                            <div class="step-num">4</div>
-                            <div class="step-label">Compliance Audit</div>
-                        </div>
-                        <div class="step" id="step-4" onclick="goToStep(4)">
-                            <div class="step-num">5</div>
-                            <div class="step-label">Win Themes</div>
-                        </div>
-                        <div class="step" id="step-5" onclick="goToStep(5)">
-                            <div class="step-num">6</div>
-                            <div class="step-label">Deck Generation</div>
-                        </div>
+                <div class="workflow-steps-container" style="overflow-x: auto; padding-bottom: 0.5rem; margin-bottom: 1.5rem;">
+                    <div class="workflow-stepper" id="wizard-stepper" style="min-width: 1200px; padding: 0 1rem;">
+                        <!-- Stepper items will be injected by renderStepper() -->
                     </div>
                 </div>
 
@@ -4705,18 +4692,6 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     prompt: DEFAULT_MASTER_PROMPT
                 },
                 {
-                    id: 'client-research',
-                    name: 'Client Researcher',
-                    icon: 'search',
-                    desc: 'Deep dives into client needs, culture, and pain points.',
-                    prompt: `Acting as a Senior Client Researcher for MediaOne:
-- Analyze the uploaded documents and provided URLs to identify the client's core values, recent news, and organizational culture.
-- Identify the "unspoken" needs and strategic priorities mentioned in annual reports or CSR statements.
-- Extract key stakeholder names and roles if mentioned.
-- Tone: Highly analytical, empathetic to client needs, and detail-oriented.
-- Goal: Provide a comprehensive background brief that ensures our proposal feels "inside out" rather than "outside in".`
-                },
-                {
                     id: 'requirements',
                     name: 'Requirements Lead',
                     icon: 'list-checks',
@@ -4756,8 +4731,8 @@ At the end of your response, you MUST include a [MARKET_RESEARCH_JSON: {...}] bl
 At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}] block with landscape, blueOcean, and redOcean.`
                 },
                 {
-                    id: 'legal-compliance',
-                    name: 'Legal & Risk Agent',
+                    id: 'legal',
+                    name: 'Legal & Risk Specialist',
                     icon: 'shield-alert',
                     desc: 'Identifies legal restrictions and market-specific risks.',
                     prompt: `Acting as a Legal & Compliance Specialist:
@@ -4767,59 +4742,55 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
 - Highlight market-specific risks and propose mitigation strategies.`
                 },
                 {
-                    id: 'instruction-agent',
-                    name: 'Instruction Agent',
-                    icon: 'file-text',
-                    desc: 'Converts strategy into clear AI design instructions.',
-                    prompt: `Acting as an AI Instruction Specialist:
-- Take the approved campaign strategy and convert it into highly specific, actionable instructions for the Slide Designer.
-- Define the visual hierarchy, key message per slide, and mandatory data points to include.
-- Ensure instructions are optimized for LLM-based slide generation (clear, concise, and structured).`
+                    id: 'mediaone-knowledge',
+                    name: 'MediaOne Knowledge Keeper',
+                    icon: 'database',
+                    desc: 'Injects MediaOne institutional knowledge and USPs.',
+                    prompt: `Acting as a MediaOne Knowledge Keeper:
+- Inject MediaOne's USPs, strategic frameworks, and award-winning case studies.
+- Ensure the proposal avoids generic "white paper" styles.
+- Infuse the content with MediaOne's preferred "Strategic Advisor" point of view.
+- Suggest credible team structures and escalation paths from our roster.`
                 },
                 {
-                    id: 'slide-writer',
-                    name: 'Slide Architect',
-                    icon: 'presentation',
-                    desc: 'Crafts persuasive, high-impact slide content.',
-                    prompt: `Acting as a Lead Slide Copywriter & Presentation Designer:
-- Focus on "Pyramid Principle" communication: Lead with the conclusion, support with evidence.
-- Transform complex data into simple, boardroom-ready narrative bullets.
-- Ensure every slide has a clear "So What?" for the evaluator.
-- Maintain the MediaOne Design DNA: strategic, clean, and evidence-led.
-- Use powerful action verbs and avoid passive corporate jargon.`
+                    id: 'human-input',
+                    name: 'Human Context Agent',
+                    icon: 'user-check',
+                    desc: 'Incorporate client briefing notes and verbal hints.',
+                    prompt: `Acting as a Human Context Agent:
+- Incorporate client briefing minutes, verbal hints, and stakeholder preferences.
+- Ensure "soft signals" (like stakeholder personality) are reflected in the win themes.
+- Personalize the proposal to address specific concerns mentioned in sales calls.`
                 },
                 {
-                    id: 'editor',
-                    name: 'Quality Editor',
-                    icon: 'edit-3',
-                    desc: 'Checks spelling, grammar, and brand consistency.',
-                    prompt: `Acting as a Senior Editor and Brand Guardian:
-- Review the content for absolute grammatical perfection, spelling accuracy, and calculation errors.
-- Ensure consistent tone of voice throughout the deck (Senior, consultative, confident).
-- Check for factual errors, unsupported claims, and compliance risks.
-- Verify that all claims are backed by the provided data/proof points.`
+                    id: 'pricing',
+                    name: 'Commercial Strategist',
+                    icon: 'dollar-sign',
+                    desc: 'Builds bid price and commercial structures.',
+                    prompt: `Acting as a Commercial Strategist:
+- Recommend bid pricing based on manpower ($160/hr Sr, $120/hr Mid, $80/hr Jr).
+- Guide on aggressive vs moderate pricing based on tenderboard data.
+- Ensure all line items (backlinks, content, etc.) contribute to a realistic margin.`
                 },
                 {
-                    id: 'rfq-comparison',
-                    name: 'RFQ Comparison Agent',
-                    icon: 'columns',
-                    desc: 'Compares draft against RFQ requirements.',
-                    prompt: `Acting as an RFQ Gap Analyst:
-- Compare the current draft proposal against the extracted RFQ requirements.
-- Identify gaps, missed opportunities, or wrong focus areas.
-- Highlight any non-compliant sections or weak claims that need strengthening.
-- Provide a "Gap Score" for each mandatory requirement.`
+                    id: 'designer',
+                    name: 'Slide Designer Agent',
+                    icon: 'layout',
+                    desc: 'Produces first draft of proposal slides.',
+                    prompt: `Acting as a Slide Designer Agent:
+- Convert strategic win themes into high-impact slide structures.
+- Ensure consistent branding, typography, and visual hierarchy.
+- Output slides in [SLIDE_JSON] format based on instructions from the strategy agent.`
                 },
                 {
-                    id: 'compliance',
-                    name: 'Compliance Auditor',
-                    icon: 'shield-check',
-                    desc: 'Checks against tender evaluation criteria.',
-                    prompt: `Acting as a Final Compliance Auditor:
-- Review the generated slides against the specific evaluation criteria and weightings mentioned in the tender.
-- Score each section based on how well it addresses the scoring rubric.
-- Flag any missing mandatory components.
-- Goal: Ensure a 100% compliant and high-scoring submission (Target >90%).`
+                    id: 'qc',
+                    name: 'QC & Compliance Auditor',
+                    icon: 'clipboard-check',
+                    desc: 'Fact-checks and compares draft vs RFQ requirements.',
+                    prompt: `Acting as a Quality Control Auditor:
+- Fact-check slides for factual errors and unsupported claims.
+- Compare draft vs RFQ requirements to identify missed compliance points.
+- Score the proposal satisfaction. Output scores in [AUDIT_SCORES] format.`
                 }
             ];
 
@@ -5501,27 +5472,98 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
             }
 
             const WIZARD_STEPS = [
-                { id: 0, title: "RFQ Analysis", agentId: "requirements", desc: "Extract key requirements and compliance points from the RFP." },
-                { id: 1, title: "Market Research", agentId: "market-research", desc: "Analyze industry trends and growth opportunities specific to this tender." },
-                { id: 2, title: "Competitor Analysis", agentId: "competitor", desc: "Map the competitive landscape and identify Blue/Red Ocean strategies." },
-                { id: 3, title: "Compliance Audit", agentId: "strategy", desc: "Verify that all mandatory requirements are addressed in our approach." },
-                { id: 4, title: "Win Themes", agentId: "strategy", desc: "Finalize the strategic narrative and key differentiators." },
-                { id: 5, title: "Deck Generation", agentId: "strategy", desc: "Draft the final slide deck based on all collected intelligence." }
+                { 
+                    id: 0, 
+                    title: "RFQ Deep-Dive", 
+                    agentId: "requirements", 
+                    desc: "Study the RFQ to extract mandatory requirements, scoring criteria, deadlines, and submission instructions.",
+                    prompt: "You are an RFQ Requirements Agent. Analyze the uploaded RFQ/RFP documents. Extract: 1) Mandatory requirements, 2) Compliance points, 3) Deliverables, 4) Scoring criteria, 5) Deadlines, and 6) Submission instructions. Provide a structured checklist."
+                },
+                { 
+                    id: 1, 
+                    title: "Market & Consumer Insights", 
+                    agentId: "market-research", 
+                    desc: "Analyze industry trends, addressable market, and customer behavior specific to this tender.",
+                    prompt: "You are a Market Research Agent. Study the broad and addressable market for this client. Identify industry trends, best practices, customer behavior patterns, and relevant marketing opportunities. Output results in [MARKET_RESEARCH_JSON] format."
+                },
+                { 
+                    id: 2, 
+                    title: "Competitive Advantage (Blue Ocean)", 
+                    agentId: "competitor", 
+                    desc: "Map competitor ads, keywords, and targeting. Identify Blue Ocean opportunities.",
+                    prompt: "You are a Competitor Research Agent. Study the prospect's immediate competitors. Analyze their marketing practices, ads, keywords, platforms, and tone of voice. Identify 'Blue Ocean' opportunities for us to propose and 'Red Ocean' areas to avoid. Output results in [COMPETITOR_ANALYSIS_JSON] format."
+                },
+                { 
+                    id: 3, 
+                    title: "Legal & Risk Assessment", 
+                    agentId: "legal", 
+                    desc: "Identify advertising rules, platform policies, and market-specific compliance risks.",
+                    prompt: "You are a Legal & Compliance Agent. Identify relevant advertising rules, platform policies (Google/Meta), industry regulations, and market-specific risks for this tender. Highlight potential compliance blockers."
+                },
+                { 
+                    id: 4, 
+                    title: "MediaOne Knowledge Injection", 
+                    agentId: "mediaone-knowledge", 
+                    desc: "Inject MediaOne's USPs, awards, frameworks, and team profiles into the strategy.",
+                    prompt: "You are a MediaOne Knowledge Agent. Review MediaOne's USPs, strategic frameworks, case studies, and team profiles. Align the current tender response with MediaOne's premium positioning and 'Strategic Advisor' point of view. Ensure we don't sound like a generic white-paper."
+                },
+                { 
+                    id: 5, 
+                    title: "Human Intelligence (Briefing Notes)", 
+                    agentId: "human-input", 
+                    desc: "Incorporate client briefing minutes, verbal hints, and stakeholder preferences.",
+                    prompt: "You are a Sales Intelligence Agent. Review the human-inputted briefing minutes, verbal hints, and stakeholder preferences. Incorporate these 'soft signals' into the core win themes to ensure the proposal feels highly personalized."
+                },
+                { 
+                    id: 6, 
+                    title: "Commercial & Pricing Strategy", 
+                    agentId: "pricing", 
+                    desc: "Build the bid price based on manpower assumptions and prefixed cost schedules.",
+                    prompt: "You are a Pricing Strategy Agent. Based on the RFQ requirements and past winning bid prices, recommend a commercial structure. Use $160/hr for Senior, $120/hr for Mid, and $80/hr for Junior consultants. Apply 50% offshore rates for mundane work. Guide the user on aggressive vs conservative pricing."
+                },
+                { 
+                    id: 7, 
+                    title: "Strategic Win Themes", 
+                    agentId: "strategy", 
+                    desc: "Propose the overall campaign strategy based on all gathered intelligence.",
+                    prompt: "You are a Strategy Agent. Propose the overall campaign strategy. Synthesize RFQ needs, market trends, competitor gaps, and MediaOne's USPs. Define 3 powerful 'Win Themes' that will differentiate our bid."
+                },
+                { 
+                    id: 8, 
+                    title: "First Draft Generation", 
+                    agentId: "designer", 
+                    desc: "Convert strategy into clear slide instructions and produce the first draft.",
+                    prompt: "You are an Instruction Agent. Convert the approved strategy into clear, step-by-step instructions for the AI slide designer. Then, generate the first draft of the proposal slides using [SLIDE_JSON] format for each slide."
+                },
+                { 
+                    id: 9, 
+                    title: "Satisfaction & Compliance Audit", 
+                    agentId: "qc", 
+                    desc: "Review slides for factual errors, compliance risks, and RFQ gaps.",
+                    prompt: "You are a Quality Control Agent. Review the draft slides for: 1) Factual errors, 2) Unsupported claims, 3) Compliance risks, 4) Gaps vs RFQ requirements. Calculate satisfaction scores. If scores are below 90%, identify exact areas for iteration in [AUDIT_SCORES] format."
+                }
             ];
 
+            function renderStepper() {
+                const stepper = document.getElementById('wizard-stepper');
+                if (!stepper) return;
+
+                stepper.innerHTML = WIZARD_STEPS.map((step, idx) => `
+                    <div class="step ${idx === currentWorkflowStep ? 'active' : (idx < currentWorkflowStep ? 'completed' : '')}" id="step-${idx}" onclick="goToStep(${idx})">
+                        <div class="step-num">${idx + 1}</div>
+                        <div class="step-label">${step.title}</div>
+                    </div>
+                `).join('');
+                lucide.createIcons();
+            }
             function goToStep(stepIndex) {
                 currentWorkflowStep = stepIndex;
                 const p = projects.find(proj => proj.id === currentProjectId);
                 if (p) p.workflowStep = stepIndex;
 
+                renderStepper();
                 renderWizardStep();
                 
-                // Update Stepper UI
-                document.querySelectorAll('.step').forEach((el, idx) => {
-                    el.classList.remove('active', 'completed');
-                    if (idx === stepIndex) el.classList.add('active');
-                    if (idx < stepIndex) el.classList.add('completed');
-                });
                 saveProjects();
             }
 
@@ -5531,7 +5573,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 } else {
                     // Final step: switch to slide editor
                     const editorNav = document.querySelector('.nav-item[onclick*="slide-editor"]');
-                    switchView('slide-editor', editorNav);
+                    if (editorNav) switchView('slide-editor', editorNav);
                 }
             }
 
@@ -5561,9 +5603,24 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                             <p style="font-size: 0.8125rem; color: var(--text-muted); max-width: 500px; margin: 0 auto 1.5rem;">
                                 This specialist agent will guide you through the mandatory requirements of this phase to ensure a high-scoring submission.
                             </p>
-                            <button class="btn btn-primary" onclick="activateAgent('${step.agentId}')">
+                            <button class="btn btn-primary" onclick="activateAgent('${step.agentId}', '${step.id}')">
                                 <i data-lucide="message-square" size="16"></i> Start ${step.title} Session
                             </button>
+                            
+                            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); text-align: left;">
+                                <label style="display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.75rem; letter-spacing: 0.05em;">
+                                    <i data-lucide="settings-2" size="12" style="vertical-align: middle; margin-right: 4px;"></i> 
+                                    Phase AI Instructions
+                                </label>
+                                <textarea 
+                                    style="width: 100%; min-height: 80px; padding: 0.75rem; font-size: 0.8125rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-app); color: var(--text-main); font-family: inherit; line-height: 1.5; resize: vertical; outline: none; transition: border-color 0.2s;"
+                                    onfocus="this.style.borderColor='var(--primary)'"
+                                    onblur="this.style.borderColor='var(--border)'; updateWizardPrompt(${step.id}, this.value)"
+                                >${step.prompt}</textarea>
+                                <p style="font-size: 0.65rem; color: var(--text-muted); margin-top: 0.5rem; font-style: italic;">
+                                    Adjust these instructions to fine-tune how the AI analyzes this phase. Changes are saved automatically.
+                                </p>
+                            </div>
                         </div>
                         
                         <div id="step-preview-container" style="margin-top: 2rem;">
@@ -5606,21 +5663,31 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 }
             }
 
-            function activateAgent(agentId) {
+            function activateAgent(agentId, stepId) {
                 // Open the chat side-panel and switch agent
                 moveChatUI('copilot'); // Switch to copilot view
+                const step = WIZARD_STEPS[stepId !== undefined ? stepId : currentWorkflowStep];
                 const agent = INITIAL_AI_AGENTS.find(a => a.id === agentId);
+                
                 if (agent) {
                     const input = document.getElementById('chat-input');
-                    input.value = `Hello ${agent.name}, let's begin Phase ${currentWorkflowStep + 1}: ${WIZARD_STEPS[currentWorkflowStep].title}. Please analyze the current tender and provide your strategic insights.`;
+                    // Use the custom prompt for the step
+                    input.value = step.prompt || `Hello ${agent.name}, let's begin Phase ${step.id + 1}: ${step.title}.`;
                     input.focus();
-                    // Optional: auto-send
-                    // sendMessage();
+                    
+                    showToast(`Consulting the ${agent.name}...`, "info");
                 }
-                
-                // Switch back to chat view if needed
-                const chatNav = document.querySelector('.nav-item[onclick*="switchView(\'chat\'"]');
-                if (chatNav) chatNav.click();
+            }
+
+            function updateWizardPrompt(stepId, newValue) {
+                const step = WIZARD_STEPS[stepId];
+                if (!step) return;
+
+                if (newValue !== undefined && newValue.trim() !== "") {
+                    step.prompt = newValue.trim();
+                    showToast("Instructions updated.", "success");
+                    saveProjects(); // Persist changes
+                }
             }
 
             function renderPricing() {
@@ -8598,7 +8665,8 @@ ${slide.body}`;
                                 globalThemes: [],
                                 proofBank: getProofBank(),
                                 aiAgents: getAIAgents(),
-                                globalSubmissions: sanitizeSubmissions(globalSubmissions)
+                                globalSubmissions: sanitizeSubmissions(globalSubmissions),
+                                wizardPrompts: WIZARD_STEPS.map(s => ({ id: s.id, prompt: s.prompt }))
                             }
                         };
 
@@ -8694,7 +8762,7 @@ ${slide.body}`;
                 } else {
                     document.getElementById('login-overlay').classList.add('active');
                     google.accounts.id.initialize({
-                        client_id: '365369983219-12iqvk3v35kf03p3ts1gikglddtkofvq.apps.googleusercontent.com',
+                        client_id: '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com',
                         callback: handleCredentialResponse
                     });
                     google.accounts.id.renderButton(
@@ -8787,6 +8855,20 @@ ${slide.body}`;
                     if (result && result.projects) {
                         projects = result.projects;
                         
+                        // Populate Global Submissions
+                        if (result.globalSubmissions) {
+                            globalSubmissions = result.globalSubmissions;
+                            renderGlobalSubmissions();
+                        }
+
+                        // Populate Wizard Prompts
+                        if (result.wizardPrompts) {
+                            result.wizardPrompts.forEach(wp => {
+                                const step = WIZARD_STEPS.find(s => s.id === wp.id);
+                                if (step) step.prompt = wp.prompt;
+                            });
+                        }
+
                         // Populate Global Team Registry
                         if (result.globalTeam && result.globalTeam.length > 0) {
                             teamData.length = 0;
