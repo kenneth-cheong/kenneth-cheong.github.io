@@ -3509,7 +3509,7 @@
 
                     <p class="nav-label">For All Tenders</p>
                     <a href="#" class="nav-item" onclick="switchView('setup-wizard', this)">
-                        <i data-lucide="layers" size="18"></i> Strategic Setup
+                        <i data-lucide="layers" size="18"></i> Process / Agents
                     </a>
                     <a href="#" class="nav-item" onclick="switchView('proof-bank', this)">
                         <i data-lucide="database" size="18"></i> Proof Bank
@@ -3910,7 +3910,7 @@
             <div id="view-setup-wizard" class="view-content" style="flex-direction: column;">
                 <div class="view-header">
                     <div>
-                        <h2>Strategic Tender Setup</h2>
+                        <h2>Process / Agents</h2>
                         <p style="color: var(--text-muted); font-size: 0.875rem;">Complete each phase to build a winning foundation before generating the deck.</p>
                     </div>
                 </div>
@@ -4497,7 +4497,7 @@
 
                 let label = "Claude 3.5 Sonnet";
                 if (llm === 'claude-haiku') label = "Claude 3 Haiku";
-                if (llm === 'gpt-mini') label = "GPT-4o-mini";
+                if (llm === 'gpt-4o-mini') label = "GPT-4o-mini";
 
                 if (!silent && typeof showToast === 'function') showToast(`Switched to ${label}`, "info");
             }
@@ -5597,13 +5597,14 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 const step = WIZARD_STEPS[currentWorkflowStep];
                 
                 if (currentWorkflowStep < WIZARD_STEPS.length - 1) {
-                    text.textContent = `Next: ${step.title}`;
+                    const nextPhase = WIZARD_STEPS[currentWorkflowStep + 1];
+                    text.textContent = `Next: ${nextPhase.title} (${currentWorkflowStep + 1}/${WIZARD_STEPS.length})`;
                     icon.setAttribute('data-lucide', 'arrow-right-circle');
                     btn.className = "btn btn-secondary"; // Use secondary color for steps
                     btn.onclick = () => {
                         const setupNav = document.querySelector('.nav-item[onclick*="setup-wizard"]');
                         switchView('setup-wizard', setupNav);
-                        goToStep(currentWorkflowStep);
+                        nextStep();
                     };
                 } else {
                     text.textContent = "Finalize & Generate";
@@ -5633,6 +5634,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
 
                 renderStepper();
                 renderWizardStep();
+                updateMainActionButton(); // Keep the top button in sync
                 
                 saveProjects();
             }
@@ -5710,6 +5712,23 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                                 </p>
                             </div>
                         </div>
+
+                        <div id="phase-strategic-output" style="margin-top: 1.5rem; display: ${step.output ? 'block' : 'none'};">
+                            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius); padding: 1.5rem; animation: slideUp 0.4s ease-out;">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid #bae6fd;">
+                                    <div style="background: #0ea5e9; color: #fff; width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center;">
+                                        <i data-lucide="zap" size="14"></i>
+                                    </div>
+                                    <h5 style="font-family: 'Outfit', sans-serif; font-weight: 700; color: #0369a1; margin: 0;">Latest Strategic Output</h5>
+                                    <button class="btn btn-sm" onclick="continueAnalysis(null, ${step.id})" style="margin-left: auto; background: #0369a1; color: white; font-size: 0.65rem; padding: 4px 10px; border-radius: 6px; display: flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border:none; cursor:pointer;">
+                                        <i data-lucide="play-circle" size="12"></i> Continue AI Generation
+                                    </button>
+                                </div>
+                                <div id="phase-output-text" class="markdown-body" style="font-size: 0.875rem; line-height: 1.7; color: #0c4a6e;">
+                                    ${step.output ? marked.parse(step.output) : ''}
+                                </div>
+                            </div>
+                        </div>
                         
                         <div id="step-preview-container" style="margin-top: 2rem;">
                             <!-- Content will be injected here if results exist -->
@@ -5752,18 +5771,31 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
             }
 
             function activateAgent(agentId, stepId) {
-                // Open the chat side-panel and switch agent
-                moveChatUI('copilot'); // Switch to copilot view
                 const step = WIZARD_STEPS[stepId !== undefined ? stepId : currentWorkflowStep];
                 const agent = INITIAL_AI_AGENTS.find(a => a.id === agentId);
                 
                 if (agent) {
-                    const input = document.getElementById('chat-input');
-                    // Use the custom prompt for the step
-                    input.value = step.prompt || `Hello ${agent.name}, let's begin Phase ${step.id + 1}: ${step.title}.`;
-                    input.focus();
+                    // 1. Set the correct LLM Engine for this phase
+                    currentLLM = step.model || 'claude-3-haiku';
+                    localStorage.setItem('tenderLLM', currentLLM);
+
+                    // 2. Open the AI Chat view
+                    moveChatUI('copilot'); 
                     
-                    showToast(`Consulting the ${agent.name}...`, "info");
+                    // 3. Auto-initiate with a specialist briefing
+                    const input = document.getElementById('chat-input');
+                    if (input) {
+                        const initMessage = `### START PHASE ${step.id + 1}: ${step.title.toUpperCase()} ###\n\n[ACTING AS: ${agent.name}]\n\n${step.prompt}\n\nPlease analyze the current tender context and provide your initial strategic guidance for this phase. \n\nIMPORTANT: Wrap your primary strategic findings and recommended actions for this phase inside [PHASE_STRATEGY: ...] tags so I can pin them to the phase dashboard.`;
+                        
+                        // Show persistent status immediately
+                        const loadingToast = showToast(`Consulting the ${agent.name} using ${currentLLM}...`, "info", 0);
+                        
+                        // Call AI directly with the explicit phase index to avoid any race conditions
+                        callAIAPI(initMessage, [], loadingToast, step.id);
+                        
+                        // Clear input just in case
+                        input.value = '';
+                    }
                 }
             }
 
@@ -6408,10 +6440,8 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                         // 2. If no element is selected, delete selected slides in the rail
                         if (selectedSlideIndices.length > 0) {
                             e.preventDefault();
-                            // Sort indices descending to delete without shifting issues
-                            const sorted = [...selectedSlideIndices].sort((a, b) => b - a);
-                            sorted.forEach(idx => deleteSlide(idx));
-                            selectedSlideIndices = [];
+                            // deleteSlide handles bulk deletion if multiple indices are selected
+                            deleteSlide(selectedSlideIndices[0]);
                             return;
                         }
 
@@ -7785,7 +7815,6 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 const text = input.value.trim();
                 if ((!text && pendingFiles.length === 0) || isProcessing) return;
 
-
                 // Check if any files are still processing
                 if (pendingFiles.some(pf => pf.status === 'processing')) {
                     showToast("Please wait for files to finish processing...");
@@ -7795,10 +7824,8 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 // Auto-create project if none selected
                 ensureProjectExists();
 
-                // Capture files before clearing pendingFiles
+                // Capture files before clearing
                 const filesToSend = [...pendingFiles];
-
-                // Add User message with attachments
                 const attachments = filesToSend.map(pf => ({
                     name: pf.file.name,
                     type: pf.file.type,
@@ -7806,14 +7833,14 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 }));
 
                 addChatMessage(text, 'user', null, attachments);
-
                 input.value = '';
                 input.style.height = 'auto';
                 pendingFiles = [];
                 renderPreviews();
-
-                // NOTE: Files are already added to sidebar in addPendingFile/processFileInBackground
-                callAIAPI(text, filesToSend);
+                
+                // If this is a follow-up in an active phase, pass the index
+                const currentPhaseIdx = window.lastActivePhaseIndex;
+                callAIAPI(text, filesToSend, null, currentPhaseIdx);
             }
 
             async function runComprehensiveAudit() {
@@ -7857,8 +7884,15 @@ Respond with: [AUDIT_SCORES: {"strategy": 85, "compliance": 90, "quality": 80}] 
                 return "";
             }
 
-            async function callAIAPI(userInput, files = []) {
+            async function callAIAPI(userInput, files = [], existingToast = null, explicitPhaseIndex = null) {
                 isProcessing = true;
+                const apiModel = currentLLM === 'gpt-4o-mini' ? 'gpt-4o-mini' : 
+                                 (currentLLM === 'claude-haiku' ? 'claude-3-haiku' : 'claude-3-5-sonnet');
+                
+                // Show persistent toast if not provided
+                const isClaude = apiModel.toLowerCase().includes('claude');
+                const chatToast = existingToast || showToast(`${isClaude ? 'Claude' : 'GPT'} is thinking...`, "info", 0);
+
                 const container = document.getElementById('chat-messages');
 
                 const typing = document.createElement('div');
@@ -7935,6 +7969,27 @@ Respond with: [AUDIT_SCORES: {"strategy": 85, "compliance": 90, "quality": 80}] 
                     };
                     fullPrompt += `REQUIRED TONE OF VOICE:\n${toneInstructions[currentTone] || toneInstructions['consultative']}\n\n`;
 
+                    // --- INJECT CONVERSATION HISTORY (For continuity) ---
+                    const chatHistory = Array.from(document.querySelectorAll('.message')).slice(-10).map(m => {
+                        const content = m.querySelector('.message-content').innerText.replace('Continue AI Generation', '').trim();
+                        const isUser = m.classList.contains('message-user');
+                        return `${isUser ? 'User' : 'Assistant'}: ${content}`;
+                    }).join('\n\n');
+                    
+                    if (chatHistory) {
+                        fullPrompt += `RECENT CONVERSATION HISTORY:\n${chatHistory}\n\n`;
+                    }
+
+                    // --- INJECT STRATEGIC INTELLIGENCE FROM PREVIOUS PHASES ---
+                    const previousPhases = WIZARD_STEPS.slice(0, currentWorkflowStep).filter(s => s.output);
+                    if (previousPhases.length > 0) {
+                        fullPrompt += `STRATEGIC DECISIONS FROM PREVIOUS PHASES (Contextual Continuity):\n`;
+                        previousPhases.forEach(s => {
+                            fullPrompt += `Phase ${s.id + 1} [${s.title}]: ${s.output}\n`;
+                        });
+                        fullPrompt += `\n`;
+                    }
+
                     // Capture current visual DNA to maintain consistency
                     const existingStyles = slidesData.slice(-3).map(s => ({ title: s.title, theme: s.theme }));
                     fullPrompt += `VISUAL DNA (Consistency Required):\nThe current deck uses these styles: ${JSON.stringify(existingStyles)}. Ensure new slides match existing themes.\n\n`;
@@ -7977,6 +8032,7 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
                             action: 'analyze',
                             model: apiModel,
                             prompt: fullPrompt,
+                            max_tokens: 4096, // Ensure complex strategies aren't cut off
                             attachments: files.map(f => ({ name: f.file.name, type: f.file.type, content: f.base64.split(',')[1] }))
                         })
                     });
@@ -7991,8 +8047,25 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
                     typing.remove();
 
                     if (data.ai_response) {
-                        addChatMessage(data.ai_response, 'ai');
+                        addChatMessage(data.ai_response, 'ai', null, [], false, explicitPhaseIndex);
                         handleAIAction(data.ai_response);
+
+                        // --- AUTO-CONTINUATION LOGIC ---
+                        const text = data.ai_response.trim();
+                        const isTruncated = (text.length > 3900) || 
+                                           (!text.endsWith('.') && !text.endsWith(']') && !text.endsWith('}') && !text.endsWith('\"'));
+                        
+                        if (isTruncated && !window.isAutoContinuing) {
+                            window.isAutoContinuing = true;
+                            console.log("[AUTO-RESUME] Detected potential truncation, triggering follow-up...");
+                            setTimeout(() => {
+                                const step = WIZARD_STEPS[explicitPhaseIndex];
+                                const phaseName = step ? step.title : "Current Phase";
+                                const resumePrompt = `### [AUTO-RESUME] CONTINUING ${phaseName.toUpperCase()} ###\n\nYou were cut off. Please continue your output exactly from the last character. DO NOT repeat headers, DO NOT repeat the previous paragraph. Just provide the remaining content. If you were mid-table, provide the remaining rows only.`;
+                                callAIAPI(resumePrompt, [], null, explicitPhaseIndex);
+                                window.isAutoContinuing = false;
+                            }, 1000);
+                        }
                     } else {
                         const rawString = JSON.stringify(data);
                         addChatMessage('**Debug Info**: Received 200 OK but "ai_response" is missing. Raw data: ' + rawString, 'ai');
@@ -8001,8 +8074,10 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
                     typing.remove();
                     addChatMessage(`**Connection Error**: ${error.message}`, 'ai');
                     console.error('Claude API Error Details:', error);
+                    showToast(`Error: ${error.message}`, "error");
                 } finally {
                     isProcessing = false;
+                    if (chatToast) chatToast.remove();
                 }
             }
 
@@ -8104,6 +8179,13 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
                         if (p) {
                             p.marketResearch = mrData;
                             renderMarketResearch();
+                            
+                            // Mirror to Phase 2 Card
+                            if (WIZARD_STEPS[1]) {
+                                WIZARD_STEPS[1].output = mrData.summary || "Market research data updated.";
+                                if (currentWorkflowStep === 1) renderWizardStep();
+                            }
+
                             saveProjects();
                             addChatMessage(`Market research updated for this tender.`, 'ai');
                         }
@@ -8121,6 +8203,13 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
                         if (p) {
                             p.competitorAnalysis = compData;
                             renderCompetitorAnalysis();
+                            
+                            // Mirror to Phase 3 Card
+                            if (WIZARD_STEPS[2]) {
+                                WIZARD_STEPS[2].output = compData.blueOcean ? `**Blue Ocean:** ${compData.blueOcean}\n\n**Red Ocean:** ${compData.redOcean}` : "Competitor analysis updated.";
+                                if (currentWorkflowStep === 2) renderWizardStep();
+                            }
+
                             saveProjects();
                             addChatMessage(`Competitor analysis updated for this tender.`, 'ai');
                         }
@@ -8218,46 +8307,147 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
 
 
             // --- UI Helper Functions ---
-            function addChatMessage(text, type, card = null, attachments = [], skipSave = false) {
+            function continueAnalysis(btn, explicitIndex = null) {
+                const phaseIdx = explicitIndex !== null ? explicitIndex : window.lastActivePhaseIndex;
+                if (phaseIdx !== null) window.lastActivePhaseIndex = phaseIdx;
+                
+                const step = WIZARD_STEPS[phaseIdx];
+                const chatInput = document.getElementById('chat-input');
+                
+                if (chatInput && step) {
+                    chatInput.value = `### CONTINUING PHASE ${step.id + 1}: ${step.title.toUpperCase()} ###\n\n[RESUME_MODE: ON]\nPlease pick up exactly from where you left off. IMPORTANT: Do NOT repeat the previous section headers, the 'Picking Up From' line, or any tables you already finished. Just provide the NEXT lines of content. If you were in the middle of a table, resume the rows directly.`;
+                    moveChatUI('copilot');
+                    sendMessage();
+                    if (btn && btn.parentElement) btn.parentElement.style.display = 'none';
+                }
+            }
+
+            window.lastActivePhaseIndex = null;
+            function stitchStrategicOutput(original, addition) {
+                if (!original) return addition;
+                const lines1 = original.trim().split('\n');
+                const lines2 = addition.trim().split('\n');
+                
+                if (lines1.length === 0) return addition;
+                if (lines2.length === 0) return original;
+
+                // 1. Precise overlap detection (checking last 3 lines for overlap)
+                let overlapIndex = -1;
+                for (let i = 0; i < Math.min(lines2.length, 5); i++) {
+                    const searchLine = lines2[i].trim();
+                    if (searchLine === "" || searchLine.length < 10) continue; // Skip short/empty lines
+                    
+                    // Look for this line in the last 10 lines of original
+                    for (let j = lines1.length - 1; j >= Math.max(0, lines1.length - 10); j--) {
+                        if (lines1[j].trim() === searchLine) {
+                            overlapIndex = i;
+                            break;
+                        }
+                    }
+                    if (overlapIndex !== -1) break;
+                }
+
+                if (overlapIndex !== -1) {
+                    // Remove overlapping lines from addition
+                    lines2.splice(0, overlapIndex + 1);
+                }
+                
+                // 2. Remove redundant headers if AI ignored instructions
+                if (lines2.length > 0 && lines2[0].toLowerCase().includes('picking up from')) lines2.shift();
+                if (lines2.length > 0 && lines2[0].toLowerCase().includes('phase') && lines2[0].toLowerCase().includes('continued')) lines2.shift();
+
+                return lines1.join('\n') + '\n' + lines2.join('\n');
+            }
+
+            function addChatMessage(text, type, card = null, attachments = [], skipSave = false, targetPhaseIndex = null) {
+                if (targetPhaseIndex !== null) window.lastActivePhaseIndex = targetPhaseIndex;
                 const container = document.getElementById('chat-messages');
                 const msgDiv = document.createElement('div');
                 msgDiv.className = `message message-${type}`;
 
-                // Render Markdown if it's an AI message
-                const renderedContent = type === 'ai' ? marked.parse(text) : text;
-
-                let html = `<div class="message-content">${renderedContent}</div>`;
+                if (type === 'ai') {
+                    msgDiv.innerHTML = `<div class="ai-icon"><i data-lucide="bot" size="18"></i></div>
+                                        <div class="message-content">
+                                            ${marked.parse(text)}
+                                            <div class="chat-actions" style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+                                                <button class="btn btn-sm btn-outline-secondary" onclick="continueAnalysis(this)" style="font-size: 0.65rem; padding: 2px 8px; height: auto;">
+                                                    <i data-lucide="play-circle" size="12" style="margin-right: 4px;"></i> Continue AI Generation
+                                                </button>
+                                            </div>
+                                        </div>`;
+                } else {
+                    msgDiv.innerHTML = `<div class="message-content">${text}</div>`;
+                }
 
                 if (attachments && attachments.length > 0) {
-                    html += `<div class="chat-attachment-grid">`;
+                    let html = `<div class="chat-attachment-grid">`;
                     attachments.forEach(att => {
                         const isImage = att.type.startsWith('image/');
                         if (isImage && att.base64) {
-                            html += `
-                            <div class="chat-attachment-item" onclick="showMediaPreview('${att.base64}', '${att.name}', '${att.type}')">
-                                <img src="${att.base64}" alt="${att.name}">
-                            </div>
-                        `;
+                            html += `<div class="chat-attachment-item" onclick="showMediaPreview('${att.base64}', '${att.name}', '${att.type}')"><img src="${att.base64}" alt="${att.name}"></div>`;
                         } else {
-                            html += `
-                            <div class="chat-attachment-item" onclick="showMediaPreview('${att.base64 || ''}', '${att.name}', '${att.type}')">
-                                <div class="file-card">
-                                    <i data-lucide="file-text" size="24"></i>
-                                    <span title="${att.name}">${att.name}</span>
-                                </div>
-                            </div>
-                        `;
+                            html += `<div class="chat-attachment-item" onclick="showMediaPreview('${att.base64 || ''}', '${att.name}', '${att.type}')"><div class="file-card"><i data-lucide="file-text" size="24"></i><span title="${att.name}">${att.name}</span></div></div>`;
                         }
                     });
                     html += `</div>`;
+                    msgDiv.innerHTML += html;
                 }
 
                 if (card) {
-                    html += `<div class="ai-card"><div class="ai-card-title"><i data-lucide="${card.icon}" size="16"></i> ${card.title}</div>${card.content}</div>`;
+                    msgDiv.innerHTML += `<div class="ai-card"><div class="ai-card-title"><i data-lucide="${card.icon}" size="16"></i> ${card.title}</div>${card.content}</div>`;
                 }
-                msgDiv.innerHTML = html;
                 container.appendChild(msgDiv);
                 container.scrollTop = container.scrollHeight;
+                
+                // --- PARSE PHASE OUTPUT ---
+                const phaseIdx = (targetPhaseIndex !== null && targetPhaseIndex !== undefined) 
+                                ? targetPhaseIndex 
+                                : (type === 'ai' && window.activePhaseIndex !== null ? window.activePhaseIndex : null);
+
+                if (type === 'ai' && phaseIdx !== null) {
+                    let strategyText = "";
+                    
+                    const tagMatch = text.match(/\[PHASE_STRATEGY:\s*([\s\S]*?)\]/);
+                    
+                    if (tagMatch) {
+                        strategyText = tagMatch[1].trim();
+                    } else {
+                        strategyText = text.replace(/\[SLIDE_JSON:.*?\]/gs, '')
+                                           .replace(/\[UPDATE_SLIDE_JSON:.*?\]/gs, '')
+                                           .replace(/\[MARKET_RESEARCH_JSON:.*?\]/gs, '')
+                                           .replace(/\[COMPETITOR_ANALYSIS_JSON:.*?\]/gs, '')
+                                           .replace(/\[AUDIT_SCORES:.*?\]/gs, '')
+                                           .trim();
+                    }
+
+                    if (strategyText) {
+                        const step = WIZARD_STEPS[phaseIdx];
+                        if (step) {
+                            const isContinuation = text.toLowerCase().includes('continuing') || text.toLowerCase().includes('furthermore') || !text.includes('[PHASE_STRATEGY:');
+                            
+                            if (isContinuation && step.output && step.output.length > 0) {
+                                step.output = stitchStrategicOutput(step.output, strategyText);
+                            } else {
+                                step.output = strategyText;
+                            }
+                            
+                            if (phaseIdx === currentWorkflowStep) {
+                                const wizardView = document.getElementById('view-setup-wizard');
+                                if (wizardView) {
+                                    const outputContainer = wizardView.querySelector('#phase-strategic-output');
+                                    const outputText = wizardView.querySelector('#phase-output-text');
+                                    if (outputContainer && outputText) {
+                                        outputText.innerHTML = marked.parse(step.output);
+                                        outputContainer.style.display = 'block';
+                                    } else {
+                                        renderWizardStep();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 lucide.createIcons();
 
                 // Persist to project history
@@ -8309,6 +8499,8 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
                 const editorNav = document.querySelector('a.nav-item[onclick*="slide-editor"]');
                 if (editorNav) { switchView('slide-editor', editorNav); }
                 else { switchView('slide-editor'); }
+
+                const generationToast = showToast("Preparing full-scale deck generation...", "info", 0);
 
                 if (text) text.innerText = "Initializing...";
                 if (btn) btn.disabled = true;
@@ -8464,6 +8656,11 @@ INSTRUCTIONS:
                 addChatMessage(`🎯 Deck complete! Generated ${totalGenerated} slides individually.`, "ai");
                 if (text) text.innerText = "Regenerate Deck";
                 if (btn) btn.disabled = false;
+                
+                if (generationToast) {
+                    generationToast.remove();
+                    showToast("Deck generation complete!", "success");
+                }
             }
 
 
@@ -8694,6 +8891,13 @@ ${slide.body}`;
                     current.selectedTeamIds = selectedTeamIds;
                     current.lastModifiedBy = currentUser?.name || "System";
                     current.lastModifiedAt = new Date().toISOString();
+                    
+                    // Save Phase Data
+                    current.wizardSteps = WIZARD_STEPS.map(s => ({
+                        prompt: s.prompt,
+                        model: s.model,
+                        output: s.output
+                    }));
                 }
 
                 if (currentUser) {
@@ -9408,6 +9612,18 @@ ${slide.body}`;
                 loadManualInputs();
                 renderMarketResearch();
                 renderCompetitorAnalysis();
+
+                // Restore Phase Data
+                if (p.wizardSteps) {
+                    p.wizardSteps.forEach((s, i) => {
+                        if (WIZARD_STEPS[i]) {
+                            WIZARD_STEPS[i].prompt = s.prompt;
+                            WIZARD_STEPS[i].model = s.model;
+                            WIZARD_STEPS[i].output = s.output;
+                        }
+                    });
+                }
+                
                 goToStep(p.workflowStep || 0);
 
                 // Restore Chat History
