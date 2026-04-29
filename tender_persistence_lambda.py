@@ -87,7 +87,8 @@ def handle_fetch_projects(db, data, headers):
             "projects": user_data.get('projects', []),
             "globalTeam": user_data.get('globalTeam', []),
             "globalThemes": user_data.get('globalThemes', []),
-            "proofBank": user_data.get('proofBank', [])
+            "proofBank": user_data.get('proofBank', []),
+            "aiAgents": user_data.get('aiAgents', [])
         }, headers)
     except Exception as e:
         print(f"Error in handle_fetch_projects: {str(e)}")
@@ -106,6 +107,7 @@ def handle_save_projects(db, data, headers):
             "globalTeam": data.get('globalTeam', []),
             "globalThemes": data.get('globalThemes', []),
             "proofBank": data.get('proofBank', []),
+            "aiAgents": data.get('aiAgents', []),
             "lastUpdated": datetime.utcnow()
         }
         

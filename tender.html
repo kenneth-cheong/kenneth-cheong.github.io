@@ -3438,7 +3438,12 @@
                 </div>
 
                 <div class="progress-card" style="margin: 1rem; margin-top: 0;">
-                    <h4>Satisfaction Scores</h4>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <h4 style="margin: 0;">Satisfaction Scores</h4>
+                        <button class="icon-btn" onclick="runComprehensiveAudit()" title="Run AI Audit" style="color: var(--primary);">
+                            <i data-lucide="shield-check" size="14"></i>
+                        </button>
+                    </div>
                     <div class="stat-row">
                         <span>Strategy Alignment</span>
                         <span id="score-strategy">0%</span>
@@ -3511,7 +3516,12 @@
                     <div class="chat-input-resizer" id="chat-input-resizer"></div>
                     <div id="file-previews" class="file-previews"></div>
                     <div class="quick-actions" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; padding-top: 0.5rem;">
-                        <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                        <div style="display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center;">
+                            <label style="font-size: 0.65rem; font-weight: 700; color: var(--text-muted); margin-right: 0.25rem;">TONE:</label>
+                            <button class="chip tone-chip active" data-tone="consultative" onclick="setTone('consultative', this)">Consultative</button>
+                            <button class="chip tone-chip" data-tone="aggressive" onclick="setTone('aggressive', this)">Aggressive</button>
+                            <button class="chip tone-chip" data-tone="formal" onclick="setTone('formal', this)">Formal</button>
+                            <div style="width: 1px; height: 16px; background: var(--border); margin: 0 0.5rem;"></div>
                             <button class="chip" onclick="addPrompt('Make this slide dark')">Dark Mode</button>
                             <button class="chip" onclick="addPrompt('Add executive summary')">+ Summary</button>
                         </div>
@@ -4273,6 +4283,18 @@
                 if (!silent && typeof showToast === 'function') showToast(`Switched to ${label}`, "info");
             }
 
+            let currentTone = 'consultative';
+            function setTone(tone, element) {
+                currentTone = tone;
+                document.querySelectorAll('.tone-chip').forEach(c => c.classList.remove('active'));
+                if (element) element.classList.add('active');
+                else {
+                    const chip = document.querySelector(`.tone-chip[data-tone="${tone}"]`);
+                    if (chip) chip.classList.add('active');
+                }
+                showToast(`Tone set to ${tone}`, 'info');
+            }
+
             // Missing Toast System (Fixing bug in tender.html)
             function showToast(message, type = 'info', duration = 4000) {
                 let container = document.querySelector('.toast-container');
@@ -4430,7 +4452,11 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 { id: 5, metric: '< 24hrs', label: 'Response SLA', context: 'Guaranteed response time for critical escalations across all engagements.', tags: ['SLA', 'Operations'] },
                 { id: 6, metric: '15+', label: 'Years Industry Experience', context: 'MediaOne established track record across multiple verticals in APAC.', tags: ['Credibility', 'Experience'] },
                 { id: 7, metric: '300+', label: 'Clients Served', context: 'Across healthcare, finance, government, education, and e-commerce sectors.', tags: ['Scale', 'Credibility'] },
-                { id: 8, metric: 'Award', label: 'Digimetrics.ai Platform', context: 'Award-winning proprietary intelligence platform for multi-surface visibility tracking.', tags: ['Innovation', 'GEO'] }
+                { id: 8, metric: 'Award', label: 'Digimetrics.ai Platform', context: 'Award-winning proprietary intelligence platform for multi-surface visibility tracking.', tags: ['Innovation', 'GEO'] },
+                { id: 9, metric: '3x', label: 'Visibility Increase', context: 'Proprietary Digimetrics.ai tech yields 300% more actionable keywords than generic tools.', tags: ['Tech', 'USP'] },
+                { id: 10, metric: 'Winner', label: 'Best SEO Agency 2023', context: 'Awarded by Search Engine Land for excellence in technical and local SEO strategies.', tags: ['Award', 'Credibility'] },
+                { id: 11, metric: 'Local', label: 'On-the-ground Support', context: '100% Singapore-based core team for real-time responsiveness and local context.', tags: ['Local', 'Service'] },
+                { id: 12, metric: 'Certified', label: 'ISO 27001 & ISO 9001', context: 'Gold-standard certifications for data security and quality management systems.', tags: ['Legal', 'Trust'] }
             ];
 
             // =============================================
@@ -5534,7 +5560,8 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     initials: "TK",
                     experience: "A leading SEO/SEM consultant in Singapore with over 20 years of experience. Former senior manager at Thomson, SPH, and POAD. Google Product Expert (Search).",
                     skills: ["SEO", "SEM", "Technical Audits", "Site Migration", "Digital Strategy"],
-                    brands: "SingTel, China Telecom, SingHealth, Changi Airports International"
+                    brands: "SingTel, China Telecom, SingHealth, Changi Airports International",
+                    certifications: "Google Ads Certified, Analytics GAIQ, Enterprise SEO Expert"
                 },
                 {
                     id: 2,
@@ -5543,7 +5570,8 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     initials: "JG",
                     experience: "Expert in direct-to-consumer and cross-border direct marketing across Asia-Pacific. Specializes in performance marketing and operational excellence.",
                     skills: ["Performance Marketing", "Regional Expansion", "Direct Marketing", "Operations"],
-                    brands: "SG, MY, TH, ID, PH, JP, HK, KR, TW, AU, NZ"
+                    brands: "SG, MY, TH, ID, PH, JP, HK, KR, TW, AU, NZ",
+                    certifications: "Performance Marketing Pro, Agile Operations Specialist"
                 },
                 {
                     id: 4,
@@ -5552,16 +5580,28 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     initials: "CE",
                     experience: "Specialist in digital strategy and client communications with a focus on high-impact growth for SMEs and corporate clients.",
                     skills: ["Sales Management", "Negotiations", "Digital Strategy", "Communications"],
-                    brands: "MediaOne; Multiple SME & Corporate clients"
+                    brands: "MediaOne; Multiple SME & Corporate clients",
+                    certifications: "Consultative Sales Certified, Digital Business Analyst"
                 },
                 {
                     id: 5,
                     name: "Nathan Segarra",
                     role: "Performance Marketing Lead",
                     initials: "NS",
-                    experience: "Extensive background in MediaOne company-wide campaign management and SEO integration.",
-                    skills: ["SEO", "AI SEO", "Performance Marketing", "Social Media", "Integrated Campaigns"],
-                    brands: "MediaOne; 3,000+ clients managed"
+                    experience: "Lead for Google and Facebook Ads with a track record of driving ROI for e-commerce and lead generation campaigns.",
+                    skills: ["Google Ads", "Facebook Ads", "Conversion Rate Optimization", "Data Analytics"],
+                    brands: "E-commerce major brands, SaaS, Real Estate",
+                    certifications: "Meta Blueprint Certified, Google Search Ads Expert"
+                },
+                {
+                    id: 6,
+                    name: "Kenneth Cheong",
+                    role: "Lead Strategist & Project Director",
+                    initials: "KC",
+                    experience: "Over 15 years in strategic planning and digital execution. Expertise in complex multi-channel tenders and government projects.",
+                    skills: ["Strategic Planning", "Project Management", "Campaign Architecture", "Stakeholder Management"],
+                    brands: "GovTech, MOE, STB, EnterpriseSG",
+                    certifications: "PMP Certified, Advanced Strategic Management"
                 },
                 {
                     id: 8,
@@ -5570,7 +5610,8 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     initials: "DB",
                     experience: "Transitioned from a banking/payments background into high-performance SEO. Google SkillsIgnition graduate with expertise in content and project management.",
                     skills: ["SEO", "Project Management", "Content Marketing", "Digital Advertising"],
-                    brands: "Singapore Chinese Orchestra, StorHub, SATA, CS Connect, Diverace, Ultra Vault"
+                    brands: "Singapore Chinese Orchestra, StorHub, SATA, CS Connect, Diverace, Ultra Vault",
+                    certifications: "Google SkillsIgnition Graduate, Content Strategy Specialist"
                 }
             ];
 
@@ -6127,33 +6168,9 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
                 };
 
-                rails.forEach(rail => {
-                    if (!rail) return;
-                    rail.innerHTML = slidesData.map((slide, index) => {
-                        const isActive = index === activeSlideIndex;
-                        return `
-                        <div class="slide-thumb ${isActive ? 'active' : ''}" 
-                             onclick="selectSlide(${index})"
-                             draggable="true"
-                             ondragstart="handleSlideDragStart(event, ${index})"
-                             ondragover="handleSlideDragOver(event)"
-                             ondragleave="handleSlideDragLeave(event)"
-                             ondrop="handleSlideDrop(event, ${index})"
-                             style="cursor: grab;">
-                            <div class="slide-thumb-num">${index + 1}</div>
-                            <div class="slide-thumb-preview">
-                                <div style="font-size: 8px; font-weight: 700; margin-bottom: 2px; color: var(--primary);">
-                                    ${slide.title || 'Untitled Slide'}
-                                </div>
-                                <div style="font-size: 6px; color: var(--text-muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
-                                    ${stripHtml(slide.body || '')}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    }).join('');
-                });
-            }
+                const escapeHtml = (str = '') => {
+                    return String(str)
+                        .replace(/&/g, '&amp;')
                         .replace(/</g, '&lt;')
                         .replace(/>/g, '&gt;')
                         .replace(/"/g, '&quot;')
@@ -7023,6 +7040,25 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 callAIAPI(text, filesToSend);
             }
 
+            async function runComprehensiveAudit() {
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (!p) return;
+
+                showToast("Running comprehensive AI audit...", "info");
+                addChatMessage("Running comprehensive strategy and compliance audit. Please wait...", "ai");
+
+                const auditPrompt = `Perform a comprehensive audit of the current tender proposal based on all uploaded context and slides.
+Evaluate based on:
+1. Strategy Alignment (Value proposition, win themes, strategic narrative)
+2. Compliance (Mandatory requirements from RFP documents)
+3. Quality Index (Visual consistency, tone of voice, clarity, error-free content)
+
+Provide scores for each (0-100) and identify critical gaps MediaOne needs to address.
+Respond with: [AUDIT_SCORES: {"strategy": 85, "compliance": 90, "quality": 80}] at the end of your analysis.`;
+
+                callAIAPI(auditPrompt, []);
+            }
+
             async function extractText(file) {
                 const ext = file.name.split('.').pop().toLowerCase();
                 const arrayBuffer = await file.arrayBuffer();
@@ -7098,6 +7134,14 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     if (urlSummary) {
                         fullPrompt += `CLIENT CONTEXT (from public URLs):\n${urlSummary}\n\n`;
                     }
+
+                    // --- INJECT TONE INSTRUCTIONS (Requirement 5.1) ---
+                    const toneInstructions = {
+                        'consultative': 'Tone: Consultative, senior, and objective. Focus on long-term partnership and risk mitigation. Use words like "strategic partner", "sustainability", and "continuity".',
+                        'aggressive': 'Tone: Aggressive, high-energy, and highly competitive. Focus on market dominance, ROI, and outperforming competitors. Use words like "dominate", "accelerate", and "superior".',
+                        'formal': 'Tone: Extremely formal, precise, and professional. Adhere strictly to tender protocols and corporate language. Avoid contractions and informal phrasing.'
+                    };
+                    fullPrompt += `REQUIRED TONE OF VOICE:\n${toneInstructions[currentTone] || toneInstructions['consultative']}\n\n`;
 
                     // Capture current visual DNA to maintain consistency
                     const existingStyles = slidesData.slice(-3).map(s => ({ title: s.title, theme: s.theme }));
@@ -7236,6 +7280,23 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
                         renderProjectList();
                         saveProjects();
                         addChatMessage(`Project identified: I've renamed this tender to **${newName}**.`, 'ai');
+                    }
+                }
+
+                // Check for Audit Scores (Requirement 3.4)
+                const auditMatch = responseText.match(/\[AUDIT_SCORES:\s*(\{.*?\})\]/s);
+                if (auditMatch) {
+                    try {
+                        const scores = JSON.parse(auditMatch[1]);
+                        const p = projects.find(proj => proj.id === currentProjectId);
+                        if (p) {
+                            p.satisfactionScores = scores;
+                            updateSatisfactionScores();
+                            saveProjects();
+                            addChatMessage(`**Audit Results:** Strategy Alignment: ${scores.strategy}%, Compliance: ${scores.compliance}%, Quality Index: ${scores.quality}%.`, 'ai');
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse audit scores:", e);
                     }
                 }
 
@@ -7877,52 +7938,6 @@ ${slide.body}`;
                 }
             }
 
-            async function loadProject(projectId) {
-                currentProjectId = projectId;
-                const project = projects.find(p => p.id === projectId);
-                if (!project) return;
-
-                // Restore base64 references in chat history from docs
-                if (project.chatHistory) {
-                    project.chatHistory.forEach(msg => {
-                        if (msg.attachments) {
-                            msg.attachments.forEach(att => {
-                                if (!att.base64) {
-                                    const doc = project.docs.find(d => d.name === att.name);
-                                    if (doc) att.base64 = doc.base64;
-                                }
-                            });
-                        }
-                    });
-                }
-
-                // Update state
-                slidesData.length = 0;
-                (project.slides || []).forEach(s => slidesData.push({ ...s }));
-                selectedTeamIds = [...(project.selectedTeamIds || [])];
-
-                // Update UI
-                document.getElementById('active-project-title').innerText = project.name;
-                document.getElementById('active-project-status').innerText = project.status || 'Draft';
-
-                renderThumbnails();
-                updateSidebarFileList();
-                renderDocGrid();
-                updateValueAddScorecard();
-                updateDeckCompleteness();
-
-                // Render chat history
-                const chatMessages = document.getElementById('chat-messages');
-                if (chatMessages) {
-                    chatMessages.innerHTML = '';
-                    (project.chatHistory || []).forEach(msg => {
-                        addChatMessage(msg.text, msg.type, msg.card, msg.attachments, true);
-                    });
-                }
-
-                // Update navigation highlights
-                renderProjectList();
-            }
 
             function updateCloudStatus(status) {
                 const container = document.getElementById('cloud-sync-status');
@@ -8467,6 +8482,22 @@ ${slide.body}`;
             function loadProject(id) {
                 const p = projects.find(proj => proj.id === id);
                 if (!p) return;
+
+                currentProjectId = id;
+
+                // Restore base64 references in chat history from docs
+                if (p.chatHistory) {
+                    p.chatHistory.forEach(msg => {
+                        if (msg.attachments) {
+                            msg.attachments.forEach(att => {
+                                if (!att.base64) {
+                                    const doc = p.docs.find(d => d.name === att.name);
+                                    if (doc) att.base64 = doc.base64;
+                                }
+                            });
+                        }
+                    });
+                }
 
                 document.getElementById('active-project-title').innerText = p.name;
                 document.getElementById('active-project-status').innerText = p.status;

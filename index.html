@@ -11566,6 +11566,12 @@
                                     <div class="level-title">Personality</div>
                                     <div class="level-content" id="house-personality"></div>
                                 </div>
+
+                                <!-- Strategy House Explanation -->
+                                <div class="house-explanation" id="house-explanation" style="margin-top: 20px; padding: 15px; background: #f8fafc; border-left: 4px solid #004c9d; border-radius: 4px; font-size: 0.9em; display: none; text-align: left;">
+                                    <strong style="color: #004c9d;"><i class="fas fa-lightbulb"></i> AI Reasoning</strong>
+                                    <div id="house-explanation-text" style="margin-top: 12px; line-height: 1.6; color: #334155; white-space: pre-wrap; letter-spacing: 0.01em;"></div>
+                                </div>
                             </div>
 
                             <!-- Strategy Grid Template -->
@@ -11602,6 +11608,12 @@
                                     </tr>
                                 </tbody>
                             </table>
+
+                            <!-- Strategy Grid Explanation -->
+                            <div class="grid-explanation" id="grid-explanation" style="margin-top: 20px; padding: 15px; background: #f8fafc; border-left: 4px solid #004c9d; border-radius: 4px; font-size: 0.9em; display: none; text-align: left;">
+                                <strong style="color: #004c9d;"><i class="fas fa-microscope"></i> Strategic Rationale</strong>
+                                <div id="grid-explanation-text" style="margin-top: 12px; line-height: 1.6; color: #334155; white-space: pre-wrap; letter-spacing: 0.01em;"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -37544,7 +37556,12 @@ Return ONLY valid JSON in this exact format:
                 // Robust parsing for Proxy Integration (wrapped in body)
                 if (!data && resData.body) {
                     try {
-                        const parsedBody = typeof resData.body === 'string' ? JSON.parse(resData.body) : resData.body;
+                        const bodyData = typeof resData.body === 'string' ? resData.body : JSON.stringify(resData.body);
+                        let cleanedBody = bodyData.trim();
+                        // Strip markdown code fences if they are wrapping the whole body
+                        cleanedBody = cleanedBody.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+                        
+                        const parsedBody = JSON.parse(cleanedBody);
                         data = parsedBody.answer || parsedBody;
                     } catch (e) {
                         data = resData.body;
@@ -37552,11 +37569,26 @@ Return ONLY valid JSON in this exact format:
                 }
 
                 // If data is still a string, try one more parse (in case 'answer' was a JSON string)
-                if (typeof data === 'string' && (data.trim().startsWith('{') || data.trim().startsWith('['))) {
-                    try {
-                        data = JSON.parse(data);
-                    } catch (e) {
-                        console.warn("Attempted to parse string data as JSON but failed", e);
+                if (typeof data === 'string') {
+                    let jsonStr = data.trim();
+                    // Strip markdown code fences if present
+                    jsonStr = jsonStr.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+                    
+                    if (jsonStr.startsWith('{') || jsonStr.startsWith('[')) {
+                        try {
+                            // First attempt: direct parse
+                            data = JSON.parse(jsonStr);
+                        } catch (e) {
+                            console.warn("Standard JSON parse failed, attempting cleanup...", e);
+                            try {
+                                // Second attempt: remove potential trailing commas before ] or }
+                                const fixedJson = jsonStr.replace(/,\s*([\]}])/g, '$1');
+                                data = JSON.parse(fixedJson);
+                            } catch (e2) {
+                                console.warn("Robust JSON parse also failed", e2);
+                                // Leave data as string, will trigger fallback below
+                            }
+                        }
                     }
                 }
 
@@ -37575,20 +37607,48 @@ Return ONLY valid JSON in this exact format:
                 }
 
                 // Populate New Stacked Strategy House
-                if (data.house) {
-                    // Mapping positioning to Strategic Intent
+                if (data.brand_foundation || data.house) {
                     const intentElem = document.getElementById('house-strategic-intent');
-                    if (intentElem) intentElem.innerText = data.house.positioning || "";
+                    const essenceElem = document.getElementById('house-brand-essence');
+                    const valuePropElem = document.getElementById('house-value-proposition');
+                    const personalityElem = document.getElementById('house-personality');
 
-                    // Mapping objectives to Brand Essence, Value Proposition, and Personality
-                    if (data.house.objectives && data.house.objectives.length >= 3) {
-                        const essenceElem = document.getElementById('house-brand-essence');
-                        const valuePropElem = document.getElementById('house-value-proposition');
-                        const personalityElem = document.getElementById('house-personality');
+                    if (data.brand_foundation) {
+                        // Priority: Use the detailed Brand Foundation
+                        if (intentElem) intentElem.innerText = data.brand_foundation.strategic_intent || "";
+                        if (essenceElem) essenceElem.innerText = data.brand_foundation.brand_essence || "";
+                        if (valuePropElem) valuePropElem.innerText = data.brand_foundation.value_proposition || "";
+                        if (personalityElem) {
+                            const personality = data.brand_foundation.brand_personality;
+                            personalityElem.innerText = Array.isArray(personality) ? personality.join(", ") : (personality || "");
+                        }
+                    } else if (data.house) {
+                        // Fallback: Use the old mapping
+                        if (intentElem) intentElem.innerText = data.house.positioning || "";
+                        if (data.house.objectives && data.house.objectives.length >= 3) {
+                            if (essenceElem) essenceElem.innerText = data.house.objectives[0];
+                            if (valuePropElem) valuePropElem.innerText = data.house.objectives[1];
+                            if (personalityElem) personalityElem.innerText = data.house.objectives[2];
+                        }
+                    }
 
-                        if (essenceElem) essenceElem.innerText = data.house.objectives[0];
-                        if (valuePropElem) valuePropElem.innerText = data.house.objectives[1];
-                        if (personalityElem) personalityElem.innerText = data.house.objectives[2];
+                    const expContainer = document.getElementById('house-explanation');
+                    const expText = document.getElementById('house-explanation-text');
+                    const explanation = (data.house && data.house.explanation) || data.explanation;
+
+                    if (explanation) {
+                        if (expContainer && expText) {
+                            if (typeof explanation === 'object') {
+                                expText.innerText = Object.entries(explanation)
+                                    .map(([k, v]) => `${k.replace(/_/g, ' ').toUpperCase()}:\n${v}`)
+                                    .join('\n\n');
+                            } else {
+                                expText.innerText = explanation;
+                            }
+                            expContainer.style.display = 'block';
+                        }
+                    } else if (expContainer) {
+                        expContainer.style.display = 'none';
                     }
 
                     houseContainer.style.display = 'flex';
@@ -37609,6 +37669,23 @@ Return ONLY valid JSON in this exact format:
                         audCells[i].innerText = mData.audience || "";
                         pillCells[i].innerText = mData.pillars || "";
                     });
+
+                    const gridExpContainer = document.getElementById('grid-explanation');
+                    const gridExpText = document.getElementById('grid-explanation-text');
+                    if (data.grid.explanation) {
+                        if (gridExpContainer && gridExpText) {
+                            if (typeof data.grid.explanation === 'object') {
+                                gridExpText.innerText = Object.entries(data.grid.explanation)
+                                    .map(([k, v]) => `${k.replace(/_/g, ' ').toUpperCase()}:\n${v}`)
+                                    .join('\n\n');
+                            } else {
+                                gridExpText.innerText = data.grid.explanation;
+                            }
+                            gridExpContainer.style.display = 'block';
+                        }
+                    } else if (gridExpContainer) {
+                        gridExpContainer.style.display = 'none';
+                    }
 
                     gridContainer.style.display = 'table';
                 }

@@ -10,45 +10,98 @@ def lambda_handler(event, context):
             body = json.loads(body)
         except json.JSONDecodeError:
             body = {}
-    
+
     if not body:
         body = event if isinstance(event, dict) else {}
 
-    brand_context = body.get('brand_context', '')
-    strategic_ambition = body.get('strategic_ambition', '')
-    strategic_challenge = body.get('strategic_challenge', '')
-    priority_audiences = body.get('priority_audiences', [])
-    proof_points = body.get('proof_points', '')
-    additional_info = body.get('additional_info', '')
+    brand_context        = body.get('brand_context', '')
+    strategic_ambition   = body.get('strategic_ambition', '')
+    strategic_challenge  = body.get('strategic_challenge', '')
+    priority_audiences   = body.get('priority_audiences', [])
+    proof_points         = body.get('proof_points', '')
+    additional_info      = body.get('additional_info', '')
 
-    # 2. Construct Strategist Persona (Instructions)
+    # 2. Construct Unified Strategist Persona (Instructions)
     instructions = """
-You are a senior social media and content strategist with over 15 years of experience designing brand-led, evidence-based social media strategies for B2B and B2C organisations.
-Your task is to synthesise limited but high-value inputs into a complete social media brand positioning and content strategy framework.
+You are a senior brand and social media strategist with over 15 years of experience shaping clear, differentiated, and commercially grounded brand positioning and content strategy frameworks for B2B and B2C organisations.
 
-You must:
-- Infer audience intent and strategic priorities from the information provided (either in the text fields below or in the provided document content).
-- If the specific input fields (Brand Context, Ambition, Challenge) are sparse or empty, prioritize information found in the "ADDITIONAL SUPPORTING DOCUMENTS CONTENT" section.
-- Make clear strategic choices rather than listing options.
-- Translate ambition and challenge into directional strategy.
-- Avoid generic positioning statements and surface-level marketing language.
-- NEVER repeat the input back to the user.
+Your task is to synthesise the provided inputs into two things:
+  A) A concise, high-level brand strategy articulation suitable for senior stakeholders and direct marketing use.
+  B) A complete social media brand positioning and content strategy framework.
 
- Your output must be formatted as raw JSON. You must provide two distinct objects:
+────────────────────────────────────────────
+THINKING APPROACH
+Before writing, you must:
+- Identify what the brand is truly trying to be known for.
+- Determine what makes the brand credible and differentiated.
+- Understand the audience's expectations and decision context.
+- Translate all of the above into clear, distilled, and strategically sharp language.
+- Make clear strategic choices — never list options or present alternatives.
+────────────────────────────────────────────
 
-1. "house":
-   - "positioning": A single positioning statement.
-   - "objectives": A list of exactly 3 distinct strategic objectives.
-   - "methods": A list of exactly 4 items: "Inspire", "Cultivate", "Connect", "Amplify".
+WHAT TO AVOID
+- Generic positioning statements that could apply to any brand.
+- Surface-level or vague marketing language and buzzwords.
+- Overly long paragraphs or filler language.
+- Contradictory or disconnected sections.
+- Repeating or rephrasing the input — interpret and elevate it.
+────────────────────────────────────────────
 
-2. "grid":
-   - "primary_goal": A single primary goal statement.
-   - "methods": An object where keys are the 4 methods and values are objects containing:
-     - "strategy": A specific strategy for that method.
-     - "audience": Target priority audience(s) for that method.
-     - "pillars": Specific content pillars or topics for that method.
+Your output must be formatted as raw JSON with exactly three top-level objects:
 
-Return ONLY the raw JSON object. No markdown, no extra text.
+─── 1. "brand_foundation" ───
+A high-level brand strategy block containing four fields:
+
+  "strategic_intent":
+    - A clear, directional positioning statement.
+    - Must reflect the brand's ambition, differentiation, and relevance.
+    - Must go beyond what the brand does — define what it stands for and how it should be perceived.
+    - Must not be descriptive, generic, or interchangeable with another brand.
+
+  "brand_essence":
+    - A short, memorable phrase or single sentence.
+    - Must capture the core emotional and functional value of the brand.
+    - Must be simple, distinct, and easy to repeat — suitable to anchor campaigns.
+    - Avoid clichés, generic slogans, or abstract wording.
+
+  "value_proposition":
+    - A credible, grounded, specific statement that articulates:
+        • What the brand offers.
+        • Why it is valuable to its audience.
+        • What makes it different or preferable to alternatives.
+    - Avoid exaggerated claims, buzzwords, or generic value statements.
+
+  "brand_personality":
+    - A list of 4–6 distinct personality traits.
+    - Traits must be specific and usable in content, tone of voice, and communication.
+    - Avoid generic traits unless meaningfully sharpened
+      (e.g. not "professional" but "assured and authoritative").
+    - Traits must align with strategic_intent and value_proposition.
+
+─── 2. "house" ───
+  "positioning":   A single positioning statement for social media.
+  "objectives":    A list of exactly 3 distinct strategic objectives.
+  "methods":       A fixed list of exactly 4 items: ["Inspire", "Cultivate", "Connect", "Amplify"].
+  "explanation":   A single string containing a comprehensive strategic rationale. You MUST provide exactly four substantial paragraphs (at least 3 sentences each), one for each level of the house: 1) Strategic Intent, 2) Brand Essence, 3) Value Proposition, and 4) Brand Personality. You MUST use double line breaks (\\n\\n) between every paragraph so they are visually distinct. Do NOT return as an object.
+
+─── 3. "grid" ───
+  "primary_goal":  A single primary goal statement.
+  "methods":       An object where keys are the 4 method names and each value is an object with:
+    "strategy":    A specific strategy for that method.
+    "audience":    Target priority audience(s) for that method.
+    "pillars":     Specific content pillars or topics for that method.
+  "explanation":   A single string containing a detailed strategic rationale. You MUST provide exactly four substantial paragraphs (at least 3 sentences each), one for each method: 1) Inspire, 2) Cultivate, 3) Connect, and 4) Amplify. You MUST use double line breaks (\\n\\n) between every paragraph so they are visually distinct. Do NOT return as an object.
+
+────────────────────────────────────────────
+OUTPUT REQUIREMENTS
+- Each section must be concise, intentional, and presentation-ready.
+- Write as if the output will appear directly on a slide.
+- Provide one clear, confident direction — no alternatives or options.
+- All sections must be aligned and coherent as one unified strategy.
+- Return ONLY the raw JSON object. No markdown, no code fences, no extra text.
+- Ensure all string values are properly escaped and do NOT contain literal newlines (use \n for line breaks).
+- Ensure no trailing commas after the last items in objects or arrays.
+────────────────────────────────────────────
 """
 
     # 3. Construct Specific Input
@@ -71,39 +124,43 @@ PROOF POINTS & CONSTRAINTS:
 ADDITIONAL SUPPORTING DOCUMENTS CONTENT:
 {additional_info}
 
-Generate the Social Media Strategy positioning and framework now.
+Generate the Brand Foundation and Social Media Strategy framework now.
 """
 
     # 4. Call OpenAI Responses API
     api_key = os.environ.get('OPENAI_API_KEY')
-    url = "https://api.openai.com/v1/responses"
+    url     = "https://api.openai.com/v1/responses"
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
+        "Content-Type":  "application/json"
     }
-    
+
     payload = {
         "model": "gpt-4o-mini",
         "instructions": instructions.strip(),
         "input": [
             {
-                "role": "system",
+                "role":    "system",
                 "content": instructions.strip()
             },
             {
-                "role": "user",
+                "role":    "user",
                 "content": input_text.strip()
             }
         ]
     }
-    
+
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        response      = requests.post(url, headers=headers, json=payload, timeout=60)
         response_json = response.json()
-        
+
         if response.status_code == 200:
             content_item = response_json['output'][-1]['content'][0]
-            answer = content_item.get('text', content_item) if isinstance(content_item, dict) else content_item
+            answer = (
+                content_item.get('text', content_item)
+                if isinstance(content_item, dict)
+                else content_item
+            )
             return {
                 'statusCode': 200,
                 'headers': {
@@ -121,6 +178,7 @@ Generate the Social Media Strategy positioning and framework now.
                 },
                 'body': json.dumps({'error': f"API Error: {response.text}"})
             }
+
     except Exception as e:
         return {
             'statusCode': 500,

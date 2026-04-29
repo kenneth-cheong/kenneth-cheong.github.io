@@ -2677,7 +2677,7 @@
                 console.log('[DEBUG] After filtering:', itemsToCache.length, 'items');
 
                 // Extract only default visible columns to reduce size
-                const whitelist = ['project type', 'campaign code', 'client success manager', 'aast csm', 'sales', 'seo/seo', 'seo campaign status', 'geo campaign status'];
+                const whitelist = ['project type', 'campaign code', 'client success manager', 'aast csm', 'sales', 'seo/seo', 'seo campaign status', 'geo campaign status', '[bd] seo contract value', '[bd] geo contract value'];
                 const columnMap = {};
                 itemsToCache.forEach(item => {
                     item.column_values.forEach(cv => {
@@ -2689,7 +2689,7 @@
 
                 const visibleColIds = Object.keys(columnMap).filter(id => {
                     const title = (columnMap[id] || '').toLowerCase();
-                    return whitelist.some(wl => title.includes(wl));
+                    return whitelist.some(wl => title.includes(wl)) || ['numeric_mm2g2ma3', 'numeric_mm2q4v1t'].includes(id);
                 });
 
                 console.log('[DEBUG] Visible columns:', visibleColIds.length);
@@ -2890,15 +2890,19 @@
                     }
                 });
             });
+            
+            // Add Virtual Budget Columns to columnMap
+            columnMap['budget_seo'] = 'Backlinks Budget SEO (15%)';
+            columnMap['budget_geo'] = 'Backlinks Budget GEO (15%)';
 
             const allColIds = Object.keys(columnMap);
 
             // Default visibility: only show specific whitelisted columns
             if (!state.mondayColsInitialized && state.mondayVisibleCols.length === 0) {
-                const whitelist = ['project type', 'campaign code', 'client success manager', 'aast csm', 'sales', 'seo/seo', 'seo campaign status', 'geo campaign status'];
+                const whitelist = ['project type', 'campaign code', 'client success manager', 'aast csm', 'sales', 'seo/seo', 'seo campaign status', 'geo campaign status', '[bd] seo contract value', '[bd] geo contract value', 'budget_seo', 'budget_geo'];
                 state.mondayVisibleCols = allColIds.filter(id => {
                     const title = (columnMap[id] || '').toLowerCase();
-                    return whitelist.some(wl => title.includes(wl));
+                    return whitelist.some(wl => title.includes(wl)) || ['numeric_mm2g2ma3', 'numeric_mm2q4v1t'].includes(id);
                 });
                 state.mondayColsInitialized = true;
             }
@@ -2991,6 +2995,18 @@
                         valA = cvA ? cvA.text : '';
                         valB = cvB ? cvB.text : '';
                     }
+                    
+                    // Special numeric sorting for budget columns
+                    if (colId === 'budget_seo' || colId === 'budget_geo') {
+                        const sourceId = colId === 'budget_seo' ? 'numeric_mm2g2ma3' : 'numeric_mm2q4v1t';
+                        const parse = (it) => {
+                            const cv = it.column_values.find(v => v.id === sourceId);
+                            return parseFloat((cv ? cv.text : '0').replace(/[^0-9.-]+/g, "")) || 0;
+                        };
+                        valA = parse(a);
+                        valB = parse(b);
+                    }
+
                     if (valA < valB) return direction === 'asc' ? -1 : 1;
                     if (valA > valB) return direction === 'asc' ? 1 : -1;
                     return 0;
@@ -3009,8 +3025,18 @@
             body.innerHTML = paginated.map(item => {
                 const values = visibleColIds.map(id => {
                     const cv = item.column_values.find(v => v.id === id);
-                    const text = cv ? (cv.text || '') : '';
-                    if (id === seRankingColId && text) {
+                    let text = cv ? (cv.text || '') : '';
+                    
+                    // Handle Virtual Columns
+                    if (id === 'budget_seo' || id === 'budget_geo') {
+                        const sourceId = id === 'budget_seo' ? 'numeric_mm2g2ma3' : 'numeric_mm2q4v1t';
+                        const sourceCv = item.column_values.find(v => v.id === sourceId);
+                        const contractVal = parseFloat((sourceCv ? sourceCv.text : '0').replace(/[^0-9.-]+/g, "")) || 0;
+                        const budget = contractVal * 0.15;
+                        text = budget > 0 ? `$${budget.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '-';
+                    }
+
+                    if (id === seRankingColId && text && text !== '-') {
                         return `<td><a href="javascript:void(0)" onclick="navigateToRankings('${text}')" style="color: var(--secondary); font-weight: 500; text-decoration: underline;">${text}</a></td>`;
                     }
                     return `<td>${text}</td>`;
