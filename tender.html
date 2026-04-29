@@ -6595,21 +6595,35 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 content.innerHTML = '<div class="preview-spinner spin"></div>'; // Loading state
 
                 try {
-                    if (type.startsWith('image/')) {
+                    // Normalize type
+                    let activeType = type || "";
+                    if (!activeType) {
+                        const ext = name.split('.').pop().toLowerCase();
+                        if (ext === 'pdf') activeType = 'application/pdf';
+                        else if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) activeType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+                        else if (ext === 'docx') activeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                    }
+
+                    if (activeType.startsWith('image/')) {
                         content.innerHTML = `<img src="${activeBase64}" style="max-width: 100%; max-height: 70vh; border-radius: var(--radius-lg); box-shadow: var(--shadow-xl);">`;
-                    } else if (type === 'application/pdf') {
-                        content.innerHTML = `<iframe src="${activeBase64}" style="width: 100%; height: 70vh; border: none; border-radius: var(--radius-lg);"></iframe>`;
-                    } else if (type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-                        const arrayBuffer = base64ToArrayBuffer(activeBase64.split(',')[1]);
+                    } else if (activeType === 'application/pdf') {
+                        // Use Blob URL for better performance/reliability with large PDFs
+                        const blob = base64ToBlob(activeBase64);
+                        const blobUrl = URL.createObjectURL(blob);
+                        content.innerHTML = `<iframe src="${blobUrl}" style="width: 100%; height: 70vh; border: none; border-radius: var(--radius-lg);"></iframe>`;
+                    } else if (activeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+                        const arrayBuffer = base64ToArrayBuffer(activeBase64.split(',')[1] || activeBase64);
                         const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
                         content.innerHTML = `<div class="docx-preview" style="padding: 2.5rem; background: #fff; border-radius: var(--radius-lg); max-height: 70vh; overflow-y: auto; text-align: left; color: var(--text-main); font-family: 'Inter', sans-serif; line-height: 1.4;">${result.value || '<p>Empty document.</p>'}</div>`;
-                    } else if (type === 'text/csv' || type === 'text/plain' || type === 'application/json') {
-                        const text = atob(activeBase64.split(',')[1]);
+                    } else if (activeType === 'text/csv' || activeType === 'text/plain' || activeType === 'application/json') {
+                        const b64Data = activeBase64.split(',')[1] || activeBase64;
+                        const text = atob(b64Data);
                         content.innerHTML = `<pre style="padding: 1.5rem; background: #1e293b; color: #e2e8f0; border-radius: var(--radius-lg); max-height: 70vh; overflow: auto; text-align: left; font-size: 0.8rem; font-family: monospace; white-space: pre-wrap; word-break: break-all;">${text}</pre>`;
-                    } else if (type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || type === 'application/vnd.ms-excel') {
+                    } else if (activeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || activeType === 'application/vnd.ms-excel') {
                         // XLSX
                         try {
-                            const arrayBuffer = base64ToArrayBuffer(activeBase64.split(',')[1]);
+                            const b64Data = activeBase64.split(',')[1] || activeBase64;
+                            const arrayBuffer = base64ToArrayBuffer(b64Data);
                             const workbook = XLSX.read(arrayBuffer, { type: 'array' });
                             const firstSheetName = workbook.SheetNames[0];
                             const worksheet = workbook.Sheets[firstSheetName];
@@ -6644,6 +6658,19 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                     content.innerHTML = `<p style="color: var(--danger); padding: 2rem;">Error generating preview. You can still download the file to view it.</p>`;
                 }
                 lucide.createIcons();
+            }
+
+            function base64ToBlob(base64) {
+                const parts = base64.split(';base64,');
+                const contentType = parts.length > 1 ? parts[0].split(':')[1] : 'application/pdf';
+                const b64Data = parts.length > 1 ? parts[1] : base64;
+                const raw = window.atob(b64Data);
+                const rawLength = raw.length;
+                const uInt8Array = new Uint8Array(rawLength);
+                for (let i = 0; i < rawLength; ++i) {
+                    uInt8Array[i] = raw.charCodeAt(i);
+                }
+                return new Blob([uInt8Array], { type: contentType });
             }
 
             function base64ToArrayBuffer(base64) {
