@@ -3390,6 +3390,15 @@
                     <a href="#" class="nav-item" onclick="switchView('team', this)">
                         <i data-lucide="users" size="18"></i> Team & Roles
                     </a>
+                    <a href="#" class="nav-item" onclick="switchView('market-research', this)">
+                        <i data-lucide="globe" size="18"></i> Market Research
+                    </a>
+                    <a href="#" class="nav-item" onclick="switchView('competitors', this)">
+                        <i data-lucide="trending-up" size="18"></i> Competitors
+                    </a>
+                    <a href="#" class="nav-item" onclick="switchView('pricing', this)">
+                        <i data-lucide="dollar-sign" size="18"></i> Pricing & Costing
+                    </a>
                     <a href="#" class="nav-item" onclick="switchView('persona', this)">
                         <i data-lucide="cpu" size="18"></i> Workflow & Prompts
                     </a>
@@ -3425,6 +3434,31 @@
                     <div class="checklist-section">
                         <h5><i data-lucide="sparkles" size="12"></i> Strategic Value</h5>
                         <div id="scorecard-items"></div>
+                    </div>
+                </div>
+
+                <div class="progress-card" style="margin: 1rem; margin-top: 0;">
+                    <h4>Satisfaction Scores</h4>
+                    <div class="stat-row">
+                        <span>Strategy Alignment</span>
+                        <span id="score-strategy">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="fill-strategy" style="width: 0%"></div>
+                    </div>
+                    <div class="stat-row" style="margin-top: 0.5rem;">
+                        <span>Compliance Score</span>
+                        <span id="score-compliance">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="fill-compliance" style="width: 0%; background: var(--success);"></div>
+                    </div>
+                    <div class="stat-row" style="margin-top: 0.5rem;">
+                        <span>Quality Index</span>
+                        <span id="score-quality">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="fill-quality" style="width: 0%; background: var(--warning);"></div>
                     </div>
                 </div>
             </div> <!-- End sidebar-inner -->
@@ -3708,6 +3742,156 @@
                                     sector fluencies for this client.
                                 </p>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View: Market Research (Requirement 2.2) -->
+            <div id="view-market-research" class="view-content">
+                <div class="view-header">
+                    <div>
+                        <h2>Market Research</h2>
+                        <p style="color: var(--text-muted); font-size: 0.875rem;">Analysis of broad market trends, industry behavior, and growth opportunities.</p>
+                    </div>
+                </div>
+                <div id="market-research-content">
+                    <div class="empty-state">
+                        <i data-lucide="globe" size="48"></i>
+                        <p>No market research data generated yet. Ask the **Market Researcher** agent to begin.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View: Competitor Analysis (Requirement 2.3 & 2.4) -->
+            <div id="view-competitors" class="view-content">
+                <div class="view-header">
+                    <div>
+                        <h2>Competitor Analysis</h2>
+                        <p style="color: var(--text-muted); font-size: 0.875rem;">Mapping the competitive landscape and identifying Blue/Red Ocean opportunities.</p>
+                    </div>
+                </div>
+                <div id="competitor-analysis-content">
+                    <div class="empty-state">
+                        <i data-lucide="trending-up" size="48"></i>
+                        <p>No competitor analysis data generated yet. Ask the **Competitor Analyst** agent to begin.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View: Pricing & Costing (Requirement 7 & 8) -->
+            <div id="view-pricing" class="view-content">
+                <div class="view-header">
+                    <div>
+                        <h2>Pricing & Manpower Costing</h2>
+                        <p style="color: var(--text-muted); font-size: 0.875rem;">Estimate proposal pricing based on manpower, third-party costs, and margin requirements.</p>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-ghost" onclick="exportPricing()"><i data-lucide="download" size="16"></i> Export</button>
+                        <button class="btn btn-primary" onclick="addPricingLine()"><i data-lucide="plus" size="16"></i> Add Item</button>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+                    <div class="card" style="padding: 1.5rem;">
+                        <h4 style="margin-bottom: 1rem;">Manpower & Deliverables</h4>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Deliverable / Item</th>
+                                    <th>Role / Type</th>
+                                    <th>Hours / Qty</th>
+                                    <th>Rate</th>
+                                    <th>Offshore</th>
+                                    <th>Total</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="pricing-table-body">
+                                <!-- Populated by JS -->
+                            </tbody>
+                            <tfoot>
+                                <tr style="font-weight: 700; background: var(--bg-app);">
+                                    <td colspan="5" style="text-align: right;">Total Estimated Cost:</td>
+                                    <td id="pricing-total-cost">$0.00</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div class="card" style="padding: 1.5rem;">
+                            <h4 style="margin-bottom: 1rem;">Pricing Strategy</h4>
+                            <div class="form-group">
+                                <label>Target Margin (%)</label>
+                                <input type="number" id="pricing-margin" class="form-control" value="30" oninput="calculateFinalPricing()">
+                            </div>
+                            <div class="form-group" style="margin-top: 1rem;">
+                                <label>Confidence Level</label>
+                                <select id="pricing-confidence" class="form-control" onchange="calculateFinalPricing()">
+                                    <option value="aggressive">Aggressive (High Risk / Low Margin)</option>
+                                    <option value="moderate" selected>Moderate (Standard)</option>
+                                    <option value="conservative">Conservative (Low Risk / High Margin)</option>
+                                </select>
+                            </div>
+                            <div style="margin-top: 1.5rem; padding: 1rem; background: var(--primary-light); border-radius: var(--radius);">
+                                <div style="font-size: 0.75rem; color: var(--primary); font-weight: 700; text-transform: uppercase;">Recommended Bid Price</div>
+                                <div id="final-bid-price" style="font-size: 1.5rem; font-weight: 800; color: var(--primary);">$0.00</div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="padding: 1rem;">
+                            <h4>Confidence Table</h4>
+                            <table style="width: 100%; font-size: 0.7rem; margin-top: 0.5rem; border-collapse: collapse;">
+                                <tr style="border-bottom: 1px solid var(--border);">
+                                    <th style="text-align: left; padding: 4px;">Strategy</th>
+                                    <th style="text-align: right; padding: 4px;">Markup</th>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px;">Aggressive</td>
+                                    <td style="text-align: right; padding: 4px;">+10-15%</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px;">Moderate</td>
+                                    <td style="text-align: right; padding: 4px;">+25-35%</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px;">Conservative</td>
+                                    <td style="text-align: right; padding: 4px;">+50%+</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View: Project Setup & Manual Inputs (Requirement 9) -->
+            <div id="view-project-setup" class="view-content">
+                <div class="view-header">
+                    <div>
+                        <h2>Project Setup & Intelligence</h2>
+                        <p style="color: var(--text-muted); font-size: 0.875rem;">Manual inputs from client briefings, sales hints, and historical win data.</p>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div class="card" style="padding: 1.5rem;">
+                        <h4 style="margin-bottom: 1rem;"><i data-lucide="message-square" size="14"></i> Client Briefing Minutes</h4>
+                        <textarea id="manual-briefing-notes" class="form-control" style="min-height: 200px;" placeholder="Input key hints, verbal requirements, and stakeholder preferences from meetings..."></textarea>
+                    </div>
+                    <div class="card" style="padding: 1.5rem;">
+                        <h4 style="margin-bottom: 1rem;"><i data-lucide="history" size="14"></i> Market & Win Intelligence</h4>
+                        <div class="form-group">
+                            <label>Past Winning Bid Price (if known)</label>
+                            <input type="text" id="manual-past-win-price" class="form-control" placeholder="e.g. $450,000 (from GeBiz or hints)">
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label>Indicative Client Budget</label>
+                            <input type="text" id="manual-client-budget" class="form-control" placeholder="e.g. $500k - $750k">
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label>Competitor Intelligence</label>
+                            <textarea id="manual-competitor-intel" class="form-control" style="min-height: 100px;" placeholder="What do we know about competitors for this specific tender?"></textarea>
                         </div>
                     </div>
                 </div>
@@ -4280,9 +4464,20 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     prompt: `Acting as a Tender Compliance & Requirements Specialist:
 - Extract every single mandatory and optional requirement from the RFP/tender documents.
 - Categorize requirements into Technical, Commercial, Operational, and Administrative.
-- Identify all "must-haves" vs "nice-to-haves".
+- Identify all "must-haves" vs "nice-to-haves", deliverables, scoring criteria, deadlines, and submission instructions.
 - Create a requirements traceability matrix summary.
 - Highlight any high-risk requirements that require special attention or legal review.`
+                },
+                {
+                    id: 'market-research',
+                    name: 'Market Researcher',
+                    icon: 'globe',
+                    desc: 'Studies broad market, trends, and customer behavior.',
+                    prompt: `Acting as a Senior Market Research Analyst:
+- Study the broad market and addressable market for the client's products/services.
+- Identify key industry trends, best practices, and emerging customer behaviors.
+- Map out relevant marketing opportunities and potential growth areas.
+- Provide data-driven insights to support our proposed campaign strategy.`
                 },
                 {
                     id: 'competitor',
@@ -4290,10 +4485,32 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     icon: 'users',
                     desc: 'Maps competitive landscape and identifies win themes.',
                     prompt: `Acting as a Senior Competitor Analyst:
-- Based on the tender documents and industry knowledge, identify the likely competitors for this contract.
-- Perform a SWOT analysis comparing MediaOne's strengths against these competitors for this specific scope.
-- Identify "Win Themes" that differentiate MediaOne (e.g., proprietary tech, local team, track record).
-- Suggest "Ghosting" strategies (highlighting our strengths where competitors are known to be weak without naming them).`
+- Study the prospective customer’s immediate competitors, including their marketing practices, ads, keywords, ad formats, and audience targeting.
+- Identify competitor tone of voice, offers, discounts, and platform usage.
+- Identify “blue ocean” opportunities (uncontested market space) to propose.
+- Identify “red ocean” areas (highly competitive/saturated) to avoid or approach with extreme caution.
+- Perform a SWOT analysis comparing MediaOne's strengths against these competitors.`
+                },
+                {
+                    id: 'legal-compliance',
+                    name: 'Legal & Risk Agent',
+                    icon: 'shield-alert',
+                    desc: 'Identifies legal restrictions and market-specific risks.',
+                    prompt: `Acting as a Legal & Compliance Specialist:
+- Identify relevant legal restrictions and advertising rules for the specific market/industry.
+- Review platform policies (Google, Meta, etc.) that may impact the proposed campaign.
+- Identify industry-specific regulations and compliance standards.
+- Highlight market-specific risks and propose mitigation strategies.`
+                },
+                {
+                    id: 'instruction-agent',
+                    name: 'Instruction Agent',
+                    icon: 'file-text',
+                    desc: 'Converts strategy into clear AI design instructions.',
+                    prompt: `Acting as an AI Instruction Specialist:
+- Take the approved campaign strategy and convert it into highly specific, actionable instructions for the Slide Designer.
+- Define the visual hierarchy, key message per slide, and mandatory data points to include.
+- Ensure instructions are optimized for LLM-based slide generation (clear, concise, and structured).`
                 },
                 {
                     id: 'slide-writer',
@@ -4313,11 +4530,21 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     icon: 'edit-3',
                     desc: 'Checks spelling, grammar, and brand consistency.',
                     prompt: `Acting as a Senior Editor and Brand Guardian:
-- Review the content for absolute grammatical perfection and spelling accuracy (UK/Singapore English).
+- Review the content for absolute grammatical perfection, spelling accuracy, and calculation errors.
 - Ensure consistent tone of voice throughout the deck (Senior, consultative, confident).
-- Check for consistent terminology (e.g., if we use "Partner", don't switch to "Vendor").
-- Flag any overly complex sentences that could be simplified for clarity.
+- Check for factual errors, unsupported claims, and compliance risks.
 - Verify that all claims are backed by the provided data/proof points.`
+                },
+                {
+                    id: 'rfq-comparison',
+                    name: 'RFQ Comparison Agent',
+                    icon: 'columns',
+                    desc: 'Compares draft against RFQ requirements.',
+                    prompt: `Acting as an RFQ Gap Analyst:
+- Compare the current draft proposal against the extracted RFQ requirements.
+- Identify gaps, missed opportunities, or wrong focus areas.
+- Highlight any non-compliant sections or weak claims that need strengthening.
+- Provide a "Gap Score" for each mandatory requirement.`
                 },
                 {
                     id: 'compliance',
@@ -4328,8 +4555,7 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
 - Review the generated slides against the specific evaluation criteria and weightings mentioned in the tender.
 - Score each section based on how well it addresses the scoring rubric.
 - Flag any missing mandatory components.
-- Ensure all formatting guidelines (font size, page limits, mandatory annexes) are respected.
-- Goal: Ensure a 100% compliant and high-scoring submission.`
+- Goal: Ensure a 100% compliant and high-scoring submission (Target >90%).`
                 }
             ];
 
@@ -4783,6 +5009,188 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 }
             }
 
+            // --- Satisfaction Scores (Requirement 3.4) ---
+            function updateSatisfactionScores() {
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (!p) return;
+
+                // Ensure object exists
+                if (!p.satisfactionScores) {
+                    p.satisfactionScores = { strategy: 0, compliance: 0, quality: 0 };
+                }
+
+                const scores = p.satisfactionScores;
+                
+                // Update text
+                if (document.getElementById('score-strategy')) document.getElementById('score-strategy').innerText = `${scores.strategy}%`;
+                if (document.getElementById('score-compliance')) document.getElementById('score-compliance').innerText = `${scores.compliance}%`;
+                if (document.getElementById('score-quality')) document.getElementById('score-quality').innerText = `${scores.quality}%`;
+
+                // Update fills
+                if (document.getElementById('fill-strategy')) document.getElementById('fill-strategy').style.width = `${scores.strategy}%`;
+                if (document.getElementById('fill-compliance')) document.getElementById('fill-compliance').style.width = `${scores.compliance}%`;
+                if (document.getElementById('fill-quality')) document.getElementById('fill-quality').style.width = `${scores.quality}%`;
+            }
+
+            // --- Pricing & Costing Logic (Requirement 7 & 8) ---
+            function renderPricing() {
+                const tbody = document.getElementById('pricing-table-body');
+                if (!tbody) return;
+
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (!p) return;
+
+                if (!p.pricingItems) p.pricingItems = [];
+
+                if (p.pricingItems.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">No pricing items added. Click "Add Item" to begin.</td></tr>`;
+                    if (document.getElementById('pricing-total-cost')) document.getElementById('pricing-total-cost').innerText = '$0.00';
+                    if (document.getElementById('final-bid-price')) document.getElementById('final-bid-price').innerText = '$0.00';
+                    return;
+                }
+
+                tbody.innerHTML = p.pricingItems.map((item, index) => {
+                    const total = calculateItemTotal(item);
+                    return `
+                        <tr>
+                            <td><input type="text" class="table-input" value="${item.name}" onchange="updatePricingItem(${index}, 'name', this.value)"></td>
+                            <td>
+                                <select class="table-input" onchange="updatePricingItem(${index}, 'role', this.value)">
+                                    ${Object.keys(RATES).map(r => `<option value="${r}" ${item.role === r ? 'selected' : ''}>${r}</option>`).join('')}
+                                    <option value="Third-Party" ${item.role === 'Third-Party' ? 'selected' : ''}>Third-Party / Vendor</option>
+                                </select>
+                            </td>
+                            <td><input type="number" class="table-input" style="width: 60px;" value="${item.qty}" oninput="updatePricingItem(${index}, 'qty', this.value)"></td>
+                            <td>$${item.rate.toFixed(2)}</td>
+                            <td><input type="checkbox" ${item.isOffshore ? 'checked' : ''} onchange="updatePricingItem(${index}, 'isOffshore', this.checked)"></td>
+                            <td style="font-weight: 600;">$${total.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                            <td><button class="icon-btn" style="color: var(--danger);" onclick="removePricingLine(${index})"><i data-lucide="trash-2" size="14"></i></button></td>
+                        </tr>
+                    `;
+                }).join('');
+                
+                lucide.createIcons();
+                
+                // Set sidebar margin/confidence if they exist in UI
+                if (document.getElementById('pricing-margin')) document.getElementById('pricing-margin').value = p.pricingMargin || 30;
+                if (document.getElementById('pricing-confidence')) document.getElementById('pricing-confidence').value = p.pricingConfidence || 'moderate';
+                
+                calculateFinalPricing();
+            }
+
+            function calculateItemTotal(item) {
+                let rate = item.rate;
+                if (item.isOffshore && item.role !== 'Third-Party') {
+                    // Requirement 7.3: Offshore staff at 50%
+                    rate = rate * 0.5;
+                }
+                return rate * item.qty;
+            }
+
+            function addPricingLine() {
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (!p) return;
+                
+                if (!p.pricingItems) p.pricingItems = [];
+                
+                p.pricingItems.push({
+                    name: 'New Deliverable',
+                    role: 'Mid Consultant',
+                    qty: 10,
+                    rate: RATES['Mid Consultant'],
+                    isOffshore: false
+                });
+                
+                renderPricing();
+                saveProjects();
+            }
+
+            function removePricingLine(index) {
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (p && p.pricingItems) {
+                    p.pricingItems.splice(index, 1);
+                    renderPricing();
+                    saveProjects();
+                }
+            }
+
+            function updatePricingItem(index, field, value) {
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (!p || !p.pricingItems[index]) return;
+
+                if (field === 'qty') value = parseFloat(value) || 0;
+                if (field === 'isOffshore') value = !!value;
+                if (field === 'role') {
+                    p.pricingItems[index].rate = RATES[value] || 0;
+                }
+
+                p.pricingItems[index][field] = value;
+                renderPricing();
+                saveProjects();
+            }
+
+            function calculateFinalPricing() {
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (!p || !p.pricingItems) return;
+
+                const totalCost = p.pricingItems.reduce((acc, item) => acc + calculateItemTotal(item), 0);
+                const margin = parseFloat(document.getElementById('pricing-margin')?.value) || 30;
+                const confidence = document.getElementById('pricing-confidence')?.value || 'moderate';
+
+                // Simple margin calculation
+                let finalPrice = totalCost / (1 - (margin / 100));
+
+                // Requirement 7.5: Confidence Table adjustments
+                if (confidence === 'aggressive') finalPrice *= 1.0; // Minimal markup
+                if (confidence === 'moderate') finalPrice *= 1.1; // Moderate markup
+                if (confidence === 'conservative') finalPrice *= 1.25; // High markup
+
+                if (document.getElementById('pricing-total-cost')) document.getElementById('pricing-total-cost').innerText = `$${totalCost.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+                if (document.getElementById('final-bid-price')) document.getElementById('final-bid-price').innerText = `$${finalPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+                
+                // Save settings
+                p.pricingMargin = margin;
+                p.pricingConfidence = confidence;
+                saveProjects();
+            }
+
+            // --- Manual Inputs (Requirement 9) ---
+            function loadManualInputs() {
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (!p || !p.manualInputs) return;
+
+                const notes = document.getElementById('manual-briefing-notes');
+                const pastWin = document.getElementById('manual-past-win-price');
+                const budget = document.getElementById('manual-client-budget');
+                const intel = document.getElementById('manual-competitor-intel');
+
+                if (notes) notes.value = p.manualInputs.briefingNotes || '';
+                if (pastWin) pastWin.value = p.manualInputs.pastWinPrice || '';
+                if (budget) budget.value = p.manualInputs.clientBudget || '';
+                if (intel) intel.value = p.manualInputs.competitorIntel || '';
+                
+                // Add event listeners for auto-save
+                [notes, pastWin, budget, intel].forEach(el => {
+                    if (el && !el.dataset.listener) {
+                        el.addEventListener('input', saveManualInputs);
+                        el.dataset.listener = 'true';
+                    }
+                });
+            }
+
+            function saveManualInputs() {
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (!p) return;
+
+                p.manualInputs = {
+                    briefingNotes: document.getElementById('manual-briefing-notes')?.value || '',
+                    pastWinPrice: document.getElementById('manual-past-win-price')?.value || '',
+                    clientBudget: document.getElementById('manual-client-budget')?.value || '',
+                    competitorIntel: document.getElementById('manual-competitor-intel')?.value || ''
+                };
+                saveProjects();
+            }
+
             // =============================================
             // FEATURE 4: Tone of Voice Validator
             // =============================================
@@ -5055,6 +5463,25 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
             let selectedSlideIndices = [];
             let isProcessing = false;
             let currentUser = null;
+
+            // --- Pricing Constants ---
+            const RATES = {
+                'Senior Consultant': 160,
+                'Mid Consultant': 120,
+                'Junior Consultant': 80,
+                'Offshore Senior': 80,
+                'Offshore Mid': 60,
+                'Offshore Junior': 40
+            };
+
+            const PREFIXED_COSTS = [
+                { id: 'backlink-da30', name: 'Backlinks (DA 30-40)', category: 'SEO', rate: 150, unit: 'per link' },
+                { id: 'backlink-da50', name: 'Backlinks (DA 50-60)', category: 'SEO', rate: 350, unit: 'per link' },
+                { id: 'content-1000', name: 'Article (1000 words)', category: 'Content', rate: 200, unit: 'per piece' },
+                { id: 'translation', name: 'Translation', category: 'Content', rate: 0.15, unit: 'per word' },
+                { id: 'influencer-micro', name: 'Micro-Influencer', category: 'Influencer', rate: 500, unit: 'per post' },
+                { id: 'creative-ad', name: 'Ad Creative Set', category: 'Production', rate: 800, unit: 'per set' }
+            ];
 
             // --- Project Management ---
             let projects = [];
@@ -5635,6 +6062,58 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                 lucide.createIcons();
             }
 
+            // --- Slide Reordering (Requirement 6.2) ---
+            let draggedSlideIndex = null;
+
+            function handleSlideDragStart(e, index) {
+                draggedSlideIndex = index;
+                e.dataTransfer.effectAllowed = 'move';
+                // e.target.classList.add('dragging');
+            }
+
+            function handleSlideDragOver(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                // Add visual cue
+                const thumb = e.target.closest('.slide-thumb');
+                if (thumb) thumb.style.borderTop = '2px solid var(--primary)';
+            }
+
+            function handleSlideDragLeave(e) {
+                const thumb = e.target.closest('.slide-thumb');
+                if (thumb) thumb.style.borderTop = '';
+            }
+
+            function handleSlideDrop(e, targetIndex) {
+                e.preventDefault();
+                const thumb = e.target.closest('.slide-thumb');
+                if (thumb) thumb.style.borderTop = '';
+
+                if (draggedSlideIndex === null || draggedSlideIndex === targetIndex) return;
+
+                const movedSlide = slidesData.splice(draggedSlideIndex, 1)[0];
+                slidesData.splice(targetIndex, 0, movedSlide);
+
+                // Update active index
+                if (activeSlideIndex === draggedSlideIndex) {
+                    activeSlideIndex = targetIndex;
+                } else if (draggedSlideIndex < activeSlideIndex && targetIndex >= activeSlideIndex) {
+                    activeSlideIndex--;
+                } else if (draggedSlideIndex > activeSlideIndex && targetIndex <= activeSlideIndex) {
+                    activeSlideIndex++;
+                }
+
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (p) {
+                    p.slides = [...slidesData];
+                    saveProjects();
+                }
+
+                renderThumbnails();
+                updateEditorState();
+                draggedSlideIndex = null;
+            }
+
             // --- Slide Management ---
             function renderThumbnails() {
                 const rails = [
@@ -5648,9 +6127,33 @@ IMPORTANT: Base all claims and strategies ONLY on the specific data found in the
                     return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
                 };
 
-                const escapeHtml = (str = '') => {
-                    return String(str)
-                        .replace(/&/g, '&amp;')
+                rails.forEach(rail => {
+                    if (!rail) return;
+                    rail.innerHTML = slidesData.map((slide, index) => {
+                        const isActive = index === activeSlideIndex;
+                        return `
+                        <div class="slide-thumb ${isActive ? 'active' : ''}" 
+                             onclick="selectSlide(${index})"
+                             draggable="true"
+                             ondragstart="handleSlideDragStart(event, ${index})"
+                             ondragover="handleSlideDragOver(event)"
+                             ondragleave="handleSlideDragLeave(event)"
+                             ondrop="handleSlideDrop(event, ${index})"
+                             style="cursor: grab;">
+                            <div class="slide-thumb-num">${index + 1}</div>
+                            <div class="slide-thumb-preview">
+                                <div style="font-size: 8px; font-weight: 700; margin-bottom: 2px; color: var(--primary);">
+                                    ${slide.title || 'Untitled Slide'}
+                                </div>
+                                <div style="font-size: 6px; color: var(--text-muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
+                                    ${stripHtml(slide.body || '')}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    }).join('');
+                });
+            }
                         .replace(/</g, '&lt;')
                         .replace(/>/g, '&gt;')
                         .replace(/"/g, '&quot;')
@@ -7879,6 +8382,11 @@ ${slide.body}`;
                     proofs: [], // Start with empty proofs
                     docs: [],
                     chatHistory: [],
+                    pricingItems: [],
+                    pricingMargin: 30,
+                    pricingConfidence: 'moderate',
+                    satisfactionScores: { strategy: 0, compliance: 0, quality: 0 },
+                    manualInputs: { briefingNotes: '', pastWinPrice: '', clientBudget: '', competitorIntel: '' },
                     lastModifiedBy: currentUser?.name || "System",
                     lastModifiedAt: new Date().toISOString()
                 };
@@ -7984,6 +8492,9 @@ ${slide.body}`;
                 renderProofBank();
                 renderDocGrid();
                 updateSidebarFileList();
+                updateSatisfactionScores();
+                renderPricing();
+                loadManualInputs();
 
                 // Restore Chat History
                 const chatContainer = document.getElementById('chat-messages');
