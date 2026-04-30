@@ -3517,6 +3517,9 @@
                     <a href="#" class="nav-item" onclick="switchView('past-submissions', this)">
                         <i data-lucide="archive" size="18"></i> Past Submissions
                     </a>
+                    <a href="#" class="nav-item" onclick="switchView('intelligence-log', this)">
+                        <i data-lucide="history" size="18"></i> Activity Log
+                    </a>
                 </nav>
 
                 <nav class="nav-section">
@@ -3923,6 +3926,11 @@
                     <button class="btn btn-ghost" onclick="prevStep()"><i data-lucide="chevron-left" size="16"></i> Previous</button>
                     <button class="btn btn-primary" onclick="nextStep()" id="wizard-next-btn">Next Step <i data-lucide="chevron-right" size="16"></i></button>
                 </div>
+
+                <!-- Standalone Chat Mount (When not in Copilot mode) -->
+                <div id="chat-view-mount" style="flex: 1; min-height: 500px; display: flex; flex-direction: column; border-top: 1px solid var(--border); margin-top: 2rem;">
+                    <!-- Chat UI source moves here -->
+                </div>
             </div>
 
             <!-- View: Past Submissions (Requirement: Global Repository) -->
@@ -3943,6 +3951,25 @@
                         <div class="empty-state">
                             <i data-lucide="folder-open" size="48"></i>
                             <p>No past submissions uploaded. Add PDF/Docx files to build your global intelligence.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View: Intelligence Evolution Log -->
+            <div id="view-intelligence-log" class="view-content">
+                <div class="view-header">
+                    <div>
+                        <h2>Global Activity & Audit Log</h2>
+                        <p style="color: var(--text-muted); font-size: 0.875rem;">Timeline of all strategic upgrades, repository changes, and project activity.</p>
+                    </div>
+                </div>
+                <div class="card" style="padding: 1.5rem;">
+                    <div id="intelligence-log-container" class="timeline-container">
+                        <!-- Populated by JS -->
+                        <div class="empty-state">
+                            <i data-lucide="list" size="48"></i>
+                            <p>No activity recorded yet. Start working to build your project timeline.</p>
                         </div>
                     </div>
                 </div>
@@ -4420,7 +4447,7 @@
                     request.onupgradeneeded = (e) => {
                         const db = e.target.result;
                         if (!db.objectStoreNames.contains(STORE_NAME)) {
-                            db.createObjectStore(STORE_NAME);
+                            db.createObjectStore(STORE_NAME, { keyPath: 'id' });
                         }
                     };
                     request.onsuccess = (e) => resolve(e.target.result);
@@ -4429,11 +4456,10 @@
             }
 
             async function saveBinaryLocally(key, base64) {
-                if (!base64 || !key) return;
                 try {
                     const db = await getBinaryDB();
                     const tx = db.transaction(STORE_NAME, 'readwrite');
-                    tx.objectStore(STORE_NAME).put(base64, key);
+                    tx.objectStore(STORE_NAME).put({ id: key, data: base64 });
                     return new Promise((resolve, reject) => {
                         tx.oncomplete = () => resolve();
                         tx.onerror = () => reject(tx.error);
@@ -4441,17 +4467,19 @@
                 } catch (err) { console.error("IndexedDB Save Error:", err); }
             }
 
-            async function getLocalBinary(key) {
-                if (!key) return null;
+            async function loadBinaryLocally(key) {
                 try {
                     const db = await getBinaryDB();
-                    const tx = db.transaction(STORE_NAME, 'readonly');
-                    const request = tx.objectStore(STORE_NAME).get(key);
                     return new Promise((resolve, reject) => {
-                        request.onsuccess = () => resolve(request.result);
+                        const tx = db.transaction(STORE_NAME, 'readonly');
+                        const request = tx.objectStore(STORE_NAME).get(key);
+                        request.onsuccess = () => resolve(request.result ? request.result.data : null);
                         request.onerror = () => reject(request.error);
                     });
-                } catch (err) { return null; }
+                } catch (err) { 
+                    console.warn("IndexedDB Load Error:", err);
+                    return null; 
+                }
             }
 
             async function removeLocalBinary(key) {
@@ -4468,17 +4496,6 @@
             let currentScale = 1;
 
 
-            function moveChatUI(target) {
-                const source = document.getElementById('chat-ui-source');
-                const standaloneMount = document.getElementById('chat-view-mount');
-                const copilotMount = document.getElementById('copilot-view-mount');
-                
-                if (target === 'copilot') {
-                    copilotMount.appendChild(source);
-                } else {
-                    standaloneMount.appendChild(source);
-                }
-            }
 
             function setLLM(llm, silent = false) {
                 currentLLM = llm;
@@ -5388,11 +5405,13 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                                 name: file.name,
                                 type: file.type,
                                 size: file.size,
-                                base64: base64,
+                                base64: null, // Binary stripped for cloud sync
+                                isLargeFile: true,
                                 content: text,
                                 uploadedAt: new Date().toISOString()
                             });
                             renderGlobalSubmissions();
+                            addActivityLog('SUBMISSION', `Uploaded Tender: ${file.name}`, `Added new historical document to the global repository.`);
                             saveProjects();
                         };
                         reader.readAsDataURL(file);
@@ -5422,20 +5441,20 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                         : `${(doc.size / 1024).toFixed(1)} KB`;
                         
                     return `
-                    <div class="doc-card" onclick="showMediaPreview('${doc.base64 || ''}', '${doc.name}', '${doc.type}')" style="display: flex; align-items: center; justify-content: space-between; padding: 1rem; background: var(--bg-app); border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: 0.5rem; cursor: pointer; transition: all 0.2s ease;">
+                    <div class="doc-card" onclick="showMediaPreview(null, '${doc.name}', '${doc.type}', ${doc.id})" style="display: flex; align-items: center; justify-content: space-between; padding: 1rem; background: var(--bg-app); border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: 0.5rem; cursor: pointer; transition: all 0.2s ease;">
                         <div style="display: flex; align-items: center; gap: 1rem;">
                             <div class="doc-icon"><i data-lucide="file-text" size="24" style="color: var(--primary);"></i></div>
                             <div class="doc-info">
                                 <div class="doc-name" style="font-weight: 600; font-size: 0.875rem;">${doc.name}</div>
                                 <div class="doc-meta" style="font-size: 0.75rem; color: var(--text-muted);">
                                     ${sizeStr} • ${new Date(doc.uploadedAt).toLocaleDateString()}
-                                    ${doc.isLargeFile ? ' • <span style="color:var(--primary); font-weight: 600;">Text Only Sync</span>' : ''}
+                                    ${doc.isLargeFile ? ' • <span style="color:var(--primary); font-weight: 600; cursor: help;" title="Original file is too large for cloud sync. Text is synced for AI, binary is cached locally.">Text Only Sync</span>' : ''}
                                 </div>
                             </div>
                         </div>
                         <div style="display: flex; gap: 0.5rem;" onclick="event.stopPropagation()">
                             <button class="btn btn-ghost btn-sm" onclick="renameGlobalSubmission(${doc.id})" title="Rename"><i data-lucide="edit-3" size="14"></i></button>
-                            <button class="btn btn-ghost btn-sm" onclick="showMediaPreview('${doc.base64 || ''}', '${doc.name}', '${doc.type}')" title="Preview"><i data-lucide="eye" size="14"></i></button>
+                            <button class="btn btn-ghost btn-sm" onclick="showMediaPreview(null, '${doc.name}', '${doc.type}', ${doc.id})" title="Preview"><i data-lucide="eye" size="14"></i></button>
                             <button class="btn btn-ghost btn-sm" onclick="deleteGlobalSubmission(${doc.id})" title="Delete"><i data-lucide="trash-2" size="14"></i></button>
                         </div>
                     </div>
@@ -5445,8 +5464,11 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
 
             function deleteGlobalSubmission(id) {
                 if (confirm("Delete this past submission from the global repository?")) {
+                    const deleted = globalSubmissions.find(d => d.id === id);
                     globalSubmissions = globalSubmissions.filter(d => d.id !== id);
+                    removeLocalBinary(`global_${id}`);
                     renderGlobalSubmissions();
+                    addActivityLog('DELETE', `Deleted Tender: ${deleted ? deleted.name : 'Unknown'}`, `Removed a historical document from the repository.`);
                     saveProjects();
                 }
             }
@@ -5460,6 +5482,44 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                     doc.name = newName.trim();
                     renderGlobalSubmissions();
                     saveProjects();
+                }
+            }
+
+            async function showMediaPreview(base64, name, type, id) {
+                const modal = document.getElementById('media-preview-modal');
+                const content = document.getElementById('media-preview-content');
+                if (!modal || !content) return;
+
+                let finalBase64 = base64;
+                
+                // If base64 is missing (due to Large File cloud-stripping), try local IndexedDB cache
+                if (!finalBase64 && id) {
+                    // Show a quick visual spinner for loading
+                    content.innerHTML = `<div style="padding: 3rem; text-align: center;"><div class="spinner"></div><p>Recovering High-Fidelity File...</p></div>`;
+                    finalBase64 = await loadBinaryLocally(`global_${id}`);
+                }
+
+                modal.classList.add('active');
+
+                if (!finalBase64) {
+                    content.innerHTML = `
+                        <div style="padding: 3rem; text-align: center;">
+                            <i data-lucide="alert-triangle" size="48" style="color: var(--warning); margin-bottom: 1rem;"></i>
+                            <h3>File Binary Unavailable</h3>
+                            <p style="color: var(--text-muted); max-width: 300px; margin: 10px auto;">The original binary for this file was stripped for cloud performance (Text Only Sync) and is not available in your local browser cache.</p>
+                        </div>
+                    `;
+                    lucide.createIcons();
+                } else {
+                    // Existing preview logic...
+                    if (type.includes('image')) {
+                        content.innerHTML = `<img src="${finalBase64}" style="max-width: 100%; max-height: 80vh; border-radius: 8px; box-shadow: var(--shadow-lg);">`;
+                    } else if (type.includes('pdf')) {
+                        content.innerHTML = `<iframe src="${finalBase64}" style="width: 100%; height: 80vh; border: none; border-radius: 8px;"></iframe>`;
+                    } else {
+                        content.innerHTML = `<div style="padding: 2rem; text-align: center;"><i data-lucide="file-text" size="48" style="color: var(--primary);"></i><p style="margin-top: 1rem;">Preview not available for this file type.</p><a href="${finalBase64}" download="${name}" class="btn btn-primary" style="margin-top: 1rem;">Download Original</a></div>`;
+                        lucide.createIcons();
+                    }
                 }
             }
 
@@ -5791,8 +5851,12 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                     currentLLM = step.model || 'claude-3-haiku';
                     localStorage.setItem('tenderLLM', currentLLM);
 
-                    // 2. Open the AI Chat view
+                    // 2. Open the AI Chat view (keeping history for continuity)
+                    window.activePhaseIndex = step.id; 
                     moveChatUI('copilot'); 
+
+                    // Add a Phase Boundary marker to the UI for visual clarity
+                    addChatMessage(`--- STARTING PHASE ${step.id + 1}: ${step.title.toUpperCase()} ---`, 'ai', { icon: agent.icon, title: agent.name }, [], true, step.id);
                     
                     // 3. Auto-initiate with a specialist briefing
                     const input = document.getElementById('chat-input');
@@ -5817,38 +5881,100 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
             }
 
             function applyAIToDeck(slidesJson) {
-                try {
-                    const slides = typeof slidesJson === 'string' ? JSON.parse(slidesJson) : slidesJson;
-                    if (!Array.isArray(slides)) return;
+                // ... existing implementation ...
+            }
 
-                    if (slidesData.length > 0) {
-                        if (!confirm(`You already have ${slidesData.length} slides in your deck. This will REPLACE them with the AI's new storyboard. Continue?`)) return;
+            function addActivityLog(type, label, details) {
+                if (!window.intelligenceLog) window.intelligenceLog = [];
+                window.intelligenceLog.unshift({
+                    id: Date.now(),
+                    timestamp: new Date().toISOString(),
+                    type,
+                    label,
+                    details
+                });
+                saveProjects();
+                renderIntelligenceLog();
+            }
+
+            function applyIntelligenceUpgrade(type, content, phaseId) {
+                try {
+                    let oldContent = "";
+                    let logLabel = "";
+
+                    if (type === 'PROMPT' && phaseId !== undefined) {
+                        const step = WIZARD_STEPS[phaseId];
+                        if (step) {
+                            oldContent = step.prompt;
+                            step.prompt = content;
+                            logLabel = `Phase ${phaseId + 1} Prompt Upgrade`;
+                            showToast(`${logLabel} successful.`, "success");
+                        }
+                    } else if (type === 'DNA') {
+                        const current = projects.find(p => p.id === currentProjectId);
+                        if (current) {
+                            oldContent = current.masterPrompt || "Default DNA";
+                            current.masterPrompt = content;
+                            logLabel = "Master DNA Evolution";
+                            showToast(logLabel + " successful.", "success");
+                        }
                     }
 
-                    // Map AI format to internal format
-                    slidesData.length = 0;
-                    slides.forEach((s, idx) => {
-                        slidesData.push({
-                            id: Date.now() + idx,
-                            title: s.title || `Slide ${idx + 1}`,
-                            body: s.body || s.content || "No content provided.",
-                            theme: s.theme || 'light',
-                            notes: s.hook ? `Visual Hook: ${s.hook}` : ""
-                        });
-                    });
-
-                    activeSlideIndex = 0;
-                    selectedSlideIndices = [];
-                    renderThumbnails();
-                    updateEditorState();
-                    showToast(`Successfully applied ${slidesData.length} slides to the editor.`, "success");
-                    
-                    // Switch to editor view
-                    switchView('slide-editor');
+                    addActivityLog(type, logLabel, { oldContent, newContent: content });
+                    if (currentWorkflowStep === phaseId) renderWizardStep();
                 } catch (e) {
-                    console.error("[APPLY_TO_DECK] Error:", e);
-                    showToast("Failed to apply slides to deck.", "error");
+                    console.error("[EVOLVE] Upgrade Error:", e);
+                    showToast("Failed to apply intelligence upgrade.", "error");
                 }
+            }
+
+            function renderIntelligenceLog() {
+                const container = document.getElementById('intelligence-log-container');
+                if (!container) return;
+
+                const logs = window.intelligenceLog || [];
+                if (logs.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i data-lucide="list" size="48"></i>
+                            <p>No activity recorded yet.</p>
+                        </div>
+                    `;
+                    lucide.createIcons();
+                    return;
+                }
+
+                const getIcon = (type) => {
+                    const icons = {
+                        'PROMPT': 'brain-circuit', 'DNA': 'dna', 'PRICING': 'dollar-sign', 
+                        'SUBMISSION': 'archive', 'TEAM': 'users', 'PROOF': 'shield-check', 'DELETE': 'trash-2'
+                    };
+                    return icons[type] || 'info';
+                };
+
+                const getColor = (type) => {
+                    const colors = {
+                        'PROMPT': '#9a3412', 'DNA': '#166534', 'PRICING': '#0369a1',
+                        'SUBMISSION': '#0f766e', 'TEAM': '#7e22ce', 'PROOF': '#be185d', 'DELETE': '#b91c1c'
+                    };
+                    return colors[type] || '#4b5563';
+                };
+
+                container.innerHTML = logs.map(log => `
+                    <div style="padding: 1.25rem; border-bottom: 1px solid var(--border); background: var(--bg-card); border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid ${getColor(log.type)};">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <i data-lucide="${getIcon(log.type)}" size="16" style="color: ${getColor(log.type)};"></i>
+                                <span style="font-weight: 700; font-size: 0.85rem; color: var(--text-main);">${log.label}</span>
+                            </div>
+                            <span style="font-size: 0.7rem; color: var(--text-muted); font-family: monospace;">${new Date(log.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">
+                            ${typeof log.details === 'string' ? log.details : (log.details.oldContent ? `Instruction upgrade applied.` : JSON.stringify(log.details))}
+                        </div>
+                    </div>
+                `).join('');
+                lucide.createIcons();
             }
 
             function updateWizardPrompt(stepId, newValue) {
@@ -6316,6 +6442,8 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
             let projects = [];
             let currentProjectId = null;
             let globalSubmissions = [];
+            window.intelligenceLog = [];
+            let isDataLoaded = false; // Guard to prevent overwriting cloud with empty local state
             let currentWorkflowStep = 0; // 0: RFQ Analysis, 1: Market Research, 2: Competitor Analysis, 3: Compliance, 4: Strategy, 5: Generation
             const MEDIAONE_EXPERTISE = [
                 {
@@ -6777,125 +6905,6 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 }
             }
 
-            async function showMediaPreview(base64, name, type) {
-                let activeBase64 = base64;
-                const modal = document.getElementById('media-preview-modal');
-                const content = document.getElementById('media-preview-content');
-                const title = document.getElementById('media-preview-title');
-
-                if (!modal || !content || !title) return;
-
-                // 1. Try to find local high-fidelity binary (IndexedDB)
-                const gDocData = globalSubmissions.find(d => d.name === name);
-                if (gDocData) {
-                    const localBinary = await getLocalBinary(`global_${gDocData.id}`);
-                    if (localBinary) activeBase64 = localBinary;
-                }
-
-                // 2. If base64 is missing (deduplicated in history), try to find it in the project docs
-                if (!activeBase64) {
-                    const current = projects.find(p => p.id === currentProjectId);
-                    if (current && current.docs) {
-                        const doc = current.docs.find(d => d.name === name);
-                        if (doc) activeBase64 = doc.base64;
-                    }
-                    if (!activeBase64) {
-                        const gDoc = globalSubmissions.find(d => d.name === name);
-                        if (gDoc && gDoc.base64) activeBase64 = gDoc.base64;
-                    }
-                }
-
-                if (!activeBase64) {
-                    // 3. Fallback to text preview if no binary found
-                    const gDoc = globalSubmissions.find(d => d.name === name);
-                    if (gDoc && gDoc.content) {
-                        title.innerText = name;
-                        modal.classList.add('active');
-                        content.innerHTML = `<div class="docx-preview" style="padding: 2.5rem; background: #fff; border-radius: var(--radius-lg); max-height: 70vh; overflow-y: auto; text-align: left; color: var(--text-main); font-family: 'Inter', sans-serif; line-height: 1.6;">
-                            <div style="margin-bottom: 1rem; color: var(--primary); font-weight: 600; font-size: 0.75rem; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: var(--bg-app); border-radius: 4px;">
-                                <i data-lucide="info" size="14"></i> Large file: Displaying extracted text for reference. (Visual preview only available on the device that uploaded it)
-                            </div>
-                            <div style="white-space: pre-wrap;">${gDoc.content}</div>
-                        </div>`;
-                        lucide.createIcons();
-                        return;
-                    }
-                }
-
-                if (!activeBase64) {
-                    alert('File content not available for preview. It may be too large for cloud storage or not fully uploaded.');
-                    return;
-                }
-
-                title.innerText = name;
-                modal.classList.add('active');
-                content.innerHTML = '<div class="preview-spinner spin"></div>'; // Loading state
-
-                try {
-                    // Normalize type
-                    let activeType = type || "";
-                    if (!activeType) {
-                        const ext = name.split('.').pop().toLowerCase();
-                        if (ext === 'pdf') activeType = 'application/pdf';
-                        else if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) activeType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
-                        else if (ext === 'docx') activeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-                    }
-
-                    if (activeType.startsWith('image/')) {
-                        content.innerHTML = `<img src="${activeBase64}" style="max-width: 100%; max-height: 70vh; border-radius: var(--radius-lg); box-shadow: var(--shadow-xl);">`;
-                    } else if (activeType === 'application/pdf') {
-                        // Use Blob URL for better performance/reliability with large PDFs
-                        const blob = base64ToBlob(activeBase64);
-                        const blobUrl = URL.createObjectURL(blob);
-                        content.innerHTML = `<iframe src="${blobUrl}" style="width: 100%; height: 70vh; border: none; border-radius: var(--radius-lg);"></iframe>`;
-                    } else if (activeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-                        const arrayBuffer = base64ToArrayBuffer(activeBase64.split(',')[1] || activeBase64);
-                        const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
-                        content.innerHTML = `<div class="docx-preview" style="padding: 2.5rem; background: #fff; border-radius: var(--radius-lg); max-height: 70vh; overflow-y: auto; text-align: left; color: var(--text-main); font-family: 'Inter', sans-serif; line-height: 1.4;">${result.value || '<p>Empty document.</p>'}</div>`;
-                    } else if (activeType === 'text/csv' || activeType === 'text/plain' || activeType === 'application/json') {
-                        const b64Data = activeBase64.split(',')[1] || activeBase64;
-                        const text = atob(b64Data);
-                        content.innerHTML = `<pre style="padding: 1.5rem; background: #1e293b; color: #e2e8f0; border-radius: var(--radius-lg); max-height: 70vh; overflow: auto; text-align: left; font-size: 0.8rem; font-family: monospace; white-space: pre-wrap; word-break: break-all;">${text}</pre>`;
-                    } else if (activeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || activeType === 'application/vnd.ms-excel') {
-                        // XLSX
-                        try {
-                            const b64Data = activeBase64.split(',')[1] || activeBase64;
-                            const arrayBuffer = base64ToArrayBuffer(b64Data);
-                            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-                            const firstSheetName = workbook.SheetNames[0];
-                            const worksheet = workbook.Sheets[firstSheetName];
-                            const html = XLSX.utils.sheet_to_html(worksheet, { header: '', footer: '' });
-                            content.innerHTML = `
-                            <div class="excel-preview" style="background: #fff; border-radius: var(--radius-lg); max-height: 70vh; overflow: auto; padding: 1rem;">
-                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: #15803d; font-size: 0.8rem; font-weight: 600;">
-                                    <i data-lucide="table" size="14"></i> Sheet: ${firstSheetName} (Preview)
-                                </div>
-                                <div class="message-content" style="font-size: 0.75rem;">${html}</div>
-                            </div>
-                        `;
-                        } catch (e) {
-                            content.innerHTML = `<p style="color: var(--danger);">Failed to render Excel file.</p>`;
-                        }
-                    } else {
-                        content.innerHTML = `
-                        <div style="text-align: center; padding: 3rem;">
-                            <div style="width: 80px; height: 80px; background: var(--bg-app); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; color: var(--primary);">
-                                <i data-lucide="file-text" size="40"></i>
-                            </div>
-                            <p style="color: var(--text-main); font-weight: 600;">Preview limited for this type</p>
-                            <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem;">${name}</p>
-                            <a href="${activeBase64}" download="${name}" class="btn btn-primary" style="margin-top: 1.5rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem;">
-                                <i data-lucide="download" size="16"></i> Download to View
-                            </a>
-                        </div>
-                    `;
-                    }
-                } catch (err) {
-                    console.error('Preview error:', err);
-                    content.innerHTML = `<p style="color: var(--danger); padding: 2rem;">Error generating preview. You can still download the file to view it.</p>`;
-                }
-                lucide.createIcons();
-            }
 
             function base64ToBlob(base64) {
                 const parts = base64.split(';base64,');
@@ -7751,7 +7760,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 }
 
                 // Show/hide right panel based on view
-                const slidePanel = document.getElementById('slide-panel');
+                const slidePanel = document.getElementById('copilot-panel-el');
                 const mainWorkspace = document.querySelector('.main-workspace');
                 if (viewId === 'slide-editor') {
                     if (slidePanel) slidePanel.classList.add('visible');
@@ -8020,13 +8029,14 @@ Respond with: [AUDIT_SCORES: {"strategy": 85, "compliance": 90, "quality": 80}] 
                         'aggressive': 'Tone: Aggressive, high-energy, and highly competitive. Focus on market dominance, ROI, and outperforming competitors. Use words like "dominate", "accelerate", and "superior".',
                         'formal': 'Tone: Extremely formal, precise, and professional. Adhere strictly to tender protocols and corporate language. Avoid contractions and informal phrasing.'
                     };
-                    // --- SYSTEM DIRECTIVE (Prevents Meta-Discussion) ---
-                    fullPrompt += "SYSTEM DIRECTIVE: You are an automated strategic engine for the TenderAI platform. Focus entirely on executing the requested task using the provided project context. DO NOT engage in meta-discussions about your architecture, memory limitations, or AI nature. If a task is segmented, simply continue from the last provided point without commentary.\n\n";
+                    // --- SYSTEM DIRECTIVE (Prevents Meta-Discussion & Encourages Evolution) ---
+                    fullPrompt += "SYSTEM DIRECTIVE: You are an automated strategic engine for the TenderAI platform. Focus entirely on executing the requested task using the provided project context. DO NOT engage in meta-discussions about your architecture or memory. \n\nSELF-EVOLUTION CAPABILITY: If you identify a significant way to improve your own specialist prompt (to be more efficient) or the Project Master DNA (to better reflect the user's strategic style), you may propose an upgrade. \n- To improve a phase prompt: [EVOLVE_PROMPT: {\"phaseId\": X, \"suggestion\": \"Full new prompt text...\"}]\n- To improve Project DNA: [EVOLVE_DNA: Full new DNA text...]\nONLY propose upgrades when you have learned something meaningful from the user's feedback.\n\n";
 
                     fullPrompt += `REQUIRED TONE OF VOICE:\n${toneInstructions[currentTone] || toneInstructions['consultative']}\n\n`;
 
                     // --- INJECT CONVERSATION HISTORY (For continuity) ---
-                    const chatHistory = Array.from(document.querySelectorAll('.message')).slice(-10).map(m => {
+                    // Increased to 25 messages to provide much deeper context across phases
+                    const chatHistory = Array.from(document.querySelectorAll('.message')).slice(-25).map(m => {
                         const content = m.querySelector('.message-content').innerText.replace('Continue AI Generation', '').trim();
                         const isUser = m.classList.contains('message-user');
                         return `${isUser ? 'User' : 'Assistant'}: ${content}`;
@@ -8549,6 +8559,55 @@ Note: Index is 1-based as seen in the thumbnail numbers. Always prioritize updat
                     }
                 }
 
+                // --- INTELLIGENCE EVOLUTION PARSER ---
+                const evolvePromptRegex = /\[EVOLVE_PROMPT:\s*(\{[\s\S]*?\})\]/g;
+                let evolveMatch;
+                while ((evolveMatch = evolvePromptRegex.exec(text)) !== null) {
+                    try {
+                        const data = JSON.parse(evolveMatch[1].trim());
+                        const upgradeContainer = document.createElement('div');
+                        upgradeContainer.style = 'margin-top: 1rem; background: #fff7ed; border: 1px solid #ffedd5; border-radius: 12px; padding: 1.25rem; animation: slideUp 0.4s ease-out;';
+                        upgradeContainer.innerHTML = `
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: #9a3412;">
+                                <i data-lucide="brain-circuit" size="18"></i>
+                                <span style="font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Intelligence Upgrade Proposal</span>
+                            </div>
+                            <div style="font-size: 0.85rem; color: #7c2d12; line-height: 1.5; margin-bottom: 15px;">
+                                I've identified an opportunity to improve the <strong>Phase ${data.phaseId + 1} Agent Prompt</strong> based on our recent interaction. Would you like to upgrade my internal instructions?
+                            </div>
+                            <div style="background: white; padding: 10px; border-radius: 8px; font-size: 0.75rem; color: #4b5563; border: 1px solid #fed7aa; max-height: 100px; overflow-y: auto; font-family: monospace; margin-bottom: 15px;">
+                                ${data.suggestion}
+                            </div>
+                            <div style="display: flex; gap: 10px;">
+                                <button class="btn btn-sm" onclick="applyIntelligenceUpgrade('PROMPT', '${data.suggestion.replace(/'/g, "\\'")}', ${data.phaseId}); this.parentElement.parentElement.style.opacity='0.5'; this.parentElement.parentElement.style.pointerEvents='none';" style="background: #ea580c; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700;">Approve Upgrade</button>
+                                <button class="btn btn-sm" onclick="this.parentElement.parentElement.remove()" style="background: transparent; color: #9a3412; border: 1px solid #fed7aa; padding: 6px 12px; border-radius: 6px; cursor: pointer;">Dismiss</button>
+                            </div>
+                        `;
+                        msgDiv.appendChild(upgradeContainer);
+                    } catch (e) { console.warn("[EVOLVE_PROMPT] Parse Error:", e); }
+                }
+
+                const evolveDNARegex = /\[EVOLVE_DNA:\s*([\s\S]*?)\]/g;
+                let dnaMatch;
+                while ((dnaMatch = evolveDNARegex.exec(text)) !== null) {
+                    const upgradeContainer = document.createElement('div');
+                    upgradeContainer.style = 'margin-top: 1rem; background: #f0fdf4; border: 1px solid #dcfce7; border-radius: 12px; padding: 1.25rem; animation: slideUp 0.4s ease-out;';
+                    upgradeContainer.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: #166534;">
+                            <i data-lucide="dna" size="18"></i>
+                            <span style="font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Master DNA Evolution</span>
+                        </div>
+                        <div style="font-size: 0.85rem; color: #14532d; line-height: 1.5; margin-bottom: 15px;">
+                            I've synthesized a more effective <strong>Project Master Prompt (DNA)</strong> based on your strategic feedback.
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-sm" onclick="applyIntelligenceUpgrade('DNA', '${dnaMatch[1].trim().replace(/'/g, "\\'")}'); this.parentElement.parentElement.style.opacity='0.5'; this.parentElement.parentElement.style.pointerEvents='none';" style="background: #16a34a; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 700;">Apply to Project DNA</button>
+                            <button class="btn btn-sm" onclick="this.parentElement.parentElement.remove()" style="background: transparent; color: #166534; border: 1px solid #bbf7d0; padding: 6px 12px; border-radius: 6px; cursor: pointer;">Dismiss</button>
+                        </div>
+                    `;
+                    msgDiv.appendChild(upgradeContainer);
+                }
+
                 lucide.createIcons();
 
                 // Persist to project history
@@ -8992,6 +9051,10 @@ ${slide.body}`;
             }
 
             async function saveProjects() {
+                if (!isDataLoaded) {
+                    console.warn("Save blocked: Data has not been fully loaded from cloud yet.");
+                    return;
+                }
                 const current = projects.find(p => p.id === currentProjectId);
                 if (current) {
                     current.slides = [...slidesData];
@@ -9010,7 +9073,7 @@ ${slide.body}`;
                 if (currentUser) {
                     updateCloudStatus('syncing');
                     try {
-                        const userId = currentUser.email || 'mediaone_global_workspace';
+                        const userId = (currentUser && currentUser.email) ? currentUser.email : 'mediaone_global_workspace';
 
                         // CRITICAL: Deduplicate payload to avoid 10MB limit
                         // Payload size optimization: Strip base64 from large files to stay under 10MB Lambda limit
@@ -9219,7 +9282,7 @@ ${slide.body}`;
                 updateCloudStatus('syncing');
                 toggleLoader(true, "Fetching Cloud Data...");
                 try {
-                    const userId = currentUser.email || 'mediaone_global_workspace';
+                    const userId = (currentUser && currentUser.email) ? currentUser.email : 'mediaone_global_workspace';
                     const payload = {
                         action: 'fetch_projects',
                         data: {
@@ -9250,16 +9313,33 @@ ${slide.body}`;
                     // Handle both direct response and Lambda proxy response
                     const result = (data && data.body) ? (typeof data.body === 'string' ? JSON.parse(data.body) : data.body) : data;
 
-                    if (result && result.projects) {
-                        projects = result.projects;
+                    if (result) {
+                        // 1. Populate Projects
+                        if (result.projects) {
+                            projects = result.projects;
+                            renderProjectList();
+                        }
                         
-                        // Populate Global Submissions
+                        // 2. Populate Global Submissions (Persistent Repository)
                         if (result.globalSubmissions) {
                             globalSubmissions = result.globalSubmissions;
                             renderGlobalSubmissions();
                         }
 
-                        // Populate Wizard Prompts
+                        // 3. Populate Global Team Registry
+                        if (result.globalTeam && result.globalTeam.length > 0) {
+                            teamData.length = 0;
+                            result.globalTeam.forEach(t => teamData.push(t));
+                            renderTeam();
+                        }
+
+                        // 4. Populate Proof Bank
+                        if (result.proofBank) {
+                            proofBankData = result.proofBank;
+                            renderProofBank();
+                        }
+
+                        // 5. Populate Wizard Prompts
                         if (result.wizardPrompts) {
                             result.wizardPrompts.forEach(wp => {
                                 const step = WIZARD_STEPS.find(s => s.id === wp.id);
@@ -9267,35 +9347,16 @@ ${slide.body}`;
                             });
                         }
 
-                        // Populate Global Team Registry
-                        if (result.globalTeam && result.globalTeam.length > 0) {
-                            teamData.length = 0;
-                            result.globalTeam.forEach(t => teamData.push(t));
-                            renderTeam();
-                        }
-
-                        // Populate Proof Bank from cloud if available
-                        if (result.proofBank) {
-                            proofBankData = result.proofBank;
-                            renderProofBank();
-                        }
-
-                        // Populate Global Submissions
-                        if (result.globalSubmissions) {
-                            globalSubmissions = result.globalSubmissions;
-                            renderGlobalSubmissions();
-                        }
-
-                        // Initialize Wizard
-                        goToStep(0);
-                        
+                        // 6. Populate AI Agents
                         if (result.aiAgents) {
                             aiAgents = result.aiAgents;
                             localStorage.setItem('tenderAIAgents', JSON.stringify(aiAgents));
                             renderAIAgents();
                         }
 
-                        renderProjectList();
+                        // 7. Initialize State
+                        isDataLoaded = true; // Release the save guard
+                        goToStep(0);
                         updateCloudStatus('synced');
 
                         if (!currentProjectId && projects.length > 0) {

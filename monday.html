@@ -1,0 +1,3414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monday.com Clone</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- SortableJS -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <style>
+        :root {
+            /* Monday.com Dark Theme Colors */
+            --bg-main: #181b34;
+            --bg-sidebar: #22253e;
+            --bg-surface: #2b2e4a;
+            --bg-hover: #3b3e5a;
+            --text-main: #f0f1f5;
+            --text-muted: #a0a2b1;
+            --border-color: #3b3e5a;
+            
+            /* Status Colors */
+            --status-done: #00c875;
+            --status-working: #fdab3d;
+            --status-stuck: #e2445c;
+            --status-empty: #c4c4c4;
+            
+            /* Group Colors */
+            --group-blue: #579bfc;
+            --group-purple: #a25ddc;
+            
+            --focus-ring: 0 0 0 2px rgba(87, 155, 252, 0.5);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            font-size: 14px;
+        }
+
+        /* Sidebar */
+        aside {
+            width: 260px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 18px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .sidebar-header img {
+            width: 24px;
+            height: 24px;
+        }
+
+        .workspaces {
+            padding: 15px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .workspace-title {
+            color: var(--text-muted);
+            font-size: 12px;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .board-list {
+            list-style: none;
+        }
+
+        .board-item, .folder-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .board-item:hover, .folder-item:hover {
+            background-color: var(--bg-hover);
+            color: var(--text-main);
+        }
+
+        .board-item.active {
+            background-color: rgba(87, 155, 252, 0.15);
+            color: #579bfc;
+        }
+
+        .board-item-content, .folder-item-content {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-grow: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .folder-content {
+            padding-left: 20px;
+            display: none;
+            min-height: 5px; /* Ensure it's a target for Sortable even if empty */
+        }
+        .folder-content.open {
+            display: block;
+        }
+
+        .sidebar-menu-btn {
+            opacity: 0;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 2px;
+            display: flex;
+        }
+        .board-item:hover .sidebar-menu-btn, .folder-item:hover .sidebar-menu-btn {
+            opacity: 1;
+        }
+        .sidebar-menu-btn:hover { color: var(--text-main); }
+
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            padding: 4px;
+            min-width: 150px;
+        }
+        .dropdown-menu.show { display: flex; }
+        .dropdown-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            color: var(--text-main);
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dropdown-item:hover {
+            background-color: var(--bg-hover);
+            border-radius: 2px;
+        }
+
+        /* Main Content */
+        main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            height: 60px;
+            padding: 0 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .board-title {
+            font-size: 24px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .cloud-sync {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+            padding: 6px 12px;
+            border-radius: 20px;
+            background-color: var(--bg-surface);
+            transition: all 0.3s ease;
+        }
+
+        .cloud-sync.syncing {
+            color: var(--status-working);
+        }
+
+        .cloud-sync.synced {
+            color: var(--status-done);
+        }
+
+        .board-header-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-left: auto;
+            margin-right: 20px;
+        }
+        .btn-automate {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 6px 12px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-automate:hover {
+            background: var(--bg-hover);
+            border-color: var(--primary-blue);
+        }
+        .btn-automate i {
+            color: var(--primary-blue);
+        }
+
+        /* Board Area */
+        .board-area {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        /* Group */
+        .group {
+            margin-bottom: 40px;
+        }
+
+        .group-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .group-color-indicator {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+
+        .group-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        /* Table */
+        .monday-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: transparent;
+        }
+
+        .monday-table th, .monday-table td {
+            border: 1px solid var(--border-color);
+            padding: 0;
+            vertical-align: middle;
+            height: 36px;
+            text-align: center;
+            position: relative;
+        }
+        .monday-table th .sidebar-menu-btn {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .monday-table th:hover .sidebar-menu-btn {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .monday-table th:hover .sort-icon {
+            opacity: 0.5 !important;
+        }
+        
+        .monday-table th.col-drag, .monday-table td.col-drag {
+            border: none;
+            background: transparent;
+        }
+
+        .monday-table th {
+            background-color: var(--bg-surface);
+            color: var(--text-muted);
+            font-weight: 500;
+            padding: 0 10px;
+            font-size: 13px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            text-align: center;
+        }
+
+        /* Checkbox Column */
+        .col-check { width: 40px; text-align: center !important; }
+        .col-check input { cursor: pointer; }
+
+        /* Name Column */
+        .col-name {
+            width: 40%;
+            min-width: 250px;
+            padding: 0 10px !important;
+            text-align: left !important;
+            border-left: 4px solid transparent; /* Reserved for group color */
+            position: relative;
+        }
+        
+        .col-name input {
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            width: 100%;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        /* Person Column */
+        .col-person { width: 100px; text-align: center !important; }
+        .avatar {
+            width: 24px; height: 24px; border-radius: 50%;
+            background-color: #00c875;
+            display: inline-flex; align-items: center; justify-content: center;
+            color: white; font-size: 10px; font-weight: bold;
+        }
+
+        /* Status Column */
+        .col-status { width: 140px; }
+        .status-cell {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            position: relative;
+        }
+        .status-cell:hover { opacity: 0.9; }
+
+        /* Status Dropdown */
+        .status-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            padding: 4px;
+            gap: 4px;
+        }
+        .status-dropdown.show { display: flex; }
+        
+        .status-option {
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 2px;
+        }
+
+        /* Date Column */
+        .col-date { width: 120px; text-align: center !important; }
+        .col-date input {
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            width: 100%;
+            text-align: center;
+            font-family: inherit;
+            font-size: 13px;
+            outline: none;
+            cursor: pointer;
+        }
+        .col-date input::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            cursor: pointer;
+        }
+
+        /* Text Column */
+        .col-text { min-width: 150px; padding: 0 10px !important; }
+        .col-text input {
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            width: 100%;
+            font-family: inherit;
+            font-size: 13px;
+            outline: none;
+        }
+
+        /* Row interactions */
+        .monday-table tbody tr {
+            background-color: var(--bg-main);
+            transition: background-color 0.2s;
+        }
+        .monday-table tbody tr:hover {
+            background-color: var(--bg-surface);
+        }
+
+        /* Add Item Row */
+        .add-item-row {
+            height: 36px;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            border: 1px solid var(--border-color);
+            border-top: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom-left-radius: 6px;
+            border-bottom-right-radius: 6px;
+            gap: 8px;
+        }
+        .add-item-row:hover {
+            background-color: var(--bg-surface);
+        }
+
+        /* Utilities */
+        .btn-icon {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-icon:hover {
+            background-color: var(--bg-hover);
+            color: var(--text-main);
+        }
+
+        /* Modals/Toasts */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: var(--bg-surface);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            z-index: 1000;
+        }
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* Drag Handle */
+        .group-drag-handle { color: var(--text-muted); cursor: grab; opacity: 0; transition: opacity 0.2s; }
+        .group-header:hover .group-drag-handle { opacity: 1; color: #555; }
+        .group-drag-handle:active { cursor: grabbing; }
+
+        .col-drag { width: 30px; text-align: center !important; color: var(--text-muted); cursor: grab; opacity: 0; transition: opacity 0.2s; position: relative; }
+        .monday-table tbody tr:hover .col-drag { opacity: 1; color: #555; }
+        .col-drag:active { cursor: grabbing; }
+
+        .row-hover-actions {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: none;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 2px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        .monday-table tbody tr:hover .row-hover-actions { display: flex; gap: 2px; }
+        .row-hover-actions button { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; border-radius: 2px; display: flex; }
+        .row-hover-actions button:hover { background: var(--bg-hover); color: var(--text-main); }
+
+        .group-hover-actions {
+            display: none;
+            gap: 2px;
+            margin-right: 5px;
+        }
+        .group-header:hover .group-hover-actions { display: flex; }
+        .group-hover-actions button { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; border-radius: 4px; display: flex; }
+        .group-hover-actions button:hover { background: var(--bg-hover); color: var(--text-main); }
+
+        /* Updates Icon */
+        .col-updates { width: 40px; text-align: center !important; position: relative; }
+        .update-bubble { position: relative; display: inline-flex; }
+        .update-count { position: absolute; top: -5px; right: -5px; background: #579bfc; color: white; font-size: 10px; border-radius: 10px; padding: 0 4px; font-weight: bold; }
+        
+        /* Person Dropdown */
+        .person-dropdown {
+            position: absolute;
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            padding: 4px;
+            min-width: 150px;
+        }
+        .person-dropdown.show { display: flex; }
+        
+        /* Updates Modal */
+        .updates-panel {
+            position: absolute;
+            right: 0;
+            top: 0;
+            background: var(--bg-surface);
+            width: 700px;
+            max-width: 90vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid var(--border-color);
+            transform: translateX(100%);
+            transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        .modal-overlay.show .updates-panel {
+            transform: translateX(0);
+        }
+        .updates-header { padding: 15px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+        .updates-body { flex-grow: 1; overflow-y: auto; padding: 20px; }
+        .updates-footer { padding: 15px 20px; border-top: 1px solid var(--border-color); background: var(--bg-main); }
+        .update-card { background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; margin-bottom: 15px; }
+        .update-author { font-weight: 600; margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
+        .update-text { color: var(--text-main); font-size: 14px; line-height: 1.5; white-space: pre-wrap; margin-bottom: 10px; }
+        .update-actions { display: flex; gap: 10px; margin-top: 10px; }
+        .reaction-btn { background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-muted); border-radius: 12px; padding: 2px 8px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+        .reaction-btn:hover { border-color: #579bfc; color: var(--text-main); }
+        .reaction-btn.active { background: rgba(87,155,252,0.2); border-color: #579bfc; color: #579bfc; }
+        
+        .reply-box { margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--border-color); }
+        .reply-item { margin-top: 10px; padding: 10px; background: var(--bg-surface); border-radius: 6px; font-size: 13px; }
+        .reply-input-area { display: none; margin-top: 10px; }
+        .reply-input-area.show { display: block; }
+
+        /* Label Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            width: 300px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+        .modal h3 { margin-bottom: 15px; font-weight: 600; }
+        .modal input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            border-radius: 4px;
+            outline: none;
+            font-size: 14px;
+        }
+        .modal input[type="text"]:focus {
+            border-color: #579bfc;
+        }
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .modal-actions button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+        .modal-actions button:hover { opacity: 0.8; }
+        .btn-cancel { background: var(--bg-surface); color: var(--text-main); }
+        .btn-save { 
+            background: #0073ea; 
+            color: white; 
+            border: none;
+            border-radius: 4px;
+            padding: 8px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 115, 234, 0.2);
+        }
+        .btn-save:hover {
+            background: #0060c5;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(0, 115, 234, 0.3);
+        }
+        .btn-save:active {
+            transform: translateY(0);
+        }
+        
+        /* Bulk Actions Bar */
+        .bulk-actions-bar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #2b2e4a; /* matching bg-surface */
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-radius: 8px;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        .bulk-actions-bar.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        .emoji-picker {
+            position: fixed;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 5px 10px;
+            display: flex;
+            gap: 5px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 2000;
+            animation: fadeIn 0.2s ease;
+        }
+        .emoji-picker button {
+            background: transparent;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+        .emoji-picker button:hover {
+            background: var(--bg-hover);
+        }
+        .folder-item-content:hover {
+            background: var(--bg-hover);
+        }
+        .folder-item-content.drag-over {
+            background: var(--bg-hover);
+            outline: 2px dashed var(--primary-blue);
+            outline-offset: -2px;
+        }
+        .folder-item-content i {
+            color: #ffcb00; /* folder color */
+        }@keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Custom Tooltip */
+        .custom-tooltip {
+            position: fixed;
+            background: #111;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            pointer-events: none;
+            z-index: 3000;
+            display: none;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .custom-tooltip::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 4px solid #111;
+        }
+
+        /* Automation Cards */
+        .automation-card {
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.2s;
+        }
+        .automation-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary-blue);
+        }
+        .automation-sentence {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .automation-sentence b {
+            color: var(--primary-blue);
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+
+        /* Resizer */
+        .resizer {
+            position: absolute;
+            right: -2px;
+            top: 0;
+            height: 100%;
+            width: 8px; /* Wider grab area */
+            cursor: col-resize;
+            user-select: none;
+            z-index: 100;
+            transition: background 0.2s;
+        }
+        .resizer:hover, .resizer.resizing {
+            background: var(--primary-blue);
+        }
+        
+        th { position: relative; }
+        td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .automation-type-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 12px;
+            text-align: center;
+            color: var(--text-muted);
+            background: var(--bg-surface);
+        }
+        .automation-type-card:hover {
+            border-color: var(--primary-blue);
+            color: var(--text-main);
+            background: var(--bg-hover);
+        }
+        .automation-type-card.selected {
+            border-color: var(--primary-blue);
+            background: rgba(87,155,252,0.12);
+            color: var(--primary-blue);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <aside>
+        <div class="sidebar-header">
+            <svg viewBox="0 0 100 100" width="24" height="24">
+                <rect x="20" y="20" width="15" height="40" rx="7" fill="#ff3d57"/>
+                <rect x="42.5" y="40" width="15" height="40" rx="7" fill="#ffcb00"/>
+                <rect x="65" y="20" width="15" height="60" rx="7" fill="#00c875"/>
+            </svg>
+            work OS
+        </div>
+        <div class="workspaces">
+            <div class="workspace-title">
+                Main Workspace
+                <div style="position: relative;">
+                    <button class="btn-icon" onclick="toggleWorkspaceMenu(event)"><i data-lucide="plus" size="14"></i></button>
+                    <div class="dropdown-menu" id="workspace-menu">
+                        <div class="dropdown-item" onclick="addNewBoard()"><i data-lucide="layout-dashboard" size="14"></i> New Board</div>
+                        <div class="dropdown-item" onclick="addNewFolder()"><i data-lucide="folder" size="14"></i> New Folder</div>
+                    </div>
+                </div>
+            </div>
+            <ul class="board-list" id="board-list">
+                <!-- Board items rendered here -->
+            </ul>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main>
+        <div class="top-bar">
+            <div class="board-title" id="board-title">
+                Loading Board...
+            </div>
+            <div class="board-header-right">
+                <button class="btn-automate" onclick="openAutomationCenter()">
+                    <i data-lucide="zap" size="14"></i> Automate
+                </button>
+            </div>
+            <div class="cloud-sync" id="cloud-sync-status">
+                <i data-lucide="cloud" size="16"></i>
+                <span>Connecting...</span>
+            </div>
+        </div>
+
+        <div class="board-area" id="board-area">
+            <!-- Groups rendered here -->
+        </div>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">
+        <i data-lucide="info" size="18"></i>
+        <span id="toast-msg">Notification</span>
+    </div>
+
+    <!-- Bulk Actions Bar -->
+    <div id="bulk-actions-bar" class="bulk-actions-bar">
+        <div style="display:flex; align-items:center; gap: 10px;">
+            <div id="bulk-count" class="bulk-actions-count">0</div>
+            <span>Items selected</span>
+        </div>
+        <div style="width: 1px; height: 20px; background: var(--border-color);"></div>
+        <button class="btn-icon" style="color:var(--status-stuck); display:flex; align-items:center; gap:5px; padding: 4px 8px;" onclick="deleteSelectedItems()">
+            <i data-lucide="trash-2" size="16"></i> Delete
+        </button>
+        <button class="btn-icon" style="display:flex; align-items:center; gap:5px; padding: 4px 8px;" onclick="clearSelection()">
+            <i data-lucide="x" size="16"></i> Cancel
+        </button>
+    </div>
+
+    <!-- New/Edit Label Modal -->
+    <div id="label-modal" class="modal-overlay">
+        <div class="modal">
+            <h3 id="label-modal-title">Create New Label</h3>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Label Name:</p>
+            <input type="text" id="new-label-name" placeholder="E.g. Waiting on client" autocomplete="off" style="margin-bottom: 15px;">
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Label Color:</p>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="color" id="label-color-picker" value="#00c875" style="width: 40px; height: 40px; padding: 0; border: none; border-radius: 4px; cursor: pointer; background: transparent;">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeLabelModal()">Cancel</button>
+                <button class="btn-save" onclick="saveNewLabel()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Board Settings Modal -->
+    <div id="board-settings-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 500px; width: 90%;">
+            <h3>Board Settings</h3>
+            
+            <div style="margin-top: 20px;">
+                <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">Add New Member:</p>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="add-member-email" placeholder="Email address" style="flex-grow: 1; margin-bottom: 0;">
+                    <select id="add-member-role" style="padding: 8px; background: var(--bg-surface); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 4px;">
+                        <option value="view">View</option>
+                        <option value="edit">Edit</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                    <button class="btn-save" onclick="addBoardMember()" style="padding: 8px 16px;">Add</button>
+                </div>
+            </div>
+
+            <div style="margin-top: 25px;">
+                <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Existing Members:</p>
+                <div id="board-members-list" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-main);">
+                    <!-- Member items rendered here -->
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button class="btn-save" onclick="closeBoardSettingsModal()" style="width: 100%;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Icon Picker Modal -->
+    <div id="icon-picker-modal" class="modal-overlay">
+        <div class="modal" style="max-width: 400px;">
+            <h3>Choose Board Icon</h3>
+            <div id="icon-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 20px 0; max-height: 300px; overflow-y: auto; padding: 10px;">
+                <!-- Icons will be injected here -->
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeIconPicker()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Automation Center Modal -->
+    <div id="automation-modal" class="modal-overlay">
+        <div class="modal" style="width: 90vw; max-width: 1200px; height: 80vh; display: flex; flex-direction: column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-shrink: 0;">
+                <h3 style="margin:0;">Automation Center</h3>
+                <button class="btn-save" onclick="openAddAutomation()" style="font-size:14px; padding: 8px 16px;">+ Add New Automation</button>
+            </div>
+            <div id="automation-list" style="flex-grow: 1; overflow-y: auto; padding: 10px;">
+                <!-- Automations will be listed here -->
+            </div>
+            <div class="modal-actions" style="margin-top: 20px; flex-shrink: 0;">
+                <button class="btn-cancel" onclick="closeAutomationModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Automation Modal -->
+    <div id="add-automation-modal" class="modal-overlay">
+        <div class="modal" style="width: 80vw; max-width: 900px;">
+            <h3>Create Automation</h3>
+            <div style="background:var(--bg-main); padding:30px; border-radius:8px; border:1px solid var(--border-color); margin:20px 0;">
+                <div id="automation-builder-sentence" class="automation-sentence" style="font-size: 18px;">
+                    <!-- Builder sentence goes here -->
+                </div>
+            </div>
+            <div class="modal-actions" style="margin-top: 30px;">
+                <button class="btn-cancel" onclick="closeAddAutomation()">Cancel</button>
+                <button class="btn-save" id="save-automation-btn" onclick="saveAutomation()">Create Automation</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Updates Modal -->
+    <div id="updates-modal" class="modal-overlay">
+        <div class="updates-panel">
+            <div class="updates-header">
+                <h3 id="updates-item-name">Item Updates</h3>
+                <button class="btn-icon" onclick="closeUpdatesModal()"><i data-lucide="x" size="18"></i></button>
+            </div>
+            <div class="updates-body" id="updates-body">
+                <!-- Updates rendered here -->
+            </div>
+            <div class="updates-footer">
+                <textarea id="new-update-input" placeholder="Write an update (Paste images here)..." onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); postUpdate(); }" onpaste="handleUpdatePaste(event)" style="width: 100%; padding: 10px; background: var(--bg-surface); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 4px; resize: none; height: 80px; margin-bottom: 5px; font-family: inherit; font-size: 14px; outline: none;"></textarea>
+                <div id="update-attachments-preview" style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;"></div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <button class="btn-icon" onclick="document.getElementById('update-file-input').click()"><i data-lucide="paperclip" size="18"></i></button>
+                    <input type="file" id="update-file-input" style="display:none;" multiple onchange="handleUpdateFiles(this.files)">
+                    <button class="btn-save" onclick="postUpdate()">Update</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attachment Preview Modal -->
+    <div id="preview-modal" class="modal-overlay" onclick="closePreviewModal()">
+        <div class="modal" id="preview-modal-content" style="max-width: 95vw; max-height: 95vh; width: 85vw; height: 85vh; background: var(--bg-surface); border: 1px solid var(--border-color); display: flex; flex-direction: column; overflow: hidden; resize: both; padding: 0;" onclick="event.stopPropagation()">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--border-color); background: var(--bg-main);">
+                <div id="preview-title-container" style="display: flex; align-items: center; gap: 10px; max-width: 60%;">
+                    <h3 id="preview-filename" style="margin:0; font-size: 15px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">File Preview</h3>
+                    <button class="btn-icon" id="preview-rename-btn" title="Rename"><i data-lucide="edit-3" size="14"></i></button>
+                    <div id="preview-rename-input-container" style="display:none; align-items:center; gap:5px;">
+                        <input type="text" id="preview-rename-input" style="background:var(--bg-surface); color:var(--text-main); border:1px solid var(--border-color); border-radius:4px; padding:4px 8px; font-size:13px; outline:none;">
+                        <button class="btn-icon" id="preview-rename-save" style="color:var(--status-working);"><i data-lucide="check" size="14"></i></button>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <button class="btn-icon" id="preview-download-btn" title="Download"><i data-lucide="download" size="18"></i></button>
+                    <button class="btn-icon" id="preview-delete-btn" title="Delete" style="color: var(--status-stuck);"><i data-lucide="trash-2" size="18"></i></button>
+                    <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 5px;"></div>
+                    <button class="btn-icon" onclick="closePreviewModal()"><i data-lucide="x" size="20"></i></button>
+                </div>
+            </div>
+            <div id="preview-content" style="flex-grow: 1; display: flex; justify-content: center; align-items: center; overflow: auto; padding: 30px; background: #0b0c16;">
+                <!-- Image or file preview here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Constants & Configuration
+        // NOTE: Update this URL to point to your deployed monday_persistence_lambda API Gateway endpoint
+        const PERSISTENCE_API_URL = 'https://h5gtgdu783.execute-api.ap-southeast-1.amazonaws.com/mondayReplacement';
+        
+        // User Configuration
+        let USER_ID = 'demo_workspace_user';
+        let USER_NAME = 'Demo User';
+
+        function checkGoogleLogin() {
+            const storedUser = localStorage.getItem('googleUser');
+            if (storedUser) {
+                const googleUser = JSON.parse(storedUser);
+                USER_ID = googleUser.email;
+                USER_NAME = googleUser.name;
+                console.log('Logged in as:', USER_NAME, '(', USER_ID, ')');
+                return true;
+            }
+            
+            google.accounts.id.initialize({
+                client_id: '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com',
+                callback: (response) => {
+                    fetch('https://ts9k398yn8.execute-api.ap-southeast-1.amazonaws.com/googleLogin', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ credential: response.credential })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.body.success) {
+                            localStorage.setItem('googleUser', JSON.stringify(data.body.user));
+                            location.reload();
+                        }
+                    });
+                }
+            });
+            return false;
+        }
+
+        // State
+        let state = {
+            boards: [],
+            folders: [],
+            activeBoardId: null,
+            openFolders: {}, // folderId -> boolean
+            statusOptions: {
+                'working': { label: 'Working on it', color: '#fdab3d' },
+                'stuck': { label: 'Stuck', color: '#df2f4a' },
+                'done': { label: 'Done', color: '#00c875' },
+                'empty': { label: '', color: 'var(--status-empty)' }
+            }
+        };
+
+        let currentlyDraggedBoardId = null;
+
+        // --- Data Fetching & Syncing ---
+
+        async function fetchBoardsFromCloud() {
+            // Load from local storage first for speed
+            const localBoards = localStorage.getItem('monday_boards');
+            const localFolders = localStorage.getItem('monday_folders');
+            if (localBoards) {
+                state.boards = JSON.parse(localBoards);
+                if (localFolders) state.folders = JSON.parse(localFolders);
+                renderSidebar();
+                renderActiveBoard();
+            }
+
+            setSyncStatus('syncing', 'Loading data...');
+            try {
+                const response = await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'fetch_boards',
+                        data: { userId: USER_ID }
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch from cloud');
+                const result = await response.json();
+                console.log('Cloud raw result:', result);
+                
+                // AWS Lambda proxy wraps the actual payload in a stringified 'body'
+                let data;
+                if (result.body) {
+                    data = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
+                } else {
+                    data = result.data || result;
+                }
+                console.log('Cloud parsed data:', data);
+                
+                if (data.boards && data.boards.length > 0) {
+                    state.boards = data.boards;
+                    // Normalize members to object format
+                    state.boards.forEach(b => {
+                        if (b.members) {
+                            b.members = b.members.map(m => typeof m === 'string' ? { email: m, role: 'view' } : m);
+                        } else {
+                            b.members = [];
+                        }
+                    });
+                    if (data.folders) state.folders = data.folders;
+                    if (data.statusOptions) state.statusOptions = data.statusOptions;
+                } else if (data.folders && data.folders.length > 0) {
+                    state.folders = data.folders;
+                } else {
+                    // Seed initial data if empty
+                    seedInitialData();
+                }
+                
+                if(state.boards.length > 0) {
+                    state.activeBoardId = state.boards[0].id;
+                }
+                
+                renderSidebar();
+                renderActiveBoard();
+                checkDateAutomations();
+                setSyncStatus('synced', 'Cloud Synced');
+            } catch (err) {
+                console.error("Cloud fetch failed:", err);
+                showToast("Cloud connection failed. Using local data.", true);
+                setSyncStatus('error', 'Sync Failed');
+                
+                // Fallback to local storage
+                const localData = localStorage.getItem('monday_boards');
+                const localFoldersData = localStorage.getItem('monday_folders');
+                const localStatusData = localStorage.getItem('monday_status_options');
+                if (localData) {
+                    state.boards = JSON.parse(localData);
+                    // Normalize members
+                    state.boards.forEach(b => {
+                        if (b.members) {
+                            b.members = b.members.map(m => typeof m === 'string' ? { email: m, role: 'view' } : m);
+                        } else {
+                            b.members = [];
+                        }
+                    });
+                    if (localFoldersData) state.folders = JSON.parse(localFoldersData);
+                    if(state.boards.length > 0) state.activeBoardId = state.boards[0].id;
+                } else {
+                    seedInitialData();
+                    if(state.boards.length > 0) state.activeBoardId = state.boards[0].id;
+                }
+                if (localStatusData) {
+                    state.statusOptions = JSON.parse(localStatusData);
+                }
+                renderSidebar();
+                renderActiveBoard();
+            }
+        }
+
+        let syncTimeout;
+        let syncPending = false;
+        function queueCloudSync(immediate = false) {
+            // Save to local storage immediately as fallback
+            localStorage.setItem('monday_boards', JSON.stringify(state.boards));
+            localStorage.setItem('monday_folders', JSON.stringify(state.folders));
+            localStorage.setItem('monday_status_options', JSON.stringify(state.statusOptions));
+            
+            setSyncStatus('syncing', 'Saving changes...');
+            syncPending = true;
+            
+            clearTimeout(syncTimeout);
+            const delay = immediate ? 0 : 500;
+            syncTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetch(PERSISTENCE_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'save_boards',
+                            data: {
+                                userId: USER_ID,
+                                folders: state.folders,
+                                boards: state.boards,
+                                statusOptions: state.statusOptions,
+                                lastSaved: new Date().toISOString()
+                            }
+                        })
+                    });
+                    
+                    if (!response.ok) throw new Error('Cloud save failed');
+                    const saveResult = await response.json();
+                    const saveBody = saveResult.body ? (typeof saveResult.body === 'string' ? JSON.parse(saveResult.body) : saveResult.body) : saveResult;
+                    console.log('Cloud save response:', saveBody);
+                    setSyncStatus('synced', 'All changes saved');
+                    syncPending = false;
+                    console.log('Cloud sync successful');
+                } catch (err) {
+                    console.error('Cloud sync error:', err);
+                    setSyncStatus('error', 'Sync failed - using local storage');
+                }
+            }, delay);
+        }
+
+        window.addEventListener('beforeunload', (e) => {
+            if (syncPending) {
+                e.preventDefault();
+                e.returnValue = 'Changes are still syncing to the cloud. Are you sure you want to leave?';
+            }
+        });
+
+        // --- Rendering ---
+
+        function renderSidebar() {
+            const list = document.getElementById('board-list');
+            list.innerHTML = '';
+            
+            // 1. Render Folders
+            state.folders.forEach(folder => {
+                const li = document.createElement('li');
+                
+                let boardsHtml = '';
+                const folderBoards = state.boards.filter(b => b.folderId === folder.id);
+                folderBoards.forEach(board => {
+                    const isActive = board.id === state.activeBoardId ? 'active' : '';
+                    boardsHtml += `
+                        <div class="board-item ${isActive}" data-id="${board.id}">
+                            <div class="board-item-content" onclick="selectBoard('${board.id}')">
+                                <i data-lucide="${board.icon || 'layout-dashboard'}" size="16"></i> ${board.name}
+                            </div>
+                            <div style="position:relative;">
+                                <button class="sidebar-menu-btn" onclick="toggleSidebarMenu(event, '${board.id}')"><i data-lucide="more-horizontal" size="14"></i></button>
+                                <div class="dropdown-menu" id="menu-${board.id}">
+                                    <div class="dropdown-item" onclick="openIconPicker('${board.id}')"><i data-lucide="smile" size="14"></i> Change Icon</div>
+                                    <div class="dropdown-item" onclick="openBoardSettings('${board.id}')"><i data-lucide="settings" size="14"></i> Settings</div>
+                                    <div class="dropdown-item" onclick="renameBoard('${board.id}')"><i data-lucide="edit-2" size="14"></i> Rename</div>
+                                    <div class="dropdown-item" style="color:var(--status-stuck)" onclick="deleteBoard('${board.id}')"><i data-lucide="trash-2" size="14"></i> Delete</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                const isOpen = state.openFolders && state.openFolders[folder.id] ? 'open' : '';
+                const chevron = isOpen ? 'chevron-down' : 'chevron-right';
+
+                li.innerHTML = `
+                    <div class="folder-item">
+                        <div class="folder-item-content" onclick="toggleFolder('${folder.id}')" data-folder-id="${folder.id}">
+                            <i data-lucide="${chevron}" size="14"></i> <i data-lucide="folder" size="16"></i> ${folder.name}
+                        </div>
+                        <div style="position:relative;">
+                            <button class="sidebar-menu-btn" onclick="toggleSidebarMenu(event, '${folder.id}')"><i data-lucide="more-horizontal" size="14"></i></button>
+                            <div class="dropdown-menu" id="menu-${folder.id}">
+                                <div class="dropdown-item" onclick="addNewBoard('${folder.id}')"><i data-lucide="plus" size="14"></i> New Board</div>
+                                <div class="dropdown-item" onclick="renameFolder('${folder.id}')"><i data-lucide="edit-2" size="14"></i> Rename</div>
+                                <div class="dropdown-item" style="color:var(--status-stuck)" onclick="deleteFolder('${folder.id}')"><i data-lucide="trash-2" size="14"></i> Delete</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="folder-content ${isOpen}" data-folder-id="${folder.id}">
+                        ${boardsHtml}
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+
+            // 2. Render loose boards
+            const looseContainer = document.createElement('div');
+            looseContainer.id = 'loose-boards';
+            looseContainer.className = 'folder-content open';
+            const looseBoards = state.boards.filter(b => !b.folderId);
+            looseBoards.forEach(board => {
+                const isActive = board.id === state.activeBoardId ? 'active' : '';
+                looseContainer.innerHTML += `
+                    <div class="board-item ${isActive}" data-id="${board.id}">
+                        <div class="board-item-content" onclick="selectBoard('${board.id}')">
+                            <i data-lucide="${board.icon || 'layout-dashboard'}" size="16"></i> ${board.name}
+                        </div>
+                        <div style="position:relative;">
+                            <button class="sidebar-menu-btn" onclick="toggleSidebarMenu(event, '${board.id}')"><i data-lucide="more-horizontal" size="14"></i></button>
+                            <div class="dropdown-menu" id="menu-${board.id}">
+                                <div class="dropdown-item" onclick="openIconPicker('${board.id}')"><i data-lucide="smile" size="14"></i> Change Icon</div>
+                                <div class="dropdown-item" onclick="openBoardSettings('${board.id}')"><i data-lucide="settings" size="14"></i> Settings</div>
+                                <div class="dropdown-item" onclick="renameBoard('${board.id}')"><i data-lucide="edit-2" size="14"></i> Rename</div>
+                                <div class="dropdown-item" style="color:var(--status-stuck)" onclick="deleteBoard('${board.id}')"><i data-lucide="trash-2" size="14"></i> Delete</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            list.appendChild(looseContainer);
+
+            lucide.createIcons();
+            
+            // Initialize Sortable for Folders in Sidebar
+            new Sortable(list, {
+                animation: 150,
+                draggable: 'li',
+                onEnd: function (evt) {
+                    const movedFolder = state.folders.splice(evt.oldIndex, 1)[0];
+                    state.folders.splice(evt.newIndex, 0, movedFolder);
+                    queueCloudSync();
+                }
+            });
+            
+            // Auto-open folders when dragging over them
+            let dragOverTimeout;
+            document.querySelectorAll('.folder-item-content').forEach(el => {
+                el.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    el.classList.add('drag-over');
+                    const folderId = el.getAttribute('data-folder-id');
+                    if (state.openFolders && !state.openFolders[folderId]) {
+                        if (!dragOverTimeout) {
+                            dragOverTimeout = setTimeout(() => {
+                                if (!state.openFolders[folderId]) {
+                                    toggleFolder(folderId);
+                                }
+                                dragOverTimeout = null;
+                            }, 800); // Slightly longer for "on top" drop
+                        }
+                    }
+                });
+                el.addEventListener('dragleave', () => {
+                    el.classList.remove('drag-over');
+                    clearTimeout(dragOverTimeout);
+                    dragOverTimeout = null;
+                });
+                el.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    el.classList.remove('drag-over');
+                    const folderId = el.getAttribute('data-folder-id');
+                    if (currentlyDraggedBoardId) {
+                        const board = state.boards.find(b => b.id === currentlyDraggedBoardId);
+                        if (board) {
+                            board.folderId = folderId;
+                            // Ensure folder is open to show it's there
+                            if (!state.openFolders) state.openFolders = {};
+                            state.openFolders[folderId] = true;
+                            renderSidebar();
+                            queueCloudSync();
+                        }
+                    }
+                });
+            });
+            
+            // Initialize Sortable for Boards in Sidebar
+            setTimeout(() => {
+                document.querySelectorAll('.folder-content').forEach(container => {
+                    new Sortable(container, {
+                        group: 'sidebar-boards',
+                        animation: 150,
+                        onStart: function (evt) {
+                            currentlyDraggedBoardId = evt.item.getAttribute('data-id');
+                        },
+                        onEnd: function (evt) {
+                            const boardId = evt.item.getAttribute('data-id');
+                            currentlyDraggedBoardId = null;
+                            
+                            // Detect if dropped on a folder header using coordinates
+                            const mouseEvent = evt.originalEvent;
+                            if (mouseEvent && mouseEvent.clientX) {
+                                const target = document.elementFromPoint(mouseEvent.clientX, mouseEvent.clientY);
+                                const folderHeader = target?.closest('.folder-item-content');
+                                if (folderHeader) {
+                                    const folderId = folderHeader.getAttribute('data-folder-id');
+                                    const board = state.boards.find(b => b.id === boardId);
+                                    if (board) {
+                                        board.folderId = folderId;
+                                        if (!state.openFolders) state.openFolders = {};
+                                        state.openFolders[folderId] = true;
+                                        renderSidebar();
+                                        queueCloudSync();
+                                        return;
+                                    }
+                                }
+                            }
+
+                            const toContainer = evt.to;
+                            const newFolderId = toContainer.getAttribute('data-folder-id') || null;
+                            
+                            const board = state.boards.find(b => b.id === boardId);
+                            if(board) {
+                                board.folderId = newFolderId;
+                            }
+                            
+                            // Reorder state.boards based on the global DOM order
+                            const newBoardsOrder = [];
+                            document.querySelectorAll('.board-item[data-id]').forEach(el => {
+                                const id = el.getAttribute('data-id');
+                                const b = state.boards.find(b => b.id === id);
+                                if(b) newBoardsOrder.push(b);
+                            });
+                            
+                            if (newBoardsOrder.length === state.boards.length) {
+                                state.boards = newBoardsOrder;
+                            }
+
+                            renderSidebar(); 
+                            queueCloudSync();
+                        }
+                    });
+                });
+            }, 100);
+        }
+
+        function renderActiveBoard() {
+            const boardArea = document.getElementById('board-area');
+            const boardTitle = document.getElementById('board-title');
+            
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if (!board) {
+                boardArea.innerHTML = '<div style="color:var(--text-muted);text-align:center;margin-top:50px;">Select or create a board</div>';
+                boardTitle.innerText = '';
+                return;
+            }
+
+            boardTitle.innerHTML = `${board.name}`;
+
+            let html = '<div id="groups-container">';
+            board.groups.forEach(group => {
+                let theadHtml = `<tr>
+                    <th class="col-drag" style="width: 30px;"></th>
+                    <th class="col-check" style="width: 30px;"><input type="checkbox" onchange="toggleGroupSelection(this, '${group.id}')"></th>
+                    <th class="col-name" style="width: ${board.columnWidths?.name || 300}px; padding: 0;">
+                        <div onclick="sortBoard('${board.id}', '${group.id}', 'name')" style="display:flex; align-items:center; justify-content:center; padding: 8px 12px; cursor:pointer; height:100%;">
+                            Item Name <i data-lucide="chevron-down" size="14" class="sort-icon" style="margin-left:5px; opacity:0;"></i>
+                        </div>
+                        <div class="resizer" onmousedown="initResize(event, '${board.id}', 'name')"></div>
+                    </th>
+                    <th class="col-updates" style="width: 40px;"></th>`;
+                board.columns.forEach(col => {
+                    const colWidth = board.columnWidths?.[col.id] || 150;
+                    theadHtml += `
+                        <th class="col-${col.type}" style="position:relative; width: ${colWidth}px; padding: 0;">
+                            <div style="display:flex; justify-content:center; align-items:center; height:100%;">
+                                <div style="flex-grow:1; text-align:center; cursor:pointer; padding: 8px 0;" onclick="sortBoard('${board.id}', '${group.id}', '${col.id}')">
+                                    ${col.title} <i data-lucide="chevron-down" size="14" class="sort-icon" style="margin-left:5px; opacity:0; vertical-align:middle;"></i>
+                                </div>
+                                <button class="sidebar-menu-btn" style="padding:0; margin-left:5px; position:absolute; right:10px;" onclick="toggleSidebarMenu(event, 'col-${group.id}-${col.id}')"><i data-lucide="more-horizontal" size="14"></i></button>
+                            </div>
+                            <div class="resizer" onmousedown="initResize(event, '${board.id}', '${col.id}')"></div>
+                            <div class="dropdown-menu" id="menu-col-${group.id}-${col.id}" style="font-weight:normal; text-transform:none;">
+                                <div class="dropdown-item" onclick="renameColumn('${board.id}', '${col.id}')"><i data-lucide="edit-2" size="14"></i> Rename</div>
+                                <div class="dropdown-item" onclick="duplicateColumn('${board.id}', '${col.id}')"><i data-lucide="copy" size="14"></i> Duplicate</div>
+                                <div class="dropdown-item" style="color:var(--status-stuck)" onclick="deleteColumn('${board.id}', '${col.id}')"><i data-lucide="trash-2" size="14"></i> Delete</div>
+                            </div>
+                        </th>`;
+                });
+                theadHtml += `<th class="col-add" style="width: 40px; cursor: pointer; text-align:center;" onclick="openAddColumnModal('${board.id}')"><i data-lucide="plus" size="14"></i></th>`;
+                theadHtml += `</tr>`;
+
+                html += `
+                    <div class="group" data-id="${group.id}">
+                        <div class="group-header">
+                            <i data-lucide="grip-vertical" size="14" style="color:var(--text-muted); cursor:grab; margin-right:5px;" class="group-drag-handle"></i>
+                            <div class="group-hover-actions">
+                                <button onclick="duplicateGroup('${board.id}', '${group.id}')" title="Duplicate Group"><i data-lucide="copy" size="14"></i></button>
+                                <button style="color:var(--status-stuck);" onclick="deleteGroup('${board.id}', '${group.id}')" title="Delete Group"><i data-lucide="trash-2" size="14"></i></button>
+                            </div>
+                            <div class="group-color-indicator" style="background-color: ${group.color}; cursor:pointer;" onclick="changeGroupColor('${board.id}', '${group.id}')" title="Change Color"></div>
+                            <div class="group-title" contenteditable="true" onblur="updateGroupName('${board.id}', '${group.id}', this.innerText)">${group.name}</div>
+                            <div style="position:relative; margin-left: 10px;">
+                                <button class="sidebar-menu-btn" onclick="toggleSidebarMenu(event, '${group.id}')"><i data-lucide="more-horizontal" size="14"></i></button>
+                                <div class="dropdown-menu" id="menu-${group.id}">
+                                    <div class="dropdown-item" onclick="changeGroupColor('${board.id}', '${group.id}')"><i data-lucide="palette" size="14"></i> Change Color</div>
+                                    <div class="dropdown-item" style="color:var(--status-stuck)" onclick="deleteGroup('${board.id}', '${group.id}')"><i data-lucide="trash-2" size="14"></i> Delete</div>
+                                </div>
+                            </div>
+                        </div>
+                        <table class="monday-table">
+                            <thead>${theadHtml}</thead>
+                            <tbody class="group-items" data-group-id="${group.id}">
+                `;
+
+                group.items.forEach(item => {
+                    const updateCount = item.updates ? item.updates.length : 0;
+                    const updateBadge = updateCount > 0 ? `<div class="update-count">${updateCount}</div>` : '';
+                    
+                    html += `
+                        <tr data-id="${item.id}" class="${selectedItemIds.has(item.id) ? 'selected' : ''}">
+                            <td class="col-drag">
+                                <i data-lucide="grip-vertical" size="14"></i>
+                            </td>
+                            <td class="col-check" style="border-left: 4px solid ${group.color}"><input type="checkbox" class="item-checkbox" data-group-id="${group.id}" data-item-id="${item.id}" ${selectedItemIds.has(item.id) ? 'checked' : ''} onchange="toggleItemSelection('${item.id}', this.checked)"></td>
+                            <td class="col-name">
+                                <div style="display:flex; align-items:center;">
+                                    <input type="text" value="${item.name}" onchange="updateItem('${board.id}', '${group.id}', '${item.id}', 'name', this.value)">
+                                    <div class="row-hover-actions">
+                                        <button onclick="duplicateItem('${board.id}', '${group.id}', '${item.id}')" title="Duplicate"><i data-lucide="copy" size="12"></i></button>
+                                        <button style="color:var(--status-stuck);" onclick="deleteItem('${board.id}', '${group.id}', '${item.id}')" title="Delete"><i data-lucide="trash-2" size="12"></i></button>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="col-updates">
+                                <button class="sidebar-menu-btn" style="margin: 0 auto; opacity: 1;" onclick="openUpdatesModal('${board.id}', '${group.id}', '${item.id}')">
+                                    <div class="update-bubble">
+                                        <i data-lucide="message-square" size="16"></i>
+                                        ${updateBadge}
+                                    </div>
+                                </button>
+                            </td>
+                    `;
+                    
+                    board.columns.forEach(col => {
+                        const val = item.values[col.id] || '';
+                        if (col.type === 'status') {
+                            const statusObj = state.statusOptions[val] || state.statusOptions['empty'] || {label:'', color:'var(--status-empty)'};
+                            let dropdownOptionsHTML = '';
+                            Object.keys(state.statusOptions).forEach(key => {
+                                const opt = state.statusOptions[key];
+                                dropdownOptionsHTML += `
+                                    <div class="status-option" style="background-color: ${opt.color}; display:flex; justify-content:space-between; align-items:center;">
+                                        <div style="flex-grow:1; text-align:center; padding-left:24px;" onclick="setStatus(event, '${board.id}', '${group.id}', '${item.id}', '${col.id}', '${key}')">${opt.label}</div>
+                                        <button class="sidebar-menu-btn" style="padding: 2px; color: white; width: 24px; display:flex; justify-content:center;" onclick="promptEditStatus(event, '${key}')"><i data-lucide="edit-2" size="12"></i></button>
+                                    </div>
+                                `;
+                            });
+                            dropdownOptionsHTML += `<div class="status-option" style="background-color: var(--bg-hover); color: var(--text-muted); font-size: 12px;" onclick="promptNewStatus(event, '${board.id}', '${group.id}', '${item.id}', '${col.id}')"><i data-lucide="plus" size="12" style="margin-right: 4px;"></i> New Label</div>`;
+
+                            html += `
+                            <td class="col-status">
+                                <div class="status-cell" style="background-color: ${statusObj.color}" onclick="toggleStatusDropdown(event, '${board.id}', '${group.id}', '${item.id}', '${col.id}')"
+                                     data-board="${board.id}" data-group="${group.id}" data-item="${item.id}" data-col="${col.id}">
+                                    ${statusObj.label}
+                                </div>
+                            </td>`;
+                        } else if (col.type === 'date') {
+                            const dates = val ? val.split(',') : ['', ''];
+                            html += `
+                            <td class="col-date">
+                                <div style="display:flex; align-items:center; justify-content:center; gap:4px; width:100%;">
+                                    <input type="date" value="${dates[0]}" onchange="updateDateRange('${board.id}', '${group.id}', '${item.id}', '${col.id}', 0, this.value, '${val}')" style="width:45%; background:transparent; border:none; color:var(--text-main); text-align:center; outline:none; font-size:11px; padding:0;">
+                                    <span style="color:var(--text-muted);">-</span>
+                                    <input type="date" value="${dates[1]}" onchange="updateDateRange('${board.id}', '${group.id}', '${item.id}', '${col.id}', 1, this.value, '${val}')" style="width:45%; background:transparent; border:none; color:var(--text-main); text-align:center; outline:none; font-size:11px; padding:0;">
+                                </div>
+                            </td>`;
+                        } else if (col.type === 'person') {
+                            const members = board.members || [];
+                            let personDropdown = members.map(m => {
+                                const email = typeof m === 'string' ? m : m.email;
+                                return `<div class="dropdown-item" onclick="assignPerson('${board.id}', '${group.id}', '${item.id}', '${col.id}', '${email}')">${email}</div>`;
+                            }).join('');
+                            personDropdown += `<div class="dropdown-item" style="color:var(--text-muted);" onclick="assignPerson('${board.id}', '${group.id}', '${item.id}', '${col.id}', '')">Clear</div>`;
+                            
+                            html += `
+                            <td class="col-person" style="position:relative;">
+                                <div class="avatar" style="cursor:pointer;" onclick="togglePersonDropdown(event, '${item.id}', '${col.id}')" title="${val}">${val ? val.substring(0,2).toUpperCase() : '?'}</div>
+                                <div class="person-dropdown" id="person-dropdown-${item.id}-${col.id}">${personDropdown}</div>
+                            </td>`;
+                        } else if (col.type === 'number') {
+                            html += `
+                            <td class="col-number">
+                                <input type="number" value="${val}" onchange="updateItem('${board.id}', '${group.id}', '${item.id}', '${col.id}', this.value)" placeholder="" style="background:transparent; border:none; color:var(--text-main); width:100%; text-align:right; font-family:inherit; outline:none;">
+                            </td>`;
+                        } else if (col.type === 'percentage') {
+                            html += `
+                            <td class="col-percentage">
+                                <div style="display:flex; align-items:center; width:100%;">
+                                    <input type="number" value="${val}" onchange="updateItem('${board.id}', '${group.id}', '${item.id}', '${col.id}', this.value)" placeholder="" style="background:transparent; border:none; color:var(--text-main); width:100%; text-align:right; font-family:inherit; outline:none; padding-right:5px;">
+                                    <span style="color:var(--text-muted); font-size:12px; padding-right:10px;">%</span>
+                                </div>
+                            </td>`;
+                        } else if (col.type === 'currency') {
+                            html += `
+                            <td class="col-currency">
+                                <div style="display:flex; align-items:center; width:100%;">
+                                    <span style="color:var(--text-muted); font-size:12px; padding-left:10px;">$</span>
+                                    <input type="number" value="${val}" onchange="updateItem('${board.id}', '${group.id}', '${item.id}', '${col.id}', this.value)" placeholder="" style="background:transparent; border:none; color:var(--text-main); width:100%; text-align:left; font-family:inherit; outline:none; padding-left:5px;">
+                                </div>
+                            </td>`;
+                        } else if (col.type === 'last-updated') {
+                            let displayText = '';
+                            try {
+                                const updatedData = val ? JSON.parse(val) : null;
+                                if (updatedData) {
+                                    const date = new Date(updatedData.date);
+                                    displayText = `<div style="line-height:1.2;">${updatedData.userName}<br><span style="font-size:9px; opacity:0.7;">${date.toLocaleDateString()} ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>`;
+                                }
+                            } catch(e) { displayText = val; }
+                            html += `
+                            <td class="col-last-updated" style="font-size: 11px; color: var(--text-muted); text-align: center; white-space: nowrap; padding: 0 10px;">
+                                ${displayText}
+                            </td>`;
+                        } else if (col.type === 'attachment') {
+                            const files = val ? JSON.parse(val) : [];
+                            html += `
+                            <td class="col-attachment">
+                                <div style="display:flex; align-items:center; justify-content:center; gap:5px;">
+                                    ${files.map((f, idx) => `
+                                        <div style="cursor:pointer; position:relative;" onclick="openPreview('${f.data}', '${f.type}', '${f.name}', {type:'column', boardId:'${board.id}', groupId:'${group.id}', itemId:'${item.id}', colId:'${col.id}', index:${idx}})">
+                                            ${f.type.startsWith('image/') ? `<img src="${f.data}" style="width:24px; height:24px; border-radius:2px; object-fit:cover;">` : `<i data-lucide="file" size="14" style="color:var(--status-working);"></i>`}
+                                        </div>
+                                    `).join('')}
+                                    <button class="btn-icon" onclick="triggerAttachmentUpload('${board.id}', '${group.id}', '${item.id}', '${col.id}')"><i data-lucide="upload" size="14"></i></button>
+                                    <input type="file" id="upload-${item.id}-${col.id}" style="display:none;" onchange="handleColumnFileUpload(this, '${board.id}', '${group.id}', '${item.id}', '${col.id}')">
+                                </div>
+                            </td>`;
+                        } else {
+                            html += `
+                            <td class="col-text">
+                                <input type="text" value="${val}" onchange="updateItem('${board.id}', '${group.id}', '${item.id}', '${col.id}', this.value)" placeholder="Add text..." style="background:transparent; border:none; color:var(--text-main); width:100%; outline:none;">
+                            </td>`;
+                        }
+                    });
+                    
+                    html += `
+                            <td style="position:relative; width: 40px; text-align:center;">
+                                <button class="sidebar-menu-btn" onclick="toggleSidebarMenu(event, 'item-${item.id}')"><i data-lucide="more-horizontal" size="14"></i></button>
+                                <div class="dropdown-menu" id="menu-item-${item.id}">
+                                    <div class="dropdown-item" style="color:var(--status-stuck)" onclick="deleteItem('${board.id}', '${group.id}', '${item.id}')"><i data-lucide="trash-2" size="14"></i> Delete Item</div>
+                                </div>
+                            </td>
+                        </tr>`;
+                });
+
+                html += `
+                            </tbody>
+                        </table>
+                        <div class="add-item-row" style="margin-left: 31px;" onclick="addItem('${board.id}', '${group.id}')">
+                            <i data-lucide="plus" size="14"></i> Add Item
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `</div>
+                <div style="margin-top: 20px;">
+                    <button style="background:transparent; border:1px dashed var(--border-color); color:var(--text-muted); padding: 8px 16px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 8px;" onclick="addGroup('${board.id}')">
+                        <i data-lucide="plus" size="16"></i> Add new group
+                    </button>
+                </div>
+            `;
+
+            boardArea.innerHTML = html;
+            lucide.createIcons();
+            
+            setTimeout(() => { initSortable(); }, 100);
+        }
+
+        function initSortable() {
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if (!board) return;
+            
+            const groupsContainer = document.getElementById('groups-container');
+            if (groupsContainer) {
+                new Sortable(groupsContainer, {
+                    handle: '.group-header',
+                    animation: 150,
+                    onEnd: function (evt) {
+                        const movedGroup = board.groups.splice(evt.oldIndex, 1)[0];
+                        board.groups.splice(evt.newIndex, 0, movedGroup);
+                        queueCloudSync();
+                    }
+                });
+            }
+
+            document.querySelectorAll('.group-items').forEach(tbody => {
+                new Sortable(tbody, {
+                    group: 'shared',
+                    animation: 150,
+                    handle: '.col-drag',
+                    onEnd: function (evt) {
+                        const fromGroupId = evt.from.getAttribute('data-group-id');
+                        const toGroupId = evt.to.getAttribute('data-group-id');
+                        const fromGroup = board.groups.find(g => g.id === fromGroupId);
+                        const toGroup = board.groups.find(g => g.id === toGroupId);
+                        
+                        if (fromGroup && toGroup) {
+                            const movedItem = fromGroup.items.splice(evt.oldIndex, 1)[0];
+                            toGroup.items.splice(evt.newIndex, 0, movedItem);
+                            renderActiveBoard();
+                            queueCloudSync();
+                        }
+                    }
+                });
+            });
+        }
+
+        // --- Interactions ---
+
+        function selectBoard(id) {
+            state.activeBoardId = id;
+            renderSidebar();
+            renderActiveBoard();
+        }
+
+        function toggleWorkspaceMenu(e) {
+            e.stopPropagation();
+            const menu = document.getElementById('workspace-menu');
+            if(menu) menu.classList.toggle('show');
+        }
+
+        function toggleSidebarMenu(e, id) {
+            e.stopPropagation();
+            document.querySelectorAll('.dropdown-menu.show').forEach(el => {
+                if(el.id !== `menu-${id}`) el.classList.remove('show');
+            });
+            const menu = document.getElementById(`menu-${id}`);
+            if(menu) menu.classList.toggle('show');
+        }
+
+        function toggleFolder(id) {
+            if(!state.openFolders) state.openFolders = {};
+            state.openFolders[id] = !state.openFolders[id];
+            renderSidebar();
+        }
+
+        function addNewFolder() {
+            const name = prompt("Enter new folder name:");
+            if (!name) return;
+            state.folders.push({ id: 'f_' + Date.now(), name });
+            renderSidebar();
+            queueCloudSync();
+        }
+
+        function renameFolder(id) {
+            const folder = state.folders.find(f => f.id === id);
+            if(!folder) return;
+            const newName = prompt("Rename folder:", folder.name);
+            if(newName && newName !== folder.name) {
+                folder.name = newName;
+                renderSidebar();
+                queueCloudSync();
+            }
+        }
+
+        function deleteFolder(id) {
+            if(!confirm("Delete this folder? Boards inside will NOT be deleted.")) return;
+            state.folders = state.folders.filter(f => f.id !== id);
+            state.boards.forEach(b => { if(b.folderId === id) b.folderId = null; });
+            renderSidebar();
+            queueCloudSync();
+        }
+
+        function renameBoard(id) {
+            const board = state.boards.find(b => b.id === id);
+            if(!board) return;
+            const newName = prompt("Rename board:", board.name);
+            if(newName && newName !== board.name) {
+                board.name = newName;
+                renderSidebar();
+                renderActiveBoard();
+                queueCloudSync();
+            }
+        }
+
+        function deleteBoard(id) {
+            if(!confirm("Are you sure you want to delete this board?")) return;
+            state.boards = state.boards.filter(b => b.id !== id);
+            if(state.activeBoardId === id) state.activeBoardId = state.boards.length ? state.boards[0].id : null;
+            renderSidebar();
+            renderActiveBoard();
+            queueCloudSync();
+        }
+
+        let currentSettingsBoardId = null;
+        function openBoardSettings(id) {
+            const board = state.boards.find(b => b.id === id);
+            if(!board) return;
+            currentSettingsBoardId = id;
+            if(!board.members) board.members = [];
+            
+            // Normalize old members if they were just strings
+            let needsSync = false;
+            board.members = board.members.map(m => {
+                if (typeof m === 'string') {
+                    needsSync = true;
+                    return { email: m, role: 'view' };
+                }
+                return m;
+            });
+            
+            if (needsSync) queueCloudSync();
+            
+            renderBoardMembers();
+            document.getElementById('board-settings-modal').classList.add('show');
+            document.querySelectorAll('.dropdown-menu.show').forEach(el => el.classList.remove('show'));
+        }
+
+        function renderBoardMembers() {
+            const board = state.boards.find(b => b.id === currentSettingsBoardId);
+            const container = document.getElementById('board-members-list');
+            console.log('renderBoardMembers called for board:', currentSettingsBoardId, 'found board:', !!board, 'container:', !!container);
+            
+            if(!board || !container) return;
+            
+            console.log('Board members count:', board.members ? board.members.length : 'undefined');
+            
+            if(!board.members || board.members.length === 0) {
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">No members assigned.</div>';
+                return;
+            }
+
+            let html = '';
+            board.members.forEach((m, index) => {
+                const email = typeof m === 'string' ? m : m.email;
+                const role = typeof m === 'string' ? 'view' : m.role;
+                html += `
+                    <div style="display: flex; align-items: center; padding: 10px; border-bottom: 1px solid var(--border-color); gap: 10px;">
+                        <div class="avatar" style="width: 24px; height: 24px; font-size: 10px;">${email.substring(0,2).toUpperCase()}</div>
+                        <div style="flex-grow: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${email}</div>
+                        <select onchange="updateMemberRole(${index}, this.value)" style="background: transparent; color: var(--text-main); border: none; font-size: 12px; cursor: pointer; outline: none;">
+                            <option value="view" ${role === 'view' ? 'selected' : ''}>View</option>
+                            <option value="edit" ${role === 'edit' ? 'selected' : ''}>Edit</option>
+                            <option value="admin" ${role === 'admin' ? 'selected' : ''}>Admin</option>
+                        </select>
+                        <button class="btn-icon" style="color: var(--status-stuck); padding: 4px;" onclick="removeBoardMember(${index})"><i data-lucide="trash-2" size="14"></i></button>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+            lucide.createIcons();
+            console.log('renderBoardMembers finished updating DOM');
+        }
+
+        function addBoardMember() {
+            const emailInput = document.getElementById('add-member-email');
+            const roleInput = document.getElementById('add-member-role');
+            const email = emailInput.value.trim();
+            const role = roleInput.value;
+            
+            console.log('Adding member:', email, role, 'to board:', currentSettingsBoardId);
+            
+            if(!email) return;
+            
+            const board = state.boards.find(b => b.id === currentSettingsBoardId);
+            if(board) {
+                if(!board.members) board.members = [];
+                if(board.members.find(m => (typeof m === 'string' ? m : m.email) === email)) {
+                    alert("Member already added.");
+                    return;
+                }
+                board.members.push({ email, role });
+                emailInput.value = '';
+                console.log('Member added locally, members array now:', JSON.stringify(board.members));
+                renderBoardMembers();
+                queueCloudSync();
+            } else {
+                console.error('Board not found for member addition:', currentSettingsBoardId);
+            }
+        }
+
+        function updateMemberRole(index, role) {
+            const board = state.boards.find(b => b.id === currentSettingsBoardId);
+            if(board && board.members[index]) {
+                board.members[index].role = role;
+                queueCloudSync();
+            }
+        }
+
+        function removeBoardMember(index) {
+            const board = state.boards.find(b => b.id === currentSettingsBoardId);
+            if(board && board.members[index]) {
+                board.members.splice(index, 1);
+                renderBoardMembers();
+                queueCloudSync();
+            }
+        }
+
+        function closeBoardSettingsModal() {
+            document.getElementById('board-settings-modal').classList.remove('show');
+            currentSettingsBoardId = null;
+        }
+
+        function seedInitialData() {
+            state.folders = [
+                { id: 'f1', name: 'Marketing' }
+            ];
+            state.boards = [
+                {
+                    id: 'b1',
+                    folderId: null,
+                    name: 'Project Alpha Tracker',
+                    members: [],
+                    columns: [
+                        { id: 'person', title: 'Person', type: 'person' },
+                        { id: 'status', title: 'Status', type: 'status' },
+                        { id: 'date', title: 'Date', type: 'date' },
+                        { id: 'text', title: 'Text', type: 'text' }
+                    ],
+                    groups: [
+                        {
+                            id: 'g1',
+                            name: 'This Month',
+                            color: 'var(--group-blue)',
+                            items: [
+                                { 
+                                    id: 'i1', 
+                                    name: 'Design new landing page', 
+                                    updates: [],
+                                    values: { person: 'KC', status: 'working', date: '2026-05-15', text: 'Waiting on assets' }
+                                },
+                                { 
+                                    id: 'i2', 
+                                    name: 'Update backend API', 
+                                    updates: [],
+                                    values: { person: 'KC', status: 'done', date: '2026-05-10', text: 'Deployed' }
+                                }
+                            ]
+                        },
+                        {
+                            id: 'g2',
+                            name: 'Next Month',
+                            color: 'var(--group-purple)',
+                            items: [
+                                { 
+                                    id: 'i3', 
+                                    name: 'Launch marketing campaign', 
+                                    updates: [],
+                                    values: { person: 'KC', status: 'empty', date: '2026-06-01', text: '' }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ];
+        }
+
+        function addNewBoard(folderId = null) {
+            const boardName = prompt("Enter new board name:");
+            if (!boardName) return;
+            
+            const newBoard = {
+                id: 'b_' + Date.now(),
+                folderId: folderId,
+                name: boardName,
+                members: [],
+                columns: [
+                    { id: 'person', title: 'Person', type: 'person' },
+                    { id: 'status', title: 'Status', type: 'status' },
+                    { id: 'date', title: 'Date', type: 'date' },
+                    { id: 'last-updated', title: 'Last Updated', type: 'last-updated' }
+                ],
+                groups: [
+                    {
+                        id: 'g_' + Date.now(),
+                        name: 'New Group',
+                        color: 'var(--group-blue)',
+                        items: []
+                    }
+                ]
+            };
+            
+            state.boards.push(newBoard);
+            state.activeBoardId = newBoard.id;
+            renderSidebar();
+            renderActiveBoard();
+            queueCloudSync();
+        }
+
+        function addGroup(boardId) {
+            const board = state.boards.find(b => b.id === boardId);
+            if(board) {
+                board.groups.push({
+                    id: 'g_' + Date.now(),
+                    name: 'New Group',
+                    color: 'var(--group-purple)',
+                    items: []
+                });
+                renderActiveBoard();
+                queueCloudSync();
+            }
+        }
+
+        function updateGroupName(boardId, groupId, newName) {
+            const board = state.boards.find(b => b.id === boardId);
+            if(board) {
+                const group = board.groups.find(g => g.id === groupId);
+                if(group && group.name !== newName) {
+                    group.name = newName;
+                    queueCloudSync();
+                }
+            }
+        }
+
+        function addItem(boardId, groupId) {
+            const board = state.boards.find(b => b.id === boardId);
+            if(board) {
+                const group = board.groups.find(g => g.id === groupId);
+                if(group) {
+                    const newItem = {
+                        id: 'i_' + Date.now(),
+                        name: 'New Item',
+                        updates: [],
+                        values: {}
+                    };
+                    board.columns.forEach(c => {
+                        newItem.values[c.id] = c.type === 'status' ? 'empty' : '';
+                    });
+                    
+                    group.items.push(newItem);
+                    markLastUpdated(newItem);
+                    runAutomations(newItem, board, 'item_created');
+                    renderActiveBoard();
+                    queueCloudSync();
+                }
+            }
+        }
+
+        function markLastUpdated(item) {
+            item.lastUpdatedBy = USER_ID;
+            item.lastUpdatedAt = new Date().toISOString();
+            
+            // Also update any 'last-updated' columns in the board
+            const board = state.boards.find(b => b.groups.some(g => g.items.some(i => i.id === item.id)));
+            if (board) {
+                board.columns.forEach(col => {
+                    if (col.type === 'last-updated') {
+                        item.values[col.id] = JSON.stringify({
+                            userId: USER_ID,
+                            userName: USER_NAME,
+                            date: new Date().toISOString()
+                        });
+                    }
+                });
+            }
+        }
+
+        function updateItem(boardId, groupId, itemId, field, value) {
+            const board = state.boards.find(b => b.id === boardId);
+            if(board) {
+                const group = board.groups.find(g => g.id === groupId);
+                if(group) {
+                    const item = group.items.find(i => i.id === itemId);
+                    if(item) {
+                        if (field === 'name') {
+                            if (item.name !== value) {
+                                item.name = value;
+                                markLastUpdated(item);
+                                renderActiveBoard();
+                                queueCloudSync();
+                            }
+                        } else {
+                            if(item.values[field] !== value) {
+                                item.values[field] = value;
+                                markLastUpdated(item);
+                                // Fire relevant automation event based on column type
+                                const col = board.columns.find(c => c.id === field);
+                                if (col) {
+                                    if (col.type === 'status')     runAutomations(item, board, 'status_change');
+                                    else if (col.type === 'person')     runAutomations(item, board, 'person_assigned');
+                                    else if (col.type === 'text')       runAutomations(item, board, 'text_contains');
+                                    else if (col.type === 'number' || col.type === 'currency') runAutomations(item, board, 'number_reaches');
+                                    else if (col.type === 'percentage') {
+                                        runAutomations(item, board, 'number_reaches');
+                                        runAutomations(item, board, 'percentage_100');
+                                    }
+                                }
+                                renderActiveBoard();
+                                queueCloudSync();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function updateDateRange(boardId, groupId, itemId, colId, index, newDate, currentVal) {
+            const dates = currentVal ? currentVal.split(',') : ['', ''];
+            dates[index] = newDate;
+            const newVal = dates.join(',');
+            updateItem(boardId, groupId, itemId, colId, newVal);
+        }
+
+        function deleteItem(boardId, groupId, itemId) {
+            if(!confirm("Are you sure you want to delete this item?")) return;
+            const board = state.boards.find(b => b.id === boardId);
+            if(board) {
+                const group = board.groups.find(g => g.id === groupId);
+                if(group) {
+                    group.items = group.items.filter(i => i.id !== itemId);
+                    selectedItemIds.delete(itemId);
+                    updateBulkActionsBar();
+                    renderActiveBoard();
+                    queueCloudSync();
+                }
+            }
+        }
+
+        function duplicateItem(boardId, groupId, itemId) {
+            const board = state.boards.find(b => b.id === boardId);
+            if(board) {
+                const group = board.groups.find(g => g.id === groupId);
+                if(group) {
+                    const itemIndex = group.items.findIndex(i => i.id === itemId);
+                    if(itemIndex > -1) {
+                        const original = group.items[itemIndex];
+                        // Deep clone item, assign new IDs
+                        const clone = JSON.parse(JSON.stringify(original));
+                        clone.id = 'item_' + Date.now();
+                        clone.name = clone.name + ' (copy)';
+                        if (clone.updates) {
+                            // Assign new IDs to updates and replies
+                            clone.updates.forEach(up => {
+                                up.id = 'up_' + Math.random().toString(36).substr(2, 9);
+                                if (up.replies) {
+                                    up.replies.forEach(rep => {
+                                        rep.id = 'rep_' + Math.random().toString(36).substr(2, 9);
+                                    });
+                                }
+                            });
+                        }
+                        group.items.splice(itemIndex + 1, 0, clone);
+                        renderActiveBoard();
+                        queueCloudSync();
+                    }
+                }
+            }
+        }
+
+        // --- Bulk Actions ---
+        let selectedItemIds = new Set();
+        
+        function toggleItemSelection(itemId, isSelected) {
+            if(isSelected) {
+                selectedItemIds.add(itemId);
+            } else {
+                selectedItemIds.delete(itemId);
+            }
+            updateBulkActionsBar();
+            // Just update class visually without re-rendering everything
+            const row = document.querySelector(`tr[data-id="${itemId}"]`);
+            if (row) {
+                if (isSelected) row.classList.add('selected');
+                else row.classList.remove('selected');
+            }
+        }
+
+        function toggleGroupSelection(checkbox, groupId) {
+            const isSelected = checkbox.checked;
+            document.querySelectorAll(`.item-checkbox[data-group-id="${groupId}"]`).forEach(cb => {
+                cb.checked = isSelected;
+                toggleItemSelection(cb.getAttribute('data-item-id'), isSelected);
+            });
+        }
+
+        function updateBulkActionsBar() {
+            const bar = document.getElementById('bulk-actions-bar');
+            const count = document.getElementById('bulk-count');
+            if(selectedItemIds.size > 1) {
+                count.innerText = selectedItemIds.size;
+                bar.classList.add('show');
+            } else {
+                bar.classList.remove('show');
+            }
+        }
+
+        function clearSelection() {
+            selectedItemIds.clear();
+            updateBulkActionsBar();
+            renderActiveBoard();
+        }
+
+        function deleteSelectedItems() {
+            if(!confirm(`Are you sure you want to delete ${selectedItemIds.size} items?`)) return;
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if(board) {
+                board.groups.forEach(group => {
+                    group.items = group.items.filter(i => !selectedItemIds.has(i.id));
+                });
+                selectedItemIds.clear();
+                updateBulkActionsBar();
+                renderActiveBoard();
+                queueCloudSync();
+            }
+        }
+
+        let activeStatusPortal = null;
+
+        function closeStatusPortal() {
+            if (activeStatusPortal) {
+                activeStatusPortal.remove();
+                activeStatusPortal = null;
+            }
+        }
+
+        function toggleStatusDropdown(e, boardId, groupId, itemId, colId) {
+            e.stopPropagation();
+
+            // If same dropdown is open, close it
+            if (activeStatusPortal && activeStatusPortal.dataset.key === `${itemId}-${colId}`) {
+                closeStatusPortal();
+                return;
+            }
+            closeStatusPortal();
+
+            const rect = e.currentTarget.getBoundingClientRect();
+
+            // Build dropdown options
+            let optionsHTML = '';
+            Object.keys(state.statusOptions).forEach(key => {
+                const opt = state.statusOptions[key];
+                optionsHTML += `
+                    <div class="status-option" style="background-color: ${opt.color}; display:flex; justify-content:space-between; align-items:center;"
+                         onclick="setStatus(event, '${boardId}', '${groupId}', '${itemId}', '${colId}', '${key}')">
+                        <div style="flex-grow:1; text-align:center; padding-left:24px;">${opt.label}</div>
+                        <button class="sidebar-menu-btn" style="padding:2px; color:white; width:24px; display:flex; justify-content:center;" onclick="promptEditStatus(event, '${key}')"><i data-lucide="edit-2" size="12"></i></button>
+                    </div>
+                `;
+            });
+            optionsHTML += `<div class="status-option" style="background-color: var(--bg-hover); color: var(--text-muted); font-size: 12px;"
+                onclick="promptNewStatus(event, '${boardId}', '${groupId}', '${itemId}', '${colId}')">
+                <i data-lucide="plus" size="12" style="margin-right:4px;"></i> New Label</div>`;
+
+            const portal = document.createElement('div');
+            portal.dataset.key = `${itemId}-${colId}`;
+            portal.style.cssText = `
+                position: fixed;
+                left: ${rect.left}px;
+                top: ${rect.bottom + 4}px;
+                width: ${Math.max(rect.width, 180)}px;
+                background: var(--bg-surface);
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+                z-index: 9999;
+                display: flex;
+                flex-direction: column;
+                padding: 4px;
+                gap: 4px;
+            `;
+            portal.innerHTML = optionsHTML;
+            document.body.appendChild(portal);
+            activeStatusPortal = portal;
+
+            lucide.createIcons({ nameAttr: 'data-lucide', container: portal });
+
+            setTimeout(() => {
+                document.addEventListener('click', closeStatusPortal, { once: true });
+            }, 10);
+        }
+
+        function setStatus(e, boardId, groupId, itemId, colId, newStatus) {
+            e.stopPropagation();
+            closeStatusPortal();
+            
+            // If this item is part of a bulk selection, apply the status to ALL selected items
+            if (selectedItemIds.has(itemId)) {
+                const board = state.boards.find(b => b.id === boardId);
+                if (board) {
+                    let changed = false;
+                    board.groups.forEach(g => {
+                        g.items.forEach(i => {
+                            if (selectedItemIds.has(i.id)) {
+                                if (i.values[colId] !== newStatus) {
+                                    i.values[colId] = newStatus;
+                                    markLastUpdated(i);
+                                    changed = true;
+                                }
+                            }
+                        });
+                    });
+                    if (changed) {
+                        renderActiveBoard();
+                        queueCloudSync();
+                    }
+                }
+            } else {
+                updateItem(boardId, groupId, itemId, colId, newStatus);
+                renderActiveBoard();
+            }
+        }
+
+        let modalContext = null;
+
+        function promptNewStatus(e, boardId, groupId, itemId, colId) {
+            e.stopPropagation();
+            modalContext = { boardId, groupId, itemId, colId, editKey: null };
+            
+            const modal = document.getElementById('label-modal');
+            document.getElementById('new-label-name').value = '';
+            document.getElementById('label-modal-title').innerText = 'Create New Label';
+            modal.classList.add('show');
+            setTimeout(() => document.getElementById('new-label-name').focus(), 100);
+            
+            const dropdown = document.getElementById(`dropdown-${itemId}-${colId}`);
+            if(dropdown) dropdown.classList.remove('show');
+        }
+
+        function promptEditStatus(e, statusKey) {
+            e.stopPropagation();
+            const opt = state.statusOptions[statusKey];
+            if(!opt) return;
+            
+            modalContext = { editKey: statusKey };
+            
+            const modal = document.getElementById('label-modal');
+            document.getElementById('new-label-name').value = opt.label;
+            document.getElementById('label-color-picker').value = opt.color.startsWith('var') ? '#00c875' : opt.color; // fallback color if it's a var
+            document.getElementById('label-modal-title').innerText = 'Edit Label';
+            
+            modal.classList.add('show');
+        }
+
+        function closeLabelModal() {
+            document.getElementById('label-modal').classList.remove('show');
+            modalContext = null;
+        }
+
+        function saveNewLabel() {
+            const input = document.getElementById('new-label-name');
+            const colorInput = document.getElementById('label-color-picker');
+            const label = input.value.trim();
+            const color = colorInput ? colorInput.value : '#00c875';
+            
+            if (!label || !modalContext) return;
+            
+            if (modalContext.editKey) {
+                state.statusOptions[modalContext.editKey] = { label, color };
+                renderActiveBoard();
+                queueCloudSync();
+            } else {
+                const newStatusKey = 'status_' + Date.now();
+                state.statusOptions[newStatusKey] = { label, color };
+                setStatus({ stopPropagation: () => {} }, modalContext.boardId, modalContext.groupId, modalContext.itemId, modalContext.colId, newStatusKey);
+            }
+            closeLabelModal();
+        }
+
+        // --- Person Assignment ---
+        function togglePersonDropdown(e, itemId, colId) {
+            e.stopPropagation();
+            document.querySelectorAll('.person-dropdown.show, .status-dropdown.show').forEach(el => el.classList.remove('show'));
+            const dd = document.getElementById(`person-dropdown-${itemId}-${colId}`);
+            if(dd) dd.classList.toggle('show');
+        }
+
+        function assignPerson(boardId, groupId, itemId, colId, personEmail) {
+            updateItem(boardId, groupId, itemId, colId, personEmail);
+        }
+
+        // --- Columns ---
+        function openAddColumnModal(boardId) {
+            modalContext = { boardId };
+            document.getElementById('new-column-name').value = '';
+            document.getElementById('add-column-modal').classList.add('show');
+        }
+        function closeAddColumnModal() {
+            document.getElementById('add-column-modal').classList.remove('show');
+            modalContext = null;
+        }
+
+        // --- Icon Picker ---
+        const availableIcons = [
+            'layout-dashboard', 'list', 'calendar', 'users', 'check-square', 
+            'star', 'heart', 'flag', 'bookmark', 'file-text', 'pie-chart', 
+            'briefcase', 'shopping-cart', 'target', 'rocket', 'zap',
+            'bell', 'mail', 'phone', 'map-pin', 'globe', 'database', 'code'
+        ];
+        let iconPickerBoardId = null;
+
+        function openIconPicker(boardId) {
+            iconPickerBoardId = boardId;
+            const grid = document.getElementById('icon-grid');
+            grid.innerHTML = availableIcons.map(icon => `
+                <div class="icon-option" onclick="selectIcon('${icon}')" style="display:flex; align-items:center; justify-content:center; padding:10px; border:1px solid var(--border-color); border-radius:8px; cursor:pointer; transition:all 0.2s;">
+                    <i data-lucide="${icon}" size="20"></i>
+                </div>
+            `).join('');
+            
+            lucide.createIcons({
+                attrs: { 'stroke-width': 2 },
+                nameAttr: 'data-lucide',
+                container: grid
+            });
+            
+            document.getElementById('icon-picker-modal').classList.add('show');
+            
+            // Add hover effect
+            grid.querySelectorAll('.icon-option').forEach(opt => {
+                opt.onmouseenter = () => opt.style.background = 'var(--bg-hover)';
+                opt.onmouseleave = () => opt.style.background = 'transparent';
+            });
+        }
+
+        function selectIcon(icon) {
+            const board = state.boards.find(b => b.id === iconPickerBoardId);
+            if (board) {
+                board.icon = icon;
+                renderSidebar();
+                queueCloudSync();
+            }
+            closeIconPicker();
+        }
+
+        function closeIconPicker() {
+            document.getElementById('icon-picker-modal').classList.remove('show');
+            iconPickerBoardId = null;
+        }
+
+
+        const TRIGGER_TYPES = [
+            { key: 'status_change',   label: 'Status changes to',      icon: 'toggle-left' },
+            { key: 'person_assigned', label: 'Person is assigned',      icon: 'user-check' },
+            { key: 'date_arrived',    label: 'Date arrives',            icon: 'calendar' },
+            { key: 'number_reaches',  label: 'Number reaches threshold',icon: 'hash' },
+            { key: 'percentage_100',  label: 'Percentage reaches 100%', icon: 'percent' },
+            { key: 'item_created',    label: 'Item is created',         icon: 'plus-circle' },
+            { key: 'text_contains',   label: 'Text contains keyword',   icon: 'type' },
+        ];
+        const ACTION_TYPES = [
+            { key: 'move_to_group', label: 'Move item to group', icon: 'arrow-right-circle' },
+            { key: 'set_status',    label: 'Set status to',      icon: 'toggle-left' },
+            { key: 'notify',        label: 'Post an update',     icon: 'message-square' },
+            { key: 'assign_person', label: 'Assign person',      icon: 'user-plus' },
+        ];
+
+        function openAutomationCenter() {
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if (!board) return;
+            renderAutomationList(board);
+            document.getElementById('automation-modal').classList.add('show');
+        }
+
+        function closeAutomationModal() {
+            document.getElementById('automation-modal').classList.remove('show');
+        }
+
+        function renderAutomationList(board) {
+            const list = document.getElementById('automation-list');
+            list.innerHTML = '';
+            if (!board.automations || board.automations.length === 0) {
+                list.innerHTML = `<div style="text-align:center;color:var(--text-muted);margin-top:80px;font-size:15px;"><i data-lucide="zap" size="40" style="display:block;margin:0 auto 15px;opacity:0.3;"></i>No automations yet.<br><span style="font-size:13px;">Click "+ Add New Automation" to get started.</span></div>`;
+                lucide.createIcons();
+                return;
+            }
+            board.automations.forEach(auto => {
+                const card = document.createElement('div');
+                card.className = 'automation-card';
+                card.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:15px;flex:1;">
+                        <div style="width:36px;height:36px;border-radius:8px;background:rgba(87,155,252,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i data-lucide="zap" size="18" style="color:var(--primary-blue);"></i></div>
+                        <div class="automation-sentence">${generateAutomationSentence(auto, board)}</div>
+                    </div>
+                    <div style="display:flex;gap:12px;align-items:center;flex-shrink:0;">
+                        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;"><input type="checkbox" ${auto.active ? 'checked' : ''} onchange="toggleAutomation('${board.id}','${auto.id}',this.checked)"> ${auto.active ? 'Active' : 'Off'}</label>
+                        <button class="btn-icon" style="color:var(--status-stuck)" onclick="deleteAutomation('${board.id}','${auto.id}')"><i data-lucide="trash-2" size="16"></i></button>
+                    </div>`;
+                list.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        function generateAutomationSentence(auto, board) {
+            const hi = t => `<b style="color:var(--primary-blue)">${t}</b>`;
+            const col = id => board.columns.find(c => c.id === id)?.title || id;
+            const grp = id => board.groups.find(g => g.id === id)?.name || 'Unknown Group';
+            const st  = v  => state.statusOptions[v]?.label || v;
+            let trigger = '';
+            switch (auto.triggerType) {
+                case 'status_change':   trigger = `When ${hi(col(auto.triggerCol))} changes to ${hi(st(auto.triggerValue))}`; break;
+                case 'person_assigned': trigger = `When ${hi(col(auto.triggerCol))} is assigned`; break;
+                case 'date_arrived':    trigger = `When ${hi(col(auto.triggerCol))} arrives`; break;
+                case 'number_reaches':  trigger = `When ${hi(col(auto.triggerCol))} ${auto.operator==='gte'?'≥':'≤'} ${hi(auto.triggerValue)}`; break;
+                case 'percentage_100':  trigger = `When ${hi(col(auto.triggerCol))} reaches ${hi('100%')}`; break;
+                case 'item_created':    trigger = `When an item is ${hi('created')}`; break;
+                case 'text_contains':   trigger = `When ${hi(col(auto.triggerCol))} contains ${hi('"'+(auto.triggerValue||'')+'"')}`; break;
+                default: trigger = 'When triggered';
+            }
+            let action = '';
+            switch (auto.actionType) {
+                case 'move_to_group': action = `move item to ${hi(grp(auto.actionGroupId))}`; break;
+                case 'set_status':    action = `set ${hi(col(auto.actionCol))} to ${hi(st(auto.actionValue))}`; break;
+                case 'notify':        action = `post update: ${hi('"'+(auto.actionMessage||'Automated update')+'"')}`; break;
+                case 'assign_person': action = `assign ${hi(col(auto.actionCol))} to ${hi(auto.actionValue==='current'?'creator':auto.actionValue)}`; break;
+                default: action = 'take action';
+            }
+            return `${trigger}, then ${action}`;
+        }
+
+        let pendingAutomation = null;
+        let builderStep = 1;
+
+        function openAddAutomation() {
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if (!board) return;
+            pendingAutomation = { triggerType: null, actionType: null };
+            builderStep = 1;
+            renderBuilderStep(board);
+            document.getElementById('add-automation-modal').classList.add('show');
+        }
+
+        function renderBuilderStep(board) {
+            const container = document.getElementById('automation-builder-sentence');
+            if (builderStep === 1) {
+                container.innerHTML = `
+                    <p style="color:var(--text-muted);font-size:13px;margin-bottom:15px;"><b>Step 1 of 2</b> — Choose a trigger</p>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                        ${TRIGGER_TYPES.map(t => `<div class="automation-type-card ${pendingAutomation.triggerType===t.key?'selected':''}" onclick="selectTriggerType('${t.key}')"><i data-lucide="${t.icon}" size="22"></i><span>${t.label}</span></div>`).join('')}
+                    </div>
+                    ${pendingAutomation.triggerType ? renderTriggerConfig(board) : ''}
+                    <div style="display:flex;justify-content:flex-end;margin-top:20px;">
+                        <button class="btn-save" onclick="goToStep2()" ${pendingAutomation.triggerType?'':'disabled'}>Next: Choose Action →</button>
+                    </div>`;
+            } else {
+                container.innerHTML = `
+                    <p style="color:var(--text-muted);font-size:13px;margin-bottom:5px;"><b>Step 2 of 2</b> — Choose an action</p>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:15px;">
+                        ${ACTION_TYPES.map(a => `<div class="automation-type-card ${pendingAutomation.actionType===a.key?'selected':''}" onclick="selectActionType('${a.key}')"><i data-lucide="${a.icon}" size="22"></i><span>${a.label}</span></div>`).join('')}
+                    </div>
+                    ${pendingAutomation.actionType ? renderActionConfig(board) : ''}
+                    <div style="display:flex;justify-content:space-between;margin-top:20px;">
+                        <button class="btn-cancel" onclick="builderStep=1;renderBuilderStep(state.boards.find(b=>b.id===state.activeBoardId))">← Back</button>
+                        <button class="btn-save" onclick="saveAutomation()" ${pendingAutomation.actionType?'':'disabled'}>Create Automation</button>
+                    </div>`;
+            }
+            lucide.createIcons({ nameAttr: 'data-lucide', container });
+        }
+
+        function renderTriggerConfig(board) {
+            const t = pendingAutomation.triggerType;
+            const sel = (arr, key, onchange) => arr.map(x => `<option value="${x.id||x.key}" ${pendingAutomation[key]===(x.id||x.key)?'selected':''}>${x.label||x.title||x.name}</option>`).join('');
+            const wrap = (label, inner) => `<label style="font-size:13px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">${label}<select onchange="${inner}" style="background:var(--bg-main);color:var(--text-main);border:1px solid var(--border-color);border-radius:4px;padding:6px;">${arguments[1]}</select></label>`;
+
+            let html = `<div style="margin-top:15px;padding:15px;background:var(--bg-surface);border-radius:8px;border:1px solid var(--border-color);">`;
+            const inp = (lbl, key, type='text', placeholder='') => `<label style="font-size:13px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">${lbl}<input type="${type}" value="${pendingAutomation[key]||''}" placeholder="${placeholder}" onchange="pendingAutomation.${key}=this.value" style="background:var(--bg-main);color:var(--text-main);border:1px solid var(--border-color);border-radius:4px;padding:6px;"></label>`;
+            const ddl = (lbl, key, options) => `<label style="font-size:13px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">${lbl}<select onchange="pendingAutomation.${key}=this.value" style="background:var(--bg-main);color:var(--text-main);border:1px solid var(--border-color);border-radius:4px;padding:6px;">${options}</select></label>`;
+            const cols = (...types) => board.columns.filter(c=>types.includes(c.type)).map(c=>`<option value="${c.id}" ${pendingAutomation.triggerCol===c.id?'selected':''}>${c.title}</option>`).join('');
+
+            if (t === 'status_change') {
+                const sCols = board.columns.filter(c=>c.type==='status');
+                if(!pendingAutomation.triggerCol && sCols[0]) pendingAutomation.triggerCol=sCols[0].id;
+                html += ddl('Column','triggerCol',cols('status'));
+                html += ddl('Changes to','triggerValue', Object.keys(state.statusOptions).filter(k=>k!=='empty').map(k=>`<option value="${k}" ${pendingAutomation.triggerValue===k?'selected':''}>${state.statusOptions[k].label}</option>`).join(''));
+            } else if (t === 'person_assigned') {
+                const pCols = board.columns.filter(c=>c.type==='person');
+                if(!pendingAutomation.triggerCol && pCols[0]) pendingAutomation.triggerCol=pCols[0].id;
+                html += ddl('Person column','triggerCol',cols('person'));
+            } else if (t === 'date_arrived') {
+                const dCols = board.columns.filter(c=>c.type==='date');
+                if(!pendingAutomation.triggerCol && dCols[0]) pendingAutomation.triggerCol=dCols[0].id;
+                html += ddl('Date column','triggerCol',cols('date'));
+            } else if (t === 'number_reaches') {
+                const nCols = board.columns.filter(c=>['number','currency','percentage'].includes(c.type));
+                if(!pendingAutomation.triggerCol && nCols[0]) pendingAutomation.triggerCol=nCols[0].id;
+                if(!pendingAutomation.operator) pendingAutomation.operator='gte';
+                html += ddl('Column','triggerCol',cols('number','currency','percentage'));
+                html += ddl('Operator','operator',`<option value="gte" ${pendingAutomation.operator==='gte'?'selected':''}>≥ at least</option><option value="lte" ${pendingAutomation.operator==='lte'?'selected':''}>≤ at most</option>`);
+                html += inp('Value','triggerValue','number','0');
+            } else if (t === 'percentage_100') {
+                const pCols = board.columns.filter(c=>c.type==='percentage');
+                if(!pendingAutomation.triggerCol && pCols[0]) pendingAutomation.triggerCol=pCols[0].id;
+                html += ddl('Percentage column','triggerCol',cols('percentage'));
+            } else if (t === 'item_created') {
+                html += `<p style="font-size:13px;color:var(--text-muted);margin:0;">Fires when any new item is added to this board.</p>`;
+            } else if (t === 'text_contains') {
+                const tCols = board.columns.filter(c=>c.type==='text');
+                if(!pendingAutomation.triggerCol && tCols[0]) pendingAutomation.triggerCol=tCols[0].id;
+                html += ddl('Text column','triggerCol',cols('text'));
+                html += inp('Keyword','triggerValue','text','e.g. urgent');
+            }
+            return html + '</div>';
+        }
+
+        function renderActionConfig(board) {
+            const a = pendingAutomation.actionType;
+            const ddl = (lbl, key, options) => `<label style="font-size:13px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">${lbl}<select onchange="pendingAutomation.${key}=this.value" style="background:var(--bg-main);color:var(--text-main);border:1px solid var(--border-color);border-radius:4px;padding:6px;">${options}</select></label>`;
+            const inp = (lbl, key) => `<label style="font-size:13px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">${lbl}<input type="text" value="${pendingAutomation[key]||''}" placeholder="e.g. This needs attention!" onchange="pendingAutomation.${key}=this.value" style="background:var(--bg-main);color:var(--text-main);border:1px solid var(--border-color);border-radius:4px;padding:6px;"></label>`;
+            let html = `<div style="margin-top:15px;padding:15px;background:var(--bg-surface);border-radius:8px;border:1px solid var(--border-color);">`;
+            if (a === 'move_to_group') {
+                if(!pendingAutomation.actionGroupId) pendingAutomation.actionGroupId=board.groups[0]?.id;
+                html += ddl('Destination group','actionGroupId',board.groups.map(g=>`<option value="${g.id}" ${pendingAutomation.actionGroupId===g.id?'selected':''}>${g.name}</option>`).join(''));
+            } else if (a === 'set_status') {
+                const sCols=board.columns.filter(c=>c.type==='status');
+                if(!pendingAutomation.actionCol&&sCols[0]) pendingAutomation.actionCol=sCols[0].id;
+                html += ddl('Status column','actionCol',sCols.map(c=>`<option value="${c.id}" ${pendingAutomation.actionCol===c.id?'selected':''}>${c.title}</option>`).join(''));
+                html += ddl('Set to','actionValue',Object.keys(state.statusOptions).filter(k=>k!=='empty').map(k=>`<option value="${k}" ${pendingAutomation.actionValue===k?'selected':''}>${state.statusOptions[k].label}</option>`).join(''));
+            } else if (a === 'notify') {
+                html += inp('Update message','actionMessage');
+            } else if (a === 'assign_person') {
+                const pCols=board.columns.filter(c=>c.type==='person');
+                if(!pendingAutomation.actionCol&&pCols[0]) pendingAutomation.actionCol=pCols[0].id;
+                html += ddl('Person column','actionCol',pCols.map(c=>`<option value="${c.id}" ${pendingAutomation.actionCol===c.id?'selected':''}>${c.title}</option>`).join(''));
+                html += ddl('Assign to','actionValue',`<option value="current">Current user (creator)</option>`);
+            }
+            return html + '</div>';
+        }
+
+        function selectTriggerType(key) {
+            pendingAutomation = { triggerType: key, actionType: pendingAutomation?.actionType || null };
+            renderBuilderStep(state.boards.find(b => b.id === state.activeBoardId));
+        }
+        function selectActionType(key) {
+            pendingAutomation.actionType = key;
+            pendingAutomation.actionGroupId = null;
+            pendingAutomation.actionCol = null;
+            pendingAutomation.actionValue = null;
+            pendingAutomation.actionMessage = null;
+            renderBuilderStep(state.boards.find(b => b.id === state.activeBoardId));
+        }
+        function goToStep2() {
+            if (!pendingAutomation.triggerType) return;
+            builderStep = 2;
+            renderBuilderStep(state.boards.find(b => b.id === state.activeBoardId));
+        }
+        function saveAutomation() {
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if (!board || !pendingAutomation.triggerType || !pendingAutomation.actionType) return;
+            if (!board.automations) board.automations = [];
+            board.automations.push({ id: 'auto_' + Date.now(), ...pendingAutomation, active: true });
+            closeAddAutomation();
+            renderAutomationList(board);
+            queueCloudSync();
+        }
+        function closeAddAutomation() {
+            document.getElementById('add-automation-modal').classList.remove('show');
+            pendingAutomation = null;
+            builderStep = 1;
+        }
+        function toggleAutomation(boardId, autoId, active) {
+            const board = state.boards.find(b => b.id === boardId);
+            const auto = board?.automations?.find(a => a.id === autoId);
+            if (auto) { auto.active = active; queueCloudSync(); }
+        }
+        function deleteAutomation(boardId, autoId) {
+            const board = state.boards.find(b => b.id === boardId);
+            if (board?.automations) {
+                board.automations = board.automations.filter(a => a.id !== autoId);
+                renderAutomationList(board);
+                queueCloudSync();
+            }
+        }
+
+        function runAutomations(item, board, eventType) {
+            if (!board?.automations?.length) return;
+            board.automations.forEach(auto => {
+                if (!auto.active || auto.triggerType !== eventType) return;
+                let triggered = false;
+                if (eventType === 'status_change')   triggered = item.values[auto.triggerCol] === auto.triggerValue;
+                else if (eventType === 'person_assigned') triggered = !!item.values[auto.triggerCol];
+                else if (eventType === 'number_reaches') { const v = parseFloat(item.values[auto.triggerCol]); triggered = auto.operator === 'gte' ? v >= parseFloat(auto.triggerValue) : v <= parseFloat(auto.triggerValue); }
+                else if (eventType === 'percentage_100') triggered = parseFloat(item.values[auto.triggerCol]) >= 100;
+                else if (eventType === 'item_created')  triggered = true;
+                else if (eventType === 'text_contains') triggered = (item.values[auto.triggerCol]||'').toLowerCase().includes((auto.triggerValue||'').toLowerCase());
+                if (!triggered) return;
+                if (auto.actionType === 'move_to_group') {
+                    const currentGroup = board.groups.find(g => g.items.some(i => i.id === item.id));
+                    const targetGroup  = board.groups.find(g => g.id === auto.actionGroupId);
+                    if (currentGroup && targetGroup && currentGroup.id !== targetGroup.id) {
+                        const idx = currentGroup.items.findIndex(i => i.id === item.id);
+                        targetGroup.items.push(currentGroup.items.splice(idx, 1)[0]);
+                        showToast(`⚡ Moved "${item.name}" to ${targetGroup.name}`);
+                    }
+                } else if (auto.actionType === 'set_status') {
+                    item.values[auto.actionCol] = auto.actionValue;
+                } else if (auto.actionType === 'notify') {
+                    if (!item.updates) item.updates = [];
+                    item.updates.push({ id: 'auto_up_' + Date.now(), text: `⚡ ${auto.actionMessage || 'Automated update'}`, author: 'system', authorName: 'Automation', date: new Date().toISOString(), replies: [], reactions: {}, attachments: [] });
+                } else if (auto.actionType === 'assign_person') {
+                    item.values[auto.actionCol] = auto.actionValue === 'current' ? USER_ID : auto.actionValue;
+                }
+            });
+        }
+
+        function checkDateAutomations() {
+            const today = new Date().toISOString().split('T')[0];
+            state.boards.forEach(board => {
+                const dateAutos = (board.automations||[]).filter(a => a.active && a.triggerType === 'date_arrived');
+                if (!dateAutos.length) return;
+                board.groups.forEach(group => group.items.forEach(item => {
+                    const startDate = (item.values[dateAutos[0]?.triggerCol]||'').split(',')[0];
+                    if (startDate === today) runAutomations(item, board, 'date_arrived');
+                }));
+            });
+        }
+
+
+                function handleColumnNameInput(value) {
+            const typeSelect = document.getElementById('new-column-type');
+            const lower = value.toLowerCase();
+            if (lower.includes('last update') || lower.includes('updated')) {
+                typeSelect.value = 'last-updated';
+            } else if (lower.includes('file') || lower.includes('attachment') || lower.includes('image')) {
+                typeSelect.value = 'attachment';
+            }
+        }
+
+        function saveNewColumn() {
+            if(!modalContext) return;
+            const name = document.getElementById('new-column-name').value.trim();
+            const type = document.getElementById('new-column-type').value;
+            if(!name) return;
+            
+            const board = state.boards.find(b => b.id === modalContext.boardId);
+            if(board) {
+                const colId = 'col_' + Date.now();
+                board.columns.push({ id: colId, title: name, type });
+                board.groups.forEach(g => {
+                    g.items.forEach(i => {
+                        if (type === 'last-updated') {
+                            i.values[colId] = JSON.stringify({ userId: USER_ID, userName: USER_NAME, date: new Date().toISOString() });
+                        } else {
+                            i.values[colId] = type === 'status' ? 'empty' : '';
+                        }
+                    });
+                });
+                renderActiveBoard();
+                queueCloudSync();
+            }
+            closeAddColumnModal();
+        }
+        function renameColumn(boardId, colId) {
+            const board = state.boards.find(b => b.id === boardId);
+            if(!board) return;
+            const col = board.columns.find(c => c.id === colId);
+            if(!col) return;
+            const newName = prompt("Rename column:", col.title);
+            if(newName && newName !== col.title) {
+                col.title = newName;
+                renderActiveBoard();
+                queueCloudSync();
+            }
+        }
+        function deleteColumn(boardId, colId) {
+            if(!confirm("Are you sure you want to delete this column?")) return;
+            const board = state.boards.find(b => b.id === boardId);
+            if(!board) return;
+            board.columns = board.columns.filter(c => c.id !== colId);
+            board.groups.forEach(g => {
+                g.items.forEach(i => {
+                    delete i.values[colId];
+                });
+            });
+            renderActiveBoard();
+            queueCloudSync();
+        }
+
+        function duplicateColumn(boardId, colId) {
+            const board = state.boards.find(b => b.id === boardId);
+            if(board) {
+                const colIndex = board.columns.findIndex(c => c.id === colId);
+                if(colIndex > -1) {
+                    const original = board.columns[colIndex];
+                    const newCol = JSON.parse(JSON.stringify(original));
+                    newCol.id = 'col_' + Date.now();
+                    newCol.title = newCol.title + ' (copy)';
+                    
+                    // Copy values for all items
+                    board.groups.forEach(group => {
+                        group.items.forEach(item => {
+                            if(item.values[colId] !== undefined) {
+                                item.values[newCol.id] = item.values[colId];
+                            }
+                        });
+                    });
+                    
+                    board.columns.splice(colIndex + 1, 0, newCol);
+                    renderActiveBoard();
+                    queueCloudSync();
+                }
+            }
+        }
+
+        // --- Groups ---
+        function deleteGroup(boardId, groupId) {
+            if(!confirm("Are you sure you want to delete this group?")) return;
+            const board = state.boards.find(b => b.id === boardId);
+            if(board) {
+                board.groups = board.groups.filter(g => g.id !== groupId);
+                renderActiveBoard();
+                queueCloudSync();
+            }
+        }
+        function changeGroupColor(boardId, groupId) {
+            const input = document.createElement('input');
+            input.type = 'color';
+            input.onchange = (e) => {
+                const color = e.target.value;
+                const board = state.boards.find(b => b.id === boardId);
+                if(board) {
+                    const group = board.groups.find(g => g.id === groupId);
+                    if(group) {
+                        group.color = color;
+                        renderActiveBoard();
+                        queueCloudSync();
+                    }
+                }
+            };
+            input.click();
+        }
+
+        function duplicateGroup(boardId, groupId) {
+            const board = state.boards.find(b => b.id === boardId);
+            if(board) {
+                const groupIndex = board.groups.findIndex(g => g.id === groupId);
+                if(groupIndex > -1) {
+                    const original = board.groups[groupIndex];
+                    const clone = JSON.parse(JSON.stringify(original));
+                    clone.id = 'group_' + Date.now();
+                    clone.name = clone.name + ' (copy)';
+                    clone.items.forEach(i => {
+                        i.id = 'item_' + Math.random().toString(36).substr(2, 9);
+                        if(i.updates) {
+                            i.updates.forEach(up => {
+                                up.id = 'up_' + Math.random().toString(36).substr(2, 9);
+                                if (up.replies) {
+                                    up.replies.forEach(rep => {
+                                        rep.id = 'rep_' + Math.random().toString(36).substr(2, 9);
+                                    });
+                                }
+                            });
+                        }
+                    });
+                    board.groups.splice(groupIndex + 1, 0, clone);
+                    renderActiveBoard();
+                    queueCloudSync();
+                }
+            }
+        }
+
+        // --- Sorting ---
+        let currentSort = { boardId: null, groupId: null, colId: null, asc: true };
+        function sortBoard(boardId, groupId, colId) {
+            const board = state.boards.find(b => b.id === boardId);
+            if(!board) return;
+            const group = board.groups.find(g => g.id === groupId);
+            if(!group) return;
+
+            if (currentSort.boardId === boardId && currentSort.groupId === groupId && currentSort.colId === colId) {
+                currentSort.asc = !currentSort.asc;
+            } else {
+                currentSort = { boardId, groupId, colId, asc: true };
+            }
+
+            group.items.sort((a, b) => {
+                let valA = colId === 'name' ? a.name : (a.values[colId] || '');
+                let valB = colId === 'name' ? b.name : (b.values[colId] || '');
+                if (valA < valB) return currentSort.asc ? -1 : 1;
+                if (valA > valB) return currentSort.asc ? 1 : -1;
+                return 0;
+            });
+            renderActiveBoard();
+            queueCloudSync();
+        }
+
+        // --- Updates Modal ---
+        let currentUpdatesItem = null;
+        function openUpdatesModal(boardId, groupId, itemId) {
+            const board = state.boards.find(b => b.id === boardId);
+            const group = board?.groups.find(g => g.id === groupId);
+            const item = group?.items.find(i => i.id === itemId);
+            if(!item) return;
+
+            currentUpdatesItem = { boardId, groupId, itemId };
+            document.getElementById('updates-item-name').innerText = item.name;
+            renderUpdatesList(item);
+            document.getElementById('updates-modal').classList.add('show');
+        }
+        function closeUpdatesModal() {
+            document.getElementById('updates-modal').classList.remove('show');
+            currentUpdatesItem = null;
+        }
+        function renderUpdatesList(item) {
+            const container = document.getElementById('updates-body');
+            container.innerHTML = '';
+            if(!item.updates || item.updates.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:var(--text-muted); margin-top:20px;">No updates yet.</div>';
+                return;
+            }
+
+            let html = '';
+            item.updates.forEach(up => {
+                let reactionsHtml = '';
+                if(up.reactions) {
+                    Object.entries(up.reactions).forEach(([emoji, users]) => {
+                        const isArray = Array.isArray(users);
+                        const count = isArray ? users.length : users;
+                        if(count > 0) {
+                            const names = isArray ? users.map(u => u.name).join(', ') : 'Existing reactions';
+                            reactionsHtml += `<button class="reaction-btn" onmouseenter="showTooltip(event, '${names}')" onmouseleave="hideTooltip()" onclick="toggleReaction('${item.id}', '${up.id}', '${emoji}')">${emoji} ${count}</button>`;
+                        }
+                    });
+                }
+                
+                let repliesHtml = '';
+                if(up.replies && up.replies.length > 0) {
+                    up.replies.forEach(rep => {
+                        repliesHtml += `
+                            <div class="reply-item">
+                                <span style="font-weight:600; color:var(--text-main); margin-right:5px;">${rep.author || 'User'}</span>
+                                ${rep.text}
+                            </div>
+                        `;
+                    });
+                }
+
+                html += `
+                    <div class="update-card">
+                        <div class="update-author">
+                            <div class="avatar" style="width:24px; height:24px; font-size:10px;">${up.author ? up.author.substring(0,2).toUpperCase() : 'U'}</div>
+                            <span style="font-weight: 500;">${up.authorName || up.author || 'User'}</span>
+                            <span style="font-size:10px; color:var(--text-muted); font-weight:normal;">${new Date(up.date).toLocaleString()}</span>
+                        </div>
+                        <div class="update-text" style="font-size: 14px; line-height: 1.5;">${up.text.replace(/\n/g, '<br>')}</div>
+                        ${up.attachments && up.attachments.length > 0 ? `
+                            <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;">
+                                ${up.attachments.map((f, idx) => `
+                                    <div style="cursor:pointer;" onclick="openPreview('${f.data}', '${f.type}', '${f.name}', {type:'update', itemId:'${item.id}', updateId:'${up.id}', index:${idx}})">
+                                        ${f.type.startsWith('image/') ? `<img src="${f.data}" style="max-width:150px; border-radius:4px; border:1px solid var(--border-color);">` : `
+                                            <div style="padding:8px 12px; background:var(--bg-main); border-radius:4px; border:1px solid var(--border-color); display:flex; align-items:center; gap:8px;">
+                                                <i data-lucide="file" size="14"></i>
+                                                <span style="font-size:12px;">${f.name}</span>
+                                            </div>
+                                        `}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                        <div class="update-actions">
+                            ${reactionsHtml}
+                            <div style="position:relative; display:inline-block;">
+                                <button class="btn-icon" style="font-size:12px; gap:4px;" onclick="toggleReaction('${item.id}', '${up.id}', '👍')" onmouseenter="showEmojiPicker(event, '${item.id}', '${up.id}')">
+                                    <i data-lucide="thumbs-up" size="12"></i> Like
+                                </button>
+                            </div>
+                            <button class="btn-icon" style="font-size:12px; gap:4px;" onclick="toggleReplyInput('${up.id}')">
+                                <i data-lucide="corner-down-right" size="12"></i> Reply
+                            </button>
+                        </div>
+                        
+                        ${repliesHtml ? `<div class="reply-box">${repliesHtml}</div>` : ''}
+                        
+                        <div class="reply-input-area" id="reply-input-${up.id}">
+                            <div style="display:flex; gap:10px;">
+                                <input type="text" id="reply-text-${up.id}" placeholder="Write a reply..." onkeydown="if(event.key === 'Enter') postReply('${item.id}', '${up.id}')" style="flex-grow:1; background:var(--bg-main); border:1px solid var(--border-color); color:var(--text-main); padding:8px; border-radius:4px; outline:none;">
+                                <button class="btn-save" onclick="postReply('${item.id}', '${up.id}')">Reply</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+            lucide.createIcons();
+        }
+
+        function toggleReplyInput(updateId) {
+            const el = document.getElementById(`reply-input-${updateId}`);
+            if(el) el.classList.toggle('show');
+        }
+
+        function toggleReaction(itemId, updateId, emoji) {
+            const board = state.boards.find(b => b.id === currentUpdatesItem.boardId);
+            const group = board?.groups.find(g => g.id === currentUpdatesItem.groupId);
+            const item = group?.items.find(i => i.id === itemId);
+            if(item) {
+                const up = item.updates.find(u => u.id === updateId);
+                if(up) {
+                    if(!up.reactions) up.reactions = {};
+                    
+                    // Handle legacy numeric counts
+                    if (up.reactions[emoji] && !Array.isArray(up.reactions[emoji])) {
+                        up.reactions[emoji] = []; // Reset legacy
+                    }
+                    
+                    if(!up.reactions[emoji]) up.reactions[emoji] = [];
+                    
+                    const userIdx = up.reactions[emoji].findIndex(u => u.id === USER_ID);
+                    if(userIdx > -1) {
+                        up.reactions[emoji].splice(userIdx, 1);
+                        if(up.reactions[emoji].length === 0) delete up.reactions[emoji];
+                    } else {
+                        up.reactions[emoji].push({ id: USER_ID, name: USER_NAME });
+                    }
+                    
+                    renderUpdatesList(item);
+                    queueCloudSync();
+                }
+            }
+        }
+
+        function showEmojiPicker(event, itemId, updateId) {
+            const existing = document.getElementById('emoji-picker');
+            if(existing) existing.remove();
+            
+            const picker = document.createElement('div');
+            picker.id = 'emoji-picker';
+            picker.className = 'emoji-picker';
+            picker.style.left = event.clientX + 'px';
+            picker.style.top = (event.clientY - 45) + 'px';
+            
+            const emojis = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏'];
+            emojis.forEach(e => {
+                const btn = document.createElement('button');
+                btn.innerText = e;
+                btn.onclick = (ev) => {
+                    ev.stopPropagation();
+                    toggleReaction(itemId, updateId, e);
+                    picker.remove();
+                };
+                picker.appendChild(btn);
+            });
+            
+            document.body.appendChild(picker);
+            
+            const hidePicker = (e) => {
+                if(!picker.contains(e.target)) {
+                    picker.remove();
+                    document.removeEventListener('mousedown', hidePicker);
+                }
+            };
+            setTimeout(() => document.addEventListener('mousedown', hidePicker), 10);
+        }
+
+        function postReply(itemId, updateId) {
+            const input = document.getElementById(`reply-text-${updateId}`);
+            const text = input ? input.value.trim() : '';
+            if(!text) return;
+
+            const board = state.boards.find(b => b.id === currentUpdatesItem.boardId);
+            const group = board?.groups.find(g => g.id === currentUpdatesItem.groupId);
+            const item = group?.items.find(i => i.id === itemId);
+            if(item) {
+                const up = item.updates.find(u => u.id === updateId);
+                if(up) {
+                    if(!up.replies) up.replies = [];
+                    up.replies.push({
+                        id: 'rep_' + Date.now(),
+                        text: text,
+                        author: USER_ID,
+                        date: new Date().toISOString()
+                    });
+                    renderUpdatesList(item);
+                    queueCloudSync();
+                }
+            }
+        }
+        function postUpdate() {
+            if(!currentUpdatesItem) return;
+            const text = document.getElementById('new-update-input').value.trim();
+            if(!text) return;
+
+            const board = state.boards.find(b => b.id === currentUpdatesItem.boardId);
+            const group = board?.groups.find(g => g.id === currentUpdatesItem.groupId);
+            const item = group?.items.find(i => i.id === currentUpdatesItem.itemId);
+            
+            if(item) {
+                if(!item.updates) item.updates = [];
+                item.updates.push({
+                    id: 'up_' + Date.now(),
+                    text: text,
+                    author: USER_ID,
+                    authorName: USER_NAME,
+                    date: new Date().toISOString(),
+                    replies: [],
+                    reactions: {},
+                    attachments: [...updateAttachments]
+                });
+                markLastUpdated(item);
+                document.getElementById('new-update-input').value = '';
+                updateAttachments = [];
+                renderUpdateAttachmentsPreview();
+                renderUpdatesList(item);
+                renderActiveBoard(); // to update badge
+                queueCloudSync();
+            }
+        }
+
+        let updateAttachments = [];
+        function handleUpdateFiles(files) {
+            for(let file of files) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    updateAttachments.push({ name: file.name, type: file.type, data: e.target.result });
+                    renderUpdateAttachmentsPreview();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function handleUpdatePaste(e) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (let item of items) {
+                if (item.type.indexOf("image") !== -1) {
+                    const blob = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        updateAttachments.push({ name: 'pasted_image_' + Date.now() + '.png', type: 'image/png', data: e.target.result });
+                        renderUpdateAttachmentsPreview();
+                    };
+                    reader.readAsDataURL(blob);
+                }
+            }
+        }
+
+        function renderUpdateAttachmentsPreview() {
+            const container = document.getElementById('update-attachments-preview');
+            if(!container) return;
+            container.innerHTML = updateAttachments.map((f, index) => `
+                <div style="position:relative; width:40px; height:40px; border:1px solid var(--border-color); border-radius:4px; overflow:hidden;">
+                    ${f.type.startsWith('image/') ? `<img src="${f.data}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;"><i data-lucide="file" size="16"></i></div>`}
+                    <div style="position:absolute; top:0; right:0; background:rgba(0,0,0,0.5); color:white; cursor:pointer; padding:2px;" onclick="updateAttachments.splice(${index}, 1); renderUpdateAttachmentsPreview();"><i data-lucide="x" size="10"></i></div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        // --- Column File Handling ---
+        function triggerAttachmentUpload(boardId, groupId, itemId, colId) {
+            document.getElementById(`upload-${itemId}-${colId}`).click();
+        }
+
+        function handleColumnFileUpload(input, boardId, groupId, itemId, colId) {
+            const file = input.files[0];
+            if(!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const board = state.boards.find(b => b.id === boardId);
+                if(board) {
+                    const group = board.groups.find(g => g.id === groupId);
+                    if(group) {
+                        const item = group.items.find(i => i.id === itemId);
+                        if(item) {
+                            const currentFiles = item.values[colId] ? JSON.parse(item.values[colId]) : [];
+                            currentFiles.push({ name: file.name, type: file.type, data: e.target.result });
+                            item.values[colId] = JSON.stringify(currentFiles);
+                            markLastUpdated(item);
+                            renderActiveBoard();
+                            queueCloudSync();
+                        }
+                    }
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- Preview Modal ---
+        function openPreview(data, type, name, context = null) {
+            const modal = document.getElementById('preview-modal');
+            const content = document.getElementById('preview-content');
+            const title = document.getElementById('preview-filename');
+            const renameBtn = document.getElementById('preview-rename-btn');
+            const downloadBtn = document.getElementById('preview-download-btn');
+            const deleteBtn = document.getElementById('preview-delete-btn');
+            const renameContainer = document.getElementById('preview-rename-input-container');
+            const renameInput = document.getElementById('preview-rename-input');
+            const renameSave = document.getElementById('preview-rename-save');
+            
+            title.style.display = 'block';
+            title.innerText = name;
+            renameContainer.style.display = 'none';
+            content.innerHTML = '';
+            
+            if(type.startsWith('image/')) {
+                content.innerHTML = `<img src="${data}" style="max-width:100%; max-height:100%; border-radius:4px; box-shadow:0 10px 30px rgba(0,0,0,0.5); object-fit:contain;">`;
+            } else {
+                content.innerHTML = `
+                    <div style="background:var(--bg-surface); padding:40px; border-radius:8px; text-align:center; color:var(--text-main); border:1px solid var(--border-color);">
+                        <i data-lucide="file" size="64" style="margin-bottom:20px; color:var(--text-muted);"></i>
+                        <h3>${name}</h3>
+                        <p style="color:var(--text-muted); margin-top:10px;">Preview not available for this file type.</p>
+                    </div>
+                `;
+            }
+
+            renameBtn.onclick = (e) => {
+                e.stopPropagation();
+                title.style.display = 'none';
+                renameContainer.style.display = 'flex';
+                renameInput.value = name;
+                renameInput.focus();
+            };
+
+            renameSave.onclick = (e) => {
+                e.stopPropagation();
+                const newName = renameInput.value.trim();
+                if(newName && newName !== name) {
+                    renameAttachment(context, newName);
+                    name = newName;
+                    title.innerText = name;
+                }
+                title.style.display = 'block';
+                renameContainer.style.display = 'none';
+            };
+
+            downloadBtn.onclick = (e) => {
+                e.stopPropagation();
+                const a = document.createElement('a');
+                a.href = data;
+                a.download = name;
+                a.click();
+            };
+
+            if(context) {
+                deleteBtn.style.display = 'flex';
+                renameBtn.style.display = 'flex';
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if(confirm('Delete this attachment?')) {
+                        deleteAttachment(context);
+                        closePreviewModal();
+                    }
+                };
+            } else {
+                deleteBtn.style.display = 'none';
+                renameBtn.style.display = 'none';
+            }
+            
+            modal.classList.add('show');
+            lucide.createIcons();
+        }
+
+        function deleteAttachment(ctx) {
+            const board = state.boards.find(b => b.id === ctx.boardId || (ctx.type === 'update' && state.boards.some(bo => bo.groups.some(g => g.items.some(i => i.id === ctx.itemId)))));
+            
+            if (ctx.type === 'column') {
+                const group = board.groups.find(g => g.id === ctx.groupId);
+                const item = group.items.find(i => i.id === ctx.itemId);
+                const files = JSON.parse(item.values[ctx.colId]);
+                files.splice(ctx.index, 1);
+                item.values[ctx.colId] = JSON.stringify(files);
+                markLastUpdated(item);
+                renderActiveBoard();
+            } else if (ctx.type === 'update') {
+                for (let b of state.boards) {
+                    for (let g of b.groups) {
+                        const item = g.items.find(i => i.id === ctx.itemId);
+                        if (item) {
+                            const update = item.updates.find(u => u.id === ctx.updateId);
+                            if (update && update.attachments) {
+                                update.attachments.splice(ctx.index, 1);
+                                markLastUpdated(item);
+                                renderUpdatesList(item);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            queueCloudSync();
+        }
+
+        function renameAttachment(ctx, newName) {
+            const board = state.boards.find(b => b.id === ctx.boardId || (ctx.type === 'update' && state.boards.some(bo => bo.groups.some(g => g.items.some(i => i.id === ctx.itemId)))));
+            
+            if (ctx.type === 'column') {
+                const group = board.groups.find(g => g.id === ctx.groupId);
+                const item = group.items.find(i => i.id === ctx.itemId);
+                const files = JSON.parse(item.values[ctx.colId]);
+                files[ctx.index].name = newName;
+                item.values[ctx.colId] = JSON.stringify(files);
+                markLastUpdated(item);
+                renderActiveBoard();
+            } else if (ctx.type === 'update') {
+                for (let b of state.boards) {
+                    for (let g of b.groups) {
+                        const item = g.items.find(i => i.id === ctx.itemId);
+                        if (item) {
+                            const update = item.updates.find(u => u.id === ctx.updateId);
+                            if (update && update.attachments) {
+                                update.attachments[ctx.index].name = newName;
+                                markLastUpdated(item);
+                                renderUpdatesList(item);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            queueCloudSync();
+        }
+
+        function closePreviewModal() {
+            document.getElementById('preview-modal').classList.remove('show');
+        }
+
+        // --- Tooltip Logic ---
+        let tooltipEl = null;
+        function showTooltip(event, text) {
+            if (!tooltipEl) {
+                tooltipEl = document.createElement('div');
+                tooltipEl.className = 'custom-tooltip';
+                document.body.appendChild(tooltipEl);
+            }
+            tooltipEl.innerText = text;
+            tooltipEl.style.display = 'block';
+            
+            const rect = event.target.getBoundingClientRect();
+            const tooltipRect = tooltipEl.getBoundingClientRect();
+            
+            tooltipEl.style.left = (rect.left + rect.width/2 - tooltipRect.width/2) + 'px';
+            tooltipEl.style.top = (rect.top - tooltipRect.height - 8) + 'px';
+        }
+
+        function hideTooltip() {
+            if (tooltipEl) tooltipEl.style.display = 'none';
+        }
+
+        // --- Column Resizing ---
+        let resizeData = null;
+        function initResize(e, boardId, colId) {
+            e.stopPropagation();
+            e.preventDefault();
+            const th = e.target.parentElement;
+            resizeData = {
+                boardId,
+                colId,
+                startOffset: th.offsetWidth - e.pageX,
+                th: th
+            };
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', stopResize);
+            e.target.classList.add('resizing');
+        }
+
+        function handleMouseMove(e) {
+            if (!resizeData) return;
+            const newWidth = resizeData.startOffset + e.pageX;
+            if (newWidth > 50) {
+                resizeData.th.style.width = newWidth + 'px';
+                // Find and update other tables in the same board (groups)
+                const board = state.boards.find(b => b.id === resizeData.boardId);
+                if (board) {
+                    if (!board.columnWidths) board.columnWidths = {};
+                    board.columnWidths[resizeData.colId] = newWidth;
+                }
+            }
+        }
+
+        function stopResize() {
+            if (resizeData) {
+                document.querySelectorAll('.resizer.resizing').forEach(el => el.classList.remove('resizing'));
+                resizeData = null;
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', stopResize);
+                renderActiveBoard(); // Re-render to sync all tables in the board
+                queueCloudSync();
+            }
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.status-dropdown.show, .person-dropdown.show, .dropdown-menu.show').forEach(el => {
+                el.classList.remove('show');
+                const group = el.closest('.group');
+                const tr = el.closest('tr');
+                const td = el.closest('td');
+                if(group) { group.style.zIndex = ''; group.style.position = ''; }
+                if(tr) { tr.style.zIndex = ''; tr.style.position = ''; }
+                if(td) { td.style.zIndex = ''; }
+            });
+        });
+
+        // --- Utility ---
+        
+        function setSyncStatus(status, text) {
+            const el = document.getElementById('cloud-sync-status');
+            el.className = `cloud-sync ${status}`;
+            
+            let icon = 'cloud';
+            if(status === 'syncing') icon = 'refresh-cw';
+            if(status === 'synced') icon = 'cloud-check';
+            if(status === 'error') icon = 'cloud-off';
+            
+            el.innerHTML = `<i data-lucide="${icon}" size="14"></i> <span>${text}</span>`;
+            lucide.createIcons();
+        }
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toast-msg');
+            msgEl.innerText = message;
+            toast.style.backgroundColor = isError ? 'var(--status-stuck)' : 'var(--bg-surface)';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const loggedIn = checkGoogleLogin();
+            lucide.createIcons();
+            fetchBoardsFromCloud();
+        });
+
+    </script>
+</body>
+</html>

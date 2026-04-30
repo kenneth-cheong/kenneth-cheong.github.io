@@ -703,6 +703,10 @@
                     <i class="fas fa-check-double"></i>
                     <span>Bulk Validator</span>
                 </div>
+                <div id="nav-cost" class="nav-item" onclick="showTab('cost')">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                    <span>Cost Management</span>
+                </div>
             </nav>
 
             <div style="margin-top: auto; padding-top: 24px; border-top: 1px solid var(--border);">
@@ -945,6 +949,97 @@
                 </div>
             </div>
 
+            <div id="costTab" class="content-tab" style="display: none;">
+                <div class="card">
+                    <div class="flex-resp" style="margin-bottom: 24px;">
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <div style="display: flex; align-items: center; gap: 16px;">
+                                <h3 style="margin: 0;">Cost Management</h3>
+                                <div style="display: flex; gap: 4px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 8px; border: 1px solid var(--border);">
+                                    <button class="btn btn-sm" id="costListViewBtn" onclick="setCostViewMode('list')" style="padding: 4px 12px; font-size: 0.75rem; background: var(--primary); color: white; border-radius: 6px; transition: all 0.2s;">List</button>
+                                    <button class="btn btn-sm" id="costChartViewBtn" onclick="setCostViewMode('charts')" style="padding: 4px 12px; font-size: 0.75rem; background: transparent; color: var(--text-dim); border-radius: 6px; transition: all 0.2s;">Charts</button>
+                                </div>
+                            </div>
+                            <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: 4px;">Aggregation of backlink costs and quantities at [BD] Sales > Campaign > Month levels.</p>
+                        </div>
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <button class="btn btn-secondary" onclick="toggleElement('bulkPricingPanel')" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);">
+                                <i class="fas fa-money-bill-wave"></i> Bulk Pricing Update
+                            </button>
+                            <div class="search-input-wrapper" style="position: relative;">
+                                <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim);"></i>
+                                <input type="text" id="costSearch" placeholder="Search BD or Campaign..." oninput="renderCostManagement()" style="padding: 8px 12px 8px 36px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: white; width: 250px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bulk Pricing Panel -->
+                    <div id="bulkPricingPanel" style="display: none; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; animation: slideDown 0.3s ease-out;">
+                        <h4 style="margin: 0 0 16px 0; display: flex; align-items: center; gap: 10px; color: #10b981;">
+                            <i class="fas fa-calculator"></i> Bulk Pricing Update
+                        </h4>
+                        <div class="filter-row" style="gap: 16px; margin-bottom: 20px;">
+                            <div style="flex: 1.5;">
+                                <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 6px;">Target Vendor</label>
+                                <select id="bulkVendor" onchange="calculateAffectedLinks()" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                                    <option value="">Select Vendor...</option>
+                                </select>
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 6px;">Start Month</label>
+                                <input type="month" id="bulkStartMonth" onchange="calculateAffectedLinks()" style="width: 100%; padding: 11px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 6px;">End Month</label>
+                                <input type="month" id="bulkEndMonth" onchange="calculateAffectedLinks()" style="width: 100%; padding: 11px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 6px;">Price per Link ($)</label>
+                                <input type="number" id="bulkPrice" step="0.01" placeholder="0.00" style="width: 100%; padding: 11px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.05);">
+                            <div id="bulkPricingStatus" style="font-size: 0.85rem; color: var(--text-dim);">
+                                <i class="fas fa-info-circle"></i> Affected Delivered Links: <b id="affectedLinkCount" style="color: var(--secondary); font-size: 1rem;">0</b>
+                            </div>
+                            <button class="btn btn-primary" onclick="applyBulkPricing()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; padding: 10px 24px;">
+                                Apply Bulk Pricing
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="costContainer"></div>
+                    
+                    <!-- Graphical View -->
+                    <div id="costChartContainer" style="display: none; animation: fadeIn 0.4s ease-out;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 24px; margin-top: 24px;">
+                            <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 24px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                                    <h4 style="margin: 0; color: var(--primary-light); display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-chart-line"></i> Monthly Cost Trend
+                                    </h4>
+                                    <span style="font-size: 0.75rem; color: var(--text-dim);">Last 12 Months</span>
+                                </div>
+                                <div style="height: 350px; width: 100%;">
+                                    <canvas id="monthlyCostChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="card" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 24px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                                    <h4 style="margin: 0; color: var(--primary-light); display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-chart-pie"></i> Cost by [BD] Sales
+                                    </h4>
+                                    <span style="font-size: 0.75rem; color: var(--text-dim);">Total Distribution</span>
+                                </div>
+                                <div style="height: 350px; width: 100%;">
+                                    <canvas id="bdCostChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="rankingsTab" class="content-tab" style="display: none;">
                 <div class="card">
                     <div class="flex-resp" style="margin-bottom: 24px;">
@@ -1030,6 +1125,25 @@
         const MONDAY_URL = 'https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday';
         const SERANKING_URL = 'https://u2u2ptqaxd.execute-api.ap-southeast-1.amazonaws.com/seRanking';
         const GOOGLE_CLIENT_ID = '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
+        const DEFAULT_USERS = [
+            { name: 'Dan', email: '', role: 'Admin', status: 'Active' },
+            { name: 'Desiree', email: '', role: 'Admin', status: 'Active' },
+            { name: 'Kenneth', email: '', role: 'Admin', status: 'Active' },
+            { name: 'Tom', email: '', role: 'Admin', status: 'Active' },
+            { name: 'June', email: '', role: 'Admin', status: 'Active' },
+            { name: 'Anurag', email: 'anurag.kashyap20@gmail.com', role: 'Vendor', status: 'Active' },
+            { name: 'Maark', email: 'maark@linksbuildingservice.co.uk', role: 'Vendor', status: 'Active' },
+            { name: 'Arya', email: 'aryajones7@gmail.com', role: 'Vendor', status: 'Active' },
+            { name: 'Ramish', email: 'ramishgill651@gmail.com', role: 'Vendor', status: 'Active' },
+            { name: 'Sasti', email: 'sastiseoconsultant@gmail.com', role: 'Vendor', status: 'Active' },
+            { name: 'Boris', email: 'online@shantel.co', role: 'Vendor', status: 'Active' },
+            { name: 'Jimmy', email: 'jimmybwilliams8@gmail.com', role: 'Vendor', status: 'Active' },
+            { name: 'Dan Inhouse Outreach', email: '', role: 'Vendor', status: 'Active' },
+            { name: 'Link Publisher', email: '', role: 'Vendor', status: 'Active' },
+            { name: 'iCopify', email: '', role: 'Vendor', status: 'Active' },
+            { name: 'Upwork', email: '', role: 'Vendor', status: 'Active' },
+            { name: 'Fiverr', email: '', role: 'Vendor', status: 'Active' }
+        ];
 
         // Helpers
         function debounce(func, wait) {
@@ -1079,6 +1193,7 @@
             role: 'Viewer',
             campaigns: [],
             mondayItems: [],
+            mondayColumns: [],
             orders: [],
             vendors: [],
             rankings: [],
@@ -1328,7 +1443,7 @@
             const isBuyer = (role === 'Buyer');
 
             // Hide Refresh/Import/Edit buttons for non-admins
-            const adminOnlyElements = document.querySelectorAll('#importBtn, #bulkValidateBtn, #bulkDeleteBtn, #excelUpload, #deliveryUpload');
+            const adminOnlyElements = document.querySelectorAll('#importBtn, #bulkValidateBtn, #bulkDeleteBtn');
             adminOnlyElements.forEach(el => {
                 el.style.display = isAdmin ? 'inline-flex' : 'none';
             });
@@ -1357,9 +1472,15 @@
                 'orders': 'Delivered Backlinks',
                 'vendors': 'User Management',
                 'validator': 'Bulk Backlink Validator',
-                'rankings': 'Keyword Rankings Overview'
+                'rankings': 'Keyword Rankings Overview',
+                'cost': 'Cost Management'
             };
             document.getElementById('pageTitle').innerText = titleMap[tabId] || 'Dashboard';
+
+            if (tabId === 'cost') {
+                updateVendorSelect();
+                renderCostManagement();
+            }
 
             if (tabId === 'rankings' && state.seRankingSites.length === 0) {
                 fetchFullSERankingData();
@@ -1563,7 +1684,8 @@
                 target: findIdx(['Target URL']),
                 quantity: findIdx(['No. of Links', 'Quantity']),
                 backlink: findIdx(['Backlinks', 'URL']),
-                da: findIdx(['DA'])
+                da: findIdx(['DA']),
+                cost: findIdx(['Cost', 'Price', 'Value', 'Amount'])
             };
 
             // Collect all possible backlink and DA indices in case there are multiple
@@ -1600,6 +1722,7 @@
                         keyword: row[idx.keyword] || '-',
                         targetUrl: row[idx.target] || '-',
                         quantity: row[idx.quantity] || 1,
+                        cost: parseFloat(String(row[idx.cost] || '0').replace(/[^0-9.]/g, '')) || 0,
                         deliveredUrl: '',
                         vendorDa: row[idx.da] || 0,
                         status: 'Ordered',
@@ -1618,6 +1741,7 @@
                     keyword: row[idx.keyword] || '-',
                     targetUrl: row[idx.target] || '-',
                     quantity: 1, // Individual link constitutes 1 unit
+                    cost: (parseFloat(String(row[idx.cost] || '0').replace(/[^0-9.]/g, '')) || 0) / (foundLinks.length || 1),
                     deliveredUrl: link.url,
                     vendorDa: link.da || row[idx.da] || 0,
                     status: 'Delivered',
@@ -1713,12 +1837,40 @@
 
         async function fetchUsers(isQuiet = false) {
             const data = await apiCall(PERSISTENCE_URL, 'get_users', {}, isQuiet);
+            let list = [];
             if (data && Array.isArray(data)) {
-                state.vendors = data;
-                renderUsers();
+                list = data;
             } else if (data) {
-                const list = data.users || data.items || [];
-                state.vendors = Array.isArray(list) ? list : [];
+                list = data.users || data.items || [];
+            }
+            state.vendors = list;
+            renderUsers();
+            
+            // Sync missing defaults to cloud
+            bootstrapUsers(list);
+        }
+
+        async function bootstrapUsers(existingUsers) {
+            const missing = DEFAULT_USERS.filter(def => {
+                const exists = existingUsers.some(u => 
+                    (u.name && u.name.toLowerCase() === def.name.toLowerCase()) || 
+                    (u.email && def.email && u.email.toLowerCase() === def.email.toLowerCase())
+                );
+                return !exists;
+            });
+
+            if (missing.length === 0) return;
+
+            console.log(`[Bootstrap] Found ${missing.length} missing default users. Syncing to cloud...`);
+            for (const user of missing) {
+                const id = 'def_' + user.name.replace(/\s+/g, '_').toLowerCase();
+                await apiCall(PERSISTENCE_URL, 'upsert_user', { ...user, id }, true);
+            }
+            
+            // Final refresh to ensure local state has all IDs
+            const finalData = await apiCall(PERSISTENCE_URL, 'get_users', {}, true);
+            if (finalData) {
+                state.vendors = Array.isArray(finalData) ? finalData : (finalData.users || finalData.items || []);
                 renderUsers();
             }
         }
@@ -1749,6 +1901,19 @@
                     </td>
                 </tr>
             `).join('');
+
+            updateCampaignLists();
+        }
+
+        function updateCampaignLists() {
+            const allCampaigns = getCampaignList();
+            const bulkCampSel = document.getElementById('cartBulkCampaign');
+            if (bulkCampSel) {
+                const current = bulkCampSel.value;
+                bulkCampSel.innerHTML = '<option value="">-- Don\'t change --</option>' + 
+                    allCampaigns.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+                bulkCampSel.value = current;
+            }
         }
 
         function renderUsers() {
@@ -1761,15 +1926,50 @@
                     <td><span class="badge" style="background: rgba(99, 102, 241, 0.1); color: var(--primary-light); padding: 4px 10px; border-radius: 6px; font-size: 0.75rem;">${u.role || 'Viewer'}</span></td>
                     <td><span class="badge" style="background: ${u.status === 'Active' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(244, 63, 94, 0.2)'}; color: ${u.status === 'Active' ? '#10b981' : '#f43f5e'}; padding: 4px 12px; border-radius: 20px;">${u.status}</span></td>
                     <td>
-                        <button class="btn" style="padding: 4px 10px; background: rgba(99, 102, 241, 0.1); border: 1px solid var(--primary); color: var(--primary-light); ${!canEdit ? 'display:none;' : ''}" onclick="editUser('${safeJS(u.id)}')">
+                        <button class="btn" style="padding: 4px 10px; background: rgba(99, 102, 241, 0.1); border: 1px solid var(--primary); color: var(--primary-light); ${!canEdit ? 'display:none;' : ''}" onclick="editUser('${safeJS(u.id || u._id)}')">
                             <i class="fas fa-edit"></i> Edit
                         </button>
-                        <button class="btn" style="padding: 4px 10px; background: rgba(244, 63, 94, 0.1); border: 1px solid var(--accent); color: var(--accent); ${!canEdit ? 'display:none;' : ''}" onclick="deleteUser('${safeJS(u.id)}')">
+                        <button class="btn" style="padding: 4px 10px; background: rgba(244, 63, 94, 0.1); border: 1px solid var(--accent); color: var(--accent); ${!canEdit ? 'display:none;' : ''}" onclick="deleteUser('${safeJS(u.id || u._id)}')">
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>
                 </tr>
             `).join('');
+
+            updateVendorLists();
+        }
+
+        function updateVendorLists() {
+            const vendors = state.vendors.filter(v => v.role === 'Vendor');
+            
+            // 1. Update Global Vendor Datalist
+            const globalList = document.getElementById('vendorList');
+            if (globalList) {
+                globalList.innerHTML = vendors.map(v => `<option value="${v.name}"></option>`).join('');
+            }
+
+            // 2. Update Delivery Modal Select
+            const deliverySelect = document.getElementById('deliveryVendorSelect');
+            if (deliverySelect) {
+                const current = deliverySelect.value;
+                let html = '<option value="">-- Choose Vendor --</option>';
+                vendors.forEach(v => {
+                    const val = v.email ? `${v.name} (${v.email})` : v.name;
+                    const label = v.email ? `${v.name} - Email: ${v.email}` : v.name;
+                    html += `<option value="${val}">${label}</option>`;
+                });
+                deliverySelect.innerHTML = html;
+                deliverySelect.value = current;
+            }
+
+            // 3. Update Cart Modal Bulk Vendor Select
+            const cartBulkVendor = document.getElementById('cartBulkVendor');
+            if (cartBulkVendor) {
+                const current = cartBulkVendor.value;
+                cartBulkVendor.innerHTML = '<option value="">-- Don\'t change --</option>' + 
+                    vendors.map(v => `<option value="${v.name}">${v.name}</option>`).join('');
+                cartBulkVendor.value = current;
+            }
         }
 
         async function createOrder() {
@@ -1837,6 +2037,394 @@
                     </td>
                 </tr>
             `).join('');
+        }
+
+        function renderCostManagement() {
+            const container = document.getElementById('costContainer');
+            if (!container) return;
+
+            const searchTerm = (document.getElementById('costSearch')?.value || '').toLowerCase();
+
+            // 1. Build skeleton from Monday Items (Campaign Info Repository)
+            const aggregated = {};
+            
+            const getColValById = (item, colId) => {
+                const cv = (item.column_values || []).find(v => v.id === colId);
+                return cv ? (cv.text || cv.value || 'N/A') : 'N/A';
+            };
+
+            (state.mondayItems || []).forEach(item => {
+                let bd = getColValById(item, 'people');
+                if (bd === 'N/A' || !bd) bd = 'Unknown';
+                const campaign = item.name || 'Unnamed Campaign';
+                
+                if (searchTerm && !bd.toLowerCase().includes(searchTerm) && !campaign.toLowerCase().includes(searchTerm)) return;
+
+                if (!aggregated[bd]) aggregated[bd] = { campaigns: {}, totalQty: 0, totalCost: 0 };
+                if (!aggregated[bd].campaigns[campaign]) {
+                    aggregated[bd].campaigns[campaign] = { months: {}, totalQty: 0, totalCost: 0 };
+                }
+            });
+
+            // 2. Aggregate Data from Backlinks
+            state.backlinks.forEach(b => {
+                if (b.deleted) return;
+                
+                let bd = b.bd || 'Unknown';
+                const campaign = b.campaignName || 'N/A';
+                const date = new Date(b.createdAt);
+                const month = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+                const monthSortKey = date.toISOString().substring(0, 7);
+                
+                // Reconcile BD if needed
+                if (bd === 'Unknown' || bd === 'N/A') {
+                    for (const candBD in aggregated) {
+                        if (aggregated[candBD].campaigns[campaign]) {
+                            bd = candBD;
+                            break;
+                        }
+                    }
+                }
+
+                if (searchTerm && !bd.toLowerCase().includes(searchTerm) && !campaign.toLowerCase().includes(searchTerm)) return;
+
+                if (!aggregated[bd]) aggregated[bd] = { campaigns: {}, totalQty: 0, totalCost: 0 };
+                if (!aggregated[bd].campaigns[campaign]) aggregated[bd].campaigns[campaign] = { months: {}, totalQty: 0, totalCost: 0 };
+                
+                if (!aggregated[bd].campaigns[campaign].months[month]) {
+                    aggregated[bd].campaigns[campaign].months[month] = { qty: 0, cost: 0, sortKey: monthSortKey };
+                }
+
+                const qty = parseInt(b.quantity) || 1;
+                const cost = parseFloat(b.cost) || 0;
+
+                aggregated[bd].totalQty += qty;
+                aggregated[bd].totalCost += cost;
+                aggregated[bd].campaigns[campaign].totalQty += qty;
+                aggregated[bd].campaigns[campaign].totalCost += cost;
+                aggregated[bd].campaigns[campaign].months[month].qty += qty;
+                aggregated[bd].campaigns[campaign].months[month].cost += cost;
+            });
+
+            // 3. Render UI
+            const bdList = Object.keys(aggregated).sort();
+            if (bdList.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-dim);">No campaigns found. Ensure your Campaign Info Repository is loaded.</div>';
+                return;
+            }
+
+            container.innerHTML = bdList.map(bdName => {
+                const bd = aggregated[bdName];
+                const campaigns = Object.keys(bd.campaigns).sort();
+                const bdId = `cost-bd-${bdName.replace(/[^a-z0-9]/gi, '-')}`;
+                
+                return `
+                <div class="ranking-node tier-1" id="${bdId}">
+                    <div class="node-header" onclick="toggleElement('content-${bdId}')">
+                        <div class="node-title">
+                            <i class="fas fa-chevron-right node-icon"></i>
+                            <span>[BD] ${bdName}</span>
+                        </div>
+                        <div class="ranking-stats">
+                            <div class="ranking-stat-item"><i class="fas fa-layer-group"></i> ${campaigns.length} Campaigns</div>
+                            <div class="ranking-stat-item">Qty: <b>${bd.totalQty}</b></div>
+                            <div class="ranking-stat-item" style="color: var(--secondary);">Cost: <b>$${bd.totalCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></div>
+                        </div>
+                    </div>
+                    <div class="node-content" id="content-${bdId}" style="display: none; padding-left: 20px; border-left: 1px solid rgba(255,255,255,0.05); margin-left: 10px;">
+                        ${campaigns.map(campName => {
+                            const camp = bd.campaigns[campName];
+                            const months = Object.keys(camp.months).sort((a,b) => camp.months[b].sortKey.localeCompare(camp.months[a].sortKey));
+                            const campId = `${bdId}-camp-${campName.replace(/[^a-z0-9]/gi, '-')}`;
+                            
+                            const hasData = months.length > 0;
+
+                            return `
+                            <div class="ranking-node tier-2" id="${campId}">
+                                <div class="node-header" onclick="toggleElement('content-${campId}')">
+                                    <div class="node-title">
+                                        <i class="fas fa-chevron-right node-icon"></i>
+                                        <span>${campName}</span>
+                                    </div>
+                                    <div class="ranking-stats">
+                                        <div class="ranking-stat-item">Qty: <b>${camp.totalQty}</b> ${!hasData ? '<span style="color: var(--text-dim); opacity: 0.5;">(Empty)</span>' : ''}</div>
+                                        <div class="ranking-stat-item" style="color: var(--secondary);">Cost: <b>$${camp.totalCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</b></div>
+                                    </div>
+                                </div>
+                                <div class="node-content" id="content-${campId}" style="display: none; padding: 12px 20px;">
+                                    ${hasData ? `
+                                        <table style="width: 100%; font-size: 0.85rem;">
+                                            <thead>
+                                                <tr>
+                                                    <th style="text-align: left; padding: 8px;">Month</th>
+                                                    <th style="text-align: right; padding: 8px;">Quantity</th>
+                                                    <th style="text-align: right; padding: 8px;">Total Cost</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${months.map(mName => `
+                                                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.02);">
+                                                        <td style="padding: 8px;">${mName}</td>
+                                                        <td style="text-align: right; padding: 8px;">${camp.months[mName].qty}</td>
+                                                        <td style="text-align: right; padding: 8px; color: var(--secondary); font-weight: 600;">$${camp.months[mName].cost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    ` : `
+                                        <div style="text-align: center; padding: 20px; color: var(--text-dim); font-size: 0.8rem;">No backlinks delivered for this campaign yet.</div>
+                                    `}
+                                </div>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function toggleElement(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const isHidden = el.style.display === 'none';
+            el.style.display = isHidden ? 'block' : 'none';
+            
+            const header = el.previousElementSibling;
+            if (header) {
+                const icon = header.querySelector('.node-icon');
+                if (icon) icon.style.transform = isHidden ? 'rotate(90deg)' : 'rotate(0deg)';
+            }
+        }
+
+        let costCharts = { monthly: null, bd: null };
+
+        function setCostViewMode(mode) {
+            const listBtn = document.getElementById('costListViewBtn');
+            const chartBtn = document.getElementById('costChartViewBtn');
+            const listContainer = document.getElementById('costContainer');
+            const chartContainer = document.getElementById('costChartContainer');
+            
+            if (!listBtn || !chartBtn || !listContainer || !chartContainer) return;
+
+            if (mode === 'list') {
+                listBtn.style.background = 'var(--primary)';
+                listBtn.style.color = 'white';
+                chartBtn.style.background = 'transparent';
+                chartBtn.style.color = 'var(--text-dim)';
+                listContainer.style.display = 'block';
+                chartContainer.style.display = 'none';
+            } else {
+                chartBtn.style.background = 'var(--primary)';
+                chartBtn.style.color = 'white';
+                listBtn.style.background = 'transparent';
+                listBtn.style.color = 'var(--text-dim)';
+                listContainer.style.display = 'none';
+                chartContainer.style.display = 'block';
+                renderCostCharts();
+            }
+        }
+
+        function renderCostCharts() {
+            if (!window.Chart) {
+                console.error('Chart.js not loaded');
+                return;
+            }
+
+            const searchTerm = (document.getElementById('costSearch')?.value || '').toLowerCase();
+            const monthlyData = {};
+            const bdData = {};
+            
+            state.backlinks.forEach(b => {
+                if (b.deleted) return;
+                
+                const cost = parseFloat(b.cost) || 0;
+                const date = new Date(b.createdAt);
+                const monthKey = date.toISOString().substring(0, 7); // YYYY-MM
+                const bd = b.bd || 'Unknown';
+                const campaign = (b.campaignName || '').toLowerCase();
+
+                if (searchTerm && !bd.toLowerCase().includes(searchTerm) && !campaign.includes(searchTerm)) return;
+                
+                monthlyData[monthKey] = (monthlyData[monthKey] || 0) + cost;
+                bdData[bd] = (bdData[bd] || 0) + cost;
+            });
+
+            // Monthly Chart
+            const monthLabels = Object.keys(monthlyData).sort();
+            const monthValues = monthLabels.map(l => monthlyData[l]);
+            
+            if (costCharts.monthly) costCharts.monthly.destroy();
+            const ctxMonthly = document.getElementById('monthlyCostChart');
+            if (ctxMonthly) {
+                costCharts.monthly = new Chart(ctxMonthly.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: monthLabels.map(m => {
+                            const [y, mm] = m.split('-');
+                            const d = new Date(y, mm - 1);
+                            return d.toLocaleString('default', { month: 'short', year: '2-digit' });
+                        }),
+                        datasets: [{
+                            label: 'Total Cost ($)',
+                            data: monthValues,
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            pointBackgroundColor: '#6366f1',
+                            pointRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(0,0,0,0.8)',
+                                titleColor: '#fff',
+                                bodyColor: '#fff',
+                                callbacks: {
+                                    label: (ctx) => ` $${ctx.raw.toLocaleString(undefined, {minimumFractionDigits: 2})}`
+                                }
+                            }
+                        },
+                        scales: {
+                            y: { 
+                                beginAtZero: true, 
+                                grid: { color: 'rgba(255,255,255,0.05)' },
+                                ticks: { color: '#94a3b8', callback: (val) => '$' + val.toLocaleString() }
+                            },
+                            x: { 
+                                grid: { display: false },
+                                ticks: { color: '#94a3b8' }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // BD Chart
+            const bdLabels = Object.keys(bdData).sort((a, b) => bdData[b] - bdData[a]);
+            const bdValues = bdLabels.map(l => bdData[l]);
+            
+            if (costCharts.bd) costCharts.bd.destroy();
+            const ctxBd = document.getElementById('bdCostChart');
+            if (ctxBd) {
+                costCharts.bd = new Chart(ctxBd.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: bdLabels,
+                        datasets: [{
+                            data: bdValues,
+                            backgroundColor: [
+                                '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'
+                            ],
+                            borderWidth: 0,
+                            hoverOffset: 10
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { 
+                                position: 'right', 
+                                labels: { color: '#94a3b8', padding: 20, font: { size: 11 } } 
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => ` ${ctx.label}: $${ctx.raw.toLocaleString(undefined, {minimumFractionDigits: 2})}`
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function updateVendorSelect() {
+            const select = document.getElementById('bulkVendor');
+            if (!select) return;
+            
+            // Get unique vendors from backlinks
+            const vendors = [...new Set(state.backlinks.map(b => b.vendorName).filter(v => v))].sort();
+            
+            select.innerHTML = '<option value="">Select Vendor...</option>' + 
+                vendors.map(v => `<option value="${v}">${v}</option>`).join('');
+        }
+
+        function calculateAffectedLinks() {
+            const vendor = document.getElementById('bulkVendor').value;
+            const startMonth = document.getElementById('bulkStartMonth').value;
+            const endMonth = document.getElementById('bulkEndMonth').value;
+            
+            if (!vendor || !startMonth || !endMonth) {
+                document.getElementById('affectedLinkCount').innerText = '0';
+                return;
+            }
+            
+            const start = new Date(startMonth + '-01');
+            const end = new Date(endMonth + '-01');
+            end.setMonth(end.getMonth() + 1); // Go to start of next month
+            end.setDate(0); // Last day of chosen month
+            end.setHours(23, 59, 59);
+            
+            const count = state.backlinks.filter(b => {
+                if (b.deleted) return false;
+                if (b.vendorName !== vendor) return false;
+                const d = new Date(b.createdAt);
+                return d >= start && d <= end;
+            }).length;
+            
+            document.getElementById('affectedLinkCount').innerText = count;
+        }
+
+        async function applyBulkPricing() {
+            const vendor = document.getElementById('bulkVendor').value;
+            const startMonth = document.getElementById('bulkStartMonth').value;
+            const endMonth = document.getElementById('bulkEndMonth').value;
+            const price = parseFloat(document.getElementById('bulkPrice').value);
+            const count = parseInt(document.getElementById('affectedLinkCount').innerText);
+            
+            if (!vendor || !startMonth || !endMonth || isNaN(price)) {
+                alert('Please fill in all fields.');
+                return;
+            }
+            
+            if (count === 0) {
+                alert('No links found for the selected criteria.');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to update ${count} links for ${vendor} to $${price.toFixed(2)} each?`)) return;
+            
+            const start = new Date(startMonth + '-01').toISOString();
+            const end = new Date(endMonth + '-01');
+            end.setMonth(end.getMonth() + 1);
+            end.setDate(0);
+            end.setHours(23, 59, 59);
+            const endStr = end.toISOString();
+            
+            try {
+                const result = await apiCall(PERSISTENCE_URL, 'bulk_update_pricing', {
+                    vendorName: vendor,
+                    startDate: start,
+                    endDate: endStr,
+                    cost: price
+                });
+                
+                if (result && result.success) {
+                    alert(`Successfully updated ${result.count} links.`);
+                    fetchOrders(); // Refresh data
+                } else {
+                    alert('Failed to update pricing.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error applying bulk pricing.');
+            }
         }
 
         async function deleteImport(importId) {
@@ -2706,6 +3294,7 @@
                 console.log('[DEBUG] JSON size:', (jsonStr.length / 1024).toFixed(2), 'KB');
 
                 localStorage.setItem('mondayItemsCache', jsonStr);
+                localStorage.setItem('mondayColumnsCache', JSON.stringify(state.mondayColumns || []));
                 localStorage.setItem('mondayItemsCacheTime', new Date().toISOString());
                 console.log(`[DEBUG] ✓ Monday data cached. ${slimmedItems.length} filtered items with ${visibleColIds.length} columns saved.`);
             } catch (err) {
@@ -2736,6 +3325,12 @@
                         }
 
                         state.mondayItems = items;
+                        
+                        const colCache = localStorage.getItem('mondayColumnsCache');
+                        if (colCache) {
+                            try { state.mondayColumns = JSON.parse(colCache); } catch(e) {}
+                        }
+
                         renderMondayItems();
                         return true;
                     } else {
@@ -2760,39 +3355,52 @@
             const syncStatus = document.getElementById('syncStatus');
             const importBtn = document.getElementById('importBtn');
 
-            if (syncStatus) syncStatus.style.display = 'inline-block';
+            if (syncStatus) {
+                syncStatus.style.display = 'inline-block';
+                syncStatus.style.color = 'var(--secondary)';
+            }
             if (importBtn) importBtn.disabled = true;
 
             state.mondayItems = []; // Reset current view
             state.mondayColsInitialized = false; // Allow defaults to re-apply
             let cursor = null;
             let page = 1;
+            let totalRetrieved = 0;
 
             try {
                 do {
-                    if (syncStatus) syncStatus.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Syncing Page ${page}...`;
+                    if (syncStatus) {
+                        syncStatus.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Syncing Page ${page} (${totalRetrieved} items loaded)...`;
+                    }
                     console.log(`[DEBUG] Calling Monday API with cursor:`, cursor);
                     const data = await apiCall(MONDAY_URL, 'get_board_items', { cursor }, isQuiet);
                     console.log(`[DEBUG] Monday API Response Page ${page}:`, data);
 
                     if (!data) {
-                        console.warn(`[DEBUG] No data returned from Monday API`);
+                        if (syncStatus) syncStatus.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:var(--accent)"></i> Sync failed at Page ${page}.`;
                         break;
                     }
 
                     if (data.items && data.items.length > 0) {
-                        console.log(`[DEBUG] Got ${data.items.length} items on page ${page}`);
+                        totalRetrieved += data.items.length;
                         state.mondayItems = state.mondayItems.concat(data.items);
+                        if (data.columns) state.mondayColumns = data.columns;
                         renderMondayItems();
-                    } else if (!data.items) {
-                        console.warn(`[DEBUG] Response missing 'items' field:`, Object.keys(data));
                     }
                     cursor = data.cursor;
-                    page++;
+                    
+                    if (cursor) {
+                        page++;
+                        // Small throttle to avoid hitting API rate limits
+                        if (page > 3) await new Promise(r => setTimeout(r, 250));
+                    }
 
                 } while (cursor && page <= 50);
 
-                console.log(`[DEBUG] Monday sync complete. Total items:`, state.mondayItems.length);
+                if (syncStatus) {
+                    syncStatus.innerHTML = `<i class="fas fa-check-circle"></i> Sync Complete! Total items: ${totalRetrieved}`;
+                    setTimeout(() => { if (syncStatus.innerText.includes('Complete')) syncStatus.style.display = 'none'; }, 5000);
+                }
 
                 // Build default filters to cache only filtered data
                 const allColIds = [];
@@ -2882,14 +3490,20 @@
                 return;
             }
 
-            // Extract all unique columns
-            items.forEach(item => {
-                item.column_values.forEach(cv => {
-                    if (cv.column && cv.column.title) {
-                        columnMap[cv.column.id] = cv.column.title;
-                    }
+            if (state.mondayColumns && state.mondayColumns.length > 0) {
+                state.mondayColumns.forEach(c => {
+                    columnMap[c.id] = c.title;
                 });
-            });
+            } else {
+                // Fallback for old cache format
+                items.forEach(item => {
+                    item.column_values.forEach(cv => {
+                        if (cv.column && cv.column.title) {
+                            columnMap[cv.column.id] = cv.column.title;
+                        }
+                    });
+                });
+            }
             
             // Add Virtual Budget Columns to columnMap
             columnMap['budget_seo'] = 'Backlinks Budget SEO (15%)';
@@ -3893,13 +4507,10 @@
 
             document.getElementById('cartCount').innerText = state.cart.length;
 
-            // Populate bulk edit dropdowns
-            const bulkCampSel = document.getElementById('cartBulkCampaign');
-            if (bulkCampSel) bulkCampSel.innerHTML = '<option value="">-- Don\'t change --</option>' + allCampaigns.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
-            const bulkVendSel = document.getElementById('cartBulkVendor');
-            const allVendors = state.vendors.filter(v => v.role === 'Vendor');
-            if (bulkVendSel) bulkVendSel.innerHTML = '<option value="">-- Don\'t change --</option>' + allVendors.map(v => `<option value="${v.name}">${v.name}</option>`).join('');
-
+            // Update dropdowns/datalists
+            updateCampaignLists();
+            updateVendorLists();
+            
             modal.style.display = 'flex';
         }
 
@@ -5572,23 +6183,6 @@
                     <select id="deliveryVendorSelect"
                         style="width: 100%; padding: 12px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border); border-radius: 12px; color: white; outline: none; font-size: 0.9rem;">
                         <option value="">-- Choose Vendor --</option>
-                        <option value="Anurag (anurag.kashyap20@gmail.com)">Anurag - Email: anurag.kashyap20@gmail.com
-                        </option>
-                        <option value="Maark (maark@linksbuildingservice.co.uk)">Maark - Email:
-                            maark@linksbuildingservice.co.uk</option>
-                        <option value="Arya (aryajones7@gmail.com)">Arya - Email: aryajones7@gmail.com</option>
-                        <option value="Ramish (ramishgill651@gmail.com)">Ramish - Email: ramishgill651@gmail.com
-                        </option>
-                        <option value="Sasti (sastiseoconsultant@gmail.com)">Sasti - Email: sastiseoconsultant@gmail.com
-                        </option>
-                        <option value="Boris (online@shantel.co)">Boris - Email: online@shantel.co</option>
-                        <option value="Jimmy (jimmybwilliams8@gmail.com)">Jimmy - Email: jimmybwilliams8@gmail.com
-                        </option>
-                        <option value="Dan Inhouse Outreach">Dan Inhouse Outreach</option>
-                        <option value="Link Publisher">Link Publisher</option>
-                        <option value="iCopify">iCopify</option>
-                        <option value="Upwork">Upwork</option>
-                        <option value="Fiverr">Fiverr</option>
                     </select>
                 </div>
 

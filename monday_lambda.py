@@ -108,7 +108,8 @@ def get_board_items(body):
         cursor_param = f', cursor: "{cursor}"' if cursor else ''
         query_str = f"""query {{
     boards(ids: [2845615047]) {{
-        items_page(limit: 100{cursor_param}) {{
+        columns {{ id title }}
+        items_page(limit: 350{cursor_param}) {{
             cursor
             items {{
                 id
@@ -116,10 +117,6 @@ def get_board_items(body):
                 column_values {{
                     id
                     text
-                    column {{
-                        id
-                        title
-                    }}
                 }}
             }}
         }}
@@ -128,7 +125,7 @@ def get_board_items(body):
         print(f"[DEBUG] Monday Query with cursor: {cursor}")
         response = requests.post(
             MONDAY_API_URL,
-            headers={"Authorization": MONDAY_API_KEY, "API-Version": "2023-10"},
+            headers={"Authorization": MONDAY_API_KEY, "API-Version": "2026-10"},
             json={"query": query_str},
             timeout=30
         )
@@ -139,11 +136,14 @@ def get_board_items(body):
         if 'errors' in data:
             return {"statusCode": 400, "body": json.dumps({"error": data['errors'][0]['message'] if data['errors'] else "Unknown error"})}
         try:
-            items_page = data['data']['boards'][0]['items_page']
+            board_data = data['data']['boards'][0]
+            items_page = board_data['items_page']
             items = items_page.get('items', [])
             new_cursor = items_page.get('cursor')
+            columns = board_data.get('columns', [])
+            
             print(f"[DEBUG] Retrieved {len(items)} items, next_cursor: {new_cursor}")
-            return {"statusCode": 200, "body": json.dumps({"items": items, "cursor": new_cursor})}
+            return {"statusCode": 200, "body": json.dumps({"items": items, "cursor": new_cursor, "columns": columns})}
         except (KeyError, IndexError, TypeError) as e:
             return {"statusCode": 500, "body": json.dumps({"error": f"Failed to parse Monday.com response: {str(e)}"})}
     except requests.exceptions.Timeout:
@@ -164,7 +164,7 @@ def run_monday_graphql(query, variables=None, api_key=None):
             
         r = requests.post(
             MONDAY_API_URL,
-            headers={"Authorization": key, "API-Version": "2024-04"},
+            headers={"Authorization": key, "API-Version": "2026-10"},
             json=payload,
             timeout=30
         )
@@ -208,56 +208,23 @@ def claude_chat_with_tools(body):
     if not messages:
         return {"statusCode": 400, "body": json.dumps({"error": "No messages provided"})}
 
-    # Tool definitions
+    # Tool definition: Claude can call monday_graphql with any query string
     tools = [
         {
             "name": "monday_graphql",
             "description": (
                 "Execute a GraphQL query against the Monday.com API. "
                 "Use this to discover boards, fetch items, column values, updates, "
-                "people assignments, statuses, and any other workspace data."
+                "people assignments, statuses, and any other workspace data. "
+                "You can make multiple calls to gather all the information you need."
             ),
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "query": { "type": "string", "description": "A valid Monday.com GraphQL query string." }
-                },
-                "required": ["query"]
-            }
-        },
-        {
-            "name": "get_gsc_performance",
-            "description": "Fetch performance data (clicks, impressions, ctr, position) from Google Search Console for the selected site.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "startDate": { "type": "string", "description": "YYYY-MM-DD" },
-                    "endDate": { "type": "string", "description": "YYYY-MM-DD" },
-                    "dimensions": { "type": "array", "items": { "type": "string" }, "description": "e.g. ['query', 'page', 'device']" },
-                    "rowLimit": { "type": "integer", "default": 100 }
-                }
-            }
-        },
-        {
-            "name": "get_ga4_report",
-            "description": "Fetch analytics data (sessions, activeUsers, conversions, engagementRate) from GA4 for the selected property.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "startDate": { "type": "string", "description": "YYYY-MM-DD" },
-                    "endDate": { "type": "string", "description": "YYYY-MM-DD" },
-                    "metrics": { "type": "array", "items": { "type": "string" }, "description": "e.g. ['sessions', 'conversions', 'activeUsers']" },
-                    "dimensions": { "type": "array", "items": { "type": "string" }, "description": "e.g. ['sessionDefaultChannelGroup', 'pagePath']" }
-                }
-            }
-        },
-        {
-            "name": "get_ads_report",
-            "description": "Fetch Google Ads performance data (cost, impressions, clicks, conversions) for the selected account.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "query": { "type": "string", "description": "A Google Ads Query Language (GAQL) string. e.g. 'SELECT campaign.name, metrics.cost_micros FROM campaign WHERE segments.date DURING LAST_30_DAYS'" }
+                    "query": {
+                        "type": "string",
+                        "description": "A valid Monday.com GraphQL query string."
+                    }
                 },
                 "required": ["query"]
             }
@@ -360,73 +327,25 @@ def claude_chat_with_tools(body):
 
                         result_data = run_monday_graphql(gql_query)
                         result_str  = json.dumps(result_data)
-                    elif tool_name in ["get_gsc_performance", "get_ga4_report", "get_ads_report"]:
-                        # Google Integration Logic
-                        g_tokens = body.get('google_tokens', {})
-                        g_creds  = body.get('google_marketing_creds', {})
-                        
-                        # Select correct token based on tool
-                        if tool_name == "get_gsc_performance":
-                            g_token = g_tokens.get('gsc')
-                        elif tool_name == "get_ga4_report":
-                            g_token = g_tokens.get('ga4')
-                        elif tool_name == "get_ads_report":
-                            g_token = g_tokens.get('ads')
-                        else:
-                            g_token = None
 
-                        if not g_token:
-                            result_str = json.dumps({"error": f"Account for {tool_name} not connected. Ask user to connect in settings."})
-                        else:
-                            # Proxy to GSC Integration Lambda
-                            target_url = "https://v5gyq2sqdd.execute-api.ap-southeast-1.amazonaws.com/gscIntegration"
-                            g_payload = { "access_token": g_token }
-                            
-                            if tool_name == "get_gsc_performance":
-                                g_payload["action"] = "querySearchAnalytics"
-                                g_payload["site_url"] = g_creds.get("siteUrl")
-                                g_payload["payload"] = tool_input
-                            elif tool_name == "get_ga4_report":
-                                g_payload["action"] = "ga4RunReport"
-                                g_payload["propertyId"] = g_creds.get("propertyId")
-                                g_payload["payload"] = {
-                                    "dateRanges": [{"startDate": tool_input.get("startDate", "30daysAgo"), "endDate": tool_input.get("endDate", "today")}],
-                                    "metrics": [{"name": m} for m in tool_input.get("metrics", ["sessions", "activeUsers"])],
-                                    "dimensions": [{"name": d} for d in tool_input.get("dimensions", ["date"])]
-                                }
-                            elif tool_name == "get_ads_report":
-                                g_payload["action"] = "adsSearchStream"
-                                g_payload["customerId"] = g_creds.get("customerId")
-                                g_payload["loginCustomerId"] = "4695999392"
-                                g_payload["developerToken"] = "mmWDgUpTcZSkkrj-7nnebg"
-                                g_payload["payload"] = { "query": tool_input.get("query") }
+                        # Truncate very large payloads to prevent blowing token budget
+                        if len(result_str) > 40000:
+                            print(f"[TOOLS] Result truncated ({len(result_str)} chars)")
+                            result_str = result_str[:40000] + "\n... [result truncated, refine query if needed]"
 
-                            try:
-                                print(f"[TOOLS] Calling Google Proxy: {tool_name}")
-                                g_res = requests.post(target_url, json=g_payload, timeout=30)
-                                g_data = g_res.json()
-                                if "body" in g_data and isinstance(g_data["body"], str):
-                                    result_str = g_data["body"]
-                                else:
-                                    result_str = json.dumps(g_data)
-                            except Exception as e:
-                                result_str = json.dumps({"error": f"Google API Proxy failed: {str(e)}"})
-
-                        tool_call_log.append(f"▸ {tool_name}")
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     result_str
+                        })
                     else:
-                        # Unknown tool
-                        result_str = json.dumps({"error": f"Unknown tool: {tool_name}"})
-
-                    # Truncate very large payloads
-                    if len(result_str) > 40000:
-                        print(f"[TOOLS] Result truncated ({len(result_str)} chars)")
-                        result_str = result_str[:40000] + "\n... [truncated]"
-
-                    tool_results.append({
-                        "type":        "tool_result",
-                        "tool_use_id": tool_id,
-                        "content":     result_str
-                    })
+                        # Unknown tool — return an error so Claude can recover
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     json.dumps({"error": f"Unknown tool: {tool_name}"}),
+                            "is_error":    True
+                        })
 
                 messages.append({"role": "user", "content": tool_results})
                 continue   # next round
@@ -493,7 +412,7 @@ def claude_chat(body):
 
     payload = {
         "model": model,
-        "max_tokens": max_tokens,
+        #"max_tokens": max_tokens,
         "messages": messages,
     }
     if system:
