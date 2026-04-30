@@ -1605,6 +1605,60 @@
             color: #3b82f6;
         }
 
+        /* Microphone Button Styles */
+        .mic-btn {
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: 4px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mic-btn:hover {
+            color: #ef4444;
+        }
+
+        .mic-btn.recording {
+            color: #ef4444;
+            animation: pulse-red 1.5s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% {
+                transform: scale(1);
+                text-shadow: 0 0 0 rgba(239, 68, 68, 0);
+            }
+            50% {
+                transform: scale(1.2);
+                text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+            }
+            100% {
+                transform: scale(1);
+                text-shadow: 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+
+        .mic-btn .recording-dot {
+            display: none;
+            width: 6px;
+            height: 6px;
+            background: #ef4444;
+            border-radius: 50%;
+            position: absolute;
+            top: -2px;
+            right: -2px;
+        }
+
+        .mic-btn.recording .recording-dot {
+            display: block;
+        }
+
         /* Image Modal */
         .image-modal {
             display: none;
@@ -2145,6 +2199,10 @@
                 <button class="upload-btn" onclick="document.getElementById('fileInput').click()"
                     title="Attach image or file">
                     <i class="fas fa-paperclip"></i>
+                </button>
+                <button class="mic-btn" id="micBtn" onclick="toggleVoiceInput()" title="Voice Input & Recording">
+                    <i class="fas fa-microphone"></i>
+                    <div class="recording-dot"></div>
                 </button>
                 <textarea id="userInput" placeholder="Ask anything about your Monday board..." rows="1"></textarea>
                 <button class="icon-btn" id="sendBtn" onclick="handleSendMessage()">
@@ -2707,7 +2765,7 @@
             } else {
                 img.style.display = 'none';
                 icon.style.display = 'flex';
-                icon.innerHTML = '<i class="fas fa-file"></i>';
+                icon.innerHTML = file.type.startsWith('audio/') ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-file"></i>';
             }
         }
 
@@ -6105,6 +6163,93 @@ CRITICAL CONTACT RULE:
                 handleSendMessage();
             }
         });
+        let recognition = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (SpeechRecognition) {
+                recognition = new SpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.lang = 'en-US';
+
+                recognition.onresult = (event) => {
+                    const input = document.getElementById('userInput');
+                    let finalTranscript = '';
+
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            finalTranscript += event.results[i][0].transcript;
+                        }
+                    }
+                    if (finalTranscript) {
+                        input.value += (input.value ? ' ' : '') + finalTranscript;
+                        input.style.height = 'auto';
+                        input.style.height = (input.scrollHeight) + 'px';
+                    }
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                };
+            }
+        }
+
+        async function toggleVoiceInput() {
+            if (isRecording) {
+                stopVoiceInput();
+            } else {
+                startVoiceInput();
+            }
+        }
+
+        async function startVoiceInput() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                isRecording = true;
+                document.getElementById('micBtn').classList.add('recording');
+                
+                // Start Speech Recognition for real-time text
+                if (!recognition) initSpeechRecognition();
+                if (recognition) recognition.start();
+
+                // Start Media Recorder for the audio clip
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const audioFile = new File([audioBlob], `recording_${new Date().getTime()}.webm`, { type: 'audio/webm' });
+                    processFile(audioFile);
+                };
+                mediaRecorder.start();
+
+            } catch (err) {
+                console.error('Error accessing microphone:', err);
+                alert('Microphone access denied or not supported.');
+                isRecording = false;
+                document.getElementById('micBtn').classList.remove('recording');
+            }
+        }
+
+        function stopVoiceInput() {
+            isRecording = false;
+            document.getElementById('micBtn').classList.remove('recording');
+            
+            if (recognition) {
+                try { recognition.stop(); } catch(e) {}
+            }
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+        }
+
         // Auto-Sync on Page Load
         window.addEventListener('DOMContentLoaded', () => {
             const boardIds = localStorage.getItem('boardIds_v2');
