@@ -1426,6 +1426,52 @@
             opacity: 1 !important;
         }
 
+        /* Enhanced Autonomous Badge */
+        .autonomous-badge {
+            background: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
+            color: #fff !important;
+            padding: 8px 16px !important;
+            border-radius: 100px !important;
+            font-size: 0.7rem !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            line-height: 1;
+        }
+
+        .autonomous-badge::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .autonomous-badge:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+        }
+
+        .autonomous-badge:hover::before {
+            left: 100%;
+        }
+
+        .autonomous-badge i {
+            font-size: 0.85rem;
+            filter: drop-shadow(0 0 2px rgba(255,255,255,0.5));
+        }
+
         .tool-log {
             margin-top: 10px;
             background: rgba(15, 23, 42, 0.03);
@@ -1718,8 +1764,11 @@
                     </label>
                     <span class="mode-label" id="internalModeLabel" onclick="setMode('internal')">Internal</span>
                 </div>
-                <div class="mode-toggle" style="margin-left: 8px; opacity: 0.9; cursor: help;" title="Currently locked to Claude. The advanced autonomous agent for Monday.com and Google Integrations requires Claude's specific tool-calling architecture.">
-                    <span class="mode-label active" style="background: var(--accent-blue); color: #fff; padding-left: 12px; padding-right: 12px;"><i class="fas fa-brain"></i> Claude (Autonomous)</span>
+                <div class="mode-toggle" style="margin-left: 8px; cursor: help; background: none; border: none; padding: 0;" title="Currently locked to Claude. The advanced autonomous agent for Monday.com and Google Integrations requires Claude's specific tool-calling architecture.">
+                    <span class="autonomous-badge">
+                        <i class="fas fa-brain"></i>
+                        <span>Claude (Autonomous)</span>
+                    </span>
                 </div>
                 <div id="syncStatus" class="status-badge">
                     <i class="fas fa-circle-notch fa-spin" id="syncIcon"></i>
@@ -1820,7 +1869,7 @@
                 <div class="collapsible-content">
                     <div class="form-group">
                         <label>Google Cloud Client ID</label>
-                        <input type="text" id="googleClientId" placeholder="xxxxxxx.apps.googleusercontent.com"
+                        <input type="text" id="googleClientId" placeholder="1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com"
                             style="font-size: 0.75rem;">
                     </div>
                     <div id="gworkspaceServiceStatus" style="margin-top: 10px; display: flex; flex-direction: column; gap: 12px;">
@@ -1832,7 +1881,7 @@
                                 <span id="statusBadgeWorkspace" class="service-badge">—</span>
                             </div>
                             <div style="display:flex; gap:5px;">
-                                <button class="btn-service-connect" onclick="connectService('Workspace')">Connect</button>
+                                <button class="btn-service-connect" id="btnConnectWorkspace" onclick="connectService('Workspace')">Connect</button>
                                 <button class="btn-service-disconnect" id="btnDisconnectWorkspace" onclick="disconnectService('Workspace')" style="display:none;">Disconnect</button>
                             </div>
                         </div>
@@ -1844,7 +1893,7 @@
                                 <span id="statusBadgeGsc" class="service-badge">—</span>
                             </div>
                             <div style="display:flex; gap:5px;">
-                                <button class="btn-service-connect" onclick="connectService('Gsc')">Connect</button>
+                                <button class="btn-service-connect" id="btnConnectGsc" onclick="connectService('Gsc')">Connect</button>
                                 <button class="btn-service-disconnect" id="btnDisconnectGsc" onclick="disconnectService('Gsc')" style="display:none;">Disconnect</button>
                             </div>
                             <div id="selectorGsc" style="display:none; margin-top:5px;">
@@ -1861,7 +1910,7 @@
                                 <span id="statusBadgeGa4" class="service-badge">—</span>
                             </div>
                             <div style="display:flex; gap:5px;">
-                                <button class="btn-service-connect" onclick="connectService('Ga4')">Connect</button>
+                                <button class="btn-service-connect" id="btnConnectGa4" onclick="connectService('Ga4')">Connect</button>
                                 <button class="btn-service-disconnect" id="btnDisconnectGa4" onclick="disconnectService('Ga4')" style="display:none;">Disconnect</button>
                             </div>
                             <div id="selectorGa4" style="display:none; margin-top:5px;">
@@ -1878,7 +1927,7 @@
                                 <span id="statusBadgeAds" class="service-badge">—</span>
                             </div>
                             <div style="display:flex; gap:5px;">
-                                <button class="btn-service-connect" onclick="connectService('Ads')">Connect</button>
+                                <button class="btn-service-connect" id="btnConnectAds" onclick="connectService('Ads')">Connect</button>
                                 <button class="btn-service-disconnect" id="btnDisconnectAds" onclick="disconnectService('Ads')" style="display:none;">Disconnect</button>
                             </div>
                             <div id="selectorAds" style="display:none; margin-top:5px;">
@@ -2218,7 +2267,7 @@
         let assistantId = localStorage.getItem('assistantId') || null;
         let vectorStoreId = localStorage.getItem('vectorStoreId') || null;
         let currentMode = localStorage.getItem('chatbotMode') || 'client'; // 'client' or 'internal'
-        let currentLLM = localStorage.getItem('chatbotLLM') || 'gpt'; // 'gpt' or 'claude'
+        let currentLLM = localStorage.getItem('chatbotLLM') || 'claude'; // Default to 'claude' to match Autonomous Badge lock
         window.lastSyncedInternalState = { boards: [], items: [], staff: [] };
 
         // Persistence State
@@ -2705,14 +2754,17 @@
         function applyLLM(llm) {
             const gptLabel = document.getElementById('gptLLMLabel');
             const claudeLabel = document.getElementById('claudeLLMLabel');
+            const llmToggle = document.getElementById('llmToggle');
+
+            if (llmToggle) llmToggle.checked = (llm === 'claude');
 
             if (llm === 'claude') {
-                gptLabel.classList.remove('active');
-                claudeLabel.classList.add('active', 'claude-active');
-                showToast("Switched to Claude Haiku 4.5", "info");
+                if (gptLabel) gptLabel.classList.remove('active');
+                if (claudeLabel) claudeLabel.classList.add('active', 'claude-active');
+                showToast("Switched to Claude 3.5 Sonnet", "info");
             } else {
-                gptLabel.classList.add('active');
-                claudeLabel.classList.remove('active', 'claude-active');
+                if (gptLabel) gptLabel.classList.add('active');
+                if (claudeLabel) claudeLabel.classList.remove('active', 'claude-active');
                 showToast("Switched to GPT-4o-mini", "info");
             }
         }
@@ -3919,8 +3971,17 @@
                                 showToast(`${service} Connected!`, 'success');
                                 updateServiceUI(service, true);
                                 initializeServiceData(service);
+                            } else {
+                                const errorMsg = res.error || res.message || 'Token exchange failed';
+                                console.error(`[${service}] Exchange failed:`, errorMsg);
+                                showToast(`Failed to connect ${service}: ${errorMsg}`, 'error');
+                                updateServiceUI(service, false);
                             }
-                        } catch (e) { console.error(`[${service}] Exchange failed`, e); }
+                        } catch (e) { 
+                            console.error(`[${service}] Exchange failed`, e);
+                            showToast(`Connection error: ${e.message}`, 'error');
+                            updateServiceUI(service, false);
+                        }
                     }
                 }
             });
@@ -3939,11 +4000,13 @@
         }
 
         function updateServiceUI(service, connected) {
+            const btnConnect = document.getElementById(`btnConnect${service}`);
             const btnDisconnect = document.getElementById(`btnDisconnect${service}`);
             const selector = document.getElementById(`selector${service}`);
             const badge = document.getElementById(`statusBadge${service}`);
 
             if (connected) {
+                if (btnConnect) btnConnect.style.display = 'none';
                 if (btnDisconnect) btnDisconnect.style.display = 'block';
                 if (selector) selector.style.display = 'block';
                 if (badge) {
@@ -3952,6 +4015,7 @@
                     badge.style.color = '#1e7e34';
                 }
             } else {
+                if (btnConnect) btnConnect.style.display = 'block';
                 if (btnDisconnect) btnDisconnect.style.display = 'none';
                 if (selector) selector.style.display = 'none';
                 if (badge) {
@@ -4976,6 +5040,26 @@
 
                 console.log("INTERNAL CONTEXT:", combinedContext);
 
+                // Save for Local/Claude reference
+                try {
+                    localStorage.setItem('syncedContext', JSON.stringify(combinedContext));
+                } catch (e) {
+                    console.warn("[SYNC] Could not save syncedContext to localStorage", e);
+                }
+
+                // If on Claude, we stop here as Claude uses prompt-based context
+                if (currentLLM === 'claude') {
+                    showToast("Claude Context Ready", 'success');
+                    updateSyncStatus("Claude Context Ready", false);
+                    isSyncing = false;
+                    const syncBtn = document.getElementById('internalSyncBtn');
+                    if (syncBtn) {
+                        syncBtn.disabled = false;
+                        syncBtn.innerHTML = '<i class="fas fa-sync"></i> Sync Campaigns';
+                    }
+                    return;
+                }
+
                 // Step 2: Upload to OpenAI with Unique Filename
                 const syncBatchId = Date.now();
                 const fileName = `internal_campaign_ctx_${syncBatchId}.json`;
@@ -5451,11 +5535,18 @@ You can now ask me anything about these campaigns.`);
 
                 console.log("FINAL COMBINED CONTEXT (FLAT):", combinedContext);
 
-                // Save for Claude
+                // Save for Claude & Local Reference
                 try {
                     localStorage.setItem('syncedContext', JSON.stringify(combinedContext));
                 } catch (e) {
                     console.warn("[SYNC] Could not save syncedContext to localStorage (Storage full).", e);
+                }
+
+                // If on Claude, we stop here as Claude uses the prompt-based context
+                if (currentLLM === 'claude') {
+                    updateSyncStatus("Claude Context Ready", false);
+                    isSyncing = false;
+                    return;
                 }
 
                 updateSyncStatus("Uploading To OpenAI...", true);
