@@ -58,10 +58,88 @@
         /* Sidebar */
         aside {
             width: 260px;
+            min-width: 180px;
+            max-width: 480px;
             background-color: var(--bg-sidebar);
             border-right: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
+            position: relative;
+            flex-shrink: 0;
+            transition: width 0.25s ease, min-width 0.25s ease;
+            overflow: hidden;
+        }
+        aside.collapsed {
+            width: 54px !important;
+            min-width: 54px !important;
+        }
+        aside.collapsed .workspaces,
+        aside.collapsed .sidebar-header-text,
+        aside.collapsed .workspace-title,
+        aside.collapsed .sidebar-label {
+            display: none;
+        }
+        aside.collapsed .sidebar-header {
+            padding: 20px 0;
+            justify-content: center;
+        }
+        aside.collapsed .sidebar-logo {
+            margin: 0;
+        }
+        /* Sidebar Drag Resizer */
+        .sidebar-resizer {
+            width: 5px;
+            cursor: col-resize;
+            background: transparent;
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 50;
+            transition: background 0.2s;
+        }
+        .sidebar-resizer:hover, .sidebar-resizer.dragging {
+            background: var(--primary-blue);
+        }
+        /* Collapse toggle button */
+        .sidebar-collapse-btn {
+            position: absolute;
+            right: -12px;
+            top: 32px;
+            transform: translateY(-50%);
+            width: 24px;
+            height: 24px;
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            z-index: 100;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .sidebar-collapse-btn:hover {
+            color: var(--primary-blue);
+            border-color: var(--primary-blue);
+            background: var(--bg-main);
+            box-shadow: 0 0 0 2px rgba(87, 155, 252, 0.2);
+        }
+        /* Hide collapse button when sidebar is expanded, show on sidebar hover */
+        aside:not(.collapsed) .sidebar-collapse-btn {
+            opacity: 0;
+            pointer-events: none;
+        }
+        aside:not(.collapsed):hover .sidebar-collapse-btn {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        /* Always show when collapsed */
+        aside.collapsed .sidebar-collapse-btn {
+            opacity: 1;
+            right: -12px;
         }
 
         .sidebar-header {
@@ -832,15 +910,19 @@
 <body>
 
     <!-- Sidebar -->
-    <aside>
+    <aside id="main-sidebar">
         <div class="sidebar-header">
-            <svg viewBox="0 0 100 100" width="24" height="24">
+            <svg class="sidebar-logo" viewBox="0 0 100 100" width="24" height="24" style="flex-shrink:0;">
                 <rect x="20" y="20" width="15" height="40" rx="7" fill="#ff3d57"/>
                 <rect x="42.5" y="40" width="15" height="40" rx="7" fill="#ffcb00"/>
                 <rect x="65" y="20" width="15" height="60" rx="7" fill="#00c875"/>
             </svg>
-            work OS
+            <span class="sidebar-header-text" style="flex:1; font-weight:600; font-size:18px;">work OS</span>
+            <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" title="Toggle Sidebar">
+                <i data-lucide="panel-left-close" size="18" id="collapse-icon"></i>
+            </button>
         </div>
+        <div class="sidebar-resizer" id="sidebar-resizer"></div>
         <div class="workspaces">
             <div class="workspace-title">
                 Main Workspace
@@ -3402,11 +3484,70 @@
             setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
+        // --- Sidebar Resize & Collapse ---
+        function toggleSidebarCollapse() {
+            const sidebar = document.getElementById('main-sidebar');
+            const icon = document.getElementById('collapse-icon');
+            const isCollapsed = sidebar.classList.toggle('collapsed');
+            // Swap icon direction
+            icon.setAttribute('data-lucide', isCollapsed ? 'panel-left-open' : 'panel-left-close');
+            lucide.createIcons({ nameAttr: 'data-lucide', container: document.getElementById('sidebar-collapse-btn') });
+            localStorage.setItem('sidebar_collapsed', isCollapsed ? '1' : '0');
+            if (!isCollapsed) {
+                const savedW = localStorage.getItem('sidebar_width');
+                if (savedW) sidebar.style.width = savedW + 'px';
+            }
+        }
+
+        function initSidebarResize() {
+            const sidebar = document.getElementById('main-sidebar');
+            const resizer = document.getElementById('sidebar-resizer');
+            let startX, startW;
+
+            resizer.addEventListener('mousedown', (e) => {
+                if (sidebar.classList.contains('collapsed')) return;
+                startX = e.clientX;
+                startW = sidebar.offsetWidth;
+                resizer.classList.add('dragging');
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+
+                const onMove = (e) => {
+                    const newW = Math.min(480, Math.max(180, startW + (e.clientX - startX)));
+                    sidebar.style.width = newW + 'px';
+                    sidebar.style.transition = 'none';
+                };
+                const onUp = () => {
+                    resizer.classList.remove('dragging');
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                    sidebar.style.transition = '';
+                    localStorage.setItem('sidebar_width', sidebar.offsetWidth);
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                };
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+
+            // Restore saved state
+            const savedCollapsed = localStorage.getItem('sidebar_collapsed');
+            const savedW = localStorage.getItem('sidebar_width');
+            if (savedCollapsed === '1') {
+                sidebar.classList.add('collapsed');
+                document.getElementById('collapse-icon').setAttribute('data-lucide', 'panel-left-open');
+                lucide.createIcons({ nameAttr: 'data-lucide', container: document.getElementById('sidebar-collapse-btn') });
+            } else if (savedW) {
+                sidebar.style.width = savedW + 'px';
+            }
+        }
+
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             const loggedIn = checkGoogleLogin();
             lucide.createIcons();
             fetchBoardsFromCloud();
+            initSidebarResize();
         });
 
     </script>
