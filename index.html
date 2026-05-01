@@ -9703,6 +9703,10 @@
             <a href="#" onclick="showCockpitOnly(event)">Cockpit</a>
         </div>
 
+        <div class="nav-item" id="adminNavItem">
+            <a href="#" onclick="openAdminSection(event)">Admin</a>
+        </div>
+
 
         <div class="nav-item" id="mangoolsQuota">
             <a href="#" onclick="checkMangoolsQuota(event)">Credits</a>
@@ -10020,8 +10024,8 @@
                         </div>
                         <div class="step-card-container">
                             <div class="step-card">
-                                <i class="fas fa-flask"></i>
-                                <div class="step-title">Step 17</div>
+                                <i class="fas fa-user-shield"></i>
+                                <div class="step-title" onclick="openAdminSection(event)">Google Chat Admin</div>
                             </div>
                         </div>
                         <div class="step-card-container">
@@ -10038,6 +10042,79 @@
         <!-- ======================= -->
         <!-- COCKPIT SECTION START   -->
         <!-- ======================= -->
+        <div id="adminSection" style="display: none; padding: 40px; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif;">
+            <div class="discovery-hero">
+                <h2>Google Chat Admin</h2>
+                <p>Bulk manage memberships and spaces.</p>
+            </div>
+
+            <div class="premium-table-wrapper" style="padding: 30px; margin-bottom: 30px; background: white;">
+                <h3 style="margin-top: 0; color: #1e293b; display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-plug" style="color: #2563eb;"></i> Google API Connection
+                </h3>
+                <p style="font-size: 14px; color: #64748b; margin-bottom: 20px;">
+                    To manage memberships, we need access to your Google Chat and People API.
+                </p>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <button id="btnConnectAdmin" class="discovery-btn-run" onclick="initGoogleAuthAdmin()">
+                        <i class="fab fa-google"></i> Connect Google
+                    </button>
+                    <span id="adminAuthStatus" style="font-size: 14px; color: #64748b;">
+                        <i class="fas fa-info-circle"></i> Not connected
+                    </span>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                <!-- Left: Emails -->
+                <div class="premium-table-wrapper" style="padding: 30px; background: white;">
+                    <h3 style="margin-top: 0; color: #1e293b; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-users" style="color: #6366f1;"></i> Target Users
+                    </h3>
+                    <p style="font-size: 13px; color: #64748b; margin-bottom: 15px;">
+                        Enter emails of users to add. One per line or comma-separated.
+                    </p>
+                    <textarea id="adminTargetEmails" class="premium-reason-textarea" style="min-height: 200px;" placeholder="user1@example.com&#10;user2@example.com"></textarea>
+                </div>
+
+                <!-- Right: Spaces -->
+                <div class="premium-table-wrapper" style="padding: 30px; background: white; display: flex; flex-direction: column;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0; color: #1e293b; display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-comments" style="color: #8b5cf6;"></i> Target Spaces
+                        </h3>
+                        <button class="discovery-btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="fetchAdminSpaces()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                    <p style="font-size: 13px; color: #64748b; margin-bottom: 15px;">
+                        Select the spaces where users should be added.
+                    </p>
+                    <div id="adminSpacesList" style="flex: 1; overflow-y: auto; max-height: 300px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
+                        <p style="text-align: center; color: #94a3b8; font-size: 13px; padding: 20px;">
+                            Connect Google and refresh to list spaces.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 30px; display: flex; justify-content: center;">
+                <button id="btnRunBulkAdd" class="discovery-btn-run" style="padding: 15px 40px; font-size: 1.1em;" onclick="runBulkAddMemberships()">
+                    <i class="fas fa-plus-circle"></i> Run Bulk Add Memberships
+                </button>
+            </div>
+
+            <!-- Log Section -->
+            <div id="adminLogSection" class="premium-table-wrapper" style="padding: 30px; margin-top: 30px; background: #0f172a; color: #e2e8f0; display: none;">
+                <h3 style="margin-top: 0; color: #fff; font-size: 1rem; border-bottom: 1px solid #334155; padding-bottom: 10px;">
+                    Execution Log
+                </h3>
+                <div id="adminExecutionLog" style="font-family: monospace; font-size: 12px; line-height: 1.6; max-height: 400px; overflow-y: auto; margin-top: 15px;">
+                    <!-- Logs go here -->
+                </div>
+            </div>
+        </div>
+
         <div id="cockpitSection" style="display: none; padding: 10px; box-sizing: border-box;">
 
 
@@ -16323,7 +16400,7 @@
         }
 
         function showMainSection(sectionId, mainBtnId) {
-            const sections = ['cockpitSection', 'seoSection', 'smmSection', 'semSection', 'geoSection', 'othersSection'];
+            const sections = ['adminSection', 'cockpitSection', 'seoSection', 'smmSection', 'semSection', 'geoSection', 'othersSection'];
             sections.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = (id === sectionId) ? 'block' : 'none';
@@ -16335,10 +16412,26 @@
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 return;
             }
+            if (sectionId === 'adminSection') {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+            }
             if (mainBtnId) {
                 forceOpenCollapsible(mainBtnId);
             }
             window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function showAdminOnly(event) {
+            if (event) event.preventDefault();
+            showMainSection('adminSection', null);
+        }
+
+        function openAdminSection(event) {
+            if (event) event.preventDefault();
+            showAdminOnly();
+            deactivateAllButtons();
+            closeJourneyModal();
         }
 
         function showCockpitOnly(event) {
@@ -23139,6 +23232,257 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
 
         // Google Integration Functions
+        let adminGoogleAccessToken = null;
+        let adminTokenClient = null;
+        let adminSpaces = [];
+
+        function initGoogleAuthAdmin() {
+            if (typeof google === 'undefined') {
+                alert("Google library not loaded.");
+                return;
+            }
+            adminTokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GSC_CLIENT_ID,
+                scope: 'https://www.googleapis.com/auth/chat.spaces.readonly https://www.googleapis.com/auth/chat.memberships https://www.googleapis.com/auth/chat.admin.memberships https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/directory.readonly email profile openid',
+                callback: async (response) => {
+                    if (response.access_token) {
+                        adminGoogleAccessToken = response.access_token;
+                        document.getElementById('adminAuthStatus').innerHTML = '<i class="fas fa-check-circle" style="color: #34a853;"></i> Connected';
+                        document.getElementById('adminAuthStatus').style.color = '#34a853';
+                        document.getElementById('btnConnectAdmin').innerHTML = '<i class="fas fa-sync"></i> Switch Account';
+                        // Check which scopes were actually granted
+                        fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${response.access_token}`)
+                            .then(r => r.json())
+                            .then(info => {
+                                const granted = (info.scope || '').split(' ');
+                                const hasMemberships = granted.some(s => s.includes('chat.memberships'));
+                                const hasAdminMemberships = granted.some(s => s.includes('chat.admin.memberships'));
+                                adminLog(`🔑 Granted scopes: ${granted.filter(s => s.includes('chat')).join(', ') || 'none (chat scopes missing!)'} | chat.memberships: ${hasMemberships ? '✅' : '❌'} | chat.admin.memberships: ${hasAdminMemberships ? '✅' : '❌'}`);
+                                if (!hasMemberships) adminLog('⚠️ chat.memberships scope NOT granted. You need to add it to your Google Cloud OAuth consent screen scopes.', 'error');
+                            })
+                            .catch(() => {});
+                        fetchAdminSpaces();
+                    }
+                }
+            });
+            adminTokenClient.requestAccessToken({ prompt: 'consent' });
+        }
+
+        async function fetchAdminSpaces() {
+            if (!adminGoogleAccessToken) {
+                adminLog("⚠️ Please connect to Google first.");
+                return;
+            }
+            try {
+                adminLog("🔍 Fetching spaces...");
+                const res = await fetch('https://chat.googleapis.com/v1/spaces', {
+                    headers: { 'Authorization': `Bearer ${adminGoogleAccessToken}` }
+                });
+                if (!res.ok) throw new Error(`Failed to fetch spaces: ${res.status}`);
+                const data = await res.json();
+                const allSpaces = data.spaces || [];
+                // Only SPACE type supports the memberships create API
+                adminSpaces = allSpaces.filter(s => s.spaceType === 'SPACE');
+                const skipped = allSpaces.length - adminSpaces.length;
+                renderAdminSpacesList();
+                adminLog(`✅ Found ${adminSpaces.length} manageable spaces (${skipped} group chats/DMs hidden — they don't support membership management).`);
+            } catch (err) {
+                adminLog(`❌ Error fetching spaces: ${err.message}`);
+            }
+        }
+
+        function renderAdminSpacesList() {
+            const list = document.getElementById('adminSpacesList');
+            if (!adminSpaces.length) {
+                list.innerHTML = '<p style="text-align: center; color: #94a3b8; font-size: 13px; padding: 20px;">No spaces found.</p>';
+                return;
+            }
+            list.innerHTML = adminSpaces.map(space => `
+                <label style="display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.2s;">
+                    <input type="checkbox" class="admin-space-cb" value="${space.name}">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 13px; color: #1e293b;">${space.displayName || 'Unnamed Space'}</div>
+                        <div style="font-size: 11px; color: #64748b;">${space.name}</div>
+                    </div>
+                    <span style="font-size: 10px; background: #dbeafe; color: #1d4ed8; padding: 2px 6px; border-radius: 10px; white-space: nowrap;">${space.spaceType || 'SPACE'}</span>
+                </label>
+            `).join('');
+        }
+
+        function adminLog(msg, type = 'info') {
+            const logArea = document.getElementById('adminExecutionLog');
+            const logSection = document.getElementById('adminLogSection');
+            if (!logArea || !logSection) return;
+            logSection.style.display = 'block';
+            
+            const time = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#f87171' : (type === 'success' ? '#4ade80' : '#e2e8f0');
+            logArea.innerHTML += `<div style="color: ${color};">[${time}] ${msg}</div>`;
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        async function runBulkAddMemberships() {
+            const emailsRaw = document.getElementById('adminTargetEmails').value.trim();
+            const selectedSpaces = Array.from(document.querySelectorAll('.admin-space-cb:checked')).map(cb => cb.value);
+
+            if (!emailsRaw) {
+                alert("Please enter target emails.");
+                return;
+            }
+            if (!selectedSpaces.length) {
+                alert("Please select at least one space.");
+                return;
+            }
+            if (!adminGoogleAccessToken) {
+                alert("Please connect to Google first.");
+                return;
+            }
+
+            const emails = emailsRaw.split(/[\n,]/).map(e => e.trim()).filter(e => e && e.includes('@'));
+            if (!emails.length) {
+                alert("No valid emails found.");
+                return;
+            }
+
+            document.getElementById('btnRunBulkAdd').disabled = true;
+            document.getElementById('btnRunBulkAdd').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            adminLog(`🚀 Starting bulk add for ${emails.length} users into ${selectedSpaces.length} spaces...`);
+
+            for (const email of emails) {
+                for (const spaceName of selectedSpaces) {
+                    const spaceDisplayName = adminSpaces.find(s => s.name === spaceName)?.displayName || spaceName;
+                    adminLog(`➕ Adding ${email} to ${spaceDisplayName}...`);
+                    await addMembershipToSpace(spaceName, email);
+                }
+            }
+
+            adminLog("🏁 Bulk operation completed.", 'success');
+            document.getElementById('btnRunBulkAdd').disabled = false;
+            document.getElementById('btnRunBulkAdd').innerHTML = '<i class="fas fa-plus-circle"></i> Run Bulk Add Memberships';
+        }
+
+        async function resolveEmailToPersonId(email) {
+            try {
+                // 1. Try searchContacts (includes user contacts and "Other contacts")
+                let res = await fetch(`https://people.googleapis.com/v1/people:searchContacts?query=${encodeURIComponent(email)}&readMask=names,emailAddresses`, {
+                    headers: { 'Authorization': `Bearer ${adminGoogleAccessToken}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const match = data.results?.find(r => 
+                        r.person?.emailAddresses?.some(e => e.value.toLowerCase() === email.toLowerCase())
+                    );
+                    if (match && match.person.resourceName) {
+                        return match.person.resourceName.split('/')[1];
+                    }
+                }
+
+                // 2. Fallback: Try searchDirectoryPeople (for Workspace domain users)
+                res = await fetch(`https://people.googleapis.com/v1/people:searchDirectoryPeople?query=${encodeURIComponent(email)}&readMask=names,emailAddresses&sources=DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE`, {
+                    headers: { 'Authorization': `Bearer ${adminGoogleAccessToken}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const match = data.people?.find(p => 
+                        p.emailAddresses?.some(e => e.value.toLowerCase() === email.toLowerCase())
+                    );
+                    if (match && match.resourceName) {
+                        return match.resourceName.split('/')[1];
+                    }
+                }
+                
+                adminLog(`⚠️ Could not resolve ID for ${email}. If they are external, try adding them to your Google Contacts first.`, 'error');
+                return null;
+            } catch (err) {
+                console.error("Resolve error:", err);
+                return null;
+            }
+        }
+
+        // Paste your AWS Lambda Function URL here once deployed
+        let GOOGLE_CHAT_PROXY_URL = 'https://rps47d0qpa.execute-api.ap-southeast-1.amazonaws.com/googleChatAdd';
+
+        async function addMembershipToSpace(spaceName, email) {
+            const url = `https://chat.googleapis.com/v1/${spaceName}/members`;
+            const payload = {
+                member: {
+                    name: `users/${email}`,
+                    type: "HUMAN"
+                }
+            };
+
+            const spaceDisplayName = adminSpaces.find(s => s.name === spaceName)?.displayName || spaceName;
+            adminLog(`🔗 [DEBUG] POST ${url}`);
+            adminLog(`📦 [DEBUG] Body: ${JSON.stringify(payload)}`);
+
+            try {
+                let response;
+                if (GOOGLE_CHAT_PROXY_URL) {
+                    // Use AWS Lambda Proxy to bypass CORS
+                    // NOTE: No Content-Type header here on purpose — keeps this a "simple" POST
+                    // so the browser skips the OPTIONS CORS preflight (API Gateway is POST-only)
+                    response = await fetch(GOOGLE_CHAT_PROXY_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            url: url,
+                            method: 'POST',
+                            body: payload,
+                            accessToken: adminGoogleAccessToken
+                        })
+                    });
+                    adminLog(`🔁 [DEBUG] Lambda HTTP status: ${response.status}`);
+                } else {
+                    // Direct call (will fail due to CORS for Chat API mutations)
+                    response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${adminGoogleAccessToken}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                }
+
+                if (response.ok) {
+                    let result = await response.json();
+                    
+                    // Unwrap if the Lambda is not using Proxy Integration
+                    if (result.statusCode !== undefined && result.body !== undefined) {
+                        const innerStatus = result.statusCode;
+                        let innerBody;
+                        try {
+                            innerBody = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
+                        } catch (parseErr) {
+                            // Google returned non-JSON (HTML error page)
+                            adminLog(`❌ Google API Error (${innerStatus}): ${String(result.body).substring(0, 800)}`, 'error');
+                            return;
+                        }
+                        if (innerStatus >= 400) {
+                            const msg = innerBody?.error?.message || innerBody?.error?.status || JSON.stringify(innerBody);
+                            adminLog(`❌ Google API Error (${innerStatus}): ${msg}`, 'error');
+                            return;
+                        }
+                        result = innerBody;
+                    }
+
+                    const state = result.state || 'UNKNOWN';
+                    const stateIcon = state === 'JOINED' ? '✅' : '📩';
+                    
+                    if (state === 'UNKNOWN') {
+                        console.log("Full Google Response:", result);
+                        adminLog(`${stateIcon} ${email} added (State: UNKNOWN). Keys: [${Object.keys(result).join(', ')}]`, 'success');
+                    } else {
+                        adminLog(`${stateIcon} ${email} added to ${spaceDisplayName} (State: ${state})`, 'success');
+                    }
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    adminLog(`❌ Failed to reach Proxy (${response.status}): ${errorData.error?.message || response.statusText}`, 'error');
+                }
+            } catch (err) {
+                adminLog(`❌ Error adding ${email} to ${spaceDisplayName}: ${err.message}`, 'error');
+            }
+        }
+
         function initGoogleAuth() {
             if (typeof google === 'undefined') return;
             tokenClient = google.accounts.oauth2.initTokenClient({
