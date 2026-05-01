@@ -10115,9 +10115,12 @@
                 </div>
             </div>
 
-            <div style="margin-top: 30px; display: flex; justify-content: center;">
+            <div style="margin-top: 30px; display: flex; justify-content: center; gap: 20px;">
                 <button id="btnRunBulkAdd" class="discovery-btn-run" style="padding: 15px 40px; font-size: 1.1em;" onclick="runBulkAddMemberships()">
-                    <i class="fas fa-plus-circle"></i> Run Bulk Add Memberships
+                    <i class="fas fa-plus-circle"></i> Run Bulk Add
+                </button>
+                <button id="btnRunBulkRemove" class="discovery-btn-run" style="padding: 15px 40px; font-size: 1.1em; background: #ef4444; border-color: #ef4444;" onclick="runBulkRemoveMemberships()">
+                    <i class="fas fa-user-minus"></i> Run Bulk Remove
                 </button>
             </div>
 
@@ -23517,7 +23520,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     
                     if (state === 'UNKNOWN') {
                         console.log("Full Google Response:", result);
-                        adminLog(`${stateIcon} ${email} added (State: UNKNOWN). Keys: [${Object.keys(result).join(', ')}]`, 'success');
+                        adminLog(`${stateIcon} ${email} added (State: UNKNOWN).`, 'success');
                     } else {
                         adminLog(`${stateIcon} ${email} added to ${spaceDisplayName} (State: ${state})`, 'success');
                     }
@@ -23527,6 +23530,125 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 }
             } catch (err) {
                 adminLog(`❌ Error adding ${email} to ${spaceDisplayName}: ${err.message}`, 'error');
+            }
+        }
+
+        async function runBulkRemoveMemberships() {
+            const emailsRaw = document.getElementById('adminTargetEmails').value.trim();
+            const selectedSpaces = Array.from(document.querySelectorAll('.admin-space-cb:checked')).map(cb => cb.value);
+
+            if (!emailsRaw) {
+                alert("Please enter target emails.");
+                return;
+            }
+            if (!selectedSpaces.length) {
+                alert("Please select at least one space.");
+                return;
+            }
+            if (!adminGoogleAccessToken) {
+                alert("Please connect to Google first.");
+                return;
+            }
+
+            const emails = emailsRaw.split(/[\n,]/).map(e => e.trim()).filter(e => e && e.includes('@'));
+            if (!emails.length) {
+                alert("No valid emails found.");
+                return;
+            }
+
+            document.getElementById('btnRunBulkRemove').disabled = true;
+            document.getElementById('btnRunBulkRemove').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            adminLog(`🚀 Starting bulk removal for ${emails.length} users from ${selectedSpaces.length} spaces...`);
+
+            // 1. Resolve emails to user IDs
+            const emailToIdMap = {};
+            for (const email of emails) {
+                adminLog(`🔍 Resolving ${email}...`);
+                const personId = await resolveEmailToPersonId(email);
+                if (personId) {
+                    emailToIdMap[email] = `users/${personId}`;
+                } else {
+                    adminLog(`⚠️ Skipping ${email} (could not resolve ID).`, 'error');
+                }
+            }
+
+            const userIdsToRemove = Object.values(emailToIdMap);
+            if (userIdsToRemove.length === 0) {
+                adminLog("❌ No users resolved. Aborting.", 'error');
+                document.getElementById('btnRunBulkRemove').disabled = false;
+                document.getElementById('btnRunBulkRemove').innerHTML = '<i class="fas fa-user-minus"></i> Run Bulk Remove';
+                return;
+            }
+
+            // 2. Process spaces
+            for (const spaceName of selectedSpaces) {
+                const spaceDisplayName = adminSpaces.find(s => s.name === spaceName)?.displayName || spaceName;
+                adminLog(`📂 Fetching members in ${spaceDisplayName}...`);
+                
+                try {
+                    // List memberships (up to 1000 for now)
+                    const url = `https://chat.googleapis.com/v1/${spaceName}/members?pageSize=1000`;
+                    const response = await fetch(url, {
+                        headers: { 'Authorization': `Bearer ${adminGoogleAccessToken}` }
+                    });
+                    
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = await response.json();
+                    const memberships = data.memberships || [];
+                    
+                    for (const m of memberships) {
+                        if (userIdsToRemove.includes(m.member.name)) {
+                            const email = Object.keys(emailToIdMap).find(k => emailToIdMap[k] === m.member.name);
+                            adminLog(`🗑️ Removing ${email} from ${spaceDisplayName}...`);
+                            await deleteMembership(m.name, email);
+                        }
+                    }
+                } catch (err) {
+                    adminLog(`❌ Error listing members in ${spaceDisplayName}: ${err.message}`, 'error');
+                }
+            }
+
+            adminLog("🏁 Bulk removal operation completed.", 'success');
+            document.getElementById('btnRunBulkRemove').disabled = false;
+            document.getElementById('btnRunBulkRemove').innerHTML = '<i class="fas fa-user-minus"></i> Run Bulk Remove';
+        }
+
+        async function deleteMembership(membershipName, email) {
+            const url = `https://chat.googleapis.com/v1/${membershipName}`;
+            try {
+                let response;
+                if (GOOGLE_CHAT_PROXY_URL) {
+                    response = await fetch(GOOGLE_CHAT_PROXY_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            url: url,
+                            method: 'DELETE',
+                            accessToken: adminGoogleAccessToken
+                        })
+                    });
+                } else {
+                    response = await fetch(url, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${adminGoogleAccessToken}` }
+                    });
+                }
+
+                if (response.ok) {
+                    let result = await response.json();
+                    
+                    // Handle Lambda wrapper
+                    if (result.statusCode !== undefined) {
+                        if (result.statusCode >= 400) {
+                            adminLog(`❌ Proxy error removing ${email}: ${result.body}`, 'error');
+                            return;
+                        }
+                    }
+                    adminLog(`✅ Successfully removed ${email}`, 'success');
+                } else {
+                    adminLog(`❌ Failed to reach Proxy for ${email}`, 'error');
+                }
+            } catch (err) {
+                adminLog(`❌ Network error removing ${email}: ${err.message}`, 'error');
             }
         }
 
