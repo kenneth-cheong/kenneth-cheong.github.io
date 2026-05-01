@@ -991,11 +991,15 @@
                             </div>
                             <div style="flex: 1;">
                                 <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 6px;">Start Month</label>
-                                <input type="month" id="bulkStartMonth" onchange="calculateAffectedLinks()" style="width: 100%; padding: 11px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                                <select id="bulkStartMonth" onchange="calculateAffectedLinks()" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                                    <option value="">Select Month...</option>
+                                </select>
                             </div>
                             <div style="flex: 1;">
                                 <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 6px;">End Month</label>
-                                <input type="month" id="bulkEndMonth" onchange="calculateAffectedLinks()" style="width: 100%; padding: 11px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                                <select id="bulkEndMonth" onchange="calculateAffectedLinks()" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white;">
+                                    <option value="">Select Month...</option>
+                                </select>
                             </div>
                             <div style="flex: 1;">
                                 <label style="display: block; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 6px;">Price per Link ($)</label>
@@ -1962,9 +1966,22 @@
             updateVendorLists();
         }
 
+        function deduplicateVendors(list) {
+            const uniqueMap = {};
+            list.forEach(v => {
+                if (!v) return;
+                const namePart = v.split(' - Email:')[0].trim();
+                // Prefer the version with an email if available
+                if (!uniqueMap[namePart] || v.includes(' - Email:')) {
+                    uniqueMap[namePart] = v;
+                }
+            });
+            return Object.values(uniqueMap).sort((a, b) => a.localeCompare(b));
+        }
+
         function updateVendorLists() {
             const dbVendors = state.vendors.filter(v => v.role === 'Vendor').map(v => v.name);
-            const vendors = [...new Set([...MASTER_VENDOR_LIST, ...dbVendors])].sort();
+            const vendors = deduplicateVendors([...MASTER_VENDOR_LIST, ...dbVendors]);
             
             // 1. Update Global Vendor Datalist
             const globalList = document.getElementById('vendorList');
@@ -2008,11 +2025,39 @@
                 const current = bulkVendor.value;
                 // Also include any vendors that exist in backlinks but not in the master/db list
                 const backlinkVendors = state.backlinks.map(b => b.vendorName).filter(v => v);
-                const allVendors = [...new Set([...vendors, ...backlinkVendors])].sort();
+                const allVendors = deduplicateVendors([...vendors, ...backlinkVendors]);
                 
                 bulkVendor.innerHTML = '<option value="">Select Vendor...</option>' + 
                     allVendors.map(v => `<option value="${v}">${v}</option>`).join('');
                 bulkVendor.value = current;
+            }
+
+            // 6. Update Bulk Pricing Month Selects
+            const startMonthSel = document.getElementById('bulkStartMonth');
+            const endMonthSel = document.getElementById('bulkEndMonth');
+            
+            if (startMonthSel && endMonthSel) {
+                const currentStart = startMonthSel.value;
+                const currentEnd = endMonthSel.value;
+                
+                const months = [...new Set(state.backlinks.filter(b => !b.deleted).map(b => {
+                    const d = new Date(b.createdAt);
+                    return d.toISOString().substring(0, 7);
+                }))].sort().reverse();
+                
+                const html = '<option value="">Select Month...</option>' + 
+                    months.map(m => {
+                        const [y, mm] = m.split('-');
+                        const date = new Date(y, mm - 1);
+                        const label = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+                        return `<option value="${m}">${label}</option>`;
+                    }).join('');
+                    
+                startMonthSel.innerHTML = html;
+                endMonthSel.innerHTML = html;
+                
+                if (months.includes(currentStart)) startMonthSel.value = currentStart;
+                if (months.includes(currentEnd)) endMonthSel.value = currentEnd;
             }
         }
 
@@ -2066,7 +2111,7 @@
             }
 
             const dbVendors = state.vendors.filter(v => v.role === 'Vendor').map(v => v.name);
-            const vendors = [...new Set([...MASTER_VENDOR_LIST, ...dbVendors])].sort();
+            const vendors = deduplicateVendors([...MASTER_VENDOR_LIST, ...dbVendors]);
 
             body.innerHTML = state.importHistory.map(h => `
                 <tr>
@@ -2173,7 +2218,12 @@
                 if (!aggregated[bd].campaigns[campaign]) aggregated[bd].campaigns[campaign] = { months: {}, totalQty: 0, totalCost: 0 };
                 
                 if (!aggregated[bd].campaigns[campaign].months[month]) {
-                    aggregated[bd].campaigns[campaign].months[month] = { qty: 0, cost: 0, sortKey: monthSortKey };
+                    aggregated[bd].campaigns[campaign].months[month] = { qty: 0, cost: 0, sortKey: monthSortKey, vendorData: {} };
+                }
+
+                const vName = b.vendorName || 'Unknown';
+                if (!aggregated[bd].campaigns[campaign].months[month].vendorData[vName]) {
+                    aggregated[bd].campaigns[campaign].months[month].vendorData[vName] = { qty: 0, cost: 0 };
                 }
 
                 const qty = parseInt(b.quantity) || 1;
@@ -2185,6 +2235,8 @@
                 aggregated[bd].campaigns[campaign].totalCost += cost;
                 aggregated[bd].campaigns[campaign].months[month].qty += qty;
                 aggregated[bd].campaigns[campaign].months[month].cost += cost;
+                aggregated[bd].campaigns[campaign].months[month].vendorData[vName].qty += qty;
+                aggregated[bd].campaigns[campaign].months[month].vendorData[vName].cost += cost;
             });
 
             // 3. Render UI
@@ -2238,18 +2290,24 @@
                                             <thead>
                                                 <tr>
                                                     <th style="text-align: left; padding: 8px;">Month</th>
+                                                    <th style="text-align: left; padding: 8px;">Vendor</th>
                                                     <th style="text-align: right; padding: 8px;">Quantity</th>
                                                     <th style="text-align: right; padding: 8px;">Total Cost</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                ${months.map(mName => `
-                                                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.02);">
-                                                        <td style="padding: 8px;">${mName}</td>
-                                                        <td style="text-align: right; padding: 8px;">${camp.months[mName].qty}</td>
-                                                        <td style="text-align: right; padding: 8px; color: var(--secondary); font-weight: 600;">$${camp.months[mName].cost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                                                    </tr>
-                                                `).join('')}
+                                                ${months.map(mName => {
+                                                    const mData = camp.months[mName];
+                                                    const vNames = Object.keys(mData.vendorData).sort();
+                                                    return vNames.map((vName, idx) => `
+                                                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.02);">
+                                                            <td style="padding: 8px;">${idx === 0 ? mName : ''}</td>
+                                                            <td style="padding: 8px; color: var(--text-dim);">${vName}</td>
+                                                            <td style="text-align: right; padding: 8px;">${mData.vendorData[vName].qty}</td>
+                                                            <td style="text-align: right; padding: 8px; color: var(--secondary); font-weight: 600;">$${mData.vendorData[vName].cost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                                        </tr>
+                                                    `).join('');
+                                                }).join('')}
                                             </tbody>
                                         </table>
                                     ` : `
@@ -2488,8 +2546,9 @@
                 });
                 
                 if (result && result.success) {
-                    alert(`Successfully updated ${result.count} links.`);
-                    fetchOrders(); // Refresh data
+                    alert(`Successfully updated ${result.count} links (Matched: ${result.matched}).`);
+                    await fetchOrders(); // Refresh data
+                    renderCostManagement(); // Re-render the cost view
                 } else {
                     alert('Failed to update pricing.');
                 }

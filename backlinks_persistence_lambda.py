@@ -105,9 +105,21 @@ def handle_get_backlinks(db, data, headers):
     if (data.get('vendorName')):
         query['vendorName'] = data['vendorName']
     
-    limit = int(data.get('limit', 1000))
+    limit = int(data.get('limit', 10000))
     skip = int(data.get('skip', 0))
     backlinks = list(db.backlinks.find(query).sort("createdAt", -1).skip(skip).limit(limit))
+    
+    # Apply pricing rules if cost is missing
+    pricing_rules = list(db.vendor_pricing.find({}))
+    for b in backlinks:
+        if '_id' in b: b['_id'] = str(b['_id'])
+        if not b.get('cost') or b.get('cost') == 0:
+            for rule in pricing_rules:
+                if b.get('vendorName') == rule.get('vendorName'):
+                    if rule.get('startDate') <= b.get('createdAt') <= rule.get('endDate'):
+                        b['cost'] = rule.get('cost')
+                        break
+    
     return response(200, backlinks, headers)
 
 def handle_upsert_backlink(db, data, user, headers):
@@ -207,27 +219,36 @@ def handle_delete_import(db, data, user, headers):
 
 def handle_bulk_update_pricing(db, data, current_user, headers):
     vendor_name = data.get('vendorName')
-    start_date_str = data.get('startDate')
-    end_date_str = data.get('endDate')
+    start_date = data.get('startDate')
+    end_date = data.get('endDate')
     cost = float(data.get('cost', 0))
     
-    if not vendor_name or not start_date_str or not end_date_str:
+    if not vendor_name or not start_date or not end_date:
         return response(400, "Missing required parameters", headers)
-        
-    try:
-        # Expected format: 2024-04-01T00:00:00.000Z
-        start_date = datetime.fromisoformat(start_date_str.replace('Z', '+00:00'))
-        end_date = datetime.fromisoformat(end_date_str.replace('Z', '+00:00'))
-    except Exception as e:
-        return response(400, f"Invalid date format: {str(e)}", headers)
     
+    # Update existing backlinks
+    import re
+    v_name = vendor_name.strip()
     query = {
-        "vendorName": vendor_name,
+        "vendorName": {"$regex": f"^{re.escape(v_name)}$", "$options": "i"},
         "createdAt": {"$gte": start_date, "$lte": end_date},
         "deleted": {"$ne": True}
     }
     
     result = db.backlinks.update_many(query, {"$set": {"cost": cost}})
+    
+    # Persist the pricing rule for future imports/consistency
+    db.vendor_pricing.update_one(
+        {"vendorName": vendor_name, "startDate": start_date, "endDate": end_date},
+        {"$set": {"cost": cost, "updatedAt": datetime.utcnow().isoformat() + 'Z', "updatedBy": current_user}},
+        upsert=True
+    )
+    
+    return response(200, {
+        "success": True, 
+        "count": result.modified_count,
+        "matched": result.matched_count
+    }, headers)
     
     # Audit Log
     db.audit_logs.insert_one({
