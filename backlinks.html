@@ -803,6 +803,9 @@
                             <button class="btn btn-primary" onclick="importFromSheet()" id="importBtn">
                                 <i class="fas fa-file-csv"></i> Import CSV / Sheet
                             </button>
+                            <select id="importVendorSelect" style="padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white; width: 160px; font-size: 0.85rem;">
+                                <option value="">Select Vendor...</option>
+                            </select>
                             <button class="btn" onclick="openDeliveryUpload()" id="deliveryUploadBtn"
                                 style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none;">
                                 <i class="fas fa-file-upload"></i> Upload Delivery CSV
@@ -874,6 +877,7 @@
                                     <th>Imported By</th>
                                     <th>Timestamp</th>
                                     <th>Links</th>
+                                    <th>Vendor</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -1242,6 +1246,21 @@
             backlinkIdx: { byDomain: {}, byName: {}, byKwDomain: {}, siteToDomains: {} }
         };
 
+        const MASTER_VENDOR_LIST = [
+            "Anurag - Email: anurag.kashyap20@gmail.com",
+            "Maark - Email: maark@linksbuildingservice.co.uk",
+            "Arya - Email: aryajones7@gmail.com",
+            "Ramish - Email: ramishgill651@gmail.com",
+            "Sasti - Email: sastiseoconsultant@gmail.com",
+            "Boris - Email: online@shantel.co",
+            "Jimmy - Email: jimmybwilliams8@gmail.com",
+            "Dan Inhouse Outreach",
+            "Link Publisher",
+            "iCopify",
+            "Upwork",
+            "Fiverr"
+        ];
+
         function toggleLoading(show) {
             if (show) {
                 state.loadingCount++;
@@ -1478,7 +1497,7 @@
             document.getElementById('pageTitle').innerText = titleMap[tabId] || 'Dashboard';
 
             if (tabId === 'cost') {
-                updateVendorSelect();
+                updateVendorLists();
                 renderCostManagement();
             }
 
@@ -1627,7 +1646,8 @@
                     const rows = allRows.slice(headerIndex + 1);
 
                     if (rows.length > 0) {
-                        await processSheetData(rows, headers, file.name);
+                        const vendor = document.getElementById('importVendorSelect')?.value || '';
+                        await processSheetData(rows, headers, file.name, vendor);
                     }
                 } catch (err) {
                     console.error("Excel Processing Error:", err);
@@ -1658,7 +1678,7 @@
             return new Date().toISOString();
         }
 
-        async function processSheetData(rows, headers, sourceName) {
+        async function processSheetData(rows, headers, sourceName, vendorName = '') {
             const orderedDate = extractDateFromSource(sourceName);
             // Find indices of relevant columns based on headers
             // Find indices of relevant columns based on headers - more robust version
@@ -1726,6 +1746,7 @@
                         deliveredUrl: '',
                         vendorDa: row[idx.da] || 0,
                         status: 'Ordered',
+                        vendorName: vendorName,
                         createdAt: orderedDate,
                         deleted: false
                     }];
@@ -1745,6 +1766,7 @@
                     deliveredUrl: link.url,
                     vendorDa: link.da || row[idx.da] || 0,
                     status: 'Delivered',
+                    vendorName: vendorName,
                     createdAt: orderedDate,
                     deleted: false
                 }));
@@ -1765,6 +1787,7 @@
                 id: importId,
                 source: sourceName,
                 user: state.user?.name || 'Unknown',
+                vendorName: vendorName,
                 timestamp: new Date().toISOString(),
                 count: newBacklinks.length
             });
@@ -1940,12 +1963,13 @@
         }
 
         function updateVendorLists() {
-            const vendors = state.vendors.filter(v => v.role === 'Vendor');
+            const dbVendors = state.vendors.filter(v => v.role === 'Vendor').map(v => v.name);
+            const vendors = [...new Set([...MASTER_VENDOR_LIST, ...dbVendors])].sort();
             
             // 1. Update Global Vendor Datalist
             const globalList = document.getElementById('vendorList');
             if (globalList) {
-                globalList.innerHTML = vendors.map(v => `<option value="${v.name}"></option>`).join('');
+                globalList.innerHTML = vendors.map(v => `<option value="${v}"></option>`).join('');
             }
 
             // 2. Update Delivery Modal Select
@@ -1954,9 +1978,7 @@
                 const current = deliverySelect.value;
                 let html = '<option value="">-- Choose Vendor --</option>';
                 vendors.forEach(v => {
-                    const val = v.email ? `${v.name} (${v.email})` : v.name;
-                    const label = v.email ? `${v.name} - Email: ${v.email}` : v.name;
-                    html += `<option value="${val}">${label}</option>`;
+                    html += `<option value="${v}">${v}</option>`;
                 });
                 deliverySelect.innerHTML = html;
                 deliverySelect.value = current;
@@ -1967,8 +1989,30 @@
             if (cartBulkVendor) {
                 const current = cartBulkVendor.value;
                 cartBulkVendor.innerHTML = '<option value="">-- Don\'t change --</option>' + 
-                    vendors.map(v => `<option value="${v.name}">${v.name}</option>`).join('');
+                    vendors.map(v => `<option value="${v}">${v}</option>`).join('');
                 cartBulkVendor.value = current;
+            }
+
+            // 4. Update Import Vendor Select
+            const importVendor = document.getElementById('importVendorSelect');
+            if (importVendor) {
+                const current = importVendor.value;
+                importVendor.innerHTML = '<option value="">Select Vendor...</option>' + 
+                    vendors.map(v => `<option value="${v}">${v}</option>`).join('');
+                importVendor.value = current;
+            }
+
+            // 5. Update Bulk Pricing Vendor Select (Cost Management)
+            const bulkVendor = document.getElementById('bulkVendor');
+            if (bulkVendor) {
+                const current = bulkVendor.value;
+                // Also include any vendors that exist in backlinks but not in the master/db list
+                const backlinkVendors = state.backlinks.map(b => b.vendorName).filter(v => v);
+                const allVendors = [...new Set([...vendors, ...backlinkVendors])].sort();
+                
+                bulkVendor.innerHTML = '<option value="">Select Vendor...</option>' + 
+                    allVendors.map(v => `<option value="${v}">${v}</option>`).join('');
+                bulkVendor.value = current;
             }
         }
 
@@ -2017,9 +2061,12 @@
             if (!body) return;
 
             if (state.importHistory.length === 0) {
-                body.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--text-dim);">No import history found.</td></tr>';
+                body.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-dim);">No import history found.</td></tr>';
                 return;
             }
+
+            const dbVendors = state.vendors.filter(v => v.role === 'Vendor').map(v => v.name);
+            const vendors = [...new Set([...MASTER_VENDOR_LIST, ...dbVendors])].sort();
 
             body.innerHTML = state.importHistory.map(h => `
                 <tr>
@@ -2028,7 +2075,13 @@
                     <td>${new Date(h.timestamp).toLocaleString()}</td>
                     <td><span class="badge" style="background: rgba(99, 102, 241, 0.1); color: var(--primary-light);">${h.count} links</span></td>
                     <td>
-                        ${state.role === 'Staff' ? `
+                        <select onchange="updateImportVendor('${h.id}', this.value)" style="padding: 6px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white; font-size: 0.8rem; width: 140px;">
+                            <option value="">Select Vendor...</option>
+                            ${vendors.map(v => `<option value="${v}" ${h.vendorName === v ? 'selected' : ''}>${v}</option>`).join('')}
+                        </select>
+                    </td>
+                    <td>
+                        ${state.role === 'Staff' || state.role === 'Admin' ? `
                             <button class="btn" style="padding: 4px 8px; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);" 
                                 onclick="deleteImport('${h.id}')">
                                 <i class="fas fa-trash-alt"></i>
@@ -2037,6 +2090,34 @@
                     </td>
                 </tr>
             `).join('');
+        }
+
+        async function updateImportVendor(importId, vendorName) {
+            if (!vendorName) return;
+            const result = await apiCall(PERSISTENCE_URL, 'update_import_vendor', { id: importId, vendorName });
+            if (result && result.success) {
+                // Update local state to avoid full refresh
+                const imp = state.importHistory.find(i => i.id === importId);
+                if (imp) imp.vendorName = vendorName;
+                
+                // Update all backlinks in local state that belong to this import
+                state.backlinks.forEach(bl => {
+                    if (bl.importId === importId) bl.vendorName = vendorName;
+                });
+                
+                // Show a brief success message
+                const msg = document.createElement('div');
+                msg.style = 'position:fixed; bottom:20px; right:20px; background:#10b981; color:white; padding:12px 24px; border-radius:8px; z-index:10000; box-shadow:0 10px 15px rgba(0,0,0,0.3); animation: slideUp 0.3s ease-out;';
+                msg.innerHTML = `<i class="fas fa-check-circle"></i> Vendor updated for import and associated links.`;
+                document.body.appendChild(msg);
+                setTimeout(() => {
+                    msg.style.animation = 'slideDown 0.3s ease-in';
+                    setTimeout(() => msg.remove(), 300);
+                }, 3000);
+                
+                renderImportHistory();
+                if (typeof filterOrders === 'function') filterOrders(); 
+            }
         }
 
         function renderCostManagement() {
@@ -2344,16 +2425,7 @@
             }
         }
 
-        function updateVendorSelect() {
-            const select = document.getElementById('bulkVendor');
-            if (!select) return;
-            
-            // Get unique vendors from backlinks
-            const vendors = [...new Set(state.backlinks.map(b => b.vendorName).filter(v => v))].sort();
-            
-            select.innerHTML = '<option value="">Select Vendor...</option>' + 
-                vendors.map(v => `<option value="${v}">${v}</option>`).join('');
-        }
+
 
         function calculateAffectedLinks() {
             const vendor = document.getElementById('bulkVendor').value;
@@ -2695,6 +2767,7 @@
                     (b.campaignName || '').toLowerCase().includes(state.orderFilters.search) ||
                     (b.keyword || '').toLowerCase().includes(state.orderFilters.search) ||
                     (b.deliveredUrl || '').toLowerCase().includes(state.orderFilters.search) ||
+                    (b.vendorName || '').toLowerCase().includes(state.orderFilters.search) ||
                     getDomain(b.targetUrl).toLowerCase().includes(state.orderFilters.search);
                 const matchesStatus = state.orderFilters.status === 'all' || b.status === state.orderFilters.status;
                 const matchesBD = !state.orderFilters.bd || (b.bd || '').toLowerCase().includes(state.orderFilters.bd);
@@ -2843,7 +2916,7 @@
                                     <td><input type="checkbox" class="order-checkbox" value="${b.id}" onchange="toggleOrderSelection('${b.id}')" ${isSelected ? 'checked' : ''}></td>
                                     <td>
                                         <div style="font-weight: 600; font-size: 0.85rem;">${b.campaignName || 'Unnamed'}</div>
-                                        <div style="font-size: 0.75rem; color: var(--text-dim);">BY: ${b.bd || 'N/A'}</div>
+                                        <div style="font-size: 0.75rem; color: var(--text-dim);">BY: ${b.bd || 'N/A'} | Vendor: ${b.vendorName || 'N/A'}</div>
                                     </td>
                                     <td><div style="font-size: 0.85rem;">${date}</div></td>
                                     <td>

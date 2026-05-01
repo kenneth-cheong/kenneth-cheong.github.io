@@ -3486,17 +3486,14 @@
                     </a>
 
                     <p class="nav-label">Tender Specific</p>
-                    <a href="#" class="nav-item" onclick="switchView('copilot', this)">
-                        <i data-lucide="message-square" size="18"></i>
-                        <span>AI Chat / Slides</span>
+                    <a href="#" class="nav-item" onclick="switchView('slide-editor', this)">
+                        <i data-lucide="monitor" size="18"></i>
+                        <span>Slide Editor</span>
                     </a>
 
                     <div class="nav-label">Strategy Building</div>
                     <a href="#" class="nav-item" onclick="switchView('documents', this)">
                         <i data-lucide="files" size="18"></i> Documents
-                    </a>
-                    <a href="#" class="nav-item" onclick="switchView('slide-editor', this)">
-                        <i data-lucide="monitor" size="18"></i> Slide Editor
                     </a>
                     <a href="#" class="nav-item" onclick="switchView('revisions', this)">
                         <i data-lucide="history" size="18"></i> Version History
@@ -4538,8 +4535,8 @@
                 const toast = document.createElement('div');
                 toast.className = `toast ${type}`;
 
-                const icon = type === 'success' ? 'check-circle' : (type === 'warning' ? 'alert-triangle' : 'info');
-                toast.innerHTML = `<i data-lucide="${icon}" size="18"></i><span>${message}</span>`;
+                const getIcon = (t) => t === 'success' ? 'check-circle' : (t === 'warning' ? 'alert-triangle' : 'info');
+                toast.innerHTML = `<i data-lucide="${getIcon(type)}" size="18"></i><span>${message}</span>`;
                 container.appendChild(toast);
                 if (window.lucide) lucide.createIcons();
 
@@ -4548,8 +4545,14 @@
                     setTimeout(() => toast.remove(), 300);
                 };
 
+                const update = (newMessage, newType = type) => {
+                    toast.className = `toast ${newType}`;
+                    toast.innerHTML = `<i data-lucide="${getIcon(newType)}" size="18"></i><span>${newMessage}</span>`;
+                    if (window.lucide) lucide.createIcons();
+                };
+
                 if (duration > 0) setTimeout(remove, duration);
-                return { remove };
+                return { remove, update };
             }
 
             // Initialize on load
@@ -7726,12 +7729,16 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
             });
 
             function switchView(viewId, element) {
-                if (viewId === 'copilot') {
+                if (viewId === 'copilot' || viewId === 'slide-editor') {
                     document.body.classList.add('copilot-active');
                     moveChatUI('copilot');
                     viewId = 'slide-editor'; // Copilot uses the editor view as base
                 } else {
                     document.body.classList.remove('copilot-active');
+                    // Move chat to standalone mount if in Wizard
+                    if (viewId === 'setup-wizard') {
+                        moveChatUI('standalone');
+                    }
                 }
 
                 // Update Nav Items

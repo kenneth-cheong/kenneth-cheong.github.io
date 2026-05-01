@@ -66,6 +66,8 @@ def lambda_handler(event, context):
             return handle_get_import_history(db, headers)
         elif action == 'upsert_import_history':
             return handle_upsert_import_history(db, data, current_user, headers)
+        elif action == 'update_import_vendor':
+            return handle_update_import_vendor(db, data, current_user, headers)
         elif action == 'delete_import':
             return handle_delete_import(db, data, current_user, headers)
         elif action == 'bulk_update_pricing':
@@ -98,8 +100,10 @@ def handle_get_backlinks(db, data, headers):
     query = {"deleted": {"$ne": True}}
     if data.get('campaignId'):
         query['campaignId'] = data['campaignId']
-    if data.get('vendorId'):
+    if (data.get('vendorId')):
         query['vendorId'] = data['vendorId']
+    if (data.get('vendorName')):
+        query['vendorName'] = data['vendorName']
     
     limit = int(data.get('limit', 1000))
     skip = int(data.get('skip', 0))
@@ -177,6 +181,20 @@ def handle_upsert_import_history(db, data, user, headers):
         data['id'] = str(datetime.utcnow().timestamp())
         data['timestamp'] = datetime.utcnow()
         db.import_history.insert_one(data)
+    return response(200, {"success": True}, headers)
+
+def handle_update_import_vendor(db, data, user, headers):
+    import_id = data.get('id')
+    vendor_name = data.get('vendorName')
+    if not import_id or not vendor_name:
+        return response(400, "Missing import id or vendor name", headers)
+    
+    # Update import history record
+    db.import_history.update_one({"id": import_id}, {"$set": {"vendorName": vendor_name}})
+    
+    # Update all backlinks associated with this import
+    db.backlinks.update_many({"importId": import_id}, {"$set": {"vendorName": vendor_name}})
+    
     return response(200, {"success": True}, headers)
 
 def handle_delete_import(db, data, user, headers):
