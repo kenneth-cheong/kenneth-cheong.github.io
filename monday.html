@@ -13,6 +13,9 @@
     <div id="global-item-menu" class="dropdown-menu" style="z-index: 10000; min-width: 180px;">
         <!-- Content generated dynamically -->
     </div>
+    <div id="placeholder-suggestions" class="placeholder-suggestions"></div>
+    <div id="column-picker-menu" class="dropdown-menu" style="z-index: 10001; min-width: 200px; padding: 10px;"></div>
+    <div id="filter-picker-menu" class="dropdown-menu" style="z-index: 10001; min-width: 280px; padding: 15px;"></div>
 
     <script src="https://unpkg.com/lucide@latest"></script>
     
@@ -267,6 +270,34 @@
             min-width: 150px;
         }
         .dropdown-menu.show { display: flex; }
+        
+        .placeholder-suggestions {
+            position: absolute;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            z-index: 11000;
+            display: none;
+            flex-direction: column;
+            padding: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            min-width: 180px;
+        }
+        .suggestion-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            color: var(--text-main);
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 4px;
+        }
+        .suggestion-item:hover { background-color: var(--bg-hover); }
+        .suggestion-item i { color: var(--text-muted); opacity: 0.7; }
+        
         .dropdown-item {
             padding: 8px 12px;
             cursor: pointer;
@@ -966,10 +997,23 @@
     <!-- Main Content -->
     <main>
         <div class="top-bar">
-            <div class="board-title" id="board-title">
-                Loading Board...
+            <div class="board-header-left" style="display:flex; align-items:center; gap:20px; flex:1;">
+                <div class="board-title" id="board-title" style="margin:0;">Loading Board...</div>
+                <div class="search-wrapper" style="position:relative; flex:1; max-width:300px;">
+                    <i data-lucide="search" size="14" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
+                    <input type="text" id="board-search" placeholder="Search board..." oninput="handleBoardSearch(this.value)" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:100px; padding:6px 10px 6px 32px; color:var(--text-main); font-size:13px; outline:none;">
+                </div>
             </div>
-            <div class="board-header-right">
+            <div class="board-header-right" style="display:flex; align-items:center; gap:8px;">
+                <button class="btn-automate" onclick="toggleColumnPicker()" style="background: rgba(255,255,255,0.05);">
+                    <i data-lucide="layout" size="14"></i> Columns
+                </button>
+                <button class="btn-automate" onclick="toggleFilterPicker()" style="background: rgba(255,255,255,0.05);">
+                    <i data-lucide="filter" size="14"></i> Filter
+                </button>
+                <button class="btn-automate" onclick="openBoardActivity()" style="margin-right: 8px; background: rgba(255,255,255,0.1);">
+                    <i data-lucide="activity" size="14"></i> Activity
+                </button>
                 <button class="btn-automate" onclick="openAutomationCenter()">
                     <i data-lucide="zap" size="14"></i> Automate
                 </button>
@@ -1218,7 +1262,7 @@
             if (typeof google === 'undefined' || !google.accounts) return;
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com',
-                scope: 'https://www.googleapis.com/auth/chat.spaces.readonly https://www.googleapis.com/auth/chat.memberships.readonly https://www.googleapis.com/auth/chat.messages.create https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+                scope: 'https://www.googleapis.com/auth/chat.spaces.readonly https://www.googleapis.com/auth/chat.memberships.readonly https://www.googleapis.com/auth/chat.messages.create https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar.readonly',
                 callback: (tokenResponse) => {
                     if (tokenResponse.access_token) {
                         googleAccessToken = tokenResponse.access_token;
@@ -1253,6 +1297,32 @@
                 if (board && pendingAutomation) renderBuilderStep(board);
             } catch (err) {
                 console.error("Exception in fetchChatSpaces:", err);
+            }
+        }
+
+        async function checkCalendarAvailability(email) {
+            if (!googleAccessToken || !email) return { onLeave: false };
+            try {
+                const now = new Date().toISOString();
+                const end = new Date(Date.now() + 60000).toISOString(); // Check current minute
+                
+                const resp = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(email)}/events?timeMin=${now}&timeMax=${end}&singleEvents=true`, {
+                    headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+                });
+                
+                if (!resp.ok) return { onLeave: false };
+                const data = await resp.json();
+                
+                // Check if any current event is "Out of Office" or contains "Leave"
+                const oooEvent = data.items?.find(item => {
+                    const title = (item.summary || '').toLowerCase();
+                    return item.eventType === 'outOfOffice' || title.includes('ooo') || title.includes('leave') || title.includes('away');
+                });
+                
+                return { onLeave: !!oooEvent, summary: oooEvent?.summary };
+            } catch (err) {
+                console.error("Calendar check failed for", email, err);
+                return { onLeave: false };
             }
         }
 
@@ -1375,6 +1445,9 @@
                 renderSidebar();
                 renderActiveBoard();
                 checkDateAutomations();
+                setInterval(() => {
+                    checkDateAutomations();
+                }, 60000); // Check every minute
                 handleUrlParams();
                 setSyncStatus('synced', 'Cloud Synced');
             } catch (err) {
@@ -1668,6 +1741,155 @@
             }, 100);
         }
 
+        // --- Filtering & Visibility State ---
+        let boardSearchQuery = '';
+        let activeFilters = {}; // colId: value
+
+        function handleBoardSearch(q) {
+            boardSearchQuery = q.toLowerCase();
+            renderActiveBoard();
+        }
+
+        function toggleColumnPicker(e) {
+            const menu = document.getElementById('column-picker-menu');
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if (!board) return;
+
+            if (menu.style.display === 'flex') {
+                menu.style.display = 'none';
+                return;
+            }
+
+            if (!board.hiddenColumns) board.hiddenColumns = [];
+
+            let html = `<div style="font-weight:600; font-size:12px; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase;">Display Columns</div>`;
+            
+            // Name is special, always shown or togglable? Usually always shown.
+            
+            board.columns.forEach(col => {
+                const isHidden = board.hiddenColumns.includes(col.id);
+                html += `
+                    <label style="display:flex; align-items:center; gap:10px; padding:6px 0; cursor:pointer; font-size:13px;">
+                        <input type="checkbox" ${!isHidden ? 'checked' : ''} onchange="toggleColumnVisibility('${col.id}', this.checked)">
+                        ${col.title}
+                    </label>
+                `;
+            });
+
+            menu.innerHTML = html;
+            const btnRect = document.querySelector('button[onclick="toggleColumnPicker()"]').getBoundingClientRect();
+            menu.style.top = (btnRect.bottom + 5) + 'px';
+            menu.style.left = (btnRect.left) + 'px';
+            menu.style.display = 'flex';
+            
+            // Close when clicking outside
+            const closer = (ev) => {
+                if (!menu.contains(ev.target) && !ev.target.closest('button[onclick="toggleColumnPicker()"]')) {
+                    menu.style.display = 'none';
+                    document.removeEventListener('mousedown', closer);
+                }
+            };
+            document.addEventListener('mousedown', closer);
+        }
+
+        function toggleColumnVisibility(colId, visible) {
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if (!board) return;
+            if (!board.hiddenColumns) board.hiddenColumns = [];
+            
+            if (visible) {
+                board.hiddenColumns = board.hiddenColumns.filter(id => id !== colId);
+            } else {
+                if (!board.hiddenColumns.includes(colId)) board.hiddenColumns.push(colId);
+            }
+            renderActiveBoard();
+            queueCloudSync();
+        }
+
+        function toggleFilterPicker() {
+            const menu = document.getElementById('filter-picker-menu');
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if (!board) return;
+
+            if (menu.style.display === 'flex') {
+                menu.style.display = 'none';
+                return;
+            }
+
+            let html = `<div style="font-weight:600; font-size:12px; color:var(--text-muted); margin-bottom:12px; text-transform:uppercase;">Filter Items</div>`;
+            
+            board.columns.forEach(col => {
+                const activeVal = activeFilters[col.id] || '';
+                html += `<div style="margin-bottom:12px;">
+                            <p style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">${col.title}</p>`;
+                
+                if (col.type === 'status') {
+                    html += `
+                        <select onchange="setBoardFilter('${col.id}', this.value)" style="width:100%; background:var(--bg-main); color:var(--text-main); border:1px solid var(--border-color); border-radius:4px; padding:6px; font-size:12px;">
+                            <option value="">(All)</option>
+                            ${Object.keys(state.statusOptions).map(k => `<option value="${k}" ${activeVal === k ? 'selected' : ''}>${state.statusOptions[k].label}</option>`).join('')}
+                        </select>
+                    `;
+                } else if (col.type === 'date') {
+                    html += `<input type="date" value="${activeVal}" onchange="setBoardFilter('${col.id}', this.value)" style="width:100%; background:var(--bg-main); color:var(--text-main); border:1px solid var(--border-color); border-radius:4px; padding:6px; font-size:12px;">`;
+                } else {
+                    html += `<input type="text" value="${activeVal}" placeholder="Filter by ${col.title}..." oninput="setBoardFilter('${col.id}', this.value)" style="width:100%; background:var(--bg-main); color:var(--text-main); border:1px solid var(--border-color); border-radius:4px; padding:6px; font-size:12px;">`;
+                }
+                html += `</div>`;
+            });
+
+            html += `<button onclick="clearBoardFilters()" style="width:100%; padding:8px; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); color:var(--text-main); border-radius:4px; font-size:12px; cursor:pointer; margin-top:5px;">Clear All Filters</button>`;
+
+            menu.innerHTML = html;
+            const btnRect = document.querySelector('button[onclick="toggleFilterPicker()"]').getBoundingClientRect();
+            menu.style.top = (btnRect.bottom + 5) + 'px';
+            menu.style.left = (btnRect.left) + 'px';
+            menu.style.display = 'flex';
+            
+            const closer = (ev) => {
+                if (!menu.contains(ev.target) && !ev.target.closest('button[onclick="toggleFilterPicker()"]')) {
+                    menu.style.display = 'none';
+                    document.removeEventListener('mousedown', closer);
+                }
+            };
+            document.addEventListener('mousedown', closer);
+        }
+
+        function setBoardFilter(colId, value) {
+            if (value === "") delete activeFilters[colId];
+            else activeFilters[colId] = value;
+            renderActiveBoard();
+        }
+
+        function clearBoardFilters() {
+            activeFilters = {};
+            document.getElementById('board-search').value = '';
+            boardSearchQuery = '';
+            renderActiveBoard();
+            hidePlaceholderSuggestions();
+        }
+
+        function closeAllModals() {
+            closeUpdatesModal();
+            closeAutomationCenter();
+            closeAddAutomation();
+            // Close any custom modals
+            document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('show'));
+            // Remove any dynamic modals
+            const dymodals = ['board-activity-modal', 'board-settings-modal', 'add-column-modal'];
+            dymodals.forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.remove();
+            });
+            // Hide dropdown menus
+            document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+        }
+
+        // Global Escape Key Listener
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeAllModals();
+        });
+
         function renderActiveBoard() {
             const boardArea = document.getElementById('board-area');
             const boardTitle = document.getElementById('board-title');
@@ -1679,15 +1901,28 @@
                 return;
             }
 
+            // Clean up old modals if switching boards
+            hidePlaceholderSuggestions();
+
             boardTitle.innerHTML = `
-                <div style="display:flex; align-items:center; gap:10px;">
-                    ${board.name}
-                    <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
-                        <button class="btn-icon" title="Rename Board" onclick="renameBoard('${board.id}')"><i data-lucide="edit-2" size="16"></i></button>
-                        <button class="btn-icon" title="Copy Board Link" onclick="copyBoardLink('${board.id}')"><i data-lucide="link" size="16"></i></button>
-                        <button class="btn-icon" title="Duplicate Board" onclick="duplicateBoard('${board.id}')"><i data-lucide="copy" size="16"></i></button>
-                        <button class="btn-icon" title="Board Settings" onclick="openBoardSettings('${board.id}')"><i data-lucide="settings" size="16"></i></button>
-                        <button class="btn-icon" title="Delete Board" style="color:var(--status-stuck)" onclick="deleteBoard('${board.id}')"><i data-lucide="trash-2" size="16"></i></button>
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <span style="font-size: 18px; font-weight: 700;">${board.name}</span>
+                    <button class="btn-icon" title="Board Description" onclick="openBoardDescription()" style="color:var(--text-muted); opacity:0.7;">
+                        <i data-lucide="info" size="18"></i>
+                    </button>
+                    <div style="position:relative; display:flex; align-items:center;">
+                        <button class="btn-icon" title="Board Actions" onclick="toggleSidebarMenu(event, 'board-actions-main')">
+                            <i data-lucide="more-horizontal" size="20"></i>
+                        </button>
+                        <div class="dropdown-menu" id="menu-board-actions-main" style="top: 100%; left: 0; min-width: 180px;">
+                            <div class="dropdown-item" onclick="renameBoard('${board.id}')"><i data-lucide="edit-2" size="14"></i> Rename Board</div>
+                            <div class="dropdown-item" onclick="openBoardDescription()"><i data-lucide="info" size="14"></i> Description</div>
+                            <div class="dropdown-item" onclick="copyBoardLink('${board.id}')"><i data-lucide="link" size="14"></i> Copy Link</div>
+                            <div class="dropdown-item" onclick="duplicateBoard('${board.id}')"><i data-lucide="copy" size="14"></i> Duplicate Board</div>
+                            <div class="dropdown-item" onclick="openBoardSettings('${board.id}')"><i data-lucide="settings" size="14"></i> Board Settings</div>
+                            <div class="dropdown-divider" style="height:1px; background:var(--border-color); margin:4px 0;"></div>
+                            <div class="dropdown-item" style="color:var(--status-stuck)" onclick="deleteBoard('${board.id}')"><i data-lucide="trash-2" size="14"></i> Delete Board</div>
+                        </div>
                     </div>
                 </div>
             `;
@@ -1704,7 +1939,11 @@
                         <div class="resizer" onmousedown="initResize(event, '${board.id}', 'name')"></div>
                     </th>
                     <th class="col-updates" style="width: 40px;"></th>`;
+                
                 board.columns.forEach(col => {
+                    const isHidden = (board.hiddenColumns || []).includes(col.id);
+                    if (isHidden) return;
+                    
                     const colWidth = board.columnWidths?.[col.id] || 150;
                     theadHtml += `
                         <th class="col-${col.type}" style="position:relative; width: ${colWidth}px; padding: 0;">
@@ -1743,24 +1982,26 @@
                                 </div>
                             </div>
                         </div>
-                        <table class="monday-table">
-                            <thead>${theadHtml}</thead>
-                            <tbody class="group-items" data-group-id="${group.id}">
-                `;
-
+                        <div class="table-container">
+                            <table class="monday-table">
+                                <thead>${theadHtml}</thead>
+                                <tbody>`;
+                
                 group.items.forEach(item => {
-                    const updateCount = item.updates ? item.updates.length : 0;
-                    const updateBadge = updateCount > 0 ? `<div class="update-count">${updateCount}</div>` : '';
-                    
+                    // APPLY SEARCH & FILTERS
+                    if (boardSearchQuery && !item.name.toLowerCase().includes(boardSearchQuery)) return;
+                    for (const [colId, filterVal] of Object.entries(activeFilters)) {
+                        if (!filterVal) continue;
+                        const itemVal = (item.values[colId] || '').toString().toLowerCase();
+                        if (!itemVal.includes(filterVal.toLowerCase())) return;
+                    }
+
+                    const updateBadge = item.updates?.length > 0 ? `<div class="update-count">${item.updates.length}</div>` : '';
                     html += `
-                        <tr data-id="${item.id}" class="${selectedItemIds.has(item.id) ? 'selected' : ''}">
+                        <tr class="item-row" data-id="${item.id}">
                             <td class="col-drag">
-                                <i data-lucide="grip-vertical" size="14"></i>
-                            </td>
-                            <td class="col-check" style="border-left: 4px solid ${group.color}"><input type="checkbox" class="item-checkbox" data-group-id="${group.id}" data-item-id="${item.id}" ${selectedItemIds.has(item.id) ? 'checked' : ''} onchange="toggleItemSelection('${item.id}', this.checked)"></td>
-                            <td class="col-name">
                                 <div style="display:flex; align-items:center;">
-                                    <input type="text" value="${item.name}" onchange="updateItem('${board.id}', '${group.id}', '${item.id}', 'name', this.value)">
+                                    <i data-lucide="grip-vertical" size="14" class="drag-handle"></i>
                                     <div class="row-hover-actions">
                                         <button onclick="duplicateItem('${board.id}', '${group.id}', '${item.id}')" title="Duplicate"><i data-lucide="copy" size="12"></i></button>
                                         <button style="color:var(--status-stuck);" onclick="deleteItem('${board.id}', '${group.id}', '${item.id}')" title="Delete"><i data-lucide="trash-2" size="12"></i></button>
@@ -1768,39 +2009,30 @@
                                     </div>
                                 </div>
                             </td>
-                            <td class="col-updates">
-                                <button class="sidebar-menu-btn" style="margin: 0 auto; opacity: 1;" onclick="openUpdatesModal('${board.id}', '${group.id}', '${item.id}')">
-                                    <div class="update-bubble">
-                                        <i data-lucide="message-square" size="16"></i>
-                                        ${updateBadge}
-                                    </div>
-                                </button>
+                            <td class="col-check" style="border-left: 4px solid ${group.color}"><input type="checkbox" onchange="toggleItemSelection(this, '${group.id}', '${item.id}')"></td>
+                            <td class="col-name">
+                                <div contenteditable="true" class="cell-content name-cell" onblur="updateItemName('${board.id}', '${group.id}', '${item.id}', this.innerText)" onkeydown="handleCellKeyDown(event)">${item.name}</div>
                             </td>
-                    `;
-                    
+                            <td class="col-updates" onclick="openUpdatesModal('${board.id}', '${group.id}', '${item.id}')">
+                                <div class="update-bubble ${item.updates?.length > 0 ? 'active' : ''}">
+                                    <i data-lucide="message-square" size="14"></i>
+                                    ${updateBadge}
+                                </div>
+                            </td>`;
+
                     board.columns.forEach(col => {
+                        const isHidden = (board.hiddenColumns || []).includes(col.id);
+                        if (isHidden) return;
+                        
                         const val = item.values[col.id] || '';
                         if (col.type === 'status') {
                             const statusObj = state.statusOptions[val] || state.statusOptions['empty'] || {label:'', color:'var(--status-empty)'};
-                            let dropdownOptionsHTML = '';
-                            Object.keys(state.statusOptions).forEach(key => {
-                                const opt = state.statusOptions[key];
-                                dropdownOptionsHTML += `
-                                    <div class="status-option" style="background-color: ${opt.color}; display:flex; justify-content:space-between; align-items:center;">
-                                        <div style="flex-grow:1; text-align:center; padding-left:24px;" onclick="setStatus(event, '${board.id}', '${group.id}', '${item.id}', '${col.id}', '${key}')">${opt.label}</div>
-                                        <button class="sidebar-menu-btn" style="padding: 2px; color: white; width: 24px; display:flex; justify-content:center;" onclick="promptEditStatus(event, '${key}')"><i data-lucide="edit-2" size="12"></i></button>
-                                    </div>
-                                `;
-                            });
-                            dropdownOptionsHTML += `<div class="status-option" style="background-color: var(--bg-hover); color: var(--text-muted); font-size: 12px;" onclick="promptNewStatus(event, '${board.id}', '${group.id}', '${item.id}', '${col.id}')"><i data-lucide="plus" size="12" style="margin-right: 4px;"></i> New Label</div>`;
-
                             html += `
-                            <td class="col-status">
-                                <div class="status-cell" style="background-color: ${statusObj.color}" onclick="toggleStatusDropdown(event, '${board.id}', '${group.id}', '${item.id}', '${col.id}')"
-                                     data-board="${board.id}" data-group="${group.id}" data-item="${item.id}" data-col="${col.id}">
-                                    ${statusObj.label}
-                                </div>
-                            </td>`;
+                                <td class="col-status" style="position:relative; background-color: ${statusObj.color}; color: #fff;">
+                                    <div class="status-cell" onclick="showStatusPicker(event, '${board.id}', '${group.id}', '${item.id}', '${col.id}')">
+                                        ${statusObj.label}
+                                    </div>
+                                </td>`;
                         } else if (col.type === 'date') {
                             const dates = val ? val.split(',') : ['', ''];
                             html += `
@@ -1827,13 +2059,13 @@
                         } else if (col.type === 'number') {
                             html += `
                             <td class="col-number">
-                                <input type="number" value="${val}" onchange="updateItem('${board.id}', '${group.id}', '${item.id}', '${col.id}', this.value)" placeholder="" style="background:transparent; border:none; color:var(--text-main); width:100%; text-align:right; font-family:inherit; outline:none;">
+                                <input type="number" value="${val}" onchange="updateItemValue('${board.id}', '${group.id}', '${item.id}', '${col.id}', this.value)" placeholder="" style="background:transparent; border:none; color:var(--text-main); width:100%; text-align:right; font-family:inherit; outline:none;">
                             </td>`;
                         } else if (col.type === 'percentage') {
                             html += `
                             <td class="col-percentage">
                                 <div style="display:flex; align-items:center; width:100%;">
-                                    <input type="number" value="${val}" onchange="updateItem('${board.id}', '${group.id}', '${item.id}', '${col.id}', this.value)" placeholder="" style="background:transparent; border:none; color:var(--text-main); width:100%; text-align:right; font-family:inherit; outline:none; padding-right:5px;">
+                                    <input type="number" value="${val}" onchange="updateItemValue('${board.id}', '${group.id}', '${item.id}', '${col.id}', this.value)" placeholder="" style="background:transparent; border:none; color:var(--text-main); width:100%; text-align:right; font-family:inherit; outline:none; padding-right:5px;">
                                     <span style="color:var(--text-muted); font-size:12px; padding-right:10px;">%</span>
                                 </div>
                             </td>`;
@@ -1842,7 +2074,7 @@
                             <td class="col-currency">
                                 <div style="display:flex; align-items:center; width:100%;">
                                     <span style="color:var(--text-muted); font-size:12px; padding-left:10px;">$</span>
-                                    <input type="number" value="${val}" onchange="updateItem('${board.id}', '${group.id}', '${item.id}', '${col.id}', this.value)" placeholder="" style="background:transparent; border:none; color:var(--text-main); width:100%; text-align:left; font-family:inherit; outline:none; padding-left:5px;">
+                                    <input type="number" value="${val}" onchange="updateItemValue('${board.id}', '${group.id}', '${item.id}', '${col.id}', this.value)" placeholder="" style="background:transparent; border:none; color:var(--text-main); width:100%; text-align:left; font-family:inherit; outline:none; padding-left:5px;">
                                 </div>
                             </td>`;
                         } else if (col.type === 'last-updated') {
@@ -1989,7 +2221,7 @@
                             if (g.items.find(i => i.id === itemId)) foundGroup = g;
                         });
                         if (foundGroup) {
-                            setTimeout(() => openUpdatesModal(boardId, foundGroup.id, itemId), 500);
+                            setTimeout(async () => await openUpdatesModal(boardId, foundGroup.id, itemId), 500);
                         }
                     }
                 }
@@ -2436,6 +2668,74 @@
             updateItem(boardId, groupId, itemId, colId, newVal);
         }
 
+        function logActivity(board, item, action, oldValue, newValue) {
+            const entry = {
+                id: 'act_' + Date.now() + Math.random().toString(36).substr(2,5),
+                timestamp: new Date().toISOString(),
+                user: 'You',
+                action,
+                oldValue,
+                newValue
+            };
+            
+            if (item) {
+                if (!item.activityLog) item.activityLog = [];
+                item.activityLog.unshift(entry);
+            }
+            
+            if (board) {
+                if (!board.activityLog) board.activityLog = [];
+                // Add item info to board log
+                board.activityLog.unshift({ ...entry, itemName: item?.name || 'Board' });
+                // Keep board log to last 200 entries for performance
+                if (board.activityLog.length > 200) board.activityLog.pop();
+            }
+            
+            queueCloudSync();
+        }
+
+        function updateItemValue(boardId, groupId, itemId, colId, value) {
+            const board = state.boards.find(b => b.id === boardId);
+            const group = board?.groups.find(g => g.id === groupId);
+            const item = group?.items.find(i => i.id === itemId);
+            if (!item) return;
+
+            const oldValue = item.values[colId] || '';
+            if (oldValue === value) return;
+
+            const col = board.columns.find(c => c.id === colId);
+            const colTitle = col?.title || colId;
+
+            item.values[colId] = value;
+            
+            // Format values for log
+            let from = oldValue;
+            let to = value;
+            if (col?.type === 'status') {
+                from = state.statusOptions[oldValue]?.label || oldValue || 'Empty';
+                to = state.statusOptions[value]?.label || value || 'Empty';
+            }
+
+            logActivity(board, item, `Changed ${colTitle}`, from, to);
+            
+            runAutomations(item, board, 'status_change');
+            queueCloudSync();
+        }
+
+        function updateItemName(boardId, groupId, itemId, name) {
+            const board = state.boards.find(b => b.id === boardId);
+            const group = board?.groups.find(g => g.id === groupId);
+            const item = group?.items.find(i => i.id === itemId);
+            if (!item) return;
+            
+            const oldName = item.name;
+            if (oldName === name) return;
+
+            item.name = name;
+            logActivity(board, item, 'Renamed item', oldName, name);
+            queueCloudSync();
+        }
+
         function deleteItem(boardId, groupId, itemId) {
             if(!confirm("Are you sure you want to delete this item?")) return;
             const board = state.boards.find(b => b.id === boardId);
@@ -2779,7 +3079,91 @@
             { key: 'notify',        label: 'Post an update',     icon: 'message-square' },
             { key: 'assign_person', label: 'Assign person',      icon: 'user-plus' },
             { key: 'google_chat',   label: 'Post to Google Chat', icon: 'send' },
+            { key: 'send_email',    label: 'Send Gmail Email',    icon: 'mail' },
         ];
+
+        function openBoardDescription() {
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if (!board) return;
+            
+            const modal = document.createElement('div');
+            modal.id = 'board-description-modal';
+            modal.className = 'modal-overlay show';
+            modal.innerHTML = `
+                <div class="modal-content" style="width: 500px; padding: 0; overflow: hidden;">
+                    <div class="modal-header" style="padding: 20px; border-bottom: 1px solid var(--border-color);">
+                        <h2 style="margin:0; font-size:18px;">About this board</h2>
+                        <button class="btn-icon" onclick="this.closest('.modal-overlay').remove()"><i data-lucide="x"></i></button>
+                    </div>
+                    <div style="padding: 20px;">
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 15px;">Board Name: <span style="color:var(--text-main); font-weight:600;">${board.name}</span></p>
+                        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:10px;">Description</label>
+                        <textarea id="board-desc-input" placeholder="What is this board used for? Add details here..." style="width:100%; height:150px; background:var(--bg-main); border:1px solid var(--border-color); color:var(--text-main); border-radius:6px; padding:12px; outline:none; font-family:inherit; font-size:14px; resize:none; line-height:1.5;">${board.description || ''}</textarea>
+                    </div>
+                    <div style="padding: 20px; background: var(--bg-surface); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end;">
+                        <button class="btn-save" onclick="saveBoardDescription()" style="padding: 10px 24px;">Save Description</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            lucide.createIcons({ nameAttr: 'data-lucide', container: modal });
+        }
+
+        function saveBoardDescription() {
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            const desc = document.getElementById('board-desc-input').value;
+            if (board) {
+                const oldDesc = board.description;
+                board.description = desc;
+                logActivity(board, null, 'Updated board description', oldDesc, desc);
+                queueCloudSync();
+                showToast("Description saved");
+                document.getElementById('board-description-modal').remove();
+            }
+        }
+
+        function openBoardActivity() {
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if (!board) return;
+            
+            const modal = document.createElement('div');
+            modal.id = 'board-activity-modal';
+            modal.className = 'modal-overlay show';
+            modal.innerHTML = `
+                <div class="modal-content" style="width: 700px; height: 85vh; display: flex; flex-direction: column; padding: 0; overflow: hidden;">
+                    <div class="modal-header" style="padding: 20px; border-bottom: 1px solid var(--border-color);">
+                        <h2 style="margin:0; font-size:18px;">Board Activity: ${board.name}</h2>
+                        <button class="btn-icon" onclick="this.closest('.modal-overlay').remove()"><i data-lucide="x"></i></button>
+                    </div>
+                    <div style="flex: 1; overflow-y: auto; padding: 20px;">
+                        ${(!board.activityLog || board.activityLog.length === 0) ? `
+                            <div style="text-align:center; color:var(--text-muted); margin-top:100px;">No activity recorded for this board yet.</div>
+                        ` : board.activityLog.map(log => `
+                            <div style="padding:15px; border-bottom:1px solid var(--border-color); display:flex; gap:15px; align-items:start;">
+                                <div style="background:var(--bg-main); padding:8px; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; color:var(--primary-blue);">
+                                    <i data-lucide="activity" size="14"></i>
+                                </div>
+                                <div style="flex:1;">
+                                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                                        <span style="font-weight:600; font-size:14px;">${log.action}</span>
+                                        <span style="font-size:11px; color:var(--text-muted);">${new Date(log.timestamp).toLocaleString()}</span>
+                                    </div>
+                                    <div style="font-size:13px; color:var(--text-main); margin-bottom:4px;">
+                                        <b>Item:</b> ${log.itemName || 'Board'}
+                                    </div>
+                                    <div style="font-size:12px; color:var(--text-muted);">
+                                        ${log.oldValue ? `<span style="text-decoration:line-through; margin-right:8px;">${log.oldValue}</span>` : ''}
+                                        <span style="color:var(--text-main); font-weight:500;">${log.newValue || ''}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            lucide.createIcons({ nameAttr: 'data-lucide', container: modal });
+        }
 
         function openAutomationCenter() {
             const board = state.boards.find(b => b.id === state.activeBoardId);
@@ -2939,11 +3323,15 @@
                     }
                     action = `post to ${hi('Google Chat')}${mentionString}: ${hi('"'+(auto.actionMessage||'Automated message')+'"')}`; 
                     break;
+                case 'send_email':
+                    action = `send Gmail to ${hi(auto.actionEmail || 'recipient')}: ${hi('"'+(auto.actionSubject || 'Automated Email')+'"')}`;
+                    break;
                 default: action = 'take action';
             }
             let repeat = '';
             if (auto.triggerInterval && auto.triggerUnit && auto.triggerType !== 'recurring') {
-                repeat = `, and repeat every ${hi(auto.triggerInterval)} ${hi(auto.triggerUnit)}`;
+                const timeStr = auto.triggerTime ? ` at ${hi(auto.triggerTime)}` : '';
+                repeat = `, and repeat every ${hi(auto.triggerInterval)} ${hi(auto.triggerUnit)}${timeStr}`;
             }
             return `${trigger}${repeat}, then ${action}`;
         }
@@ -3079,6 +3467,22 @@
                     <option value="days" ${pendingAutomation.triggerUnit==='days'?'selected':''}>Days</option>
                     <option value="weeks" ${pendingAutomation.triggerUnit==='weeks'?'selected':''}>Weeks</option>
                 `);
+                if (['days', 'weeks'].includes(pendingAutomation.triggerUnit)) {
+                    if (!pendingAutomation.triggerTime) pendingAutomation.triggerTime = "09:00";
+                    html += inp('At (Time)', 'triggerTime', 'time', '09:00');
+                }
+                
+                // Add Condition fields
+                html += `<div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+                    <p style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">Optional: Run only if condition matches</p>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                        ${ddl('If Column', 'recurringConditionCol', '<option value="">(All Items)</option>' + board.columns.map(c => `<option value="${c.id}" ${pendingAutomation.recurringConditionCol === c.id ? 'selected' : ''}>${c.title}</option>`).join(''))}
+                        ${pendingAutomation.recurringConditionCol ? 
+                            ddl('is', 'recurringConditionValue', Object.keys(state.statusOptions).map(k => `<option value="${k}" ${pendingAutomation.recurringConditionValue === k ? 'selected' : ''}>${state.statusOptions[k].label}</option>`).join(''))
+                            : ''
+                        }
+                    </div>
+                </div>`;
             }
 
             // Add Nagging/Repeat option for event-based triggers
@@ -3099,6 +3503,11 @@
                                     <option value="days" ${pendingAutomation.triggerUnit==='days'?'selected':''}>Days</option>
                                 `)}
                             </div>
+                            ${pendingAutomation.triggerUnit === 'days' ? `
+                                <div style="margin-top:10px;">
+                                    ${inp('At (Time)', 'triggerTime', 'time', pendingAutomation.triggerTime || '09:00')}
+                                </div>
+                            ` : ''}
                             <p style="font-size:11px; color:var(--text-muted); margin:5px 0 0 0;">Action will repeat as long as the trigger condition is met.</p>
                         ` : ''}
                     </div>
@@ -3112,7 +3521,17 @@
             const a = pendingAutomation.actionType;
             const onUpdate = isEdit ? `renderBuilderStep(state.boards.find(b=>b.id===state.activeBoardId))` : '';
             const ddl = (lbl, key, options) => `<label style="font-size:13px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">${lbl}<select onchange="pendingAutomation.${key}=this.value;${onUpdate}" style="background:var(--bg-main);color:var(--text-main);border:1px solid var(--border-color);border-radius:4px;padding:6px;">${options}</select></label>`;
-            const inp = (lbl, key) => `<label style="font-size:13px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">${lbl}<input type="text" value="${pendingAutomation[key]||''}" placeholder="e.g. This needs attention!" onchange="pendingAutomation.${key}=this.value;${onUpdate}" style="background:var(--bg-main);color:var(--text-main);border:1px solid var(--border-color);border-radius:4px;padding:6px;"></label>`;
+            const inp = (lbl, key) => `<label style="font-size:13px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">${lbl}<input type="text" value="${pendingAutomation[key]||''}" placeholder="e.g. This needs attention!" oninput="initPlaceholderAutocomplete(this)" onchange="pendingAutomation.${key}=this.value;${onUpdate}" style="background:var(--bg-main);color:var(--text-main);border:1px solid var(--border-color);border-radius:4px;padding:6px;"></label>`;
+            
+            const initAutocomplete = () => {
+                setTimeout(() => {
+                    const inputs = document.querySelectorAll('#automation-builder-container input[type="text"], #automation-builder-container textarea');
+                    inputs.forEach(el => {
+                        el.addEventListener('input', (e) => handlePlaceholderInput(e, board));
+                    });
+                }, 100);
+            };
+            initAutocomplete();
             
             let html = isEdit ? `<div style="margin-top:5px;">` : `<div style="margin-top:15px;padding:15px;background:var(--bg-surface);border-radius:8px;border:1px solid var(--border-color);">`;
             
@@ -3126,6 +3545,17 @@
                 html += ddl('Set to','actionValue',Object.keys(state.statusOptions).filter(k=>k!=='empty').map(k=>`<option value="${k}" ${pendingAutomation.actionValue===k?'selected':''}>${state.statusOptions[k].label}</option>`).join(''));
             } else if (a === 'notify') {
                 html += inp('Update message','actionMessage');
+            } else if (a === 'send_email') {
+                const inpEmail = (lbl, key, type = 'text', ph = '') => `<label style="font-size:13px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">${lbl}<input type="${type}" value="${pendingAutomation[key]||''}" placeholder="${ph}" onchange="pendingAutomation.${key}=this.value;${onUpdate}" style="background:var(--bg-main);color:var(--text-main);border:1px solid var(--border-color);border-radius:4px;padding:6px;"></label>`;
+                html += inpEmail('Recipient Email', 'actionEmail', 'email', 'example@gmail.com');
+                html += inpEmail('Subject', 'actionSubject', 'text', 'Update regarding item');
+                html += `
+                    <div style="margin-bottom: 15px;">
+                        <label style="display:block; font-size:13px; margin-bottom:5px;">Email Body</label>
+                        <textarea oninput="handlePlaceholderInput(event, state.boards.find(b=>b.id===state.activeBoardId))" onchange="pendingAutomation.actionMessage=this.value;${onUpdate}" style="width:100%; height:100px; background:var(--bg-main); border:1px solid var(--border-color); color:var(--text-main); border-radius:4px; padding:8px; outline:none; font-family:inherit; font-size:13px;">${pendingAutomation.actionMessage || ''}</textarea>
+                        <p style="font-size:11px; color:var(--text-muted); margin-top:5px;">Tip: Use {item_name} to insert the item name.</p>
+                    </div>
+                `;
             } else if (a === 'google_chat') {
                 if (!googleAccessToken) {
                     html += `
@@ -3262,9 +3692,218 @@
             }
         }
 
-        function runAutomations(item, board, eventType) {
+        function handlePlaceholderInput(e, board) {
+            const input = e.target;
+            const value = input.value;
+            const cursor = input.selectionStart;
+            const textBefore = value.substring(0, cursor);
+            
+            if (textBefore.endsWith('{')) {
+                showPlaceholderSuggestions(input, board);
+            } else {
+                hidePlaceholderSuggestions();
+            }
+        }
+
+        function showPlaceholderSuggestions(input, board) {
+            const menu = document.getElementById('placeholder-suggestions');
+            if (!menu || !board) return;
+            const rect = input.getBoundingClientRect();
+            
+            let html = `
+                <div class="suggestion-item" onclick="insertPlaceholder('{item_name}')"><i data-lucide="tag" size="14"></i> {item_name}</div>
+            `;
+            
+            board.columns.forEach(col => {
+                const icon = col.type === 'status' ? 'list' : (col.type === 'date' ? 'calendar' : 'type');
+                html += `<div class="suggestion-item" onclick="insertPlaceholder('{${col.title}}')"><i data-lucide="${icon}" size="14"></i> {${col.title}}</div>`;
+            });
+            
+            menu.innerHTML = html;
+            menu.style.display = 'flex';
+            menu.style.top = (rect.bottom + window.scrollY + 5) + 'px';
+            menu.style.left = (rect.left + window.scrollX) + 'px';
+            
+            lucide.createIcons({ attrs: { 'stroke-width': 2 }, nameAttr: 'data-lucide', container: menu });
+            
+            // Store target input for insertion
+            window.activePlaceholderInput = input;
+        }
+
+        function insertPlaceholder(tag) {
+            const input = window.activePlaceholderInput;
+            if (!input) return;
+            
+            const start = input.selectionStart;
+            const val = input.value;
+            // Replace the '{' with the tag
+            input.value = val.substring(0, start - 1) + tag + val.substring(start);
+            input.dispatchEvent(new Event('change'));
+            input.focus();
+            hidePlaceholderSuggestions();
+        }
+
+        function hidePlaceholderSuggestions() {
+            const menu = document.getElementById('placeholder-suggestions');
+            if (menu) menu.style.display = 'none';
+        }
+
+        function replacePlaceholders(text, item, board) {
+            if (!text || !item) return text;
+            let result = text.replace(/{item_name}/g, item.name || '');
+            
+            // Match all {Column Name} patterns
+            const matches = result.match(/{([^}]+)}/g);
+            if (matches) {
+                matches.forEach(match => {
+                    const colTitle = match.substring(1, match.length - 1);
+                    const col = board.columns.find(c => c.title.toLowerCase() === colTitle.toLowerCase());
+                    if (col) {
+                        const rawVal = item.values[col.id] || '';
+                        let displayVal = rawVal;
+                        
+                        // Handle special column types for better display
+                        if (col.type === 'status') displayVal = state.statusOptions[rawVal]?.label || rawVal;
+                        else if (col.type === 'person') displayVal = rawVal;
+                        else if (col.type === 'date') displayVal = rawVal.replace(',', ' to ');
+                        
+                        result = result.replace(match, displayVal);
+                    }
+                });
+            }
+            return result;
+        }
+
+        async function executeAutomationAction(auto, board, item) {
+            if (!auto || !board || !item) return;
+            
+            // Log start
+            logAutomation(auto, board, item, 'pending', 'Evaluating trigger conditions...');
+
+            if (auto.actionType === 'move_to_group') {
+                const currentGroup = board.groups.find(g => g.items.some(i => i.id === item.id));
+                const targetGroup  = board.groups.find(g => g.id === auto.actionGroupId);
+                if (currentGroup && targetGroup && currentGroup.id !== targetGroup.id) {
+                    const idx = currentGroup.items.findIndex(i => i.id === item.id);
+                    targetGroup.items.push(currentGroup.items.splice(idx, 1)[0]);
+                    showToast(`⚡ Moved "${item.name}" to ${targetGroup.name}`);
+                    logAutomation(auto, board, item, 'success', `Moved to group: ${targetGroup.name}`);
+                    renderActiveBoard();
+                }
+            } else if (auto.actionType === 'set_status') {
+                item.values[auto.actionCol] = auto.actionValue;
+                logAutomation(auto, board, item, 'success', `Set ${auto.actionCol} to ${auto.actionValue}`);
+                renderActiveBoard();
+            } else if (auto.actionType === 'notify') {
+                if (!item.updates) item.updates = [];
+                const msg = replacePlaceholders(auto.actionMessage || 'Automated update', item, board);
+                item.updates.push({ id: 'auto_up_' + Date.now(), text: `⚡ ${msg}`, author: 'system', authorName: 'Automation', date: new Date().toISOString(), replies: [], reactions: {}, attachments: [] });
+                logAutomation(auto, board, item, 'success', 'Posted update to item');
+            } else if (auto.actionType === 'assign_person') {
+                item.values[auto.actionCol] = auto.actionValue === 'current' ? USER_ID : auto.actionValue;
+                logAutomation(auto, board, item, 'success', `Assigned to ${auto.actionValue}`);
+                renderActiveBoard();
+            } else if (auto.actionType === 'google_chat' && googleAccessToken) {
+                let message = auto.actionMessage || `⚡ Automation: ${item.name} updated on board ${board.name}`;
+                let mentions = [];
+                const ids = auto.actionMentionIds || (auto.actionMentionId ? [auto.actionMentionId] : []);
+                
+                let leaveNotes = [];
+                for (const id of ids) {
+                    if (id === 'all') {
+                        mentions.push('<users/all>');
+                    } else if (id) {
+                        mentions.push(`<users/${id}>`);
+                        const profile = state.googleChatMemberProfiles[id];
+                        if (profile?.email) {
+                            const status = await checkCalendarAvailability(profile.email);
+                            if (status.onLeave) {
+                                leaveNotes.push(`${profile.displayName || 'User'} is currently on leave (${status.summary || 'OOO'})`);
+                            }
+                        }
+                    }
+                }
+                
+                if (mentions.length > 0) message = mentions.join(' ') + ' ' + message;
+                if (leaveNotes.length > 0) message += `\n\n⚠️ *Leave Notice:* ${leaveNotes.join(', ')}`;
+                message = replacePlaceholders(message, item, board);
+
+                if (auto.actionSpaceId) {
+                    try {
+                        const r = await fetch(`https://chat.googleapis.com/v1/${auto.actionSpaceId}/messages`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${googleAccessToken}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text: message })
+                        });
+                        const resBody = await r.json().catch(() => ({}));
+                        if (r.ok) {
+                            showToast("✅ Posted to Google Chat");
+                            logAutomation(auto, board, item, 'success', 'Posted via Chat API');
+                        } else {
+                            logAutomation(auto, board, item, 'error', `Chat API failed: ${resBody.error?.message || 'Unknown'}`);
+                        }
+                    } catch (err) {
+                        logAutomation(auto, board, item, 'error', `Fetch error: ${err.message}`);
+                    }
+                } else if (auto.actionWebhookUrl) {
+                    try {
+                        const r = await fetch(auto.actionWebhookUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text: message })
+                        });
+                        if (r.ok) {
+                            showToast("✅ Posted to Google Chat (Webhook)");
+                            logAutomation(auto, board, item, 'success', 'Posted via Webhook');
+                        } else {
+                            logAutomation(auto, board, item, 'error', `Webhook failed: ${r.status}`);
+                        }
+                    } catch (err) {
+                        logAutomation(auto, board, item, 'error', `Webhook fetch error: ${err.message}`);
+                    }
+                }
+            } else if (auto.actionType === 'send_email' && googleAccessToken) {
+                const recipient = auto.actionEmail;
+                let subject = replacePlaceholders(auto.actionSubject || 'Automated Update', item, board);
+                let body = replacePlaceholders(auto.actionMessage || '', item, board);
+                
+                if (recipient) {
+                    const status = await checkCalendarAvailability(recipient);
+                    if (status.onLeave) body += `\n\n(Note: ${recipient} is currently on leave: ${status.summary || 'OOO'})`;
+                }
+                
+                const str = [
+                    'Content-Type: text/plain; charset="UTF-8"\n',
+                    'MIME-Version: 1.0\n',
+                    `To: ${recipient}\n`,
+                    `Subject: ${subject}\n\n`,
+                    body
+                ].join('');
+
+                const encodedMail = btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+                try {
+                    const r = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${googleAccessToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ raw: encodedMail })
+                    });
+                    const data = await r.json();
+                    if (data.id) {
+                        showToast("📧 Email sent via Gmail");
+                        logAutomation(auto, board, item, 'success', `Email sent to ${recipient}`);
+                    } else {
+                        logAutomation(auto, board, item, 'error', `Gmail Error: ${data.error?.message || 'Unknown'}`);
+                    }
+                } catch (err) {
+                    logAutomation(auto, board, item, 'error', `Gmail failed: ${err.message}`);
+                }
+            }
+        }
+
+        async function runAutomations(item, board, eventType) {
             if (!board?.automations?.length) return;
-            board.automations.forEach(auto => {
+            for (const auto of board.automations) {
                 if (!auto.active || auto.triggerType !== eventType) return;
                 let triggered = false;
                 if (eventType === 'status_change')   triggered = item.values[auto.triggerCol] === auto.triggerValue;
@@ -3273,134 +3912,89 @@
                 else if (eventType === 'percentage_100') triggered = parseFloat(item.values[auto.triggerCol]) >= 100;
                 else if (eventType === 'item_created')  triggered = true;
                 else if (eventType === 'text_contains') triggered = (item.values[auto.triggerCol]||'').toLowerCase().includes((auto.triggerValue||'').toLowerCase());
-                if (!triggered) return;
-
-                // Log start
-                logAutomation(auto, board, item, 'pending', 'Evaluating trigger conditions...');
-
-                if (auto.actionType === 'move_to_group') {
-                    const currentGroup = board.groups.find(g => g.items.some(i => i.id === item.id));
-                    const targetGroup  = board.groups.find(g => g.id === auto.actionGroupId);
-                    if (currentGroup && targetGroup && currentGroup.id !== targetGroup.id) {
-                        const idx = currentGroup.items.findIndex(i => i.id === item.id);
-                        targetGroup.items.push(currentGroup.items.splice(idx, 1)[0]);
-                        showToast(`⚡ Moved "${item.name}" to ${targetGroup.name}`);
-                        logAutomation(auto, board, item, 'success', `Moved to group: ${targetGroup.name}`);
-                    }
-                } else if (auto.actionType === 'set_status') {
-                    item.values[auto.actionCol] = auto.actionValue;
-                    logAutomation(auto, board, item, 'success', `Set ${auto.actionCol} to ${auto.actionValue}`);
-                } else if (auto.actionType === 'notify') {
-                    if (!item.updates) item.updates = [];
-                    item.updates.push({ id: 'auto_up_' + Date.now(), text: `⚡ ${auto.actionMessage || 'Automated update'}`, author: 'system', authorName: 'Automation', date: new Date().toISOString(), replies: [], reactions: {}, attachments: [] });
-                    logAutomation(auto, board, item, 'success', 'Posted update to item');
-                } else if (auto.actionType === 'assign_person') {
-                    item.values[auto.actionCol] = auto.actionValue === 'current' ? USER_ID : auto.actionValue;
-                    logAutomation(auto, board, item, 'success', `Assigned to ${auto.actionValue}`);
-                } else if (auto.actionType === 'google_chat' && googleAccessToken) {
-                    let message = auto.actionMessage || `⚡ Automation: ${item.name} updated on board ${board.name}`;
-                    
-                    // Add @mentions
-                    let mentions = [];
-                    const ids = auto.actionMentionIds || (auto.actionMentionId ? [auto.actionMentionId] : []);
-                    ids.forEach(id => {
-                        if (id === 'all') mentions.push('<users/all>');
-                        else if (id) mentions.push(`<${id}>`);
-                    });
-                    
-                    if (mentions.length > 0) message = mentions.join(' ') + ' ' + message;
-
-                    if (auto.actionSpaceId) {
-                        // Advanced API Post
-                        fetch(`https://chat.googleapis.com/v1/${auto.actionSpaceId}/messages`, {
-                            method: 'POST',
-                            headers: { 
-                                'Authorization': `Bearer ${googleAccessToken}`,
-                                'Content-Type': 'application/json' 
-                            },
-                            body: JSON.stringify({ text: message })
-                        }).then(async r => {
-                            const resBody = await r.json().catch(() => ({}));
-                            if (r.ok) {
-                                showToast("✅ Posted to Google Chat");
-                                logAutomation(auto, board, item, 'success', 'Posted via Chat API');
-                            } else {
-                                if (r.status === 401) showToast("⚠️ Google Chat session expired. Please re-connect.");
-                                logAutomation(auto, board, item, 'error', `Chat API failed (${r.status}): ${JSON.stringify(resBody)}`);
-                            }
-                        }).catch(err => {
-                            console.error("Google Chat API error", err);
-                            logAutomation(auto, board, item, 'error', `Fetch error: ${err.message}`);
-                        });
-                    } else if (auto.actionWebhookUrl) {
-                        // Legacy Webhook Fallback
-                        fetch(auto.actionWebhookUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ text: message })
-                        }).then(r => {
-                            if (r.ok) {
-                                showToast("✅ Posted to Google Chat (Webhook)");
-                                logAutomation(auto, board, item, 'success', 'Posted via Webhook');
-                            } else {
-                                logAutomation(auto, board, item, 'error', `Webhook failed with status ${r.status}`);
-                            }
-                        }).catch(err => {
-                            logAutomation(auto, board, item, 'error', `Webhook fetch error: ${err.message}`);
-                        });
-                    } else {
-                        logAutomation(auto, board, item, 'error', 'Missing Space ID or Webhook URL');
-                    }
+                if (triggered) {
+                    await executeAutomationAction(auto, board, item);
                 }
-            });
+            }
         }
 
-        function checkDateAutomations() {
+        async function checkDateAutomations() {
             const now = new Date();
             const todayStr = now.toISOString().split('T')[0];
             
-            state.boards.forEach(board => {
-                if (!board.automations) return;
-                board.automations.forEach(auto => {
-                    if (!auto.active) return;
+            for (const board of state.boards) {
+                if (!board.automations) continue;
+                for (const auto of board.automations) {
+                    if (!auto.active) continue;
 
                     // 1. Date Arrived Automations
                     if (auto.triggerType === 'date_arrived') {
-                        board.groups.forEach(group => group.items.forEach(item => {
-                            const dateVal = item.values[auto.triggerCol];
-                            if (!dateVal) return;
-                            const targetDate = new Date(dateVal);
-                            const interval = parseInt(auto.triggerInterval) || 0;
-                            targetDate.setDate(targetDate.getDate() - interval);
-                            
-                            if (targetDate.toISOString().split('T')[0] === todayStr) {
-                                if (!auto.lastRunDates) auto.lastRunDates = {};
-                                const key = `${item.id}_${todayStr}`;
-                                if (!auto.lastRunDates[key]) {
-                                    auto.lastRunDates[key] = true;
-                                    executeAutomationAction(auto, board, item);
-                                    queueCloudSync();
+                        for (const group of board.groups) {
+                            for (const item of group.items) {
+                                const dateVal = item.values[auto.triggerCol];
+                                if (!dateVal) continue;
+                                const targetDate = new Date(dateVal);
+                                const interval = parseInt(auto.triggerInterval) || 0;
+                                targetDate.setDate(targetDate.getDate() - interval);
+                                
+                                if (targetDate.toISOString().split('T')[0] === todayStr) {
+                                    if (!auto.lastRunDates) auto.lastRunDates = {};
+                                    const key = `${item.id}_${todayStr}`;
+                                    if (!auto.lastRunDates[key]) {
+                                        auto.lastRunDates[key] = true;
+                                        await executeAutomationAction(auto, board, item);
+                                        queueCloudSync();
+                                    }
                                 }
                             }
-                        }));
+                        }
                     }
 
                     // 2. Recurring (Scheduled) Automations
                     if (auto.triggerType === 'recurring') {
                         const interval = parseInt(auto.triggerInterval) || 1;
                         const unit = auto.triggerUnit || 'hours';
-                        let ms = interval * 60 * 60 * 1000;
-                        if (unit === 'minutes') ms = interval * 60 * 1000;
-                        if (unit === 'days') ms = interval * 24 * 60 * 60 * 1000;
-                        if (unit === 'weeks') ms = interval * 7 * 24 * 60 * 60 * 1000;
+                        const targetTime = auto.triggerTime; // e.g. "09:00"
 
+                        let shouldRun = false;
                         const lastRun = auto.lastRunTime ? new Date(auto.lastRunTime) : null;
-                        if (!lastRun || (now - lastRun) >= ms) {
+
+                        if (['days', 'weeks'].includes(unit) && targetTime) {
+                            const [tHour, tMin] = targetTime.split(':').map(Number);
+                            if (now.getHours() === tHour && now.getMinutes() === tMin) {
+                                // Only run if it hasn't run today
+                                if (!lastRun || lastRun.toISOString().split('T')[0] !== todayStr) {
+                                    shouldRun = true;
+                                }
+                            }
+                        } else {
+                            let ms = interval * 60 * 60 * 1000;
+                            if (unit === 'minutes') ms = interval * 60 * 1000;
+                            if (!lastRun || (now - lastRun) >= ms) {
+                                shouldRun = true;
+                            }
+                        }
+
+                        if (shouldRun) {
                             auto.lastRunTime = now.toISOString();
-                            if (['google_chat', 'notify'].includes(auto.actionType)) {
-                                executeAutomationAction(auto, board, { name: 'Board Summary' });
+                            const hasCondition = !!auto.triggerCol;
+                            
+                            if (['google_chat', 'notify', 'send_email'].includes(auto.actionType) && !hasCondition) {
+                                // Run once as a summary if no specific condition
+                                await executeAutomationAction(auto, board, { name: 'Board Summary', values: {} });
                             } else {
-                                board.groups.forEach(g => g.items.forEach(item => executeAutomationAction(auto, board, item)));
+                                // Run for all items or items matching condition
+                                for (const g of board.groups) {
+                                    for (const item of g.items) {
+                                        let met = true;
+                                        if (hasCondition) {
+                                            met = item.values[auto.triggerCol] === auto.triggerValue;
+                                        }
+                                        if (met) {
+                                            await executeAutomationAction(auto, board, item);
+                                        }
+                                    }
+                                }
                             }
                             queueCloudSync();
                         }
@@ -3410,39 +4004,56 @@
                     if (auto.triggerInterval && auto.triggerType !== 'recurring') {
                         const interval = parseInt(auto.triggerInterval);
                         const unit = auto.triggerUnit;
-                        let ms = interval * 60 * 60 * 1000;
-                        if (unit === 'minutes') ms = interval * 60 * 1000;
-                        if (unit === 'days') ms = interval * 24 * 60 * 60 * 1000;
+                        const targetTime = auto.triggerTime;
 
-                        board.groups.forEach(group => group.items.forEach(item => {
-                            let met = false;
-                            if (auto.triggerType === 'status_change') met = item.values[auto.triggerCol] === auto.triggerValue;
-                            else if (auto.triggerType === 'text_contains') met = (item.values[auto.triggerCol]||'').includes(auto.triggerValue);
-                            else if (auto.triggerType === 'number_reaches') {
-                                const val = parseFloat(item.values[auto.triggerCol]) || 0;
-                                const threshold = parseFloat(auto.triggerValue) || 0;
-                                met = auto.operator === 'gte' ? val >= threshold : val <= threshold;
-                            } else if (auto.triggerType === 'person_assigned') met = !!item.values[auto.triggerCol];
+                        for (const group of board.groups) {
+                            for (const item of group.items) {
+                                let met = false;
+                                if (auto.triggerType === 'status_change') met = item.values[auto.triggerCol] === auto.triggerValue;
+                                else if (auto.triggerType === 'text_contains') met = (item.values[auto.triggerCol]||'').toLowerCase().includes((auto.triggerValue||'').toLowerCase());
+                                else if (auto.triggerType === 'number_reaches') {
+                                    const val = parseFloat(item.values[auto.triggerCol]) || 0;
+                                    const threshold = parseFloat(auto.triggerValue) || 0;
+                                    met = auto.operator === 'gte' ? val >= threshold : val <= threshold;
+                                } else if (auto.triggerType === 'person_assigned') met = !!item.values[auto.triggerCol];
 
-                            if (met) {
-                                if (!auto.lastNagRuns) auto.lastNagRuns = {};
-                                const lastNag = auto.lastNagRuns[item.id] ? new Date(auto.lastNagRuns[item.id]) : null;
-                                if (!lastNag || (now - lastNag) >= ms) {
-                                    auto.lastNagRuns[item.id] = now.toISOString();
-                                    executeAutomationAction(auto, board, item);
-                                    queueCloudSync();
+                                if (met) {
+                                    if (!auto.lastNagRuns) auto.lastNagRuns = {};
+                                    const lastNag = auto.lastNagRuns[item.id] ? new Date(auto.lastNagRuns[item.id]) : null;
+                                    
+                                    let shouldNag = false;
+                                    if (unit === 'days' && targetTime) {
+                                        const [tHour, tMin] = targetTime.split(':').map(Number);
+                                        if (now.getHours() === tHour && now.getMinutes() === tMin) {
+                                            if (!lastNag || lastNag.toISOString().split('T')[0] !== todayStr) {
+                                                shouldNag = true;
+                                            }
+                                        }
+                                    } else {
+                                        let ms = interval * 60 * 60 * 1000;
+                                        if (unit === 'minutes') ms = interval * 60 * 1000;
+                                        if (!lastNag || (now - lastNag) >= ms) {
+                                            shouldNag = true;
+                                        }
+                                    }
+
+                                    if (shouldNag) {
+                                        auto.lastNagRuns[item.id] = now.toISOString();
+                                        await executeAutomationAction(auto, board, item);
+                                        queueCloudSync();
+                                    }
+                                } else if (auto.lastNagRuns && auto.lastNagRuns[item.id]) {
+                                    delete auto.lastNagRuns[item.id];
                                 }
-                            } else if (auto.lastNagRuns && auto.lastNagRuns[item.id]) {
-                                delete auto.lastNagRuns[item.id];
                             }
-                        }));
+                        }
                     }
-                });
-            });
+                }
+            }
         }
 
 
-                function handleColumnNameInput(value) {
+        function handleColumnNameInput(value) {
             const typeSelect = document.getElementById('new-column-type');
             const lower = value.toLowerCase();
             if (lower.includes('last update') || lower.includes('updated')) {
@@ -3612,7 +4223,8 @@
 
         // --- Updates Modal ---
         let currentUpdatesItem = null;
-        function openUpdatesModal(boardId, groupId, itemId) {
+        let currentUpdateTab = 'updates';
+        async function openUpdatesModal(boardId, groupId, itemId) {
             const board = state.boards.find(b => b.id === boardId);
             const group = board?.groups.find(g => g.id === groupId);
             const item = group?.items.find(i => i.id === itemId);
@@ -3620,12 +4232,90 @@
 
             currentUpdatesItem = { boardId, groupId, itemId };
             updateUrlParams({ boardId, itemId });
-            document.getElementById('updates-item-name').innerText = item.name;
+            
+            // Clean up old modal if exists
+            const old = document.getElementById('updates-modal-overlay');
+            if(old) old.remove();
+
+            const modal = document.createElement('div');
+            modal.id = 'updates-modal-overlay';
+            modal.className = 'modal-overlay show';
+            modal.innerHTML = `
+                <div class="modal-content" style="width: 700px; height: 85vh; display: flex; flex-direction: column; padding: 0; overflow: hidden;">
+                    <div class="modal-header" style="padding: 20px; border-bottom: 1px solid var(--border-color);">
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <h2 style="margin:0; font-size:18px;" id="updates-item-name">${item.name}</h2>
+                            <span style="font-size:12px; color:var(--text-muted);">${board.name} > ${group.name}</span>
+                        </div>
+                        <button class="btn-icon" onclick="closeUpdatesModal()"><i data-lucide="x"></i></button>
+                    </div>
+
+                    <div style="display:flex; border-bottom:1px solid var(--border-color); background: var(--bg-surface); padding: 0 20px;">
+                        <div id="tab-btn-updates" class="builder-tab active" style="padding:15px 20px; cursor:pointer; font-weight:500;" onclick="switchItemTab('updates')">Updates</div>
+                        <div id="tab-btn-activity" class="builder-tab" style="padding:15px 20px; cursor:pointer; font-weight:500;" onclick="switchItemTab('activity')">Activity Log</div>
+                    </div>
+
+                    <div id="updates-body-container" style="flex: 1; overflow-y: auto; padding: 20px;">
+                        <div id="updates-body"></div>
+                        <div id="activity-body" style="display:none;"></div>
+                    </div>
+
+                    <div id="updates-footer" style="padding: 20px; border-top: 1px solid var(--border-color); background: var(--bg-surface);">
+                        <div style="display: flex; gap: 10px;">
+                            <textarea id="new-update-text" placeholder="Write an update..." style="flex: 1; height: 80px; background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 6px; padding: 10px; outline: none; font-family: inherit; font-size: 14px; resize: none;"></textarea>
+                            <button class="btn-save" onclick="postUpdate()" style="align-self: flex-end; padding: 10px 24px;">Post</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            window.switchItemTab = (tab) => {
+                currentUpdateTab = tab;
+                document.getElementById('tab-btn-updates').classList.toggle('active', tab === 'updates');
+                document.getElementById('tab-btn-activity').classList.toggle('active', tab === 'activity');
+                document.getElementById('updates-body').style.display = tab === 'updates' ? 'block' : 'none';
+                document.getElementById('activity-body').style.display = tab === 'activity' ? 'block' : 'none';
+                document.getElementById('updates-footer').style.display = tab === 'updates' ? 'block' : 'none';
+                
+                if(tab === 'updates') renderUpdatesList(item);
+                else renderItemActivityLog(item);
+            };
+
             renderUpdatesList(item);
-            document.getElementById('updates-modal').classList.add('show');
+            lucide.createIcons({ nameAttr: 'data-lucide', container: modal });
         }
+
+        function renderItemActivityLog(item) {
+            const container = document.getElementById('activity-body');
+            container.innerHTML = '';
+            if(!item.activityLog || item.activityLog.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:var(--text-muted); margin-top:50px;">No activity recorded yet.</div>';
+                return;
+            }
+
+            item.activityLog.forEach(log => {
+                const div = document.createElement('div');
+                div.style.cssText = 'padding:15px; border-bottom:1px solid var(--border-color); font-size:13px;';
+                
+                div.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                        <span style="font-weight:600; color:var(--primary-blue); font-size:14px;">${log.action}</span>
+                        <span style="font-size:11px; color:var(--text-muted);">${new Date(log.timestamp).toLocaleString()}</span>
+                    </div>
+                    <div style="color:var(--text-main); line-height:1.4;">
+                        ${log.oldValue ? `<span style="color:var(--text-muted); text-decoration:line-through; font-size:12px; margin-right:8px;">${log.oldValue}</span>` : ''}
+                        <span style="font-weight:500;">${log.newValue || ''}</span>
+                    </div>
+                    <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Changed by You</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
         function closeUpdatesModal() {
-            document.getElementById('updates-modal').classList.remove('show');
+            const modal = document.getElementById('updates-modal-overlay');
+            if(modal) modal.remove();
             updateUrlParams({ boardId: state.activeBoardId, itemId: null });
             currentUpdatesItem = null;
         }
