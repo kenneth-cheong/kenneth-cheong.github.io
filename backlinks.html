@@ -966,13 +966,37 @@
                             </div>
                             <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: 4px;">Aggregation of backlink costs and quantities at [BD] Sales > Campaign > Month levels.</p>
                         </div>
-                        <div style="display: flex; gap: 12px; align-items: center;">
+                        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
                             <button class="btn btn-secondary" onclick="toggleElement('bulkPricingPanel')" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);">
                                 <i class="fas fa-money-bill-wave"></i> Bulk Pricing Update
                             </button>
-                            <div class="search-input-wrapper" style="position: relative;">
-                                <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim);"></i>
-                                <input type="text" id="costSearch" placeholder="Search BD or Campaign..." oninput="renderCostManagement()" style="padding: 8px 12px 8px 36px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: white; width: 250px;">
+                            <div id="costMultiSelect" style="position: relative; width: 250px;">
+                                <div onclick="toggleCostMultiSelect()" style="padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: white; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+                                    <span id="costMultiSelectLabel" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">All BDs & Campaigns</span>
+                                    <i class="fas fa-chevron-down" style="font-size: 0.75rem; color: var(--text-dim);"></i>
+                                </div>
+                                <div id="costMultiSelectDropdown" style="display: none; position: absolute; top: 100%; left: 0; width: 320px; background: #0f172a; border: 1px solid var(--border); border-radius: 8px; margin-top: 4px; z-index: 1000; padding: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); border: 1px solid rgba(255,255,255,0.1);">
+                                    <input type="text" id="costMultiSearch" placeholder="Search BD or Campaign..." oninput="filterCostMultiOptions()" style="width: 100%; padding: 8px 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; color: white; margin-bottom: 12px; font-size: 0.85rem; outline: none;">
+                                    <div style="display: flex; gap: 15px; margin-bottom: 12px; font-size: 0.75rem; padding: 0 4px;">
+                                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--primary-light);" onclick="selectAllCostMulti(true)">
+                                            <i class="fas fa-check-double"></i> Select All
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-dim);" onclick="selectAllCostMulti(false)">
+                                            <i class="fas fa-times"></i> Clear All
+                                        </label>
+                                    </div>
+                                    <div id="costMultiOptions" style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding-right: 4px;" class="custom-scrollbar">
+                                        <!-- Dynamic Options -->
+                                    </div>
+                                </div>
+                            </div>
+                            <select id="costVendorFilter" onchange="refreshCostView()" style="padding: 8px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: white; width: 180px;">
+                                <option value="">All Vendors</option>
+                            </select>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="month" id="costStartMonth" onchange="refreshCostView()" style="padding: 7px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: white; font-size: 0.85rem;">
+                                <span style="color: var(--text-dim);">to</span>
+                                <input type="month" id="costEndMonth" onchange="refreshCostView()" style="padding: 7px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: white; font-size: 0.85rem;">
                             </div>
                         </div>
                     </div>
@@ -2059,6 +2083,15 @@
                 if (months.includes(currentStart)) startMonthSel.value = currentStart;
                 if (months.includes(currentEnd)) endMonthSel.value = currentEnd;
             }
+
+            // 7. Update Cost Management Vendor Filter
+            const costVendorFilter = document.getElementById('costVendorFilter');
+            if (costVendorFilter) {
+                const current = costVendorFilter.value;
+                costVendorFilter.innerHTML = '<option value="">All Vendors</option>' + 
+                    vendors.map(v => `<option value="${v}">${v}</option>`).join('');
+                costVendorFilter.value = current;
+            }
         }
 
         async function createOrder() {
@@ -2165,11 +2198,159 @@
             }
         }
 
+        function toggleCostMultiSelect() {
+            const dropdown = document.getElementById('costMultiSelectDropdown');
+            const isVisible = dropdown.style.display === 'block';
+            dropdown.style.display = isVisible ? 'none' : 'block';
+            if (!isVisible) {
+                populateCostMultiOptions();
+                document.getElementById('costMultiSearch').focus();
+            }
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            const container = document.getElementById('costMultiSelect');
+            const dropdown = document.getElementById('costMultiSelectDropdown');
+            if (container && !container.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        function populateCostMultiOptions() {
+            const optionsContainer = document.getElementById('costMultiOptions');
+            if (!optionsContainer) return;
+
+            // Get unique BDs and Campaigns
+            const bds = [...new Set(state.mondayItems.map(item => {
+                const cv = (item.column_values || []).find(v => v.id === 'people');
+                return cv ? (cv.text || cv.value) : null;
+            }).filter(v => v && v !== 'N/A'))].sort();
+
+            const campaigns = [...new Set(state.mondayItems.map(item => item.name).filter(v => v))].sort();
+
+            if (!state.selectedCostItems) state.selectedCostItems = [];
+
+            let html = '';
+            
+            // BDs Section
+            if (bds.length > 0) {
+                html += '<div style="font-size: 0.7rem; color: var(--primary-light); text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 4px 4px 4px; font-weight: 600;">Business Developers</div>';
+                bds.forEach(bd => {
+                    const checked = state.selectedCostItems.includes(`bd:${bd}`);
+                    html += `
+                        <label style="display: flex; align-items: center; gap: 10px; padding: 6px 8px; cursor: pointer; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+                            <input type="checkbox" class="cost-multi-check" data-type="bd" data-value="${bd}" ${checked ? 'checked' : ''} onchange="toggleCostMultiItem(this)" style="accent-color: var(--primary);">
+                            <span style="font-size: 0.85rem; color: #cbd5e1;">${bd}</span>
+                        </label>
+                    `;
+                });
+            }
+
+            // Campaigns Section
+            if (campaigns.length > 0) {
+                html += '<div style="font-size: 0.7rem; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.05em; padding: 12px 4px 4px 4px; font-weight: 600;">Campaigns</div>';
+                campaigns.forEach(camp => {
+                    const checked = state.selectedCostItems.includes(`camp:${camp}`);
+                    html += `
+                        <label style="display: flex; align-items: center; gap: 10px; padding: 6px 8px; cursor: pointer; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+                            <input type="checkbox" class="cost-multi-check" data-type="camp" data-value="${camp}" ${checked ? 'checked' : ''} onchange="toggleCostMultiItem(this)" style="accent-color: var(--secondary);">
+                            <span style="font-size: 0.85rem; color: #cbd5e1;">${camp}</span>
+                        </label>
+                    `;
+                });
+            }
+
+            optionsContainer.innerHTML = html;
+            updateCostMultiLabel();
+        }
+
+        function filterCostMultiOptions() {
+            const term = document.getElementById('costMultiSearch').value.toLowerCase();
+            const labels = document.querySelectorAll('#costMultiOptions label');
+            const headers = document.querySelectorAll('#costMultiOptions div[style*="uppercase"]');
+            
+            labels.forEach(label => {
+                const text = label.textContent.toLowerCase();
+                label.style.display = text.includes(term) ? 'flex' : 'none';
+            });
+
+            // Hide headers if no children are visible
+            headers.forEach(header => {
+                let next = header.nextElementSibling;
+                let hasVisible = false;
+                while (next && next.tagName === 'LABEL') {
+                    if (next.style.display !== 'none') {
+                        hasVisible = true;
+                        break;
+                    }
+                    next = next.nextElementSibling;
+                }
+                header.style.display = hasVisible ? 'block' : 'none';
+            });
+        }
+
+        function toggleCostMultiItem(checkbox) {
+            const type = checkbox.getAttribute('data-type');
+            const value = checkbox.getAttribute('data-value');
+            const key = `${type}:${value}`;
+
+            if (!state.selectedCostItems) state.selectedCostItems = [];
+
+            if (checkbox.checked) {
+                if (!state.selectedCostItems.includes(key)) state.selectedCostItems.push(key);
+            } else {
+                state.selectedCostItems = state.selectedCostItems.filter(item => item !== key);
+            }
+            
+            updateCostMultiLabel();
+            refreshCostView();
+        }
+
+        function selectAllCostMulti(select) {
+            const checkboxes = document.querySelectorAll('.cost-multi-check');
+            state.selectedCostItems = [];
+            checkboxes.forEach(cb => {
+                cb.checked = select;
+                if (select) {
+                    const type = cb.getAttribute('data-type');
+                    const value = cb.getAttribute('data-value');
+                    state.selectedCostItems.push(`${type}:${value}`);
+                }
+            });
+            updateCostMultiLabel();
+            refreshCostView();
+        }
+
+        function updateCostMultiLabel() {
+            const label = document.getElementById('costMultiSelectLabel');
+            if (!state.selectedCostItems || state.selectedCostItems.length === 0) {
+                label.innerText = 'All BDs & Campaigns';
+                label.style.color = 'var(--text-dim)';
+            } else {
+                label.innerText = `${state.selectedCostItems.length} selected`;
+                label.style.color = 'white';
+            }
+        }
+
+        function refreshCostView() {
+            renderCostManagement();
+            if (document.getElementById('costChartContainer').style.display !== 'none') {
+                renderCostCharts();
+            }
+        }
+
         function renderCostManagement() {
             const container = document.getElementById('costContainer');
             if (!container) return;
 
-            const searchTerm = (document.getElementById('costSearch')?.value || '').toLowerCase();
+            const selectedItems = state.selectedCostItems || [];
+            const selectedBDs = selectedItems.filter(i => i.startsWith('bd:')).map(i => i.split(':')[1]);
+            const selectedCamps = selectedItems.filter(i => i.startsWith('camp:')).map(i => i.split(':')[1]);
+
+            const vendorFilter = document.getElementById('costVendorFilter')?.value || '';
+            const startMonth = document.getElementById('costStartMonth')?.value || '';
+            const endMonth = document.getElementById('costEndMonth')?.value || '';
 
             // 1. Build skeleton from Monday Items (Campaign Info Repository)
             const aggregated = {};
@@ -2184,7 +2365,17 @@
                 if (bd === 'N/A' || !bd) bd = 'Unknown';
                 const campaign = item.name || 'Unnamed Campaign';
                 
-                if (searchTerm && !bd.toLowerCase().includes(searchTerm) && !campaign.toLowerCase().includes(searchTerm)) return;
+                // Filter by multi-select
+                const isBDSelected = selectedBDs.length === 0 || selectedBDs.includes(bd);
+                const isCampSelected = selectedCamps.length === 0 || selectedCamps.includes(campaign);
+                
+                if (selectedBDs.length > 0 && selectedCamps.length > 0) {
+                    if (!isBDSelected || !isCampSelected) return;
+                } else if (selectedBDs.length > 0) {
+                    if (!isBDSelected) return;
+                } else if (selectedCamps.length > 0) {
+                    if (!isCampSelected) return;
+                }
 
                 if (!aggregated[bd]) aggregated[bd] = { campaigns: {}, totalQty: 0, totalCost: 0 };
                 if (!aggregated[bd].campaigns[campaign]) {
@@ -2196,11 +2387,18 @@
             state.backlinks.forEach(b => {
                 if (b.deleted) return;
                 
+                const vName = b.vendorName || 'Unknown';
+                if (vendorFilter && vName !== vendorFilter) return;
+
+                const date = new Date(b.createdAt);
+                const monthSortKey = date.toISOString().substring(0, 7);
+
+                if (startMonth && monthSortKey < startMonth) return;
+                if (endMonth && monthSortKey > endMonth) return;
+
                 let bd = b.bd || 'Unknown';
                 const campaign = b.campaignName || 'N/A';
-                const date = new Date(b.createdAt);
                 const month = date.toLocaleString('default', { month: 'long', year: 'numeric' });
-                const monthSortKey = date.toISOString().substring(0, 7);
                 
                 // Reconcile BD if needed
                 if (bd === 'Unknown' || bd === 'N/A') {
@@ -2212,7 +2410,22 @@
                     }
                 }
 
-                if (searchTerm && !bd.toLowerCase().includes(searchTerm) && !campaign.toLowerCase().includes(searchTerm)) return;
+                // Filter by multi-select
+                const isBDSelected = selectedBDs.length === 0 || selectedBDs.includes(bd);
+                const isCampSelected = selectedCamps.length === 0 || selectedCamps.includes(campaign);
+                
+                if (selectedBDs.length > 0 && selectedCamps.length > 0) {
+                    // If both are filtered, use AND logic (or OR? Usually users want items belonging to this BD OR this specific campaign)
+                    // Let's use OR for maximum flexibility, or AND for precise filtering.
+                    // Actually, if I select BD "A" and Campaign "B", I probably want to see (all of A) OR (specifically B).
+                    // But if I want to see "Campaign B which belongs to BD A", that's AND.
+                    // Given the structure, AND is more intuitive for a multi-filter.
+                    if (!isBDSelected || !isCampSelected) return;
+                } else if (selectedBDs.length > 0) {
+                    if (!isBDSelected) return;
+                } else if (selectedCamps.length > 0) {
+                    if (!isCampSelected) return;
+                }
 
                 if (!aggregated[bd]) aggregated[bd] = { campaigns: {}, totalQty: 0, totalCost: 0 };
                 if (!aggregated[bd].campaigns[campaign]) aggregated[bd].campaigns[campaign] = { months: {}, totalQty: 0, totalCost: 0 };
@@ -2221,7 +2434,7 @@
                     aggregated[bd].campaigns[campaign].months[month] = { qty: 0, cost: 0, sortKey: monthSortKey, vendorData: {} };
                 }
 
-                const vName = b.vendorName || 'Unknown';
+
                 if (!aggregated[bd].campaigns[campaign].months[month].vendorData[vName]) {
                     aggregated[bd].campaigns[campaign].months[month].vendorData[vName] = { qty: 0, cost: 0 };
                 }
@@ -2370,20 +2583,44 @@
                 return;
             }
 
-            const searchTerm = (document.getElementById('costSearch')?.value || '').toLowerCase();
+            const selectedItems = state.selectedCostItems || [];
+            const selectedBDs = selectedItems.filter(i => i.startsWith('bd:')).map(i => i.split(':')[1]);
+            const selectedCamps = selectedItems.filter(i => i.startsWith('camp:')).map(i => i.split(':')[1]);
+            
+            const vendorFilter = document.getElementById('costVendorFilter')?.value || '';
+            const startMonth = document.getElementById('costStartMonth')?.value || '';
+            const endMonth = document.getElementById('costEndMonth')?.value || '';
+
             const monthlyData = {};
             const bdData = {};
             
             state.backlinks.forEach(b => {
                 if (b.deleted) return;
                 
+                const vName = b.vendorName || 'Unknown';
+                if (vendorFilter && vName !== vendorFilter) return;
+
                 const cost = parseFloat(b.cost) || 0;
                 const date = new Date(b.createdAt);
                 const monthKey = date.toISOString().substring(0, 7); // YYYY-MM
-                const bd = b.bd || 'Unknown';
-                const campaign = (b.campaignName || '').toLowerCase();
+                
+                if (startMonth && monthKey < startMonth) return;
+                if (endMonth && monthKey > endMonth) return;
 
-                if (searchTerm && !bd.toLowerCase().includes(searchTerm) && !campaign.includes(searchTerm)) return;
+                const bd = b.bd || 'Unknown';
+                const campaign = b.campaignName || 'N/A';
+
+                // Filter by multi-select
+                const isBDSelected = selectedBDs.length === 0 || selectedBDs.includes(bd);
+                const isCampSelected = selectedCamps.length === 0 || selectedCamps.includes(campaign);
+                
+                if (selectedBDs.length > 0 && selectedCamps.length > 0) {
+                    if (!isBDSelected || !isCampSelected) return;
+                } else if (selectedBDs.length > 0) {
+                    if (!isBDSelected) return;
+                } else if (selectedCamps.length > 0) {
+                    if (!isCampSelected) return;
+                }
                 
                 monthlyData[monthKey] = (monthlyData[monthKey] || 0) + cost;
                 bdData[bd] = (bdData[bd] || 0) + cost;
