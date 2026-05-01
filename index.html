@@ -10087,10 +10087,27 @@
                             <i class="fas fa-sync"></i> Refresh
                         </button>
                     </div>
-                    <p style="font-size: 13px; color: #64748b; margin-bottom: 15px;">
+                    <p style="font-size: 13px; color: #64748b; margin-bottom: 12px;">
                         Select the spaces where users should be added.
                     </p>
-                    <div id="adminSpacesList" style="flex: 1; overflow-y: auto; max-height: 300px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
+
+                    <!-- Search + bulk actions -->
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
+                        <div style="position: relative; flex: 1;">
+                            <i class="fas fa-search" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 12px;"></i>
+                            <input type="text" id="adminSpacesSearch" placeholder="Search spaces…"
+                                oninput="filterAdminSpaces(this.value)"
+                                style="width: 100%; padding: 7px 10px 7px 30px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px; color: #1e293b; box-sizing: border-box; outline: none;">
+                        </div>
+                        <button class="discovery-btn-secondary" style="padding: 6px 10px; font-size: 11px; white-space: nowrap;" onclick="selectAllAdminSpaces()">
+                            <i class="fas fa-check-square"></i> All
+                        </button>
+                        <button class="discovery-btn-secondary" style="padding: 6px 10px; font-size: 11px; white-space: nowrap;" onclick="deselectAllAdminSpaces()">
+                            <i class="fas fa-square"></i> None
+                        </button>
+                    </div>
+
+                    <div id="adminSpacesList" style="flex: 1; overflow-y: auto; max-height: 270px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
                         <p style="text-align: center; color: #94a3b8; font-size: 13px; padding: 20px;">
                             Connect Google and refresh to list spaces.
                         </p>
@@ -23292,13 +23309,17 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         }
 
         function renderAdminSpacesList() {
+            // Clear search box whenever the list is (re)built
+            const searchEl = document.getElementById('adminSpacesSearch');
+            if (searchEl) searchEl.value = '';
+
             const list = document.getElementById('adminSpacesList');
             if (!adminSpaces.length) {
                 list.innerHTML = '<p style="text-align: center; color: #94a3b8; font-size: 13px; padding: 20px;">No spaces found.</p>';
                 return;
             }
             list.innerHTML = adminSpaces.map(space => `
-                <label style="display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.2s;">
+                <label class="admin-space-row" style="display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.2s;" data-name="${(space.displayName || '').toLowerCase()}">
                     <input type="checkbox" class="admin-space-cb" value="${space.name}">
                     <div style="flex: 1;">
                         <div style="font-weight: 600; font-size: 13px; color: #1e293b;">${space.displayName || 'Unnamed Space'}</div>
@@ -23307,6 +23328,32 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     <span style="font-size: 10px; background: #dbeafe; color: #1d4ed8; padding: 2px 6px; border-radius: 10px; white-space: nowrap;">${space.spaceType || 'SPACE'}</span>
                 </label>
             `).join('');
+        }
+
+        function filterAdminSpaces(query) {
+            const q = query.toLowerCase().trim();
+            document.querySelectorAll('.admin-space-row').forEach(row => {
+                const name = row.getAttribute('data-name') || '';
+                row.style.display = (!q || name.includes(q)) ? '' : 'none';
+            });
+        }
+
+        function selectAllAdminSpaces() {
+            document.querySelectorAll('.admin-space-row').forEach(row => {
+                if (row.style.display !== 'none') {
+                    const cb = row.querySelector('.admin-space-cb');
+                    if (cb) cb.checked = true;
+                }
+            });
+        }
+
+        function deselectAllAdminSpaces() {
+            document.querySelectorAll('.admin-space-row').forEach(row => {
+                if (row.style.display !== 'none') {
+                    const cb = row.querySelector('.admin-space-cb');
+                    if (cb) cb.checked = false;
+                }
+            });
         }
 
         function adminLog(msg, type = 'info') {
