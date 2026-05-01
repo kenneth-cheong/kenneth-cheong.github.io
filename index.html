@@ -10056,6 +10056,9 @@
                 <button onclick="switchAdminTab('monday')" id="tabBtnMonday" class="admin-tab-btn" style="background: none; border: none; font-size: 1.1rem; font-weight: 600; color: #64748b; cursor: pointer; padding: 10px 20px; border-bottom: 3px solid transparent; transition: all 0.2s;">
                     <img src="https://monday.com/favicon.ico" style="height: 18px; vertical-align: middle; margin-top: -3px; margin-right: 5px;"> Monday.com
                 </button>
+                <button onclick="switchAdminTab('synology')" id="tabBtnSynology" class="admin-tab-btn" style="display: none; background: none; border: none; font-size: 1.1rem; font-weight: 600; color: #64748b; cursor: pointer; padding: 10px 20px; border-bottom: 3px solid transparent; transition: all 0.2s;">
+                    <i class="fas fa-hdd"></i> Synology NAS
+                </button>
             </div>
 
             <!-- Google Chat Panel -->
@@ -10225,6 +10228,60 @@
                     </button>
                 </div>
             </div> <!-- End Monday Panel -->
+
+            <!-- Synology Panel -->
+            <div id="adminPanelSynology" style="display: none;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                    <!-- Connection Settings -->
+                    <div class="premium-table-wrapper" style="padding: 30px; background: white;">
+                        <h3 style="margin-top: 0; color: #1e293b; display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-network-wired" style="color: #2563eb;"></i> NAS Connection
+                        </h3>
+                        <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">
+                            Enter your Synology NAS details to connect via API.
+                        </p>
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="synologyUrl" value="https://mediaonenas.sg3.quickconnect.to" style="flex: 1; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                <input type="text" id="synologyPort" value="5001" style="width: 80px; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                            </div>
+                            <input type="text" id="synologyAdminUser" placeholder="Admin Username" style="padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                            <input type="password" id="synologyAdminPass" placeholder="Admin Password" style="padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                            
+                            <button class="discovery-btn-run" onclick="loginSynology()" style="margin-top: 10px;">
+                                <i class="fas fa-sign-in-alt"></i> Connect & Authorize
+                            </button>
+                            <div id="synologyAuthStatus" style="font-size: 12px; color: #64748b; margin-top: 5px;">
+                                <i class="fas fa-info-circle"></i> Not authenticated.
+                            </div>
+
+                            <div style="margin-top: 15px; padding: 12px; background: #fff7ed; border: 1px solid #ffedd5; border-radius: 8px; font-size: 12px; color: #9a3412;">
+                                <strong><i class="fas fa-exclamation-triangle"></i> CORS Note:</strong> Browser security may block requests to your local NAS. You may need a "CORS Unblock" extension or run this console locally.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Create User Form -->
+                    <div class="premium-table-wrapper" style="padding: 30px; background: white;">
+                        <h3 style="margin-top: 0; color: #1e293b; display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-user-plus" style="color: #10b981;"></i> Create New User
+                        </h3>
+                        <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">
+                            Add a new user account to your Synology NAS.
+                        </p>
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <input type="text" id="synoNewUsername" placeholder="New Username (e.g. john_doe)" style="padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                            <input type="password" id="synoNewPassword" placeholder="New Password" style="padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                            <input type="text" id="synoNewFullName" placeholder="Full Name (Optional)" style="padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                            <input type="email" id="synoNewEmail" placeholder="Email Address (Optional)" style="padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                            
+                            <button id="btnCreateSynoUser" class="discovery-btn-run" onclick="createSynologyUser()" style="margin-top: 10px; background: #10b981; border-color: #10b981;">
+                                <i class="fas fa-plus-circle"></i> Create User
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div> <!-- End Synology Panel -->
 
             <!-- Log Section -->
             <div id="adminLogSection" class="premium-table-wrapper" style="padding: 30px; margin-top: 30px; background: #0f172a; color: #e2e8f0; display: none;">
@@ -23768,18 +23825,24 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             
             document.getElementById('adminPanelGoogle').style.display = 'none';
             document.getElementById('adminPanelMonday').style.display = 'none';
+            document.getElementById('adminPanelSynology').style.display = 'none';
             
             if (platform === 'google') {
                 document.getElementById('tabBtnGoogle').classList.add('active');
                 document.getElementById('tabBtnGoogle').style.color = '#2563eb';
                 document.getElementById('tabBtnGoogle').style.borderBottomColor = '#2563eb';
                 document.getElementById('adminPanelGoogle').style.display = 'block';
-            } else {
+            } else if (platform === 'monday') {
                 document.getElementById('tabBtnMonday').classList.add('active');
                 document.getElementById('tabBtnMonday').style.color = '#2563eb';
                 document.getElementById('tabBtnMonday').style.borderBottomColor = '#2563eb';
                 document.getElementById('adminPanelMonday').style.display = 'block';
                 if (adminMondayBoards.length === 0) fetchMondayBoards();
+            } else if (platform === 'synology') {
+                document.getElementById('tabBtnSynology').classList.add('active');
+                document.getElementById('tabBtnSynology').style.color = '#2563eb';
+                document.getElementById('tabBtnSynology').style.borderBottomColor = '#2563eb';
+                document.getElementById('adminPanelSynology').style.display = 'block';
             }
         }
 
@@ -23999,6 +24062,135 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 document.getElementById('btnMondayBulkRemove').disabled = false;
                 document.getElementById('btnMondayBulkRemove').innerHTML = '<i class="fas fa-user-minus"></i> Run Bulk Remove';
             }
+        }
+
+        // --- Synology Admin Logic ---
+        let synologySid = null;
+        const SYNO_PROXY_URL = "https://el3m52guoi.execute-api.ap-southeast-1.amazonaws.com/synology"; 
+
+        async function synologyProxyCall(targetUrl) {
+            if (!SYNO_PROXY_URL) {
+                adminLog("⚠️ SYNO_PROXY_URL is not set. Please deploy the Lambda and update the code.", 'error');
+                throw new Error("Proxy URL missing");
+            }
+            const response = await fetch(SYNO_PROXY_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: targetUrl })
+            });
+            const raw = await response.json();
+
+            // API Gateway wraps Lambda output in { statusCode, headers, body: "..." }
+            // We need to unwrap the 'body' field to get the actual Synology JSON.
+            if (raw && raw.body !== undefined) {
+                return typeof raw.body === 'string' ? JSON.parse(raw.body) : raw.body;
+            }
+            // If no wrapper, return as-is
+            return raw;
+        }
+
+        async function loginSynology() {
+            const baseUrl = document.getElementById('synologyUrl').value.trim();
+            const port = document.getElementById('synologyPort').value.trim();
+            const user = document.getElementById('synologyAdminUser').value.trim();
+            const pass = document.getElementById('synologyAdminPass').value.trim();
+
+            if (!baseUrl || !user || !pass) {
+                alert("Please fill in all connection details.");
+                return;
+            }
+
+            // QuickConnect relay only works on port 443 (standard HTTPS).
+            // Do NOT append a port number — it will cause a connection failure from Lambda.
+            const url = `${baseUrl}/webapi/auth.cgi?api=SYNO.API.Auth&version=3&method=login&account=${encodeURIComponent(user)}&passwd=${encodeURIComponent(pass)}&session=UserAccount&format=cookie`;
+            
+            adminLog(`🔑 Authenticating with Synology NAS via Proxy...`);
+            document.getElementById('synologyAuthStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
+
+            try {
+                const data = await synologyProxyCall(url);
+
+                if (data.success) {
+                    synologySid = data.data.sid;
+                    document.getElementById('synologyAuthStatus').innerHTML = `<span style="color: #10b981;"><i class="fas fa-check-circle"></i> Connected (SID: ${synologySid.substring(0,8)}...)</span>`;
+                    adminLog(`✅ Synology authentication successful.`, 'success');
+                } else {
+                    const errorMsg = getSynologyError(data.error.code);
+                    document.getElementById('synologyAuthStatus').innerHTML = `<span style="color: #ef4444;"><i class="fas fa-times-circle"></i> Error: ${errorMsg}</span>`;
+                    adminLog(`❌ Synology Auth Failed: ${errorMsg}`, 'error');
+                }
+            } catch (err) {
+                document.getElementById('synologyAuthStatus').innerHTML = `<span style="color: #ef4444;"><i class="fas fa-exclamation-triangle"></i> Network/CORS Error</span>`;
+                adminLog(`❌ Synology Connection Error: ${err.message}. Check CORS settings.`, 'error');
+            }
+        }
+
+        async function createSynologyUser() {
+            if (!synologySid) {
+                alert("Please connect to the NAS first.");
+                return;
+            }
+
+            const baseUrl = document.getElementById('synologyUrl').value.trim();
+            const port = document.getElementById('synologyPort').value.trim();
+            const account = document.getElementById('synoNewUsername').value.trim();
+            const password = document.getElementById('synoNewPassword').value.trim();
+            const fullname = document.getElementById('synoNewFullName').value.trim();
+            const email = document.getElementById('synoNewEmail').value.trim();
+
+            if (!account || !password) {
+                alert("Username and Password are required.");
+                return;
+            }
+
+            document.getElementById('btnCreateSynoUser').disabled = true;
+            document.getElementById('btnCreateSynoUser').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+            adminLog(`➕ Creating user '${account}' on Synology NAS...`);
+
+            try {
+                // QuickConnect relay only works on port 443 — do not append port.
+                let url = `${baseUrl}/webapi/entry.cgi?api=SYNO.Core.User&version=1&method=create&account=${encodeURIComponent(account)}&password=${encodeURIComponent(password)}&_sid=${synologySid}`;
+                if (fullname) url += `&full_name=${encodeURIComponent(fullname)}`;
+                if (email) url += `&email=${encodeURIComponent(email)}`;
+
+                const data = await synologyProxyCall(url);
+
+                if (data.success) {
+                    adminLog(`✅ User '${account}' created successfully!`, 'success');
+                    alert(`User '${account}' created successfully.`);
+                    // Clear fields
+                    document.getElementById('synoNewUsername').value = '';
+                    document.getElementById('synoNewPassword').value = '';
+                } else {
+                    const errorMsg = getSynologyError(data.error.code);
+                    adminLog(`❌ Failed to create user: ${errorMsg}`, 'error');
+                    alert(`Error: ${errorMsg}`);
+                }
+            } catch (err) {
+                adminLog(`❌ Request Error: ${err.message}`, 'error');
+            } finally {
+                document.getElementById('btnCreateSynoUser').disabled = false;
+                document.getElementById('btnCreateSynoUser').innerHTML = '<i class="fas fa-plus-circle"></i> Create User';
+            }
+        }
+
+        function getSynologyError(code) {
+            const errors = {
+                100: "Unknown error",
+                101: "Invalid parameter",
+                102: "The requested API does not exist",
+                103: "The requested method does not exist",
+                104: "The requested version does not support the functionality",
+                105: "The logged in session does not have permission",
+                106: "Session timeout",
+                107: "Session interrupted by duplicate login",
+                400: "No such account or incorrect password",
+                401: "Account disabled",
+                402: "Permission denied",
+                403: "2nd step verification needed",
+                404: "Invalid code (2FA)"
+            };
+            return errors[code] || `Error Code ${code}`;
         }
 
         function selectAllMondayBoards() { document.querySelectorAll('.admin-monday-board-cb').forEach(cb => cb.checked = true); }
