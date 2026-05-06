@@ -101,15 +101,19 @@ def get_board_items(body):
         return {"statusCode": 500, "body": json.dumps({"error": "MONDAY_API_KEY environment variable not configured"})}
     params = body.get('data', body)
     cursor = params.get('cursor')
-    board_id = os.environ.get('MONDAY_BOARD_ID')
+    limit = params.get('limit', 100)
+    
+    # Use provided board_id or fall back to environment variable
+    board_id = params.get('board_id') or os.environ.get('MONDAY_BOARD_ID')
+    
     if not board_id:
-        return {"statusCode": 500, "body": json.dumps({"error": "MONDAY_BOARD_ID environment variable not configured"})}
+        return {"statusCode": 500, "body": json.dumps({"error": "No MONDAY_BOARD_ID found in params or env"})}
     try:
         cursor_param = f', cursor: "{cursor}"' if cursor else ''
         query_str = f"""query {{
-    boards(ids: [2845615047]) {{
+    boards(ids: [{board_id}]) {{
         columns {{ id title }}
-        items_page(limit: 350{cursor_param}) {{
+        items_page(limit: {limit}{cursor_param}) {{
             cursor
             items {{
                 id
@@ -125,7 +129,7 @@ def get_board_items(body):
         print(f"[DEBUG] Monday Query with cursor: {cursor}")
         response = requests.post(
             MONDAY_API_URL,
-            headers={"Authorization": MONDAY_API_KEY, "API-Version": "2026-10"},
+            headers={"Authorization": MONDAY_API_KEY, "API-Version": "2026-04"},
             json={"query": query_str},
             timeout=30
         )
@@ -164,7 +168,7 @@ def run_monday_graphql(query, variables=None, api_key=None):
             
         r = requests.post(
             MONDAY_API_URL,
-            headers={"Authorization": key, "API-Version": "2026-10"},
+            headers={"Authorization": key, "API-Version": "2026-04"},
             json=payload,
             timeout=30
         )
@@ -272,13 +276,31 @@ def list_google_chat_spaces_standard(access_token, page_size=100):
     except Exception as e:
         return {"error": str(e)}
 
-def list_google_chat_messages_standard(access_token, space_name, page_size=20):
+def list_google_chat_messages_standard(access_token, space_name, page_size=20, filter_str=None):
     """
     Directly call the Google Chat API (v1) to list messages in a space.
     """
     url = f"https://chat.googleapis.com/v1/{space_name}/messages"
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {"pageSize": page_size}
+    if filter_str:
+        params["filter"] = filter_str
+    
+    try:
+        r = requests.get(url, headers=headers, params=params, timeout=20)
+        if r.status_code != 200:
+            return {"error": f"Google Chat API HTTP {r.status_code}", "detail": r.text[:500]}
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def search_google_chat_messages_standard(access_token, query, order_by="CREATE_TIME_DESC"):
+    """
+    Directly call the Google Chat API (v1) to search messages.
+    """
+    url = "https://chat.googleapis.com/v1/spaces/messages:search"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"query": query, "orderBy": order_by}
     
     try:
         r = requests.get(url, headers=headers, params=params, timeout=20)
@@ -319,6 +341,18 @@ def claude_chat_with_tools(body):
     # Tool definitions
     tools = [
         {
+            "name": "search_messages_standard",
+            "description": "Search across all Google Chat messages using the standard API. Best for finding the NEWEST messages.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Keywords to search for."},
+                    "orderBy": {"type": "string", "enum": ["CREATE_TIME_DESC", "CREATE_TIME_ASC"], "description": "Set to 'CREATE_TIME_DESC' for newest first."}
+                },
+                "required": ["query"]
+            }
+        },
+        {
             "name": "monday_graphql",
             "description": (
                 "Execute a GraphQL query against the Monday.com API. "
@@ -348,15 +382,16 @@ def claude_chat_with_tools(body):
         },
         {
             "name": "list_messages_standard",
-            "description": "Retrieve messages from a specific Google Chat space using the standard API. Use this if 'list_messages' returns no results.",
+            "description": "Retrieve messages from a specific Google Chat space. Note: This usually returns messages in chronological order (oldest first). To get the NEWEST messages, use 'search_messages' instead.",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "spaceName": {
                         "type": "string",
-                        "description": "The resource name of the space (e.g., 'spaces/XXXXXXXX')."
+                        "description": "The resource name (e.g., 'spaces/XXXXXXXX')."
                     },
-                    "pageSize": {"type": "integer", "description": "Max results (default 20)."}
+                    "pageSize": {"type": "integer", "description": "Max results (default 20)."},
+                    "filter": {"type": "string", "description": "A query filter (e.g. 'createTime > \"2026-05-01T00:00:00Z\"')."}
                 },
                 "required": ["spaceName"]
             }
@@ -398,7 +433,7 @@ def claude_chat_with_tools(body):
         },
         {
             "name": "search_messages",
-            "description": "Search messages across all accessible spaces with advanced filtering.",
+            "description": "Search messages with advanced filtering. Use this to get the NEWEST messages by setting 'orderBy' to 'CREATE_TIME_DESC'.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -408,18 +443,17 @@ def claude_chat_with_tools(body):
                             "keywords": {
                                 "type": "array",
                                 "items": {"type": "string"},
-                                "description": "Search terms."
+                                "description": "Search terms (can be empty if searching by space)."
                             },
-                            "conversationId": {"type": "string"},
-                            "spaceDisplayNames": {
-                                "type": "array",
-                                "items": {"type": "string"}
+                            "conversationId": {"type": "string", "description": "Scope to specific space ID."},
+                            "orderBy": {
+                                "type": "string",
+                                "enum": ["CREATE_TIME_DESC", "CREATE_TIME_ASC"],
+                                "description": "Set to 'CREATE_TIME_DESC' for newest first."
                             }
-                        },
-                        "required": ["keywords"]
+                        }
                     }
-                },
-                "required": ["searchParameters"]
+                }
             }
         },
         {
@@ -590,9 +624,24 @@ def claude_chat_with_tools(body):
                         google_token = body.get('google_access_token') or (body.get('google_tokens', {}).get('workspace'))
                         space_name = tool_input.get('spaceName')
                         page_size = tool_input.get('pageSize', 20)
+                        filter_str = tool_input.get('filter')
                         
                         print(f"[TOOLS] Listing Google Chat Messages via Standard API for {space_name}")
-                        result_data = list_google_chat_messages_standard(google_token, space_name, page_size)
+                        result_data = list_google_chat_messages_standard(google_token, space_name, page_size, filter_str)
+                        result_str = json.dumps(result_data)
+                        
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     result_str
+                        })
+                    elif tool_name == "search_messages_standard":
+                        google_token = body.get('google_access_token') or (body.get('google_tokens', {}).get('workspace'))
+                        query = tool_input.get('query')
+                        order_by = tool_input.get('orderBy', 'CREATE_TIME_DESC')
+                        
+                        print(f"[TOOLS] Searching Google Chat Messages via Standard API for {query}")
+                        result_data = search_google_chat_messages_standard(google_token, query, order_by)
                         result_str = json.dumps(result_data)
                         
                         tool_results.append({
