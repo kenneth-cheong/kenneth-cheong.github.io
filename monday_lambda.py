@@ -219,17 +219,74 @@ def run_google_chat_mcp_tool(tool_name, tool_input, access_token):
             
         data = r.json()
         if "error" in data:
+            print(f"[MCP] JSON-RPC Error: {json.dumps(data['error'])}")
             return {"error": "MCP JSON-RPC Error", "detail": data["error"]}
             
         # The result of a tools/call is usually in data["result"]
-        return data.get("result", data)
+        if "result" in data:
+            res = data["result"]
+            # If the result is already in the MCP content format, return it directly
+            if isinstance(res, dict) and "content" in res:
+                return res
+            
+            # If it's a raw object, try to make it more readable for Claude
+            try:
+                # If it looks like a list of items (common in search results)
+                if isinstance(res, list):
+                    return {"items": res, "count": len(res)}
+                if isinstance(res, dict):
+                    # Flatten common response wrappers
+                    if "conversations" in res: return res["conversations"]
+                    if "messages" in res: return res["messages"]
+                    if "items" in res: return res["items"]
+            except:
+                pass
+                
+            return res
+            
+        return data
         
     except requests.exceptions.Timeout:
         return {"error": "Google Chat MCP API timed out"}
     except Exception as e:
+        print(f"[MCP] Exception: {str(e)}")
         return {"error": str(e)}
 # ───────────────────────────────────────────────────────────────────────────
 
+
+# ── Google Chat Standard API helper ──────────────────────────────────────────
+def list_google_chat_spaces_standard(access_token, page_size=100):
+    """
+    Directly call the Google Chat API (v1) to list spaces.
+    Useful as a fallback if MCP tools fail.
+    """
+    url = "https://chat.googleapis.com/v1/spaces"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"pageSize": page_size}
+    
+    try:
+        r = requests.get(url, headers=headers, params=params, timeout=20)
+        if r.status_code != 200:
+            return {"error": f"Google Chat API HTTP {r.status_code}", "detail": r.text[:500]}
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def list_google_chat_messages_standard(access_token, space_name, page_size=20):
+    """
+    Directly call the Google Chat API (v1) to list messages in a space.
+    """
+    url = f"https://chat.googleapis.com/v1/{space_name}/messages"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"pageSize": page_size}
+    
+    try:
+        r = requests.get(url, headers=headers, params=params, timeout=20)
+        if r.status_code != 200:
+            return {"error": f"Google Chat API HTTP {r.status_code}", "detail": r.text[:500]}
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
 
 # ── Agentic loop: Claude + Monday.com tool use ──────────────────────────────
 def claude_chat_with_tools(body):
@@ -280,37 +337,116 @@ def claude_chat_with_tools(body):
             }
         },
         {
-            "name": "search_conversations",
-            "description": (
-                "Search for Google Chat conversations (Spaces, DMs, Group DMs). "
-                "If no criteria are provided, it lists all conversations the user is a member of."
-            ),
+            "name": "list_my_spaces",
+            "description": "List all Google Chat spaces you are a member of using the standard Google Chat API. Use this if 'search_conversations' fails.",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "displayName": {
+                    "pageSize": {"type": "integer", "description": "Max results (default 100)."}
+                }
+            }
+        },
+        {
+            "name": "list_messages_standard",
+            "description": "Retrieve messages from a specific Google Chat space using the standard API. Use this if 'list_messages' returns no results.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "spaceName": {
                         "type": "string",
-                        "description": "The display name of the conversation to search for."
-                    }
+                        "description": "The resource name of the space (e.g., 'spaces/XXXXXXXX')."
+                    },
+                    "pageSize": {"type": "integer", "description": "Max results (default 20)."}
+                },
+                "required": ["spaceName"]
+            }
+        },
+        {
+            "name": "search_conversations",
+            "description": "Search for Google Chat conversations (Spaces, DMs, group chats) by name or participants.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "spaceNameQuery": {
+                        "type": "string",
+                        "description": "Search for conversations by name (e.g., 'justtest')."
+                    },
+                    "participants": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Filter by participant email addresses."
+                    },
+                    "pageSize": {"type": "integer", "description": "Max results (default 100)."}
                 }
             }
         },
         {
             "name": "list_messages",
-            "description": "Retrieve messages from a specified Google Chat conversation (Space).",
+            "description": "Retrieve recent messages from a specific Google Chat conversation (Space).",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "parent": {
+                    "conversationId": {
                         "type": "string",
-                        "description": "The resource name of the conversation (e.g., 'spaces/XXXXXXXX')."
+                        "description": "The ID (e.g., 'spaces/XXXXXXXX')."
                     },
-                    "pageSize": {
-                        "type": "integer",
-                        "description": "Number of messages to retrieve (max 100)."
+                    "pageSize": {"type": "integer", "description": "Max messages (default 20)."},
+                    "threadId": {"type": "string", "description": "Filter to specific thread."}
+                },
+                "required": ["conversationId"]
+            }
+        },
+        {
+            "name": "search_messages",
+            "description": "Search messages across all accessible spaces with advanced filtering.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "searchParameters": {
+                        "type": "object",
+                        "properties": {
+                            "keywords": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Search terms."
+                            },
+                            "conversationId": {"type": "string"},
+                            "spaceDisplayNames": {
+                                "type": "array",
+                                "items": {"type": "string"}
+                            }
+                        },
+                        "required": ["keywords"]
                     }
                 },
-                "required": ["parent"]
+                "required": ["searchParameters"]
+            }
+        },
+        {
+            "name": "send_message",
+            "description": "Send a message to a specific Google Chat conversation (Space).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "conversationId": {
+                        "type": "string",
+                        "description": "The target space/DM ID."
+                    },
+                    "messageText": {
+                        "type": "string",
+                        "description": "The message body (Markdown supported)."
+                    },
+                    "threadId": {"type": "string"}
+                },
+                "required": ["conversationId", "messageText"]
+            }
+        },
+        {
+            "name": "list_mcp_tools",
+            "description": "List all available tools on the Google Chat MCP server. Use this if other tools return 'not found'.",
+            "input_schema": {
+                "type": "object",
+                "properties": {}
             }
         }
     ]
@@ -422,7 +558,7 @@ def claude_chat_with_tools(body):
                             "tool_use_id": tool_id,
                             "content":     result_str
                         })
-                    elif tool_name in ["search_conversations", "list_messages"]:
+                    elif tool_name in ["search_conversations", "list_messages", "search_messages", "send_message"]:
                         # Extract Google Access Token from body
                         google_token = body.get('google_access_token') or (body.get('google_tokens', {}).get('workspace'))
                         
@@ -436,6 +572,47 @@ def claude_chat_with_tools(body):
                             "type":        "tool_result",
                             "tool_use_id": tool_id,
                             "content":     result_str
+                        })
+                    elif tool_name == "list_my_spaces":
+                        google_token = body.get('google_access_token') or (body.get('google_tokens', {}).get('workspace'))
+                        print(f"[TOOLS] Listing Google Chat Spaces via Standard API")
+                        
+                        page_size = tool_input.get('pageSize', 100)
+                        result_data = list_google_chat_spaces_standard(google_token, page_size)
+                        result_str = json.dumps(result_data)
+                        
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     result_str
+                        })
+                    elif tool_name == "list_messages_standard":
+                        google_token = body.get('google_access_token') or (body.get('google_tokens', {}).get('workspace'))
+                        space_name = tool_input.get('spaceName')
+                        page_size = tool_input.get('pageSize', 20)
+                        
+                        print(f"[TOOLS] Listing Google Chat Messages via Standard API for {space_name}")
+                        result_data = list_google_chat_messages_standard(google_token, space_name, page_size)
+                        result_str = json.dumps(result_data)
+                        
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     result_str
+                        })
+                    elif tool_name == "list_mcp_tools":
+                        google_token = body.get('google_access_token') or (body.get('google_tokens', {}).get('workspace'))
+                        print(f"[TOOLS] Listing Google Chat MCP Tools with Schemas")
+                        
+                        payload = {"jsonrpc": "2.0", "id": "list-tools-debug", "method": "tools/list", "params": {}}
+                        headers = {"Authorization": f"Bearer {google_token}", "Content-Type": "application/json"}
+                        r = requests.post("https://chatmcp.googleapis.com/mcp/v1", headers=headers, json=payload, timeout=30)
+                        
+                        # Return the full raw response so Claude can see the schemas
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     r.text
                         })
                     else:
                         # Unknown tool — return an error so Claude can recover

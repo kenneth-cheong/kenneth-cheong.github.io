@@ -2607,6 +2607,16 @@
         // Initialize from localStorage
         window.addEventListener('load', () => {
             loadSettings();
+            // Check for URL parameters (e.g., ?lambda=my-function)
+            const urlParams = new URLSearchParams(window.location.search);
+            const lambdaParam = urlParams.get('lambda');
+            if (lambdaParam) {
+                const welcomeMsg = `I'm here to help you manage and troubleshoot your **${lambdaParam}** Lambda function. How can I assist you today? (e.g., 'Show me recent logs', 'What does this lambda do?')`;
+                addMessage("bot", welcomeMsg);
+                // Pre-fill the search if appropriate
+                document.getElementById('internalModeSearch').value = lambdaParam;
+            }
+
             renderFunctions();
 
             // Load history if exists
@@ -2941,7 +2951,6 @@
                 updateGchatUI(true);
                 fetchGoogleChatSpaces();
                 fetchGoogleDriveFolders();
-                verifyGmailAccess();
                 setServiceBadge('Chat', true);
                 setServiceBadge('Drive', true);
             }
@@ -4829,9 +4838,9 @@
 
                         let query;
                         if (!cursor) {
-                            query = `{ boards(ids: [${INTERNAL_CAMPAIGN_BOARD_ID}]) { items_page (limit: 100) { cursor items { id name column_values { text value column { id title type } } updates (limit: 3) { text_body created_at creator { name } replies { text_body created_at creator { name } } } } } } }`;
+                            query = `{ boards(ids: [${INTERNAL_CAMPAIGN_BOARD_ID}]) { items_page (limit: 40) { cursor items { id name column_values { text value column { id title type } } updates (limit: 3) { text_body created_at creator { name } replies { text_body created_at creator { name } } } } } } }`;
                         } else {
-                            query = `{ next_items_page(cursor: "${cursor}", limit: 100) { cursor items { id name column_values { text value column { id title type } } updates (limit: 3) { text_body created_at creator { name } replies { text_body created_at creator { name } } } } } }`;
+                            query = `{ next_items_page(cursor: "${cursor}", limit: 40) { cursor items { id name column_values { text value column { id title type } } updates (limit: 3) { text_body created_at creator { name } replies { text_body created_at creator { name } } } } } }`;
                         }
 
                         let res, r, mData;
@@ -5993,11 +6002,16 @@ CRITICAL CONTACT RULE:
             let system = `You are the MediaOne Internal Campaign Analyst. 
             You have access to live data via several tools:
             1. monday_graphql: For workspace data, task statuses, and campaign items.
-            2. search_conversations: Find Google Chat spaces, DMs, or group chats.
-            3. list_messages: Read recent messages from a specific Google Chat space.
-            4. get_gsc_performance: For Google Search Console (clicks, impressions).
-            5. get_ga4_report: For Google Analytics (sessions, users, conversions).
-            6. get_ads_report: For Google Ads performance (cost, CPC, ROAS).
+            2. list_my_spaces: List all your Google Chat spaces (best for initial discovery).
+            3. search_conversations: Find Google Chat spaces by name (if you know the name).
+            4. list_messages: Read recent messages from a specific Google Chat space.
+            5. list_messages_standard: Read messages using the standard API (use this if list_messages fails).
+            6. search_messages: Search for keywords across ALL your Google Chat messages.
+            7. send_message: Post a new message to a Google Chat space.
+            8. list_mcp_tools: List all available Google Chat tools (debug utility).
+            9. get_gsc_performance: For Google Search Console (clicks, impressions).
+            10. get_ga4_report: For Google Analytics (sessions, users, conversions).
+            11. get_ads_report: For Google Ads performance (cost, CPC, ROAS).
 
             CURRENT CONTEXT:
             - GSC Site: ${gscSite || 'None selected'}
