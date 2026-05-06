@@ -180,6 +180,57 @@ def run_monday_graphql(query, variables=None, api_key=None):
         return {"error": str(e)}
 # ───────────────────────────────────────────────────────────────────────────
 
+# ── Google Chat MCP helper ──────────────────────────────────────────────────
+def run_google_chat_mcp_tool(tool_name, tool_input, access_token):
+    """
+    Execute a tool call against the Google Chat MCP server.
+    Endpoint: https://chatmcp.googleapis.com/mcp/v1
+    Protocol: JSON-RPC 2.0
+    """
+    if not access_token:
+        return {"error": "Google Workspace access token missing. Please authenticate first."}
+    
+    mcp_endpoint = "https://chatmcp.googleapis.com/mcp/v1"
+    
+    # Map our Claude tool names back to MCP tool names if needed
+    # (Though we can just use the same names in the Claude definition)
+    
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": tool_name,
+            "arguments": tool_input
+        }
+    }
+    
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        print(f"[MCP] Calling {tool_name} with {json.dumps(tool_input)}")
+        r = requests.post(mcp_endpoint, headers=headers, json=payload, timeout=30)
+        
+        if r.status_code != 200:
+            return {"error": f"MCP API HTTP {r.status_code}", "detail": r.text[:500]}
+            
+        data = r.json()
+        if "error" in data:
+            return {"error": "MCP JSON-RPC Error", "detail": data["error"]}
+            
+        # The result of a tools/call is usually in data["result"]
+        return data.get("result", data)
+        
+    except requests.exceptions.Timeout:
+        return {"error": "Google Chat MCP API timed out"}
+    except Exception as e:
+        return {"error": str(e)}
+# ───────────────────────────────────────────────────────────────────────────
+
+
 # ── Agentic loop: Claude + Monday.com tool use ──────────────────────────────
 def claude_chat_with_tools(body):
     """
@@ -208,15 +259,14 @@ def claude_chat_with_tools(body):
     if not messages:
         return {"statusCode": 400, "body": json.dumps({"error": "No messages provided"})}
 
-    # Tool definition: Claude can call monday_graphql with any query string
+    # Tool definitions
     tools = [
         {
             "name": "monday_graphql",
             "description": (
                 "Execute a GraphQL query against the Monday.com API. "
                 "Use this to discover boards, fetch items, column values, updates, "
-                "people assignments, statuses, and any other workspace data. "
-                "You can make multiple calls to gather all the information you need."
+                "people assignments, statuses, and any other workspace data."
             ),
             "input_schema": {
                 "type": "object",
@@ -227,6 +277,40 @@ def claude_chat_with_tools(body):
                     }
                 },
                 "required": ["query"]
+            }
+        },
+        {
+            "name": "search_conversations",
+            "description": (
+                "Search for Google Chat conversations (Spaces, DMs, Group DMs). "
+                "If no criteria are provided, it lists all conversations the user is a member of."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "displayName": {
+                        "type": "string",
+                        "description": "The display name of the conversation to search for."
+                    }
+                }
+            }
+        },
+        {
+            "name": "list_messages",
+            "description": "Retrieve messages from a specified Google Chat conversation (Space).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "parent": {
+                        "type": "string",
+                        "description": "The resource name of the conversation (e.g., 'spaces/XXXXXXXX')."
+                    },
+                    "pageSize": {
+                        "type": "integer",
+                        "description": "Number of messages to retrieve (max 100)."
+                    }
+                },
+                "required": ["parent"]
             }
         }
     ]
@@ -333,6 +417,21 @@ def claude_chat_with_tools(body):
                             print(f"[TOOLS] Result truncated ({len(result_str)} chars)")
                             result_str = result_str[:40000] + "\n... [result truncated, refine query if needed]"
 
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     result_str
+                        })
+                    elif tool_name in ["search_conversations", "list_messages"]:
+                        # Extract Google Access Token from body
+                        google_token = body.get('google_access_token') or (body.get('google_tokens', {}).get('workspace'))
+                        
+                        print(f"[TOOLS] Executing Google Chat MCP: {tool_name}")
+                        tool_call_log.append(f"▸ Google Chat: {tool_name}")
+                        
+                        result_data = run_google_chat_mcp_tool(tool_name, tool_input, google_token)
+                        result_str  = json.dumps(result_data)
+                        
                         tool_results.append({
                             "type":        "tool_result",
                             "tool_use_id": tool_id,
