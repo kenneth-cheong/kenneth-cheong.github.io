@@ -110,6 +110,34 @@ def lambda_handler(event, context):
             sch_name = body.get('scheduleName')
             scheduler_client.delete_schedule(Name=sch_name)
             return {"statusCode": 200, "headers": headers, "body": json.dumps({"success": True})}
+
+        elif action == 'invoke_lambda':
+            function_name = body.get('functionName')
+            payload = body.get('payload', {})
+            
+            resp = lambda_client.invoke(
+                FunctionName=function_name,
+                InvocationType='RequestResponse',
+                Payload=json.dumps(payload),
+                LogType='Tail'
+            )
+            
+            import base64
+            log_result = base64.b64decode(resp.get('LogResult', '')).decode('utf-8')
+            
+            # Read streaming response
+            response_payload = resp['Payload'].read().decode('utf-8')
+            
+            return {
+                "statusCode": 200, 
+                "headers": headers, 
+                "body": json.dumps({
+                    "statusCode": resp.get('StatusCode'),
+                    "functionError": resp.get('FunctionError'),
+                    "logs": log_result,
+                    "payload": response_payload
+                })
+            }
         return {"statusCode": 404, "headers": headers, "body": json.dumps({"error": f"Action '{action}' not supported yet"})}
         
     except Exception as e:

@@ -5,10 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Automated Task Manager</title>
-    <link rel="icon" href="/MO_Logo2.png" sizes="32x32">
+    <link rel="icon" href="MO_Logo2.png" sizes="32x32">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Cron parser for human readable strings -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cronstrue/2.27.0/cronstrue.min.js"></script>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://accounts.google.com/gsi/client" async defer onload="checkGoogleLogin()"></script>
     <style>
         :root {
             --bg-color: #f6f8fb;
@@ -1052,7 +1053,7 @@
 
     <div id="loginForm" style="display: none;">
         <div class="login-card">
-            <img src="/MO_Logo2.png" alt="Logo" style="width: 64px; margin-bottom: 1.5rem;">
+            <img src="MO_Logo2.png" alt="Logo" style="width: 64px; margin-bottom: 1.5rem;">
             <h2>Management Portal</h2>
             <p style="color: var(--text-muted); margin-bottom: 2rem;">Please sign in to access the task manager</p>
             <div id="googleSignInButton"></div>
@@ -1256,6 +1257,9 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('lambda-detail-modal')">Close</button>
+                <button class="btn btn-primary" id="detail-run-btn" style="background: var(--success); border-color: var(--success);">
+                    <i class="fas fa-play"></i> Run Now
+                </button>
                 <button class="btn btn-primary" id="detail-create-schedule-btn">Create Schedule</button>
             </div>
         </div>
@@ -1566,6 +1570,11 @@
                 return true;
             }
 
+            if (typeof google === 'undefined' || !google.accounts) {
+                console.log("Google library not yet loaded.");
+                return false;
+            }
+
             google.accounts.id.initialize({
                 client_id: '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com',
                 callback: handleCredentialResponse
@@ -1791,7 +1800,14 @@
 
                 return `
             <tr>
-                <td><strong><a href="#" onclick="openLambdaDetail('${l.functionName}'); return false;">${l.functionName}</a></strong></td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <strong><a href="#" onclick="openLambdaDetail('${l.functionName}'); return false;">${l.functionName}</a></strong>
+                        <button onclick="runLambda('${l.functionName}')" title="Run Now" style="color: var(--success); display: flex; align-items: center; background: none; border: none; padding: 4px; cursor: pointer; transition: transform 0.1s;" onmousedown="this.style.transform='scale(0.9)'" onmouseup="this.style.transform='scale(1)'">
+                            <i class="fas fa-play-circle" style="font-size: 1.15rem;"></i>
+                        </button>
+                    </div>
+                </td>
                 <td>${l.runtime}</td>
                 <td class="text-muted">${new Date(l.lastModified).toLocaleDateString()}</td>
                 <td>${schBadge}</td>
@@ -1803,6 +1819,7 @@
                         </button>
                         <div class="dropdown-menu" id="dropdown-${index}">
                             <button class="dropdown-item" onclick="openLambdaDetail('${l.functionName}')">View Details</button>
+                            <button class="dropdown-item" onclick="runLambda('${l.functionName}')" style="color: var(--success); font-weight: 600;">Run Now</button>
                             <button class="dropdown-item" onclick="openCreateScheduleModal('${l.functionName}')">Create Schedule</button>
                             <button class="dropdown-item" onclick="copyToClipboard('${l.functionArn}')">Copy ARN</button>
                         </div>
@@ -1849,10 +1866,17 @@
             openModal('lambda-detail-modal');
             const body = document.getElementById('detail-body');
             body.innerHTML = `<div class="text-center p-8"><div class="spinner"></div></div>`;
+            
+            // Setup buttons
             document.getElementById('detail-create-schedule-btn').onclick = () => {
                 closeModal('lambda-detail-modal');
                 openCreateScheduleModal(functionName);
             };
+            
+            const runBtn = document.getElementById('detail-run-btn');
+            runBtn.onclick = () => runLambda(functionName);
+            runBtn.disabled = false;
+            runBtn.innerHTML = '<i class="fas fa-play"></i> Run Now';
 
             try {
                 const data = await apiCall('get_lambda_detail', { functionName });
@@ -1942,7 +1966,23 @@
                     `;
                     }).join('');
                 }
-                html += `</div>`;
+                html += `</div>
+                
+                <div id="execution-container" style="display:none; margin-top: 32px; border-top: 2px solid var(--border); padding-top: 24px;">
+                    <h3 style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
+                        Manual Execution Result
+                        <div id="execution-status"></div>
+                    </h3>
+                    <div style="background: #1e293b; color: #f8fafc; border-radius: 12px; padding: 20px; overflow-x: auto; max-height: 500px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85rem; box-shadow: var(--shadow-lg);">
+                        <div style="color: #94a3b8; margin-bottom: 8px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Logs</div>
+                        <pre id="execution-logs" style="margin:0; white-space: pre-wrap; line-height: 1.6; color: #e2e8f0;"></pre>
+                        
+                        <div style="height: 1px; background: #334155; margin: 20px 0;"></div>
+                        
+                        <div style="color: #94a3b8; margin-bottom: 8px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Response Payload</div>
+                        <pre id="execution-payload" style="margin:0; color: #10b981; white-space: pre-wrap; line-height: 1.6;"></pre>
+                    </div>
+                </div>`;
                 body.innerHTML = html;
 
                 // Generate human readable crons after rendering
@@ -1963,6 +2003,76 @@
                 }, 0);
             } catch (error) {
                 body.innerHTML = `<div class="text-danger p-8">Failed to load details: ${error.message}</div>`;
+            }
+        }
+
+        async function runLambda(functionName) {
+            // Ensure modal is open to show logs
+            const modal = document.getElementById('lambda-detail-modal');
+            if (!modal.classList.contains('show')) {
+                await openLambdaDetail(functionName);
+                // Wait for the detail to load before auto-running
+                // The spinner will be visible, then content will appear.
+                // We check every 200ms if the detail-run-btn is ready
+                const checkReady = setInterval(() => {
+                    const btn = document.getElementById('detail-run-btn');
+                    if (btn && !btn.disabled && !document.querySelector('#detail-body .spinner')) {
+                        clearInterval(checkReady);
+                        runLambda(functionName);
+                    }
+                }, 200);
+                // Timeout after 5s
+                setTimeout(() => clearInterval(checkReady), 5000);
+                return;
+            }
+
+            const btn = document.getElementById('detail-run-btn');
+            const container = document.getElementById('execution-container');
+            const status = document.getElementById('execution-status');
+            const logsPre = document.getElementById('execution-logs');
+            const payloadPre = document.getElementById('execution-payload');
+            
+            if (!btn || !container) return; // Should not happen if modal is open
+
+            
+            btn.disabled = true;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
+            
+            container.style.display = 'block';
+            status.innerHTML = '<span class="badge badge-warning">Executing...</span>';
+            logsPre.textContent = 'Waiting for logs...';
+            payloadPre.textContent = '';
+            
+            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            
+            try {
+                const data = await apiCall('invoke_lambda', { functionName });
+                
+                if (data.functionError) {
+                    status.innerHTML = `<span class="badge badge-danger">Failed: ${data.functionError}</span>`;
+                } else {
+                    status.innerHTML = `<span class="badge badge-success">Success (Status: ${data.statusCode})</span>`;
+                }
+                
+                logsPre.textContent = data.logs || 'No logs returned.';
+                
+                try {
+                    const parsedPayload = JSON.parse(data.payload);
+                    payloadPre.textContent = JSON.stringify(parsedPayload, null, 2);
+                } catch (e) {
+                    payloadPre.textContent = data.payload || 'No response payload.';
+                }
+                
+                showToast('Task executed successfully!', 'success');
+            } catch (err) {
+                status.innerHTML = `<span class="badge badge-danger">Error: ${err.message}</span>`;
+                showToast('Execution failed', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                // Scroll again to ensure result is visible
+                setTimeout(() => container.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
             }
         }
 
