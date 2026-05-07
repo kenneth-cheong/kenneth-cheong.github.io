@@ -339,14 +339,13 @@ def claude_chat_with_tools(body):
         return {"statusCode": 400, "body": json.dumps({"error": "No messages provided"})}
 
     # Tool definitions
-    tools = [
-        {
+    tools = [{
             "name": "search_messages_standard",
-            "description": "Search across all Google Chat messages using the standard API. Best for finding the NEWEST messages.",
+            "description": "Search for messages. MANDATORY: Always set 'orderBy': 'CREATE_TIME_DESC' to get the NEWEST messages first. This is the only way to see today's messages.",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Keywords to search for."},
+                    "query": {"type": "string", "description": "Keywords or space name."},
                     "orderBy": {"type": "string", "enum": ["CREATE_TIME_DESC", "CREATE_TIME_ASC"], "description": "Set to 'CREATE_TIME_DESC' for newest first."}
                 },
                 "required": ["query"]
@@ -382,7 +381,7 @@ def claude_chat_with_tools(body):
         },
         {
             "name": "list_messages_standard",
-            "description": "Retrieve messages from a specific Google Chat space. Note: This usually returns messages in chronological order (oldest first). To get the NEWEST messages, use 'search_messages' instead.",
+            "description": "Lists messages starting from the OLDEST. Do NOT use this if the user wants recent messages; use search_messages_standard instead.",
             "input_schema": {
                 "type": "object",
                 "properties": {

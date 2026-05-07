@@ -1823,6 +1823,22 @@
                 </button>
             </div>
 
+            <!-- Authentication Section (Always Visible) -->
+            <div class="collapsible-section active" id="authSection">
+                <div class="collapsible-header"
+                    onclick="this.closest('.collapsible-section').classList.toggle('active')">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i
+                            class="fas fa-user-lock" style="margin-right: 8px; opacity: 0.5;"></i> Authentication</span>
+                    <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
+                </div>
+                <div class="collapsible-content">
+                    <div class="form-group">
+                        <label>Monday.com API Key (Personal)</label>
+                        <input type="password" id="mondayApiKey" placeholder="Paste your API key here...">
+                    </div>
+                </div>
+            </div>
+
             <!-- API Credentials Section -->
             <div class="collapsible-section" id="credentialSection">
                 <div class="collapsible-header"
@@ -1980,23 +1996,25 @@
                 </div>
             </div>
 
-            <div class="section-header" style="margin-top: 24px;">
-                <h3>Custom Functions</h3>
-            </div>
-
-            <div class="global-actions" style="display: flex; gap: 8px; margin-bottom: 16px;">
-                <button class="btn-sidebar" onclick="addFunctionRow()">
-                    <i class="fas fa-plus"></i> Add New
-                </button>
-                <button class="btn-sidebar" onclick="toggleAllFunctions(true)">
-                    <i class="fas fa-expand-alt"></i> Expand
-                </button>
-                <button class="btn-sidebar" onclick="clearAllFunctions()" style="color: #ef4444;">
-                    <i class="fas fa-trash-alt"></i> Clear
-                </button>
-            </div>
-
-            <div id="functionsList" style="margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px;">
+            <div id="customFunctionsSection">
+                <div class="section-header" style="margin-top: 24px;">
+                    <h3>Custom Functions</h3>
+                </div>
+    
+                <div class="global-actions" style="display: flex; gap: 8px; margin-bottom: 16px;">
+                    <button class="btn-sidebar" onclick="addFunctionRow()">
+                        <i class="fas fa-plus"></i> Add New
+                    </button>
+                    <button class="btn-sidebar" onclick="toggleAllFunctions(true)">
+                        <i class="fas fa-expand-alt"></i> Expand
+                    </button>
+                    <button class="btn-sidebar" onclick="clearAllFunctions()" style="color: #ef4444;">
+                        <i class="fas fa-trash-alt"></i> Clear
+                    </button>
+                </div>
+    
+                <div id="functionsList" style="margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px;">
+                </div>
             </div>
 
             <div style="min-height: 80px;"></div> <!-- Spacer for scrollable content -->
@@ -2731,12 +2749,20 @@
                 // Load board registry (from cache or API)
                 loadBoardRegistry();
                 updateSummaryFilterVisibility();
+
+                // Hide irrelevant sections in internal mode
+                document.getElementById('credentialSection').style.display = 'none';
+                document.getElementById('customFunctionsSection').style.display = 'none';
             } else {
                 document.body.classList.remove('internal-mode');
                 filterPanel.classList.remove('visible');
                 clientLabel.classList.add('active');
                 internalLabel.classList.remove('active');
                 headerTitle.textContent = 'Client Portal Chatbot Testing';
+
+                // Show sections in client mode
+                document.getElementById('credentialSection').style.display = 'block';
+                document.getElementById('customFunctionsSection').style.display = 'block';
                 if (welcomeMsg) {
                     const msgContent = welcomeMsg.querySelector('.msg-content');
                     if (msgContent) {
@@ -2939,6 +2965,7 @@
             renderBoardList();
             updateSummaryFilterVisibility();
 
+            document.getElementById('mondayApiKey').value = localStorage.getItem('mondayApiKey') || '';
             document.getElementById('clientEmail').value = localStorage.getItem('clientEmail') || "";
             const vsId = localStorage.getItem('vectorStoreId') || "";
             document.getElementById('vectorStoreId').value = vsId;
@@ -3108,11 +3135,13 @@
         }
 
         function saveSettings() {
-            const clientEmail = document.getElementById('clientEmail').value.trim();
+            const mondayKey = document.getElementById('mondayApiKey').value.trim();
+            const email = document.getElementById('clientEmail').value.trim();
             const vsId = document.getElementById('vectorStoreId').value.trim();
             const contextUrls = document.getElementById('contextUrls').value.trim();
             const autoSync = document.getElementById('autoSync').checked;
 
+            localStorage.setItem('mondayApiKey', mondayKey);
             localStorage.setItem('boardIds_v2', JSON.stringify(window.activeBoards || []));
             localStorage.setItem('clientEmail', clientEmail);
             localStorage.setItem('vectorStoreId', vsId);
@@ -6020,7 +6049,7 @@ CRITICAL CONTACT RULE:
             - Google Ads Account: ${adsAcc || 'None selected'}
 
             Always format results as Markdown tables. If a marketing property is not selected, ask the user to select one in the settings.
-            When a user asks about "chats", "conversations", or "what was said in [space]", use the search_conversations tool first to find the space ID, then list_messages to read the content.`;
+            When a user asks about "chats", "conversations", or "what was said in [space]", ALWAYS use the search_messages_standard tool with 'orderBy': 'CREATE_TIME_DESC' to get the NEWEST messages first. Avoid using 'list_messages' as it returns old archive messages from years ago.`;
 
             if (syncedContext) {
                 let contextObj;
@@ -6113,6 +6142,7 @@ CRITICAL CONTACT RULE:
                         system,
                         messages: history,
                         max_tokens: 4096,
+                        monday_api_key: localStorage.getItem('mondayApiKey'),
                         google_access_token: localStorage.getItem('googleToken_Workspace'),
                         google_tokens: {
                             workspace: localStorage.getItem('googleToken_Workspace'),
