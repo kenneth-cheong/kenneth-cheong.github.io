@@ -1091,10 +1091,15 @@
         <div class="top-bar">
             <div class="board-header-left" style="display:flex; align-items:center; gap:20px; flex:1;">
                 <div class="board-title" id="board-title" style="margin:0;">Loading Board...</div>
-                <div class="search-wrapper" style="position:relative; flex:1; max-width:300px;">
-                    <i data-lucide="search" size="14" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
-                    <input type="text" id="board-search" placeholder="Search board..." oninput="handleBoardSearch(this.value)" style="width:100%; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:100px; padding:6px 10px 6px 32px; color:var(--text-main); font-size:13px; outline:none;">
+                <div class="search-input-wrapper" style="position:relative;">
+                    <i data-lucide="search" size="16" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
+                    <input type="text" id="board-search" placeholder="Search board..." oninput="handleBoardSearch(this.value)" style="padding:8px 12px 8px 36px; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); border-radius:6px; color:var(--text-main); font-size:14px; width:250px; outline:none; transition: border-color 0.2s;">
                 </div>
+                <button class="btn btn-secondary" onclick="openFilterModal()" style="display:flex; align-items:center; gap:6px; position:relative;">
+                    <i data-lucide="filter" size="16"></i> Filter
+                    <span id="filter-badge" style="display:none; background:var(--primary-blue); color:white; font-size:10px; padding:1px 6px; border-radius:10px; font-weight:700; line-height:1; min-width:18px; height:18px; align-items:center; justify-content:center;">0</span>
+                </button>
+                <div style="position:relative;"></div>
             </div>
             <div class="board-header-right" style="display:flex; align-items:center; gap:8px;">
                 <button class="btn-automate" onclick="toggleColumnPicker()" style="background: rgba(255,255,255,0.05);">
@@ -1734,7 +1739,7 @@
                         }` : `
                         query {
                             boards(ids: [${boardId}]) {
-                                columns { id title type }
+                                columns { id title type settings_str }
                                 groups { id title color }
                                 items_page(limit: 100) {
                                     cursor
@@ -1775,7 +1780,8 @@
                                 .map(c => ({
                                     id: c.id,
                                     title: c.title,
-                                    type: mapColumnType(c.type)
+                                    type: mapColumnType(c.type),
+                                    settings: JSON.parse(c.settings_str || '{}')
                                 }));
                             
                             board.groups = mb.groups.map(g => ({
@@ -2081,7 +2087,8 @@
 
         // --- Filtering & Visibility State ---
         let boardSearchQuery = '';
-        let activeFilters = {}; // colId: value
+        let boardFilters = []; // [{ colId, operator, values: [] }]
+        let activeFilters = {}; 
 
         function handleBoardSearch(q) {
             boardSearchQuery = q.toLowerCase();
@@ -2309,6 +2316,7 @@
 
             // Clean up old modals if switching boards
             hidePlaceholderSuggestions();
+            updateFilterBadge();
 
             boardTitle.innerHTML = `
                 <div style="display:flex; align-items:center; gap:12px;">
@@ -2402,10 +2410,24 @@
                 itemsToRender.forEach(item => {
                     // APPLY SEARCH & FILTERS
                     if (boardSearchQuery && !item.name.toLowerCase().includes(boardSearchQuery)) return;
-                    for (const [colId, filterVal] of Object.entries(activeFilters)) {
-                        if (!filterVal) continue;
-                        const itemVal = (item.values[colId] || '').toString().toLowerCase();
-                        if (!itemVal.includes(filterVal.toLowerCase())) return;
+                    
+                    // Advanced Filters Logic
+                    if (boardFilters.length > 0) {
+                        const pass = boardFilters.every(f => {
+                            const val = (item.values[f.colId] || '').toString();
+                            const checkVals = f.values.map(v => v.toLowerCase());
+                            
+                            switch(f.operator) {
+                                case 'is': return checkVals.length === 0 || checkVals.includes(val.toLowerCase());
+                                case 'is_not': return checkVals.length === 0 || !checkVals.includes(val.toLowerCase());
+                                case 'contains': return checkVals.length === 0 || checkVals.some(cv => val.toLowerCase().includes(cv));
+                                case 'not_contains': return checkVals.length === 0 || !checkVals.some(cv => val.toLowerCase().includes(cv));
+                                case 'is_empty': return !val || val.trim() === '';
+                                case 'is_not_empty': return val && val.trim() !== '';
+                                default: return true;
+                            }
+                        });
+                        if (!pass) return;
                     }
 
                     const updateBadge = item.updates?.length > 0 ? `<div class="update-count">${item.updates.length}</div>` : '';
@@ -5366,6 +5388,144 @@
                 });
             }
         });
+        // --- Advanced Filters ---
+        function openFilterModal() {
+            document.getElementById('filter-modal').classList.add('show');
+            renderFilterRows();
+        }
+        function closeFilterModal() {
+            document.getElementById('filter-modal').classList.remove('show');
+        }
+        function addFilterRow() {
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if (!board || board.columns.length === 0) return;
+            boardFilters.push({ colId: board.columns[0].id, operator: 'is', values: [] });
+            renderFilterRows();
+        }
+        function removeFilterRow(index) {
+            boardFilters.splice(index, 1);
+            renderFilterRows();
+        }
+        function updateFilterCol(index, colId) {
+            boardFilters[index].colId = colId;
+            boardFilters[index].values = []; // Reset values when column changes
+            renderFilterRows();
+        }
+        function updateFilterOp(index, op) {
+            boardFilters[index].operator = op;
+            renderFilterRows();
+        }
+        function toggleFilterValue(index, val) {
+            const f = boardFilters[index];
+            if (f.values.includes(val)) {
+                f.values = f.values.filter(v => v !== val);
+            } else {
+                f.values.push(val);
+            }
+            renderFilterRows();
+        }
+        function clearAllFilters() {
+            boardFilters = [];
+            renderActiveBoard();
+            closeFilterModal();
+            updateFilterBadge();
+        }
+        function applyFilters() {
+            renderActiveBoard();
+            closeFilterModal();
+            updateFilterBadge();
+        }
+
+        function updateFilterBadge() {
+            const badge = document.getElementById('filter-badge');
+            if (badge) {
+                if (boardFilters.length > 0) {
+                    badge.innerText = boardFilters.length;
+                    badge.style.display = 'inline-flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+
+        function renderFilterRows() {
+            const container = document.getElementById('filter-builder-body');
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if (!board) return;
+
+            if (boardFilters.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:20px;">No filters active. Click "Add Filter" to start.</div>';
+                return;
+            }
+
+            let html = '';
+            boardFilters.forEach((f, idx) => {
+                const colOptions = board.columns.map(c => `<option value="${c.id}" ${c.id === f.colId ? 'selected' : ''}>${c.title}</option>`).join('');
+                
+                // Get possible values for this column
+                const uniqueValues = new Set();
+                
+                // 1. From Column Settings (e.g. Status labels)
+                if (col.settings && col.settings.labels) {
+                    Object.values(col.settings.labels).forEach(label => {
+                        if (label) uniqueValues.add(label);
+                    });
+                }
+                
+                // 2. From currently loaded Items
+                board.groups.forEach(g => {
+                    g.items.forEach(i => {
+                        const val = i.values[f.colId];
+                        if (val) uniqueValues.add(val.toString());
+                    });
+                });
+                const sortedValues = Array.from(uniqueValues).filter(v => v && v.trim() !== '').sort();
+
+                const isSyncing = document.getElementById('sync-indicator')?.style.display !== 'none';
+
+                html += `
+                    <div style="display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.03); padding:12px; border-radius:10px; border:1px solid var(--border-color); transition: all 0.2s;">
+                        <select onchange="updateFilterCol(${idx}, this.value)" style="flex:1.2; background:var(--bg-surface); color:var(--text-main); border:1px solid var(--border-color); padding:8px; border-radius:6px; outline:none; font-size:13px; font-weight:500;">
+                            ${colOptions}
+                        </select>
+                        <select onchange="updateFilterOp(${idx}, this.value)" style="width:130px; background:var(--bg-surface); color:var(--text-main); border:1px solid var(--border-color); padding:8px; border-radius:6px; outline:none; font-size:13px;">
+                            <option value="is" ${f.operator === 'is' ? 'selected' : ''}>is</option>
+                            <option value="is_not" ${f.operator === 'is_not' ? 'selected' : ''}>is not</option>
+                            <option value="contains" ${f.operator === 'contains' ? 'selected' : ''}>contains</option>
+                            <option value="not_contains" ${f.operator === 'not_contains' ? 'selected' : ''}>not contains</option>
+                            <option value="is_empty" ${f.operator === 'is_empty' ? 'selected' : ''}>is empty</option>
+                            <option value="is_not_empty" ${f.operator === 'is_not_empty' ? 'selected' : ''}>is not empty</option>
+                        </select>
+                        
+                        ${['is_empty', 'is_not_empty'].includes(f.operator) ? '' : `
+                            <div style="flex:2; position:relative;">
+                                <div onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'" style="background:var(--bg-surface); color:var(--text-main); border:1px solid var(--border-color); padding:8px 12px; border-radius:6px; cursor:pointer; font-size:13px; display:flex; justify-content:space-between; align-items:center; min-width:180px; transition: border-color 0.2s;" onmouseover="this.style.borderColor='var(--primary-blue)'" onmouseout="this.style.borderColor='var(--border-color)'">
+                                    <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px;">${f.values.length > 0 ? f.values.join(', ') : 'Select values...'}</span>
+                                    <div style="display:flex; align-items:center; gap:5px;">
+                                        ${f.values.length > 0 ? `<span style="background:var(--primary-blue); font-size:10px; padding:0 5px; border-radius:10px;">${f.values.length}</span>` : ''}
+                                        <i data-lucide="chevron-down" size="14"></i>
+                                    </div>
+                                </div>
+                                <div style="display:none; position:absolute; top:100%; left:0; right:0; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:8px; margin-top:6px; z-index:1000; max-height:250px; overflow-y:auto; box-shadow:0 15px 35px rgba(0,0,0,0.6); padding:4px;">
+                                    ${sortedValues.length === 0 ? `<div style="padding:15px; text-align:center; color:var(--text-muted); font-size:12px;">${isSyncing ? 'Loading values...' : 'No values found'}</div>` : sortedValues.map(v => `
+                                        <label style="display:flex; align-items:center; gap:10px; padding:8px 12px; cursor:pointer; font-size:13px; border-radius:6px; transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+                                            <input type="checkbox" ${f.values.includes(v) ? 'checked' : ''} onchange="toggleFilterValue(${idx}, '${v.replace(/'/g, "\\'")}')" style="accent-color:var(--primary-blue);">
+                                            <span style="color:var(--text-main);">${v}</span>
+                                        </label>
+                                    `).join('')}
+                                    ${isSyncing ? `<div style="border-top:1px solid var(--border-color); padding:8px; text-align:center; font-size:10px; color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> More values loading...</div>` : ''}
+                                </div>
+                            </div>
+                        `}
+                        
+                        <button class="btn-icon" style="color:var(--status-stuck);" onclick="removeFilterRow(${idx})"><i data-lucide="trash-2" size="14"></i></button>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+            lucide.createIcons();
+        }
+
         function toggleGroupCollapse(groupId) {
             if (collapsedGroups.has(groupId)) collapsedGroups.delete(groupId);
             else collapsedGroups.add(groupId);
@@ -5384,6 +5544,26 @@
             <div class="spinner-inner"></div>
         </div>
         <div class="loading-text" id="loading-overlay-text">Loading...</div>
+    </div>
+
+    <!-- Advanced Filter Modal -->
+    <div id="filter-modal" class="modal-overlay">
+        <div class="modal-content" style="width: 700px; max-width: 95%;">
+            <div class="modal-header">
+                <h3><i data-lucide="filter" size="18" style="vertical-align:middle; margin-right:8px;"></i>Advanced Filters</h3>
+                <button class="btn-icon" onclick="closeFilterModal()"><i data-lucide="x"></i></button>
+            </div>
+            <div id="filter-builder-body" style="padding: 20px; display: flex; flex-direction: column; gap: 15px; max-height: 450px; overflow-y: auto;">
+                <!-- Rows will be added here -->
+            </div>
+            <div style="padding: 15px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background:var(--bg-main);">
+                <button class="btn btn-secondary" onclick="addFilterRow()" style="background:rgba(87,155,252,0.1); color:var(--primary-blue); border-color:rgba(87,155,252,0.2);"><i data-lucide="plus" size="14" style="margin-right:5px;"></i> Add Filter</button>
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn btn-secondary" onclick="clearAllFilters()">Clear All</button>
+                    <button class="btn btn-primary" onclick="applyFilters()" style="padding: 10px 30px;">Apply Filters</button>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>
