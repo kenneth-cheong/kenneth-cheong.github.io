@@ -4007,6 +4007,9 @@
                             if (res.access_token) {
                                 localStorage.setItem(`googleToken_${service}`, res.access_token);
                                 if (res.refresh_token) localStorage.setItem(`googleRefresh_${service}`, res.refresh_token);
+                                // Save expiry time (Google tokens default to 3600s)
+                                const expiresIn = res.expires_in || 3600;
+                                localStorage.setItem(`googleToken_${service}_expires`, Date.now() + (expiresIn * 1000));
                                 
                                 showToast(`${service} Connected!`, 'success');
                                 updateServiceUI(service, true);
@@ -4086,25 +4089,39 @@
         async function checkAllGoogleServices() {
             ['Workspace', 'Gsc', 'Ga4', 'Ads'].forEach(async (s) => {
                 const token = localStorage.getItem(`googleToken_${s}`);
-                if (token) {
-                    // Quick verify
-                    try {
-                        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                            headers: { 'Authorization': `Bearer ${token}` }
-                        });
-                        if (res.ok) {
-                            updateServiceUI(s, true);
-                            if (s === 'Workspace') window.gchatAccessToken = token;
-                            // Pre-load data if selectors are empty
-                            if (s !== 'Workspace') {
-                                const select = document.getElementById(`selected${s}${s === 'Gsc' ? 'Site' : (s === 'Ads' ? 'Account' : 'Property')}`);
-                                if (select && select.options.length <= 1) initializeServiceData(s);
-                            }
-                        } else {
-                            updateServiceUI(s, false);
-                        }
-                    } catch (e) { updateServiceUI(s, false); }
+                if (!token) return;
+
+                // Check expiry timestamp first — avoids unnecessary 401 network calls
+                const expiresAt = parseInt(localStorage.getItem(`googleToken_${s}_expires`) || '0', 10);
+                if (expiresAt && Date.now() > expiresAt) {
+                    console.log(`[GOOGLE AUTH] Token for ${s} has expired, clearing.`);
+                    localStorage.removeItem(`googleToken_${s}`);
+                    localStorage.removeItem(`googleToken_${s}_expires`);
+                    updateServiceUI(s, false);
+                    return;
                 }
+
+                // Verify with API
+                try {
+                    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                        updateServiceUI(s, true);
+                        if (s === 'Workspace') window.gchatAccessToken = token;
+                        // Pre-load data if selectors are empty
+                        if (s !== 'Workspace') {
+                            const select = document.getElementById(`selected${s}${s === 'Gsc' ? 'Site' : (s === 'Ads' ? 'Account' : 'Property')}`);
+                            if (select && select.options.length <= 1) initializeServiceData(s);
+                        }
+                    } else {
+                        // Token is invalid/revoked — clear it silently
+                        console.log(`[GOOGLE AUTH] Token for ${s} rejected (${res.status}), clearing.`);
+                        localStorage.removeItem(`googleToken_${s}`);
+                        localStorage.removeItem(`googleToken_${s}_expires`);
+                        updateServiceUI(s, false);
+                    }
+                } catch (e) { updateServiceUI(s, false); }
             });
         }
 

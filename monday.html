@@ -983,6 +983,7 @@
                 <div style="position: relative;">
                     <button class="btn-icon" onclick="toggleWorkspaceMenu(event)"><i data-lucide="plus" size="14"></i></button>
                     <div class="dropdown-menu" id="workspace-menu">
+                        <div class="dropdown-item" onclick="openImportModal()"><i data-lucide="download-cloud" size="14"></i> Import Boards</div>
                         <div class="dropdown-item" onclick="addNewBoard()"><i data-lucide="layout-dashboard" size="14"></i> New Board</div>
                         <div class="dropdown-item" onclick="addNewFolder()"><i data-lucide="folder" size="14"></i> New Folder</div>
                     </div>
@@ -1143,6 +1144,22 @@
             <div class="modal-actions" style="margin-top: 30px;">
                 <button class="btn-cancel" onclick="closeAddAutomation()">Cancel</button>
                 <button class="btn-save" id="save-automation-btn" onclick="saveAutomation()">Create Automation</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Boards Modal -->
+    <div id="import-modal" class="modal-overlay">
+        <div class="modal" style="width: 500px; max-width: 90vw; max-height: 80vh; display: flex; flex-direction: column;">
+            <h3>Import Boards</h3>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Select the boards you want to display in your workspace.</p>
+            <input type="text" id="import-search-input" placeholder="Search boards..." onkeyup="filterImportBoards()" style="width: 100%; padding: 8px 12px; margin-bottom: 15px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-main); color: var(--text-main); font-size: 14px; box-sizing: border-box;">
+            <div id="import-boards-list" style="flex-grow: 1; overflow-y: auto; margin-bottom: 15px;">
+                <!-- Dynamically populated -->
+            </div>
+            <div class="modal-actions" style="margin-top: auto;">
+                <button class="btn-cancel" onclick="closeImportModal()">Cancel</button>
+                <button class="btn-save" onclick="saveImportedBoards()">Import Selected</button>
             </div>
         </div>
     </div>
@@ -1397,134 +1414,328 @@
 
         // --- Data Fetching & Syncing ---
 
+        const MONDAY_LAMBDA_URL = 'https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday';
+        let availableMondayBoards = [];
+        let importedBoardIds = JSON.parse(localStorage.getItem('importedBoardIds') || '[]');
+
         async function fetchBoardsFromCloud() {
-            setSyncStatus('syncing', 'Connecting to cloud...');
+            setSyncStatus('syncing', 'Fetching boards...');
             try {
-                const response = await fetch(PERSISTENCE_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'fetch_boards',
-                        data: { userId: USER_ID }
-                    })
-                });
+                let allFetchedBoards = [];
+                let page = 1;
+                let hasMore = true;
 
-                if (!response.ok) throw new Error('Failed to fetch from cloud');
-                const result = await response.json();
-                console.log('Cloud raw result:', result);
-                
-                // AWS Lambda proxy wraps the actual payload in a stringified 'body'
-                let data;
-                if (result.body) {
-                    data = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
-                } else {
-                    data = result.data || result;
-                }
-                console.log('Cloud parsed data:', data);
-                
-                if (data.boards) {
-                    state.boards = data.boards;
-                    // Normalize members to object format
-                    state.boards.forEach(b => {
-                        if (b.members) {
-                            b.members = b.members.map(m => typeof m === 'string' ? { email: m, role: 'view' } : m);
-                        } else {
-                            b.members = [];
-                        }
+                while (hasMore) {
+                    const response = await fetch(MONDAY_LAMBDA_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'get_monday_data',
+                            query: `query { boards(limit: 100, page: ${page}) { id name workspace { id name } } }`
+                        })
                     });
+
+                    if (!response.ok) throw new Error('Failed to fetch boards from Monday');
+                    const result = await response.json();
+                    let data = result.body ? (typeof result.body === 'string' ? JSON.parse(result.body) : result.body) : result;
+
+                    if (data.boards && data.boards.length > 0) {
+                        allFetchedBoards = allFetchedBoards.concat(data.boards);
+                        if (data.boards.length < 100) {
+                            hasMore = false;
+                        } else {
+                            page++;
+                        }
+                    } else {
+                        hasMore = false;
+                    }
                 }
                 
-                if (data.folders) state.folders = data.folders;
-                if (data.statusOptions) state.statusOptions = data.statusOptions;
+                if (allFetchedBoards.length > 0) {
+                    availableMondayBoards = allFetchedBoards.filter(b => !b.name.toLowerCase().includes('subitems'));
+                    
+                    const boardsToLoad = availableMondayBoards.filter(b => importedBoardIds.includes(b.id));
+                    const workspaces = {};
+                    state.boards = boardsToLoad.map(b => {
+                        let folderId = null;
+                        if (b.workspace) {
+                            folderId = b.workspace.id;
+                            workspaces[folderId] = b.workspace.name;
+                        }
+                        return {
+                            id: b.id,
+                            name: b.name,
+                            folderId: folderId,
+                            icon: 'layout-dashboard',
+                            members: [],
+                            groups: [],
+                            columns: [],
+                            hiddenColumns: [],
+                            columnWidths: {}
+                        };
+                    });
+                    
+                    state.folders = Object.keys(workspaces).map(wid => ({
+                        id: wid,
+                        name: workspaces[wid]
+                    }));
+                } else {
+                    state.boards = [];
+                    state.folders = [];
+                }
 
-                // Only set active board if we have boards
+                // Default status options
+                state.statusOptions = {
+                    'Done': { label: 'Done', color: '#00c875' },
+                    'Working on it': { label: 'Working on it', color: '#fdab3d' },
+                    'Stuck': { label: 'Stuck', color: '#e2445c' },
+                    '': { label: '', color: '#c4c4c4' }
+                };
+
                 if(state.boards.length > 0 && !state.activeBoardId) {
                     state.activeBoardId = state.boards[0].id;
                 }
                 
                 renderSidebar();
-                renderActiveBoard();
+                if (state.activeBoardId) {
+                    await fetchBoardDetails(state.activeBoardId);
+                } else {
+                    renderActiveBoard();
+                }
+                
+                if (importedBoardIds.length === 0) {
+                    openImportModal();
+                }
+                
                 checkDateAutomations();
                 setInterval(() => {
                     checkDateAutomations();
-                }, 60000); // Check every minute
+                }, 60000);
                 handleUrlParams();
-                setSyncStatus('synced', 'Cloud Synced');
+                setSyncStatus('synced', 'Connected to Monday');
             } catch (err) {
                 console.error("Cloud fetch failed:", err);
-                showToast("Cloud connection failed. Using local data.", true);
-                setSyncStatus('error', 'Sync Failed');
-                
-                // Fallback to local storage
-                const localData = localStorage.getItem('monday_boards');
-                const localFoldersData = localStorage.getItem('monday_folders');
-                const localStatusData = localStorage.getItem('monday_status_options');
-                if (localData) {
-                    state.boards = JSON.parse(localData);
-                    // Normalize members
-                    state.boards.forEach(b => {
-                        if (b.members) {
-                            b.members = b.members.map(m => typeof m === 'string' ? { email: m, role: 'view' } : m);
-                        } else {
-                            b.members = [];
-                        }
-                    });
-                    if (localFoldersData) state.folders = JSON.parse(localFoldersData);
-                    if(state.boards.length > 0) state.activeBoardId = state.boards[0].id;
+                setSyncStatus('error', 'Connection Failed');
+            }
+        }
+
+        function openImportModal() {
+            if (availableMondayBoards.length === 0) {
+                showToast("No boards available or still loading");
+                return;
+            }
+            
+            let html = `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+            availableMondayBoards.forEach(b => {
+                const isChecked = importedBoardIds.includes(b.id) ? 'checked' : '';
+                html += `
+                    <label class="import-board-label" style="display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; background: var(--bg-main);">
+                        <input type="checkbox" class="import-board-cb" value="${b.id}" ${isChecked} style="width: 16px; height: 16px;">
+                        <span style="color: var(--text-main); font-size: 14px;">${b.name}</span>
+                        <span style="color: var(--text-muted); font-size: 12px; margin-left: auto;">${b.workspace ? b.workspace.name : 'Main Workspace'}</span>
+                    </label>
+                `;
+            });
+            html += `</div>`;
+            
+            document.getElementById('import-boards-list').innerHTML = html;
+            document.getElementById('import-search-input').value = '';
+            document.getElementById('import-modal').classList.add('show');
+        }
+
+        function filterImportBoards() {
+            const query = document.getElementById('import-search-input').value.toLowerCase();
+            const labels = document.querySelectorAll('.import-board-label');
+            labels.forEach(label => {
+                const text = label.innerText.toLowerCase();
+                if (text.includes(query)) {
+                    label.style.display = 'flex';
                 } else {
-                    // Stay empty if no cloud or local data exists
-                    state.boards = [];
+                    label.style.display = 'none';
                 }
-                if (localStatusData) {
-                    state.statusOptions = JSON.parse(localStatusData);
+            });
+        }
+
+        async function saveImportedBoards() {
+            const checkboxes = document.querySelectorAll('.import-board-cb:checked');
+            importedBoardIds = Array.from(checkboxes).map(cb => cb.value);
+            localStorage.setItem('importedBoardIds', JSON.stringify(importedBoardIds));
+            
+            closeImportModal();
+            showToast("Importing boards...", false);
+            
+            // Re-initialize state.boards based on the new selection
+            const workspaces = {};
+            const boardsToLoad = availableMondayBoards.filter(b => importedBoardIds.includes(b.id));
+            
+            state.boards = boardsToLoad.map(b => {
+                let folderId = null;
+                if (b.workspace) {
+                    folderId = b.workspace.id;
+                    workspaces[folderId] = b.workspace.name;
                 }
+                
+                const existing = state.boards.find(eb => eb.id === b.id);
+                if (existing) return existing;
+                
+                return {
+                    id: b.id,
+                    name: b.name,
+                    folderId: folderId,
+                    icon: 'layout-dashboard',
+                    members: [],
+                    groups: [],
+                    columns: [],
+                    hiddenColumns: [],
+                    columnWidths: {}
+                };
+            });
+            
+            state.folders = Object.keys(workspaces).map(wid => ({
+                id: wid,
+                name: workspaces[wid]
+            }));
+            
+            if (state.boards.length > 0 && (!state.activeBoardId || !state.boards.find(b => b.id === state.activeBoardId))) {
+                await selectBoard(state.boards[0].id);
+            } else if (state.boards.length === 0) {
+                state.activeBoardId = null;
                 renderSidebar();
                 renderActiveBoard();
+            } else {
+                renderSidebar();
+                if (state.activeBoardId && state.boards.find(b=>b.id===state.activeBoardId)?.groups.length === 0) {
+                    await fetchBoardDetails(state.activeBoardId);
+                } else {
+                    renderActiveBoard();
+                }
             }
+            
+            showToast("Boards imported successfully!", true);
+        }
+
+        function closeImportModal() {
+            document.getElementById('import-modal').classList.remove('show');
+        }
+
+        async function fetchBoardDetails(boardId) {
+            setSyncStatus('syncing', 'Loading board details...');
+            try {
+                const response = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'get_monday_data',
+                        query: `query {
+                            boards(ids: [${boardId}]) {
+                                columns { id title type }
+                                groups { id title color }
+                                items_page(limit: 100) {
+                                    items {
+                                        id name
+                                        group { id }
+                                        column_values { id text type }
+                                        updates(limit: 10) {
+                                            id body created_at
+                                            creator { name photo_tiny }
+                                            replies { id body created_at creator { name } }
+                                        }
+                                    }
+                                }
+                            }
+                        }`
+                    })
+                });
+
+                const result = await response.json();
+                let data = result.body ? (typeof result.body === 'string' ? JSON.parse(result.body) : result.body) : result;
+                
+                if (data.boards && data.boards.length > 0) {
+                    const mb = data.boards[0];
+                    const board = state.boards.find(b => b.id === boardId);
+                    if (board) {
+                        board.columns = mb.columns
+                            .filter(c => c.type !== 'subtasks' && !c.title.toLowerCase().includes('subitems'))
+                            .map(c => ({
+                            id: c.id,
+                            title: c.title,
+                            type: mapColumnType(c.type)
+                        }));
+                        
+                        board.groups = mb.groups.map(g => ({
+                            id: g.id,
+                            name: g.title,
+                            color: g.color || '#579bfc',
+                            items: []
+                        }));
+
+                        const items = mb.items_page?.items || [];
+                        items.forEach(i => {
+                            const values = {};
+                            i.column_values.forEach(cv => {
+                                values[cv.id] = cv.text || '';
+                            });
+                            
+                            const itemUpdates = (i.updates || []).map(u => ({
+                                id: u.id,
+                                text: u.body,
+                                author: u.creator?.name || 'Unknown',
+                                authorName: u.creator?.name || 'Unknown',
+                                date: u.created_at,
+                                replies: (u.replies || []).map(r => ({
+                                    id: r.id,
+                                    text: r.body,
+                                    author: r.creator?.name || 'Unknown',
+                                    authorName: r.creator?.name || 'Unknown',
+                                    date: r.created_at
+                                })),
+                                reactions: {},
+                                attachments: []
+                            }));
+
+                            const itemObj = {
+                                id: i.id,
+                                name: i.name,
+                                values: values,
+                                updates: itemUpdates
+                            };
+                            
+                            const group = board.groups.find(g => g.id === i.group?.id);
+                            if (group) {
+                                group.items.push(itemObj);
+                            } else if (board.groups.length > 0) {
+                                board.groups[0].items.push(itemObj);
+                            }
+                        });
+                    }
+                }
+                renderActiveBoard();
+                setSyncStatus('synced', 'Synced');
+            } catch (err) {
+                console.error("Board details fetch failed", err);
+                setSyncStatus('error', 'Board Load Failed');
+            }
+        }
+
+        function mapColumnType(mondayType) {
+            const typeMap = {
+                'status': 'status',
+                'date': 'date',
+                'multiple-person': 'person',
+                'numbers': 'number',
+                'text': 'text',
+                'color_picker': 'status',
+                'tags': 'tags'
+            };
+            return typeMap[mondayType] || 'text';
         }
 
         let syncTimeout;
         let syncPending = false;
         function queueCloudSync(immediate = false) {
-            // Save to local storage immediately as fallback
-            localStorage.setItem('monday_boards', JSON.stringify(state.boards));
-            localStorage.setItem('monday_folders', JSON.stringify(state.folders));
-            localStorage.setItem('monday_status_options', JSON.stringify(state.statusOptions));
-            
-            setSyncStatus('syncing', 'Saving changes...');
-            syncPending = true;
-            
-            clearTimeout(syncTimeout);
-            const delay = immediate ? 0 : 500;
-            syncTimeout = setTimeout(async () => {
-                try {
-                    const response = await fetch(PERSISTENCE_API_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'save_boards',
-                            data: {
-                                userId: USER_ID,
-                                folders: state.folders,
-                                boards: state.boards,
-                                statusOptions: state.statusOptions,
-                                lastSaved: new Date().toISOString()
-                            }
-                        })
-                    });
-                    
-                    if (!response.ok) throw new Error('Cloud save failed');
-                    const saveResult = await response.json();
-                    const saveBody = saveResult.body ? (typeof saveResult.body === 'string' ? JSON.parse(saveResult.body) : saveResult.body) : saveResult;
-                    console.log('Cloud save response:', saveBody);
-                    setSyncStatus('synced', 'All changes saved');
-                    syncPending = false;
-                    console.log('Cloud sync successful');
-                } catch (err) {
-                    console.error('Cloud sync error:', err);
-                    setSyncStatus('error', 'Sync failed - using local storage');
-                }
-            }, delay);
+            // Read-only mode
+            console.log('Read-only mode: cloud sync disabled');
+            setSyncStatus('synced', 'Read-only');
         }
 
         window.addEventListener('beforeunload', (e) => {
@@ -1806,6 +2017,24 @@
             queueCloudSync();
         }
 
+        function openColumnFilterPrompt(colId, colTitle, colType) {
+            let val;
+            if (colType === 'status') {
+                const options = Object.keys(state.statusOptions).map(k => state.statusOptions[k].label || k).join(', ');
+                val = prompt(`Filter ${colTitle} by status (Options: ${options}):`, activeFilters[colId] || '');
+            } else {
+                val = prompt(`Filter ${colTitle} contains:`, activeFilters[colId] || '');
+            }
+            if (val !== null) {
+                if (colId === 'name') {
+                    document.getElementById('board-search').value = val;
+                    handleBoardSearch(val);
+                } else {
+                    setBoardFilter(colId, val);
+                }
+            }
+        }
+
         function toggleFilterPicker() {
             const menu = document.getElementById('filter-picker-menu');
             const board = state.boards.find(b => b.id === state.activeBoardId);
@@ -1932,9 +2161,9 @@
                 let theadHtml = `<tr>
                     <th class="col-drag" style="width: 30px;"></th>
                     <th class="col-check" style="width: 30px;"><input type="checkbox" onchange="toggleGroupSelection(this, '${group.id}')"></th>
-                    <th class="col-name" style="width: ${board.columnWidths?.name || 300}px; padding: 0;">
-                        <div onclick="sortBoard('${board.id}', '${group.id}', 'name')" style="display:flex; align-items:center; justify-content:center; padding: 8px 12px; cursor:pointer; height:100%;">
-                            Item Name <i data-lucide="chevron-down" size="14" class="sort-icon" style="margin-left:5px; opacity:0;"></i>
+                    <th class="col-name" style="width: ${board.columnWidths?.name || 300}px; padding: 0; position: relative;">
+                        <div onclick="openColumnFilterPrompt('name', 'Item Name', 'text')" style="display:flex; align-items:center; justify-content:center; padding: 8px 12px; cursor:pointer; height:100%;">
+                            Item Name <i data-lucide="filter" size="14" class="sort-icon" style="margin-left:5px; opacity:0;"></i>
                         </div>
                         <div class="resizer" onmousedown="initResize(event, '${board.id}', 'name')"></div>
                     </th>
@@ -1948,8 +2177,8 @@
                     theadHtml += `
                         <th class="col-${col.type}" style="position:relative; width: ${colWidth}px; padding: 0;">
                             <div style="display:flex; justify-content:center; align-items:center; height:100%;">
-                                <div style="flex-grow:1; text-align:center; cursor:pointer; padding: 8px 0;" onclick="sortBoard('${board.id}', '${group.id}', '${col.id}')">
-                                    ${col.title} <i data-lucide="chevron-down" size="14" class="sort-icon" style="margin-left:5px; opacity:0; vertical-align:middle;"></i>
+                                <div style="flex-grow:1; text-align:center; cursor:pointer; padding: 8px 0;" onclick="openColumnFilterPrompt('${col.id}', '${col.title.replace(/'/g, "\\'")}', '${col.type}')">
+                                    ${col.title} <i data-lucide="filter" size="14" class="sort-icon" style="margin-left:5px; opacity:0; vertical-align:middle;"></i>
                                 </div>
                                 <button class="sidebar-menu-btn" style="padding:0; margin-left:5px; position:absolute; right:10px;" onclick="toggleSidebarMenu(event, 'col-${group.id}-${col.id}')"><i data-lucide="more-horizontal" size="14"></i></button>
                             </div>
@@ -2104,6 +2333,14 @@
                                     <input type="file" id="upload-${item.id}-${col.id}" style="display:none;" onchange="handleColumnFileUpload(this, '${board.id}', '${group.id}', '${item.id}', '${col.id}')">
                                 </div>
                             </td>`;
+                        } else if (col.type === 'tags') {
+                            const tags = val ? val.split(',').map(t => t.trim()).filter(t => t) : [];
+                            html += `
+                            <td class="col-tags">
+                                <div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center; padding:4px;">
+                                    ${tags.map(t => `<span style="background:rgba(87, 155, 252, 0.2); border: 1px solid var(--primary-blue); color:var(--primary-blue); font-size:11px; padding:2px 8px; border-radius:12px;">${t}</span>`).join('')}
+                                </div>
+                            </td>`;
                         } else {
                             html += `
                             <td class="col-text">
@@ -2187,11 +2424,17 @@
 
         // --- Interactions ---
 
-        function selectBoard(id) {
+        async function selectBoard(id) {
             state.activeBoardId = id;
             updateUrlParams({ boardId: id, itemId: null });
             renderSidebar();
-            renderActiveBoard();
+            
+            const board = state.boards.find(b => b.id === id);
+            if (board && (!board.groups || board.groups.length === 0)) {
+                await fetchBoardDetails(id);
+            } else {
+                renderActiveBoard();
+            }
         }
 
         function updateUrlParams(params) {
@@ -4360,7 +4603,7 @@
                             <span style="font-weight: 500;">${up.authorName || up.author || 'User'}</span>
                             <span style="font-size:10px; color:var(--text-muted); font-weight:normal;">${new Date(up.date).toLocaleString()}</span>
                         </div>
-                        <div class="update-text" style="font-size: 14px; line-height: 1.5;">${up.text.replace(/\n/g, '<br>')}</div>
+                        <div class="update-text" style="font-size: 14px; line-height: 1.5;">${(up.text || '').replace(/\n/g, '<br>')}</div>
                         ${up.attachments && up.attachments.length > 0 ? `
                             <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;">
                                 ${up.attachments.map((f, idx) => `
