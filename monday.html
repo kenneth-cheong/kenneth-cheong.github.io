@@ -395,7 +395,9 @@
 
         /* Group */
         .group {
-            margin-bottom: 40px;
+            margin-bottom: 30px;
+            content-visibility: auto;
+            contain-intrinsic-size: 1px 500px;
         }
 
         .group-header {
@@ -421,6 +423,7 @@
             width: 100%;
             border-collapse: collapse;
             background-color: transparent;
+            table-layout: fixed;
         }
 
         .monday-table th, .monday-table td {
@@ -719,6 +722,21 @@
         .update-card { background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; margin-bottom: 15px; }
         .update-author { font-weight: 600; margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
         .update-text { color: var(--text-main); font-size: 14px; line-height: 1.5; white-space: pre-wrap; margin-bottom: 10px; }
+        .update-text a, .update-text a * { 
+            color: #4cc9f0 !important; 
+            text-decoration: underline !important; 
+            font-weight: 600 !important; 
+            transition: color 0.2s;
+        }
+        .update-text a:hover, .update-text a *:hover { color: #ffffff !important; }
+        .update-text .mention, .update-text [data-mention-id] { 
+            color: #4cc9f0 !important; 
+            background: rgba(76, 201, 240, 0.15) !important; 
+            padding: 1px 6px; 
+            border-radius: 4px; 
+            font-weight: 600 !important; 
+            border-bottom: 1px dashed rgba(76, 201, 240, 0.4);
+        }
         .update-actions { display: flex; gap: 10px; margin-top: 10px; }
         .reaction-btn { background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-muted); border-radius: 12px; padding: 2px 8px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
         .reaction-btn:hover { border-color: #579bfc; color: var(--text-main); }
@@ -732,14 +750,24 @@
         /* Label Modal */
         .modal-overlay {
             position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5);
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 10000;
             display: none;
-            align-items: center;
             justify-content: center;
-            z-index: 2000;
+            align-items: center;
         }
         .modal-overlay.show { display: flex; }
+        
+        .modal-content {
+            background-color: var(--bg-main);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
         .modal {
             background: var(--bg-main);
             border: 1px solid var(--border-color);
@@ -855,7 +883,70 @@
         }
         .folder-item-content i {
             color: #ffcb00; /* folder color */
-        }@keyframes fadeIn {
+        }
+        /* Loading Overlay */
+        #loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(24, 27, 52, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 30000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+        }
+        #loading-overlay.show { display: flex; }
+        #loading-overlay.mini {
+            top: auto; left: auto;
+            right: 30px; bottom: 30px;
+            width: auto; height: auto;
+            background: rgba(24, 27, 52, 0.95);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 15px 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+        }
+        #loading-overlay.mini .spinner-container {
+            width: 30px; height: 30px;
+        }
+        
+        .spinner-container {
+            position: relative;
+            width: 60px;
+            height: 60px;
+        }
+        .spinner-outer {
+            width: 100%;
+            height: 100%;
+            border: 3px solid rgba(87, 155, 252, 0.1);
+            border-top: 3px solid #00d2ff;
+            border-radius: 50%;
+            animation: spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+        .spinner-inner {
+            position: absolute;
+            top: 10px; left: 10px; right: 10px; bottom: 10px;
+            border: 3px solid rgba(0, 210, 255, 0.1);
+            border-bottom: 3px solid #579bfc;
+            border-radius: 50%;
+            animation: spin 1.5s linear infinite reverse;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            color: var(--text-main);
+            font-size: 15px;
+            font-weight: 500;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        @keyframes fadeIn {
             from { opacity: 0; transform: translateY(5px); }
             to { opacity: 1; transform: translateY(0); }
         }
@@ -1164,30 +1255,8 @@
         </div>
     </div>
 
-    <!-- Updates Modal -->
-    <div id="updates-modal" class="modal-overlay">
-        <div class="updates-panel">
-            <div class="updates-header">
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <button class="btn-icon" onclick="closeUpdatesModal()"><i data-lucide="x" size="20"></i></button>
-                    <h3 id="updates-item-name" style="margin:0;">Item Updates</h3>
-                </div>
-                <button class="btn-icon" title="Copy Item Link" onclick="if(currentUpdatesItem) copyItemLink(currentUpdatesItem.itemId)"><i data-lucide="link" size="18"></i></button>
-            </div>
-            <div class="updates-body" id="updates-body">
-                <!-- Updates rendered here -->
-            </div>
-            <div class="updates-footer">
-                <textarea id="new-update-input" placeholder="Write an update (Paste images here)..." onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); postUpdate(); }" onpaste="handleUpdatePaste(event)" style="width: 100%; padding: 10px; background: var(--bg-surface); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 4px; resize: none; height: 80px; margin-bottom: 5px; font-family: inherit; font-size: 14px; outline: none;"></textarea>
-                <div id="update-attachments-preview" style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;"></div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <button class="btn-icon" onclick="document.getElementById('update-file-input').click()"><i data-lucide="paperclip" size="18"></i></button>
-                    <input type="file" id="update-file-input" style="display:none;" multiple onchange="handleUpdateFiles(this.files)">
-                    <button class="btn-save" onclick="postUpdate()">Update</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Updates Modal (Dynamic version is used via JS) -->
+
 
     <!-- Attachment Preview Modal -->
     <div id="preview-modal" class="modal-overlay" onclick="closePreviewModal()">
@@ -1274,6 +1343,8 @@
 
         let tokenClient;
         let googleAccessToken = localStorage.getItem('googleChatToken');
+        let groupsToRenderFully = new Set();
+        let collapsedGroups = new Set();
 
         function initGoogleOAuth() {
             if (typeof google === 'undefined' || !google.accounts) return;
@@ -1419,6 +1490,7 @@
         let importedBoardIds = JSON.parse(localStorage.getItem('importedBoardIds') || '[]');
 
         async function fetchBoardsFromCloud() {
+            showLoader('Fetching board list...');
             setSyncStatus('syncing', 'Fetching boards...');
             try {
                 let allFetchedBoards = [];
@@ -1516,6 +1588,8 @@
             } catch (err) {
                 console.error("Cloud fetch failed:", err);
                 setSyncStatus('error', 'Connection Failed');
+            } finally {
+                hideLoader();
             }
         }
 
@@ -1618,19 +1692,33 @@
             document.getElementById('import-modal').classList.remove('show');
         }
 
+        function showLoader(text, mini = false) {
+            const el = document.getElementById('loading-overlay');
+            document.getElementById('loading-overlay-text').innerText = text || 'Loading...';
+            if (mini) el.classList.add('mini');
+            else el.classList.remove('mini');
+            el.classList.add('show');
+        }
+        function hideLoader() {
+            document.getElementById('loading-overlay').classList.remove('show');
+        }
+
         async function fetchBoardDetails(boardId) {
+            showLoader('Connecting to Monday.com...');
             setSyncStatus('syncing', 'Loading board details...');
             try {
-                const response = await fetch(MONDAY_LAMBDA_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'get_monday_data',
-                        query: `query {
+                let allItems = [];
+                let cursor = null;
+                let mbData = null;
+                let pageNum = 1;
+
+                do {
+                    if (pageNum > 1) showLoader(`Importing items (Page ${pageNum})...`, true);
+                    const query = cursor ? `
+                        query {
                             boards(ids: [${boardId}]) {
-                                columns { id title type }
-                                groups { id title color }
-                                items_page(limit: 100) {
+                                items_page(limit: 100, cursor: "${cursor}") {
+                                    cursor
                                     items {
                                         id name
                                         group { id }
@@ -1643,34 +1731,63 @@
                                     }
                                 }
                             }
-                        }`
-                    })
-                });
+                        }` : `
+                        query {
+                            boards(ids: [${boardId}]) {
+                                columns { id title type }
+                                groups { id title color }
+                                items_page(limit: 100) {
+                                    cursor
+                                    items {
+                                        id name
+                                        group { id }
+                                        column_values { id text type }
+                                        updates(limit: 10) {
+                                            id body created_at
+                                            creator { name photo_tiny }
+                                            replies { id body created_at creator { name } }
+                                        }
+                                    }
+                                }
+                            }
+                        }`;
 
-                const result = await response.json();
-                let data = result.body ? (typeof result.body === 'string' ? JSON.parse(result.body) : result.body) : result;
-                
-                if (data.boards && data.boards.length > 0) {
-                    const mb = data.boards[0];
-                    const board = state.boards.find(b => b.id === boardId);
-                    if (board) {
-                        board.columns = mb.columns
-                            .filter(c => c.type !== 'subtasks' && !c.title.toLowerCase().includes('subitems'))
-                            .map(c => ({
-                            id: c.id,
-                            title: c.title,
-                            type: mapColumnType(c.type)
-                        }));
+                    const response = await fetch(MONDAY_LAMBDA_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            action: 'get_monday_data',
+                            query 
+                        })
+                    });
+
+                    const result = await response.json();
+                    const data = result.body ? (typeof result.body === 'string' ? JSON.parse(result.body) : result.body) : result;
+                    
+                    if (data.boards && data.boards.length > 0) {
+                        const mb = data.boards[0];
+                        const board = state.boards.find(b => b.id === boardId);
                         
-                        board.groups = mb.groups.map(g => ({
-                            id: g.id,
-                            name: g.title,
-                            color: g.color || '#579bfc',
-                            items: []
-                        }));
+                        if (board && !mbData) {
+                            mbData = mb; 
+                            board.columns = mbData.columns
+                                .filter(c => c.type !== 'subtasks' && !c.title.toLowerCase().includes('subitems') && c.title.toLowerCase() !== 'name')
+                                .map(c => ({
+                                    id: c.id,
+                                    title: c.title,
+                                    type: mapColumnType(c.type)
+                                }));
+                            
+                            board.groups = mb.groups.map(g => ({
+                                id: g.id,
+                                name: g.title,
+                                color: g.color || '#579bfc',
+                                items: []
+                            }));
+                        }
 
-                        const items = mb.items_page?.items || [];
-                        items.forEach(i => {
+                        const pageItems = mb.items_page?.items || [];
+                        pageItems.forEach(i => {
                             const values = {};
                             i.column_values.forEach(cv => {
                                 values[cv.id] = cv.text || '';
@@ -1684,7 +1801,7 @@
                                 date: u.created_at,
                                 replies: (u.replies || []).map(r => ({
                                     id: r.id,
-                                    text: r.body,
+                                    text: r.text || r.body || '',
                                     author: r.creator?.name || 'Unknown',
                                     authorName: r.creator?.name || 'Unknown',
                                     date: r.created_at
@@ -1707,13 +1824,23 @@
                                 board.groups[0].items.push(itemObj);
                             }
                         });
+
+                        // Progressive Rendering
+                        renderActiveBoard();
+                        
+                        cursor = mb.items_page?.cursor;
+                        pageNum++;
+                    } else {
+                        cursor = null;
                     }
-                }
-                renderActiveBoard();
+                } while (cursor);
+
                 setSyncStatus('synced', 'Synced');
             } catch (err) {
                 console.error("Board details fetch failed", err);
                 setSyncStatus('error', 'Board Load Failed');
+            } finally {
+                hideLoader();
             }
         }
 
@@ -1961,7 +2088,7 @@
             renderActiveBoard();
         }
 
-        function toggleColumnPicker(e) {
+        function toggleColumnPicker() {
             const menu = document.getElementById('column-picker-menu');
             const board = state.boards.find(b => b.id === state.activeBoardId);
             if (!board) return;
@@ -1971,36 +2098,86 @@
                 return;
             }
 
-            if (!board.hiddenColumns) board.hiddenColumns = [];
-
-            let html = `<div style="font-weight:600; font-size:12px; color:var(--text-muted); margin-bottom:10px; text-transform:uppercase;">Display Columns</div>`;
+            renderColumnPickerContent('');
             
-            // Name is special, always shown or togglable? Usually always shown.
-            
-            board.columns.forEach(col => {
-                const isHidden = board.hiddenColumns.includes(col.id);
-                html += `
-                    <label style="display:flex; align-items:center; gap:10px; padding:6px 0; cursor:pointer; font-size:13px;">
-                        <input type="checkbox" ${!isHidden ? 'checked' : ''} onchange="toggleColumnVisibility('${col.id}', this.checked)">
-                        ${col.title}
-                    </label>
-                `;
-            });
-
-            menu.innerHTML = html;
-            const btnRect = document.querySelector('button[onclick="toggleColumnPicker()"]').getBoundingClientRect();
+            const btn = document.querySelector('button[onclick="toggleColumnPicker()"]') || event.currentTarget;
+            const btnRect = btn.getBoundingClientRect();
             menu.style.top = (btnRect.bottom + 5) + 'px';
             menu.style.left = (btnRect.left) + 'px';
             menu.style.display = 'flex';
             
             // Close when clicking outside
             const closer = (ev) => {
-                if (!menu.contains(ev.target) && !ev.target.closest('button[onclick="toggleColumnPicker()"]')) {
+                const trigger = document.querySelector('button[onclick="toggleColumnPicker()"]');
+                if (!menu.contains(ev.target) && (!trigger || !trigger.contains(ev.target))) {
                     menu.style.display = 'none';
                     document.removeEventListener('mousedown', closer);
                 }
             };
             document.addEventListener('mousedown', closer);
+        }
+
+        function renderColumnPickerContent(search = '') {
+            const menu = document.getElementById('column-picker-menu');
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if (!board) return;
+            if (!board.hiddenColumns) board.hiddenColumns = [];
+
+            let html = `
+                <div style="font-weight:600; font-size:11px; color:var(--text-muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.05em;">
+                    Display Columns
+                </div>
+                <div style="margin-bottom:12px;">
+                    <input type="text" id="col-picker-search" placeholder="Search columns..." oninput="renderColumnPickerContent(this.value)" value="${search}" style="width:100%; padding:8px 12px; background:rgba(0,0,0,0.2); border:1px solid var(--border-color); border-radius:6px; color:var(--text-main); font-size:13px; outline:none;">
+                </div>
+                <div style="display:flex; gap:15px; margin-bottom:10px; font-size:11px; padding:0 4px;">
+                    <span onclick="bulkToggleColumns(true)" style="color:var(--primary-blue); cursor:pointer; font-weight:500;">Select All</span>
+                    <span onclick="bulkToggleColumns(false)" style="color:var(--text-muted); cursor:pointer; font-weight:500;">Deselect All</span>
+                </div>
+                <div class="custom-scrollbar" style="max-height:300px; overflow-y:auto; display:flex; flex-direction:column; gap:2px; padding-right:5px;">
+            `;
+            
+            const filtered = board.columns.filter(c => c.title.toLowerCase().includes(search.toLowerCase()));
+            
+            if (filtered.length === 0) {
+                html += `<div style="padding:20px; text-align:center; color:var(--text-muted); font-size:12px;">No columns match "${search}"</div>`;
+            } else {
+                filtered.forEach(col => {
+                    const isHidden = board.hiddenColumns.includes(col.id);
+                    html += `
+                        <label style="display:flex; align-items:center; gap:10px; padding:6px 8px; cursor:pointer; font-size:13px; border-radius:4px; transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+                            <input type="checkbox" ${!isHidden ? 'checked' : ''} onchange="toggleColumnVisibility('${col.id}', this.checked)" style="accent-color:var(--primary-blue);">
+                            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${col.title}</span>
+                        </label>
+                    `;
+                });
+            }
+
+            html += `</div>`;
+            menu.innerHTML = html;
+            
+            // Refocus search if it was active
+            if (search) {
+                const input = document.getElementById('col-picker-search');
+                if (input) {
+                    input.focus();
+                    input.setSelectionRange(search.length, search.length);
+                }
+            }
+        }
+
+        function bulkToggleColumns(visible) {
+            const board = state.boards.find(b => b.id === state.activeBoardId);
+            if (!board) return;
+            if (visible) {
+                board.hiddenColumns = [];
+            } else {
+                board.hiddenColumns = board.columns.map(c => c.id);
+            }
+            const search = document.getElementById('col-picker-search')?.value || '';
+            renderColumnPickerContent(search);
+            renderActiveBoard();
+            queueCloudSync();
         }
 
         function toggleColumnVisibility(colId, visible) {
@@ -2194,8 +2371,9 @@
                 theadHtml += `</tr>`;
 
                 html += `
-                    <div class="group" data-id="${group.id}">
+                    <div class="group ${collapsedGroups.has(group.id) ? 'collapsed' : ''}" data-id="${group.id}">
                         <div class="group-header">
+                            <i data-lucide="${collapsedGroups.has(group.id) ? 'chevron-right' : 'chevron-down'}" size="16" style="cursor:pointer; margin-right:8px; color:var(--text-muted);" onclick="toggleGroupCollapse('${group.id}')"></i>
                             <i data-lucide="grip-vertical" size="14" style="color:var(--text-muted); cursor:grab; margin-right:5px;" class="group-drag-handle"></i>
                             <div class="group-hover-actions">
                                 <button onclick="duplicateGroup('${board.id}', '${group.id}')" title="Duplicate Group"><i data-lucide="copy" size="14"></i></button>
@@ -2211,12 +2389,17 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="table-container">
+                        <div class="table-container" style="${collapsedGroups.has(group.id) ? 'display:none;' : ''}">
                             <table class="monday-table">
                                 <thead>${theadHtml}</thead>
                                 <tbody>`;
                 
-                group.items.forEach(item => {
+                // Lazy rendering: only show 50 items initially unless "Show More" clicked
+                const MAX_INITIAL_ITEMS = 50;
+                const shouldRenderAll = groupsToRenderFully.has(group.id) || group.items.length <= MAX_INITIAL_ITEMS;
+                const itemsToRender = shouldRenderAll ? group.items : group.items.slice(0, MAX_INITIAL_ITEMS);
+                
+                itemsToRender.forEach(item => {
                     // APPLY SEARCH & FILTERS
                     if (boardSearchQuery && !item.name.toLowerCase().includes(boardSearchQuery)) return;
                     for (const [colId, filterVal] of Object.entries(activeFilters)) {
@@ -2267,9 +2450,9 @@
                             html += `
                             <td class="col-date">
                                 <div style="display:flex; align-items:center; justify-content:center; gap:4px; width:100%;">
-                                    <input type="date" value="${dates[0]}" onchange="updateDateRange('${board.id}', '${group.id}', '${item.id}', '${col.id}', 0, this.value, '${val}')" style="width:45%; background:transparent; border:none; color:var(--text-main); text-align:center; outline:none; font-size:11px; padding:0;">
+                                    <input type="date" value="${dates[0] || ''}" onchange="updateDateRange('${board.id}', '${group.id}', '${item.id}', '${col.id}', 0, this.value, '${val}')" style="width:45%; background:transparent; border:none; color:var(--text-main); text-align:center; outline:none; font-size:11px; padding:0;">
                                     <span style="color:var(--text-muted);">-</span>
-                                    <input type="date" value="${dates[1]}" onchange="updateDateRange('${board.id}', '${group.id}', '${item.id}', '${col.id}', 1, this.value, '${val}')" style="width:45%; background:transparent; border:none; color:var(--text-main); text-align:center; outline:none; font-size:11px; padding:0;">
+                                    <input type="date" value="${dates[1] || ''}" onchange="updateDateRange('${board.id}', '${group.id}', '${item.id}', '${col.id}', 1, this.value, '${val}')" style="width:45%; background:transparent; border:none; color:var(--text-main); text-align:center; outline:none; font-size:11px; padding:0;">
                                 </div>
                             </td>`;
                         } else if (col.type === 'person') {
@@ -2359,6 +2542,18 @@
                         </tr>`;
                 });
 
+                if (group.items.length > MAX_INITIAL_ITEMS) {
+                    const remaining = group.items.length - MAX_INITIAL_ITEMS;
+                    html += `
+                        <tr class="load-more-row" onclick="renderAllItemsInGroup('${board.id}', '${group.id}')" style="cursor:pointer; background:rgba(87,155,252,0.05);">
+                            <td colspan="100" style="padding: 12px; text-align: center; color: var(--primary-blue); font-weight: 500;">
+                                <i data-lucide="chevron-down" size="14" style="vertical-align:middle; margin-right:5px;"></i>
+                                Show ${remaining} more items in this group
+                            </td>
+                        </tr>
+                    `;
+                }
+
                 html += `
                             </tbody>
                         </table>
@@ -2427,14 +2622,15 @@
         async function selectBoard(id) {
             state.activeBoardId = id;
             updateUrlParams({ boardId: id, itemId: null });
-            renderSidebar();
             
             const board = state.boards.find(b => b.id === id);
-            if (board && (!board.groups || board.groups.length === 0)) {
+            if (board) {
+                // Always fetch latest details to ensure we have updates and live data
                 await fetchBoardDetails(id);
-            } else {
-                renderActiveBoard();
             }
+            
+            renderSidebar();
+            renderActiveBoard();
         }
 
         function updateUrlParams(params) {
@@ -4485,8 +4681,8 @@
             modal.className = 'modal-overlay show';
             modal.innerHTML = `
                 <div class="modal-content" style="width: 700px; height: 85vh; display: flex; flex-direction: column; padding: 0; overflow: hidden;">
-                    <div class="modal-header" style="padding: 20px; border-bottom: 1px solid var(--border-color);">
-                        <div style="display:flex; flex-direction:column; gap:4px;">
+                    <div class="modal-header" style="padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div style="display:flex; flex-direction:column; gap:4px; max-width: 90%;">
                             <h2 style="margin:0; font-size:18px;" id="updates-item-name">${item.name}</h2>
                             <span style="font-size:12px; color:var(--text-muted);">${board.name} > ${group.name}</span>
                         </div>
@@ -5146,6 +5342,48 @@
         window.addEventListener('load', () => {
             if (googleAccessToken) fetchChatSpaces();
         });
+        // Global Escape key listener to close modals
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const updatesModal = document.getElementById('updates-modal-overlay');
+                if (updatesModal) closeUpdatesModal();
+                
+                const previewModal = document.getElementById('preview-modal');
+                if (previewModal && previewModal.classList.contains('show')) closePreviewModal();
+                
+                const importModal = document.getElementById('import-modal');
+                if (importModal && importModal.classList.contains('show')) closeImportModal();
+                
+                const autoModal = document.getElementById('automation-modal');
+                if (autoModal && autoModal.classList.contains('show')) closeAutomationCenter();
+                
+                document.querySelectorAll('.modal-overlay.show').forEach(m => {
+                    if (m.id === 'board-description-modal' || m.id === 'board-activity-modal') {
+                        m.remove();
+                    } else {
+                        m.classList.remove('show');
+                    }
+                });
+            }
+        });
+        function toggleGroupCollapse(groupId) {
+            if (collapsedGroups.has(groupId)) collapsedGroups.delete(groupId);
+            else collapsedGroups.add(groupId);
+            renderActiveBoard();
+        }
+
+        function renderAllItemsInGroup(boardId, groupId) {
+            groupsToRenderFully.add(groupId);
+            renderActiveBoard();
+        }
     </script>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+        <div class="spinner-container">
+            <div class="spinner-outer"></div>
+            <div class="spinner-inner"></div>
+        </div>
+        <div class="loading-text" id="loading-overlay-text">Loading...</div>
+    </div>
 </body>
 </html>
