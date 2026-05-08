@@ -1822,10 +1822,15 @@
         <aside class="settings-sidebar" id="settingsSidebar">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                 <h2 style="margin:0;">Settings</h2>
-                <button class="btn btn-outline" onclick="toggleSettings()"
-                    style="padding: 5px 10px; border-color: #e2e8f0; color: var(--primary-navy);">
-                    <i class="fas fa-times"></i>
-                </button>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-outline" onclick="clearInternalCache()" title="Clear local campaign cache to free up storage" style="padding: 5px 10px; border-color: #e2e8f0; color: #64748b; font-size: 0.75rem;">
+                        <i class="fas fa-broom"></i> Clear Cache
+                    </button>
+                    <button class="btn btn-outline" onclick="toggleSettings()"
+                        style="padding: 5px 10px; border-color: #e2e8f0; color: var(--primary-navy);">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Authentication Section (Always Visible) -->
@@ -4745,6 +4750,12 @@
                 updateCacheStatusUI();
             } catch (e) {
                 console.warn("Cache save failed (Storage full?):", e);
+                if (e.name === 'QuotaExceededError' || e.code === 22) {
+                    console.log("[STORAGE] Pruning old cache to make room...");
+                    localStorage.removeItem('internal_campaign_cache');
+                    // We don't retry immediately to avoid infinite loops, 
+                    // but next time it will have space.
+                }
             }
         }
 
@@ -4763,6 +4774,17 @@
             } catch (e) {
                 console.error("Cache load error:", e);
                 return false;
+            }
+        }
+
+        function clearInternalCache() {
+            if (confirm("This will clear all cached campaign data and require a fresh sync from Monday.com. Proceed?")) {
+                localStorage.removeItem('internal_campaign_cache');
+                window.allPrefetchedItems = [];
+                window.allPrefetchedColumns = [];
+                const hint = document.getElementById('internalFilterHint');
+                if (hint) hint.innerText = "Cache cleared. Click refresh to reload data.";
+                showToast("Cache cleared successfully", "success");
             }
         }
 
@@ -6070,7 +6092,12 @@ CRITICAL CONTACT RULE:
             - GA4 Property: ${ga4Prop || 'None selected'}
             - Google Ads Account: ${adsAcc || 'None selected'}
 
-            Always format results as Markdown tables. If a marketing property is not selected, ask the user to select one in the settings.
+            Always format results as Markdown tables. If a marketing property is not selected, ask the user to subscribe one in the settings.
+
+            PRIVACY & GMAIL POLICY:
+            - You have access to tools that can search Gmail and Workspace.
+            - ALWAYS ask for explicit user permission before searching Gmail (e.g., "Would you like me to check your Gmail for more context?") unless the user has already asked you to check emails/Gmail in the current turn.
+            - If the user says "yes" or "proceed", then use the relevant tools.
             When a user asks about "chats", "conversations", or "what was said in [space]", ALWAYS use the search_messages_standard tool with 'orderBy': 'CREATE_TIME_DESC' to get the NEWEST messages first. Avoid using 'list_messages' as it returns old archive messages from years ago.`;
 
             if (syncedContext) {
