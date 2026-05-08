@@ -313,6 +313,118 @@ def search_google_chat_messages_standard(access_token, query, order_by="CREATE_T
     except Exception as e:
         return {"error": str(e)}
 
+def run_google_ads_report(customer_id, query, token):
+    url = f"https://googleads.googleapis.com/v22/customers/{customer_id}/googleAds:searchStream"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "developer-token": "mmWDgUpTcZSkkrj-7nnebg",
+        "login-customer-id": "4695999392"
+    }
+    payload = {"query": query}
+    try:
+        r = requests.post(url, headers=headers, json=payload, timeout=30)
+        if r.status_code != 200:
+            return {"error": f"Google Ads API {r.status_code}", "detail": r.text[:500]}
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+def run_gsc_performance(site_url, tool_input, token):
+    import urllib.parse
+    from datetime import datetime, timedelta
+    
+    encoded_site = urllib.parse.quote_plus(site_url)
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    
+    # Strip siteUrl and other internal fields from payload
+    payload = {k: v for k, v in tool_input.items() if k not in ['siteUrl', 'action']}
+    
+    # Defaults
+    if 'startDate' not in payload:
+        payload['startDate'] = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    if 'endDate' not in payload:
+        payload['endDate'] = datetime.now().strftime('%Y-%m-%d')
+    if 'dimensions' not in payload:
+        payload['dimensions'] = ['query']
+        
+    try:
+        # Prepare variations of the site URL to handle different GSC property types
+        import urllib.parse
+        domain = site_url.split("//")[-1].split("/")[0]
+        
+        variations = [
+            site_url,                       # 1. As provided (e.g. https://example.com/)
+            site_url.rstrip('/'),           # 2. No trailing slash (e.g. https://example.com)
+            f"sc-domain:{domain}",          # 3. Domain property (sc-domain:example.com)
+            domain                          # 4. Raw domain (example.com)
+        ]
+        
+        # Remove duplicates while preserving order
+        unique_variations = []
+        for v in variations:
+            if v not in unique_variations: unique_variations.append(v)
+
+        last_error = None
+        for v in unique_variations:
+            encoded_v = urllib.parse.quote(v, safe='')
+            target_url = f"https://www.googleapis.com/webmasters/v3/sites/{encoded_v}/searchAnalytics/query"
+            
+            print(f"[GSC] Trying variation: {v}")
+            r = requests.post(target_url, headers=headers, json=payload, timeout=20)
+            
+            if r.status_code == 200:
+                print(f"[GSC] Success using variation: {v}")
+                return r.json()
+            
+            last_error = r.text
+            print(f"[GSC] Variation {v} failed: {r.status_code}")
+
+        # If all variations failed, report the last error
+        print(f"[GSC] All variations failed. Last error: {last_error}")
+        
+        # Try to get user identity to help debug permission issues
+        user_info = "Unknown Account"
+        try:
+            ident_res = requests.get("https://www.googleapis.com/oauth2/v3/userinfo", headers=headers, timeout=5)
+            if ident_res.status_code == 200:
+                user_info = ident_res.json().get('email', 'Email hidden')
+        except: pass
+        
+        error_detail = f"Account: {user_info}. Property tried: {site_url}. " + (last_error[:400] if last_error else "Unknown Error")
+        return {"error": "GSC Permission Denied", "detail": error_detail}
+
+    except Exception as e:
+        return {"error": str(e)}
+
+def run_ga4_report(property_id, tool_input, token):
+    url = f"https://analyticsdata.googleapis.com/v1beta/{property_id}:runReport"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    
+    # Strip internal fields
+    payload = {k: v for k, v in tool_input.items() if k not in ['propertyId', 'action']}
+    
+    # Basic GA4 report structure if missing
+    if 'dateRanges' not in payload:
+        payload['dateRanges'] = [{"startDate": "30daysAgo", "endDate": "today"}]
+    if 'metrics' not in payload and 'metrics' in tool_input:
+        # tool_input metrics is array of strings, GA4 wants array of objects
+        payload['metrics'] = [{"name": m} for m in tool_input['metrics']]
+    elif 'metrics' not in payload:
+        payload['metrics'] = [{"name": "sessions"}, {"name": "activeUsers"}]
+        
+    if 'dimensions' not in payload and 'dimensions' in tool_input:
+        payload['dimensions'] = [{"name": d} for d in tool_input['dimensions']]
+        
+    try:
+        print(f"[GA4] Querying {property_id} with payload: {payload}")
+        r = requests.post(url, headers=headers, json=payload, timeout=30)
+        if r.status_code != 200:
+            return {"error": f"GA4 API {r.status_code}", "detail": r.text[:500]}
+        return r.json()
+    except Exception as e:
+        return {"error": str(e)}
+
 # ── Agentic loop: Claude + Monday.com tool use ──────────────────────────────
 def claude_chat_with_tools(body):
     """
@@ -484,6 +596,47 @@ def claude_chat_with_tools(body):
                 "type": "object",
                 "properties": {}
             }
+        },
+        {
+            "name": "get_gsc_performance",
+            "description": "Fetch Google Search Console performance data (clicks, impressions, ctr, position).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "siteUrl": {"type": "string", "description": "The site URL (e.g., 'sc-domain:example.com')."},
+                    "startDate": {"type": "string", "description": "Start date (YYYY-MM-DD)."},
+                    "endDate": {"type": "string", "description": "End date (YYYY-MM-DD)."},
+                    "dimensions": {"type": "array", "items": {"type": "string", "enum": ["query", "page", "country", "device", "date"]}}
+                },
+                "required": ["siteUrl"]
+            }
+        },
+        {
+            "name": "get_ga4_report",
+            "description": "Fetch Google Analytics 4 report data (sessions, users, conversions).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "propertyId": {"type": "string", "description": "The GA4 Property ID (e.g., 'properties/12345')."},
+                    "startDate": {"type": "string", "description": "Start date (YYYY-MM-DD)."},
+                    "endDate": {"type": "string", "description": "End date (YYYY-MM-DD)."},
+                    "metrics": {"type": "array", "items": {"type": "string"}},
+                    "dimensions": {"type": "array", "items": {"type": "string"}}
+                },
+                "required": ["propertyId"]
+            }
+        },
+        {
+            "name": "get_ads_report",
+            "description": "Fetch performance data from Google Ads using GAQL. Metrics include cost_micros, clicks, impressions, conversions, etc.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "customerId": {"type": "string", "description": "The Google Ads Customer ID."},
+                    "query": {"type": "string", "description": "The GAQL query string."}
+                },
+                "required": ["customerId", "query"]
+            }
         }
     ]
 
@@ -594,7 +747,7 @@ def claude_chat_with_tools(body):
                             "tool_use_id": tool_id,
                             "content":     result_str
                         })
-                    elif tool_name in ["search_conversations", "list_messages", "search_messages", "send_message"]:
+                    elif tool_name in ["search_conversations", "list_messages", "search_messages", "send_message", "list_my_spaces", "search_messages_standard", "list_messages_standard"]:
                         # Extract Google Access Token from body
                         google_token = body.get('google_access_token') or (body.get('google_tokens', {}).get('workspace'))
                         
@@ -644,6 +797,49 @@ def claude_chat_with_tools(body):
                         
                         print(f"[TOOLS] Searching Google Chat Messages via Standard API for {query}")
                         result_data = search_google_chat_messages_standard(google_token, query, order_by)
+                        result_str = json.dumps(result_data)
+                        
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     result_str
+                        })
+                    
+                    elif tool_name == "get_ads_report":
+                        customerId = tool_input.get("customerId")
+                        query = tool_input.get("query")
+                        ads_token = body.get('google_tokens', {}).get('ads')
+                        
+                        print(f"[TOOLS] Fetching Google Ads Report for {customerId}")
+                        result_data = run_google_ads_report(customerId, query, ads_token)
+                        result_str = json.dumps(result_data)
+                        
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     result_str
+                        })
+
+                    elif tool_name == "get_gsc_performance":
+                        siteUrl = tool_input.get("siteUrl")
+                        gsc_token = body.get('google_tokens', {}).get('gsc')
+                        
+                        print(f"[TOOLS] Fetching GSC Performance for {siteUrl}")
+                        result_data = run_gsc_performance(siteUrl, tool_input, gsc_token)
+                        result_str = json.dumps(result_data)
+                        
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     result_str
+                        })
+
+                    elif tool_name == "get_ga4_report":
+                        propertyId = tool_input.get("propertyId")
+                        ga4_token = body.get('google_tokens', {}).get('ga4')
+                        
+                        print(f"[TOOLS] Fetching GA4 Report for {propertyId}")
+                        result_data = run_ga4_report(propertyId, tool_input, ga4_token)
                         result_str = json.dumps(result_data)
                         
                         tool_results.append({
