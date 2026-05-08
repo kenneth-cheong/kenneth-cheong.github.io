@@ -298,13 +298,16 @@ def search_google_chat_messages_standard(access_token, query, order_by="CREATE_T
     """
     Directly call the Google Chat API (v1) to search messages.
     """
-    url = "https://chat.googleapis.com/v1/spaces/messages:search"
+    # Fix: Global search endpoint usually requires the '-' wildcard
+    url = "https://chat.googleapis.com/v1/spaces/-/messages:search"
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {"query": query, "orderBy": order_by}
     
     try:
+        print(f"[GCHAT] Searching via Standard API: {query}")
         r = requests.get(url, headers=headers, params=params, timeout=20)
         if r.status_code != 200:
+            print(f"[GCHAT] Search Error {r.status_code}: {r.text}")
             return {"error": f"Google Chat API HTTP {r.status_code}", "detail": r.text[:500]}
         return r.json()
     except Exception as e:

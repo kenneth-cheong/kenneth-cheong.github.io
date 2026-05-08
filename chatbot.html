@@ -27,17 +27,17 @@
         :root {
             --primary-navy: #1a1f3c;
             --secondary-navy: #2a2f5b;
-            --accent-blue: #3b82f6;
-            --accent-light: #dbeafe;
-            --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            --bg-gradient: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
-            --glass-bg: rgba(255, 255, 255, 0.85);
-            --glass-border: rgba(255, 255, 255, 0.3);
-            --text-main: #1e293b;
+            --accent-orange: #ea580c; /* Orange 600 */
+            --accent-orange-light: #fff7ed; /* Orange 50 */
+            --accent-gradient: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            --glass-bg: rgba(255, 255, 255, 0.9);
+            --glass-border: rgba(226, 232, 240, 0.8);
+            --text-main: #0f172a;
             --text-muted: #64748b;
             --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
         }
 
         * {
@@ -415,7 +415,8 @@
             background: var(--accent-gradient);
             color: #fff;
             border-bottom-right-radius: 4px;
-            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2);
+            box-shadow: 0 4px 15px rgba(234, 88, 12, 0.2);
+            padding: 12px 20px;
         }
 
         .message.bot {
@@ -425,6 +426,8 @@
             border: 1px solid #e2e8f0;
             border-bottom-left-radius: 4px;
             box-shadow: var(--shadow-md);
+            padding: 16px 20px;
+            max-width: 85%;
         }
 
         /* --- Markdown Table Styles --- */
@@ -1232,8 +1235,8 @@
         }
 
         .action-btn:hover {
-            color: #3b82f6;
-            border-color: #3b82f6;
+            color: var(--accent-orange);
+            border-color: var(--accent-orange);
             background: #eff6ff;
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
@@ -1339,7 +1342,7 @@
         }
 
         .toast.info {
-            border-left-color: #3b82f6;
+            border-left-color: var(--accent-orange);
         }
 
         .toast.loading i {
@@ -1473,24 +1476,26 @@
         }
 
         .tool-log {
-            margin-top: 10px;
-            background: rgba(15, 23, 42, 0.03);
-            border: 1px solid rgba(15, 23, 42, 0.08);
-            border-radius: 8px;
+            margin-top: 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
             overflow: hidden;
+            max-width: fit-content;
         }
 
         .tool-log-label {
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 8px 12px;
-            font-size: 0.7rem;
+            gap: 8px;
+            padding: 6px 12px;
+            font-size: 0.72rem;
             font-weight: 600;
-            color: #64748b;
+            color: #475569;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: all 0.2s;
             list-style: none;
+            user-select: none;
         }
 
         .sidebar-select, 
@@ -6264,9 +6269,32 @@ CRITICAL CONTACT RULE:
                 }
             }
 
+            let toolLabel = "Background process";
+            let toolIcon = "fa-cog";
+            
+            if (toolLog) {
+                const logLower = toolLog.toLowerCase();
+                if (logLower.includes('monday') || logLower.includes('graphql')) {
+                    toolLabel = "Monday.com queries";
+                    toolIcon = "fa-database";
+                } else if (logLower.includes('google chat') || logLower.includes('search_messages') || logLower.includes('list_my_spaces')) {
+                    toolLabel = "Google Chat search";
+                    toolIcon = "fa-comments";
+                } else if (logLower.includes('gsc') || logLower.includes('search console')) {
+                    toolLabel = "Search Console analysis";
+                    toolIcon = "fa-chart-line";
+                } else if (logLower.includes('ga4') || logLower.includes('analytics')) {
+                    toolLabel = "Analytics report";
+                    toolIcon = "fa-chart-pie";
+                } else if (logLower.includes('ads')) {
+                    toolLabel = "Google Ads metrics";
+                    toolIcon = "fa-ad";
+                }
+            }
+
             const toolHtml = toolLog
                 ? `<details class="tool-log">
-                    <summary class="tool-log-label"><i class="fas fa-database"></i> Monday.com queries</summary>
+                    <summary class="tool-log-label"><i class="fas ${toolIcon}"></i> ${toolLabel}</summary>
                     <div class="tool-log-content">${escapeHtml(toolLog)}</div>
                    </details>`
                 : '';
