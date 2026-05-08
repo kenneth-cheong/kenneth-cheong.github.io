@@ -296,20 +296,72 @@ def list_google_chat_messages_standard(access_token, space_name, page_size=20, f
 
 def search_google_chat_messages_standard(access_token, query, order_by="CREATE_TIME_DESC"):
     """
-    Directly call the Google Chat API (v1) to search messages.
+    User-level Google Chat message search.
+    Step 1: Try the admin search endpoint.
+    Step 2 (Fallback): List all spaces, fuzzy-match by name, then fetch messages from matching space.
     """
-    # Fix: Global search endpoint usually requires the '-' wildcard
-    url = "https://chat.googleapis.com/v1/spaces/-/messages:search"
     headers = {"Authorization": f"Bearer {access_token}"}
+    
+    # Step 1: Try admin search endpoint first
+    url = "https://chat.googleapis.com/v1/spaces/-/messages:search"
     params = {"query": query, "orderBy": order_by}
     
     try:
         print(f"[GCHAT] Searching via Standard API: {query}")
         r = requests.get(url, headers=headers, params=params, timeout=20)
-        if r.status_code != 200:
-            print(f"[GCHAT] Search Error {r.status_code}: {r.text}")
-            return {"error": f"Google Chat API HTTP {r.status_code}", "detail": r.text[:500]}
-        return r.json()
+        if r.status_code == 200:
+            return r.json()
+        print(f"[GCHAT] Admin search failed ({r.status_code}), using space-name fallback.")
+    except Exception as e:
+        print(f"[GCHAT] Admin search exception: {e}")
+    
+    # Step 2: Fuzzy fallback — list spaces, find the matching one, fetch its messages
+    try:
+        all_spaces = []
+        next_page_token = None
+        pages = 0
+        while pages < 10:
+            params_spaces = {"pageSize": 100}
+            if next_page_token:
+                params_spaces["pageToken"] = next_page_token
+            res = requests.get("https://chat.googleapis.com/v1/spaces", headers=headers, params=params_spaces, timeout=20)
+            if res.status_code != 200:
+                return {"error": f"Google Chat API {res.status_code}", "detail": res.text[:400]}
+            data = res.json()
+            all_spaces.extend(data.get("spaces", []))
+            next_page_token = data.get("nextPageToken")
+            pages += 1
+            if not next_page_token:
+                break
+        
+        # Fuzzy match: strip hyphens, spaces, case-insensitive
+        q_clean = query.lower().replace("-", " ").replace("_", " ")
+        q_words = [w for w in q_clean.split() if len(w) > 2]  # skip short words
+        
+        best_space = None
+        best_score = 0
+        for space in all_spaces:
+            name = (space.get("displayName") or space.get("name") or "").lower().replace("-", " ").replace("_", " ")
+            score = sum(1 for w in q_words if w in name)
+            if score > best_score:
+                best_score = score
+                best_space = space
+        
+        if not best_space or best_score == 0:
+            return {"error": "Space not found", "detail": f"No space matching '{query}' found among {len(all_spaces)} spaces. Try using exact keywords.", "spaces_checked": len(all_spaces)}
+        
+        space_id = best_space["name"]  # e.g. "spaces/XXXXXXXX"
+        print(f"[GCHAT] Matched space: {best_space.get('displayName')} ({space_id}) with score {best_score}")
+        
+        msg_params = {"pageSize": 25, "orderBy": "createTime desc"}
+        msg_res = requests.get(f"https://chat.googleapis.com/v1/{space_id}/messages", headers=headers, params=msg_params, timeout=20)
+        if msg_res.status_code != 200:
+            return {"error": f"Messages fetch failed {msg_res.status_code}", "detail": msg_res.text[:400]}
+        
+        result = msg_res.json()
+        result["_matched_space"] = best_space.get("displayName") or space_id
+        return result
+        
     except Exception as e:
         return {"error": str(e)}
 
@@ -456,12 +508,12 @@ def claude_chat_with_tools(body):
     # Tool definitions
     tools = [{
             "name": "search_messages_standard",
-            "description": "Search for messages. MANDATORY: Always set 'orderBy': 'CREATE_TIME_DESC' to get the NEWEST messages first. This is the only way to see today's messages.",
+            "description": "PRIMARY TOOL for finding messages. Use this IMMEDIATELY if the user provides a space name or keywords. This tool searches across ALL spaces simultaneously. MANDATORY: Always set 'orderBy': 'CREATE_TIME_DESC'.",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Keywords or space name."},
-                    "orderBy": {"type": "string", "enum": ["CREATE_TIME_DESC", "CREATE_TIME_ASC"], "description": "Set to 'CREATE_TIME_DESC' for newest first."}
+                    "query": {"type": "string", "description": "The space name or keywords (e.g., '1-company-announcements')."},
+                    "orderBy": {"type": "string", "enum": ["CREATE_TIME_DESC", "CREATE_TIME_ASC"], "description": "Set to 'CREATE_TIME_DESC'."}
                 },
                 "required": ["query"]
             }
@@ -511,74 +563,14 @@ def claude_chat_with_tools(body):
             }
         },
         {
-            "name": "search_conversations",
-            "description": "Search for Google Chat conversations (Spaces, DMs, group chats) by name or participants.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "spaceNameQuery": {
-                        "type": "string",
-                        "description": "Search for conversations by name (e.g., 'justtest')."
-                    },
-                    "participants": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Filter by participant email addresses."
-                    },
-                    "pageSize": {"type": "integer", "description": "Max results (default 100)."}
-                }
-            }
-        },
-        {
-            "name": "list_messages",
-            "description": "Retrieve recent messages from a specific Google Chat conversation (Space).",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "conversationId": {
-                        "type": "string",
-                        "description": "The ID (e.g., 'spaces/XXXXXXXX')."
-                    },
-                    "pageSize": {"type": "integer", "description": "Max messages (default 20)."},
-                    "threadId": {"type": "string", "description": "Filter to specific thread."}
-                },
-                "required": ["conversationId"]
-            }
-        },
-        {
-            "name": "search_messages",
-            "description": "Search messages with advanced filtering. Use this to get the NEWEST messages by setting 'orderBy' to 'CREATE_TIME_DESC'.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "searchParameters": {
-                        "type": "object",
-                        "properties": {
-                            "keywords": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Search terms (can be empty if searching by space)."
-                            },
-                            "conversationId": {"type": "string", "description": "Scope to specific space ID."},
-                            "orderBy": {
-                                "type": "string",
-                                "enum": ["CREATE_TIME_DESC", "CREATE_TIME_ASC"],
-                                "description": "Set to 'CREATE_TIME_DESC' for newest first."
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        {
             "name": "send_message",
-            "description": "Send a message to a specific Google Chat conversation (Space).",
+            "description": "Send a message to a specific Google Chat space. Requires the space resource name (e.g. 'spaces/XXXXXXXX').",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "conversationId": {
                         "type": "string",
-                        "description": "The target space/DM ID."
+                        "description": "The target space resource name (e.g., 'spaces/XXXXXXXX')."
                     },
                     "messageText": {
                         "type": "string",
@@ -589,14 +581,7 @@ def claude_chat_with_tools(body):
                 "required": ["conversationId", "messageText"]
             }
         },
-        {
-            "name": "list_mcp_tools",
-            "description": "List all available tools on the Google Chat MCP server. Use this if other tools return 'not found'.",
-            "input_schema": {
-                "type": "object",
-                "properties": {}
-            }
-        },
+
         {
             "name": "get_gsc_performance",
             "description": "Fetch Google Search Console performance data (clicks, impressions, ctr, position).",
@@ -747,7 +732,7 @@ def claude_chat_with_tools(body):
                             "tool_use_id": tool_id,
                             "content":     result_str
                         })
-                    elif tool_name in ["search_conversations", "list_messages", "search_messages", "send_message", "list_my_spaces", "search_messages_standard", "list_messages_standard"]:
+                    elif tool_name in ["search_conversations", "list_messages", "search_messages", "send_message"]:
                         # Extract Google Access Token from body
                         google_token = body.get('google_access_token') or (body.get('google_tokens', {}).get('workspace'))
                         
