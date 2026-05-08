@@ -111,6 +111,9 @@ def lambda_handler(event, context):
             scheduler_client.delete_schedule(Name=sch_name)
             return {"statusCode": 200, "headers": headers, "body": json.dumps({"success": True})}
 
+        elif action == 'update_lambda_config':
+            return update_lambda_config(body, headers)
+
         elif action == 'invoke_lambda':
             function_name = body.get('functionName')
             payload = body.get('payload', {})
@@ -337,3 +340,28 @@ def create_scheduler_schedule(payload, headers, context):
     )
     
     return {"statusCode": 200, "headers": headers, "body": json.dumps({"scheduleArn": resp['ScheduleArn']})}
+
+def update_lambda_config(payload, headers):
+    function_name = payload.get('functionName')
+    if not function_name:
+        return {"statusCode": 400, "headers": headers, "body": json.dumps({"error": "functionName is required"})}
+    
+    kwargs = {'FunctionName': function_name}
+    
+    if 'description' in payload:
+        kwargs['Description'] = payload['description']
+    if 'memorySize' in payload:
+        kwargs['MemorySize'] = int(payload['memorySize'])
+    if 'timeout' in payload:
+        kwargs['Timeout'] = int(payload['timeout'])
+    if 'handler' in payload:
+        kwargs['Handler'] = payload['handler']
+    if 'runtime' in payload:
+        kwargs['Runtime'] = payload['runtime']
+    if 'roleArn' in payload:
+        kwargs['Role'] = payload['roleArn']
+    if 'environmentVariables' in payload:
+        kwargs['Environment'] = {'Variables': {k: str(v) for k, v in payload['environmentVariables'].items()}}
+        
+    resp = lambda_client.update_function_configuration(**kwargs)
+    return {"statusCode": 200, "headers": headers, "body": json.dumps({"functionArn": resp['FunctionArn'], "success": True})}
