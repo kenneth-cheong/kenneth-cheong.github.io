@@ -3,718 +3,332 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Standalone Meta Social Dashboard</title>
+  <title>Meta Social — Connect</title>
   <style>
     :root {
       --bg: #07111f;
       --panel: #0f172a;
-      --panel-2: #111f38;
+      --border: #243754;
+      --primary: #1877f2;
       --text: #e6eefc;
       --muted: #9db0cf;
-      --border: #243754;
-      --primary: #3b82f6;
-      --secondary: #8b5cf6;
-      --success: #22c55e;
-      --warn: #f59e0b;
-      --danger: #ef4444;
     }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #15305d 0%, #07111f 38%, #03070f 100%);
       font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       color: var(--text);
-      background: radial-gradient(circle at top, #15305d 0%, #07111f 38%, #03070f 100%);
+      padding: 24px;
     }
-    .wrap { max-width: 1220px; margin: 0 auto; padding: 24px; }
     .card {
       background: linear-gradient(180deg, rgba(17,31,56,.96), rgba(9,17,31,.97));
       border: 1px solid var(--border);
-      border-radius: 22px;
-      padding: 20px;
-      box-shadow: 0 22px 60px rgba(0,0,0,.28);
+      border-radius: 24px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 32px 80px rgba(0,0,0,.4);
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      text-align: center;
     }
-    .hero {
-      display: grid;
-      grid-template-columns: 1.2fr .8fr;
-      gap: 18px;
-      margin-bottom: 18px;
-      align-items: center;
-    }
-    .eyebrow {
-      text-transform: uppercase;
-      letter-spacing: .14em;
-      font-size: 12px;
-      color: #93c5fd;
-      margin: 0 0 10px;
-    }
-    h1 { margin: 0 0 10px; font-size: 34px; }
-    .lead { color: var(--muted); line-height: 1.6; margin: 0; }
-    .badges { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-    .badge {
-      padding: 8px 12px;
-      border-radius: 999px;
-      font-size: 12px;
-      border: 1px solid #34507a;
-      background: rgba(59,130,246,.14);
-      color: #dbeafe;
-      white-space: nowrap;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
-      margin-bottom: 18px;
-    }
-    .stack { display: flex; flex-direction: column; gap: 12px; }
-    .section-head {
+
+    /* Logo area */
+    .logo {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: center;
       gap: 12px;
-      margin-bottom: 14px;
     }
-    .section-head h2 { margin: 0; font-size: 20px; }
-    label {
-      display: block;
-      margin-bottom: 6px;
-      color: #d8e4f8;
-      font-size: 13px;
-      font-weight: 600;
-    }
-    input, select, textarea {
-      width: 100%;
-      padding: 11px 13px;
+    .logo svg { width: 40px; height: 40px; }
+    .logo-text { font-size: 22px; font-weight: 700; letter-spacing: -.3px; }
+
+    h1 { font-size: 26px; font-weight: 700; }
+    .sub { color: var(--muted); font-size: 14px; line-height: 1.6; }
+
+    /* App ID field */
+    .field { text-align: left; display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 13px; font-weight: 600; color: #d8e4f8; }
+    .field input {
+      padding: 11px 14px;
       border-radius: 12px;
       border: 1px solid #30445f;
       background: #08111f;
       color: var(--text);
-      outline: none;
       font-size: 14px;
+      outline: none;
+      width: 100%;
+      transition: border-color .2s;
     }
-    textarea { min-height: 90px; resize: vertical; }
-    .row-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-    .btns, .small-btns { display: flex; gap: 10px; flex-wrap: wrap; }
-    button {
+    .field input:focus { border-color: #4f8cff; }
+
+    /* Facebook login button */
+    #loginBtn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 13px 20px;
       border: none;
-      border-radius: 12px;
-      padding: 11px 15px;
+      border-radius: 14px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 15px;
       font-weight: 700;
       cursor: pointer;
-      color: white;
+      transition: opacity .2s, transform .15s;
     }
-    .primary { background: linear-gradient(135deg, #4f8cff, #215fd6); }
-    .secondary { background: linear-gradient(135deg, #9b5cf6, #6d28d9); }
-    .success { background: linear-gradient(135deg, #22c55e, #15803d); }
-    .warn { background: linear-gradient(135deg, #f59e0b, #b45309); }
-    .ghost {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text);
-    }
-    .danger { background: linear-gradient(135deg, #ef4444, #b91c1c); }
-    .note, .muted {
-      color: var(--muted);
-      line-height: 1.6;
-      font-size: 14px;
-    }
-    .flash {
-      margin-bottom: 18px;
-      padding: 14px 16px;
+    #loginBtn:hover { opacity: .9; transform: translateY(-1px); }
+    #loginBtn:active { transform: translateY(0); opacity: 1; }
+    #loginBtn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    #loginBtn svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+    /* Status / connected state */
+    .status-box {
       border-radius: 14px;
+      padding: 16px;
       display: none;
+      text-align: left;
+    }
+    .status-box.connected {
+      display: block;
+      background: rgba(34,197,94,.1);
+      border: 1px solid rgba(34,197,94,.3);
+    }
+    .status-box.error {
+      display: block;
+      background: rgba(239,68,68,.1);
+      border: 1px solid rgba(239,68,68,.3);
+    }
+    .status-row { display: flex; align-items: center; gap: 10px; }
+    .avatar {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      background: #1e3a5f;
+      overflow: hidden;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .user-info strong { display: block; font-size: 15px; }
+    .user-info span { color: var(--muted); font-size: 13px; }
+    .disconnect {
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid #30445f;
+      border-radius: 10px;
+      padding: 7px 14px;
+      cursor: pointer;
+      width: 100%;
+      transition: border-color .2s, color .2s;
+    }
+    .disconnect:hover { border-color: #ef4444; color: #ef4444; }
+
+    .flash {
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
       font-weight: 600;
+      display: none;
     }
     .flash.show { display: block; }
-    .flash.success { background: rgba(34,197,94,.14); border: 1px solid rgba(34,197,94,.35); }
-    .flash.warn { background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.35); }
-    .flash.error { background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35); }
-    pre {
-      margin: 0;
-      padding: 18px;
-      border-radius: 16px;
-      background: #030813;
-      border: 1px solid #1f2c43;
-      min-height: 320px;
-      overflow: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    .pill-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-    .pill {
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(139,92,246,.14);
-      border: 1px solid rgba(139,92,246,.32);
-      font-size: 12px;
-      color: #ede9fe;
-    }
-    .status-box {
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 14px;
-      background: rgba(4,10,20,.45);
-    }
-    ul { margin: 0; padding-left: 18px; }
-    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    @media (max-width: 960px) {
-      .hero, .grid, .row-2 { grid-template-columns: 1fr; }
-      .badges { justify-content: flex-start; }
-    }
+    .flash.error { background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3); color: #fca5a5; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <section class="hero card">
-      <div>
-        <p class="eyebrow">Standalone HTML starter</p>
-        <h1>Connect-first Meta dashboard</h1>
-        <p class="lead">This version is fully standalone HTML. It can use the Facebook JavaScript SDK in-browser, store session data locally, and call approved endpoints where browser access works. For Instagram, this file includes a manual token workflow because the secure authorization-code exchange normally requires a backend secret.</p>
-      </div>
-      <div class="badges">
-        <span class="badge">No Node.js required</span>
-        <span class="badge">Facebook SDK ready</span>
-        <span class="badge">Session storage</span>
-        <span class="badge">JSON export</span>
-      </div>
-    </section>
+  <div class="card">
 
+    <!-- Logo -->
+    <div class="logo">
+      <!-- Facebook 'f' icon -->
+      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="40" height="40" rx="10" fill="#1877f2"/>
+        <path d="M27 20h-4v12h-5V20h-3v-5h3v-3c0-3.3 2-5 5-5 1.4 0 2.9.1 4.3.3V12H25c-1.6 0-2 .8-2 2v1h4.5l-.5 5z" fill="white"/>
+      </svg>
+      <span class="logo-text">Meta Social</span>
+    </div>
+
+    <div>
+      <h1>Connect your account</h1>
+      <p class="sub" style="margin-top:8px;">Enter your Facebook App ID, then click the button below to log in. That's all.</p>
+    </div>
+
+    <!-- App ID -->
+    <div class="field">
+      <label for="fbAppId">Facebook App ID</label>
+      <input id="fbAppId" type="text" placeholder="e.g. 123456789012345" autocomplete="off" />
+    </div>
+
+    <!-- Flash message -->
     <div id="flash" class="flash"></div>
 
-    <div class="grid">
-      <section class="card stack">
-        <div class="section-head">
-          <h2>Configuration</h2>
-          <div class="small-btns">
-            <button class="ghost" id="saveConfigBtn">Save config</button>
-            <button class="ghost" id="clearAllBtn">Clear all</button>
-          </div>
-        </div>
-
-        <div>
-          <label for="fbAppId">Facebook App ID</label>
-          <input id="fbAppId" placeholder="Your Meta app ID" />
-        </div>
-
-        <div>
-          <label for="fbScopes">Facebook scopes</label>
-          <input id="fbScopes" value="pages_show_list,pages_read_engagement,pages_read_user_content,public_profile,email" />
-        </div>
-
-        <div>
-          <label for="fbPageId">Facebook Page ID</label>
-          <input id="fbPageId" placeholder="Used for page feed requests" />
-        </div>
-
-        <div class="row-2">
-          <div>
-            <label for="limitInput">Result limit</label>
-            <input id="limitInput" type="number" min="1" max="100" value="10" />
-          </div>
-          <div>
-            <label for="responseMode">Output focus</label>
-            <select id="responseMode">
-              <option value="pretty">Pretty JSON</option>
-              <option value="compact">Compact JSON</option>
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <label for="igToken">Instagram access token</label>
-          <textarea id="igToken" placeholder="Paste an Instagram access token here for standalone browser calls"></textarea>
-        </div>
-
-        <p class="note">Use <code>sessionStorage</code> for temporary local persistence. This is convenient for a demo, but it is not as secure as server-side token storage.</p>
-      </section>
-
-      <section class="card stack">
-        <div class="section-head">
-          <h2>Status & limitations</h2>
-          <button class="ghost" id="refreshStatusBtn">Refresh status</button>
-        </div>
-
-        <div class="status-box">
-          <strong>Facebook</strong>
-          <div class="muted" id="fbStatus">SDK not initialized.</div>
-          <div class="pill-list" id="fbScopePills"></div>
-        </div>
-
-        <div class="status-box">
-          <strong>Instagram</strong>
-          <div class="muted" id="igStatus">No token loaded.</div>
-        </div>
-
-        <div class="status-box">
-          <strong>Important</strong>
-          <ul class="muted">
-            <li>This file can do a real browser-side Facebook login with the JS SDK.</li>
-            <li>This file cannot safely perform the full Instagram authorization-code exchange by itself, because that flow normally uses an app secret on the server.</li>
-            <li>Browser requests still depend on CORS and on what Meta allows from the client side.</li>
-          </ul>
-        </div>
-      </section>
-    </div>
-
-    <div class="grid">
-      <section class="card stack">
-        <div class="section-head"><h2>Facebook actions</h2></div>
-        <div class="btns">
-          <button class="primary" id="initFacebookBtn">Initialize Facebook SDK</button>
-          <button class="secondary" id="loginFacebookBtn">Connect Facebook</button>
-          <button class="ghost" id="checkFacebookBtn">Check login status</button>
-          <button class="success" id="loadPagesBtn">Load Pages</button>
-          <button class="warn" id="loadPageFeedBtn">Load Page Feed</button>
-          <button class="danger" id="logoutFacebookBtn">Disconnect Facebook</button>
-        </div>
-        <p class="muted">Page feed requests use the selected Page ID and the Page access token returned from the Pages list when available.</p>
-      </section>
-
-      <section class="card stack">
-        <div class="section-head"><h2>Instagram actions</h2></div>
-        <div class="btns">
-          <button class="secondary" id="saveInstagramTokenBtn">Use token above</button>
-          <button class="success" id="loadInstagramProfileBtn">Load Instagram Profile</button>
-          <button class="warn" id="loadInstagramMediaBtn">Load Instagram Media</button>
-          <button class="danger" id="clearInstagramTokenBtn">Clear Instagram Token</button>
-        </div>
-        <p class="muted">For a strict official Instagram login flow, add a backend later. This standalone file uses a manual-token path instead.</p>
-      </section>
-    </div>
-
-    <section class="card" style="margin-bottom:18px;">
-      <div class="section-head">
-        <h2>Client-side storage snapshot</h2>
-        <div class="small-btns">
-          <button class="ghost" id="downloadSnapshotBtn">Download snapshot</button>
+    <!-- Connected state -->
+    <div id="statusBox" class="status-box">
+      <div class="status-row">
+        <div class="avatar" id="avatarEl">🙂</div>
+        <div class="user-info">
+          <strong id="userName">—</strong>
+          <span id="userEmail">—</span>
         </div>
       </div>
-      <pre id="snapshot">Loading…</pre>
-    </section>
+      <button class="disconnect" id="disconnectBtn">Disconnect</button>
+    </div>
 
-    <section class="card">
-      <div class="section-head">
-        <h2>API result viewer</h2>
-        <div class="small-btns">
-          <button class="ghost" id="copyJsonBtn">Copy JSON</button>
-          <button class="ghost" id="downloadJsonBtn">Download JSON</button>
-        </div>
-      </div>
-      <pre id="output">Ready.</pre>
-    </section>
+    <!-- Login button -->
+    <button id="loginBtn">
+      <!-- FB logo -->
+      <svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.99 3.66 9.12 8.44 9.88v-6.99H7.9V12h2.54V9.8c0-2.51 1.49-3.89 3.78-3.89 1.09 0 2.23.2 2.23.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99C18.34 21.12 22 17 22 12z"/>
+      </svg>
+      Continue with Facebook
+    </button>
+
+    <p class="sub" style="font-size:12px;">Your token is stored in this browser tab only (sessionStorage) and is never sent anywhere outside of Meta's own API.</p>
   </div>
 
   <script>
-    const store = {
-      get(key, fallback = null) {
-        const raw = sessionStorage.getItem(key);
-        if (!raw) return fallback;
-        try { return JSON.parse(raw); } catch { return raw; }
-      },
-      set(key, value) {
-        sessionStorage.setItem(key, JSON.stringify(value));
-      },
-      remove(key) {
-        sessionStorage.removeItem(key);
-      },
-      clear() {
-        sessionStorage.clear();
+    const FB_VERSION = 'v24.0';
+    const SCOPES = 'pages_show_list,pages_read_engagement,public_profile,email';
+
+    const $ = id => document.getElementById(id);
+    let sdkReady = false;
+
+    // ── helpers ─────────────────────────────────────────────────────────────
+    function flash(msg, type = 'error') {
+      const el = $('flash');
+      el.className = `flash show ${type}`;
+      el.textContent = msg;
+      clearTimeout(flash._t);
+      flash._t = setTimeout(() => { el.className = 'flash'; el.textContent = ''; }, 4000);
+    }
+
+    function saveAuth(data) { sessionStorage.setItem('metaAuth', JSON.stringify(data)); }
+    function loadAuth() { try { return JSON.parse(sessionStorage.getItem('metaAuth')); } catch { return null; } }
+    function clearAuth() { sessionStorage.removeItem('metaAuth'); }
+
+    // ── UI ───────────────────────────────────────────────────────────────────
+    function showConnected(user) {
+      $('statusBox').className = 'status-box connected';
+      $('userName').textContent = user.name || 'Facebook user';
+      $('userEmail').textContent = user.email || user.id || '';
+      if (user.picture) {
+        $('avatarEl').innerHTML = `<img src="${user.picture}" alt="${user.name}" />`;
       }
-    };
-
-    const els = {
-      flash: document.getElementById('flash'),
-      fbAppId: document.getElementById('fbAppId'),
-      fbScopes: document.getElementById('fbScopes'),
-      fbPageId: document.getElementById('fbPageId'),
-      limitInput: document.getElementById('limitInput'),
-      responseMode: document.getElementById('responseMode'),
-      igToken: document.getElementById('igToken'),
-      fbStatus: document.getElementById('fbStatus'),
-      igStatus: document.getElementById('igStatus'),
-      fbScopePills: document.getElementById('fbScopePills'),
-      output: document.getElementById('output'),
-      snapshot: document.getElementById('snapshot')
-    };
-
-    let lastPayload = null;
-    let sdkLoaded = false;
-
-    function flash(message, type = 'success') {
-      els.flash.className = `flash show ${type}`;
-      els.flash.textContent = message;
-      clearTimeout(flash._timer);
-      flash._timer = setTimeout(() => {
-        els.flash.className = 'flash';
-        els.flash.textContent = '';
-      }, 3500);
+      $('loginBtn').style.display = 'none';
     }
 
-    function parseLimit() {
-      const n = Number(els.limitInput.value || 10);
-      return Number.isFinite(n) && n > 0 ? Math.min(n, 100) : 10;
+    function showDisconnected() {
+      $('statusBox').className = 'status-box';
+      $('loginBtn').style.display = '';
+      $('loginBtn').disabled = false;
+      $('loginBtn').textContent = 'Continue with Facebook';
+      // re-add icon
+      $('loginBtn').innerHTML = `
+        <svg viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;flex-shrink:0">
+          <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.99 3.66 9.12 8.44 9.88v-6.99H7.9V12h2.54V9.8c0-2.51 1.49-3.89 3.78-3.89 1.09 0 2.23.2 2.23.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99C18.34 21.12 22 17 22 12z"/>
+        </svg>
+        Continue with Facebook`;
     }
 
-    function showJson(data) {
-      lastPayload = data;
-      const pretty = els.responseMode.value === 'pretty';
-      els.output.textContent = JSON.stringify(data, null, pretty ? 2 : 0);
-    }
-
-    function storageSnapshot() {
-      return {
-        config: store.get('metaStandaloneConfig', {}),
-        facebookAuth: store.get('facebookAuth', null),
-        facebookPages: store.get('facebookPages', []),
-        instagramAuth: store.get('instagramAuth', null)
-      };
-    }
-
-    function renderSnapshot() {
-      els.snapshot.textContent = JSON.stringify(storageSnapshot(), null, 2);
-    }
-
-    function saveConfig() {
-      const config = {
-        fbAppId: els.fbAppId.value.trim(),
-        fbScopes: els.fbScopes.value.trim(),
-        fbPageId: els.fbPageId.value.trim(),
-        limit: parseLimit()
-      };
-      store.set('metaStandaloneConfig', config);
-      flash('Config saved in session storage.');
-      renderSnapshot();
-      refreshStatus();
-    }
-
-    function loadConfig() {
-      const config = store.get('metaStandaloneConfig', {});
-      els.fbAppId.value = config.fbAppId || '';
-      els.fbScopes.value = config.fbScopes || 'pages_show_list,pages_read_engagement,pages_read_user_content,public_profile,email';
-      els.fbPageId.value = config.fbPageId || '';
-      els.limitInput.value = config.limit || 10;
-      const ig = store.get('instagramAuth', null);
-      els.igToken.value = ig?.accessToken || '';
-    }
-
-    function renderScopePills(scopes = []) {
-      els.fbScopePills.innerHTML = '';
-      scopes.forEach(scope => {
-        const span = document.createElement('span');
-        span.className = 'pill';
-        span.textContent = scope;
-        els.fbScopePills.appendChild(span);
-      });
-    }
-
-    function refreshStatus() {
-      const fb = store.get('facebookAuth', null);
-      const ig = store.get('instagramAuth', null);
-      els.fbStatus.textContent = fb ? `Connected as ${fb.name || fb.userID || 'Facebook user'}${fb.accessToken ? ' • token present' : ''}` : (sdkLoaded ? 'SDK ready, not connected.' : 'SDK not initialized.');
-      els.igStatus.textContent = ig?.accessToken ? `Token loaded${ig.username ? ` for ${ig.username}` : ''}.` : 'No token loaded.';
-      renderScopePills((fb?.grantedScopes || []).filter(Boolean));
-      renderSnapshot();
-    }
-
-    function loadFacebookSdk() {
+    // ── SDK ──────────────────────────────────────────────────────────────────
+    function loadSdk(appId) {
       return new Promise((resolve, reject) => {
-        if (window.FB) {
-          sdkLoaded = true;
-          return resolve(window.FB);
-        }
-        if (document.getElementById('facebook-jssdk')) {
-          const check = setInterval(() => {
-            if (window.FB) {
-              clearInterval(check);
-              sdkLoaded = true;
-              resolve(window.FB);
-            }
-          }, 200);
-          setTimeout(() => {
-            clearInterval(check);
-            if (!window.FB) reject(new Error('Facebook SDK load timeout.'));
-          }, 10000);
-          return;
-        }
-        const script = document.createElement('script');
-        script.id = 'facebook-jssdk';
-        script.async = true;
-        script.defer = true;
-        script.crossOrigin = 'anonymous';
-        script.src = 'https://connect.facebook.net/en_US/sdk.js';
-        script.onload = () => {
-          sdkLoaded = true;
+        if (window.FB && sdkReady) return resolve(window.FB);
+
+        // Remove any old script
+        const old = document.getElementById('facebook-jssdk');
+        if (old) old.remove();
+
+        window.fbAsyncInit = () => {
+          window.FB.init({ appId, cookie: true, xfbml: false, version: FB_VERSION });
+          sdkReady = true;
           resolve(window.FB);
         };
-        script.onerror = () => reject(new Error('Could not load Facebook SDK.'));
-        document.body.appendChild(script);
-      });
-    }
 
-    async function initFacebookSdk() {
-      const appId = els.fbAppId.value.trim();
-      if (!appId) {
-        flash('Add your Facebook App ID first.', 'warn');
-        return;
-      }
-      const FB = await loadFacebookSdk();
-      FB.init({
-        appId,
-        cookie: true,
-        xfbml: false,
-        version: 'v24.0'
-      });
-      flash('Facebook SDK initialized.');
-      refreshStatus();
-    }
-
-    function fbApi(path, method = 'GET', params = {}) {
-      return new Promise((resolve, reject) => {
-        if (!window.FB) return reject(new Error('Facebook SDK is not initialized.'));
-        window.FB.api(path, method, params, function(response) {
-          if (!response || response.error) {
-            return reject(new Error(response?.error?.message || 'Facebook API request failed.'));
-          }
-          resolve(response);
-        });
+        const s = document.createElement('script');
+        s.id = 'facebook-jssdk';
+        s.async = true;
+        s.src = 'https://connect.facebook.net/en_US/sdk.js';
+        s.onerror = () => reject(new Error('Could not load Facebook SDK. Check your network.'));
+        document.body.appendChild(s);
       });
     }
 
     function fbLogin() {
       return new Promise((resolve, reject) => {
-        if (!window.FB) return reject(new Error('Facebook SDK is not initialized.'));
-        const scope = els.fbScopes.value.trim();
-        window.FB.login((response) => {
-          if (!response || !response.authResponse) {
-            return reject(new Error('Facebook login was cancelled or failed.'));
-          }
-          resolve(response);
-        }, { scope, return_scopes: true });
+        window.FB.login(r => {
+          if (r?.authResponse) resolve(r);
+          else reject(new Error('Login cancelled or failed.'));
+        }, { scope: SCOPES, return_scopes: true });
       });
     }
 
-    async function connectFacebook() {
+    function fbMe() {
+      return new Promise((resolve, reject) => {
+        window.FB.api('/me', 'GET', { fields: 'id,name,email,picture.width(80).height(80)' }, r => {
+          if (r?.error) reject(new Error(r.error.message));
+          else resolve(r);
+        });
+      });
+    }
+
+    // ── main flow ────────────────────────────────────────────────────────────
+    async function doLogin() {
+      const appId = $('fbAppId').value.trim();
+      if (!appId) { flash('Please enter your Facebook App ID first.'); return; }
+
+      $('loginBtn').disabled = true;
+      $('loginBtn').textContent = 'Connecting…';
+
       try {
-        await initFacebookSdk();
-        const loginResponse = await fbLogin();
-        const me = await fbApi('/me', 'GET', { fields: 'id,name,email' });
-        const auth = {
-          ...loginResponse.authResponse,
+        await loadSdk(appId);
+        await fbLogin();
+        const me = await fbMe();
+        const user = {
+          id: me.id,
           name: me.name,
           email: me.email || null,
-          userID: me.id,
-          grantedScopes: (loginResponse.grantedScopes || '').split(',').map(s => s.trim()).filter(Boolean),
+          picture: me.picture?.data?.url || null,
+          appId,
           at: new Date().toISOString()
         };
-        store.set('facebookAuth', auth);
-        flash(`Facebook connected for ${me.name}.`);
-        refreshStatus();
-        showJson({ loginResponse, me, note: 'Facebook token stored in sessionStorage for this browser tab/session.' });
+        saveAuth(user);
+        showConnected(user);
       } catch (err) {
-        flash(err.message, 'error');
-        showJson({ error: err.message });
+        flash(err.message);
+        showDisconnected();
       }
     }
 
-    async function checkFacebookStatus() {
-      try {
-        await initFacebookSdk();
-        window.FB.getLoginStatus(async (response) => {
-          try {
-            if (response.status !== 'connected') {
-              store.remove('facebookAuth');
-              refreshStatus();
-              return showJson({ status: response.status, note: 'Not connected.' });
-            }
-            const me = await fbApi('/me', 'GET', { fields: 'id,name,email' });
-            const auth = {
-              ...response.authResponse,
-              name: me.name,
-              email: me.email || null,
-              userID: me.id,
-              grantedScopes: store.get('facebookAuth', {})?.grantedScopes || [],
-              at: new Date().toISOString()
-            };
-            store.set('facebookAuth', auth);
-            refreshStatus();
-            showJson({ status: response.status, me, auth });
-          } catch (err) {
-            showJson({ error: err.message });
-          }
-        });
-      } catch (err) {
-        flash(err.message, 'error');
-        showJson({ error: err.message });
+    async function doDisconnect() {
+      if (window.FB) window.FB.logout(() => {});
+      clearAuth();
+      sdkReady = false;
+      showDisconnected();
+    }
+
+    // ── restore session ──────────────────────────────────────────────────────
+    (function init() {
+      const saved = loadAuth();
+      if (saved) {
+        $('fbAppId').value = saved.appId || '';
+        showConnected(saved);
       }
-    }
+    })();
 
-    async function loadPages() {
-      try {
-        await initFacebookSdk();
-        const pages = await fbApi('/me/accounts', 'GET', { fields: 'id,name,category,tasks,access_token', limit: parseLimit() });
-        store.set('facebookPages', pages.data || []);
-        const currentPageId = els.fbPageId.value.trim();
-        if (!currentPageId && pages.data?.[0]?.id) els.fbPageId.value = pages.data[0].id;
-        flash(`Loaded ${pages.data?.length || 0} Facebook pages.`);
-        refreshStatus();
-        showJson(pages);
-      } catch (err) {
-        flash(err.message, 'error');
-        showJson({ error: err.message });
-      }
-    }
-
-    async function loadPageFeed() {
-      try {
-        const pageId = els.fbPageId.value.trim();
-        if (!pageId) throw new Error('Enter or load a Facebook Page ID first.');
-        const pages = store.get('facebookPages', []);
-        const matchedPage = pages.find(p => String(p.id) === String(pageId));
-        if (!matchedPage?.access_token) throw new Error('No Page access token found. Load pages first and choose a page returned by Meta.');
-        const url = new URL(`https://graph.facebook.com/v24.0/${pageId}/feed`);
-        url.searchParams.set('fields', 'id,message,created_time,permalink_url');
-        url.searchParams.set('limit', String(parseLimit()));
-        url.searchParams.set('access_token', matchedPage.access_token);
-        const res = await fetch(url.toString());
-        const data = await res.json();
-        if (!res.ok || data.error) throw new Error(data?.error?.message || 'Facebook page feed request failed.');
-        showJson(data);
-      } catch (err) {
-        flash(err.message, 'error');
-        showJson({ error: err.message });
-      }
-    }
-
-    async function logoutFacebook() {
-      try {
-        if (window.FB) {
-          window.FB.logout(() => {});
-        }
-        store.remove('facebookAuth');
-        store.remove('facebookPages');
-        flash('Facebook session cleared from this standalone file.', 'warn');
-        refreshStatus();
-        showJson({ ok: true, provider: 'facebook', cleared: true });
-      } catch (err) {
-        flash(err.message, 'error');
-        showJson({ error: err.message });
-      }
-    }
-
-    async function useInstagramToken() {
-      const accessToken = els.igToken.value.trim();
-      if (!accessToken) {
-        flash('Paste an Instagram access token first.', 'warn');
-        return;
-      }
-      store.set('instagramAuth', { accessToken, at: new Date().toISOString() });
-      flash('Instagram token saved in sessionStorage.');
-      refreshStatus();
-      showJson({ ok: true, provider: 'instagram', stored: true });
-    }
-
-    async function fetchInstagram(path, params = {}) {
-      const auth = store.get('instagramAuth', null);
-      if (!auth?.accessToken) throw new Error('No Instagram token loaded.');
-      const url = new URL(`https://graph.instagram.com${path}`);
-      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
-      url.searchParams.set('access_token', auth.accessToken);
-      const res = await fetch(url.toString());
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data?.error?.message || 'Instagram request failed.');
-      return data;
-    }
-
-    async function loadInstagramProfile() {
-      try {
-        const data = await fetchInstagram('/me', { fields: 'user_id,username,account_type,media_count' });
-        store.set('instagramAuth', { ...store.get('instagramAuth', {}), username: data.username, userId: data.user_id, profile: data });
-        refreshStatus();
-        showJson(data);
-      } catch (err) {
-        flash(err.message, 'error');
-        showJson({ error: err.message });
-      }
-    }
-
-    async function loadInstagramMedia() {
-      try {
-        const data = await fetchInstagram('/me/media', {
-          fields: 'id,caption,media_type,media_url,permalink,thumbnail_url,timestamp',
-          limit: parseLimit()
-        });
-        showJson(data);
-      } catch (err) {
-        flash(err.message, 'error');
-        showJson({ error: err.message });
-      }
-    }
-
-    function clearInstagramToken() {
-      store.remove('instagramAuth');
-      els.igToken.value = '';
-      flash('Instagram token cleared from sessionStorage.', 'warn');
-      refreshStatus();
-      showJson({ ok: true, provider: 'instagram', cleared: true });
-    }
-
-    function download(name, text, type = 'application/json') {
-      const blob = new Blob([text], { type });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = name;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    function clearAll() {
-      store.clear();
-      loadConfig();
-      refreshStatus();
-      showJson({ ok: true, cleared: 'all sessionStorage for this tool' });
-      flash('All local session data cleared.', 'warn');
-    }
-
-    document.getElementById('saveConfigBtn').addEventListener('click', saveConfig);
-    document.getElementById('clearAllBtn').addEventListener('click', clearAll);
-    document.getElementById('refreshStatusBtn').addEventListener('click', refreshStatus);
-    document.getElementById('initFacebookBtn').addEventListener('click', async () => {
-      try { await initFacebookSdk(); } catch (err) { flash(err.message, 'error'); showJson({ error: err.message }); }
-    });
-    document.getElementById('loginFacebookBtn').addEventListener('click', connectFacebook);
-    document.getElementById('checkFacebookBtn').addEventListener('click', checkFacebookStatus);
-    document.getElementById('loadPagesBtn').addEventListener('click', loadPages);
-    document.getElementById('loadPageFeedBtn').addEventListener('click', loadPageFeed);
-    document.getElementById('logoutFacebookBtn').addEventListener('click', logoutFacebook);
-    document.getElementById('saveInstagramTokenBtn').addEventListener('click', useInstagramToken);
-    document.getElementById('loadInstagramProfileBtn').addEventListener('click', loadInstagramProfile);
-    document.getElementById('loadInstagramMediaBtn').addEventListener('click', loadInstagramMedia);
-    document.getElementById('clearInstagramTokenBtn').addEventListener('click', clearInstagramToken);
-    document.getElementById('copyJsonBtn').addEventListener('click', async () => {
-      if (!lastPayload) return;
-      await navigator.clipboard.writeText(JSON.stringify(lastPayload, null, 2));
-      flash('JSON copied to clipboard.');
-    });
-    document.getElementById('downloadJsonBtn').addEventListener('click', () => {
-      if (!lastPayload) return;
-      download('meta-social-result.json', JSON.stringify(lastPayload, null, 2));
-    });
-    document.getElementById('downloadSnapshotBtn').addEventListener('click', () => {
-      download('meta-social-snapshot.json', JSON.stringify(storageSnapshot(), null, 2));
-    });
-
-    loadConfig();
-    refreshStatus();
-    showJson({
-      ready: true,
-      note: 'Standalone HTML loaded. Configure your App ID, initialize Facebook SDK, and connect. For Instagram, use a token-based demo path unless you later add a backend.',
-      storage: 'sessionStorage'
-    });
+    $('loginBtn').addEventListener('click', doLogin);
+    $('disconnectBtn').addEventListener('click', doDisconnect);
   </script>
-<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+
+  <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
