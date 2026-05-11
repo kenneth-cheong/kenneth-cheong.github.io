@@ -365,8 +365,60 @@
             margin-left: auto;
             margin-right: 20px;
         }
-        .btn-automate {
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid transparent;
+            font-family: inherit;
+            outline: none;
+            white-space: nowrap;
+            user-select: none;
+        }
+
+        .btn-primary {
+            background: #0073ea;
+            color: white;
+            box-shadow: 0 2px 4px rgba(0, 115, 234, 0.2);
+        }
+        .btn-primary:hover {
+            background: #0060c5;
+            box-shadow: 0 4px 8px rgba(0, 115, 234, 0.3);
+            transform: translateY(-1px);
+        }
+        .btn-primary:active { transform: translateY(0); }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--border-color);
+            color: var(--text-main);
+        }
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+            border-color: var(--text-muted);
+        }
+
+        .btn-outline {
             background: transparent;
+            border-color: var(--border-color);
+            color: var(--text-muted);
+        }
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border-color: var(--text-muted);
+        }
+
+        .btn-automate {
+            background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border-color);
             color: var(--text-main);
             padding: 6px 12px;
@@ -380,10 +432,10 @@
         }
         .btn-automate:hover {
             background: var(--bg-hover);
-            border-color: var(--primary-blue);
+            border-color: #0073ea;
         }
         .btn-automate i {
-            color: var(--primary-blue);
+            color: #0073ea;
         }
 
         /* Board Area */
@@ -805,7 +857,22 @@
             transition: opacity 0.2s;
         }
         .modal-actions button:hover { opacity: 0.8; }
-        .btn-cancel { background: var(--bg-surface); color: var(--text-main); }
+        .btn-cancel { 
+            background: transparent; 
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-cancel:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--text-muted);
+            color: var(--text-main);
+        }
         .btn-save { 
             background: #0073ea; 
             color: white; 
@@ -1095,9 +1162,9 @@
                     <i data-lucide="search" size="16" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
                     <input type="text" id="board-search" placeholder="Search board..." oninput="handleBoardSearch(this.value)" style="padding:8px 12px 8px 36px; background:rgba(255,255,255,0.05); border:1px solid var(--border-color); border-radius:6px; color:var(--text-main); font-size:14px; width:250px; outline:none; transition: border-color 0.2s;">
                 </div>
-                <button class="btn btn-secondary" onclick="openFilterModal()" style="display:flex; align-items:center; gap:6px; position:relative;">
+                <button class="btn btn-secondary" onclick="openFilterModal()">
                     <i data-lucide="filter" size="16"></i> Filter
-                    <span id="filter-badge" style="display:none; background:var(--primary-blue); color:white; font-size:10px; padding:1px 6px; border-radius:10px; font-weight:700; line-height:1; min-width:18px; height:18px; align-items:center; justify-content:center;">0</span>
+                    <span id="filter-badge" style="display:none; background:#0073ea; color:white; font-size:10px; padding:1px 6px; border-radius:10px; font-weight:700; line-height:1; min-width:18px; height:18px; align-items:center; justify-content:center;">0</span>
                 </button>
                 <div style="position:relative;"></div>
             </div>
@@ -1290,8 +1357,7 @@
 
     <script>
         // Constants & Configuration
-        // NOTE: Update this URL to point to your deployed monday_persistence_lambda API Gateway endpoint
-        const PERSISTENCE_API_URL = 'https://h5gtgdu783.execute-api.ap-southeast-1.amazonaws.com/mondayReplacement';
+        // User Configuration
         
         // User Configuration
         let USER_ID = 'demo_workspace_user';
@@ -1491,6 +1557,7 @@
         // --- Data Fetching & Syncing ---
 
         const MONDAY_LAMBDA_URL = 'https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday';
+        const PERSISTENCE_API_URL = MONDAY_LAMBDA_URL;
         let availableMondayBoards = [];
         let importedBoardIds = JSON.parse(localStorage.getItem('importedBoardIds') || '[]');
 
@@ -1556,6 +1623,9 @@
                         id: wid,
                         name: workspaces[wid]
                     }));
+                    
+                    // Sync to cloud after import
+                    saveStateToCloud();
                 } else {
                     state.boards = [];
                     state.folders = [];
@@ -1595,6 +1665,66 @@
                 setSyncStatus('error', 'Connection Failed');
             } finally {
                 hideLoader();
+            }
+        }
+
+        async function saveStateToCloud() {
+            setSyncStatus('syncing', 'Syncing...');
+            try {
+                const response = await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'save_boards',
+                        data: {
+                            userId: USER_ID,
+                            boards: state.boards,
+                            folders: state.folders
+                        }
+                    })
+                });
+                
+                if (!response.ok) throw new Error('Cloud sync failed');
+                setSyncStatus('synced', 'Synced');
+            } catch (err) {
+                console.error('Cloud Sync Error:', err);
+                setSyncStatus('error', 'Sync Failed');
+            }
+        }
+
+        async function loadStateFromCloud() {
+            setSyncStatus('syncing', 'Loading...');
+            try {
+                const response = await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'fetch_boards',
+                        data: { userId: USER_ID }
+                    })
+                });
+                
+                if (!response.ok) throw new Error('Failed to load from cloud');
+                const result = await response.json();
+                const data = result.body ? (typeof result.body === 'string' ? JSON.parse(result.body) : result.body) : result;
+                
+                if (data.boards) {
+                    state.boards = data.boards;
+                    if (data.folders) state.folders = data.folders;
+                    
+                    // Sync localStorage with cloud data
+                    importedBoardIds = state.boards.map(b => b.id);
+                    localStorage.setItem('importedBoardIds', JSON.stringify(importedBoardIds));
+                    
+                    renderSidebar();
+                    if (state.boards.length > 0) {
+                        selectBoard(state.boards[0].id);
+                    }
+                }
+                setSyncStatus('synced', 'Cloud Synced');
+            } catch (err) {
+                console.error('Cloud Load Error:', err);
+                setSyncStatus('error', 'Cloud Load Failed');
             }
         }
 
@@ -1691,6 +1821,7 @@
             }
             
             showToast("Boards imported successfully!", true);
+            saveStateToCloud();
         }
 
         function closeImportModal() {
@@ -3869,7 +4000,7 @@
                     </div>
                     ${pendingAutomation.actionType ? renderActionConfig(board) : ''}
                     <div style="display:flex;justify-content:space-between;margin-top:20px;">
-                        <button class="btn-cancel" onclick="builderStep=1;renderBuilderStep(state.boards.find(b=>b.id===state.activeBoardId))">← Back</button>
+                        <button class="btn btn-cancel" onclick="builderStep=1;renderBuilderStep(state.boards.find(b=>b.id===state.activeBoardId))"><i data-lucide="chevron-left" size="16"></i> Back</button>
                         <button class="btn-save" onclick="saveAutomation()" ${pendingAutomation.actionType?'':'disabled'}>Create Automation</button>
                     </div>`;
             }
@@ -5357,7 +5488,15 @@
         document.addEventListener('DOMContentLoaded', () => {
             const loggedIn = checkGoogleLogin();
             lucide.createIcons();
-            fetchBoardsFromCloud();
+            
+            if (loggedIn) {
+                loadStateFromCloud().finally(() => {
+                    fetchBoardsFromCloud();
+                });
+            } else {
+                fetchBoardsFromCloud();
+            }
+            
             initSidebarResize();
         });
 

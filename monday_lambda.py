@@ -2,9 +2,36 @@ import json
 import requests
 import os
 import base64
+from datetime import datetime
+from pymongo import MongoClient
+from bson import ObjectId
 
 MONDAY_API_KEY = os.environ.get('MONDAY_API_KEY') or os.environ.get('MONDAY_TOKEN')
 MONDAY_API_URL = "https://api.monday.com/v2"
+
+# MongoDB Config
+MONGODB_URI = os.environ.get('MONGODB_URI')
+MONGODB_DATABASE = 'monday_db'
+mongo_client = None
+
+def get_db():
+    global mongo_client
+    if mongo_client is None:
+        if not MONGODB_URI:
+            return None
+        try:
+            mongo_client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+            mongo_client.admin.command('ping')
+        except Exception as e:
+            print(f"MongoDB connection error: {str(e)}")
+            return None
+    return mongo_client[MONGODB_DATABASE]
+
+class JSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, ObjectId): return str(o)
+        if isinstance(o, datetime): return o.isoformat()
+        return super(JSONEncoder, self).default(o)
 
 def get_clean_openai_key(body):
     raw_key = body.get('openai_key') or os.environ.get('OPENAI_API_KEY') or os.environ.get('GPT_KEY')
@@ -979,6 +1006,29 @@ def lambda_handler(event, context):
         result = claude_chat(body)
     elif action == 'claude_chat_with_tools':               # ← agentic loop
         result = claude_chat_with_tools(body)
+    elif action == 'fetch_boards':
+        db = get_db()
+        if not db: result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+        else:
+            user_id = body.get('data', {}).get('userId', 'default_workspace')
+            user_data = db.boards.find_one({"userId": user_id})
+            result = {"statusCode": 200, "body": json.dumps({"boards": user_data.get('boards', []) if user_data else []}, cls=JSONEncoder)}
+    elif action == 'save_boards':
+        db = get_db()
+        if not db: result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+        else:
+            data = body.get('data', {})
+            user_id = data.get('userId')
+            if not user_id: result = {"statusCode": 400, "body": json.dumps({"error": "Missing userId"})}
+            else:
+                update_doc = {
+                    "userId": user_id,
+                    "boards": data.get('boards', []),
+                    "folders": data.get('folders', []),
+                    "lastUpdated": datetime.utcnow()
+                }
+                db.boards.update_one({"userId": user_id}, {"$set": update_doc}, upsert=True)
+                result = {"statusCode": 200, "body": json.dumps({"success": True}, cls=JSONEncoder)}
     elif action == 'get_monday_data':
         # Proxy action for raw GraphQL queries
         params = body.get('data', body)

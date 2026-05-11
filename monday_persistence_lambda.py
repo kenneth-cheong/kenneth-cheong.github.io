@@ -101,6 +101,7 @@ def handle_save_boards(db, data, headers):
         update_doc = {
             "userId": user_id,
             "boards": data.get('boards', []),
+            "folders": data.get('folders', []),
             "lastUpdated": datetime.utcnow()
         }
         
