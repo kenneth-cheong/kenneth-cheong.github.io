@@ -7103,7 +7103,7 @@ CRITICAL CONTACT RULE:
 
             console.log("[MEMORY] Syncing to cloud...");
             try {
-                await fetch(MONDAY_LAMBDA_URL, {
+                await fetch(PERSISTENCE_API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -7123,7 +7123,7 @@ CRITICAL CONTACT RULE:
             if (!email) return;
 
             try {
-                const res = await fetch(MONDAY_LAMBDA_URL, {
+                const res = await fetch(PERSISTENCE_API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -7135,7 +7135,6 @@ CRITICAL CONTACT RULE:
                 const body = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
                 
                 if (body.insights && body.insights.length > 0) {
-                    // Merge or replace? For simplicity, we'll replace local if cloud has data
                     learnedInsights = body.insights;
                     localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
                     renderInsights();

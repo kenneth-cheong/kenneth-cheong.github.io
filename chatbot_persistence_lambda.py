@@ -65,6 +65,10 @@ def lambda_handler(event, context):
             return handle_get_conversation(db, data, headers)
         elif action == 'delete_conversation':
             return handle_delete_conversation(db, data, headers)
+        elif action == 'save_insights':
+            return handle_save_insights(db, body, headers)
+        elif action == 'get_insights':
+            return handle_get_insights(db, body, headers)
         else:
             return response(400, {"error": f"Unsupported action: {action}"}, headers)
 
@@ -144,6 +148,25 @@ def handle_delete_conversation(db, data, headers):
         
     db.conversations.delete_one({"conversationId": conv_id, "userId": user_id})
     return response(200, {"success": True}, headers)
+
+def handle_save_insights(db, body, headers):
+    email = body.get('email')
+    insights = body.get('insights', [])
+    if not email:
+        return response(400, {"error": "Email missing"}, headers)
+    db.insights.update_one(
+        {"email": email.lower()},
+        {"$set": {"insights": insights, "updated_at": datetime.utcnow()}},
+        upsert=True
+    )
+    return response(200, {"status": "success"}, headers)
+
+def handle_get_insights(db, body, headers):
+    email = body.get('email')
+    if not email:
+        return response(400, {"error": "Email missing"}, headers)
+    doc = db.insights.find_one({"email": email.lower()})
+    return response(200, {"insights": doc.get('insights', []) if doc else []}, headers)
 
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):
