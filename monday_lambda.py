@@ -8,6 +8,7 @@ from bson import ObjectId
 
 MONDAY_API_KEY = os.environ.get('MONDAY_API_KEY') or os.environ.get('MONDAY_TOKEN')
 MONDAY_API_URL = "https://api.monday.com/v2"
+SERANKING_TOKEN = os.environ.get('SERANKING_TOKEN') or "4181980cafdc89bc7bd8c7e9d26725f18cd617ef"
 
 # MongoDB Config
 MONGODB_URI = os.environ.get('MONGODB_URI')
@@ -651,6 +652,18 @@ def claude_chat_with_tools(body):
             }
         },
         {
+            "name": "get_seranking_report",
+            "description": "Fetch SE Ranking SEO keyword rankings, groups, and positions for a specific site/campaign.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "siteId": {"type": "string", "description": "The SE Ranking Site ID (Campaign ID)."},
+                    "includePositions": {"type": "boolean", "description": "Whether to fetch current ranking positions (pos, change, date)."}
+                },
+                "required": ["siteId"]
+            }
+        },
+        {
             "name": "save_memory_note",
             "description": "STRICT MANDATE. Use this tool whenever you learn a new preference, fact, or logic about the user or their projects to remember for future sessions.",
             "input_schema": {
@@ -886,6 +899,71 @@ def claude_chat_with_tools(body):
                             "tool_use_id": tool_id,
                             "content":     r.text
                         })
+                    elif tool_name == "get_seranking_report":
+                        site_id = str(tool_input.get("siteId", ""))
+                        include_pos = tool_input.get("includePositions", True)
+                        
+                        # Validation: Prevent using Monday IDs (usually 10 digits) as SE Ranking Site IDs
+                        if len(site_id) >= 10:
+                            error_msg = f"Error: Site ID '{site_id}' looks like a Monday.com Item ID. SE Ranking Site IDs are usually 7-8 digits. Please check the context for 'target_site_id' or 'seranking_site_id' associated with the campaign."
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": tool_id,
+                                "content": json.dumps({"error": error_msg}),
+                                "is_error": True
+                            })
+                            continue
+                        
+                        ser_headers = {"Authorization": f"Token {SERANKING_TOKEN}", "Content-Type": "application/json"}
+                        
+                        # Fetch Keywords
+                        kw_res = requests.get(f'https://api4.seranking.com/sites/{site_id}/keywords', headers=ser_headers)
+                        keywords = kw_res.json() if kw_res.status_code == 200 else []
+                        
+                        # Fetch Groups
+                        group_res = requests.get(f'https://api4.seranking.com/keyword-groups/{site_id}', headers=ser_headers)
+                        groups = group_res.json() if group_res.status_code == 200 else []
+                        group_map = {str(g['id']): g['name'] for g in groups} if isinstance(groups, list) else {}
+                        
+                        result_data = {"site_id": site_id, "keywords": []}
+                        
+                        if include_pos:
+                            today = datetime.today().strftime('%Y-%m-%d')
+                            pos_res = requests.get(f'https://api4.seranking.com/sites/{site_id}/positions?date_from={today}&date_to={today}', headers=ser_headers)
+                            pos_data = pos_res.json() if pos_res.status_code == 200 else []
+                            
+                            pos_map = {}
+                            if isinstance(pos_data, list) and len(pos_data) > 0 and 'keywords' in pos_data[0]:
+                                for p in pos_data[0]['keywords']:
+                                    if p.get('positions'):
+                                        latest = p['positions'][-1]
+                                        pos_map[str(p['id'])] = {"pos": latest.get('pos'), "change": latest.get('change')}
+                            
+                            if isinstance(keywords, list):
+                                for kw in keywords:
+                                    k_id = str(kw['id'])
+                                    p_info = pos_map.get(k_id, {})
+                                    result_data["keywords"].append({
+                                        "name": kw.get('name'),
+                                        "group": group_map.get(str(kw.get('group_id')), "No Group"),
+                                        "position": p_info.get("pos", "Not Ranked"),
+                                        "change": p_info.get("change", "-")
+                                    })
+                        else:
+                            if isinstance(keywords, list):
+                                for kw in keywords:
+                                    result_data["keywords"].append({
+                                        "name": kw.get('name'),
+                                        "group": group_map.get(str(kw.get('group_id')), "No Group")
+                                    })
+                        
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_id,
+                            "content": json.dumps(result_data)
+                        })
+                        tool_call_log.append(f"Fetched SE Ranking rankings for Site {site_id}")
+
                     elif tool_name == "save_memory_note":
                         text = tool_input.get("text", "")
                         tag = tool_input.get("tag", "General")
@@ -1001,102 +1079,140 @@ def claude_chat(body):
 # ───────────────────────────────────────────────────────────────────────────
 
 def lambda_handler(event, context):
+    # Standard CORS headers
     headers = {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key, anthropic-version",
     }
 
-    if event.get('httpMethod') == 'OPTIONS':
+    # Handle Preflight
+    if isinstance(event, dict) and event.get('httpMethod') == 'OPTIONS':
         return {'statusCode': 200, 'headers': headers}
 
     try:
-        body = json.loads(event.get('body', '{}')) if 'body' in event else event
-    except:
-        body = event
-
-    action = body.get('action')
-
-    if action == 'openai_proxy':
-        result = openai_proxy(body)
-    elif action == 'openai_upload':
-        result = openai_upload(body)
-    elif action == 'download_file':
-        result = download_file(body)
-    elif action == 'google_token_exchange':
-        result = google_token_exchange(body)
-    elif action == 'get_board_items':
-        result = get_board_items(body)
-    elif action == 'claude_chat':
-        result = claude_chat(body)
-    elif action == 'claude_chat_with_tools':               # ← agentic loop
-        result = claude_chat_with_tools(body)
-    elif action == 'fetch_boards':
-        db = get_db()
-        if not db: result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
-        else:
-            user_id = body.get('data', {}).get('userId', 'default_workspace')
-            user_data = db.boards.find_one({"userId": user_id})
-            result = {"statusCode": 200, "body": json.dumps({"boards": user_data.get('boards', []) if user_data else []}, cls=JSONEncoder)}
-    elif action == 'save_boards':
-        db = get_db()
-        if not db: result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
-        else:
-            data = body.get('data', {})
-            user_id = data.get('userId')
-            if not user_id: result = {"statusCode": 400, "body": json.dumps({"error": "Missing userId"})}
+        # Parse body
+        if isinstance(event, dict):
+            if 'body' in event and isinstance(event['body'], str):
+                try:
+                    body = json.loads(event['body'])
+                except:
+                    body = {}
             else:
-                update_doc = {
-                    "userId": user_id,
-                    "boards": data.get('boards', []),
-                    "folders": data.get('folders', []),
-                    "lastUpdated": datetime.utcnow()
-                }
-                db.boards.update_one({"userId": user_id}, {"$set": update_doc}, upsert=True)
-                result = {"statusCode": 200, "body": json.dumps({"success": True}, cls=JSONEncoder)}
-    elif action == 'get_monday_data':
-        # Proxy action for raw GraphQL queries
-        params = body.get('data', body)
-        query = params.get('query') or body.get('query')
-        variables = params.get('variables') or body.get('variables')
-        api_key = params.get('api_key') or body.get('api_key')
-        
-        result_data = run_monday_graphql(query, variables=variables, api_key=api_key)
-        
-        # If run_monday_graphql returned an error dict instead of data
-        status_code = 200
-        if isinstance(result_data, dict) and "error" in result_data:
-            if "HTTP" in str(result_data.get("error")):
-                status_code = 400
-        
-        result = {"statusCode": status_code, "body": json.dumps(result_data)}
-    elif action == 'get_insights':
-        db = get_db()
-        if not db: result = {"statusCode": 500, "body": json.dumps({"error": "DB Connection Failed"})}
+                body = event
         else:
-            email = body.get('email')
-            if not email: result = {"statusCode": 400, "body": json.dumps({"error": "Email missing"})}
+            try:
+                body = json.loads(event)
+            except:
+                body = {}
+
+        action = body.get('action')
+        result = None
+
+        if action == 'openai_proxy':
+            result = openai_proxy(body)
+        elif action == 'openai_upload':
+            result = openai_upload(body)
+        elif action == 'download_file':
+            result = download_file(body)
+        elif action == 'google_token_exchange':
+            result = google_token_exchange(body)
+        elif action == 'get_board_items':
+            result = get_board_items(body)
+        elif action == 'claude_chat':
+            result = claude_chat(body)
+        elif action == 'claude_chat_with_tools':
+            result = claude_chat_with_tools(body)
+        elif action == 'fetch_boards':
+            db = get_db()
+            if not db: 
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
             else:
-                doc = db.insights.find_one({"email": email.lower()})
-                result = {"statusCode": 200, "body": json.dumps({"insights": doc.get('insights', []) if doc else []}, cls=JSONEncoder)}
-    elif action == 'save_insights':
-        db = get_db()
-        if not db: result = {"statusCode": 500, "body": json.dumps({"error": "DB Connection Failed"})}
+                user_id = body.get('data', {}).get('userId', 'default_workspace')
+                user_data = db.boards.find_one({"userId": user_id})
+                result = {"statusCode": 200, "body": json.dumps({"boards": user_data.get('boards', []) if user_data else []}, cls=JSONEncoder)}
+        elif action == 'save_boards':
+            db = get_db()
+            if not db: 
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                data = body.get('data', {})
+                user_id = data.get('userId')
+                if not user_id: 
+                    result = {"statusCode": 400, "body": json.dumps({"error": "Missing userId"})}
+                else:
+                    update_doc = {
+                        "userId": user_id,
+                        "boards": data.get('boards', []),
+                        "folders": data.get('folders', []),
+                        "lastUpdated": datetime.utcnow()
+                    }
+                    db.boards.update_one({"userId": user_id}, {"$set": update_doc}, upsert=True)
+                    result = {"statusCode": 200, "body": json.dumps({"success": True}, cls=JSONEncoder)}
+        elif action == 'get_monday_data':
+            params = body.get('data', body)
+            query = params.get('query') or body.get('query')
+            variables = params.get('variables') or body.get('variables')
+            api_key = params.get('api_key') or body.get('api_key')
+            result_data = run_monday_graphql(query, variables=variables, api_key=api_key)
+            result = {"statusCode": 200, "body": json.dumps(result_data)}
+        elif action == 'get_insights':
+            db = get_db()
+            if not db: 
+                result = {"statusCode": 500, "body": json.dumps({"error": "DB Connection Failed"})}
+            else:
+                email = body.get('email')
+                if not email: 
+                    result = {"statusCode": 400, "body": json.dumps({"error": "Email missing"})}
+                else:
+                    doc = db.insights.find_one({"email": email.lower()})
+                    result = {"statusCode": 200, "body": json.dumps({"insights": doc.get('insights', []) if doc else []}, cls=JSONEncoder)}
+        elif action == 'save_insights':
+            db = get_db()
+            if not db: 
+                result = {"statusCode": 500, "body": json.dumps({"error": "DB Connection Failed"})}
+            else:
+                email = body.get('email')
+                insights = body.get('insights', [])
+                if not email: 
+                    result = {"statusCode": 400, "body": json.dumps({"error": "Email missing"})}
+                else:
+                    db.insights.update_one(
+                        {"email": email.lower()},
+                        {"$set": {"insights": insights, "updated_at": datetime.now()}},
+                        upsert=True
+                    )
+                    result = {"statusCode": 200, "body": json.dumps({"status": "success"})}
+        elif action == 'get_seranking_sites':
+            ser_headers = {"Authorization": f"Token {SERANKING_TOKEN}", "Content-Type": "application/json"}
+            try:
+                r = requests.get('https://api4.seranking.com/sites', headers=ser_headers, timeout=10)
+                if r.status_code == 200:
+                    sites = [{"id": s.get('id'), "title": s.get('title', 'Untitled'), "url": s.get('name', '')} for s in r.json()]
+                    result = {"statusCode": 200, "body": json.dumps({"sites": sites})}
+                else:
+                    result = {"statusCode": r.status_code, "body": r.text}
+            except Exception as e:
+                result = {"statusCode": 500, "body": json.dumps({"error": str(e)})}
         else:
-            email = body.get('email')
-            insights = body.get('insights', [])
-            if not email: result = {"statusCode": 400, "body": json.dumps({"error": "Email missing"})}
-            else:
-                db.insights.update_one(
-                    {"email": email.lower()},
-                    {"$set": {"insights": insights, "updated_at": datetime.now()}},
-                    upsert=True
-                )
-                result = {"statusCode": 200, "body": json.dumps({"status": "success"})}
-    else:
-        result = {"statusCode": 400, "body": json.dumps({"error": "Invalid Action"})}
+            result = {"statusCode": 400, "body": json.dumps({"error": f"Invalid Action: {action}"})}
 
-    if 'headers' not in result:
-        result['headers'] = headers
+        # Final check on result
+        if not result:
+            result = {"statusCode": 500, "body": json.dumps({"error": "No result produced"})}
+        
+        if 'headers' not in result:
+            result['headers'] = headers
+        else:
+            # Merge CORS headers into existing headers if any
+            result['headers'].update(headers)
 
-    return result
+        return result
+
+    except Exception as e:
+        print(f"[CRITICAL ERROR] {str(e)}")
+        return {
+            "statusCode": 500,
+            "headers": headers,
+            "body": json.dumps({"error": "Internal Server Error", "detail": str(e)})
+        }

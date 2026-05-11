@@ -235,6 +235,101 @@
             max-height: none !important;
         }
 
+        /* Multi-Select Styles */
+        .multi-select-container {
+            position: relative;
+            width: 100%;
+        }
+        .multi-select-trigger {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.75rem;
+            color: #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 600;
+        }
+        .multi-select-trigger:hover {
+            border-color: #cbd5e1;
+            background: #f8fafc;
+        }
+        .multi-select-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: none;
+            max-height: 300px;
+            flex-direction: column;
+            margin-top: -1px;
+        }
+        .multi-select-dropdown.active {
+            display: flex;
+        }
+        .multi-select-search {
+            padding: 8px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 10;
+        }
+        .multi-select-search i {
+            color: #94a3b8;
+            font-size: 0.7rem;
+        }
+        .multi-select-search input {
+            border: none;
+            outline: none;
+            font-size: 0.75rem;
+            width: 100%;
+            color: #334155;
+        }
+        .multi-select-options {
+            overflow-y: auto;
+            padding: 4px;
+        }
+        .multi-select-option {
+            padding: 8px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 0.75rem;
+            color: #334155;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        .multi-select-option:hover {
+            background: #f1f5f9;
+        }
+        .multi-select-option input[type="checkbox"] {
+            margin: 0;
+            margin-top: 2px;
+            cursor: pointer;
+            width: 14px;
+            height: 14px;
+        }
+        .multi-select-option-text {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            line-height: 1.2;
+        }
+
         .collapsible-section.active .collapsible-content {
             max-height: 2000px;
             padding: 16px 12px;
@@ -2407,6 +2502,37 @@
                                 </select>
                             </div>
                         </div>
+
+                        <!-- SE Ranking Section -->
+                        <div class="collapsible-section" id="serankingSection" style="margin-top: 10px;">
+                            <div class="collapsible-header" onclick="this.closest('.collapsible-section').classList.toggle('active')">
+                                <span style="font-size: 0.8rem; font-weight: 700; color: var(--primary-navy);">
+                                    <i class="fas fa-chart-line" style="margin-right: 8px; opacity: 0.5;"></i> SE Ranking
+                                </span>
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <span class="service-badge" style="background:#e0f2fe; color:#0369a1; font-size:0.6rem; padding: 2px 6px;">Live</span>
+                                    <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
+                                </div>
+                            </div>
+                            <div class="collapsible-content" style="padding: 12px;">
+                                <!-- Custom Multi-Select Dropdown -->
+                                <div class="multi-select-container" id="serankingMultiSelect">
+                                    <div class="multi-select-trigger" onclick="toggleSERankingDropdown()">
+                                        <span id="serankingSelectedCount">Select Campaigns</span>
+                                        <i class="fas fa-chevron-down"></i>
+                                    </div>
+                                    <div class="multi-select-dropdown" id="serankingDropdown">
+                                        <div class="multi-select-search">
+                                            <i class="fas fa-search"></i>
+                                            <input type="text" placeholder="Search campaigns..." id="serankingSearchInput" oninput="filterSERankingSites()">
+                                        </div>
+                                        <div class="multi-select-options" id="serankingOptionsList">
+                                            <!-- Options will be rendered here -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Gmail days-back setting -->
@@ -2747,7 +2873,7 @@
         window.lastSyncedInternalState = { boards: [], items: [], staff: [] };
 
         // Persistence State
-        const PERSISTENCE_API_URL = 'https://t9pw69cg8d.execute-api.ap-southeast-1.amazonaws.com/chatbotPersistence';
+        var PERSISTENCE_API_URL = 'https://t9pw69cg8d.execute-api.ap-southeast-1.amazonaws.com/chatbotPersistence';
         let currentConversationId = localStorage.getItem('chatbot_conversationId') || null;
         let chatHistory = JSON.parse(localStorage.getItem('chatbot_history') || '[]');
         // User Identity for Persistence
@@ -3082,6 +3208,9 @@
 
         // Initialize from localStorage
         window.addEventListener('load', () => {
+            // Start SE Ranking fetch immediately for concurrency
+            fetchSERankingSites();
+            
             loadSettings();
             // Check for URL parameters (e.g., ?lambda=my-function)
             const urlParams = new URLSearchParams(window.location.search);
@@ -3105,7 +3234,6 @@
 
             // Restore mode
             if (currentMode === 'internal') {
-                document.getElementById('modeToggle').checked = true;
                 applyMode('internal');
             } else {
                 applyMode('client');
@@ -3119,6 +3247,7 @@
             } else {
                 applyLLM('gpt');
             }
+
 
             // Attachment Event Listeners
             const inputArea = document.getElementById('userInput');
@@ -3172,7 +3301,6 @@
         function setMode(mode) {
             currentMode = mode;
             localStorage.setItem('chatbotMode', mode);
-            document.getElementById('modeToggle').checked = (mode === 'internal');
             applyMode(mode);
             resetConversation();
         }
@@ -3186,10 +3314,10 @@
 
             if (mode === 'internal') {
                 document.body.classList.add('internal-mode');
-                filterPanel.classList.add('visible');
-                clientLabel.classList.remove('active');
-                internalLabel.classList.add('active');
-                headerTitle.textContent = 'Super Chatbot';
+                if (filterPanel) filterPanel.classList.add('visible');
+                if (clientLabel) clientLabel.classList.remove('active');
+                if (internalLabel) internalLabel.classList.add('active');
+                if (headerTitle) headerTitle.textContent = 'Super Chatbot';
                 if (welcomeMsg) {
                     const msgContent = welcomeMsg.querySelector('.msg-content');
                     if (msgContent) {
@@ -3629,8 +3757,8 @@
             syncMondayToOpenAI();
         }
 
-        const SERANKING_LAMBDA_URL = 'https://u2u2ptqaxd.execute-api.ap-southeast-1.amazonaws.com/seRanking';
-        const MONDAY_LAMBDA_URL = 'https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday';
+        var MONDAY_LAMBDA_URL = "https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday";
+        var SERANKING_LAMBDA_URL = "https://u2u2ptqaxd.execute-api.ap-southeast-1.amazonaws.com/seRanking";
         let autoSyncTimer = null;
 
         function startAutoSync() {
@@ -3678,6 +3806,113 @@
             if (duration > 0) setTimeout(remove, duration);
             return { remove };
         }
+
+        // ---- SE Ranking Integration ----
+        window.allSERankingSites = [];
+        window.selectedSERankingSites = [];
+
+        function toggleSERankingDropdown() {
+            const dropdown = document.getElementById('serankingDropdown');
+            dropdown.classList.toggle('active');
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            const container = document.getElementById('serankingMultiSelect');
+            const dropdown = document.getElementById('serankingDropdown');
+            if (container && !container.contains(e.target)) {
+                dropdown.classList.remove('active');
+            }
+        });
+
+        async function fetchSERankingSites() {
+            const optionsList = document.getElementById('serankingOptionsList');
+            if (!optionsList) return;
+            
+            optionsList.innerHTML = '<div style="padding: 10px; font-size: 0.7rem; color: #94a3b8; text-align: center;">⏳ Loading campaigns...</div>';
+            
+            try {
+                const res = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'get_seranking_sites' })
+                });
+                const data = await res.json();
+                const body = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
+                
+                if (body.sites) {
+                    window.allSERankingSites = body.sites;
+                    
+                    // Load selected IDs from localStorage
+                    const savedIds = JSON.parse(localStorage.getItem('selectedSERankingSiteIds') || '[]');
+                    window.selectedSERankingSites = Array.isArray(savedIds) ? savedIds : [];
+                    
+                    renderSERankingSites();
+                    updateSelectedCount();
+                } else {
+                    optionsList.innerHTML = '<div style="padding: 10px; font-size: 0.7rem; color: #94a3b8; text-align: center;">No campaigns found</div>';
+                }
+            } catch (e) {
+                console.error("Error fetching SE Ranking sites:", e);
+                optionsList.innerHTML = '<div style="padding: 10px; font-size: 0.7rem; color: #ef4444; text-align: center;">Error loading campaigns</div>';
+            }
+        }
+
+        function filterSERankingSites() {
+            const filterText = document.getElementById('serankingSearchInput').value.toLowerCase();
+            renderSERankingSites(filterText);
+        }
+
+        function renderSERankingSites(filter = "") {
+            const list = document.getElementById('serankingOptionsList');
+            if (!list) return;
+            
+            const filtered = window.allSERankingSites.filter(s => 
+                s.title.toLowerCase().includes(filter) || 
+                (s.url && s.url.toLowerCase().includes(filter))
+            );
+            
+            if (filtered.length === 0) {
+                list.innerHTML = '<div style="padding: 10px; font-size: 0.7rem; color: #94a3b8; text-align: center;">No matches</div>';
+                return;
+            }
+            
+            list.innerHTML = filtered.map(site => `
+                <div class="multi-select-option" onclick="toggleSERankingSite('${site.id}', event)">
+                    <input type="checkbox" id="ser_check_${site.id}" ${window.selectedSERankingSites.includes(String(site.id)) ? 'checked' : ''} onclick="event.stopPropagation(); toggleSERankingSite('${site.id}')">
+                    <div class="multi-select-option-text">
+                        <span style="font-weight:700; color: #1e293b;">${site.title}</span>
+                        <span style="font-size:0.65rem; color: #64748b;">${site.url || ''}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleSERankingSite(id, event) {
+            id = String(id);
+            const index = window.selectedSERankingSites.indexOf(id);
+            if (index > -1) {
+                window.selectedSERankingSites.splice(index, 1);
+            } else {
+                window.selectedSERankingSites.push(id);
+            }
+            
+            localStorage.setItem('selectedSERankingSiteIds', JSON.stringify(window.selectedSERankingSites));
+            updateSelectedCount();
+            
+            // Re-render to update checkbox states (if we wanted to be perfectly in sync without direct DOM manipulation)
+            // But for performance with 160 items, we just update the specific checkbox
+            const cb = document.getElementById(`ser_check_${id}`);
+            if (cb) cb.checked = (index === -1); 
+        }
+
+        function updateSelectedCount() {
+            const countDisplay = document.getElementById('serankingSelectedCount');
+            const count = window.selectedSERankingSites.length;
+            countDisplay.textContent = count === 0 ? "Select Campaigns" : `${count} Campaign${count !== 1 ? 's' : ''} Selected`;
+        }
+
+
 
         async function fetchSeRankingViaLambda(action, siteId, extraData = {}) {
             try {
@@ -5900,7 +6135,7 @@ You can now ask me anything about these campaigns.`);
 
             const boards = window.activeBoards || [];
             const clientEmail = localStorage.getItem('clientEmail');
-            const contextUrlsStr = localStorage.getItem('contextUrls') || "";
+            let contextUrlsStr = localStorage.getItem('contextUrls') || "";
 
             if (boards.length === 0) {
                 alert("Please configure boards in settings.");
@@ -5929,6 +6164,22 @@ You can now ask me anything about these campaigns.`);
 
                 const mondayFileIds = [];
                 const allAssetsToProcess = [];
+
+                // 0. Prep SE Ranking IDs for auto-linking
+                const selectedSiteIds = JSON.parse(localStorage.getItem('selectedSERankingSiteIds') || '[]');
+                const seRankingNameMap = {}; 
+                if (Array.isArray(selectedSiteIds) && selectedSiteIds.length > 0) {
+                    selectedSiteIds.forEach(siteId => {
+                        const siteObj = window.allSERankingSites.find(s => String(s.id) === String(siteId));
+                        if (siteObj) {
+                            seRankingNameMap[siteObj.title.toLowerCase()] = siteId;
+                            if (siteObj.url) {
+                                const domain = siteObj.url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+                                seRankingNameMap[domain] = siteId;
+                            }
+                        }
+                    });
+                }
 
                 // 1. Parallel Board Fetching
                 updateSyncStatus("Fetching Boards (Parallel)...", true);
@@ -5980,6 +6231,18 @@ You can now ask me anything about these campaigns.`);
                             // Add item URL for the AI to reference
                             const boardId = board.id;
                             item.monday_url = `https://mediaone-business-group-pte-ltd.monday.com/boards/${boardId}/pulses/${item.id}`;
+                            item.monday_item_id = item.id; // Clearly label it as Monday ID
+                            
+                            // AUTO-LINK SE Ranking ID if names match
+                            const itemNameLower = item.name.toLowerCase();
+                            for (const [siteTitle, serId] of Object.entries(seRankingNameMap)) {
+                                if (itemNameLower.includes(siteTitle) || siteTitle.includes(itemNameLower)) {
+                                    item.seranking_site_id = serId;
+                                    item.linked_seo_campaign = siteTitle;
+                                    break;
+                                }
+                            }
+                            
                             return item;
                         });
 
@@ -6007,6 +6270,13 @@ You can now ask me anything about these campaigns.`);
                         const results = await Promise.all(chunk.map(asset => processAsset(asset)));
                         mondayFileIds.push(...results.filter(id => id !== null));
                     }
+                }
+
+                // Already handled seRankingNameMap above
+                if (Array.isArray(selectedSiteIds) && selectedSiteIds.length > 0) {
+                    selectedSiteIds.forEach(siteId => {
+                        contextUrlsStr += `\nhttps://api4.seranking.com/site_id=${siteId}`;
+                    });
                 }
 
                 // 2. Fetch External Context (SeRanking/Dashboards)
@@ -6064,6 +6334,11 @@ You can now ask me anything about these campaigns.`);
                     }
                     combinedContext.external_context.push(urlData);
                 }
+
+                // Add a specific reference for the AI to find selected site IDs
+                combinedContext.loaded_seranking_campaigns = (window.allSERankingSites || [])
+                    .filter(s => selectedSiteIds.includes(String(s.id)))
+                    .map(s => ({ title: s.title, site_id: s.id, domain: s.url }));
 
                 console.log("FINAL COMBINED CONTEXT (FLAT):", combinedContext);
 
@@ -6314,13 +6589,17 @@ CRITICAL CONTACT RULE:
         }
 
         function updateSyncStatus(text, loading, success = false) {
-            const statusBadge = document.getElementById('syncStatus');
+            const syncSegment = document.getElementById('syncSegment');
             const syncText = document.getElementById('syncText');
             const syncIcon = document.getElementById('syncIcon');
 
-            syncText.innerText = text;
-            statusBadge.className = "status-badge" + (success ? " synced" : "");
-            syncIcon.className = loading ? "fas fa-circle-notch fa-spin" : (success ? "fas fa-check-circle" : "fas fa-exclamation-triangle");
+            if (syncText) syncText.innerText = text;
+            if (syncSegment) {
+                // Apply success style if needed
+                if (success) syncSegment.style.borderColor = "#10b981";
+                else syncSegment.style.borderColor = "rgba(255, 255, 255, 0.1)";
+            }
+            if (syncIcon) syncIcon.className = loading ? "fas fa-circle-notch fa-spin" : (success ? "fas fa-check-circle" : "fas fa-exclamation-triangle");
         }
 
         async function handleSendMessage() {
@@ -6535,6 +6814,13 @@ CRITICAL CONTACT RULE:
             11. get_ga4_report: For Google Analytics (sessions, users, conversions).
             12. get_ads_report: For Google Ads performance (cost, CPC, ROAS).
             13. save_memory_note: STRICT MANDATE. Use this whenever you learn a new preference, fact, or logic about the user or their projects.
+            14. get_seranking_report: Fetch keyword rankings and positions for a specific SE Ranking campaign. You MUST use this tool when the user asks about SEO keywords, rankings, or SE Ranking data.
+
+            SE RANKING CRITICAL RULES:
+            - NEVER ask the user for an SE Ranking Site ID. The Site IDs are already in the synced context under 'loaded_seranking_campaigns'.
+            - When the user asks about SE Ranking keywords or rankings, immediately call get_seranking_report with the site_id from 'loaded_seranking_campaigns'.
+            - SE Ranking Site IDs are 7-8 digits (e.g., 9297227). Monday.com Item IDs are 10 digits — NEVER use Monday IDs for SE Ranking.
+            - If multiple campaigns are loaded, fetch all of them and combine the results.
 
             LEARNED MEMORIES (Context):
             ${JSON.stringify(learnedInsights.map(i => `[${i.tag}] ${i.text}`))}
@@ -6604,6 +6890,19 @@ CRITICAL CONTACT RULE:
                 if (contextStr.length > 60000) {
                     contextStr = contextStr.substring(0, 60000) + "... [Hard Truncated]";
                 }
+
+                // Inject SE Ranking campaigns prominently before full context
+                const selectedSiteIds = JSON.parse(localStorage.getItem('selectedSERankingSiteIds') || '[]');
+                if (selectedSiteIds.length > 0 && window.allSERankingSites) {
+                    const seRankingCampaigns = window.allSERankingSites
+                        .filter(s => selectedSiteIds.includes(String(s.id)))
+                        .map(s => `  - ${s.title} (domain: ${s.url}, site_id: ${s.id})`)
+                        .join('\n');
+                    if (seRankingCampaigns) {
+                        system += `\n\n=== SE RANKING CAMPAIGNS (USE THESE SITE IDs FOR get_seranking_report) ===\n${seRankingCampaigns}\n=== END SE RANKING CAMPAIGNS ===`;
+                    }
+                }
+
                 system += `\n\nSYNCED CONTEXT:\n${contextStr}`;
             }
 
