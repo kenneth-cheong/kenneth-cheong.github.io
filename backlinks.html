@@ -2221,11 +2221,51 @@
             const optionsContainer = document.getElementById('costMultiOptions');
             if (!optionsContainer) return;
 
+            // Find BD/Sales column (same logic as renderCostManagement)
+            const bdColId = (() => {
+                if (state.mondayColumns && state.mondayColumns.length > 0) {
+                    const salesCol = state.mondayColumns.find(c => (c.title || '').toLowerCase() === 'sales');
+                    if (salesCol) return salesCol.id;
+                    const bdCol = state.mondayColumns.find(c => (c.title || '').toLowerCase().includes('bd') && (c.title || '').toLowerCase().includes('sales'));
+                    if (bdCol) return bdCol.id;
+                }
+                return 'people';
+            })();
+
+            // Deduplicate repeated names from Monday people column text
+            const extractBDName = (rawText) => {
+                if (!rawText || rawText === 'N/A') return null;
+                const parts = rawText.split(',').map(s => s.trim()).filter(Boolean);
+                const unique = [...new Set(parts)];
+                if (unique.length === 1) {
+                    const words = unique[0].split(' ');
+                    const half = Math.floor(words.length / 2);
+                    if (words.length % 2 === 0 && words.slice(0, half).join(' ') === words.slice(half).join(' ')) {
+                        return words.slice(0, half).join(' ');
+                    }
+                }
+                return unique.join(', ');
+            };
+
+            // Known BD staff filter
+            const knownBDNames = (state.vendors || [])
+                .filter(u => u.role !== 'Vendor' && u.status === 'Active')
+                .map(u => (u.name || '').toLowerCase().trim());
+
             // Get unique BDs and Campaigns
             const bds = [...new Set(state.mondayItems.map(item => {
-                const cv = (item.column_values || []).find(v => v.id === 'people');
-                return cv ? (cv.text || cv.value) : null;
-            }).filter(v => v && v !== 'N/A'))].sort();
+                const cv = (item.column_values || []).find(v => v.id === bdColId);
+                const raw = cv ? (cv.text || cv.value) : null;
+                const name = extractBDName(raw);
+                if (!name) return null;
+                // Filter to known BD staff only
+                if (knownBDNames.length > 0) {
+                    const nameLower = name.toLowerCase();
+                    const isKnown = knownBDNames.some(k => nameLower.includes(k) || k.includes(nameLower));
+                    if (!isKnown) return null;
+                }
+                return name;
+            }).filter(v => v && v !== 'Unknown'))].sort();
 
             const campaigns = [...new Set(state.mondayItems.map(item => item.name).filter(v => v))].sort();
 
@@ -2360,9 +2400,51 @@
                 return cv ? (cv.text || cv.value || 'N/A') : 'N/A';
             };
 
+            // Find the BD/Sales column: prefer a column titled 'Sales' or 'BD', fallback to 'people'
+            const bdColId = (() => {
+                if (state.mondayColumns && state.mondayColumns.length > 0) {
+                    const salesCol = state.mondayColumns.find(c => (c.title || '').toLowerCase() === 'sales');
+                    if (salesCol) return salesCol.id;
+                    const bdCol = state.mondayColumns.find(c => (c.title || '').toLowerCase().includes('bd') && (c.title || '').toLowerCase().includes('sales'));
+                    if (bdCol) return bdCol.id;
+                }
+                return 'people'; // fallback
+            })();
+
+            // Helper: extract a clean, deduplicated BD name from a people/text column value
+            // Monday's people column text may return "First Last First Last" (duplicated) or "Name1, Name2"
+            const extractBDName = (rawText) => {
+                if (!rawText || rawText === 'N/A') return 'Unknown';
+                // Split by comma and/or detect word-level duplications
+                const parts = rawText.split(',').map(s => s.trim()).filter(Boolean);
+                // Deduplicate the parts
+                const unique = [...new Set(parts)];
+                // Further deduplicate: detect if a single long string is the same name repeated
+                // e.g., "Chan Ching Yi Chan Ching Yi" -> "Chan Ching Yi"
+                if (unique.length === 1) {
+                    const words = unique[0].split(' ');
+                    const half = Math.floor(words.length / 2);
+                    if (words.length % 2 === 0 && words.slice(0, half).join(' ') === words.slice(half).join(' ')) {
+                        return words.slice(0, half).join(' ');
+                    }
+                }
+                return unique.join(', ');
+            };
+
+            // Known BD staff: internal users who are not vendors (Admin/Staff roles)
+            const knownBDNames = (state.vendors || [])
+                .filter(u => u.role !== 'Vendor' && u.status === 'Active')
+                .map(u => (u.name || '').toLowerCase().trim());
+
             (state.mondayItems || []).forEach(item => {
-                let bd = getColValById(item, 'people');
-                if (bd === 'N/A' || !bd) bd = 'Unknown';
+                const rawBD = getColValById(item, bdColId);
+                let bd = extractBDName(rawBD);
+                // Filter to known BD staff only (case-insensitive partial match)
+                if (bd !== 'Unknown' && knownBDNames.length > 0) {
+                    const bdLower = bd.toLowerCase();
+                    const isKnownBD = knownBDNames.some(known => bdLower.includes(known) || known.includes(bdLower));
+                    if (!isKnownBD) bd = 'Unknown';
+                }
                 const campaign = item.name || 'Unnamed Campaign';
                 
                 // Filter by multi-select

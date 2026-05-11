@@ -649,6 +649,18 @@ def claude_chat_with_tools(body):
                 },
                 "required": ["customerId", "query"]
             }
+        },
+        {
+            "name": "save_memory_note",
+            "description": "STRICT MANDATE. Use this tool whenever you learn a new preference, fact, or logic about the user or their projects to remember for future sessions.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "description": "The specific insight to remember (e.g., 'User prefers tables for SEO data')."},
+                    "tag": {"type": "string", "enum": ["Preference", "Project Logic", "Fact", "General"], "description": "Category of the memory."}
+                },
+                "required": ["text", "tag"]
+            }
         }
     ]
 
@@ -717,6 +729,7 @@ def claude_chat_with_tools(body):
                         "reply": final_text,
                         "tool_calls_summary": summary,
                         "rounds": round_num,
+                        "memory_updates": [t for t in tool_call_log if t.startswith("MEM_SAVE:")],
                         "debug_stats": {
                             "system_chars": sys_size,
                             "messages_chars": msg_size,
@@ -872,6 +885,18 @@ def claude_chat_with_tools(body):
                             "type":        "tool_result",
                             "tool_use_id": tool_id,
                             "content":     r.text
+                        })
+                    elif tool_name == "save_memory_note":
+                        text = tool_input.get("text", "")
+                        tag = tool_input.get("tag", "General")
+                        print(f"[TOOLS] Saving Memory Note: [{tag}] {text}")
+                        # We use a special prefix in the log to signal the frontend
+                        tool_call_log.append(f"MEM_SAVE: {json.dumps({'tag': tag, 'text': text})}")
+                        
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     "Success: Note saved to persistent memory modal."
                         })
                     else:
                         # Unknown tool — return an error so Claude can recover
@@ -1045,6 +1070,29 @@ def lambda_handler(event, context):
                 status_code = 400
         
         result = {"statusCode": status_code, "body": json.dumps(result_data)}
+    elif action == 'get_insights':
+        db = get_db()
+        if not db: result = {"statusCode": 500, "body": json.dumps({"error": "DB Connection Failed"})}
+        else:
+            email = body.get('email')
+            if not email: result = {"statusCode": 400, "body": json.dumps({"error": "Email missing"})}
+            else:
+                doc = db.insights.find_one({"email": email.lower()})
+                result = {"statusCode": 200, "body": json.dumps({"insights": doc.get('insights', []) if doc else []}, cls=JSONEncoder)}
+    elif action == 'save_insights':
+        db = get_db()
+        if not db: result = {"statusCode": 500, "body": json.dumps({"error": "DB Connection Failed"})}
+        else:
+            email = body.get('email')
+            insights = body.get('insights', [])
+            if not email: result = {"statusCode": 400, "body": json.dumps({"error": "Email missing"})}
+            else:
+                db.insights.update_one(
+                    {"email": email.lower()},
+                    {"$set": {"insights": insights, "updated_at": datetime.now()}},
+                    upsert=True
+                )
+                result = {"statusCode": 200, "body": json.dumps({"status": "success"})}
     else:
         result = {"statusCode": 400, "body": json.dumps({"error": "Invalid Action"})}
 

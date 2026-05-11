@@ -1429,50 +1429,84 @@
             opacity: 1 !important;
         }
 
-        /* Enhanced Autonomous Badge */
-        .autonomous-badge {
-            background: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
-            color: #fff !important;
-            padding: 8px 16px !important;
-            border-radius: 100px !important;
-            font-size: 0.7rem !important;
-            font-weight: 700 !important;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            display: inline-flex;
+        /* Unified Status Bar */
+        .unified-status-bar {
+            display: flex;
             align-items: center;
-            gap: 8px;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            position: relative;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 100px;
             overflow: hidden;
-            transition: all 0.3s ease;
-            line-height: 1;
+            height: 38px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-left: 8px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .autonomous-badge::before {
+        .unified-status-bar:hover {
+            border-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        .status-segment {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding: 0 14px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            flex-shrink: 0;
+            transition: all 0.3s;
+            gap: 8px;
+        }
+
+        .status-segment.engine {
+            background: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
+            color: #fff;
+            position: relative;
+            overflow: hidden;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .status-segment.engine::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            left: -100%;
             transition: left 0.5s;
         }
 
-        .autonomous-badge:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
-        }
-
-        .autonomous-badge:hover::before {
+        .status-segment.engine:hover::before {
             left: 100%;
         }
 
-        .autonomous-badge i {
+        .status-segment.sync {
+            background: rgba(15, 23, 42, 0.2);
+            color: rgba(255, 255, 255, 0.7);
+            white-space: nowrap;
+            min-width: 100px;
+        }
+
+        .status-segment.cloud {
+            background: rgba(255, 255, 255, 0.05);
+            color: #10b981; /* Default success green */
+            transition: color 0.3s;
+        }
+
+        .status-segment.cloud.offline {
+            color: #ef4444;
+        }
+
+        .status-segment i {
             font-size: 0.85rem;
-            filter: drop-shadow(0 0 2px rgba(255,255,255,0.5));
+        }
+
+        .status-segment i.fa-spin {
+            animation: fa-spin 2s linear infinite;
         }
 
         .tool-log {
@@ -1738,6 +1772,425 @@
             cursor: default;
         }
 
+        /* Quick Prompts Modal Styles */
+        .prompts-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .prompts-modal-overlay.open {
+            display: flex;
+            animation: modalFadeIn 0.3s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .prompts-modal {
+            background: #fff;
+            width: 100%;
+            max-width: 600px;
+            max-height: 80vh;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            animation: modalPopUp 0.4s cubic-bezier(0.17, 0.67, 0.41, 1.08);
+        }
+
+        @keyframes modalPopUp {
+            from { transform: scale(0.95) translateY(20px); opacity: 0; }
+            to { transform: scale(1) translateY(0); opacity: 1; }
+        }
+
+        .prompts-modal-header {
+            padding: 24px 32px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .prompts-modal-header h2 {
+            margin: 0;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            color: var(--primary-navy);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .prompts-modal-header h2 i {
+            color: var(--accent-orange);
+        }
+
+        .close-prompts {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: #f1f5f9;
+            color: #64748b;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .close-prompts:hover {
+            background: #e2e8f0;
+            color: #1e293b;
+            transform: rotate(90deg);
+        }
+
+        .prompts-list {
+            padding: 24px 32px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .prompts-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .prompts-list::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+
+        .prompt-category {
+            margin-bottom: 8px;
+        }
+
+        .prompt-category-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .prompt-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+        .prompt-item {
+            padding: 16px 20px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            text-align: left;
+        }
+
+        .prompt-item:hover {
+            background: #fff;
+            border-color: var(--accent-orange);
+            transform: translateX(4px);
+            box-shadow: 0 10px 15px -3px rgba(234, 88, 12, 0.1);
+        }
+
+        .prompt-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-orange);
+            font-size: 1.2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+
+        .prompt-item:hover .prompt-icon {
+            background: var(--accent-orange);
+            color: #fff;
+            transform: scale(1.1);
+        }
+
+        .prompt-content {
+            flex: 1;
+        }
+
+        .prompt-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--primary-navy);
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .prompt-description {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        /* Prompt Button in Input Bar */
+        .prompts-btn {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: var(--accent-orange);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            box-shadow: var(--shadow-sm);
+            flex-shrink: 0;
+        }
+
+        .prompts-btn:hover {
+            background: var(--accent-orange-light);
+            border-color: var(--accent-orange);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(234, 88, 12, 0.1);
+        }
+
+        .prompts-btn i {
+            font-size: 1.1rem;
+        }
+
+        /* Custom Tooltip Styles */
+        [data-tooltip] {
+            position: relative;
+        }
+
+        [data-tooltip]::before {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%) translateY(10px);
+            background: var(--primary-navy);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+        }
+
+        [data-tooltip]:hover::before {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Learning Insights Modal Styles */
+        .learning-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .learning-modal-overlay.open {
+            display: flex;
+            animation: modalFadeIn 0.3s ease-out;
+        }
+
+        .learning-modal {
+            background: #fff;
+            width: 100%;
+            max-width: 700px;
+            max-height: 80vh;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            animation: modalPopUp 0.4s cubic-bezier(0.17, 0.67, 0.41, 1.08);
+        }
+
+        .learning-modal-header {
+            padding: 24px 32px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to right, #fcfdff, #f8faff);
+        }
+
+        .learning-modal-header h2 {
+            margin: 0;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            color: #4338ca;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .learning-modal-header h2 i {
+            color: #6366f1;
+            filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.3));
+        }
+
+        .insights-list {
+            padding: 24px 32px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .insight-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 20px;
+            transition: all 0.3s;
+            position: relative;
+            border-left: 4px solid #6366f1;
+        }
+
+        .insight-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.05);
+            border-color: #6366f1;
+        }
+
+        .insight-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .status-segment {
+            padding: 0 16px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .insight-tag {
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: #eef2ff;
+            color: #4338ca;
+        }
+
+        .insight-date {
+            color: var(--text-muted);
+        }
+
+        .insight-text {
+            font-size: 0.95rem;
+            color: var(--text-main);
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .insight-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .insight-card:hover .insight-actions {
+            opacity: 1;
+        }
+
+        .insight-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #94a3b8;
+            font-size: 0.9rem;
+            padding: 4px;
+            transition: color 0.2s;
+        }
+
+        .insight-btn:hover {
+            color: #ef4444;
+        }
+
+        .empty-insights {
+            padding: 60px 40px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        .empty-insights i {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            opacity: 0.2;
+            color: #6366f1;
+        }
+
+        .btn-brain {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: #fff;
+            border: none;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn-brain:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
+            color: #fff;
+        }
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -1759,30 +2212,22 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Client Portal Chatbot Testing</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span></h1>
             <div class="controls">
-                <div class="mode-toggle">
-                    <span class="mode-label active" id="clientModeLabel" onclick="setMode('client')">Client</span>
-                    <label class="mode-switch">
-                        <input type="checkbox" id="modeToggle" onchange="handleModeToggle(this.checked)">
-                        <span class="mode-slider"></span>
-                    </label>
-                    <span class="mode-label" id="internalModeLabel" onclick="setMode('internal')">Internal</span>
+                <!-- Unified Status Bar (Compact) -->
+                <div class="unified-status-bar" id="unifiedStatusBar">
+                    <div class="status-segment engine" id="cloudSegment" title="Claude Autonomous Engine + Cloud Sync Status">
+                        <i class="fas fa-brain" id="cloudIcon"></i>
+                        <span id="cloudText">Claude Ready</span>
+                    </div>
+                    <div class="status-segment sync" id="syncSegment">
+                        <i class="fas fa-circle-notch fa-spin" id="syncIcon"></i>
+                        <span id="syncText">No Context</span>
+                    </div>
                 </div>
-                <div class="mode-toggle" style="margin-left: 8px; cursor: help; background: none; border: none; padding: 0;" title="Currently locked to Claude. The advanced autonomous agent for Monday.com and Google Integrations requires Claude's specific tool-calling architecture.">
-                    <span class="autonomous-badge">
-                        <i class="fas fa-brain"></i>
-                        <span>Claude (Autonomous)</span>
-                    </span>
-                </div>
-                <div id="syncStatus" class="status-badge">
-                    <i class="fas fa-circle-notch fa-spin" id="syncIcon"></i>
-                    <span id="syncText">No Context</span>
-                </div>
-                <div id="cloudStatus" class="status-badge synced">
-                    <i class="fas fa-cloud" id="cloudIcon"></i>
-                    <span id="cloudText">Cloud Ready</span>
-                </div>
+                <button class="btn btn-outline btn-brain" onclick="openLearningModal()" title="View what the AI has learned from your interactions">
+                    <i class="fas fa-brain"></i> Memory
+                </button>
                 <button class="btn btn-outline" onclick="toggleHistory()">
                     <i class="fas fa-history"></i> History
                 </button>
@@ -2281,6 +2726,9 @@
                     <i class="fas fa-microphone"></i>
                     <div class="recording-dot"></div>
                 </button>
+                <button class="prompts-btn" onclick="openPromptsModal()" data-tooltip="Quick Prompts Templates">
+                    <i class="fas fa-wand-magic-sparkles"></i>
+                </button>
                 <textarea id="userInput" placeholder="Ask anything about your Monday board..." rows="1"></textarea>
                 <button class="icon-btn" id="sendBtn" onclick="handleSendMessage()">
                     <i class="fas fa-paper-plane"></i>
@@ -2741,7 +3189,7 @@
                 filterPanel.classList.add('visible');
                 clientLabel.classList.remove('active');
                 internalLabel.classList.add('active');
-                headerTitle.textContent = 'Internal Super Chatbot';
+                headerTitle.textContent = 'Super Chatbot';
                 if (welcomeMsg) {
                     const msgContent = welcomeMsg.querySelector('.msg-content');
                     if (msgContent) {
@@ -6086,6 +6534,10 @@ CRITICAL CONTACT RULE:
             10. get_gsc_performance: For Google Search Console (clicks, impressions).
             11. get_ga4_report: For Google Analytics (sessions, users, conversions).
             12. get_ads_report: For Google Ads performance (cost, CPC, ROAS).
+            13. save_memory_note: STRICT MANDATE. Use this whenever you learn a new preference, fact, or logic about the user or their projects.
+
+            LEARNED MEMORIES (Context):
+            ${JSON.stringify(learnedInsights.map(i => `[${i.tag}] ${i.text}`))}
 
             CURRENT CONTEXT:
             - GSC Site: ${gscSite || 'None selected'}
@@ -6231,6 +6683,24 @@ CRITICAL CONTACT RULE:
 
                 const reply = data.reply || '';
                 const toolLog = data.tool_calls_summary || null;
+
+                // Handle Automated Memory Updates
+                if (data.memory_updates && data.memory_updates.length > 0) {
+                    data.memory_updates.forEach(updateStr => {
+                        try {
+                            const jsonStr = updateStr.replace('MEM_SAVE: ', '');
+                            const insight = JSON.parse(jsonStr);
+                            insight.date = new Date().toLocaleDateString();
+                            insight.source = "AI Learned";
+                            insight.id = Date.now() + Math.random();
+                            learnedInsights.unshift(insight);
+                        } catch (e) { console.error("Memory parsing error", e); }
+                    });
+                    localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+                    renderInsights();
+                    pushInsightsToCloud(); // Auto-learned insights synced to cloud
+                    showToast('AI memory updated automatically', 'info');
+                }
 
                 addMessage("bot", reply, toolLog);
 
@@ -6553,6 +7023,407 @@ CRITICAL CONTACT RULE:
         }
     </script>
 
+    <!-- Quick Prompts Modal -->
+    <div id="promptsModalOverlay" class="prompts-modal-overlay" onclick="closePromptsModal()">
+        <div class="prompts-modal" onclick="event.stopPropagation()">
+            <div class="prompts-modal-header">
+                <h2><i class="fas fa-wand-magic-sparkles"></i> Quick Prompts</h2>
+                <button class="close-prompts" onclick="closePromptsModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="prompts-list" id="promptsList"></div>
+        </div>
+    </div>
+
+    <!-- Learning Insights Modal -->
+    <div id="learningModalOverlay" class="learning-modal-overlay" onclick="closeLearningModal()">
+        <div class="learning-modal" onclick="event.stopPropagation()">
+            <div class="learning-modal-header">
+                <h2><i class="fas fa-brain"></i> Learned Insights</h2>
+                <div style="display:flex; gap:12px;">
+                    <button class="btn btn-outline" onclick="addSampleInsight()" style="padding:6px 12px; font-size:0.75rem;">
+                        <i class="fas fa-plus"></i> Manual Note
+                    </button>
+                    <button class="close-prompts" onclick="closeLearningModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div style="padding: 16px 32px; border-bottom: 1px solid #f1f5f9; background: #fcfdff;">
+                <div style="display: flex; gap: 12px; align-items: flex-start;">
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                        <textarea id="quickAddInput" placeholder="Add something to AI memory (e.g., 'User prefers dark mode' or 'Project X deadline is June 30')..." 
+                            style="width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.85rem; resize: none; min-height: 40px; font-family: inherit;"></textarea>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="quickAddTag" style="padding: 4px 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.75rem; background: #fff; color: #64748b; font-weight: 600;">
+                                <option value="Preference">Preference</option>
+                                <option value="Project Logic">Project Logic</option>
+                                <option value="Fact">Fact</option>
+                                <option value="General">General</option>
+                            </select>
+                            <span style="font-size: 0.7rem; color: #94a3b8; display: flex; align-items: center;">
+                                <i class="fas fa-info-circle" style="margin-right: 4px;"></i> The AI also learns automatically from your chats.
+                            </span>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="quickAddInsight()" style="height: 40px; padding: 0 20px; border-radius: 12px; font-weight: 700;">
+                        <i class="fas fa-plus"></i> Add
+                    </button>
+                </div>
+            </div>
+            <div class="insights-list" id="insightsList">
+                <!-- Insights will be injected here -->
+            </div>
+            <div style="padding: 16px 32px; background: #f8fafc; border-top: 1px solid #f1f5f9; font-size: 0.75rem; color: #64748b; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-info-circle"></i>
+                These notes are automatically generated by the AI to remember your preferences and project specifics for future sessions.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let learnedInsights = JSON.parse(localStorage.getItem('chatBotInsights')) || [];
+        // Initial cloud pull
+        setTimeout(pullInsightsFromCloud, 1000);
+
+        function openLearningModal() {
+            renderInsights();
+            document.getElementById('learningModalOverlay').classList.add('open');
+            pullInsightsFromCloud(); // Refresh on open
+        }
+
+        function closeLearningModal() {
+            document.getElementById('learningModalOverlay').classList.remove('open');
+        }
+
+        async function pushInsightsToCloud() {
+            const email = localStorage.getItem('clientEmail') || localStorage.getItem('userEmail');
+            if (!email) return;
+
+            console.log("[MEMORY] Syncing to cloud...");
+            try {
+                await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'save_insights',
+                        email: email,
+                        insights: learnedInsights
+                    })
+                });
+                console.log("[MEMORY] Cloud sync successful.");
+            } catch (e) {
+                console.error("[MEMORY] Cloud sync failed", e);
+            }
+        }
+
+        async function pullInsightsFromCloud() {
+            const email = localStorage.getItem('clientEmail') || localStorage.getItem('userEmail');
+            if (!email) return;
+
+            try {
+                const res = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'get_insights',
+                        email: email
+                    })
+                });
+                const data = await res.json();
+                const body = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
+                
+                if (body.insights && body.insights.length > 0) {
+                    // Merge or replace? For simplicity, we'll replace local if cloud has data
+                    learnedInsights = body.insights;
+                    localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+                    renderInsights();
+                }
+            } catch (e) {
+                console.error("[MEMORY] Could not pull insights from cloud", e);
+            }
+        }
+
+        function renderInsights() {
+            const list = document.getElementById('insightsList');
+            if (learnedInsights.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-insights">
+                        <i class="fas fa-brain"></i>
+                        <p>No insights learned yet. The AI will start taking notes as you interact with it!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = learnedInsights.map((insight, index) => `
+                <div class="insight-card" id="insight-${insight.id}">
+                    <div class="insight-meta">
+                        <span class="insight-tag">${insight.tag}</span>
+                        <span class="insight-date">${insight.date} • <span class="insight-source" style="font-weight:700; color: #475569; text-transform: uppercase; font-size: 0.6rem;">${insight.source || 'Manual'}</span></span>
+                    </div>
+                    <div class="insight-text" id="text-${insight.id}" contenteditable="false">${insight.text}</div>
+                    <div class="insight-actions">
+                        <button class="insight-btn edit-btn" onclick="toggleEdit(${insight.id})" title="Edit memory" style="color: #6366f1;">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="insight-btn save-btn" onclick="saveInsight(${insight.id})" title="Save memory" style="color: #10b981; display: none;">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        <button class="insight-btn delete-btn" onclick="deleteInsight(${insight.id})" title="Remove memory">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleEdit(id) {
+            const card = document.getElementById(`insight-${id}`);
+            const textDiv = document.getElementById(`text-${id}`);
+            const editBtn = card.querySelector('.edit-btn');
+            const saveBtn = card.querySelector('.save-btn');
+            
+            const isEditing = textDiv.contentEditable === 'true';
+            
+            if (isEditing) {
+                // Cancel edit
+                textDiv.contentEditable = 'false';
+                textDiv.innerText = learnedInsights.find(i => i.id === id).text;
+                editBtn.innerHTML = '<i class="fas fa-edit"></i>';
+                saveBtn.style.display = 'none';
+                card.style.borderColor = '#e2e8f0';
+            } else {
+                // Start edit
+                textDiv.contentEditable = 'true';
+                textDiv.focus();
+                // Move cursor to end
+                const range = document.createRange();
+                const sel = window.getSelection();
+                range.selectNodeContents(textDiv);
+                range.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                
+                editBtn.innerHTML = '<i class="fas fa-times"></i>';
+                saveBtn.style.display = 'inline-block';
+                card.style.borderColor = '#6366f1';
+                card.style.borderLeftWidth = '6px';
+            }
+        }
+
+        function saveInsight(id) {
+            const textDiv = document.getElementById(`text-${id}`);
+            const newText = textDiv.innerText.trim();
+            
+            if (newText === "") {
+                showToast('Memory text cannot be empty', 'warning');
+                return;
+            }
+            
+            const insight = learnedInsights.find(i => i.id === id);
+            insight.text = newText;
+            insight.date = new Date().toLocaleDateString() + " (edited)";
+            
+            localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+            renderInsights();
+            pushInsightsToCloud();
+            showToast('Memory updated successfully', 'success');
+        }
+
+        function deleteInsight(id) {
+            if (confirm('Are you sure you want the AI to forget this information?')) {
+                learnedInsights = learnedInsights.filter(i => i.id !== id);
+                localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+                renderInsights();
+                pushInsightsToCloud(); // Sync deletion to cloud
+                showToast('AI memory updated', 'info');
+            }
+        }
+
+        function quickAddInsight() {
+            const input = document.getElementById('quickAddInput');
+            const tagSelect = document.getElementById('quickAddTag');
+            const text = input.value.trim();
+            
+            if (!text) {
+                showToast('Please enter a note to remember', 'warning');
+                return;
+            }
+            
+            const tag = tagSelect.value;
+            learnedInsights.unshift({
+                tag: tag,
+                text: text,
+                date: new Date().toLocaleDateString(),
+                source: "Manual",
+                id: Date.now()
+            });
+            
+            localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+            input.value = "";
+            renderInsights();
+            pushInsightsToCloud(); // Sync new note
+            showToast('New memory saved', 'success');
+        }
+
+        function addSampleInsight() {
+            quickAddInsight(); // Re-use the new logic
+        }
+
+        // --- Original Quick Prompts Logic ---
+        const promptTemplates = [
+            {
+                category: "Monday.com Insights",
+                prompts: [
+                    {
+                        title: "Analyze Board Status",
+                        description: "Use Monday tools to get a high-level overview of task progress.",
+                        text: "Use your Monday tools to analyze the current status of all items on this board and give me a summary of progress.",
+                        icon: "fa-chart-pie"
+                    },
+                    {
+                        title: "Find Bottlenecks",
+                        description: "Identify 'Stuck' items or delays on the current Monday board.",
+                        text: "Identify any items on this Monday board that are currently 'Stuck' or facing delays. Who is responsible for them?",
+                        icon: "fa-exclamation-triangle"
+                    },
+                    {
+                        title: "Workload Audit",
+                        description: "Check task distribution among team members on Monday.",
+                        text: "Check the Monday board and tell me how the workload is distributed among team members. Who has the most tasks?",
+                        icon: "fa-users"
+                    }
+                ]
+            },
+            {
+                category: "SEO & Search Console",
+                prompts: [
+                    {
+                        title: "Top Keywords (GSC)",
+                        description: "Fetch top performing keywords from Google Search Console.",
+                        text: "Use the Google Search Console tool to find the top 10 performing keywords for my site over the last 30 days.",
+                        icon: "fa-magnifying-glass-chart"
+                    },
+                    {
+                        title: "Ranking Drops",
+                        description: "Identify any significant performance dips in GSC.",
+                        text: "Check GSC data for any significant drops in clicks or impressions compared to the previous month.",
+                        icon: "fa-arrow-trend-down"
+                    },
+                    {
+                        title: "Index Status",
+                        description: "Report on indexing errors or excluded pages from GSC.",
+                        text: "Use GSC to report any indexing errors or pages that are currently excluded from search.",
+                        icon: "fa-bug"
+                    }
+                ]
+            },
+            {
+                category: "Marketing Analytics",
+                prompts: [
+                    {
+                        title: "GA4 Traffic Sources",
+                        description: "See where your visitors are coming from.",
+                        text: "Use GA4 to show me a breakdown of traffic sources for the last 30 days. Which channel is performing best?",
+                        icon: "fa-chart-simple"
+                    },
+                    {
+                        title: "Conversion Overview",
+                        description: "Check your conversion rates in GA4.",
+                        text: "Show me the top 5 conversion events from GA4 for the past month and their counts.",
+                        icon: "fa-bullseye"
+                    },
+                    {
+                        title: "Ads Performance",
+                        description: "High-level Google Ads cost and CPC analysis.",
+                        text: "Check my Google Ads performance. What was the total cost and average CPC for all campaigns last week?",
+                        icon: "fa-rectangle-ad"
+                    }
+                ]
+            },
+            {
+                category: "Communications",
+                prompts: [
+                    {
+                        title: "Chat Summary",
+                        description: "Summarize recent messages in a space.",
+                        text: "Search for the newest messages in the Google Chat space '[Space Name]' and summarize what was discussed.",
+                        icon: "fa-comments"
+                    },
+                    {
+                        title: "Find in Email",
+                        description: "Search Gmail for specific keywords.",
+                        text: "Search my Gmail for any recent emails regarding '[Keyword]' and give me a summary of the latest one.",
+                        icon: "fa-envelope-open-text"
+                    },
+                    {
+                        title: "Check Tasks (Chat)",
+                        description: "Find task mentions in team chats.",
+                        text: "Scan my Google Chat messages for any mentions of 'pending tasks' or 'to-do' items from today.",
+                        icon: "fa-clipboard-list"
+                    }
+                ]
+            }
+        ];
+
+        function openPromptsModal() {
+            const overlay = document.getElementById('promptsModalOverlay');
+            const list = document.getElementById('promptsList');
+            
+            // Render prompts if list is empty
+            if (list.children.length === 0) {
+                promptTemplates.forEach(cat => {
+                    const catDiv = document.createElement('div');
+                    catDiv.className = 'prompt-category';
+                    catDiv.innerHTML = `<span class="prompt-category-title">${cat.category}</span>`;
+                    
+                    const grid = document.createElement('div');
+                    grid.className = 'prompt-grid';
+                    
+                    cat.prompts.forEach(p => {
+                        const item = document.createElement('div');
+                        item.className = 'prompt-item';
+                        item.onclick = () => selectPrompt(p.text);
+                        item.innerHTML = `
+                            <div class="prompt-icon"><i class="fas ${p.icon}"></i></div>
+                            <div class="prompt-content">
+                                <span class="prompt-title">${p.title}</span>
+                                <span class="prompt-description">${p.description}</span>
+                            </div>
+                        `;
+                        grid.appendChild(item);
+                    });
+                    
+                    catDiv.appendChild(grid);
+                    list.appendChild(catDiv);
+                });
+            }
+            
+            overlay.classList.add('open');
+        }
+
+        function closePromptsModal() {
+            document.getElementById('promptsModalOverlay').classList.remove('open');
+        }
+
+        function selectPrompt(text) {
+            const textarea = document.getElementById('userInput');
+            textarea.value = text;
+            textarea.focus();
+            
+            // Trigger auto-resize if any
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            closePromptsModal();
+        }
+
+        // Close on Esc key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closePromptsModal();
+        });
+    </script>
 </body>
 
 </html>
