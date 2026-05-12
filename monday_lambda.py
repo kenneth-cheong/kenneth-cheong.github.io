@@ -11,6 +11,7 @@ from bson import ObjectId
 MONDAY_API_KEY = os.environ.get('MONDAY_API_KEY') or os.environ.get('MONDAY_TOKEN')
 MONDAY_API_URL = "https://api.monday.com/v2"
 SERANKING_TOKEN = os.environ.get('SERANKING_TOKEN') or "4181980cafdc89bc7bd8c7e9d26725f18cd617ef"
+DATAFORSEO_API_KEY = os.environ.get('DATAFORSEO_API_KEY') or os.environ.get('API_KEY')
 
 # MongoDB Config
 MONGODB_URI = os.environ.get('MONGODB_URI')
@@ -531,7 +532,7 @@ def claude_chat_with_tools(body):
     if not anthropic_key:
         return {"statusCode": 500, "body": json.dumps({"error": "ANTHROPIC_API_KEY environment variable not configured"})}
 
-    model      = body.get('model') or os.environ.get('CLAUDE_MODEL', 'claude-3-haiku-20240307')
+    model      = body.get('model') or os.environ.get('CLAUDE_MODEL', 'claude-haiku-4-5')
     system     = body.get('system', '')
     messages   = list(body.get('messages', []))   # mutable copy for the loop
     max_tokens = int(body.get('max_tokens', 4096))
@@ -667,6 +668,19 @@ def claude_chat_with_tools(body):
                     "includePositions": {"type": "boolean", "description": "Whether to fetch current ranking positions (pos, change, date)."}
                 },
                 "required": ["siteId"]
+            }
+        },
+        {
+            "name": "get_dataforseo_keyword_suggestions",
+            "description": "Discover new keyword ideas, search volume, and CPC using DataForSEO's Google Ads database.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "keywords": {"type": "array", "items": {"type": "string"}, "description": "Seed keywords for research."},
+                    "location_name": {"type": "string", "description": "Location name (e.g., 'Singapore', 'United States')."},
+                    "language_name": {"type": "string", "description": "Language name (e.g., 'English')."}
+                },
+                "required": ["keywords"]
             }
         },
         {
@@ -970,6 +984,36 @@ def claude_chat_with_tools(body):
                         })
                         tool_call_log.append(f"Fetched SE Ranking rankings for Site {site_id}")
 
+                    elif tool_name == "get_dataforseo_keyword_suggestions":
+                        seeds = tool_input.get("keywords", [])
+                        loc = tool_input.get("location_name", "Singapore")
+                        lang = tool_input.get("language_name", "English")
+                        
+                        df_headers = {"Authorization": DATAFORSEO_API_KEY, "Content-Type": "application/json"}
+                        payload = [{
+                            "keywords": seeds,
+                            "location_name": loc,
+                            "language_name": lang,
+                            "sort_by": "relevance"
+                        }]
+                        
+                        try:
+                            res = requests.post("https://api.dataforseo.com/v3/keywords_data/google_ads/keywords_for_keywords/live", 
+                                              headers=df_headers, json=payload, timeout=30)
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": tool_id,
+                                "content": res.text
+                            })
+                            tool_call_log.append(f"Discovered keywords via DataForSEO for: {', '.join(seeds)}")
+                        except Exception as e:
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": tool_id,
+                                "content": json.dumps({"error": str(e)}),
+                                "is_error": True
+                            })
+
                     elif tool_name == "save_memory_note":
                         text = tool_input.get("text", "")
                         tag = tool_input.get("tag", "General")
@@ -1047,7 +1091,7 @@ def claude_chat(body):
             "body": json.dumps({"error": "ANTHROPIC_API_KEY environment variable not configured"})
         }
 
-    model      = body.get('model') or os.environ.get('CLAUDE_MODEL', 'claude-3-haiku-20240307')
+    model      = body.get('model') or os.environ.get('CLAUDE_MODEL', 'claude-haiku-4-5')
     system     = body.get('system', '')
     messages   = body.get('messages', [])
     max_tokens = int(body.get('max_tokens', 4096))
@@ -1130,6 +1174,27 @@ def lambda_handler(event, context):
             result = claude_chat(body)
         elif action == 'claude_chat_with_tools':
             result = claude_chat_with_tools(body)
+        elif action == 'keyword_discovery':
+            # Direct access to DataForSEO for the Strategy Engine
+            seeds = body.get('keywords', [])
+            if isinstance(seeds, str): seeds = [seeds]
+            loc = body.get('location', 'Singapore')
+            lang = body.get('language', 'English')
+            
+            df_headers = {"Authorization": DATAFORSEO_API_KEY, "Content-Type": "application/json"}
+            payload = [{
+                "keywords": seeds,
+                "location_name": loc,
+                "language_name": lang,
+                "sort_by": "relevance"
+            }]
+            
+            try:
+                res = requests.post("https://api.dataforseo.com/v3/keywords_data/google_ads/keywords_for_keywords/live", 
+                                  headers=df_headers, json=payload, timeout=30)
+                result = {"statusCode": res.status_code, "body": res.text}
+            except Exception as e:
+                result = {"statusCode": 500, "body": json.dumps({"error": str(e)})}
         elif action == 'fetch_boards':
             db = get_db()
             if not db: 

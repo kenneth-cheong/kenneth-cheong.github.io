@@ -22719,6 +22719,8 @@
         }
 
         // Configuration for AI Content Optimiser Lambda Endpoints
+        const MONDAY_LAMBDA_URL = "https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday";
+
         const OPTIMISER_ENDPOINTS = {
             SEO_ANALYSIS: 'https://diyjtwnt4l.execute-api.ap-southeast-1.amazonaws.com/seoContentAnalysisScore',
             CONTENT_AI: 'https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser',
@@ -22731,10 +22733,9 @@
             AI_TOPIC_PICKER: 'https://mv0yv43k5d.execute-api.ap-southeast-1.amazonaws.com/aiTopicPicker',
             KEYWORD_FILTER: 'https://4en3fo1fr0.execute-api.ap-southeast-1.amazonaws.com/keywordFilter',
             DEEP_COMPARE: 'https://8bbhravqn2.execute-api.ap-southeast-1.amazonaws.com/deepContentCompare',
-            KEYWORD_DISCOVERY: 'https://7m6n3u0z7d.execute-api.ap-southeast-1.amazonaws.com/keywordDiscovery' // Placeholder or verified
+            KEYWORD_DISCOVERY: MONDAY_LAMBDA_URL // Restored via Monday Lambda
         };
 
-        const MONDAY_LAMBDA_URL = "https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday";
 
 
         let isCleaningKws = false;
@@ -39471,9 +39472,10 @@ Return ONLY valid JSON in this exact format:
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        action: 'keyword_discovery',
                         keywords: query,
-                        location: inputs.location || 'Singapore',
-                        cluster: true
+                        locationId: 184, // Default Singapore
+                        language: 'en'
                     })
                 });
                 if (!response.ok) return [];
