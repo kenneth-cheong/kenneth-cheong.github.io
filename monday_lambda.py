@@ -2,6 +2,8 @@ import json
 import requests
 import os
 import base64
+import time
+import traceback
 from datetime import datetime
 from pymongo import MongoClient
 from bson import ObjectId
@@ -157,7 +159,7 @@ def get_board_items(body):
         print(f"[DEBUG] Monday Query with cursor: {cursor}")
         response = requests.post(
             MONDAY_API_URL,
-            headers={"Authorization": MONDAY_API_KEY, "API-Version": "2026-04"},
+            headers={"Authorization": MONDAY_API_KEY, "API-Version": "2024-04"},
             json={"query": query_str},
             timeout=30
         )
@@ -189,6 +191,7 @@ def run_monday_graphql(query, variables=None, api_key=None):
     key = api_key or MONDAY_API_KEY
     if not key:
         return {"error": "MONDAY_API_KEY not configured and no api_key provided"}
+    start_time = time.time()
     try:
         payload = {"query": query}
         if variables:
@@ -196,15 +199,18 @@ def run_monday_graphql(query, variables=None, api_key=None):
             
         r = requests.post(
             MONDAY_API_URL,
-            headers={"Authorization": key, "API-Version": "2026-04"},
+            headers={"Authorization": key, "API-Version": "2024-04"},
             json=payload,
             timeout=30
         )
         if r.status_code != 200:
             return {"error": f"Monday API HTTP {r.status_code}", "detail": r.text[:500]}
         data = r.json()
+        print(f"[MONDAY-GQL] Query completed in {time.time() - start_time:.2f}s")
         if "errors" in data and data["errors"]:
-            return {"error": data["errors"][0].get("message", "GraphQL error"), "graphql_errors": data["errors"]}
+            error_msg = data["errors"][0].get("message", "GraphQL error")
+            print(f"[MONDAY-GQL] ERROR: {error_msg}")
+            return {"error": error_msg, "graphql_errors": data["errors"]}
         return data.get("data", data)
     except requests.exceptions.Timeout:
         return {"error": "Monday.com API timed out"}
@@ -525,7 +531,7 @@ def claude_chat_with_tools(body):
     if not anthropic_key:
         return {"statusCode": 500, "body": json.dumps({"error": "ANTHROPIC_API_KEY environment variable not configured"})}
 
-    model      = body.get('model') or os.environ.get('CLAUDE_MODEL', 'claude-haiku-4-5')
+    model      = body.get('model') or os.environ.get('CLAUDE_MODEL', 'claude-3-haiku-20240307')
     system     = body.get('system', '')
     messages   = list(body.get('messages', []))   # mutable copy for the loop
     max_tokens = int(body.get('max_tokens', 4096))
@@ -763,7 +769,7 @@ def claude_chat_with_tools(body):
                     if block.get("type") != "tool_use":
                         continue
 
-                    tool_id    = block["id"]
+                    tool_id    = block.get("id", f"call_{int(time.time())}")
                     tool_name  = block["name"]
                     tool_input = block.get("input", {})
 
@@ -923,7 +929,7 @@ def claude_chat_with_tools(body):
                         # Fetch Groups
                         group_res = requests.get(f'https://api4.seranking.com/keyword-groups/{site_id}', headers=ser_headers)
                         groups = group_res.json() if group_res.status_code == 200 else []
-                        group_map = {str(g['id']): g['name'] for g in groups} if isinstance(groups, list) else {}
+                        group_map = {str(g.get('id')): g.get('name', 'Unknown') for g in groups if isinstance(g, dict) and 'id' in g} if isinstance(groups, list) else {}
                         
                         result_data = {"site_id": site_id, "keywords": []}
                         
@@ -935,13 +941,13 @@ def claude_chat_with_tools(body):
                             pos_map = {}
                             if isinstance(pos_data, list) and len(pos_data) > 0 and 'keywords' in pos_data[0]:
                                 for p in pos_data[0]['keywords']:
-                                    if p.get('positions'):
+                                    if isinstance(p, dict) and p.get('id') and p.get('positions'):
                                         latest = p['positions'][-1]
-                                        pos_map[str(p['id'])] = {"pos": latest.get('pos'), "change": latest.get('change')}
+                                        pos_map[str(p.get('id'))] = {"pos": latest.get('pos'), "change": latest.get('change')}
                             
                             if isinstance(keywords, list):
                                 for kw in keywords:
-                                    k_id = str(kw['id'])
+                                    k_id = str(kw.get('id', ''))
                                     p_info = pos_map.get(k_id, {})
                                     result_data["keywords"].append({
                                         "name": kw.get('name'),
@@ -1018,8 +1024,9 @@ def claude_chat_with_tools(body):
     except requests.exceptions.Timeout:
         return {"statusCode": 504, "body": json.dumps({"error": "Request timed out during agentic loop"})}
     except Exception as e:
-        print(f"[TOOLS] Exception: {e}")
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        tb = traceback.format_exc()
+        print(f"[TOOLS] Exception: {e}\n{tb}")
+        return {"statusCode": 500, "body": json.dumps({"error": str(e), "traceback": tb})}
 # ───────────────────────────────────────────────────────────────────────────
 
 # ── Claude Haiku chat handler (simple, no tools) ────────────────────────────
@@ -1040,7 +1047,7 @@ def claude_chat(body):
             "body": json.dumps({"error": "ANTHROPIC_API_KEY environment variable not configured"})
         }
 
-    model      = body.get('model') or os.environ.get('CLAUDE_MODEL', 'claude-haiku-4-5')
+    model      = body.get('model') or os.environ.get('CLAUDE_MODEL', 'claude-3-haiku-20240307')
     system     = body.get('system', '')
     messages   = body.get('messages', [])
     max_tokens = int(body.get('max_tokens', 4096))
@@ -1050,7 +1057,7 @@ def claude_chat(body):
 
     payload = {
         "model": model,
-        #"max_tokens": max_tokens,
+        "max_tokens": max_tokens,
         "messages": messages,
     }
     if system:
@@ -1210,9 +1217,10 @@ def lambda_handler(event, context):
         return result
 
     except Exception as e:
-        print(f"[CRITICAL ERROR] {str(e)}")
+        tb = traceback.format_exc()
+        print(f"[CRITICAL ERROR] {str(e)}\n{tb}")
         return {
             "statusCode": 500,
             "headers": headers,
-            "body": json.dumps({"error": "Internal Server Error", "detail": str(e)})
+            "body": json.dumps({"error": "Internal Server Error", "detail": str(e), "traceback": tb})
         }

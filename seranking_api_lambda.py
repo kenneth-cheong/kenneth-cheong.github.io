@@ -59,7 +59,7 @@ def lambda_handler(event, context):
             groups_url = f"{SERANKING_API_URL}/keyword-groups/{site_id}"
             groups_res = requests.get(groups_url, headers=headers)
             groups = groups_res.json() if groups_res.status_code == 200 else []
-            group_map = {str(g['id']): g['name'] for g in groups}
+            group_map = {str(g.get('id', '')): g.get('name', 'Unknown') for g in groups if isinstance(g, dict) and 'id' in g}
 
             # 2. Fetch Keywords
             keywords_url = f"{SERANKING_API_URL}/sites/{site_id}/keywords"
@@ -75,11 +75,11 @@ def lambda_handler(event, context):
             if isinstance(positions_data, list) and len(positions_data) > 0:
                 # Assume first search engine if multiple exist
                 engine_data = positions_data[0]
-                if 'keywords' in engine_data:
+                if isinstance(engine_data, dict) and 'keywords' in engine_data:
                     for p in engine_data['keywords']:
-                        if 'positions' in p and len(p['positions']) > 0:
+                        if isinstance(p, dict) and 'id' in p and 'positions' in p and isinstance(p['positions'], list) and len(p['positions']) > 0:
                             latest = p['positions'][-1]
-                            pos_map[str(p['id'])] = {
+                            pos_map[str(p.get('id', ''))] = {
                                 "pos": latest.get('pos'),
                                 "change": latest.get('change'),
                                 "date": latest.get('date')
