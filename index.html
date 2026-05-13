@@ -39764,7 +39764,7 @@ Return ONLY valid JSON in this exact format:
                 }
 
                 // 7. Async Enrichment (Don't await, let it happen in background)
-                enrichStrategyKeywords(strategies, quickInput, location, language);
+                enrichStrategyKeywords(strategies, quickInput, inputs.location, inputs.language);
 
                 resultsContainer.style.display = "block";
                 resultsContainer.scrollIntoView({ behavior: 'smooth' });
@@ -39816,7 +39816,8 @@ Return ONLY valid JSON in this exact format:
                 marketContext: document.getElementById('strat-market-context').value,
                 seedKeywords: document.getElementById('strat-seed-keywords').value,
                 domain: document.getElementById('domain').value,
-                location: document.getElementById('location').value
+                location: document.getElementById('location').value,
+                language: document.getElementById('language')?.value || 'English'
             };
         }
 
@@ -40217,8 +40218,7 @@ Return ONLY valid JSON in this exact format:
                     kwData.semantic_clusters.forEach(cluster => {
                         if (Array.isArray(cluster.keywords)) {
                             cluster.keywords.forEach(k => {
-                                const cleaned = cleanKeyword(k);
-                                if (cleaned) allKeywords.add(cleaned);
+                                if (k && k.trim()) allKeywords.add(k.trim());
                             });
                         }
                     });
@@ -40227,13 +40227,11 @@ Return ONLY valid JSON in this exact format:
                 // 2. Collect from Target Keywords (grid view)
                 if (Array.isArray(s.target_keywords)) {
                     s.target_keywords.forEach(k => {
-                        const cleaned = cleanKeyword(k);
-                        if (cleaned) allKeywords.add(cleaned);
+                        if (k && k.trim()) allKeywords.add(k.trim());
                     });
                 } else if (typeof s.target_keywords === 'string') {
                     s.target_keywords.split(/,\s*|\n/).forEach(k => {
-                        const cleaned = cleanKeyword(k);
-                        if (cleaned) allKeywords.add(cleaned);
+                        if (k && k.trim()) allKeywords.add(k.trim());
                     });
                 }
             });
