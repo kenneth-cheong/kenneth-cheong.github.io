@@ -11209,6 +11209,13 @@
                         <div id="strategy-results-container" style="display: none; margin-top: 30px;">
                             <h3 style="font-family: 'Outfit', sans-serif; color: #1e293b; margin-bottom: 20px;">Keyword
                                 Strategy Comparison</h3>
+                            
+                            <!-- Hidden Strategies Area -->
+                            <div id="hidden-strategies-container" style="display: none; margin-bottom: 15px; padding: 12px; background: #f1f5f9; border-radius: 10px; border: 1px solid #e2e8f0; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                <span style="font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em;">Hidden Strategies:</span>
+                                <div id="hidden-strategies-list" style="display: flex; gap: 8px; flex-wrap: wrap;"></div>
+                            </div>
+
                             <div class="premium-table-wrapper"
                                 style="overflow-x: auto; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); background: white;">
                                 <table class="strategy-grid" id="strategy-comparison-grid"
@@ -11323,6 +11330,8 @@
                         </div>
                     </div>
                 </div>
+
+                <div id="domainMetricsSummary" style="margin-bottom: 20px;"></div>
 
                 <div id="domainMetricsSection" class="premium-table-wrapper" style="padding: 24px;">
                     <h3
@@ -31831,12 +31840,72 @@ ${selectedText}
                     document.getElementById('targetReadability').innerText = data.body.readability;
                     document.getElementById('targetWordCount').innerText = data.body.word_count;
                     updateCollapsibleState('siteAnalysisToggle', 'success');
+                    
+                    // Update the summary table if we have enough data
+                    const daValue = document.getElementById('da').innerText;
+                    updateDomainSummaryTable(domain, {
+                        da: daValue,
+                        linking_domains: data.body.referring_domains,
+                        backlinks: data.body.backlinks
+                    });
                 })
                 .catch(error => {
                     console.error("Error fetching targeted domain data:", error); // Log any errors
                     // Handle the error gracefully, perhaps display an error message to the user
                 });
         }
+
+        function updateDomainSummaryTable(domain, metrics) {
+            const container = document.getElementById('domainMetricsSummary');
+            if (!container) return;
+            
+            container.innerHTML = `
+                <table class="premium-table" style="width:100%; margin-top:10px; font-size:13px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; border-collapse: separate; border-spacing: 0;">
+                    <thead>
+                        <tr>
+                            <th colspan="2" style="text-align:left; background: #f8fafc; color: #1e293b; padding:12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 700;">
+                                <i class="fas fa-globe" style="color: #3b82f6; margin-right: 8px;"></i> Domain Overview: ${domain}
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; color: #64748b;">Domain Authority (Moz)</td>
+                            <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: 700; color: #0f172a;">${metrics.da || '-'}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; color: #64748b;">Linking Domains</td>
+                            <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: 700; color: #0f172a;">${metrics.linking_domains || '-'}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 12px 16px; color: #64748b;">Backlink Profile</td>
+                            <td style="padding: 12px 16px; text-align: right;">
+                                <div style="display:flex; align-items:center; justify-content: flex-end; gap:12px;">
+                                    <span style="font-weight:700; color: #0f172a;">${metrics.backlinks || '-'}</span>
+                                    <button class="config-btn-highlight" onclick="checkBacklinksDirect('${domain}')" 
+                                            style="padding:4px 10px; font-size:11px; margin:0; background:#3b82f6; box-shadow:none;">
+                                        Analyze Profile <i class="fas fa-external-link-alt" style="font-size: 9px; margin-left: 4px;"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+        }
+
+        window.checkBacklinksDirect = function(domain) {
+            // Check if domain is full URL, convert to domain if needed
+            let cleanDomain = domain;
+            try {
+                if (domain.startsWith('http')) {
+                    cleanDomain = new URL(domain).hostname;
+                }
+            } catch (e) {}
+            
+            // Redirect to backlinks page with the domain parameter
+            window.location.href = `backlinks.html?domain=${encodeURIComponent(cleanDomain)}`;
+        };
 
         async function fetchSerpResults(keyword, location, domain) {
             user = JSON.parse(localStorage.getItem('googleUser')).email
@@ -39115,6 +39184,8 @@ Return ONLY valid JSON in this exact format:
 
         let selectedFiles_pillar = [];
         let selectedFiles_strat = [];
+        let currentStrategies = []; // Global store for strategies
+        let hiddenStrategyNames = new Set(); // Track hidden strategy names
 
         function renderPillarAttachments() {
             const fileInput = document.getElementById('pillar_pdf');
@@ -39623,20 +39694,21 @@ Return ONLY valid JSON in this exact format:
                                     targetUrl = 'https://' + targetUrl;
                                 }
                                 
-                                // Set parameters
+                                // Populating Domain Metrics (use base domain)
+                                const domainInp = document.getElementById('domain');
+                                if (domainInp) {
+                                    const baseDomain = getBaseDomain(targetUrl);
+                                    domainInp.value = baseDomain;
+                                    ensureSiteAnalysisExpanded();
+                                    fetchDomainMetrics(baseDomain);
+                                }
+                                
+                                // Set Audit parameters
                                 urlInp.value = targetUrl;
                                 if (maxP) maxP.value = '50';
                                 
                                 const maxD = document.getElementById('maxDepthInput');
                                 if (maxD) maxD.value = '4';
-                                
-                                // On-Page Technical & Domain Analysis population
-                                const domainInp = document.getElementById('domain');
-                                if (domainInp) {
-                                    domainInp.value = targetUrl;
-                                    ensureSiteAnalysisExpanded();
-                                    fetchDomainMetrics(targetUrl);
-                                }
                                 
                                 // Start the audit
                                 subBtn.click();
@@ -39746,6 +39818,9 @@ Return ONLY valid JSON in this exact format:
                 const strategies = parseAIStrategyResponse(aiResponse);
                 if (!strategies || strategies.length === 0) throw new Error("Could not parse strategy data from AI response. Raw AI text logged to console.");
 
+                currentStrategies = strategies; // Store globally
+                hiddenStrategyNames.clear(); // Reset hidden state for new run
+                
                 renderStrategyComparisonGrid(strategies);
                 const recommendedStrategy = strategies.find(s => s.recommended) || strategies[0];
                 renderSuggestedKeywords(recommendedStrategy);
@@ -40019,6 +40094,10 @@ Return ONLY valid JSON in this exact format:
             const headers = document.getElementById('strat-grid-headers');
             const body = document.getElementById('strat-grid-body');
 
+            // Filter visible strategies
+            const visibleStrategies = strategies.filter(s => !hiddenStrategyNames.has(s.name));
+            updateHiddenStrategiesUI(strategies);
+
             // Helper to format text as bullet points
             const formatAsBulletPoints = (text) => {
                 if (!text || typeof text !== 'string') return text;
@@ -40073,9 +40152,14 @@ Return ONLY valid JSON in this exact format:
             headers.innerHTML = '<th style="background: #f8fafc !important; text-align: left !important; padding: 15px !important; border-bottom: 2px solid #e2e8f0 !important; color: #475569 !important; font-weight: 700 !important;">Keyword Strategy Component</th>';
             body.innerHTML = '';
 
-            strategies.forEach((s, idx) => {
+            visibleStrategies.forEach((s, idx) => {
                 headers.innerHTML += `
                     <th style="background: ${s.recommended ? '#f0f9ff' : '#fff'} !important; color: #1e293b !important; padding: 15px !important; border-bottom: 2px solid #e2e8f0 !important; position: relative !important; text-align: center !important; border-right: 1px solid #e2e8f0 !important;">
+                        <button onclick="toggleStrategyVisibility('${s.name.replace(/'/g, "\\'")}')" 
+                                style="position: absolute; top: 5px; right: 5px; background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 0.8rem; z-index: 10; padding: 5px;" 
+                                title="Hide this strategy">
+                            <i class="fas fa-times-circle"></i>
+                        </button>
                         ${s.recommended ? '<div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #3b82f6; color: white !important; padding: 2px 10px; border-radius: 10px; font-size: 10px; font-weight: 700; white-space: nowrap; z-index: 5; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);">RECOMMENDED</div>' : ''}
                         <div style="font-size: 0.95rem !important; font-weight: 800 !important; color: #0f172a !important;">${s.name}</div>
                     </th>`;
@@ -40086,12 +40170,12 @@ Return ONLY valid JSON in this exact format:
                 { label: 'Target Keywords', key: 'target_keywords', format: renderKeywordTable },
                 { label: 'Content Approach', key: 'content_approach', format: formatAsBulletPoints },
                 { label: 'Expected Impact', key: 'expected_impact', format: formatAsBulletPoints },
-                { label: 'Est. Time to Rank', key: 'time_to_rank' }
+                { label: 'Est. Time to Rank', key: 'time_to_rank', format: (val) => val ? (String(val).toLowerCase().includes('month') ? val : `${val} months`) : 'N/A' }
             ];
 
             rows.forEach(row => {
                 let html = `<tr><td style="font-weight: 700 !important; background: #f8fafc !important; padding: 15px !important; border-bottom: 1px solid #e2e8f0 !important; color: #475569 !important; width: 200px !important; text-align: left !important; border-right: 1px solid #e2e8f0 !important;">${row.label}</td>`;
-                strategies.forEach(s => {
+                visibleStrategies.forEach(s => {
                     const rawVal = s[row.key];
                     const val = row.format ? row.format(rawVal) : rawVal;
                     html += `<td style="padding: 15px !important; border-bottom: 1px solid #e2e8f0 !important; font-size: 0.9rem !important; line-height: 1.6 !important; color: #334155 !important; text-align: left !important; border-right: 1px solid #e2e8f0 !important; vertical-align: top !important; ${s.recommended ? 'background: #f0f9ff !important;' : 'background: white !important;'}">${val || 'N/A'}</td>`;
@@ -40099,6 +40183,36 @@ Return ONLY valid JSON in this exact format:
                 html += '</tr>';
                 body.innerHTML += html;
             });
+        }
+
+        function toggleStrategyVisibility(name) {
+            if (hiddenStrategyNames.has(name)) {
+                hiddenStrategyNames.delete(name);
+            } else {
+                hiddenStrategyNames.add(name);
+            }
+            renderStrategyComparisonGrid(currentStrategies);
+        }
+
+        function updateHiddenStrategiesUI(allStrategies) {
+            const container = document.getElementById('hidden-strategies-container');
+            const list = document.getElementById('hidden-strategies-list');
+            if (!container || !list) return;
+
+            const hidden = allStrategies.filter(s => hiddenStrategyNames.has(s.name));
+
+            if (hidden.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'flex';
+            list.innerHTML = hidden.map(s => `
+                <button onclick="toggleStrategyVisibility('${s.name.replace(/'/g, "\\'")}')" 
+                        style="padding: 4px 10px; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.7rem; color: #475569; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                    <i class="fas fa-eye" style="color: #6366f1;"></i> ${s.name}
+                </button>
+            `).join('');
         }
 
         function renderSuggestedKeywords(strategy) {
@@ -40196,15 +40310,18 @@ Return ONLY valid JSON in this exact format:
             `;
         }
 
+        const getBaseDomain = (url) => {
+            if (!url) return '';
+            // If it doesn't look like a URL (no dots), return as is
+            if (!url.includes('.') && !url.includes('/')) return url.toLowerCase();
+            return url.replace(/https?:\/\//, '').split('/')[0].replace(/^www\./, '').toLowerCase();
+        };
+
         async function enrichStrategyKeywords(strategies, targetUrlInput, locationInput, languageInput) {
             console.log("Enriching strategy keywords with real metrics...");
             updateStrategyStatus("Fetching Real-time Metrics...", 50, true);
             
             // Normalize target domain for matching
-            const getBaseDomain = (url) => {
-                if (!url) return '';
-                return url.replace(/https?:\/\//, '').split('/')[0].replace(/^www\./, '').toLowerCase();
-            };
             const targetBase = getBaseDomain(targetUrlInput);
             const location = locationInput || 'Singapore';
             const language = languageInput || 'English';
@@ -40367,6 +40484,18 @@ Return ONLY valid JSON in this exact format:
                             dVal.style.opacity = '0.5';
                             vVal.style.color = '#94a3b8';
                             dVal.style.color = '#94a3b8';
+                        }
+                    }
+
+                    if (rVal) {
+                        if (rank !== undefined && rank !== null) {
+                            rVal.innerText = rank <= 100 ? rank : '100+';
+                            rVal.setAttribute('data-value', rank);
+                            rVal.style.color = rank <= 10 ? '#10b981' : (rank <= 30 ? '#f59e0b' : '#6366f1');
+                            rVal.style.opacity = '1';
+                        } else {
+                            rVal.innerText = '-';
+                            rVal.style.opacity = '0.5';
                         }
                     }
                 });
