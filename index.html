@@ -11130,7 +11130,7 @@
                             </div>
 
                             <div id="recommended-strategy-area" style="margin-top: 40px;">
-                                <h3 style="font-family: 'Outfit', sans-serif; color: #1e293b; margin-bottom: 20px;">Suggested Keywords Strategy</h3>
+                                <h3 style="font-family: 'Outfit', sans-serif; color: #1e293b; margin-bottom: 20px;">Keyword Strategy Blueprint</h3>
                                 <div id="recommended-house-container" class="strategy-house"></div>
                             </div>
 
@@ -39528,7 +39528,11 @@ Return ONLY valid JSON in this exact format:
             - "recommended": boolean (true for exactly one strategy)
             - "keyword_data": { 
                 "primary_theme": "The main core keyword theme", 
-                "semantic_clusters": ["Cluster 1: [keywords]", "Cluster 2: [keywords]", "Cluster 3: [keywords]"], 
+                "semantic_clusters": [
+                    { "topic": "Name of Cluster 1", "keywords": ["kw1", "kw2", "kw3"], "intent": "Informational" },
+                    { "topic": "Name of Cluster 2", "keywords": ["kw4", "kw5", "kw6"], "intent": "Transactional" },
+                    { "topic": "Name of Cluster 3", "keywords": ["kw7", "kw8", "kw9"], "intent": "Commercial" }
+                ], 
                 "longtail_opportunities": "Specific high-intent long-tail phrases to target" 
               }
             
@@ -39647,29 +39651,60 @@ Return ONLY valid JSON in this exact format:
             if (!strategy || !strategy.keyword_data) return;
 
             const kwData = strategy.keyword_data;
-            const clusterHtml = Array.isArray(kwData.semantic_clusters) ? kwData.semantic_clusters.map(p => `
-                <div class="strategy-pillar" style="background: white !important; border: 1px solid #e2e8f0 !important; border-top: 4px solid #10b981 !important; padding: 20px !important; border-radius: 12px !important; text-align: center !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;">
-                    <div style="font-weight: 700 !important; color: #1e293b !important; font-size: 0.9rem !important;">${p}</div>
+            
+            // Generate Cluster Pillars
+            const clusterHtml = Array.isArray(kwData.semantic_clusters) ? kwData.semantic_clusters.map(cluster => {
+                const intentColors = {
+                    'Informational': { bg: '#dcfce7', text: '#166534', border: '#86efac' },
+                    'Transactional': { bg: '#fee2e2', text: '#991b1b', border: '#fecaca' },
+                    'Commercial': { bg: '#fef9c3', text: '#854d0e', border: '#fde047' },
+                    'Navigational': { bg: '#e0f2fe', text: '#075985', border: '#bae6fd' }
+                };
+                
+                const style = intentColors[cluster.intent] || { bg: '#f1f5f9', text: '#475569', border: '#e2e8f0' };
+                const keywords = Array.isArray(cluster.keywords) ? cluster.keywords.map(kw => `
+                    <span style="display: inline-block; background: #f8fafc; border: 1px solid #e2e8f0; color: #64748b; font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; margin: 2px;">${kw}</span>
+                `).join('') : '';
+
+                return `
+                <div class="blueprint-pillar" style="background: white !important; border: 1px solid #e2e8f0 !important; padding: 20px !important; border-radius: 12px !important; position: relative !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important; display: flex; flex-direction: column; gap: 12px;">
+                    <div style="position: absolute; top: -10px; right: 10px; background: ${style.bg}; color: ${style.text}; border: 1px solid ${style.border}; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em;">${cluster.intent || 'Strategy'}</div>
+                    <div style="font-weight: 800 !important; color: #1e293b !important; font-size: 0.95rem !important; margin-top: 5px;">${cluster.topic}</div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                        ${keywords}
+                    </div>
                 </div>
-            `).join('') : '';
+            `}).join('') : '';
 
             container.innerHTML = `
-                <div style="display: flex; flex-direction: column; gap: 10px; max-width: 900px; margin: 0 auto;">
-                    <!-- Primary Theme -->
-                    <div style="background: linear-gradient(135deg, #064e3b 0%, #065f46 100%); color: white; padding: 25px; text-align: center; border-radius: 20px 20px 5px 5px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
-                        <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.7; margin-bottom: 5px;">Primary Keyword Theme</div>
-                        <div style="font-size: 1.4rem; font-weight: 800; font-family: 'Outfit', sans-serif;">${kwData.primary_theme}</div>
+                <div style="display: flex; flex-direction: column; gap: 20px; max-width: 1000px; margin: 0 auto; background-color: #f8fafc; background-image: radial-gradient(#cbd5e1 0.5px, transparent 0.5px); background-size: 20px 20px; padding: 30px; border-radius: 24px; border: 1px solid #e2e8f0;">
+                    
+                    <!-- Semantic Hub (The Core) -->
+                    <div style="position: relative; text-align: center; padding-bottom: 20px;">
+                        <div style="display: inline-block; background: white; padding: 30px 50px; border-radius: 20px; border: 2px solid #10b981; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); position: relative; z-index: 2;">
+                            <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.2em; color: #10b981; font-weight: 800; margin-bottom: 8px;">Semantic Hub / Primary Theme</div>
+                            <div style="font-size: 1.75rem; font-weight: 900; color: #064e3b; font-family: 'Outfit', sans-serif;">${kwData.primary_theme}</div>
+                        </div>
+                        <!-- Connecting Line Decorative -->
+                        <div style="position: absolute; bottom: 0; left: 50%; width: 2px; height: 30px; background: #cbd5e1; transform: translateX(-50%); z-index: 1;"></div>
                     </div>
                     
-                    <!-- Semantic Clusters -->
-                    <div style="display: grid; grid-template-columns: repeat(${Array.isArray(kwData.semantic_clusters) ? kwData.semantic_clusters.length : 3}, 1fr); gap: 15px;">
+                    <!-- Topic Pillar Grid -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
                         ${clusterHtml}
                     </div>
                     
-                    <!-- Long-tail Opportunities -->
-                    <div style="background: #ecfdf5; border: 2px dashed #10b981; padding: 20px; text-align: center; border-radius: 5px 5px 20px 20px;">
-                        <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #065f46; margin-bottom: 5px;">High-Intent Long-tail Opportunities</div>
-                        <div style="font-weight: 600; color: #064e3b;">${kwData.longtail_opportunities}</div>
+                    <!-- Strategic Discovery Roadmap -->
+                    <div style="background: #064e3b; background-image: linear-gradient(30deg, #064e3b 12%, transparent 12.5%, transparent 87%, #064e3b 87.5%, #064e3b), linear-gradient(150deg, #064e3b 12%, transparent 12.5%, transparent 87%, #064e3b 87.5%, #064e3b), linear-gradient(30deg, #064e3b 12%, transparent 12.5%, transparent 87%, #064e3b 87.5%, #064e3b), linear-gradient(150deg, #064e3b 12%, transparent 12.5%, transparent 87%, #064e3b 87.5%, #064e3b), linear-gradient(60deg, #065f46 25%, transparent 25.5%, transparent 75%, #065f46 75%, #065f46), linear-gradient(60deg, #065f46 25%, transparent 25.5%, transparent 75%, #065f46 75%, #065f46); background-size: 20px 35px; color: white; padding: 25px; border-radius: 20px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);">
+                        <div style="display: flex; align-items: flex-start; gap: 15px;">
+                            <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2);">
+                                <i class="fas fa-map-marked-alt" style="font-size: 1.5rem; color: #10b981;"></i>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.15em; color: #10b981; font-weight: 800; margin-bottom: 4px;">Long-tail Discovery Roadmap</div>
+                                <div style="font-size: 1rem; color: #ecfdf5; line-height: 1.6; font-weight: 500;">${kwData.longtail_opportunities}</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;

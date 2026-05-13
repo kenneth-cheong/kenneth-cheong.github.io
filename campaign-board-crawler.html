@@ -1633,21 +1633,21 @@
                 const acc = await monday(`query { account { slug } }`, {}, "Authenticating...");
                 state.slug = acc.account?.slug || 'my';
 
+                // Step 1: Fetch all boards with board_folder_id (real field in API 2024-04 schema)
                 let allBoards = [], page = 1, hasMore = true;
                 const seenIds = new Set();
 
-                while (hasMore && page < 100) { // Safety cap at 100 pages
+                while (hasMore && page < 100) {
                     try {
-                        const bdata = await monday(`query($p:Int){ boards(limit:100, page:$p, state:active){ id name type folder{id name} workspace{name} } }`, { p: page }, `Fetching boards (Page ${page})...`);
+                        const bdata = await monday(`query($p:Int){ boards(limit:100, page:$p, state:active){ id name type board_folder_id workspace{ id name } } }`, { p: page }, `Fetching boards (Page ${page})...`);
                         const boards = bdata.boards || (bdata.data && bdata.data.boards);
 
                         if (!boards || boards.length === 0) {
                             hasMore = false;
                         } else {
-                            // Deduplication safety check
                             const newBoards = boards.filter(b => !seenIds.has(b.id));
                             if (newBoards.length === 0) {
-                                hasMore = false; // We only found boards we already have, stop to prevent loops
+                                hasMore = false;
                             } else {
                                 newBoards.forEach(b => seenIds.add(b.id));
                                 allBoards = allBoards.concat(newBoards);
@@ -1664,11 +1664,31 @@
                 if (allBoards.length === 0) {
                     throw new Error("No boards found. If you have boards, please check your API permissions.");
                 }
+
+                // Step 2: Collect unique folder IDs and batch-fetch their names
+                const folderIds = [...new Set(allBoards.map(b => b.board_folder_id).filter(Boolean))];
+                const folderNames = {};
+                if (folderIds.length > 0) {
+                    try {
+                        const fdata = await monday(`query($ids:[ID!]){ folders(ids:$ids){ id name } }`, { ids: folderIds }, "Resolving folder names...");
+                        (fdata.folders || []).forEach(f => folderNames[f.id] = f.name);
+                    } catch (err) {
+                        console.warn("Could not fetch folder names, falling back to workspace grouping", err);
+                    }
+                }
+
+                // Step 3: Build folder groups
                 const folderMap = {};
                 allBoards.forEach(b => {
-                    if (b.type !== 'board' && b.type !== 'public') return; // Ensure we only get real boards
-                    const f = b.folder || { id: 'root-' + (b.workspace?.name || 'Main'), name: b.workspace?.name || 'Main' };
-                    if (!folderMap[f.id]) folderMap[f.id] = { id: f.id, name: f.name, boards: [], ws: b.workspace?.name };
+                    if (b.type !== 'board' && b.type !== 'public') return;
+
+                    // Use board_folder_id with resolved name; fall back to workspace grouping
+                    const wsName = b.workspace?.name || 'Main';
+                    const f = b.board_folder_id
+                        ? { id: b.board_folder_id, name: folderNames[b.board_folder_id] || `Folder ${b.board_folder_id}` }
+                        : { id: 'ws-' + (b.workspace?.id || 'root'), name: wsName };
+
+                    if (!folderMap[f.id]) folderMap[f.id] = { id: f.id, name: f.name, boards: [], ws: wsName };
                     folderMap[f.id].boards.push(b);
                 });
 
