@@ -2683,7 +2683,48 @@
         </aside>
 
         <main class="chat-area">
-            <!-- Internal Mode Filter Panel -->
+            <!-- Persistent Top Filter Bar (Always Visible) -->
+            <div class="chat-top-bar" id="chatTopBar" style="padding: 12px 24px; background: #fff; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.02);">
+                <div class="filter-field">
+                    <label style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="font-weight: 700; color: var(--primary-navy); font-size: 0.85rem;">
+                            <i class="fas fa-th-large" style="margin-right:6px; color: var(--accent-blue);"></i> Campaign Board Focus
+                        </span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="label-count" id="count-msBoardDropdown" style="font-size: 0.7rem; background: #eff6ff; color: #1e40af; padding: 2px 8px; border-radius: 10px; font-weight: 700;"></span>
+                            <span id="syncRequiredBadge" style="display: none; font-size: 0.6rem; background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; padding: 2px 8px; border-radius: 10px; font-weight: 700;"><i class="fas fa-clock"></i> Sync Required</span>
+                        </div>
+                    </label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <div class="ms-dropdown" id="msBoardDropdown" style="flex: 1;">
+                            <div class="ms-trigger" onclick="toggleMsPanel('msBoardDropdown')">
+                                <span class="ms-placeholder">Loading board registry...</span>
+                            </div>
+                            <div class="ms-panel">
+                                <div class="ms-search">
+                                    <i class="fas fa-search"></i>
+                                    <input type="text" placeholder="Search boards..."
+                                        oninput="filterMsOptions('msBoardDropdown', this.value)">
+                                </div>
+                                <div class="ms-bulk-actions">
+                                    <button onclick="msSelectAll('msBoardDropdown')">✓ All</button>
+                                    <button onclick="msUnselectAll('msBoardDropdown')">✗ None</button>
+                                </div>
+                                <div class="ms-options">
+                                    <div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Waiting for board
+                                        registry...</div>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" id="topSyncBtn" onclick="syncInternalMode()" 
+                            style="height: 42px; padding: 0 20px; font-size: 0.85rem; border-radius: 12px; white-space: nowrap; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
+                            <i class="fas fa-sync" style="margin-right: 8px;"></i> Load Selected Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Internal Mode Filter Panel (Campaign/Staff specific) -->
             <div class="internal-filter-panel" id="internalFilterPanel">
                 <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;"
                     onclick="toggleFilterCollapse()">
@@ -2770,33 +2811,7 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Campaign Boards Dropdown (full width below the 2x2 grid) -->
-                    <div style="margin-top: 12px; margin-bottom: 16px;">
-                        <div class="filter-field">
-                            <label><span><i class="fas fa-th-large" style="margin-right:4px; opacity:0.6;"></i> Campaign
-                                    Boards</span> <span class="label-count" id="count-msBoardDropdown"></span></label>
-                            <div class="ms-dropdown" id="msBoardDropdown">
-                                <div class="ms-trigger" onclick="toggleMsPanel('msBoardDropdown')">
-                                    <span class="ms-placeholder">Loading board registry...</span>
-                                </div>
-                                <div class="ms-panel">
-                                    <div class="ms-search">
-                                        <i class="fas fa-search"></i>
-                                        <input type="text" placeholder="Search boards..."
-                                            oninput="filterMsOptions('msBoardDropdown', this.value)">
-                                    </div>
-                                    <div class="ms-bulk-actions">
-                                        <button onclick="msSelectAll('msBoardDropdown')">✓ All</button>
-                                        <button onclick="msUnselectAll('msBoardDropdown')">✗ None</button>
-                                    </div>
-                                    <div class="ms-options">
-                                        <div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Waiting for board
-                                            registry...</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Campaign Boards Dropdown moved to chat-top-bar -->
                     <!-- Google Chat Spaces Dropdown -->
                     <div id="gchatSpacesSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
                         <div class="filter-field">
@@ -3280,11 +3295,13 @@
         marked.setOptions({ renderer });
 
         // Initialize from localStorage
-        window.addEventListener('load', () => {
-            // Start SE Ranking fetch immediately for concurrency
+        window.addEventListener('load', async () => {
+            // Start background fetches for filters
             fetchSERankingSites();
-
-            loadSettings();
+            loadBoardRegistry(); 
+            
+            await loadSettings();
+            pullInsightsFromCloud(); // Refresh memories on load
             // Check for URL parameters (e.g., ?lambda=my-function)
             const urlParams = new URLSearchParams(window.location.search);
             const lambdaParam = urlParams.get('lambda');
@@ -3405,7 +3422,6 @@
                 if (!hasCache) {
                     fetchFilterOptions();
                 }
-                // Load board registry (from cache or API)
                 loadBoardRegistry();
                 updateSummaryFilterVisibility();
 
@@ -4180,7 +4196,11 @@
             renderMsOptions(dropdownId);
             renderMsTrigger(dropdownId);
             refineFilteredOptions();
-            if (dropdownId === 'msBoardDropdown') updateSummaryFilterVisibility();
+            if (dropdownId === 'msBoardDropdown') {
+                updateSummaryFilterVisibility();
+                const badge = document.getElementById('syncRequiredBadge');
+                if (badge) badge.style.display = 'inline-flex';
+            }
         }
 
         function msUnselectAll(dropdownId) {
@@ -4206,7 +4226,11 @@
             renderMsOptions(dropdownId);
             renderMsTrigger(dropdownId);
             refineFilteredOptions();
-            if (dropdownId === 'msBoardDropdown') updateSummaryFilterVisibility();
+            if (dropdownId === 'msBoardDropdown') {
+                updateSummaryFilterVisibility();
+                const badge = document.getElementById('syncRequiredBadge');
+                if (badge) badge.style.display = 'inline-flex';
+            }
         }
 
         function toggleMsPanel(dropdownId) {
@@ -4284,7 +4308,11 @@
             if (window.allPrefetchedItems && window.allPrefetchedItems.length > 0) {
                 refineFilteredOptions();
             }
-            if (dropdownId === 'msBoardDropdown') updateSummaryFilterVisibility();
+            if (dropdownId === 'msBoardDropdown') {
+                updateSummaryFilterVisibility();
+                const badge = document.getElementById('syncRequiredBadge');
+                if (badge) badge.style.display = 'inline-flex';
+            }
         }
 
         function removeMsSelection(dropdownId, optionId, event) {
@@ -4300,7 +4328,11 @@
             if (window.allPrefetchedItems && window.allPrefetchedItems.length > 0) {
                 refineFilteredOptions();
             }
-            if (dropdownId === 'msBoardDropdown') updateSummaryFilterVisibility();
+            if (dropdownId === 'msBoardDropdown') {
+                updateSummaryFilterVisibility();
+                const badge = document.getElementById('syncRequiredBadge');
+                if (badge) badge.style.display = 'inline-flex';
+            }
         }
 
         function renderMsTrigger(dropdownId) {
@@ -5570,8 +5602,17 @@
             });
 
             const syncBtn = document.getElementById('internalSyncBtn');
-            syncBtn.disabled = true;
-            syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+            const topSyncBtn = document.getElementById('topSyncBtn');
+            const syncRequiredBadge = document.getElementById('syncRequiredBadge');
+            
+            if (syncBtn) {
+                syncBtn.disabled = true;
+                syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+            }
+            if (topSyncBtn) {
+                topSyncBtn.disabled = true;
+                topSyncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+            }
 
             isSyncing = true;
             showToast("Step 1/5: Fetching Monday Data...", 'loading', 3000);
@@ -5888,17 +5929,20 @@
                 }
 
                 // If on Claude, we stop here as Claude uses prompt-based context
-                if (currentLLM === 'claude') {
-                    showToast("Claude Context Ready", 'success');
-                    updateSyncStatus("Claude Context Ready", false);
-                    isSyncing = false;
                     const syncBtn = document.getElementById('internalSyncBtn');
+                    const topBtn = document.getElementById('topSyncBtn');
+                    const badge = document.getElementById('syncRequiredBadge');
+                    
                     if (syncBtn) {
                         syncBtn.disabled = false;
-                        syncBtn.innerHTML = '<i class="fas fa-sync"></i> Sync Campaigns';
+                        syncBtn.innerHTML = '<i class="fas fa-bolt"></i> Load Data';
                     }
+                    if (topBtn) {
+                        topBtn.disabled = false;
+                        topBtn.innerHTML = '<i class="fas fa-sync"></i> Load Selected Data';
+                    }
+                    if (badge) badge.style.display = 'none';
                     return;
-                }
 
                 // Step 2: Upload to OpenAI with Unique Filename
                 const syncBatchId = Date.now();
