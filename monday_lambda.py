@@ -712,11 +712,12 @@ def claude_chat_with_tools(body):
             payload = {
                 "model": model,
                 "max_tokens": max_tokens,
-                "tools": tools,
-                "messages": messages,
+                "messages": messages
             }
             if system:
                 payload["system"] = system
+            if tools:
+                payload["tools"] = tools
 
             # ── Data size logging ──────────────────────────────────────────────
             sys_size = len(system) if system else 0
@@ -736,7 +737,7 @@ def claude_chat_with_tools(body):
             )
 
             if r.status_code != 200:
-                err_body = r.text[:500]
+                err_body = r.text[:1000]
                 print(f"[TOOLS] Anthropic error {r.status_code}: {err_body}")
                 return {"statusCode": r.status_code, "body": json.dumps({"error": f"Anthropic API error {r.status_code}", "detail": err_body})}
 
@@ -1001,17 +1002,17 @@ def claude_chat_with_tools(body):
                             res = requests.post("https://api.dataforseo.com/v3/keywords_data/google_ads/keywords_for_keywords/live", 
                                               headers=df_headers, json=payload, timeout=30)
                             tool_results.append({
-                                "type": "tool_result",
+                                "type":        "tool_result",
                                 "tool_use_id": tool_id,
-                                "content": res.text
+                                "content":     res.text
                             })
                             tool_call_log.append(f"Discovered keywords via DataForSEO for: {', '.join(seeds)}")
                         except Exception as e:
                             tool_results.append({
-                                "type": "tool_result",
+                                "type":        "tool_result",
                                 "tool_use_id": tool_id,
-                                "content": json.dumps({"error": str(e)}),
-                                "is_error": True
+                                "content":     json.dumps({"error": str(e)}),
+                                "is_error":    True
                             })
 
                     elif tool_name == "save_memory_note":
@@ -1076,7 +1077,7 @@ def claude_chat_with_tools(body):
 # ── Claude Haiku chat handler (simple, no tools) ────────────────────────────
 def claude_chat(body):
     """
-    Proxy a chat request to Anthropic's Messages API (Claude Haiku 4.5).
+    Proxy a chat request to Anthropic's Messages API.
 
     Expected body fields:
       model      - e.g. "claude-haiku-4-5"  (optional, defaults to env CLAUDE_MODEL)
@@ -1091,7 +1092,7 @@ def claude_chat(body):
             "body": json.dumps({"error": "ANTHROPIC_API_KEY environment variable not configured"})
         }
 
-    model      = body.get('model') or os.environ.get('CLAUDE_MODEL', 'claude-haiku-4-5')
+    model      = body.get('model') or os.environ.get('CLAUDE_MODEL', 'claude-3-5-sonnet-20241022')
     system     = body.get('system', '')
     messages   = body.get('messages', [])
     max_tokens = int(body.get('max_tokens', 4096))
@@ -1102,7 +1103,7 @@ def claude_chat(body):
     payload = {
         "model": model,
         "max_tokens": max_tokens,
-        "messages": messages,
+        "messages": messages
     }
     if system:
         payload["system"] = system
@@ -1120,7 +1121,10 @@ def claude_chat(body):
             json=payload,
             timeout=60,
         )
-        print(f"[CLAUDE] Response status: {r.status_code}")
+        if r.status_code != 200:
+            err_body = r.text[:1000]
+            print(f"[CHAT] Anthropic error {r.status_code}: {err_body}")
+            return {"statusCode": r.status_code, "body": json.dumps({"error": f"Anthropic API error {r.status_code}", "detail": err_body})}
         return {"statusCode": r.status_code, "body": r.text}
     except requests.exceptions.Timeout:
         return {"statusCode": 504, "body": json.dumps({"error": "Anthropic API request timed out"})}
@@ -1255,6 +1259,56 @@ def lambda_handler(event, context):
                         upsert=True
                     )
                     result = {"statusCode": 200, "body": json.dumps({"status": "success"})}
+        elif action == 'get_keyword_metrics_batch':
+            keywords = body.get('keywords', [])
+            location = body.get('location', 'Singapore')
+            language = body.get('language', 'English')
+            
+            print(f"[DEBUG] get_keyword_metrics_batch: {len(keywords)} keywords for {location}/{language}")
+            
+            if not keywords:
+                result = {"statusCode": 400, "body": json.dumps({"error": "No keywords provided"})}
+            elif not DATAFORSEO_API_KEY:
+                print("[ERROR] DATAFORSEO_API_KEY is missing from environment")
+                result = {"statusCode": 500, "body": json.dumps({"error": "DataForSEO API Key not configured on server"})}
+            else:
+                df_headers = {"Authorization": DATAFORSEO_API_KEY, "Content-Type": "application/json"}
+                # DataForSEO search_volume endpoint
+                # Note: keywords must be a list, and it supports max 700 per task
+                payload = [{
+                    "keywords": keywords[:700], 
+                    "location_name": location,
+                    "language_name": language
+                }]
+                
+                try:
+                    res = requests.post("https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live", 
+                                      headers=df_headers, json=payload, timeout=30)
+                    print(f"[DEBUG] DataForSEO Status: {res.status_code}")
+                    
+                    if res.status_code == 200:
+                        data = res.json()
+                        formatted_results = []
+                        if 'tasks' in data and data['tasks']:
+                            for task in data['tasks']:
+                                if 'result' in task and task['result']:
+                                    for item in task['result']:
+                                        formatted_results.append({
+                                            "keyword": item.get('keyword'),
+                                            "metrics": {
+                                                "volume": item.get('search_volume'),
+                                                "difficulty": item.get('competition_index'),
+                                                "cpc": item.get('cpc')
+                                            }
+                                        })
+                        print(f"[DEBUG] Returning {len(formatted_results)} results")
+                        result = {"statusCode": 200, "body": json.dumps({"results": formatted_results})}
+                    else:
+                        print(f"[ERROR] DataForSEO Error: {res.text}")
+                        result = {"statusCode": res.status_code, "body": res.text}
+                except Exception as e:
+                    print(f"[ERROR] Lambda Exception: {str(e)}")
+                    result = {"statusCode": 500, "body": json.dumps({"error": str(e)})}
         elif action == 'get_seranking_sites':
             ser_headers = {"Authorization": f"Token {SERANKING_TOKEN}", "Content-Type": "application/json"}
             try:

@@ -21733,6 +21733,33 @@
             });
         }
 
+        function enrichKeywordMetrics(metricMap) {
+            document.querySelectorAll('.strategy-kw-row').forEach(row => {
+                const kw = row.getAttribute('data-keyword')?.toLowerCase();
+                if (metricMap[kw]) {
+                    const vol = metricMap[kw].vol;
+                    const diff = metricMap[kw].diff;
+                    const vElem = row.querySelector('.v-val');
+                    const dElem = row.querySelector('.d-val');
+                    
+                    if (vElem) vElem.innerText = vol >= 1000 ? (vol/1000).toFixed(1) + 'k' : vol;
+                    if (dElem) {
+                        dElem.innerText = diff;
+                        // Color coding difficulty
+                        if (diff > 50) dElem.style.color = '#ef4444';
+                        else if (diff > 30) dElem.style.color = '#f59e0b';
+                        else dElem.style.color = '#22c55e';
+                    }
+                } else {
+                    // Set default for missing data to avoid "..." lingering
+                    const vElem = row.querySelector('.v-val');
+                    const dElem = row.querySelector('.d-val');
+                    if (vElem && vElem.innerText === '...') vElem.innerText = '0';
+                    if (dElem && dElem.innerText === '...') dElem.innerText = '0';
+                }
+            });
+        }
+
         function highlightSpecificSchemaType(type, chipEl) {
             const schemaField = document.getElementById('geoOnPageSchema');
 
@@ -39429,7 +39456,7 @@ Return ONLY valid JSON in this exact format:
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        action: 'claude_chat_with_tools',
+                        action: 'claude_chat',
                         messages: [{ role: 'user', content: prompt }],
                         model: 'claude-haiku-4-5',
                         stream: false,
@@ -39443,7 +39470,7 @@ Return ONLY valid JSON in this exact format:
                 if (result.body && typeof result.body === 'string' && result.body.includes('"error"')) {
                     const errorBody = JSON.parse(result.body);
                     if (errorBody.error) {
-                        throw new Error(`AI Provider Error: ${errorBody.error.message || errorBody.error}`);
+                        throw new Error(`AI Provider Error: ${errorBody.error.message || errorBody.error}${errorBody.detail ? ' - ' + errorBody.detail : ''}`);
                     }
                 }
 
@@ -39453,20 +39480,20 @@ Return ONLY valid JSON in this exact format:
                 }
 
                 // Extracting text from standard Lambda response structure
-                // Priority: response > reply > body.reply > body.response > body.message > message
                 let aiResponse = "";
-                if (result.response) {
-                    aiResponse = result.response;
-                } else if (result.reply) {
-                    aiResponse = result.reply;
-                } else if (result.body) {
+                if (result.response) aiResponse = result.response;
+                else if (result.reply) aiResponse = result.reply;
+                else if (result.body) {
                     try {
                         const body = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
-                        aiResponse = body.reply || body.response || body.message || body.answer || "";
+                        // Anthropic standard: content[0].text
+                        if (body.content && Array.isArray(body.content) && body.content[0].text) {
+                            aiResponse = body.content[0].text;
+                        } else {
+                            aiResponse = body.reply || body.response || body.message || body.answer || (typeof body === 'string' ? body : "");
+                        }
                     } catch (parseErr) {
-                        // body is a raw string (not JSON) — use it directly
                         aiResponse = typeof result.body === 'string' ? result.body : "";
-                        console.warn("Strategy Engine: result.body was not valid JSON, using raw string.", parseErr);
                     }
                 } else if (result.message) {
                     aiResponse = result.message;
@@ -39483,6 +39510,9 @@ Return ONLY valid JSON in this exact format:
 
                 renderStrategyComparisonGrid(strategies);
                 renderSuggestedKeywords(strategies.find(s => s.recommended) || strategies[0]);
+
+                // 6. Async Enrichment (Don't await, let it happen in background)
+                enrichStrategyKeywords(strategies);
 
                 resultsContainer.style.display = "block";
                 resultsContainer.scrollIntoView({ behavior: 'smooth' });
@@ -39704,6 +39734,32 @@ Return ONLY valid JSON in this exact format:
             }
         }
 
+        const cleanKeyword = (k) => {
+            if (!k) return '';
+            // Remove leading numbers, dots, dashes, bullets, and whitespace
+            return k.replace(/^[0-9+.\-\s*•]+/, '').trim().toLowerCase();
+        };
+
+        // Add Styles for Strategy Engine
+        const strategyStyles = document.createElement("style");
+        strategyStyles.textContent = `
+            .strategy-kw-row:hover {
+                background-color: #f8fafc !important;
+                cursor: default;
+            }
+            .strategy-kw-table-container::-webkit-scrollbar {
+                width: 6px;
+            }
+            .strategy-kw-table-container::-webkit-scrollbar-track {
+                background: #f1f5f9;
+            }
+            .strategy-kw-table-container::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 10px;
+            }
+        `;
+        document.head.appendChild(strategyStyles);
+
         function renderStrategyComparisonGrid(strategies) {
             const headers = document.getElementById('strat-grid-headers');
             const body = document.getElementById('strat-grid-body');
@@ -39719,14 +39775,31 @@ Return ONLY valid JSON in this exact format:
                 </ul>`;
             };
 
-            // Helper to render keyword pills
-            const renderKeywordPills = (val) => {
+            // Helper to render keyword table
+            const renderKeywordTable = (val) => {
                 if (!val) return 'N/A';
                 const keywords = Array.isArray(val) ? val : val.split(/,\s*|\n/);
-                return `<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px;">
-                    ${keywords.map(kw => kw.trim()).filter(Boolean).map(kw => `
-                        <span style="display: inline-block; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; font-size: 0.75rem; padding: 3px 10px; border-radius: 12px; font-weight: 600; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">${kw}</span>
-                    `).join('')}
+                
+                return `
+                <div class="strategy-kw-table-container" style="max-height: 350px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 12px; background: white; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; table-layout: fixed;">
+                        <thead style="position: sticky; top: 0; background: #004a99 !important; z-index: 10; border-bottom: 2px solid #003366;">
+                            <tr>
+                                <th style="padding: 12px; text-align: left; width: 55%; color: #ffffff !important; font-weight: 900; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">Target Keyword</th>
+                                <th style="padding: 12px 5px; text-align: center; width: 22.5%; color: #ffffff !important; font-weight: 900; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">Vol</th>
+                                <th style="padding: 12px 5px; text-align: center; width: 22.5%; color: #ffffff !important; font-weight: 900; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">KD</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${keywords.map(kw => kw.trim()).filter(Boolean).map(kw => `
+                                <tr class="strategy-kw-row" data-keyword="${kw.trim().toLowerCase()}" style="border-bottom: 1px solid #f8fafc; transition: background 0.2s;">
+                                    <td style="padding: 10px 12px; color: #334155; font-weight: 600; word-break: break-word; border-right: 1px solid #f1f5f9;" title="${kw}">${kw}</td>
+                                    <td class="v-val" style="padding: 10px 5px; text-align: center; color: #10b981; font-weight: 700; border-right: 1px solid #f1f5f9;">...</td>
+                                    <td class="d-val" style="padding: 10px 5px; text-align: center; color: #f97316; font-weight: 700;">...</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
                 </div>`;
             };
 
@@ -39744,7 +39817,7 @@ Return ONLY valid JSON in this exact format:
 
             const rows = [
                 { label: 'Core Keyword Theme', key: 'focus', format: formatAsBulletPoints },
-                { label: 'Target Keywords', key: 'target_keywords', format: renderKeywordPills },
+                { label: 'Target Keywords', key: 'target_keywords', format: renderKeywordTable },
                 { label: 'Content Approach', key: 'content_approach', format: formatAsBulletPoints },
                 { label: 'Expected Impact', key: 'expected_impact', format: formatAsBulletPoints },
                 { label: 'Est. Time to Rank', key: 'time_to_rank' }
@@ -39779,7 +39852,19 @@ Return ONLY valid JSON in this exact format:
 
                 const style = intentColors[cluster.intent] || { bg: '#f1f5f9', text: '#475569', border: '#e2e8f0' };
                 const keywords = Array.isArray(cluster.keywords) ? cluster.keywords.map(kw => `
-                    <span style="display: inline-block; background: #f8fafc; border: 1px solid #e2e8f0; color: #475569; font-size: 0.75rem; padding: 3px 10px; border-radius: 20px; margin: 2px; font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">${kw}</span>
+                    <div class="strategy-kw-row" data-keyword="${kw.toLowerCase()}" style="display: flex; align-items: flex-start; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 0.75rem;">
+                        <span style="color: #334155; font-weight: 600; word-break: break-word; padding-right: 10px; line-height: 1.4;">${kw}</span>
+                        <div style="display: flex; gap: 12px; align-items: center; flex-shrink: 0; padding-top: 2px;">
+                            <div style="display: flex; flex-direction: column; align-items: center; min-width: 25px;">
+                                <span style="font-size: 7px; color: #94a3b8; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">VOL</span>
+                                <span class="v-val" style="color: #10b981; font-weight: 800; font-size: 0.75rem;">...</span>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: center; min-width: 25px;">
+                                <span style="font-size: 7px; color: #94a3b8; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">KD</span>
+                                <span class="d-val" style="color: #f97316; font-weight: 800; font-size: 0.75rem;">...</span>
+                            </div>
+                        </div>
+                    </div>
                 `).join('') : '';
 
                 return `
@@ -39801,15 +39886,15 @@ Return ONLY valid JSON in this exact format:
                             <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.2em; color: #10b981; font-weight: 800; margin-bottom: 8px;">Semantic Hub / Primary Theme</div>
                             <div style="font-size: 1.75rem; font-weight: 900; color: #064e3b; font-family: 'Outfit', sans-serif;">${kwData.primary_theme}</div>
                         </div>
-                        <!-- Connecting Line Decorative -->
-                        <div style="position: absolute; bottom: 0; left: 50%; width: 2px; height: 30px; background: #cbd5e1; transform: translateX(-50%); z-index: 1;"></div>
+                        <!-- Decorative connection lines -->
+                        <div style="position: absolute; bottom: 0; left: 50%; width: 2px; height: 30px; background: #10b981; transform: translateX(-50%); z-index: 1;"></div>
                     </div>
-                    
+
                     <!-- Topic Pillar Grid -->
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
                         ${clusterHtml}
                     </div>
-                    
+
                     <!-- Strategic Discovery Roadmap -->
                     <div style="background: #064e3b; background-image: linear-gradient(30deg, #064e3b 12%, transparent 12.5%, transparent 87%, #064e3b 87.5%, #064e3b), linear-gradient(150deg, #064e3b 12%, transparent 12.5%, transparent 87%, #064e3b 87.5%, #064e3b), linear-gradient(30deg, #064e3b 12%, transparent 12.5%, transparent 87%, #064e3b 87.5%, #064e3b), linear-gradient(150deg, #064e3b 12%, transparent 12.5%, transparent 87%, #064e3b 87.5%, #064e3b), linear-gradient(60deg, #065f46 25%, transparent 25.5%, transparent 75%, #065f46 75%, #065f46), linear-gradient(60deg, #065f46 25%, transparent 25.5%, transparent 75%, #065f46 75%, #065f46); background-size: 20px 35px; color: white; padding: 25px; border-radius: 20px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);">
                         <div style="display: flex; align-items: flex-start; gap: 15px;">
@@ -39820,20 +39905,152 @@ Return ONLY valid JSON in this exact format:
                                 <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.15em; color: #10b981; font-weight: 800; margin-bottom: 4px;">Long-tail Discovery Roadmap</div>
                                 <div style="font-size: 1rem; color: #ecfdf5; line-height: 1.6; font-weight: 500;">
                                     ${(() => {
-                    const text = kwData.longtail_opportunities;
-                    if (!text) return 'N/A';
-                    const points = text.split(/(?<=[.!?])\s+|\n|;\s*/).map(p => p.trim()).filter(p => p.length > 5);
-                    if (points.length <= 1) return text;
-                    return `<ul style="margin: 0; padding-left: 1.2rem; list-style-type: disc; color: #d1fae5;">
+                                        let text = kwData.longtail_opportunities;
+                                        if (!text) return 'N/A';
+                                        
+                                        // Ensure text is a string
+                                        if (Array.isArray(text)) text = text.join('. ');
+                                        else if (typeof text !== 'string') text = String(text);
+
+                                        const points = text.split(/(?<=[.!?])\s+|\n|;\s*/).map(p => p.trim()).filter(p => p.length > 5);
+                                        if (points.length <= 1) return text;
+                                        return `<ul style="margin: 0; padding-left: 1.2rem; list-style-type: disc; color: #d1fae5;">
                                             ${points.map(p => `<li style="margin-bottom: 8px;">${p}</li>`).join('')}
                                         </ul>`;
-                })()}
+                                    })()}
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             `;
+        }
+
+        async function enrichStrategyKeywords(strategies) {
+            console.log("Enriching strategy keywords with real metrics...");
+            const allKeywords = new Set();
+
+            strategies.forEach(s => {
+                // 1. Collect from Semantic Clusters
+                const kwData = s.keyword_data || s.keyword_analysis;
+                if (kwData && Array.isArray(kwData.semantic_clusters)) {
+                    kwData.semantic_clusters.forEach(cluster => {
+                        if (Array.isArray(cluster.keywords)) {
+                            cluster.keywords.forEach(k => {
+                                const cleaned = cleanKeyword(k);
+                                if (cleaned) allKeywords.add(cleaned);
+                            });
+                        }
+                    });
+                }
+                
+                // 2. Collect from Target Keywords (grid view)
+                if (Array.isArray(s.target_keywords)) {
+                    s.target_keywords.forEach(k => {
+                        const cleaned = cleanKeyword(k);
+                        if (cleaned) allKeywords.add(cleaned);
+                    });
+                } else if (typeof s.target_keywords === 'string') {
+                    s.target_keywords.split(/,\s*|\n/).forEach(k => {
+                        const cleaned = cleanKeyword(k);
+                        if (cleaned) allKeywords.add(cleaned);
+                    });
+                }
+            });
+
+            const uniqueKeywords = Array.from(allKeywords);
+            if (uniqueKeywords.length === 0) return;
+
+            console.log(`Enriching ${uniqueKeywords.length} unique keywords in parallel chunks...`);
+            
+            // Helper to fetch in chunks to avoid timeouts and ensure coverage
+            const chunkSize = 20;
+            const chunks = [];
+            for (let i = 0; i < uniqueKeywords.length; i += chunkSize) {
+                chunks.push(uniqueKeywords.slice(i, i + chunkSize));
+            }
+
+            const metricMap = {};
+            
+            try {
+                const fetchPromises = chunks.map(async (chunk) => {
+                    try {
+                        const response = await fetch('https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'get_keyword_metrics_batch',
+                                keywords: chunk
+                            })
+                        });
+
+                        const result = await response.json();
+                        let results = [];
+                        if (result.body) {
+                            const body = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
+                            results = body.results || [];
+                        } else {
+                            results = result.results || [];
+                        }
+
+                        results.forEach(r => {
+                            if (r.keyword && r.metrics) {
+                                // Use the same cleaning logic for matching
+                                const cleanedKw = cleanKeyword(r.keyword);
+                                metricMap[cleanedKw] = {
+                                    vol: r.metrics.volume !== undefined ? r.metrics.volume : 0,
+                                    diff: r.metrics.difficulty !== undefined ? r.metrics.difficulty : 0
+                                };
+                            }
+                        });
+                    } catch (err) {
+                        console.error("Error fetching chunk:", err);
+                    }
+                });
+
+                await Promise.all(fetchPromises);
+
+                // Update UI for each row
+                document.querySelectorAll('.strategy-kw-row').forEach(row => {
+                    const kwAttr = row.getAttribute('data-keyword');
+                    const kw = cleanKeyword(kwAttr);
+                    const data = metricMap[kw];
+                    
+                    const vVal = row.querySelector('.v-val');
+                    const dVal = row.querySelector('.d-val');
+                    
+                    if (vVal && dVal) {
+                        if (data) {
+                            const vol = data.vol;
+                            const diff = data.diff;
+                            
+                            vVal.innerText = vol >= 1000 ? (vol/1000).toFixed(1) + 'k' : (vol || '0');
+                            vVal.style.color = vol > 0 ? '#10b981' : '#94a3b8';
+                            vVal.style.opacity = '1';
+                            
+                            dVal.innerText = diff || '0';
+                            dVal.style.opacity = '1';
+                            
+                            // Color coding difficulty
+                            if (diff > 50) dVal.style.color = '#ef4444';
+                            else if (diff > 30) dVal.style.color = '#f59e0b';
+                            else dVal.style.color = '#10b981';
+                        } else {
+                            // If no data found, set to 0 with low opacity
+                            vVal.innerText = '—';
+                            dVal.innerText = '—';
+                            vVal.style.opacity = '0.5';
+                            dVal.style.opacity = '0.5';
+                            vVal.style.color = '#94a3b8';
+                            dVal.style.color = '#94a3b8';
+                        }
+                    }
+                });
+                
+                console.log("Enrichment complete.");
+            } catch (error) {
+                console.error("Global enrichment error:", error);
+            }
         }
 
         async function exportStrategyBrief() {
