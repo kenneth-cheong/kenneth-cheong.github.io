@@ -3771,7 +3771,7 @@
 
         .collapsible.success,
         .strat-collapsible.success {
-            background-color: #28a745 !important;
+            background-color: #10b981 !important;
             color: white !important;
         }
 
@@ -30931,13 +30931,12 @@ ${selectedText}
             document.getElementById('da').innerText = "";
             document.getElementById('pa').innerText = "";
 
-            const metaElem = document.getElementById("metaDataSection");
-            const domainElem = document.getElementById("domainMetricsSection");
-            const kwBtn = document.getElementById("keywordAnalysisBtn");
-
-            if (metaElem) metaElem.style.borderLeft = "4px solid var(--primary-blue)";
-            if (domainElem) domainElem.style.borderLeft = "4px solid var(--primary-blue)";
-            if (kwBtn) kwBtn.style.backgroundColor = "#10b981";
+            const strategyButtons = ['keywordAnalysisBtn', 'siteAnalysisToggle', 'gtButton', 'pageButton', 'technicalButton', 'semButton', 'mediaPlanBtn', 'crawlerButton', 'smm', 'persona'];
+            strategyButtons.forEach(id => {
+                updateCollapsibleState(id, 'running');
+                const btn = document.getElementById(id);
+                if (btn) btn.style.backgroundColor = ""; // Clear any previous success green
+            });
 
             // Ensure site analysis section is expanded when starting a new analysis
             ensureSiteAnalysisExpanded();
@@ -30969,6 +30968,7 @@ ${selectedText}
             await displayOverallSummaryTable(keywords, location, language, domain);
             await timeToRankToDatabase();
             updateKeywordAnalysisLoader("", "", false);
+            updateCollapsibleState('keywordAnalysisBtn', 'success');
         }
 
         function displayTargetContentTable(targetContent, containerId) {
@@ -31812,7 +31812,7 @@ ${selectedText}
                     document.getElementById('targetSchema').innerText = data.body.schema;
                     document.getElementById('targetReadability').innerText = data.body.readability;
                     document.getElementById('targetWordCount').innerText = data.body.word_count;
-
+                    updateCollapsibleState('siteAnalysisToggle', 'success');
                 })
                 .catch(error => {
                     console.error("Error fetching targeted domain data:", error); // Log any errors
