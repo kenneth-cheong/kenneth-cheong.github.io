@@ -145,21 +145,25 @@ def run_analysis(event):
                             suggestions_result[kw_name] = data_obj
 
         if mangools_success:
-            final_result = {**priority_result, **suggestions_result}
-            for kw, data in final_result.items():
-                document_list.append({
-                    "keyword": kw,
-                    "search_vol": data['search_volume'],
-                    "cpc": data['cpc'],
-                    "date": local_datetime,
-                    "location": location,
-                    "competition": data['competition'],
-                    "competition_text": data.get('competition_text'),
-                    "user": user
-                })
-            if document_list:
-                collection.insert_many(document_list)
-            return {'statusCode': 200, 'body': final_result}
+            print(f"Mangools success, found {len(priority_result) + len(suggestions_result)} keywords.")
+            # We don't return early here; we let it fall through to Part 2 if we need more keywords.
+            # However, we should only hit DataForSEO if we actually need more or if Part 1 failed.
+            if (len(priority_result) + len(suggestions_result)) >= 30:
+                final_result = {**priority_result, **suggestions_result}
+                for kw, data in final_result.items():
+                    document_list.append({
+                        "keyword": kw,
+                        "search_vol": data['search_volume'],
+                        "cpc": data['cpc'],
+                        "date": local_datetime,
+                        "location": location,
+                        "competition": data['competition'],
+                        "competition_text": data.get('competition_text'),
+                        "user": user
+                    })
+                if document_list:
+                    collection.insert_many(document_list)
+                return {'statusCode': 200, 'body': final_result}
 
     except Exception as e:
         print("Mangools attempt failed, falling back to DataForSEO:", e)
@@ -211,10 +215,10 @@ def run_analysis(event):
                 elif kw_name not in priority_result and kw_name not in suggestions_result:
                     suggestions_result[kw_name] = data_obj
 
-        if (len(priority_result) + len(suggestions_result)) < 20:
-            print("Expanding with GPT...")
+        if (len(priority_result) + len(suggestions_result)) < 15:
+            print("Expanding with GPT for a targeted list...")
             gpt_url = "https://api.openai.com/v1/chat/completions"
-            prompt = f"You are an SEO expert doing keyword research. Output as a list (only) in the format: [keyword1,keyword2,keyword3]. Come up with 20 similar keywords from the root keyword(s): {json.dumps(keywords_input)}"
+            prompt = f"You are an SEO expert doing keyword research. Output as a list (only) in the format: [keyword1,keyword2,keyword3]. Come up with 25 highly relevant and similar keywords from the root keyword(s): {json.dumps(keywords_input)}. Aim for high-intent and diverse variations."
             
             gpt_payload = {
                 "model": "gpt-4o-mini",
@@ -230,11 +234,15 @@ def run_analysis(event):
 
             if gpt_resp.status_code == 200 and 'choices' in gpt_json:
                 gpt_text = gpt_json['choices'][0]['message']['content']
-                gpt_kw_list = gpt_text.replace('[','').replace(']','').split(',')
+                # Clean up the response to ensure it's a list
+                gpt_text = gpt_text.replace('[','').replace(']','').replace('"','').replace("'","")
+                gpt_kw_list = gpt_text.split(',')
                 gpt_kw_list = [k.strip() for k in gpt_kw_list if k.strip()]
 
                 if gpt_kw_list:
-                    payload[0]['keywords'] = gpt_kw_list
+                    print(f"GPT returned {len(gpt_kw_list)} keywords. Fetching data for them...")
+                    # Targeted list of 15-25
+                    payload[0]['keywords'] = gpt_kw_list[:25] 
                     response = requests.post(api_url, headers=headers, json=payload)
                     resp_json = response.json()
                     if 'tasks' in resp_json and resp_json['tasks'][0]['result']:

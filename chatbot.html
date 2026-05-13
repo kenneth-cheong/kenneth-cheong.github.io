@@ -2436,6 +2436,16 @@
                         <label>Client Email (for filtering items)</label>
                         <input type="text" id="clientEmail" placeholder="Enter client email">
                     </div>
+                    <div class="form-group" style="margin-top: 12px; display: flex; align-items: center; justify-content: space-between; background: #f1f5f9; padding: 10px; border-radius: 10px;">
+                        <div>
+                            <div style="font-size: 0.8rem; font-weight: 700; color: #1e293b;">Private Memory Mode</div>
+                            <div style="font-size: 0.65rem; color: #64748b;">Tie AI notes only to this client email</div>
+                        </div>
+                        <label class="switch" style="width: 40px; height: 20px;">
+                            <input type="checkbox" id="privateMemoryMode">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
                     <div class="form-group" style="margin-top: 12px;">
                         <label>OpenAI Vector Store ID</label>
                         <input type="text" id="vectorStoreId" placeholder="vs_...">
@@ -3616,6 +3626,7 @@
 
             document.getElementById('mondayApiKey').value = localStorage.getItem('mondayApiKey') || '';
             document.getElementById('clientEmail').value = localStorage.getItem('clientEmail') || "";
+            document.getElementById('privateMemoryMode').checked = localStorage.getItem('privateMemoryMode') === 'true';
             const vsId = localStorage.getItem('vectorStoreId') || "";
             document.getElementById('vectorStoreId').value = vsId;
             localStorage.setItem('vectorStoreId', vsId);
@@ -3785,15 +3796,14 @@
 
         function saveSettings() {
             const mondayKey = document.getElementById('mondayApiKey').value.trim();
-            const email = document.getElementById('clientEmail').value.trim();
-            const vsId = document.getElementById('vectorStoreId').value.trim();
+            localStorage.setItem('clientEmail', document.getElementById('clientEmail').value.trim());
+            localStorage.setItem('privateMemoryMode', document.getElementById('privateMemoryMode').checked);
+            localStorage.setItem('vectorStoreId', document.getElementById('vectorStoreId').value.trim());
             const contextUrls = document.getElementById('contextUrls').value.trim();
             const autoSync = document.getElementById('autoSync').checked;
 
             localStorage.setItem('mondayApiKey', mondayKey);
             localStorage.setItem('boardIds_v2', JSON.stringify(window.activeBoards || []));
-            localStorage.setItem('clientEmail', clientEmail);
-            localStorage.setItem('vectorStoreId', vsId);
             localStorage.setItem('contextUrls', contextUrls);
             localStorage.setItem('googleClientId', document.getElementById('googleClientId').value.trim());
             localStorage.setItem('autoSync', autoSync);
@@ -7057,12 +7067,14 @@ CRITICAL CONTACT RULE:
 
                 // Handle Automated Memory Updates
                 if (data.memory_updates && data.memory_updates.length > 0) {
+                    const currentUser = (localStorage.getItem('clientEmail') || "System").split('@')[0];
                     data.memory_updates.forEach(updateStr => {
                         try {
                             const jsonStr = updateStr.replace('MEM_SAVE: ', '');
                             const insight = JSON.parse(jsonStr);
                             insight.date = new Date().toLocaleDateString();
                             insight.source = "AI Learned";
+                            insight.user = currentUser;
                             insight.id = Date.now() + Math.random();
                             learnedInsights.unshift(insight);
                         } catch (e) { console.error("Memory parsing error", e); }
@@ -7476,29 +7488,55 @@ CRITICAL CONTACT RULE:
         }
 
         async function pushInsightsToCloud() {
-            const email = localStorage.getItem('clientEmail') || localStorage.getItem('userEmail');
+            const isPrivate = document.getElementById('privateMemoryMode')?.checked || false;
+            let email = "global_shared_insights";
+            
+            if (isPrivate) {
+                email = (localStorage.getItem('clientEmail') || localStorage.getItem('userEmail') || "").trim();
+            }
+
             if (!email) return;
 
-            console.log("[MEMORY] Syncing to cloud...");
+            console.log("[MEMORY] Syncing to cloud for:", email);
             try {
                 await fetch(PERSISTENCE_API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'save_insights',
-                        email: email,
+                        email: email.toLowerCase(),
                         insights: learnedInsights
                     })
                 });
-                console.log("[MEMORY] Cloud sync successful.");
             } catch (e) {
                 console.error("[MEMORY] Cloud sync failed", e);
             }
         }
 
         async function pullInsightsFromCloud() {
-            const email = localStorage.getItem('clientEmail') || localStorage.getItem('userEmail');
-            if (!email) return;
+            const isPrivate = document.getElementById('privateMemoryMode')?.checked || false;
+            let email = "global_shared_insights";
+            
+            if (isPrivate) {
+                email = (localStorage.getItem('clientEmail') || localStorage.getItem('userEmail') || "").trim();
+            }
+
+            if (!email) {
+                console.warn('[MEMORY] No email for sync');
+                // If we have no items and no email, show a hint
+                if (learnedInsights.length === 0) {
+                    const list = document.getElementById('insightsList');
+                    if (list) {
+                        list.innerHTML = `
+                            <div class="empty-insights">
+                                <i class="fas fa-lock" style="color: #94a3b8; font-size: 2rem; margin-bottom: 12px;"></i>
+                                <p>Set a <b>Client Email</b> in Settings to enable cloud sync and see your memories.</p>
+                            </div>
+                        `;
+                    }
+                }
+                return;
+            }
 
             try {
                 const res = await fetch(PERSISTENCE_API_URL, {
@@ -7506,19 +7544,20 @@ CRITICAL CONTACT RULE:
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'get_insights',
-                        email: email
+                        email: email.toLowerCase()
                     })
                 });
+
                 const data = await res.json();
                 const body = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
 
-                if (body.insights && body.insights.length > 0) {
+                if (body.insights && Array.isArray(body.insights)) {
                     learnedInsights = body.insights;
                     localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
                     renderInsights();
                 }
-            } catch (e) {
-                console.error("[MEMORY] Could not pull insights from cloud", e);
+            } catch (err) {
+                console.error('[CLOUD PULL ERROR]', err);
             }
         }
 
@@ -7538,17 +7577,21 @@ CRITICAL CONTACT RULE:
                 <div class="insight-card" id="insight-${insight.id}">
                     <div class="insight-meta">
                         <span class="insight-tag">${insight.tag}</span>
-                        <span class="insight-date">${insight.date} • <span class="insight-source" style="font-weight:700; color: #475569; text-transform: uppercase; font-size: 0.6rem;">${insight.source || 'Manual'}</span></span>
+                        <span class="insight-date">${insight.date}</span>
+                        <div style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
+                            <span class="insight-source" style="font-weight:700; color: #64748b; text-transform: uppercase; font-size: 0.6rem;">${insight.source || 'Manual'}</span>
+                            ${insight.user ? `<span style="font-size: 0.6rem; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #475569;"><i class="fas fa-user" style="font-size: 0.5rem;"></i> ${insight.user}</span>` : ''}
+                        </div>
                     </div>
                     <div class="insight-text" id="text-${insight.id}" contenteditable="false">${insight.text}</div>
                     <div class="insight-actions">
-                        <button class="insight-btn edit-btn" onclick="toggleEdit(${insight.id})" title="Edit memory" style="color: #6366f1;">
+                        <button class="insight-btn edit-btn" onclick="toggleEdit('${insight.id}')" title="Edit memory" style="color: #6366f1;">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="insight-btn save-btn" onclick="saveInsight(${insight.id})" title="Save memory" style="color: #10b981; display: none;">
+                        <button class="insight-btn save-btn" onclick="saveInsight('${insight.id}')" title="Save memory" style="color: #10b981; display: none;">
                             <i class="fas fa-check"></i>
                         </button>
-                        <button class="insight-btn delete-btn" onclick="deleteInsight(${insight.id})" title="Remove memory">
+                        <button class="insight-btn delete-btn" onclick="deleteInsight('${insight.id}')" title="Remove memory">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
@@ -7567,7 +7610,7 @@ CRITICAL CONTACT RULE:
             if (isEditing) {
                 // Cancel edit
                 textDiv.contentEditable = 'false';
-                textDiv.innerText = learnedInsights.find(i => i.id === id).text;
+                textDiv.innerText = learnedInsights.find(i => i.id == id).text;
                 editBtn.innerHTML = '<i class="fas fa-edit"></i>';
                 saveBtn.style.display = 'none';
                 card.style.borderColor = '#e2e8f0';
@@ -7599,9 +7642,11 @@ CRITICAL CONTACT RULE:
                 return;
             }
 
-            const insight = learnedInsights.find(i => i.id === id);
+            const insight = learnedInsights.find(i => i.id == id);
+            const currentUser = (localStorage.getItem('clientEmail') || "System").split('@')[0];
             insight.text = newText;
             insight.date = new Date().toLocaleDateString() + " (edited)";
+            insight.user = currentUser;
 
             localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
             renderInsights();
@@ -7611,7 +7656,7 @@ CRITICAL CONTACT RULE:
 
         function deleteInsight(id) {
             if (confirm('Are you sure you want the AI to forget this information?')) {
-                learnedInsights = learnedInsights.filter(i => i.id !== id);
+                learnedInsights = learnedInsights.filter(i => i.id != id);
                 localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
                 renderInsights();
                 pushInsightsToCloud(); // Sync deletion to cloud
@@ -7630,11 +7675,13 @@ CRITICAL CONTACT RULE:
             }
 
             const tag = tagSelect.value;
+            const currentUser = (localStorage.getItem('clientEmail') || "System").split('@')[0];
             learnedInsights.unshift({
                 tag: tag,
                 text: text,
                 date: new Date().toLocaleDateString(),
                 source: "Manual",
+                user: currentUser,
                 id: Date.now()
             });
 
