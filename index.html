@@ -11787,6 +11787,17 @@
                     </div>
                     <div id="auditSummary"></div>
 
+                    <!-- AI Recommendations from Technical SEO crawl -->
+                    <div id="techSeoRecommendations" style="display:none; margin-top: 28px;">
+                        <div style="font-size: 1rem; font-weight: 700; color: #1e293b; margin-bottom: 14px;">
+                            <i class="fas fa-robot" style="color: #6366f1; margin-right: 8px;"></i>AI-Generated Recommendations
+                        </div>
+                        <div id="techSeoRecsLoading" style="display:none; padding: 18px 0; text-align: center; color: #6366f1; font-size: 0.85rem; font-weight: 600;">
+                            <i class="fas fa-circle-notch fa-spin" style="margin-right: 8px;"></i> Analysing audit findings and generating recommendations...
+                        </div>
+                        <div id="techSeoRecsContainer" style="display: flex; flex-direction: column; gap: 10px;"></div>
+                    </div>
+
                     <button class="collapsible" id="gtButton"><i class="fas fa-plus-square"></i>GTmetrix
                         Results</button>
                     <div class="content" id="gtMetrix">
@@ -29782,6 +29793,97 @@ ${selectedText}
             // Ensure final UI update with correct visibility and coloring rules
             updateTechnicalSummaryUI();
             rebuildCrawlerTable();
+
+            // Generate AI recommendations based on crawl findings
+            generateTechSeoRecommendations();
+        }
+
+        async function generateTechSeoRecommendations() {
+            const area = document.getElementById('techSeoRecommendations');
+            const loading = document.getElementById('techSeoRecsLoading');
+            const container = document.getElementById('techSeoRecsContainer');
+            if (!area || !container) return;
+
+            area.style.display = 'block';
+            loading.style.display = 'block';
+            container.innerHTML = '';
+
+            const totalPages = dataForSeoCrawlItems.length;
+            if (totalPages === 0) { area.style.display = 'none'; return; }
+
+            // Build issue summary
+            const counts = {};
+            DATA_FOR_SEO_CHECK_KEYS.forEach(key => counts[key] = 0);
+            dataForSeoCrawlItems.forEach(item => {
+                DATA_FOR_SEO_CHECK_KEYS.forEach(key => {
+                    if (item[key] === true || item[key] === 'true') counts[key]++;
+                });
+            });
+
+            const issues = DATA_FOR_SEO_CHECK_KEYS
+                .map(key => {
+                    const isPositive = DATA_FOR_SEO_POSITIVE_KEYS.includes(key);
+                    const affected = isPositive ? (totalPages - counts[key]) : counts[key];
+                    return { key, affected, label: key.replace('checks.', '').replace(/_/g, ' ') };
+                })
+                .filter(i => i.affected > 0)
+                .sort((a, b) => b.affected - a.affected);
+
+            if (issues.length === 0) { area.style.display = 'none'; return; }
+
+            const urlInput = document.getElementById('urlInput');
+            const siteUrl = urlInput ? urlInput.value.trim() : 'the website';
+
+            const issueList = issues.map(i => `- ${i.label}: ${i.affected} of ${totalPages} pages affected`).join('\n');
+
+            const prompt = `You are a technical SEO expert. A site audit of "${siteUrl}" (${totalPages} pages crawled) found the following issues:\n\n${issueList}\n\nGenerate 5-7 prioritised, actionable recommendations to fix these issues. Return ONLY a JSON array with no markdown, where each item has:\n- priority: "high", "medium", or "low"\n- title: short title (max 8 words)\n- issue: one sentence describing the problem\n- recommendation: 1-2 sentences of specific actionable advice\n- impact: one sentence on the SEO/UX benefit of fixing this\n\nJSON array only, no other text.`;
+
+            try {
+                const rawText = await callAIBackend(prompt, 2500);
+                let parsed = null;
+                let clean = rawText.trim();
+                if (clean.includes('```')) {
+                    const m = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                    if (m) clean = m[1];
+                }
+                const fa = clean.indexOf('['), la = clean.lastIndexOf(']');
+                if (fa !== -1 && la > fa) clean = clean.substring(fa, la + 1);
+                try { parsed = JSON.parse(clean); } catch(e) { parsed = null; }
+
+                loading.style.display = 'none';
+
+                if (!parsed || !Array.isArray(parsed) || parsed.length === 0) {
+                    container.innerHTML = '<p style="color:#64748b; font-size:0.85rem;">Could not generate recommendations. Please try again.</p>';
+                    return;
+                }
+
+                const priorityStyles = {
+                    high:   { bg: '#fef2f2', border: '#fca5a5', badge: '#dc2626', label: 'High Priority' },
+                    medium: { bg: '#fffbeb', border: '#fcd34d', badge: '#d97706', label: 'Medium Priority' },
+                    low:    { bg: '#f0fdf4', border: '#86efac', badge: '#16a34a', label: 'Low Priority' }
+                };
+
+                parsed.forEach(rec => {
+                    const p = (rec.priority || 'medium').toLowerCase();
+                    const s = priorityStyles[p] || priorityStyles.medium;
+                    const card = document.createElement('div');
+                    card.style.cssText = `background:${s.bg}; border:1px solid ${s.border}; border-left: 4px solid ${s.badge}; border-radius:8px; padding:14px 16px;`;
+                    card.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                            <span style="background:${s.badge}; color:#fff; font-size:0.65rem; font-weight:700; padding:2px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:0.05em;">${s.label}</span>
+                            <span style="font-size:0.9rem; font-weight:700; color:#1e293b;">${rec.title || ''}</span>
+                        </div>
+                        <p style="margin:0 0 4px; font-size:0.82rem; color:#475569;"><strong>Issue:</strong> ${rec.issue || ''}</p>
+                        <p style="margin:0 0 4px; font-size:0.82rem; color:#1e293b;"><strong>Fix:</strong> ${rec.recommendation || ''}</p>
+                        <p style="margin:0; font-size:0.78rem; color:#64748b;"><i class="fas fa-chart-line" style="margin-right:4px; color:#6366f1;"></i>${rec.impact || ''}</p>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch(e) {
+                console.error('Tech SEO recommendations error:', e);
+                loading.style.display = 'none';
+                container.innerHTML = '<p style="color:#64748b; font-size:0.85rem;">Could not generate recommendations. Please try again.</p>';
+            }
         }
 
 
