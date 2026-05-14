@@ -11272,6 +11272,160 @@
                 </div>
             </div>
 
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <!-- Pricing Quote Generator                                     -->
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <div id="pricingQuoteSection" style="margin-bottom: 4px;">
+                <button class="strat-collapsible" id="pricingQuoteBtn" onclick="togglePricingQuote(event)"
+                    style="background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);">
+                    <i class="fas fa-plus-square"></i>
+                    <i class="fas fa-file-invoice-dollar"></i>
+                    SEO Pricing Quote Generator
+                </button>
+                <div class="content" id="pricing-quote-content"
+                    style="display:none; padding: 28px; background: #f8fafc; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px; margin-bottom: 20px;">
+
+                    <!-- ── Header Row ── -->
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:28px;">
+                        <div>
+                            <div style="font-size:1.15rem; font-weight:800; color:#0f172a; font-family:'Outfit',sans-serif;">
+                                <i class="fas fa-calculator" style="color:#6366f1;"></i> Itemised Quote Builder
+                            </div>
+                            <div style="font-size:0.78rem; color:#64748b; margin-top:3px;">Adjust parameters to generate a live client-facing quote</div>
+                        </div>
+                        <!-- KPI Mode Switcher -->
+                        <div id="pq-kpi-switcher" style="display:flex; align-items:center; gap:0; background:#e2e8f0; border-radius:30px; padding:3px;">
+                            <button id="pq-mode-individual" onclick="setPricingMode('individual')"
+                                style="padding:7px 18px; border:none; border-radius:27px; font-size:0.8rem; font-weight:700; cursor:pointer; transition:all 0.25s; background:#6366f1; color:white;">
+                                <i class="fas fa-list-ul"></i> Individual KWs
+                            </button>
+                            <button id="pq-mode-cluster" onclick="setPricingMode('cluster')"
+                                style="padding:7px 18px; border:none; border-radius:27px; font-size:0.8rem; font-weight:700; cursor:pointer; transition:all 0.25s; background:transparent; color:#64748b;">
+                                <i class="fas fa-layer-group"></i> Keyword Clusters
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ── Mode Description Banner ── -->
+                    <div id="pq-mode-banner" style="margin-bottom:20px; padding:10px 16px; border-radius:10px; background:#eff6ff; border:1px solid #bfdbfe; font-size:0.78rem; color:#1e40af; font-weight:600; display:flex; align-items:flex-start; gap:10px;">
+                        <i class="fas fa-info-circle" style="margin-top:2px; flex-shrink:0;"></i>
+                        <span id="pq-mode-desc">KPI = each individual keyword ranking on Page 1 of SERPs.</span>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+
+                        <!-- ── LEFT PANEL: Sliders & Service Selector ── -->
+                        <div style="display:flex; flex-direction:column; gap:20px;">
+
+                            <!-- Keyword Count Slider -->
+                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                    <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em;">
+                                        <i class="fas fa-key" style="color:#6366f1;"></i> <span id="pq-kw-label">Keywords</span>
+                                    </div>
+                                    <div style="font-size:1.4rem; font-weight:900; color:#6366f1; min-width:45px; text-align:right;" id="pq-kw-count-display">20</div>
+                                </div>
+                                <input type="range" id="pq-kw-count" min="5" max="200" step="5" value="20"
+                                    oninput="updatePricingQuote()"
+                                    style="width:100%; accent-color:#6366f1; cursor:pointer; height:6px;">
+                                <div style="display:flex; justify-content:space-between; font-size:0.68rem; color:#94a3b8; margin-top:6px;">
+                                    <span>5</span><span>200</span>
+                                </div>
+                            </div>
+
+                            <!-- Keyword Difficulty Slider -->
+                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                    <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em;">
+                                        <i class="fas fa-signal" style="color:#f59e0b;"></i> Avg. Keyword Difficulty
+                                    </div>
+                                    <div style="font-size:1.4rem; font-weight:900; color:#f59e0b; min-width:70px; text-align:right;">
+                                        <span id="pq-kd-display">45</span>
+                                        <span id="pq-kd-label" style="font-size:0.7rem; font-weight:700; color:#64748b; margin-left:4px;">Medium</span>
+                                    </div>
+                                </div>
+                                <input type="range" id="pq-kd" min="0" max="100" step="1" value="45"
+                                    oninput="updatePricingQuote()"
+                                    style="width:100%; accent-color:#f59e0b; cursor:pointer; height:6px;">
+                                <div style="display:flex; justify-content:space-between; font-size:0.68rem; color:#94a3b8; margin-top:6px;">
+                                    <span>0 Easy</span><span>100 Very Hard</span>
+                                </div>
+                            </div>
+
+                            <!-- Contract Duration -->
+                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
+                                <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:12px;">
+                                    <i class="fas fa-calendar-alt" style="color:#10b981;"></i> Contract Duration
+                                </div>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                    <button class="pq-duration-btn active" data-months="3" onclick="selectPricingDuration(this, 3)">3 mo</button>
+                                    <button class="pq-duration-btn" data-months="6" onclick="selectPricingDuration(this, 6)">6 mo</button>
+                                    <button class="pq-duration-btn" data-months="12" onclick="selectPricingDuration(this, 12)">12 mo</button>
+                                    <button class="pq-duration-btn" data-months="24" onclick="selectPricingDuration(this, 24)">24 mo</button>
+                                </div>
+                            </div>
+
+                            <!-- Services Selector -->
+                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
+                                <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px;">
+                                    <i class="fas fa-cogs" style="color:#8b5cf6;"></i> Services Included
+                                </div>
+                                <div style="display:flex; flex-direction:column; gap:10px;" id="pq-services-list">
+                                    <!-- Services injected by JS -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ── RIGHT PANEL: Live Quote ── -->
+                        <div style="display:flex; flex-direction:column; gap:16px;">
+
+                            <!-- Quote Card -->
+                            <div style="background:linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); border-radius:18px; padding:26px; color:white; box-shadow:0 8px 30px rgba(15,23,42,0.25);">
+                                <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:#93c5fd; margin-bottom:4px;">Estimated Monthly Retainer</div>
+                                <div style="font-size:2.6rem; font-weight:900; font-family:'Outfit',sans-serif; line-height:1;" id="pq-total-display">SGD 0</div>
+                                <div style="font-size:0.75rem; color:#94a3b8; margin-top:6px;" id="pq-contract-summary">/month · 3-month contract</div>
+
+                                <div style="margin-top:20px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.12);">
+                                    <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#93c5fd; margin-bottom:10px;">Contract Total</div>
+                                    <div style="font-size:1.5rem; font-weight:800; font-family:'Outfit',sans-serif;" id="pq-contract-total-display">SGD 0</div>
+                                </div>
+                            </div>
+
+                            <!-- Itemised Breakdown -->
+                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0; flex:1;">
+                                <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px;">
+                                    <i class="fas fa-receipt" style="color:#6366f1;"></i> Itemised Breakdown
+                                </div>
+                                <div id="pq-breakdown-list" style="display:flex; flex-direction:column; gap:8px;">
+                                    <!-- Breakdown rows injected by JS -->
+                                </div>
+                            </div>
+
+                            <!-- KPI Summary Box -->
+                            <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:14px; padding:18px;">
+                                <div style="font-size:0.75rem; font-weight:700; color:#065f46; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:8px;">
+                                    <i class="fas fa-bullseye"></i> KPI Commitment
+                                </div>
+                                <div id="pq-kpi-summary" style="font-size:0.82rem; color:#047857; font-weight:600; line-height:1.5;"></div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                <button onclick="copyPricingQuote()"
+                                    style="flex:1; padding:12px; background:#6366f1; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.83rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s;">
+                                    <i class="fas fa-copy"></i> Copy Quote
+                                </button>
+                                <button onclick="exportPricingQuotePDF()"
+                                    style="flex:1; padding:12px; background:white; color:#1e293b; border:1px solid #e2e8f0; border-radius:10px; font-weight:700; font-size:0.83rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s;">
+                                    <i class="fas fa-file-pdf" style="color:#ef4444;"></i> Export PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ═══ End Pricing Quote Generator ════════════════════════════ -->
+
             <div id="keywordMappingSection">
                 <button class="collapsible" id="keyword_mapping"><i class="fas fa-plus-square"></i>Keyword
                     Mapping</button>
@@ -41182,7 +41336,381 @@ Return compact valid JSON only. No prose.
             }
         }
 
+        /* ═══════════════════════════════════════════════════════════════
+           Pricing Quote Generator — JS
+        ═══════════════════════════════════════════════════════════════ */
+
+        // ── CSS for duration buttons injected once ──
+        (function injectPricingStyles() {
+            const s = document.createElement('style');
+            s.textContent = `
+                .pq-duration-btn {
+                    padding: 8px 16px;
+                    border: 2px solid #e2e8f0;
+                    border-radius: 8px;
+                    background: white;
+                    color: #475569;
+                    font-weight: 700;
+                    font-size: 0.8rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .pq-duration-btn.active {
+                    background: #10b981;
+                    border-color: #10b981;
+                    color: white;
+                }
+                .pq-service-row {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 10px 12px;
+                    border-radius: 10px;
+                    border: 1.5px solid #e2e8f0;
+                    background: #f8fafc;
+                    transition: all 0.2s;
+                    cursor: pointer;
+                    user-select: none;
+                }
+                .pq-service-row.selected {
+                    border-color: #6366f1;
+                    background: #eef2ff;
+                }
+                .pq-service-toggle {
+                    width: 36px;
+                    height: 20px;
+                    border-radius: 10px;
+                    background: #cbd5e1;
+                    position: relative;
+                    transition: background 0.2s;
+                    flex-shrink: 0;
+                }
+                .pq-service-toggle.on { background: #6366f1; }
+                .pq-service-toggle::after {
+                    content: '';
+                    position: absolute;
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 50%;
+                    background: white;
+                    top: 3px;
+                    left: 3px;
+                    transition: transform 0.2s;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                }
+                .pq-service-toggle.on::after { transform: translateX(16px); }
+                .pq-breakdown-row {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 8px 10px;
+                    border-radius: 8px;
+                    font-size: 0.8rem;
+                }
+                .pq-breakdown-row:nth-child(odd) { background: #f8fafc; }
+                .pq-breakdown-row .pq-row-name { color: #475569; font-weight: 600; flex: 1; }
+                .pq-breakdown-row .pq-row-price { color: #1e293b; font-weight: 800; white-space: nowrap; }
+                .pq-breakdown-total {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    padding: 10px 10px;
+                    border-top: 2px solid #e2e8f0;
+                    margin-top: 6px;
+                    font-size: 0.9rem;
+                    font-weight: 900;
+                    color: #0f172a;
+                }
+            `;
+            document.head.appendChild(s);
+        })();
+
+        // ── State ──
+        const PQ = {
+            mode: 'individual',       // 'individual' | 'cluster'
+            durationMonths: 3,
+            services: [],             // populated in initPricingQuote
+        };
+
+        // ── Service definitions ──
+        // base: flat monthly add-on; perKw: per-keyword monthly; kdMult: scales with KD
+        const PQ_SERVICES = [
+            { id: 'strategy',    label: 'Keyword Strategy & Roadmap',    icon: 'fa-chess',           base: 800,  perKw: 0,   kdMult: 0.4,  required: true  },
+            { id: 'onpage',      label: 'On-Page Optimisation',          icon: 'fa-file-code',       base: 400,  perKw: 8,   kdMult: 0.5,  required: false },
+            { id: 'content',     label: 'Content Creation',              icon: 'fa-pen-nib',         base: 300,  perKw: 15,  kdMult: 0.6,  required: false },
+            { id: 'links',       label: 'Link Building',                 icon: 'fa-link',            base: 600,  perKw: 0,   kdMult: 1.2,  required: false },
+            { id: 'technical',   label: 'Technical SEO Audit & Fixes',   icon: 'fa-tools',           base: 500,  perKw: 0,   kdMult: 0.2,  required: false },
+            { id: 'reporting',   label: 'Monthly Reporting & Calls',     icon: 'fa-chart-bar',       base: 300,  perKw: 0,   kdMult: 0.1,  required: false },
+            { id: 'gsc',         label: 'GSC / Analytics Setup',         icon: 'fa-google',          base: 250,  perKw: 0,   kdMult: 0,    required: false },
+            { id: 'schema',      label: 'Schema & Structured Data',      icon: 'fa-code',            base: 200,  perKw: 2,   kdMult: 0.1,  required: false },
+        ];
+
+        // Duration discount table (% off monthly rate)
+        const PQ_DURATION_DISCOUNT = { 3: 0, 6: 0.05, 12: 0.10, 24: 0.15 };
+
+        function initPricingQuote() {
+            // Reset service state — strategy always on
+            PQ.services = PQ_SERVICES.map(s => ({ ...s, enabled: s.required }));
+            renderPricingServices();
+            updatePricingQuote();
+        }
+
+        function togglePricingQuote(e) {
+            const btn = document.getElementById('pricingQuoteBtn');
+            const content = document.getElementById('pricing-quote-content');
+            if (!btn || !content) return;
+            const isOpen = content.style.display !== 'none';
+            content.style.display = isOpen ? 'none' : 'block';
+            const icon = btn.querySelector('i.fa-plus-square, i.fa-minus-square');
+            if (icon) icon.className = isOpen ? 'fas fa-plus-square' : 'fas fa-minus-square';
+            if (!isOpen) initPricingQuote();
+        }
+
+        function setPricingMode(mode) {
+            PQ.mode = mode;
+            const indBtn = document.getElementById('pq-mode-individual');
+            const cluBtn = document.getElementById('pq-mode-cluster');
+            const desc   = document.getElementById('pq-mode-desc');
+            const kwLabel = document.getElementById('pq-kw-label');
+            if (mode === 'individual') {
+                indBtn.style.background = '#6366f1';
+                indBtn.style.color = 'white';
+                cluBtn.style.background = 'transparent';
+                cluBtn.style.color = '#64748b';
+                desc.textContent = 'KPI = each individual keyword ranking on Page 1 of SERPs.';
+                kwLabel.textContent = 'Keywords';
+            } else {
+                cluBtn.style.background = '#6366f1';
+                cluBtn.style.color = 'white';
+                indBtn.style.background = 'transparent';
+                indBtn.style.color = '#64748b';
+                desc.textContent = 'KPI = cluster hit when ≥1 keyword in the cluster reaches Page 1. Pricing reflects cluster count — broader scope, better value.';
+                kwLabel.textContent = 'Keyword Clusters';
+            }
+            updatePricingQuote();
+        }
+
+        function selectPricingDuration(btn, months) {
+            document.querySelectorAll('.pq-duration-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            PQ.durationMonths = months;
+            updatePricingQuote();
+        }
+
+        function renderPricingServices() {
+            const list = document.getElementById('pq-services-list');
+            if (!list) return;
+            list.innerHTML = PQ.services.map((svc, i) => `
+                <div class="pq-service-row${svc.enabled ? ' selected' : ''}" id="pq-svc-row-${svc.id}"
+                     onclick="${svc.required ? '' : `togglePricingService('${svc.id}')`}"
+                     style="${svc.required ? 'cursor:default; opacity:0.85;' : ''}">
+                    <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+                        <div style="width:30px; height:30px; border-radius:8px; background:${svc.enabled ? '#eef2ff' : '#f1f5f9'}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                            <i class="fas ${svc.icon}" style="font-size:0.75rem; color:${svc.enabled ? '#6366f1' : '#94a3b8'};"></i>
+                        </div>
+                        <div style="font-size:0.78rem; font-weight:600; color:#334155; line-height:1.3;">${svc.label}
+                            ${svc.required ? '<span style="font-size:0.65rem; color:#6366f1; font-weight:700; margin-left:4px;">CORE</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="pq-service-toggle${svc.enabled ? ' on' : ''}"></div>
+                </div>
+            `).join('');
+        }
+
+        function togglePricingService(id) {
+            const svc = PQ.services.find(s => s.id === id);
+            if (!svc || svc.required) return;
+            svc.enabled = !svc.enabled;
+            // Update row classes
+            const row = document.getElementById(`pq-svc-row-${id}`);
+            if (row) {
+                row.classList.toggle('selected', svc.enabled);
+                const toggle = row.querySelector('.pq-service-toggle');
+                if (toggle) toggle.classList.toggle('on', svc.enabled);
+                const icon = row.querySelector('i.fas');
+                if (icon) icon.style.color = svc.enabled ? '#6366f1' : '#94a3b8';
+                const iconWrap = row.querySelector('div > div:first-child');
+                if (iconWrap) iconWrap.style.background = svc.enabled ? '#eef2ff' : '#f1f5f9';
+            }
+            updatePricingQuote();
+        }
+
+        function getKdBand(kd) {
+            if (kd < 20) return { label: 'Easy',      color: '#10b981', mult: 1.0 };
+            if (kd < 40) return { label: 'Low-Med',   color: '#84cc16', mult: 1.2 };
+            if (kd < 60) return { label: 'Medium',    color: '#f59e0b', mult: 1.5 };
+            if (kd < 80) return { label: 'High',      color: '#ef4444', mult: 1.9 };
+            return             { label: 'Very Hard',  color: '#7c3aed', mult: 2.5 };
+        }
+
+        function updatePricingQuote() {
+            const kwCount = parseInt(document.getElementById('pq-kw-count')?.value || 20);
+            const kd      = parseInt(document.getElementById('pq-kd')?.value || 45);
+            const band    = getKdBand(kd);
+
+            // Update displays
+            const kwDisp = document.getElementById('pq-kw-count-display');
+            if (kwDisp) kwDisp.textContent = kwCount;
+            const kdDisp = document.getElementById('pq-kd-display');
+            if (kdDisp) kdDisp.textContent = kd;
+            const kdLbl = document.getElementById('pq-kd-label');
+            if (kdLbl) { kdLbl.textContent = band.label; kdLbl.style.color = band.color; }
+
+            // In cluster mode, keyword count represents clusters (slightly cheaper per unit due to grouping)
+            const effectiveKwCount = PQ.mode === 'cluster' ? Math.ceil(kwCount * 1.3) : kwCount;
+
+            const discount = PQ_DURATION_DISCOUNT[PQ.durationMonths] || 0;
+            const breakdown = [];
+            let monthlyTotal = 0;
+
+            PQ.services.forEach(svc => {
+                if (!svc.enabled) return;
+                const raw = svc.base + (svc.perKw * effectiveKwCount * band.mult) + (svc.base * svc.kdMult * (kd / 100));
+                const price = Math.round(raw * (1 - discount) / 50) * 50; // round to nearest $50
+                monthlyTotal += price;
+                breakdown.push({ name: svc.label, price });
+            });
+
+            const contractTotal = monthlyTotal * PQ.durationMonths;
+
+            // Update quote card
+            const totalEl = document.getElementById('pq-total-display');
+            if (totalEl) totalEl.textContent = `SGD ${monthlyTotal.toLocaleString()}`;
+            const summaryEl = document.getElementById('pq-contract-summary');
+            if (summaryEl) summaryEl.textContent = `/month · ${PQ.durationMonths}-month contract${discount > 0 ? ` (${Math.round(discount*100)}% loyalty discount applied)` : ''}`;
+            const contractEl = document.getElementById('pq-contract-total-display');
+            if (contractEl) contractEl.textContent = `SGD ${contractTotal.toLocaleString()}`;
+
+            // Render breakdown
+            const bList = document.getElementById('pq-breakdown-list');
+            if (bList) {
+                bList.innerHTML = breakdown.map(row => `
+                    <div class="pq-breakdown-row">
+                        <span class="pq-row-name">${row.name}</span>
+                        <span class="pq-row-price">SGD ${row.price.toLocaleString()}/mo</span>
+                    </div>
+                `).join('') + `
+                    <div class="pq-breakdown-total">
+                        <span>Monthly Total</span>
+                        <span>SGD ${monthlyTotal.toLocaleString()}</span>
+                    </div>
+                `;
+            }
+
+            // KPI Summary
+            const kpiEl = document.getElementById('pq-kpi-summary');
+            if (kpiEl) {
+                if (PQ.mode === 'individual') {
+                    kpiEl.innerHTML = `
+                        <div>✅ <strong>${kwCount} keywords</strong> targeted across ${PQ.durationMonths} months</div>
+                        <div style="margin-top:5px;">🎯 KPI met when each keyword ranks on <strong>Page 1 of SERPs</strong></div>
+                        <div style="margin-top:5px;">📊 Avg. difficulty: <strong style="color:${band.color};">${kd} / 100 (${band.label})</strong></div>
+                    `;
+                } else {
+                    kpiEl.innerHTML = `
+                        <div>✅ <strong>${kwCount} keyword clusters</strong> tracked across ${PQ.durationMonths} months</div>
+                        <div style="margin-top:5px;">🎯 Cluster KPI = <strong>≥1 keyword in the cluster</strong> ranks on Page 1 of SERPs</div>
+                        <div style="margin-top:5px;">📊 Avg. difficulty: <strong style="color:${band.color};">${kd} / 100 (${band.label})</strong></div>
+                    `;
+                }
+            }
+        }
+
+        function copyPricingQuote() {
+            const kwCount = parseInt(document.getElementById('pq-kw-count')?.value || 20);
+            const kd      = parseInt(document.getElementById('pq-kd')?.value || 45);
+            const band    = getKdBand(kd);
+            const monthlyTotal = parseInt((document.getElementById('pq-total-display')?.textContent || 'SGD 0').replace(/[^0-9]/g, ''));
+            const contractTotal = monthlyTotal * PQ.durationMonths;
+
+            let text = `SEO PRICING QUOTE\n${'='.repeat(40)}\n`;
+            text += `Mode: ${PQ.mode === 'individual' ? 'Individual Keywords' : 'Keyword Clusters'}\n`;
+            text += `${PQ.mode === 'cluster' ? 'Clusters' : 'Keywords'}: ${kwCount}\n`;
+            text += `Avg. Keyword Difficulty: ${kd} (${band.label})\n`;
+            text += `Contract Duration: ${PQ.durationMonths} months\n\n`;
+            text += `ITEMISED SERVICES\n${'-'.repeat(40)}\n`;
+            PQ.services.filter(s => s.enabled).forEach(svc => {
+                const rowEl = document.querySelector(`#pq-svc-row-${svc.id}`);
+                text += `• ${svc.label}: see quote\n`;
+            });
+            text += `\nMonthly Total: SGD ${monthlyTotal.toLocaleString()}\n`;
+            text += `Contract Total (${PQ.durationMonths} mo): SGD ${contractTotal.toLocaleString()}\n\n`;
+            if (PQ.mode === 'individual') {
+                text += `KPI: Each keyword ranking on Page 1 of SERPs\n`;
+            } else {
+                text += `KPI: ≥1 keyword per cluster ranking on Page 1 of SERPs\n`;
+            }
+
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.querySelector('button[onclick="copyPricingQuote()"]');
+                if (btn) {
+                    const orig = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                    btn.style.background = '#10b981';
+                    setTimeout(() => { btn.innerHTML = orig; btn.style.background = '#6366f1'; }, 2000);
+                }
+            }).catch(() => alert('Could not copy to clipboard.'));
+        }
+
+        function exportPricingQuotePDF() {
+            const kwCount = parseInt(document.getElementById('pq-kw-count')?.value || 20);
+            const kd      = parseInt(document.getElementById('pq-kd')?.value || 45);
+            const band    = getKdBand(kd);
+            const monthlyTotal = parseInt((document.getElementById('pq-total-display')?.textContent || 'SGD 0').replace(/[^0-9]/g, ''));
+            const contractTotal = monthlyTotal * PQ.durationMonths;
+
+            const rows = PQ.services.filter(s => s.enabled).map(svc => {
+                const price = svc.base + (svc.perKw * kwCount) + Math.round(svc.base * svc.kdMult * (kd / 100));
+                return `<tr><td style="padding:10px 16px; border-bottom:1px solid #f1f5f9; color:#334155; font-weight:600;">${svc.label}</td>
+                         <td style="padding:10px 16px; border-bottom:1px solid #f1f5f9; text-align:right; font-weight:800; color:#0f172a;">SGD ${Math.round(price/50)*50}/mo</td></tr>`;
+            }).join('');
+
+            const kpiText = PQ.mode === 'individual'
+                ? `KPI: Each of the ${kwCount} keywords ranking on Page 1 of SERPs`
+                : `KPI: Cluster hit when ≥1 keyword per cluster ranks on Page 1 (${kwCount} clusters tracked)`;
+
+            const win = window.open('', '_blank');
+            win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+                <title>SEO Pricing Quote</title>
+                <style>
+                    body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 40px; color: #334155; }
+                    h1 { color: #0f172a; font-size: 1.6rem; margin-bottom: 4px; }
+                    .sub { color: #64748b; font-size: 0.85rem; margin-bottom: 30px; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+                    th { background: #0f172a; color: white; padding: 12px 16px; text-align: left; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
+                    .total-row td { background: #eef2ff; font-weight: 900; font-size: 1rem; padding: 12px 16px; }
+                    .kpi-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 14px 18px; font-size: 0.85rem; color: #047857; font-weight: 600; margin-top: 20px; }
+                    .footer { margin-top: 40px; font-size: 0.72rem; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 16px; }
+                </style></head><body>
+                <h1>SEO Pricing Quote</h1>
+                <div class="sub">Generated by Digimetrics Strategy Engine · ${new Date().toLocaleDateString()}</div>
+                <table>
+                    <thead><tr><th>Service</th><th style="text-align:right;">Monthly Rate</th></tr></thead>
+                    <tbody>${rows}
+                    <tr class="total-row">
+                        <td>Monthly Total</td>
+                        <td style="text-align:right;">SGD ${monthlyTotal.toLocaleString()}</td>
+                    </tr>
+                    <tr class="total-row">
+                        <td>Contract Total (${PQ.durationMonths} months)</td>
+                        <td style="text-align:right;">SGD ${contractTotal.toLocaleString()}</td>
+                    </tr></tbody>
+                </table>
+                <p><strong>Mode:</strong> ${PQ.mode === 'individual' ? 'Individual Keywords' : 'Keyword Clusters'} &nbsp;|&nbsp;
+                   <strong>Volume:</strong> ${kwCount} ${PQ.mode === 'cluster' ? 'clusters' : 'keywords'} &nbsp;|&nbsp;
+                   <strong>Avg KD:</strong> ${kd}/100 (${band.label}) &nbsp;|&nbsp;
+                   <strong>Duration:</strong> ${PQ.durationMonths} months</p>
+                <div class="kpi-box">🎯 ${kpiText}</div>
+                <div class="footer">This quote is an estimate generated by the Digimetrics Strategy Engine. Final pricing subject to scope confirmation.</div>
+                <script>window.onload=()=>window.print();<\/script>
+                </body></html>`);
+            win.document.close();
+        }
+
+        /* ── End Pricing Quote Generator ── */
+
         async function exportStrategyBrief() {
+
             const container = document.getElementById('strategy-results-container');
             if (!container || container.style.display === 'none') {
                 alert("Please generate a strategy first before exporting.");
