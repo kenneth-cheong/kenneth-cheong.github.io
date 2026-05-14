@@ -42028,10 +42028,12 @@ Return compact valid JSON only. No prose.
 
             // ── Check for pending / missing data ──
             const pendingItems = [];
-            const hasSpinners = sel => document.querySelectorAll(sel).length > 0;
 
-            if (hasSpinners('.strategy-kw-row .fa-spinner'))
-                pendingItems.push({ label: 'Keyword data', note: 'some keywords are still loading' });
+            // Keywords still fetching — .v-val shows '...' while loading
+            const loadingKws = Array.from(document.querySelectorAll('.strategy-kw-row .v-val'))
+                .filter(el => el.textContent.trim() === '...').length;
+            if (loadingKws > 0)
+                pendingItems.push({ label: 'Keyword data', note: `${loadingKws} keyword${loadingKws > 1 ? 's' : ''} still fetching metrics` });
 
             const daVal = (document.getElementById('da')?.textContent || '-').trim();
             if (daVal === '-' || daVal === '')
@@ -42045,8 +42047,9 @@ Return compact valid JSON only. No prose.
             if (!paEl || paEl.style.display === 'none')
                 pendingItems.push({ label: 'Page Analysis Results', note: 'run the Technical SEO audit first' });
 
-            const tgEl = document.getElementById('discoveryTechGrid');
-            if (!tgEl || tgEl.querySelectorAll('[id^="tech-card-"]').length === 0)
+            const hasTechAudit = (typeof dataForSeoCrawlItems !== 'undefined' && dataForSeoCrawlItems.length > 0)
+                || (document.getElementById('auditSummary')?.querySelector('.summary-grid')?.children.length > 0);
+            if (!hasTechAudit)
                 pendingItems.push({ label: 'Technical SEO Audit', note: 'run the Technical Discovery audit first' });
 
             if (pendingItems.length > 0) {
@@ -42111,7 +42114,7 @@ Return compact valid JSON only. No prose.
                     const kw = cells[0].textContent.trim();
                     if (!kw || seenKws.has(kw.toLowerCase())) return;
                     seenKws.add(kw.toLowerCase());
-                    const getVal = el => el.querySelector('i') ? '…' : (el.textContent.trim() || '—');
+                    const getVal = el => el.querySelector('i') ? '—' : (el.textContent.trim() || '—');
                     kwMetrics.push({ kw, vol: getVal(cells[1]), kd: getVal(cells[2]), rank: getVal(cells[3]) });
                 });
 
