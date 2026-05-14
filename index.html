@@ -61216,15 +61216,45 @@ Move-In</h3>
     </script>
 
     <script>
-        // Move Competitors Identifier from Others → SEO section so it is always visible under SEO
-        (function relocateCompetitorsSection() {
-            const comp = document.getElementById('competitorsSection');
+        // Relocate Competitors Identifier from Others → SEO, then reorder all SEO sections logically
+        (function reorderSeoSections() {
             const seoContent = document.querySelector('#seoSection > .content');
-            if (!comp || !seoContent) return;
-            // Insert before the last page-break inside seoSection
-            const lastPB = Array.from(seoContent.querySelectorAll(':scope > .page-break')).pop();
-            if (lastPB) seoContent.insertBefore(comp, lastPB);
-            else seoContent.appendChild(comp);
+            if (!seoContent) return;
+
+            // 1. Relocate Competitors Identifier from othersSection into seoContent
+            const comp = document.getElementById('competitorsSection');
+            if (comp && comp.parentElement !== seoContent) seoContent.appendChild(comp);
+
+            // 2. Wrap the bare Page Technical & Domain Analysis toggle+panel in a div
+            const toggleBtn  = document.getElementById('siteAnalysisToggle');
+            const togglePane = document.getElementById('siteAnalysisContent');
+            if (toggleBtn && togglePane && !document.getElementById('pageTechDomainSection')) {
+                const wrapper = document.createElement('div');
+                wrapper.id = 'pageTechDomainSection';
+                toggleBtn.parentNode.insertBefore(wrapper, toggleBtn);
+                wrapper.appendChild(toggleBtn);
+                wrapper.appendChild(togglePane);
+            }
+
+            // 3. Reorder sections in logical workflow sequence
+            const order = [
+                'pageTechDomainSection',    // Understand current site
+                'technicalSeoSection',       // Fix technical issues
+                'keywordAnalysisSection',    // Research keywords
+                'competitorsSection',        // Competitive landscape
+                'keywordMappingSection',     // Map keywords to pages
+                'strategyEngineSection',     // Build strategy
+                'onPageOptimisationSection', // Optimise content
+                'schemaGeneratorSection',    // Add structured data
+                'anchorTextCleanerSection',  // Clean internal links
+                'rankCheckerSection',        // Track rankings
+                'pricingQuoteSection',       // Client pricing
+                'crawlerSimulatorSection',   // Utility
+            ];
+            order.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) seoContent.appendChild(el);
+            });
         })();
     </script>
 </body>
