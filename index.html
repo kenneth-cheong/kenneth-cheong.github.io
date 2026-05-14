@@ -20904,6 +20904,9 @@
             // Limit to top 10 as per user request
             const topIssues = issues.slice(0, 10);
 
+            // Store for PDF export
+            window._priorityRecs = topIssues;
+
             if (topIssues.length > 0) {
                 list.innerHTML = topIssues.map(issue => {
                     const isCritical = issue.label === 'robots.txt' ? issue.weight >= 100 : issue.weight >= 15;
@@ -29867,6 +29870,9 @@ ${selectedText}
                     container.innerHTML = '<p style="color:#64748b; font-size:0.85rem;">Could not generate recommendations. Please try again.</p>';
                     return;
                 }
+
+                // Store for PDF export
+                window._techSeoRecs = parsed;
 
                 const priorityStyles = {
                     high:   { bg: '#fef2f2', border: '#fca5a5', badge: '#dc2626', label: 'High Priority' },
@@ -42301,7 +42307,9 @@ Return compact valid JSON only. No prose.
                 const strategies = (typeof currentStrategies !== 'undefined' && currentStrategies.length) ? currentStrategies : [];
                 const clientDesc = (document.getElementById('strat-client-profile')?.value || '').trim();
                 const dateStr    = new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
-                const compInsights = window._competitorInsights || [];
+                const compInsights   = window._competitorInsights || [];
+                const priorityRecs  = window._priorityRecs || [];
+                const techSeoRecs   = window._techSeoRecs || [];
 
                 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
@@ -42677,6 +42685,63 @@ Return compact valid JSON only. No prose.
                         </div>`;
                 }
 
+                // ── Priority Recommendations HTML (Discovery Audit) ──
+                let priorityRecsHTML = '';
+                if (priorityRecs.length > 0) {
+                    const cards = priorityRecs.map(issue => {
+                        const isCritical = issue.weight >= 15;
+                        const isFail     = issue.status === 'fail';
+                        const bg     = isFail ? '#fff1f2' : '#fefce8';
+                        const border = isFail ? '#fecaca' : '#fef08a';
+                        const accent = isFail ? '#ef4444' : '#f59e0b';
+                        const badge  = isCritical ? 'Critical' : 'High Impact';
+                        return `<div data-pdf-card style="display:flex;gap:12px;padding:12px 14px;background:${bg};border-radius:10px;border:1px solid ${border};border-left:4px solid ${accent};margin-bottom:8px;">
+                            <div style="flex-shrink:0;margin-top:2px;color:${accent};font-size:13px;"><i class="fas ${isFail ? 'fa-times-circle' : 'fa-exclamation-circle'}"></i></div>
+                            <div>
+                                <div style="font-size:11.5px;font-weight:800;color:#1e293b;margin-bottom:3px;display:flex;align-items:center;gap:6px;">
+                                    ${esc(issue.label)}
+                                    <span style="font-size:8px;padding:2px 7px;border-radius:10px;background:${accent};color:white;text-transform:uppercase;font-weight:700;">${badge}</span>
+                                </div>
+                                <div style="font-size:10.5px;color:#475569;line-height:1.55;">${esc(issue.recommendation||'')}</div>
+                            </div>
+                        </div>`;
+                    }).join('');
+                    priorityRecsHTML = `
+                        <div style="padding:28px 48px 24px;background:#fffbeb;border-top:4px solid #f59e0b;">
+                            <div style="font-size:10px;font-weight:800;color:#d97706;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Discovery Audit</div>
+                            <div style="font-size:18px;font-weight:800;color:#0f172a;margin-bottom:16px;">Priority Fixes</div>
+                            ${cards}
+                        </div>`;
+                }
+
+                // ── Technical SEO Crawl AI Recommendations HTML ──
+                let techSeoRecsHTML = '';
+                if (techSeoRecs.length > 0) {
+                    const prioS = {
+                        high:   { bg:'#fef2f2', border:'#fca5a5', accent:'#dc2626', label:'High' },
+                        medium: { bg:'#fffbeb', border:'#fcd34d', accent:'#d97706', label:'Medium' },
+                        low:    { bg:'#f0fdf4', border:'#86efac', accent:'#16a34a', label:'Low' },
+                    };
+                    const cards = techSeoRecs.map(rec => {
+                        const s = prioS[(rec.priority||'medium').toLowerCase()] || prioS.medium;
+                        return `<div data-pdf-card style="background:${s.bg};border:1px solid ${s.border};border-left:4px solid ${s.accent};border-radius:8px;padding:12px 14px;margin-bottom:8px;">
+                            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap;">
+                                <span style="background:${s.accent};color:#fff;font-size:8px;font-weight:700;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:0.05em;">${s.label}</span>
+                                <span style="font-size:11.5px;font-weight:800;color:#1e293b;">${esc(rec.title||'')}</span>
+                            </div>
+                            <p style="margin:0 0 4px;font-size:10.5px;color:#475569;"><strong>Issue:</strong> ${esc(rec.issue||'')}</p>
+                            <p style="margin:0 0 4px;font-size:10.5px;color:#1e293b;"><strong>Fix:</strong> ${esc(rec.recommendation||'')}</p>
+                            <p style="margin:0;font-size:9.5px;color:#64748b;">${esc(rec.impact||'')}</p>
+                        </div>`;
+                    }).join('');
+                    techSeoRecsHTML = `
+                        <div style="padding:28px 48px 24px;background:#f8fafc;border-top:4px solid #0ea5e9;">
+                            <div style="font-size:10px;font-weight:800;color:#0284c7;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Site Crawl</div>
+                            <div style="font-size:18px;font-weight:800;color:#0f172a;margin-bottom:16px;">Technical SEO Recommendations</div>
+                            ${cards}
+                        </div>`;
+                }
+
                 // ── Strengths HTML ──
                 let strengthsHTML = '';
                 if (strengths.length > 0) {
@@ -42791,8 +42856,12 @@ Return compact valid JSON only. No prose.
                         ${gtmetrixHTML}
                         <!-- Page Analysis -->
                         ${pageAnalysisHTML}
-                        <!-- Technical SEO -->
+                        <!-- Technical SEO Audit Cards -->
                         ${techSeoHTML}
+                        <!-- Discovery Audit Priority Fixes -->
+                        ${priorityRecsHTML}
+                        <!-- Site Crawl AI Recommendations -->
+                        ${techSeoRecsHTML}
                         <!-- Strengths -->
                         ${strengthsHTML}
                         <!-- Recommendations -->
