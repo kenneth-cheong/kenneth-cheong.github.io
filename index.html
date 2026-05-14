@@ -8208,6 +8208,91 @@
             }
         }
 
+        /* Tool Search Modal */
+        #toolSearchModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            padding: 20px;
+        }
+        #toolSearchModal.active {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 60px;
+        }
+        .tool-search-container {
+            background: white;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            max-height: 70vh;
+        }
+        .tool-search-input-wrapper {
+            padding: 16px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .tool-search-input-wrapper i {
+            color: #94a3b8;
+            font-size: 18px;
+        }
+        #toolSearchInput {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 16px;
+            padding: 0;
+            color: #1e293b;
+        }
+        #toolSearchInput::placeholder {
+            color: #cbd5e1;
+        }
+        .tool-search-results {
+            overflow-y: auto;
+            flex: 1;
+        }
+        .tool-search-results:empty::after {
+            content: 'No tools found';
+            display: block;
+            padding: 40px 16px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 14px;
+        }
+        .tool-search-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .tool-search-item:hover {
+            background: #f8fafc;
+        }
+        .tool-search-item-name {
+            font-weight: 600;
+            color: #1e293b;
+            font-size: 14px;
+        }
+        .tool-search-item-category {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
         /* Style the navbar */
         .navbar {
             background-color: #004c9d;
@@ -9691,6 +9776,12 @@
             <i class="fas fa-bars"></i>
         </button>
 
+        <div class="nav-item" id="searchNavItem" style="margin-left: 20px;">
+            <a href="#" onclick="openToolSearch(event)" style="color: #6366f1;" title="Search tools">
+                <i class="fas fa-search"></i>
+            </a>
+        </div>
+
         <div class="nav-item" id="seoNavItem">
             <a href="#" onclick="showSeoOnly(event)">SEO</a>
             <div class="dropdown-content">
@@ -9795,6 +9886,17 @@
         <div class="loading-modal-content">
             <div class="loader"></div>
             <p>Loading, please wait...</p>
+        </div>
+    </div>
+
+    <!-- Tool Search Modal -->
+    <div id="toolSearchModal" onclick="closeToolSearch(event)">
+        <div class="tool-search-container" onclick="event.stopPropagation()">
+            <div class="tool-search-input-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="text" id="toolSearchInput" placeholder="Search tools..." oninput="filterTools(this.value)">
+            </div>
+            <div class="tool-search-results" id="toolSearchResults"></div>
         </div>
     </div>
 
@@ -61212,6 +61314,114 @@ Move-In</h3>
                 const badge = document.getElementById('changelogBadge');
                 if (badge) badge.style.display = 'none';
             }
+        });
+    </script>
+
+    <script>
+        // Tool Search Functionality
+        const toolsList = [
+            // SEO Tools
+            { name: 'Digimetrics Strategy Engine', category: 'SEO', onclick: 'openStrategyEngine(event)' },
+            { name: 'SEO Pricing Quote Generator', category: 'SEO', onclick: 'openPricingQuoteNav(event)' },
+            { name: 'Keyword Mapping', category: 'SEO', onclick: () => document.getElementById('keyword_mapping').click() },
+            { name: 'Page Technical & Domain Analysis', category: 'SEO', onclick: () => document.getElementById('siteAnalysisToggle').click() },
+            { name: 'Keyword Analysis', category: 'SEO', onclick: 'openKeywordAnalysis(event)' },
+            { name: 'Technical SEO', category: 'SEO', onclick: 'openTechnicalSeo(event)' },
+            { name: 'Schema Generator', category: 'SEO', onclick: 'openSchemaGenerator(event)' },
+            { name: 'On-Page Optimisation', category: 'SEO', onclick: 'openOnPage(event)' },
+            { name: 'Rank Checker', category: 'SEO', onclick: 'openRankChecker(event)' },
+            { name: 'Internal Anchor Text Cleaner', category: 'SEO', onclick: 'openAnchorTextCleaner(event)' },
+            { name: 'Google Crawler Simulator', category: 'SEO', onclick: 'openCrawlerSimulator(event)' },
+            { name: 'Competitors Identifier', category: 'SEO', onclick: 'openCompetitors(event)' },
+
+            // SMM Tools
+            { name: 'Social Media Suggested Keywords', category: 'SMM', onclick: 'openSocialMediaStrategy(event)' },
+            { name: 'Content Pillar Framework', category: 'SMM', onclick: 'openPillarFramework(event)' },
+            { name: 'Caption Generator', category: 'SMM', onclick: 'openContentGenerator(event)' },
+            { name: 'Social Media Response Generator', category: 'SMM', onclick: 'openResponseGenerator(event)' },
+
+            // GEO Tools
+            { name: 'llms.txt Generator', category: 'GEO', onclick: 'openLlmsTxtGenerator(event)' },
+            { name: 'AI Discovery Audit', category: 'GEO', onclick: 'openAiDiscoveryAudit(event)' },
+            { name: 'AI Mentions', category: 'GEO', onclick: 'openAiMentions(event)' },
+            { name: 'GEO On-Page Optimisation', category: 'GEO', onclick: 'openGeoOnPage(event)' },
+
+            // SEM Tools
+            { name: 'SEM Analysis & Generation', category: 'SEM', onclick: 'showSemOnly(event)' },
+            { name: 'Google Ads', category: 'SEM', onclick: 'openGoogleAds(event)' },
+            { name: 'Google Analytics 4', category: 'SEM', onclick: 'openGa4Section(event)' },
+
+            // Other Tools
+            { name: 'Google Search Console', category: 'Others', onclick: 'openGscSection(event)' },
+            { name: 'Persona Generator', category: 'Others', onclick: 'openPersona(event)' },
+            { name: 'Media Plan', category: 'Others', onclick: 'openMediaPlan(event)' },
+            { name: 'Content Check', category: 'Others', onclick: 'openContentCheck(event)' },
+            { name: 'Landing Page Audit', category: 'Others', onclick: 'openLandingPageAudit(event)' },
+            { name: 'AI Content Optimiser', category: 'Others', onclick: 'openAiContentOptimiser(event)' },
+            { name: 'Credits', category: 'Admin', onclick: 'checkMangoolsQuota(event)' },
+            { name: 'Admin', category: 'Admin', onclick: 'openAdminSection(event)' },
+        ];
+
+        function openToolSearch(e) {
+            e.preventDefault();
+            document.getElementById('toolSearchModal').classList.add('active');
+            document.getElementById('toolSearchInput').focus();
+            renderAllTools();
+        }
+
+        function closeToolSearch(e) {
+            if (e && e.target.id !== 'toolSearchModal') return;
+            document.getElementById('toolSearchModal').classList.remove('active');
+            document.getElementById('toolSearchInput').value = '';
+        }
+
+        function renderAllTools() {
+            const resultsDiv = document.getElementById('toolSearchResults');
+            resultsDiv.innerHTML = toolsList.map((tool, idx) => `
+                <div class="tool-search-item" onclick="selectTool(${idx})">
+                    <div class="tool-search-item-name">${tool.name}</div>
+                    <div class="tool-search-item-category">${tool.category}</div>
+                </div>
+            `).join('');
+        }
+
+        function filterTools(query) {
+            const resultsDiv = document.getElementById('toolSearchResults');
+            const filtered = toolsList.filter(tool =>
+                tool.name.toLowerCase().includes(query.toLowerCase()) ||
+                tool.category.toLowerCase().includes(query.toLowerCase())
+            );
+
+            if (filtered.length === 0) {
+                resultsDiv.innerHTML = '';
+                return;
+            }
+
+            resultsDiv.innerHTML = filtered.map((tool, idx) => {
+                const fullIdx = toolsList.indexOf(tool);
+                return `
+                    <div class="tool-search-item" onclick="selectTool(${fullIdx})">
+                        <div class="tool-search-item-name">${tool.name}</div>
+                        <div class="tool-search-item-category">${tool.category}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectTool(idx) {
+            const tool = toolsList[idx];
+            closeToolSearch();
+            // Call the onclick function
+            if (typeof tool.onclick === 'string') {
+                eval(tool.onclick);
+            } else if (typeof tool.onclick === 'function') {
+                tool.onclick();
+            }
+        }
+
+        // Close search modal on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeToolSearch();
         });
     </script>
 
