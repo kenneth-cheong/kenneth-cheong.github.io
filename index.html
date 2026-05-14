@@ -13704,6 +13704,17 @@
                     </div>
                     <div id="getIntersectionResults"></div>
                     <div id="competitorsRanking" style="display:none; height:400px; overflow:auto;"></div>
+
+                    <!-- AI Competitor Insights -->
+                    <div id="competitorAIInsights" style="display:none; margin-top: 28px;">
+                        <div style="font-size: 1rem; font-weight: 700; color: #1e293b; margin-bottom: 14px;">
+                            <i class="fas fa-robot" style="color: #6366f1; margin-right: 8px;"></i>AI Competitor Insights
+                        </div>
+                        <div id="competitorAIInsightsLoading" style="display:none; padding: 18px 0; text-align: center; color: #6366f1; font-size: 0.85rem; font-weight: 600;">
+                            <i class="fas fa-circle-notch fa-spin" style="margin-right: 8px;"></i> Analysing competitor landscape and generating insights...
+                        </div>
+                        <div id="competitorAIInsightsContainer" style="display: flex; flex-direction: column; gap: 10px;"></div>
+                    </div>
                 </div>
             </div>
 
@@ -33080,6 +33091,9 @@ ${selectedText}
             outputDiv.innerHTML = tableHTML;
             document.getElementById('getIntersectionResults').style.display = 'block';
 
+            // Trigger AI insights after rendering the table
+            generateCompetitorInsights(results);
+
             // Auto-select top 2 domains and run intersection when triggered by Strategy Engine
             if (window._strategyAutoPickCompetitors) {
                 window._strategyAutoPickCompetitors = false;
@@ -33093,6 +33107,89 @@ ${selectedText}
                     console.log("Strategy Engine: auto-running intersection for top 2 competitors");
                     getIntersectionResults2();
                 }, 600);
+            }
+        }
+
+        async function generateCompetitorInsights(results) {
+            const area      = document.getElementById('competitorAIInsights');
+            const loading   = document.getElementById('competitorAIInsightsLoading');
+            const container = document.getElementById('competitorAIInsightsContainer');
+            if (!area || !container) return;
+
+            window._competitorInsights = null; // reset
+            area.style.display = 'block';
+            loading.style.display = 'block';
+            container.innerHTML = '';
+
+            const domains = Object.keys(results);
+            if (domains.length === 0) { area.style.display = 'none'; return; }
+
+            const targetDomain = (document.getElementById('competitors-target1')?.value || '').trim();
+            const location     = (document.getElementById('competitors-location')?.value || 'N/A').trim();
+            const keywords     = (document.getElementById('competitor_keywords')?.value || '').trim();
+
+            // Build a compact summary: domain → [{keyword, rank}]
+            const summary = domains.map(d => {
+                const kws = Object.entries(results[d])
+                    .map(([kw, rank]) => `"${kw}" #${rank}`)
+                    .join(', ');
+                return `- ${d}: ${kws || 'manually added'}`;
+            }).join('\n');
+
+            const prompt = `You are a senior SEO strategist. A competitor analysis was run${targetDomain ? ` for target domain "${targetDomain}"` : ''}${location ? ` in ${location}` : ''}.\n\nCompetitors found and their keyword rankings:\n${summary}\n\nKeywords analysed: ${keywords || 'see above'}\n\nGenerate 5-7 strategic insights and recommendations. Return ONLY a JSON array where each item has:\n- type: "insight" or "recommendation"\n- title: short title (max 8 words)\n- detail: 2-3 sentences of specific, actionable strategic advice\n- priority: "high", "medium", or "low" (recommendations only — set "—" for insights)\n- icon: one of "crosshairs", "chess", "chart-line", "lightbulb", "exclamation-triangle", "trophy", "key"\n\nJSON array only, no other text.`;
+
+            try {
+                const rawText = await callAIBackend(prompt, 2800);
+                let parsed = null;
+                let clean = rawText.trim();
+                if (clean.includes('```')) {
+                    const m = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                    if (m) clean = m[1];
+                }
+                const fa = clean.indexOf('['), la = clean.lastIndexOf(']');
+                if (fa !== -1 && la > fa) clean = clean.substring(fa, la + 1);
+                try { parsed = JSON.parse(clean); } catch(e) { parsed = null; }
+
+                loading.style.display = 'none';
+
+                if (!parsed || !Array.isArray(parsed) || parsed.length === 0) {
+                    container.innerHTML = '<p style="color:#64748b; font-size:0.85rem;">Could not generate insights. Please try again.</p>';
+                    return;
+                }
+
+                window._competitorInsights = parsed;
+
+                const prioStyles = {
+                    high:   { bg: '#fef2f2', border: '#fca5a5', badge: '#dc2626', label: 'High' },
+                    medium: { bg: '#fffbeb', border: '#fcd34d', badge: '#d97706', label: 'Medium' },
+                    low:    { bg: '#f0fdf4', border: '#86efac', badge: '#16a34a', label: 'Low' },
+                };
+                const insightStyle = { bg: '#eff6ff', border: '#bfdbfe', badge: '#2563eb' };
+
+                parsed.forEach(item => {
+                    const isInsight = (item.type || '').toLowerCase() === 'insight';
+                    const s = isInsight ? insightStyle : (prioStyles[(item.priority||'medium').toLowerCase()] || prioStyles.medium);
+                    const card = document.createElement('div');
+                    card.style.cssText = `background:${s.bg}; border:1px solid ${s.border}; border-left:4px solid ${s.badge}; border-radius:8px; padding:14px 16px; display:flex; gap:12px; align-items:flex-start;`;
+                    const prio = isInsight ? '' : `<span style="background:${s.badge};color:#fff;font-size:0.62rem;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:0.05em;margin-left:8px;">${s.label}</span>`;
+                    card.innerHTML = `
+                        <div style="flex-shrink:0;width:32px;height:32px;border-radius:8px;background:${s.badge}18;color:${s.badge};display:flex;align-items:center;justify-content:center;font-size:14px;">
+                            <i class="fas fa-${item.icon || 'lightbulb'}"></i>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="display:flex;align-items:center;margin-bottom:5px;flex-wrap:wrap;gap:4px;">
+                                <span style="font-size:0.88rem;font-weight:700;color:#1e293b;">${item.title || ''}</span>
+                                ${prio}
+                                <span style="font-size:0.65rem;font-weight:600;padding:2px 8px;border-radius:20px;background:${s.badge}15;color:${s.badge};text-transform:uppercase;letter-spacing:0.04em;">${isInsight ? 'Insight' : 'Recommendation'}</span>
+                            </div>
+                            <p style="margin:0;font-size:0.82rem;color:#475569;line-height:1.6;">${item.detail || ''}</p>
+                        </div>`;
+                    container.appendChild(card);
+                });
+            } catch(e) {
+                console.error('Competitor insights error:', e);
+                loading.style.display = 'none';
+                container.innerHTML = '<p style="color:#64748b; font-size:0.85rem;">Could not generate insights. Please try again.</p>';
             }
         }
 
@@ -42204,6 +42301,7 @@ Return compact valid JSON only. No prose.
                 const strategies = (typeof currentStrategies !== 'undefined' && currentStrategies.length) ? currentStrategies : [];
                 const clientDesc = (document.getElementById('strat-client-profile')?.value || '').trim();
                 const dateStr    = new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+                const compInsights = window._competitorInsights || [];
 
                 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
@@ -42545,6 +42643,40 @@ Return compact valid JSON only. No prose.
                     }
                 }
 
+                // ── Competitor Insights HTML ──
+                let compInsightsHTML = '';
+                if (compInsights.length > 0) {
+                    const prioStyles = {
+                        high:   { bg: '#fef2f2', border: '#fca5a5', badge: '#dc2626', label: 'High' },
+                        medium: { bg: '#fffbeb', border: '#fcd34d', badge: '#d97706', label: 'Medium' },
+                        low:    { bg: '#f0fdf4', border: '#86efac', badge: '#16a34a', label: 'Low' },
+                    };
+                    const insightStyle = { bg: '#eff6ff', border: '#bfdbfe', badge: '#2563eb' };
+                    const cards = compInsights.map(item => {
+                        const isInsight = (item.type || '').toLowerCase() === 'insight';
+                        const s = isInsight ? insightStyle : (prioStyles[(item.priority||'medium').toLowerCase()] || prioStyles.medium);
+                        const prioBadge = isInsight ? '' : `<span style="background:${s.badge};color:#fff;font-size:8px;font-weight:700;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:0.05em;margin-left:6px;">${s.label}</span>`;
+                        const typeBadge = `<span style="font-size:8px;font-weight:600;padding:2px 7px;border-radius:20px;background:${s.badge}20;color:${s.badge};text-transform:uppercase;letter-spacing:0.04em;margin-left:4px;">${isInsight ? 'Insight' : 'Recommendation'}</span>`;
+                        return `<div data-pdf-card style="background:${s.bg};border:1px solid ${s.border};border-left:4px solid ${s.badge};border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;">
+                            <div style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${s.badge}18;color:${s.badge};display:flex;align-items:center;justify-content:center;font-size:12px;">
+                                <i class="fas fa-${esc(item.icon||'lightbulb')}"></i>
+                            </div>
+                            <div style="flex:1;">
+                                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:3px;margin-bottom:5px;">
+                                    <span style="font-size:11.5px;font-weight:800;color:#1e293b;">${esc(item.title||'')}</span>${prioBadge}${typeBadge}
+                                </div>
+                                <p style="margin:0;font-size:10.5px;color:#475569;line-height:1.6;">${esc(item.detail||'')}</p>
+                            </div>
+                        </div>`;
+                    }).join('');
+                    compInsightsHTML = `
+                        <div style="padding:28px 48px 24px;background:#f8fafc;border-top:4px solid #6366f1;">
+                            <div style="font-size:10px;font-weight:800;color:#6366f1;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Competitor Analysis</div>
+                            <div style="font-size:18px;font-weight:800;color:#0f172a;margin-bottom:16px;">Competitor Insights & Strategy</div>
+                            ${cards}
+                        </div>`;
+                }
+
                 // ── Strengths HTML ──
                 let strengthsHTML = '';
                 if (strengths.length > 0) {
@@ -42649,6 +42781,8 @@ Return compact valid JSON only. No prose.
                         ${stratComparisonHTML}
                         <!-- Keyword Blueprint -->
                         ${blueprintHTML}
+                        <!-- Competitor Insights -->
+                        ${compInsightsHTML}
                         <!-- Domain Metrics -->
                         ${domainMetricsHTML}
                         <!-- Keywords -->
