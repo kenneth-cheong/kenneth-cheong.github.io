@@ -11237,6 +11237,30 @@
                                 <div id="recommended-house-container" class="strategy-house"></div>
                             </div>
 
+                            <div id="actionable-recommendations-area" style="margin-top: 40px; display: none;">
+                                <h3 style="font-family: 'Outfit', sans-serif; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                                    <i class="fas fa-tasks" style="color: #6366f1;"></i> Prioritized Actionable Recommendations
+                                </h3>
+                                <!-- Strengths panel -->
+                                <div id="strengths-panel" style="display: none; margin-bottom: 28px; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #bbf7d0; border-radius: 14px; padding: 18px 20px;">
+                                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
+                                        <div style="width: 32px; height: 32px; border-radius: 8px; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; flex-shrink: 0;">
+                                            <i class="fas fa-trophy"></i>
+                                        </div>
+                                        <div>
+                                            <div style="font-size: 0.85rem; font-weight: 800; color: #065f46; text-transform: uppercase; letter-spacing: 0.05em;">What You're Doing Well</div>
+                                            <div id="strengths-subtitle" style="font-size: 0.7rem; color: #059669;"></div>
+                                        </div>
+                                    </div>
+                                    <div id="strengths-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px;"></div>
+                                </div>
+                                <!-- Loading state for recommendations -->
+                                <div id="recommendations-loading" style="display: none; padding: 20px; text-align: center; color: #6366f1; font-size: 0.85rem; font-weight: 600;">
+                                    <i class="fas fa-circle-notch fa-spin" style="margin-right: 8px;"></i> Generating targeted recommendations from your audit data...
+                                </div>
+                                <div id="actionable-recommendations-container" style="display: grid; grid-template-columns: 1fr; gap: 0;"></div>
+                            </div>
+
                             <div style="margin-top: 30px;">
                                 <button class="btn-sidebar" onclick="exportStrategyBrief()"
                                     style="background: white; color: #1e293b; border: 1px solid #e2e8f0; padding: 12px 24px; border-radius: 10px; cursor: pointer; font-weight: 600;">
@@ -32642,7 +32666,10 @@ ${selectedText}
                         return response.json();
                     })
                     .then(data => {
-                        return { domain: domain, data: data }; // Return domain along with the data
+                        // Unwrap Lambda envelope (same as getIntersectionResults2)
+                        const parsedData = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
+                        console.log(`Intersection data for ${domain}:`, parsedData);
+                        return { domain: domain, data: parsedData };
                     })
                     .catch(error => {
                         console.error(`Error fetching intersection results for ${domain}:`, error);
@@ -39895,9 +39922,11 @@ Return ONLY valid JSON in this exact format:
                 updateStrategyStatus("Fetching Discovery Keywords...", 25);
                 const discoveryData = await fetchDiscoveryKeywords(inputs);
 
-                // 3. Generate Strategy Prompt
+                // 3. Generate Strategy Prompt (lean - no recommendations)
                 updateKeywordAnalysisLoader("Strategy Engine", "Synthesizing business objectives with data...");
                 updateStrategyStatus("Synthesizing Strategy Prompt...", 50);
+                const auditContext = gatherAuditContext();
+                console.log("Strategy Engine: Audit context gathered:", auditContext);
                 const prompt = generateStrategyPrompt(inputs, discoveryData);
 
                 // 4. Call AI Backend
@@ -39909,6 +39938,7 @@ Return ONLY valid JSON in this exact format:
                         action: 'claude_chat',
                         messages: [{ role: 'user', content: prompt }],
                         model: 'claude-haiku-4-5',
+                        max_tokens: 4000,
                         stream: false,
                         id: 'strat_' + Date.now()
                     })
@@ -39958,12 +39988,24 @@ Return ONLY valid JSON in this exact format:
                 const strategies = parseAIStrategyResponse(aiResponse);
                 if (!strategies || strategies.length === 0) throw new Error("Could not parse strategy data from AI response. Raw AI text logged to console.");
 
+                console.log("Strategy Engine: Parsed Strategies:", strategies);
                 currentStrategies = strategies; // Store globally
                 hiddenStrategyNames.clear(); // Reset hidden state for new run
                 
-                renderStrategyComparisonGrid(strategies);
-                const recommendedStrategy = strategies.find(s => s.recommended) || strategies[0];
-                renderSuggestedKeywords(recommendedStrategy);
+                let recommendedStrategy = strategies.find(s => s.recommended) || strategies[0];
+                try {
+                    renderStrategyComparisonGrid(strategies);
+                    if (recommendedStrategy) {
+                        console.log("Strategy Engine: Rendering recommended strategy:", recommendedStrategy.name);
+                        renderSuggestedKeywords(recommendedStrategy);
+                        // Show results immediately, then async-fetch recommendations
+                        const area = document.getElementById('actionable-recommendations-area');
+                        if (area) area.style.display = 'block';
+                        fetchAndRenderRecommendations(recommendedStrategy, auditContext); // non-blocking
+                    }
+                } catch (renderErr) {
+                    console.error("Strategy Engine: Rendering failed:", renderErr);
+                }
 
                 // 6. Trigger Competitor Analysis with AI Recommendations
                 if (recommendedStrategy && recommendedStrategy.target_keywords) {
@@ -40061,52 +40103,231 @@ Return ONLY valid JSON in this exact format:
             }
         }
 
+        /** Reads available audit data from the DOM and window state for strategy context */
+        function gatherAuditContext() {
+            const ctx = {};
+
+            // --- Technical SEO / Discovery Audit ---
+            const audit = window.lastDiscoveryAudit || {};
+            if (Object.keys(audit).length > 0) {
+                ctx.technicalSeo = {
+                    technicalSeoScore: audit.technicalSeoScore,
+                    aiReadinessScore: audit.aiReadinessScore,
+                    contentQualityScore: audit.contentQualityScore,
+                    securityTrustScore: audit.securityTrustScore,
+                    userExperienceScore: audit.userExperienceScore,
+                    sslStatus: audit.sslStatus,
+                };
+                // Flatten techAudit results — keep only non-passing items + key ones to stay concise
+                if (Array.isArray(audit.techAudit)) {
+                    const statusMap = {};
+                    const priority = ['fail', 'warn'];
+                    // First pass: failures and warnings
+                    audit.techAudit.forEach(item => {
+                        if (item && item.label && priority.includes(item.status)) {
+                            statusMap[item.label] = item.status + (item.value ? ': ' + String(item.value).substring(0, 60) : '');
+                        }
+                    });
+                    // Second pass: passes (capped at 5 to keep prompt small)
+                    let passCount = 0;
+                    audit.techAudit.forEach(item => {
+                        if (item && item.label && item.status === 'pass' && passCount < 5) {
+                            statusMap[item.label] = 'pass';
+                            passCount++;
+                        }
+                    });
+                    ctx.technicalSeo.checks = statusMap;
+                }
+                // Platform readiness
+                if (audit.platformReadiness) {
+                    ctx.technicalSeo.platformReadiness = audit.platformReadiness;
+                }
+            }
+
+            // --- GTmetrix Performance ---
+            const grade = document.getElementById('grade');
+            const perf = document.getElementById('performance');
+            const cls = document.getElementById('cls');
+            const lcp = document.getElementById('lcp');
+            const tbt = document.getElementById('tbt');
+            if (grade && grade.textContent && grade.textContent !== 'N/A') {
+                ctx.gtmetrix = {
+                    grade: grade.textContent,
+                    performanceScore: perf ? perf.textContent : null,
+                    cls: cls ? cls.textContent : null,
+                    lcp: lcp ? lcp.textContent : null,
+                    tbt: tbt ? tbt.textContent : null,
+                };
+            }
+
+            // --- Page Analysis ---
+            const malware = document.getElementById('malware');
+            const pagespeed = document.getElementById('pagespeed_audit');
+            const sitemap = document.getElementById('sitemap');
+            if (pagespeed && pagespeed.textContent && pagespeed.textContent !== 'N/A') {
+                ctx.pageAnalysis = {
+                    malware: malware ? malware.textContent : null,
+                    pagespeed: pagespeed ? pagespeed.textContent : null,
+                    sitemapPresent: sitemap ? sitemap.textContent !== 'N/A' : null,
+                };
+            }
+
+            // --- Domain Metrics (Moz) ---
+            const da = document.getElementById('da-value') || document.getElementById('da');
+            const pa = document.getElementById('pa-value') || document.getElementById('pa');
+            if (da && da.textContent && da.textContent !== 'N/A' && da.textContent !== '--') {
+                ctx.domainMetrics = {
+                    domainAuthority: da.textContent,
+                    pageAuthority: pa ? pa.textContent : null,
+                };
+            }
+
+            return ctx;
+        }
+
         function generateStrategyPrompt(inputs, discoveryData) {
             return `
-            You are the Digimetrics Strategy Engine, a high-level SEO consultant. Your task is to generate exactly 3 distinct keyword-led SEO strategies for a client based on their profile and business objectives.
+            You are the Digimetrics Strategy Engine, a high-level SEO consultant. Generate exactly 3 distinct keyword-led SEO strategies for a client.
             
-            CLIENT PROFILE:
-            ${inputs.clientProfile}
-            
-            BUSINESS OBJECTIVES:
-            ${inputs.objectives.length > 0 ? inputs.objectives.join(', ') : 'General Growth'}
-            
-            TARGET AUDIENCE:
-            ${inputs.targetAudience || 'General'}
-            
-            MARKET CONTEXT:
-            ${inputs.marketContext || 'Standard Industry'}
-            
-            SEMANTIC DATA SIGNALS:
-            ${JSON.stringify(discoveryData.slice(0, 15))}
-            
-            TASK:
-            Formulate EXACTLY 3 distinct SEO strategic directions:
+            CLIENT PROFILE: ${inputs.clientProfile}
+            BUSINESS OBJECTIVES: ${inputs.objectives.length > 0 ? inputs.objectives.join(', ') : 'General Growth'}
+            TARGET AUDIENCE: ${inputs.targetAudience || 'General'}
+            MARKET CONTEXT: ${inputs.marketContext || 'Standard Industry'}
+            SEMANTIC DATA SIGNALS: ${JSON.stringify(discoveryData.slice(0, 10))}
+
+            TASK: Formulate EXACTLY 3 distinct SEO strategies:
             1. High-Volume/Competitive (Core Head Terms)
             2. Long-Tail/Niche (Specific Intent)
             3. Authority/Conversion (Bottom of Funnel)
             
             OUTPUT FORMAT (MANDATORY JSON):
-            Return ONLY a JSON object with a "strategies" array. Each strategy object MUST have:
+            Return ONLY a JSON object with a "strategies" array. Each strategy MUST have:
             - "name": Strategic name
             - "focus": 1-sentence strategic core
-            - "target_keywords": Array of 15-25 primary keyword themes
+            - "target_keywords": Array of 10-15 primary keyword themes
             - "content_approach": Brief content strategy
             - "expected_impact": "High", "Medium", or "Very High"
-            - "time_to_rank": Est. months
+            - "time_to_rank": Est. months (number)
             - "recommended": boolean (true for exactly one)
-            - "keyword_data": { 
-                "primary_theme": "Core theme", 
-                "semantic_clusters": [
-                    { "topic": "Topic 1", "keywords": ["kw1", "kw2", "kw3", "kw4", "kw5", "kw6", "kw7", "kw8"], "intent": "Informational" },
-                    { "topic": "Topic 2", "keywords": ["kw9", "kw10", "kw11", "kw12", "kw13", "kw14", "kw15", "kw16"], "intent": "Transactional" },
-                    { "topic": "Topic 3", "keywords": ["kw17", "kw18", "kw19", "kw20", "kw21", "kw22", "kw23", "kw24"], "intent": "Commercial" }
-                ], 
-                "longtail_opportunities": "10 specific high-intent long-tail phrases" 
-              }
+            - "keyword_data": { "primary_theme": "Core theme", "semantic_clusters": [ { "topic": "Topic 1", "keywords": ["kw1","kw2","kw3","kw4","kw5"], "intent": "Informational" }, { "topic": "Topic 2", "keywords": ["kw6","kw7","kw8","kw9","kw10"], "intent": "Transactional" } ], "longtail_opportunities": "5 specific high-intent phrases" }
             
-            Ensure the JSON is compact and valid. No conversational text.
+            Return compact valid JSON only. No prose.
             `;
+        }
+
+        /** Generate the dedicated recommendations + strengths prompt */
+        function generateRecommendationsPrompt(strategy, auditContext) {
+            const hasAudit = auditContext && Object.keys(auditContext).length > 0;
+            const auditBlock = hasAudit ? `
+AUDIT DATA (real metrics from the client's website):
+${JSON.stringify(auditContext)}
+` : '';
+
+            return `
+You are a senior SEO strategist reviewing a client website. Based on the chosen SEO strategy and audit data below, generate a detailed action plan.
+
+CHOSEN STRATEGY:
+- Name: ${strategy.name}
+- Focus: ${strategy.focus}
+- Content Approach: ${strategy.content_approach}
+- Primary Keywords: ${(strategy.target_keywords || []).slice(0, 8).join(', ')}
+${auditBlock}
+OUTPUT (MANDATORY JSON):
+Return ONLY a JSON object with exactly two keys:
+
+1. "strengths": array of 4-8 items representing what the site is already doing well. Each item:
+   { "title": "Short win title", "detail": "1-sentence explanation", "category": "Content|Technical SEO|Performance|Domain & Trust" }
+   ${hasAudit ? 'Base these on PASSING checks and good scores in the audit data.' : 'Generate plausible general strengths.'}
+
+2. "recommendations": array of 5-8 prioritized actions. Each item:
+   { "task": "Action title", "description": "Specific actionable step", "priority": "High|Medium|Low", "effort": "Quick|Medium|Strategic", "impact": "High|Medium|Low", "rationale": "Why this matters for the strategy", "category": "Content|Technical SEO|Performance|Domain & Trust" }
+   ${hasAudit ? 'Base Technical SEO, Performance, and Domain & Trust items on FAILING or WARN checks in the audit. Do NOT flag items that are already passing.' : 'Include at least 1 item per category.'}
+
+Return compact valid JSON only. No prose.
+`;
+        }
+
+        /** Thin wrapper to call the AI backend and extract the text response */
+        async function callAIBackend(prompt, maxTokens = 3000) {
+            const response = await fetch(MONDAY_LAMBDA_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'claude_chat',
+                    messages: [{ role: 'user', content: prompt }],
+                    model: 'claude-haiku-4-5',
+                    max_tokens: maxTokens,
+                    stream: false,
+                    id: 'strat_' + Date.now()
+                })
+            });
+            const result = await response.json();
+            if (result.errorMessage) throw new Error(`Backend Error: ${result.errorMessage}`);
+            if (result.body && typeof result.body === 'string' && result.body.includes('"error"')) {
+                try { const eb = JSON.parse(result.body); if (eb.error) throw new Error(eb.error.message || eb.error); } catch(e) { if (e.message.startsWith('Backend')) throw e; }
+            }
+            let text = '';
+            if (result.response) text = result.response;
+            else if (result.reply) text = result.reply;
+            else if (result.body) {
+                try {
+                    const b = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
+                    text = (b.content && Array.isArray(b.content) && b.content[0].text) ? b.content[0].text
+                        : (b.reply || b.response || b.message || (typeof b === 'string' ? b : ''));
+                } catch(e) { text = typeof result.body === 'string' ? result.body : ''; }
+            } else if (result.message) text = result.message;
+            return text;
+        }
+
+        /** Async: fetch recommendations + strengths then render. Runs after strategies are visible. */
+        async function fetchAndRenderRecommendations(strategy, auditContext) {
+            const area = document.getElementById('actionable-recommendations-area');
+            const loadingEl = document.getElementById('recommendations-loading');
+            if (area) area.style.display = 'block';
+            if (loadingEl) loadingEl.style.display = 'block';
+
+            try {
+                const prompt = generateRecommendationsPrompt(strategy, auditContext);
+                const rawText = await callAIBackend(prompt, 3500);
+                console.log('Recommendations call raw:', rawText.substring(0, 120));
+
+                // Parse JSON
+                let parsed = null;
+                let clean = rawText.trim();
+                if (clean.includes('```')) {
+                    const m = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+                    if (m) clean = m[1];
+                    else clean = clean.replace(/```(?:json)?/g, '').replace(/```/g, '');
+                }
+                const fb = clean.indexOf('{'), lb = clean.lastIndexOf('}');
+                if (fb !== -1 && lb > fb) clean = clean.substring(fb, lb + 1);
+                clean = clean.replace(/\n/g, ' ').replace(/\r/g, ' ');
+                try { parsed = JSON.parse(clean); } catch(e) {
+                    // try repair: attempt truncated closures
+                    let temp = clean.trim();
+                    for (let i = 0; i < 30; i++) {
+                        try { parsed = JSON.parse(temp); break; } catch(e2) {
+                            const msg = e2.message.toLowerCase();
+                            if (msg.includes('unexpected end') || msg.includes('unterminated')) {
+                                temp = temp + (temp.trimEnd().endsWith(',') ? '' : '') + ']}}';
+                            } else break;
+                        }
+                    }
+                }
+
+                if (parsed) {
+                    renderStrengths(parsed.strengths || []);
+                    renderActionableRecommendations(null, parsed.recommendations || []);
+                } else {
+                    console.warn('Recommendations: could not parse JSON, hiding section.');
+                    if (area) area.style.display = 'none';
+                }
+            } catch(err) {
+                console.error('fetchAndRenderRecommendations error:', err);
+                if (area) area.style.display = 'none';
+            } finally {
+                if (loadingEl) loadingEl.style.display = 'none';
+            }
         }
 
         function parseAIStrategyResponse(response) {
@@ -40115,7 +40336,11 @@ Return ONLY valid JSON in this exact format:
                 return [];
             }
 
-            console.log("Strategy Engine: Processing AI response...");
+            console.log("Strategy Engine: Processing AI response (Length: " + response.length + ")...");
+            
+            // Log a snippet for debugging
+            console.log("Response snippet:", response.substring(0, 100) + "..." + response.substring(response.length - 100));
+
 
             let cleanResponse = response.trim();
 
@@ -40146,20 +40371,29 @@ Return ONLY valid JSON in this exact format:
                 // 4. Handle Truncated JSON (AI cutoff)
                 let attempts = 0;
                 let parsed = null;
-                let tempJson = jsonStr;
+                let tempJson = jsonStr.trim();
 
-                while (attempts < 20) {
+                while (attempts < 50) {
                     try {
                         parsed = JSON.parse(tempJson);
                         break;
                     } catch (e) {
                         const msg = e.message.toLowerCase();
+                        
+                        // Clean up trailing commas if that's the issue
+                        if (msg.includes('property name') || msg.includes('unexpected token') || msg.includes('expected double-quoted')) {
+                             tempJson = tempJson.trim();
+                             if (tempJson.endsWith(',')) {
+                                 tempJson = tempJson.slice(0, -1);
+                                 continue;
+                             }
+                        }
+
                         if (msg.includes('unexpected end') || msg.includes('unterminated') || msg.includes('expected')) {
                             // 1. Check if we're inside a string
                             const lastQuote = tempJson.lastIndexOf('"');
                             let isInsideString = false;
                             if (lastQuote !== -1) {
-                                // Count non-escaped quotes
                                 let quoteCount = 0;
                                 for (let i = 0; i < tempJson.length; i++) {
                                     if (tempJson[i] === '"' && (i === 0 || tempJson[i-1] !== '\\')) {
@@ -40179,18 +40413,40 @@ Return ONLY valid JSON in this exact format:
                                 const openBrackets = (tempJson.match(/\[/g) || []).length;
                                 const closeBrackets = (tempJson.match(/\]/g) || []).length;
 
-                                if (openBrackets > closeBrackets) tempJson += ']';
-                                else if (openBraces > closeBraces) tempJson += '}';
-                                else break; 
+                                // Always try to close brackets first (arrays)
+                                if (openBrackets > closeBrackets) {
+                                    tempJson += ']';
+                                } else if (openBraces > closeBraces) {
+                                    tempJson += '}';
+                                } else {
+                                    // If everything is balanced but still failing, try removing the last character
+                                    tempJson = tempJson.trim().slice(0, -1).trim();
+                                }
                             }
                             attempts++;
                         } else {
-                            throw e;
+                            // Non-truncation error, try slicing from the end
+                            tempJson = tempJson.trim().slice(0, -1).trim();
+                            attempts++;
                         }
                     }
                 }
 
-                if (!parsed) throw new Error("Could not repair truncated JSON after multiple attempts");
+                if (!parsed) {
+                    console.warn("Strategy Engine: standard repair failed, attempting regex extraction...");
+                    // Regex Fallback: Try to extract as many strategies as possible
+                    const strategies = [];
+                    const strategyMatches = jsonStr.match(/\{"name":\s*"[^"]+",[^}]+\}/g);
+                    if (strategyMatches) {
+                        strategyMatches.forEach(m => {
+                            try {
+                                strategies.push(JSON.parse(m));
+                            } catch (e) {}
+                        });
+                    }
+                    if (strategies.length > 0) return strategies;
+                    throw new Error("Could not repair truncated JSON after multiple attempts");
+                }
 
                 const strategies = parsed.strategies || (Array.isArray(parsed) ? parsed : null);
                 if (!strategies || (Array.isArray(strategies) && strategies.length === 0)) {
@@ -40450,12 +40706,218 @@ Return ONLY valid JSON in this exact format:
             `;
         }
 
+        // Accepts either (strategy, null) for legacy path, or (null, recommendationsArray) for new split-call path
+        function renderActionableRecommendations(strategy, preloadedRecs) {
+            console.log("Strategy Engine: Rendering recommendations");
+            const area = document.getElementById('actionable-recommendations-area');
+            const container = document.getElementById('actionable-recommendations-container');
+
+            // --- Resolve source of recommendations ---
+            let recommendations = preloadedRecs || null;
+
+            if (!recommendations && strategy) {
+                recommendations = strategy.actionable_recommendations;
+            }
+
+            if (!recommendations) {
+                console.warn("Strategy Engine: No recommendations to render");
+                if (area) area.style.display = 'none';
+                return;
+            }
+
+            if (typeof recommendations === 'string') {
+                try {
+                    const parsed = JSON.parse(recommendations);
+                    if (Array.isArray(parsed)) recommendations = parsed;
+                    else recommendations = [{ task: "Recommendation", description: recommendations, priority: "Medium", effort: "Medium", impact: "Medium", rationale: "Extracted from text", category: "Content" }];
+                } catch (e) {
+                    recommendations = [{ task: "Recommendation", description: recommendations, priority: "Medium", effort: "Medium", impact: "Medium", rationale: "Extracted from text", category: "Content" }];
+                }
+            }
+
+            if (!Array.isArray(recommendations) || recommendations.length === 0) {
+                console.warn("Strategy Engine: recommendations is empty or not an array", recommendations);
+                if (area) area.style.display = 'none';
+                return;
+            }
+
+            if (area) area.style.display = 'block';
+            if (container) container.innerHTML = '';
+            else return;
+
+            // Category configuration
+            const CATEGORIES = [
+                { key: 'Content',          label: 'Content Strategy',      icon: 'fa-file-alt',       color: '#6366f1', bg: '#eef2ff' },
+                { key: 'Technical SEO',    label: 'Technical SEO',         icon: 'fa-code',           color: '#0ea5e9', bg: '#e0f2fe' },
+                { key: 'Performance',      label: 'Performance',           icon: 'fa-tachometer-alt', color: '#f59e0b', bg: '#fef3c7' },
+                { key: 'Domain & Trust',   label: 'Domain & Trust',        icon: 'fa-shield-alt',     color: '#10b981', bg: '#d1fae5' },
+            ];
+
+            const priorityMap = { 'High': 1, 'Medium': 2, 'Low': 3 };
+
+            // Group recommendations by category
+            const grouped = {};
+            CATEGORIES.forEach(cat => { grouped[cat.key] = []; });
+
+            recommendations.forEach(rec => {
+                if (!rec) return;
+                // Fuzzy match category
+                const rawCat = (rec.category || 'Content').trim();
+                const matched = CATEGORIES.find(c => rawCat.toLowerCase().includes(c.key.toLowerCase()));
+                const catKey = matched ? matched.key : 'Content';
+                grouped[catKey].push(rec);
+            });
+
+            // Check if any non-Content categories have items (to decide layout)
+            const hasMultipleCategories = CATEGORIES.some(c => c.key !== 'Content' && grouped[c.key].length > 0);
+
+            // Render section header update
+            const headerEl = area.querySelector('h3');
+            if (headerEl) {
+                headerEl.innerHTML = `<i class="fas fa-tasks" style="color: #6366f1;"></i> Prioritized Actionable Recommendations <span style="font-size: 0.7rem; font-weight: 500; color: #64748b; margin-left: 8px;">${recommendations.length} actions across ${CATEGORIES.filter(c => grouped[c.key].length > 0).length} areas</span>`;
+            }
+
+            CATEGORIES.forEach(cat => {
+                const recs = grouped[cat.key];
+                if (recs.length === 0) return;
+
+                const catConfig = CATEGORIES.find(c => c.key === cat.key);
+
+                // Category header
+                const catHeader = document.createElement('div');
+                catHeader.style.cssText = `
+                    display: flex; align-items: center; gap: 10px;
+                    margin: 24px 0 12px 0;
+                    padding-bottom: 8px;
+                    border-bottom: 2px solid ${catConfig.bg};
+                `;
+                catHeader.innerHTML = `
+                    <div style="width: 32px; height: 32px; border-radius: 8px; background: ${catConfig.bg}; color: ${catConfig.color}; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
+                        <i class="fas ${catConfig.icon}"></i>
+                    </div>
+                    <span style="font-size: 0.85rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em;">${catConfig.label}</span>
+                    <span style="font-size: 0.7rem; color: ${catConfig.color}; font-weight: 600; background: ${catConfig.bg}; padding: 2px 8px; border-radius: 12px;">${recs.length} action${recs.length > 1 ? 's' : ''}</span>
+                `;
+                container.appendChild(catHeader);
+
+                // Sort within category
+                const sortedRecs = [...recs].sort((a, b) => (priorityMap[a.priority] || 99) - (priorityMap[b.priority] || 99));
+
+                sortedRecs.forEach((rec, idx) => {
+                    const priority = rec.priority || 'Medium';
+                    const impact = rec.impact || 'Medium';
+                    const effort = rec.effort || 'Medium';
+                    const task = rec.task || 'Recommendation ' + (idx + 1);
+                    const description = rec.description || '';
+                    const rationale = rec.rationale || 'Part of strategic roadmap';
+
+                    const priorityStyles = {
+                        'High':   { bg: '#fee2e2', text: '#991b1b', icon: 'fa-exclamation-circle' },
+                        'Medium': { bg: '#fef9c3', text: '#854d0e', icon: 'fa-info-circle' },
+                        'Low':    { bg: '#f0fdf4', text: '#166534', icon: 'fa-check-circle' }
+                    };
+                    const impactColors = { 'High': '#ef4444', 'Medium': '#f59e0b', 'Low': '#10b981' };
+                    const style = priorityStyles[priority] || priorityStyles['Medium'];
+                    const impColor = impactColors[impact] || '#f59e0b';
+                    const stripeColor = priority === 'High' ? '#ef4444' : (priority === 'Medium' ? '#f59e0b' : '#10b981');
+
+                    const card = document.createElement('div');
+                    card.className = 'recommendation-card';
+                    card.style.cssText = `
+                        background: white;
+                        border: 1px solid #e2e8f0;
+                        border-radius: 12px;
+                        padding: 18px 18px 18px 22px;
+                        display: flex;
+                        gap: 16px;
+                        transition: transform 0.2s, box-shadow 0.2s;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+                        position: relative;
+                        overflow: hidden;
+                        margin-bottom: 10px;
+                    `;
+                    card.innerHTML = `
+                        <div style="position: absolute; left: 0; top: 0; width: 4px; height: 100%; background: ${stripeColor};"></div>
+                        <div style="flex-shrink: 0; width: 38px; height: 38px; border-radius: 9px; background: ${style.bg}; color: ${style.text}; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">
+                            <i class="fas ${style.icon}"></i>
+                        </div>
+                        <div style="flex-grow: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+                                <h4 style="margin: 0; font-size: 0.95rem; font-weight: 800; color: #1e293b;">${task}</h4>
+                                <div style="display: flex; gap: 6px; flex-shrink: 0;">
+                                    <span style="font-size: 0.6rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: ${style.bg}; color: ${style.text}; text-transform: uppercase; white-space: nowrap;">${priority}</span>
+                                    <span style="font-size: 0.6rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: #f1f5f9; color: #475569; text-transform: uppercase; white-space: nowrap;">Effort: ${effort}</span>
+                                </div>
+                            </div>
+                            <p style="margin: 0 0 10px 0; font-size: 0.83rem; color: #475569; line-height: 1.55;">${description}</p>
+                            <div style="display: flex; align-items: center; gap: 14px; font-size: 0.72rem; border-top: 1px solid #f1f5f9; padding-top: 8px; flex-wrap: wrap;">
+                                <span style="color: #64748b; font-weight: 600;"><i class="fas fa-chart-line" style="color: ${impColor}; margin-right: 3px;"></i>Impact: <span style="color: ${impColor};">${impact}</span></span>
+                                <span style="color: #64748b; font-style: italic;"><strong style="font-style: normal;">Rationale:</strong> ${rationale}</span>
+                            </div>
+                        </div>
+                    `;
+                    card.onmouseenter = () => { card.style.transform = 'translateY(-2px)'; card.style.boxShadow = '0 8px 20px -3px rgba(0,0,0,0.1)'; };
+                    card.onmouseleave = () => { card.style.transform = 'translateY(0)'; card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.07)'; };
+                    container.appendChild(card);
+                });
+            });
+        }
+
+        function renderStrengths(strengths) {
+            const panel = document.getElementById('strengths-panel');
+            const grid = document.getElementById('strengths-grid');
+            const subtitle = document.getElementById('strengths-subtitle');
+            if (!panel || !grid) return;
+
+            if (!strengths || strengths.length === 0) {
+                panel.style.display = 'none';
+                return;
+            }
+
+            const CATEGORY_ICONS = {
+                'Content':       { icon: 'fa-file-alt',       color: '#6366f1' },
+                'Technical SEO': { icon: 'fa-code',           color: '#0ea5e9' },
+                'Performance':   { icon: 'fa-tachometer-alt', color: '#f59e0b' },
+                'Domain & Trust':{ icon: 'fa-shield-alt',     color: '#10b981' },
+            };
+
+            grid.innerHTML = '';
+            strengths.forEach(s => {
+                if (!s || !s.title) return;
+                const catKey = Object.keys(CATEGORY_ICONS).find(k => (s.category || '').toLowerCase().includes(k.toLowerCase())) || 'Content';
+                const ic = CATEGORY_ICONS[catKey];
+                const chip = document.createElement('div');
+                chip.style.cssText = `
+                    display: flex; align-items: flex-start; gap: 8px;
+                    background: white; border: 1px solid #a7f3d0;
+                    border-radius: 10px; padding: 10px 12px;
+                    transition: box-shadow 0.2s;
+                `;
+                chip.innerHTML = `
+                    <div style="flex-shrink:0; width:26px; height:26px; border-radius:6px; background:#d1fae5; color:${ic.color}; display:flex; align-items:center; justify-content:center; font-size:0.75rem;">
+                        <i class="fas ${ic.icon}"></i>
+                    </div>
+                    <div>
+                        <div style="font-size:0.8rem; font-weight:700; color:#065f46; margin-bottom:2px;">${s.title}</div>
+                        <div style="font-size:0.72rem; color:#047857; line-height:1.45;">${s.detail || ''}</div>
+                    </div>
+                `;
+                chip.onmouseenter = () => chip.style.boxShadow = '0 4px 12px rgba(16,185,129,0.15)';
+                chip.onmouseleave = () => chip.style.boxShadow = 'none';
+                grid.appendChild(chip);
+            });
+
+            if (subtitle) subtitle.textContent = `${strengths.length} area${strengths.length > 1 ? 's' : ''} performing well`;
+            panel.style.display = 'block';
+        }
+
         const getBaseDomain = (url) => {
             if (!url) return '';
             // If it doesn't look like a URL (no dots), return as is
             if (!url.includes('.') && !url.includes('/')) return url.toLowerCase();
             return url.replace(/https?:\/\//, '').split('/')[0].replace(/^www\./, '').toLowerCase();
         };
+
 
         async function enrichStrategyKeywords(strategies, targetUrlInput, locationInput, languageInput) {
             console.log("Enriching strategy keywords with real metrics...");
