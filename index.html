@@ -10775,8 +10775,7 @@
     <!-- ======================= -->
 
     <div id="seoSection">
-        <button class="collapsible" id="seo"><i class="fas fa-plus-square"></i><i class="fab fa-google"></i>Search
-            Engine Optimisation (SEO)</button>
+        <button class="collapsible" id="seo"><i class="fas fa-plus-square"></i>Search Engine Optimisation (SEO)</button>
         <div class="content">
 
             <!-- Modal for Previous Time To Rank Queries -->
@@ -11084,7 +11083,7 @@
             <!-- Digimetrics Strategy Engine (Moved to Full Width) -->
             <div id="strategyEngineSection">
                 <button class="strat-collapsible" id="strategyEngineBtn" onclick="toggleStrategyEngine(event)">
-                    <i class="fas fa-plus-square"></i> <i class="fas fa-brain"></i> Digimetrics Strategy Engine
+                    <i class="fas fa-plus-square"></i> Digimetrics Strategy Engine
                 </button>
                 <div class="content" id="strategy-engine-content"
                     style="display:none; padding: 20px; background: rgba(255,255,255,0.3); border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px; margin-bottom: 20px;">
@@ -11304,7 +11303,6 @@
                 <button class="strat-collapsible" id="pricingQuoteBtn" onclick="togglePricingQuote(event)"
                     style="background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);">
                     <i class="fas fa-plus-square"></i>
-                    <i class="fas fa-file-invoice-dollar"></i>
                     SEO Pricing Quote Generator
                 </button>
                 <div class="content" id="pricing-quote-content"
@@ -12200,8 +12198,7 @@
     </div>
 
     <div id="smmSection">
-        <button class="collapsible" id="smm"><i class="fas fa-plus-square"></i><i class="fas fa-share-alt"></i>Social
-            Media (SMM)</button>
+        <button class="collapsible" id="smm"><i class="fas fa-plus-square"></i>Social Media (SMM)</button>
         <div class="content" id="socialMedia" style="display: none;">
             <!-- Social Media Strategy Section -->
             <section id="socialMediaStrategy">
@@ -32145,14 +32142,24 @@ ${selectedText}
             })
                 .then(data => {
                     console.log(data);
-                    document.getElementById('targetTitle').innerText = data.body.title;
-                    document.getElementById('targetDescription').innerText = data.body.description;
+                    const setOrNone = (id, val, style) => {
+                        const el = document.getElementById(id);
+                        if (!el) return;
+                        if (val === null || val === undefined || String(val).trim() === '') {
+                            el.innerHTML = '<span style="color:#94a3b8;font-style:italic;font-weight:400;">None</span>';
+                        } else {
+                            el.innerText = val;
+                            if (style) Object.assign(el.style, style);
+                        }
+                    };
+                    setOrNone('targetTitle', data.body.title);
+                    setOrNone('targetDescription', data.body.description);
                     document.getElementById('targetBacklinks').innerText = data.body.backlinks;
                     document.getElementById('targetSpamScore').innerText = data.body.backlinks_spam_score;
                     document.getElementById('targetRefDomains').innerText = data.body.referring_domains;
                     document.getElementById('targetInternalLinks').innerText = data.body.internal_links_count;
                     document.getElementById('targetExternalLinks').innerText = data.body.external_links_count;
-                    document.getElementById('targetH1').innerText = data.body.h1;
+                    setOrNone('targetH1', data.body.h1);
                     document.getElementById('targetImages').innerText = data.body.image;
                     document.getElementById('targetCls').innerText = data.body.cls;
                     document.getElementById('targetLcp').innerText = data.body.lcp;
@@ -41996,52 +42003,121 @@ Return compact valid JSON only. No prose.
                 const exportData = window._strategyExportData || { strengths: [], recommendations: [] };
                 const recs       = exportData.recommendations || [];
                 const strengths  = exportData.strengths || [];
+                const strategies = (typeof currentStrategies !== 'undefined' && currentStrategies.length) ? currentStrategies : [];
                 const clientDesc = (document.getElementById('strat-client-profile')?.value || '').trim();
                 const dateStr    = new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
 
+                const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+                // ── Collect keyword metrics from the live DOM tables ──
+                const kwMetrics = [];
+                const seenKws = new Set();
+                document.querySelectorAll('.strategy-kw-row').forEach(row => {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length < 4) return;
+                    const kw = cells[0].textContent.trim();
+                    if (!kw || seenKws.has(kw.toLowerCase())) return;
+                    seenKws.add(kw.toLowerCase());
+                    const getVal = el => el.querySelector('i') ? '…' : (el.textContent.trim() || '—');
+                    kwMetrics.push({ kw, vol: getVal(cells[1]), kd: getVal(cells[2]), rank: getVal(cells[3]) });
+                });
+
+                // ── Priority counts ──
                 const highC = recs.filter(r => r.priority === 'High').length;
                 const medC  = recs.filter(r => r.priority === 'Medium').length;
                 const lowC  = recs.filter(r => r.priority === 'Low').length;
 
                 const CATS = [
-                    { key:'Content',        label:'Content Strategy', accent:'#6366f1', bg:'#eef2ff', light:'#c7d2fe' },
-                    { key:'Technical SEO',  label:'Technical SEO',    accent:'#0ea5e9', bg:'#e0f2fe', light:'#bae6fd' },
-                    { key:'Performance',    label:'Performance',      accent:'#f59e0b', bg:'#fef3c7', light:'#fde68a' },
-                    { key:'Domain & Trust', label:'Domain & Trust',   accent:'#10b981', bg:'#d1fae5', light:'#a7f3d0' },
+                    { key:'Content',        label:'Content Strategy', accent:'#6366f1', bg:'#eef2ff' },
+                    { key:'Technical SEO',  label:'Technical SEO',    accent:'#0ea5e9', bg:'#e0f2fe' },
+                    { key:'Performance',    label:'Performance',      accent:'#f59e0b', bg:'#fef3c7' },
+                    { key:'Domain & Trust', label:'Domain & Trust',   accent:'#10b981', bg:'#d1fae5' },
                 ];
                 const PRIO = {
-                    High:   { bg:'#fef2f2', stripe:'#ef4444', badge:'#ef4444', text:'#991b1b', badgeTxt:'white' },
-                    Medium: { bg:'#fffbeb', stripe:'#f59e0b', badge:'#f59e0b', text:'#92400e', badgeTxt:'white' },
-                    Low:    { bg:'#f0fdf4', stripe:'#10b981', badge:'#10b981', text:'#065f46', badgeTxt:'white' },
+                    High:   { stripe:'#ef4444', badge:'#ef4444', badgeTxt:'white' },
+                    Medium: { stripe:'#f59e0b', badge:'#f59e0b', badgeTxt:'white' },
+                    Low:    { stripe:'#10b981', badge:'#10b981', badgeTxt:'white' },
                 };
                 const PRIO_ORDER = { High:1, Medium:2, Low:3 };
                 const IMP_CLR  = { High:'#ef4444', Medium:'#f59e0b', Low:'#10b981' };
                 const EFF_CLR  = { High:'#f43f5e', Medium:'#8b5cf6', Low:'#3b82f6' };
 
-                // ── Build full-width HTML for html2canvas ──────────────────
-                const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                // ── Strategy overview section ──
+                let strategyHTML = '';
+                if (strategies.length > 0) {
+                    const recommended = strategies.find(s => s.recommended) || strategies[0];
+                    const formatList = val => {
+                        if (!val) return '';
+                        const items = Array.isArray(val) ? val : String(val).split(/,\s*|\n|;\s*/);
+                        return items.filter(Boolean).map(i => `<li style="margin-bottom:4px;color:#334155;font-size:11.5px;line-height:1.5;">${esc(i.trim())}</li>`).join('');
+                    };
+                    strategyHTML = `
+                        <div style="padding:28px 48px 24px;background:#f0f9ff;border-top:4px solid #0ea5e9;">
+                            <div style="font-size:10px;font-weight:800;color:#0ea5e9;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Recommended Strategy</div>
+                            <div style="font-size:18px;font-weight:800;color:#0f172a;margin-bottom:${recommended.focus?'4':'16'}px;">${esc(recommended.name||'Strategy Overview')}</div>
+                            ${recommended.focus ? `<div style="font-size:11.5px;color:#334155;margin-bottom:16px;font-style:italic;">${esc(recommended.focus)}</div>` : ''}
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                                ${recommended.content_approach ? `<div style="background:white;border-radius:10px;padding:14px 16px;border:1px solid #bae6fd;"><div style="font-size:9px;font-weight:700;color:#0ea5e9;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:8px;">Content Approach</div><ul style="margin:0;padding-left:14px;">${formatList(recommended.content_approach)}</ul></div>` : ''}
+                                ${recommended.expected_impact ? `<div style="background:white;border-radius:10px;padding:14px 16px;border:1px solid #bae6fd;"><div style="font-size:9px;font-weight:700;color:#0ea5e9;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:8px;">Expected Impact</div><ul style="margin:0;padding-left:14px;">${formatList(recommended.expected_impact)}</ul></div>` : ''}
+                            </div>
+                            ${recommended.time_to_rank ? `<div style="margin-top:12px;font-size:11px;color:#64748b;">Est. time to rank: <strong style="color:#0ea5e9;">${esc(String(recommended.time_to_rank))}</strong></div>` : ''}
+                        </div>`;
+                }
 
-                // Strengths HTML
+                // ── Keyword metrics table ──
+                let kwTableHTML = '';
+                if (kwMetrics.length > 0) {
+                    const kwRows = kwMetrics.map((m, i) => {
+                        const volColor = (m.vol==='—'||m.vol==='…') ? '#94a3b8' : '#10b981';
+                        const kdColor  = (m.kd==='—'||m.kd==='…')  ? '#94a3b8' : '#f59e0b';
+                        return `<tr style="background:${i%2===0?'white':'#f8fafc'};border-bottom:1px solid #f1f5f9;">
+                            <td style="padding:8px 12px;font-size:11.5px;font-weight:600;color:#334155;">${esc(m.kw)}</td>
+                            <td style="padding:8px 8px;text-align:center;font-size:11.5px;font-weight:700;color:${volColor};">${esc(m.vol)}</td>
+                            <td style="padding:8px 8px;text-align:center;font-size:11.5px;font-weight:700;color:${kdColor};">${esc(m.kd)}</td>
+                            <td style="padding:8px 8px;text-align:center;font-size:11.5px;font-weight:700;color:#6366f1;">${esc(m.rank)}</td>
+                        </tr>`;
+                    }).join('');
+                    kwTableHTML = `
+                        <div style="padding:28px 48px 24px;">
+                            <div style="font-size:10px;font-weight:800;color:#6366f1;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Target Keywords</div>
+                            <div style="font-size:18px;font-weight:800;color:#0f172a;margin-bottom:16px;">Keyword Metrics</div>
+                            <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                                <table style="width:100%;border-collapse:collapse;">
+                                    <thead><tr style="background:#0f172a;">
+                                        <th style="padding:10px 12px;text-align:left;font-size:9px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:0.08em;width:55%;">Keyword</th>
+                                        <th style="padding:10px 8px;text-align:center;font-size:9px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:0.08em;width:15%;">Volume</th>
+                                        <th style="padding:10px 8px;text-align:center;font-size:9px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:0.08em;width:15%;">KD</th>
+                                        <th style="padding:10px 8px;text-align:center;font-size:9px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:0.08em;width:15%;">Rank</th>
+                                    </tr></thead>
+                                    <tbody>${kwRows}</tbody>
+                                </table>
+                            </div>
+                        </div>`;
+                }
+
+                // ── Strengths HTML ──
                 let strengthsHTML = '';
                 if (strengths.length > 0) {
                     const chips = strengths.filter(s=>s?.title).map(s => `
-                        <div style="background:white;border:1px solid #a7f3d0;border-radius:10px;padding:14px 16px;display:flex;align-items:flex-start;gap:10px;">
-                            <div style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:#d1fae5;color:#059669;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;">✓</div>
+                        <div style="background:white;border:1px solid #a7f3d0;border-radius:10px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;">
+                            <div style="flex-shrink:0;width:24px;height:24px;border-radius:6px;background:#d1fae5;color:#059669;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;">✓</div>
                             <div>
-                                <div style="font-size:13px;font-weight:800;color:#065f46;margin-bottom:3px;">${esc(s.title)}</div>
-                                <div style="font-size:11px;color:#047857;line-height:1.5;">${esc(s.detail||'')}</div>
+                                <div style="font-size:12px;font-weight:800;color:#065f46;margin-bottom:2px;">${esc(s.title)}</div>
+                                <div style="font-size:10.5px;color:#047857;line-height:1.5;">${esc(s.detail||'')}</div>
                             </div>
                         </div>`).join('');
                     strengthsHTML = `
-                        <div style="background:#f0fdf4;border-top:4px solid #10b981;padding:32px 48px 28px;">
-                            <div style="font-size:11px;font-weight:800;color:#059669;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Strengths</div>
-                            <div style="font-size:20px;font-weight:800;color:#065f46;margin-bottom:20px;">What You're Doing Well</div>
+                        <div style="padding:28px 48px 24px;background:#f0fdf4;border-top:4px solid #10b981;">
+                            <div style="font-size:10px;font-weight:800;color:#059669;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Strengths</div>
+                            <div style="font-size:18px;font-weight:800;color:#065f46;margin-bottom:16px;">What You're Doing Well</div>
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">${chips}</div>
                         </div>`;
                 }
 
-                // Recommendations HTML
+                // ── Recommendations HTML — each card tagged data-pdf-card for smart breaks ──
                 let recsHTML = '';
+                let recCount = 0;
+                const focusAreaCount = CATS.filter(c => recs.some(r => (r.category||'Content').toLowerCase().includes(c.key.toLowerCase()))).length;
                 CATS.forEach(cat => {
                     const catRecs = recs
                         .filter(r => (r.category||'Content').toLowerCase().includes(cat.key.toLowerCase()))
@@ -42052,108 +42128,111 @@ Return compact valid JSON only. No prose.
                         const p  = PRIO[rec.priority] || PRIO.Medium;
                         const ic = IMP_CLR[rec.impact]  || '#f59e0b';
                         const ec = EFF_CLR[rec.effort]  || '#8b5cf6';
+                        recCount++;
                         return `
-                            <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;margin-bottom:12px;display:flex;">
-                                <div style="width:6px;flex-shrink:0;background:${p.stripe};"></div>
-                                <div style="flex:1;padding:18px 20px;">
-                                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;">
-                                        <div style="font-size:14px;font-weight:800;color:#0f172a;line-height:1.35;">${esc(rec.task||'Recommendation '+(idx+1))}</div>
-                                        <div style="display:flex;gap:6px;flex-shrink:0;align-items:center;">
-                                            <span style="font-size:10px;font-weight:800;padding:4px 10px;border-radius:20px;background:${p.badge};color:${p.badgeTxt};text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">${esc(rec.priority||'Medium')}</span>
-                                            <span style="font-size:10px;font-weight:600;padding:4px 10px;border-radius:20px;background:#f1f5f9;color:#64748b;white-space:nowrap;">#${idx+1}</span>
+                            <div data-pdf-card style="background:white;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;margin-bottom:10px;display:flex;">
+                                <div style="width:5px;flex-shrink:0;background:${p.stripe};"></div>
+                                <div style="flex:1;padding:16px 18px;">
+                                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px;">
+                                        <div style="font-size:13px;font-weight:800;color:#0f172a;line-height:1.35;">${esc(rec.task||'Recommendation '+(idx+1))}</div>
+                                        <div style="display:flex;gap:5px;flex-shrink:0;align-items:center;">
+                                            <span style="font-size:9px;font-weight:800;padding:3px 9px;border-radius:20px;background:${p.badge};color:${p.badgeTxt};text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">${esc(rec.priority||'Medium')}</span>
+                                            <span style="font-size:9px;font-weight:600;padding:3px 9px;border-radius:20px;background:#f1f5f9;color:#64748b;white-space:nowrap;">#${recCount}</span>
                                         </div>
                                     </div>
-                                    <p style="margin:0 0 14px 0;font-size:12.5px;color:#334155;line-height:1.65;">${esc(rec.description||'')}</p>
-                                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;border-top:1px solid #f1f5f9;">
-                                        <span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;background:${ic}18;color:${ic};border:1px solid ${ic}30;">Impact: ${esc(rec.impact||'Medium')}</span>
-                                        <span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;background:${ec}18;color:${ec};border:1px solid ${ec}30;">Effort: ${esc(rec.effort||'Medium')}</span>
-                                        ${rec.rationale ? `<span style="flex:1;min-width:200px;font-size:11px;color:#64748b;padding:4px 10px;border-radius:8px;background:#f8fafc;border:1px solid #e2e8f0;"><strong style="color:#475569;">Rationale:</strong> ${esc(rec.rationale)}</span>` : ''}
+                                    <p style="margin:0 0 12px 0;font-size:11.5px;color:#334155;line-height:1.6;">${esc(rec.description||'')}</p>
+                                    <div style="display:flex;gap:7px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #f1f5f9;">
+                                        <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:7px;background:${ic}18;color:${ic};border:1px solid ${ic}30;">Impact: ${esc(rec.impact||'Medium')}</span>
+                                        <span style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:7px;background:${ec}18;color:${ec};border:1px solid ${ec}30;">Effort: ${esc(rec.effort||'Medium')}</span>
+                                        ${rec.rationale ? `<span style="flex:1;min-width:180px;font-size:10px;color:#64748b;padding:3px 9px;border-radius:7px;background:#f8fafc;border:1px solid #e2e8f0;"><strong style="color:#475569;">Rationale:</strong> ${esc(rec.rationale)}</span>` : ''}
                                     </div>
                                 </div>
                             </div>`;
                     }).join('');
 
                     recsHTML += `
-                        <div style="margin-bottom:8px;">
-                            <div style="display:flex;align-items:center;gap:12px;padding:14px 20px;background:${cat.bg};border-radius:12px;border-left:5px solid ${cat.accent};margin-bottom:14px;">
+                        <div style="margin-bottom:6px;">
+                            <div style="display:flex;align-items:center;gap:10px;padding:12px 18px;background:${cat.bg};border-radius:10px;border-left:5px solid ${cat.accent};margin-bottom:10px;">
                                 <div style="flex:1;">
-                                    <div style="font-size:15px;font-weight:800;color:#0f172a;">${esc(cat.label)}</div>
-                                    <div style="font-size:11px;color:${cat.accent};font-weight:600;margin-top:2px;">${catRecs.length} action${catRecs.length>1?'s':''} identified</div>
+                                    <div style="font-size:14px;font-weight:800;color:#0f172a;">${esc(cat.label)}</div>
+                                    <div style="font-size:10px;color:${cat.accent};font-weight:600;margin-top:2px;">${catRecs.length} action${catRecs.length>1?'s':''} identified</div>
                                 </div>
-                                <div style="font-size:28px;font-weight:900;color:${cat.accent};opacity:0.2;">${catRecs.length}</div>
+                                <div style="font-size:24px;font-weight:900;color:${cat.accent};opacity:0.2;">${catRecs.length}</div>
                             </div>
                             ${cards}
                         </div>`;
                 });
 
-                // Stats row
+                // ── Stats row ──
                 const stats = [
-                    { val: recs.length, label:'Total Actions',   bg:'#eef2ff', accent:'#6366f1' },
-                    { val: highC,       label:'High Priority',   bg:'#fef2f2', accent:'#ef4444' },
-                    { val: medC,        label:'Medium Priority', bg:'#fffbeb', accent:'#f59e0b' },
-                    { val: lowC,        label:'Low Priority',    bg:'#f0fdf4', accent:'#10b981' },
-                    { val: strengths.length, label:'Strengths',  bg:'#ecfdf5', accent:'#059669' },
+                    { val: recs.length,      label:'Total Actions',   bg:'#eef2ff', accent:'#6366f1' },
+                    { val: highC,            label:'High Priority',   bg:'#fef2f2', accent:'#ef4444' },
+                    { val: medC,             label:'Medium Priority', bg:'#fffbeb', accent:'#f59e0b' },
+                    { val: lowC,             label:'Low Priority',    bg:'#f0fdf4', accent:'#10b981' },
+                    { val: strengths.length, label:'Strengths',       bg:'#ecfdf5', accent:'#059669' },
                 ].map(s => `
-                    <div style="flex:1;background:${s.bg};border-radius:12px;padding:16px 12px;text-align:center;border-top:3px solid ${s.accent};">
-                        <div style="font-size:28px;font-weight:900;color:${s.accent};line-height:1;">${s.val}</div>
-                        <div style="font-size:10px;font-weight:700;color:#64748b;margin-top:4px;text-transform:uppercase;letter-spacing:0.05em;">${s.label}</div>
+                    <div style="flex:1;background:${s.bg};border-radius:10px;padding:14px 10px;text-align:center;border-top:3px solid ${s.accent};">
+                        <div style="font-size:26px;font-weight:900;color:${s.accent};line-height:1;">${s.val}</div>
+                        <div style="font-size:9px;font-weight:700;color:#64748b;margin-top:3px;text-transform:uppercase;letter-spacing:0.05em;">${s.label}</div>
                     </div>`).join('');
 
+                // ── Full content HTML (header/footer drawn per-page via Canvas API) ──
                 const fullHTML = `
                     <div style="font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;background:white;">
-
-                        <!-- Cover header -->
-                        <div style="background:#0f172a;padding:56px 48px 44px;position:relative;overflow:hidden;">
-                            <div style="position:absolute;top:-40px;right:-40px;width:220px;height:220px;border-radius:50%;background:rgba(99,102,241,0.12);"></div>
-                            <div style="position:absolute;bottom:-60px;right:80px;width:160px;height:160px;border-radius:50%;background:rgba(99,102,241,0.07);"></div>
-                            <div style="font-size:11px;font-weight:800;color:#6366f1;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:6px;">Digimetrics</div>
-                            <div style="font-size:38px;font-weight:900;color:white;line-height:1.1;margin-bottom:8px;">Strategy Brief</div>
-                            <div style="font-size:16px;color:#93c5fd;font-weight:400;margin-bottom:24px;">AI-Powered Actionable Recommendations</div>
-                            ${clientDesc ? `<div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:12px 16px;font-size:12px;color:#cbd5e1;margin-bottom:20px;font-style:italic;">"${esc(clientDesc.slice(0,180))}${clientDesc.length>180?'…':''}"</div>` : ''}
-                            <div style="font-size:12px;color:#475569;">Generated: ${esc(dateStr)}</div>
+                        <!-- Cover -->
+                        <div style="background:#0f172a;padding:48px 48px 36px;position:relative;overflow:hidden;">
+                            <div style="position:absolute;top:-40px;right:-40px;width:200px;height:200px;border-radius:50%;background:rgba(99,102,241,0.12);"></div>
+                            <div style="position:absolute;bottom:-50px;right:80px;width:140px;height:140px;border-radius:50%;background:rgba(99,102,241,0.07);"></div>
+                            <div style="font-size:32px;font-weight:900;color:white;line-height:1.1;margin-bottom:8px;">Strategy Brief</div>
+                            <div style="font-size:14px;color:#93c5fd;font-weight:400;margin-bottom:20px;">AI-Powered SEO Strategy · Digimetrics</div>
+                            ${clientDesc ? `<div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:12px 16px;font-size:11.5px;color:#cbd5e1;margin-bottom:18px;font-style:italic;">"${esc(clientDesc.slice(0,200))}${clientDesc.length>200?'…':''}"</div>` : ''}
+                            <div style="font-size:11px;color:#475569;">Generated: ${esc(dateStr)} &nbsp;·&nbsp; MediaOne Business Group</div>
                         </div>
-                        <div style="height:5px;background:linear-gradient(90deg,#6366f1,#0ea5e9,#10b981);"></div>
-
+                        <div style="height:4px;background:linear-gradient(90deg,#6366f1,#0ea5e9,#10b981);"></div>
                         <!-- Stats -->
-                        <div style="padding:32px 48px 24px;background:#f8fafc;">
-                            <div style="display:flex;gap:12px;">${stats}</div>
+                        <div style="padding:24px 48px 20px;background:#f8fafc;">
+                            <div style="display:flex;gap:10px;">${stats}</div>
                         </div>
-
+                        <!-- Strategy Overview -->
+                        ${strategyHTML}
+                        <!-- Keywords -->
+                        ${kwTableHTML}
                         <!-- Strengths -->
                         ${strengthsHTML}
-
                         <!-- Recommendations -->
-                        <div style="padding:32px 48px 48px;">
-                            <div style="font-size:11px;font-weight:800;color:#6366f1;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Recommendations</div>
-                            <div style="font-size:20px;font-weight:800;color:#0f172a;margin-bottom:6px;">Prioritized Action Plan</div>
-                            <div style="font-size:12px;color:#64748b;margin-bottom:28px;">${recs.length} actions across ${CATS.filter(c=>recsHTML.includes(c.label)).length} focus areas, ordered by priority</div>
+                        <div style="padding:28px 48px 48px;">
+                            <div style="font-size:10px;font-weight:800;color:#6366f1;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Recommendations</div>
+                            <div style="font-size:18px;font-weight:800;color:#0f172a;margin-bottom:4px;">Prioritized Action Plan</div>
+                            <div style="font-size:11px;color:#64748b;margin-bottom:22px;">${recs.length} actions across ${focusAreaCount} focus areas, ordered by priority</div>
                             ${recsHTML}
-                        </div>
-
-                        <!-- Footer strip -->
-                        <div style="background:#0f172a;padding:16px 48px;display:flex;justify-content:space-between;align-items:center;">
-                            <div style="font-size:11px;color:#475569;">Digimetrics Strategy Brief &nbsp;·&nbsp; Confidential</div>
-                            <div style="font-size:11px;color:#475569;">${esc(dateStr)}</div>
                         </div>
                     </div>`;
 
-                // ── Render to canvas then slice into A4 pages ──────────────
+                // ── Off-screen render ──
                 const printDiv = document.createElement('div');
-                // position:absolute (NOT fixed) so the div expands to its full content height
                 printDiv.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;background:white;';
                 printDiv.innerHTML = fullHTML;
                 document.body.appendChild(printDiv);
+                await new Promise(r => setTimeout(r, 400));
 
-                await new Promise(r => setTimeout(r, 300)); // allow layout/fonts to settle
+                // ── Measure card positions for smart page breaks ──
+                const CANVAS_SCALE = 2;
+                const cardEls = printDiv.querySelectorAll('[data-pdf-card]');
+                const cardRanges = [];
+                cardEls.forEach(el => {
+                    const top = el.offsetTop * CANVAS_SCALE;
+                    const h   = el.offsetHeight * CANVAS_SCALE;
+                    if (h > 0) cardRanges.push({ start: top, end: top + h });
+                });
 
                 const fullHeight = printDiv.scrollHeight;
                 const canvas = await html2canvas(printDiv, {
-                    scale: 2,
+                    scale: CANVAS_SCALE,
                     useCORS: true,
                     logging: false,
                     backgroundColor: '#ffffff',
                     width: 794,
-                    height: fullHeight,      // capture the entire content, not just the viewport
+                    height: fullHeight,
                     windowWidth: 794,
                     windowHeight: fullHeight,
                     scrollX: 0,
@@ -42161,31 +42240,96 @@ Return compact valid JSON only. No prose.
                 });
                 document.body.removeChild(printDiv);
 
-                // A4: 210mm × 297mm. At scale=2, 794px wide → canvas.width = 1588px
-                // 1mm = canvas.width / 210 px  →  page height in px = canvas.width / 210 * 297
+                // ── PDF setup ──
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF('p', 'mm', 'a4');
                 const PW = 210, PH = 297;
-                const pxPerMm  = canvas.width / PW;
-                const pageHpx  = Math.round(PH * pxPerMm);
+                const pxPerMm   = canvas.width / PW;            // px per mm on the 2× canvas
+                const pageHpx   = Math.round(PH * pxPerMm);
+                const HEADER_PX = Math.round(14 * pxPerMm);     // 14 mm header
+                const FOOTER_PX = Math.round(10 * pxPerMm);     // 10 mm footer
+                const contentHpx = pageHpx - HEADER_PX - FOOTER_PX;
 
-                let srcY = 0, pageNum = 0;
+                // Snap break point to before a card if it would cut mid-card
+                const findSafeBreak = idealY => {
+                    for (const r of cardRanges) {
+                        if (idealY > r.start + 20 && idealY < r.end - 20) {
+                            return Math.max(0, r.start - 6);
+                        }
+                    }
+                    return idealY;
+                };
+
+                // Build slice boundaries
+                let srcY = 0;
+                const pageSlices = [];
                 while (srcY < canvas.height) {
+                    const ideal = srcY + contentHpx;
+                    const safe  = ideal < canvas.height ? findSafeBreak(ideal) : canvas.height;
+                    pageSlices.push({ start: srcY, end: safe });
+                    srcY = safe;
+                }
+                const totalPages = pageSlices.length;
+
+                // ── Draw each page: header + content + footer ──
+                const fs = mm => Math.round(mm * pxPerMm); // mm → canvas px for font sizes
+
+                pageSlices.forEach(({ start, end }, pageNum) => {
                     if (pageNum > 0) pdf.addPage();
 
-                    const sliceH = Math.min(pageHpx, canvas.height - srcY);
-                    const slice  = document.createElement('canvas');
+                    const slice = document.createElement('canvas');
                     slice.width  = canvas.width;
                     slice.height = pageHpx;
                     const ctx = slice.getContext('2d');
+
+                    // White base
                     ctx.fillStyle = '#ffffff';
                     ctx.fillRect(0, 0, slice.width, slice.height);
-                    ctx.drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+
+                    // Header bar
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(0, 0, slice.width, HEADER_PX);
+                    // Gradient accent line at bottom of header
+                    const hGrad = ctx.createLinearGradient(0, 0, slice.width, 0);
+                    hGrad.addColorStop(0, '#6366f1'); hGrad.addColorStop(0.5, '#0ea5e9'); hGrad.addColorStop(1, '#10b981');
+                    ctx.fillStyle = hGrad;
+                    ctx.fillRect(0, HEADER_PX - fs(0.7), slice.width, fs(0.7));
+                    // Header text
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = `800 ${fs(4)}px -apple-system,system-ui,Helvetica,Arial,sans-serif`;
+                    ctx.fillText('Digimetrics', fs(5), fs(9));
+                    ctx.fillStyle = '#93c5fd';
+                    ctx.font = `400 ${fs(2.8)}px -apple-system,system-ui,Helvetica,Arial,sans-serif`;
+                    ctx.fillText('Strategy Brief', fs(5), fs(12.5));
+                    // Page number (right-aligned)
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = `400 ${fs(2.6)}px -apple-system,system-ui,Helvetica,Arial,sans-serif`;
+                    const pageLabel = `Page ${pageNum + 1} of ${totalPages}`;
+                    ctx.fillText(pageLabel, slice.width - ctx.measureText(pageLabel).width - fs(5), fs(9));
+
+                    // Content slice
+                    const sliceH = end - start;
+                    ctx.drawImage(canvas, 0, start, canvas.width, sliceH, 0, HEADER_PX, canvas.width, sliceH);
+
+                    // Footer bar
+                    const footerTop = pageHpx - FOOTER_PX;
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.fillRect(0, footerTop, slice.width, FOOTER_PX);
+                    ctx.fillStyle = '#6366f1';
+                    ctx.fillRect(0, footerTop, slice.width, fs(0.5));
+                    // Footer text
+                    ctx.fillStyle = '#0f172a';
+                    ctx.font = `700 ${fs(2.8)}px -apple-system,system-ui,Helvetica,Arial,sans-serif`;
+                    ctx.fillText('MediaOne Business Group', fs(5), footerTop + fs(6));
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = `400 ${fs(2.4)}px -apple-system,system-ui,Helvetica,Arial,sans-serif`;
+                    ctx.fillText(`Confidential · ${dateStr}`, fs(5), footerTop + fs(9));
+                    // Page number in footer
+                    const pgRight = `${pageNum + 1} / ${totalPages}`;
+                    ctx.fillText(pgRight, slice.width - ctx.measureText(pgRight).width - fs(5), footerTop + fs(7.5));
 
                     pdf.addImage(slice.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, PW, PH);
-                    srcY += pageHpx;
-                    pageNum++;
-                }
+                });
 
                 pdf.save(`Digimetrics_Strategy_Brief_${new Date().toISOString().slice(0,10)}.pdf`);
 
