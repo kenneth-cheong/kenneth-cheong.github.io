@@ -4103,6 +4103,24 @@
             padding-bottom: 15px;
         }
 
+        /* Tighten spacing between nested collapsibles inside Others */
+        #othersSection > .content {
+            padding-top: 4px;
+            padding-bottom: 4px;
+        }
+        #othersSection > .content > div {
+            margin-top: 0;
+            margin-bottom: 2px;
+        }
+        @media screen {
+            .page-break {
+                display: block;
+                height: 0;
+                margin: 0;
+                padding: 0;
+            }
+        }
+
         /* AI Optimiser Flow Styles */
         .optimiser-flow-container {
             margin-bottom: 25px;
@@ -11262,10 +11280,16 @@
                                 <div id="actionable-recommendations-container" style="display: grid; grid-template-columns: 1fr; gap: 0;"></div>
                             </div>
 
-                            <div style="margin-top: 30px;">
-                                <button class="btn-sidebar" onclick="exportStrategyBrief()"
-                                    style="background: white; color: #1e293b; border: 1px solid #e2e8f0; padding: 12px 24px; border-radius: 10px; cursor: pointer; font-weight: 600;">
-                                    <i class="fas fa-file-export"></i> Export Full Strategy Brief (.pdf)
+                            <div style="margin-top: 30px; display: flex; align-items: center; gap: 12px; padding: 18px; background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); border-radius: 14px;">
+                                <div style="flex: 1;">
+                                    <div style="font-size: 0.82rem; font-weight: 700; color: #93c5fd;">Ready to share?</div>
+                                    <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">Export a professional multi-page PDF with cover, stats, strengths &amp; all recommendations.</div>
+                                </div>
+                                <button onclick="exportStrategyBrief()"
+                                    style="flex-shrink: 0; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border: none; padding: 11px 22px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 0.83rem; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(99,102,241,0.4); transition: all 0.2s; white-space: nowrap;"
+                                    onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(99,102,241,0.5)'"
+                                    onmouseleave="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 14px rgba(99,102,241,0.4)'">
+                                    <i class="fas fa-file-pdf"></i> Export Strategy PDF
                                 </button>
                             </div>
                         </div>
@@ -13547,16 +13571,6 @@
                                         style="width: 100%;">
                                 </div>
                                 <div class="sem-input-item">
-                                    <label for="competitors-comp1">Competitor 1:</label>
-                                    <input type="url" id="competitors-comp1" placeholder="e.g. competitor1.com"
-                                        style="width: 100%;">
-                                </div>
-                                <div class="sem-input-item">
-                                    <label for="competitors-comp2">Competitor 2:</label>
-                                    <input type="url" id="competitors-comp2" placeholder="e.g. competitor2.com"
-                                        style="width: 100%;">
-                                </div>
-                                <div class="sem-input-item">
                                     <label for="competitors-language">Language:</label>
                                     <input type="text" id="competitors-language" value="English"
                                         placeholder="e.g., English" style="width: 100%;">
@@ -13567,6 +13581,9 @@
                                         placeholder="e.g., Singapore" style="width: 100%;">
                                 </div>
                             </div>
+                            <!-- Hidden inputs kept for JS references that read competitors-comp1/2 -->
+                            <input type="hidden" id="competitors-comp1">
+                            <input type="hidden" id="competitors-comp2">
                             <div class="sem-input-item" style="margin-top: 20px;">
                                 <label for="competitor_keywords">Keywords (comma or newline separated):</label>
                                 <textarea id="competitor_keywords" placeholder="Enter keywords..."
@@ -13585,15 +13602,62 @@
                             </div>
                         </div>
                         <div class="competitors-glass-card" style="flex: 1; min-width: 350px; margin: 0;">
-                            <div class="sem-card-title"><i class="fas fa-microchip"></i> Competitor Analysis</div>
-                            <div class="sem-input-item">
-                                <label for="competitor_domains">Competitor Domains (one per line):</label>
-                                <textarea id="competitor_domains" placeholder="Paste domains here (one per line) — first 2 used..."
-                                    style="min-height: 100px; width: 100%; resize: vertical;"></textarea>
+                            <div class="sem-card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                                <span><i class="fas fa-microchip"></i> Step 2: Intersection Analysis</span>
+                                <span id="comp-slot-counter" style="font-size:0.72rem;font-weight:700;padding:4px 12px;border-radius:20px;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;transition:all 0.2s;">0 / 2 filled</span>
                             </div>
+
+                            <!-- Limit callout -->
+                            <div style="margin-bottom:18px;padding:10px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;display:flex;align-items:flex-start;gap:10px;">
+                                <i class="fas fa-info-circle" style="color:#3b82f6;margin-top:2px;flex-shrink:0;"></i>
+                                <div style="font-size:0.78rem;color:#1e40af;line-height:1.5;">
+                                    Compares <strong>up to 2 competitors</strong> against your target domain.<br>
+                                    <span style="color:#3b82f6;">Tick domains from Step 1 results, or enter manually below.</span>
+                                </div>
+                            </div>
+
+                            <!-- Slot 1 -->
+                            <div class="sem-input-item" style="margin-bottom:14px;">
+                                <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                                    <span style="width:22px;height:22px;border-radius:6px;background:#6366f1;color:white;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;">1</span>
+                                    <span style="font-size:0.82rem;font-weight:600;color:#334155;">Competitor Domain</span>
+                                </label>
+                                <div style="position:relative;">
+                                    <input type="text" id="comp-slot-1" placeholder="e.g. competitor1.com"
+                                        style="width:100%;padding-right:36px;border-left:3px solid #6366f1;"
+                                        oninput="updateCompSlotCounter()">
+                                    <button onclick="clearCompSlot(1)" title="Clear" tabindex="-1"
+                                        style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;font-size:15px;padding:2px;line-height:1;">
+                                        <i class="fas fa-times-circle"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Slot 2 -->
+                            <div class="sem-input-item">
+                                <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                                    <span style="width:22px;height:22px;border-radius:6px;background:#0ea5e9;color:white;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;">2</span>
+                                    <span style="font-size:0.82rem;font-weight:600;color:#334155;">Competitor Domain</span>
+                                </label>
+                                <div style="position:relative;">
+                                    <input type="text" id="comp-slot-2" placeholder="e.g. competitor2.com"
+                                        style="width:100%;padding-right:36px;border-left:3px solid #0ea5e9;"
+                                        oninput="updateCompSlotCounter()">
+                                    <button onclick="clearCompSlot(2)" title="Clear" tabindex="-1"
+                                        style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;font-size:15px;padding:2px;line-height:1;">
+                                        <i class="fas fa-times-circle"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Hidden textarea kept for any legacy references -->
+                            <textarea id="competitor_domains" style="display:none;"></textarea>
+
                             <button id="getIntersectionResults2" class="config-btn-highlight"
-                                style="margin-top: 25px; min-width: 250px;" onclick="getIntersectionResults2()">Step 2:
-                                Get Intersection Results</button>
+                                style="margin-top:22px;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;"
+                                onclick="getIntersectionResults2()">
+                                <i class="fas fa-code-branch"></i> Run Intersection Analysis
+                            </button>
                         </div>
                     </div>
 
@@ -31072,18 +31136,86 @@ ${selectedText}
         }
 
         function updateCompetitorDomainsField() {
-            const domainsTextArea = document.getElementById('competitor_domains');
-            const checkedDomains = new Set(); // Use a Set to store unique values
+            const allBoxes = Array.from(document.querySelectorAll('#competitorsOutput input[type="checkbox"]'));
+            const checkedBoxes = allBoxes.filter(cb => cb.checked).map(cb => cb.value);
 
-            // Get checked keywords from both tables
-            try {
-                const domainsCheckboxes = document.querySelectorAll('#competitorsOutput input[type="checkbox"]:checked');
-                domainsCheckboxes.forEach(checkbox => checkedDomains.add(checkbox.value));
-            } catch (error) {
-                console.log(error);
+            // Enforce max 2 — uncheck any beyond the second
+            if (checkedBoxes.length > 2) {
+                let unchecked = 0;
+                allBoxes.forEach(cb => {
+                    if (cb.checked && unchecked < checkedBoxes.length - 2) {
+                        cb.checked = false;
+                        unchecked++;
+                    }
+                });
             }
 
-            domainsTextArea.value = Array.from(checkedDomains).join(', '); // Convert Set back to array before joining
+            const selected = allBoxes.filter(cb => cb.checked).map(cb => cb.value);
+
+            // Fill the two named slots
+            const s1 = document.getElementById('comp-slot-1');
+            const s2 = document.getElementById('comp-slot-2');
+            if (s1) s1.value = selected[0] || '';
+            if (s2) s2.value = selected[1] || '';
+
+            // Keep hidden textarea in sync for legacy code
+            const ta = document.getElementById('competitor_domains');
+            if (ta) ta.value = selected.join('\n');
+
+            // Dim rows that can't be selected when limit is reached
+            allBoxes.forEach(cb => {
+                const row = cb.closest('tr');
+                if (!cb.checked && selected.length >= 2) {
+                    cb.disabled = true;
+                    if (row) row.style.opacity = '0.45';
+                } else {
+                    cb.disabled = false;
+                    if (row) row.style.opacity = '1';
+                }
+            });
+
+            updateCompSlotCounter();
+        }
+
+        function updateCompSlotCounter() {
+            const v1 = (document.getElementById('comp-slot-1')?.value || '').trim();
+            const v2 = (document.getElementById('comp-slot-2')?.value || '').trim();
+            const filled = [v1, v2].filter(Boolean).length;
+            const counter = document.getElementById('comp-slot-counter');
+            if (!counter) return;
+            counter.textContent = `${filled} / 2 filled`;
+            if (filled === 2) {
+                counter.style.background = '#dcfce7';
+                counter.style.color = '#15803d';
+                counter.style.borderColor = '#bbf7d0';
+            } else if (filled === 1) {
+                counter.style.background = '#fef3c7';
+                counter.style.color = '#92400e';
+                counter.style.borderColor = '#fde68a';
+            } else {
+                counter.style.background = '#f1f5f9';
+                counter.style.color = '#64748b';
+                counter.style.borderColor = '#e2e8f0';
+            }
+        }
+
+        function clearCompSlot(num) {
+            const input = document.getElementById(`comp-slot-${num}`);
+            if (input) { input.value = ''; }
+            // Un-check the matching checkbox in Step 1 results if it exists
+            const allBoxes = document.querySelectorAll('#competitorsOutput input[type="checkbox"]');
+            // Re-enable all boxes and re-sync
+            allBoxes.forEach(cb => { cb.disabled = false; });
+            const s1 = (document.getElementById('comp-slot-1')?.value || '').trim();
+            const s2 = (document.getElementById('comp-slot-2')?.value || '').trim();
+            const kept = [s1, s2].filter(Boolean);
+            allBoxes.forEach(cb => {
+                cb.checked = kept.includes(cb.value);
+                if (cb.closest('tr')) cb.closest('tr').style.opacity = '1';
+            });
+            const ta = document.getElementById('competitor_domains');
+            if (ta) ta.value = kept.join('\n');
+            updateCompSlotCounter();
         }
 
         async function validateAndSubmit() {
@@ -32632,10 +32764,15 @@ ${selectedText}
             const comp2 = document.getElementById('competitors-comp2').value.trim();
             const manualComps = [comp1, comp2].filter(Boolean);
 
-            // If no keywords but manual competitors provided, just populate and move to step 2
+            // If no keywords but manual competitors provided, just populate slots and move to step 2
             if (keywords.length === 0 && manualComps.length > 0) {
-                const domainTextarea = document.getElementById('competitor_domains');
-                domainTextarea.value = manualComps.join('\n');
+                const s1 = document.getElementById('comp-slot-1');
+                const s2 = document.getElementById('comp-slot-2');
+                if (s1) s1.value = manualComps[0] || '';
+                if (s2) s2.value = manualComps[1] || '';
+                const ta = document.getElementById('competitor_domains');
+                if (ta) ta.value = manualComps.join('\n');
+                updateCompSlotCounter();
                 updateKeywordAnalysisLoader("Direct Comparison", "Manual competitors added. Ready for Step 2.", true);
                 setTimeout(() => updateKeywordAnalysisLoader("", "", false), 2000);
                 
@@ -32739,14 +32876,29 @@ ${selectedText}
                 return;
             }
 
+            const domainList = Object.keys(results);
+
             let tableHTML = `
-                <div class="premium-table-wrapper" style="margin-top: 20px; max-height: 500px; overflow: auto; border-radius: 12px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:20px;margin-bottom:10px;">
+                    <div style="font-size:0.82rem;font-weight:700;color:#1e293b;">
+                        <i class="fas fa-list" style="color:#6366f1;margin-right:6px;"></i>
+                        ${domainList.length} competitor${domainList.length !== 1 ? 's' : ''} found
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:0.75rem;color:#64748b;">Pick up to 2 for intersection analysis:</span>
+                        <span id="step1-pick-counter" style="font-size:0.72rem;font-weight:800;padding:3px 10px;border-radius:20px;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;transition:all 0.2s;">0 / 2 picked</span>
+                    </div>
+                </div>
+                <div class="premium-table-wrapper" style="max-height: 500px; overflow: auto; border-radius: 12px;">
                     <table class="premium-table">
                         <thead>
                             <tr>
                                 <th class="premium-th" style="width: 250px;">Competitor Domain</th>
                                 <th class="premium-th">Keyword Performance</th>
-                                <th class="premium-th" style="width: 80px; text-align: center;">Pick</th>
+                                <th class="premium-th" style="width: 90px; text-align: center;">
+                                    Pick
+                                    <div style="font-size:0.6rem;font-weight:500;color:#94a3b8;margin-top:2px;">max 2</div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -32771,7 +32923,9 @@ ${selectedText}
                         <td class="premium-td">${linkedDomain}</td>
                         <td class="premium-td">${keywordBadges}</td>
                         <td class="premium-td" style="text-align: center;">
-                            <input type="checkbox" class="domain-checkbox" value="${domain}" onchange="updateCompetitorDomainsField()" style="width: 18px; height: 18px; cursor: pointer;">
+                            <input type="checkbox" class="domain-checkbox" value="${domain}"
+                                onchange="updateCompetitorDomainsField(); syncStep1Counter();"
+                                style="width: 18px; height: 18px; cursor: pointer;">
                         </td>
                     </tr>
                 `;
@@ -32785,6 +32939,41 @@ ${selectedText}
 
             outputDiv.innerHTML = tableHTML;
             document.getElementById('getIntersectionResults').style.display = 'block';
+
+            // Auto-select top 2 domains and run intersection when triggered by Strategy Engine
+            if (window._strategyAutoPickCompetitors) {
+                window._strategyAutoPickCompetitors = false;
+                const allBoxes = Array.from(outputDiv.querySelectorAll('input[type="checkbox"].domain-checkbox'));
+                // Tick first 2
+                allBoxes.slice(0, 2).forEach(cb => { cb.checked = true; });
+                updateCompetitorDomainsField();
+                syncStep1Counter();
+                // Small delay so the UI updates are visible before the API call fires
+                setTimeout(() => {
+                    console.log("Strategy Engine: auto-running intersection for top 2 competitors");
+                    getIntersectionResults2();
+                }, 600);
+            }
+        }
+
+        function syncStep1Counter() {
+            const checked = document.querySelectorAll('#competitorsOutput input[type="checkbox"]:checked').length;
+            const counter = document.getElementById('step1-pick-counter');
+            if (!counter) return;
+            counter.textContent = `${checked} / 2 picked`;
+            if (checked === 2) {
+                counter.style.background = '#dcfce7';
+                counter.style.color = '#15803d';
+                counter.style.borderColor = '#bbf7d0';
+            } else if (checked === 1) {
+                counter.style.background = '#fef3c7';
+                counter.style.color = '#92400e';
+                counter.style.borderColor = '#fde68a';
+            } else {
+                counter.style.background = '#f1f5f9';
+                counter.style.color = '#64748b';
+                counter.style.borderColor = '#e2e8f0';
+            }
         }
 
         async function getIntersectionResults() {
@@ -32851,8 +33040,19 @@ ${selectedText}
 
             updateKeywordAnalysisLoader("Analyzing Overlaps", `Checking intersections for domains...`);
 
-            var domains = document.getElementById('competitor_domains').value;
-            var domainsArray = domains.split(/[,\n]+/).map(domain => domain.trim()).filter(domain => domain !== "").slice(0, 2);
+            const slot1Raw = (document.getElementById('comp-slot-1')?.value || '').trim();
+            const slot2Raw = (document.getElementById('comp-slot-2')?.value || '').trim();
+            // Strip protocol/trailing slash so the API receives bare domains
+            const cleanDomain = d => d.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '');
+            var domainsArray = [slot1Raw, slot2Raw].filter(Boolean).map(cleanDomain);
+
+            if (domainsArray.length === 0) {
+                alert("Please add at least one competitor domain in the slots above, or tick domains from the Step 1 results.");
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                updateKeywordAnalysisLoader("", "", false);
+                return;
+            }
 
             var location = document.getElementById('competitors-location').value;
             var language = document.getElementById('competitors-language').value;
@@ -32905,8 +33105,15 @@ ${selectedText}
                 }
                 
                 if (data) {
-                    // Lambda might return results in a body field
-                    const parsedData = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
+                    // 1. Unwrap Lambda envelope
+                    let parsedData = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
+                    // 2. Unwrap nested results/data field so rank lookups always use the flat keyword→{domain:[rank,url]} shape
+                    if (parsedData && typeof parsedData === 'object') {
+                        if (parsedData.results && typeof parsedData.results === 'object' && !Array.isArray(parsedData.results))
+                            parsedData = parsedData.results;
+                        else if (parsedData.data && typeof parsedData.data === 'object' && !Array.isArray(parsedData.data))
+                            parsedData = parsedData.data;
+                    }
                     results.push({ domain: domain, data: parsedData });
                 }
             }
@@ -32949,13 +33156,10 @@ ${selectedText}
 
             results.forEach(result => {
                 if (result.data && typeof result.data === 'object') {
-                    // Check if data is nested in a 'results' or 'data' field (common in some APIs)
-                    const dataToParse = result.data.results || result.data.data || result.data;
-                    
-                    Object.keys(dataToParse).forEach(keyword => {
+                    // Data is already normalized (Lambda + nested field unwrapped in getIntersectionResults2)
+                    Object.keys(result.data).forEach(keyword => {
                         if (keyword && !metadataKeys.includes(keyword.toLowerCase())) {
-                            // Accept any truthy value — rank entries can be objects, arrays, or numbers
-                            if (dataToParse[keyword] !== null && dataToParse[keyword] !== undefined) {
+                            if (result.data[keyword] !== null && result.data[keyword] !== undefined) {
                                 allKeywords.add(keyword);
                             }
                         }
@@ -32977,14 +33181,25 @@ ${selectedText}
             } else {
                 const targetDomain = document.getElementById("competitors-target1").value;
                 
-                // Helper to find rank data for a domain
+                // Helper to find rank data for a domain — fuzzy match, no Array.isArray gate
+                const clean = d => String(d).replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase().replace(/\/$/, '');
                 const getDomainData = (obj, domain) => {
-                    if (!obj) return null;
-                    if (obj[domain]) return obj[domain];
-                    const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase();
-                    for (let key in obj) {
-                        const cleanKey = key.replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase();
-                        if (cleanKey === cleanDomain && Array.isArray(obj[key])) return obj[key];
+                    if (!obj || typeof obj !== 'object') return null;
+                    if (obj[domain] !== undefined) return obj[domain];
+                    const t = clean(domain);
+                    for (const key in obj) {
+                        if (clean(key) === t) return obj[key];
+                    }
+                    return null;
+                };
+                // Normalise any rank entry to { rank, url }
+                const extractRank = (entry) => {
+                    if (entry === null || entry === undefined) return null;
+                    if (Array.isArray(entry))  return { rank: entry[0], url: entry[1] || null };
+                    if (typeof entry === 'number') return { rank: entry, url: null };
+                    if (typeof entry === 'object') {
+                        const r = entry.rank ?? entry.position ?? entry.pos;
+                        if (r !== undefined) return { rank: r, url: entry.url || entry.link || null };
                     }
                     return null;
                 };
@@ -32997,31 +33212,30 @@ ${selectedText}
                                 <td class="premium-td" style="font-weight: 500; color: #1a73e8;">${keyword}</td>
                         `;
 
-                        // Get target1 data (Target Domain) from any result that has it
-                        let targetData = null;
+                        // Target domain rank — search all results for this keyword
+                        let targetEntry = null;
                         for (const res of results) {
                             if (res.data && res.data[keyword]) {
-                                targetData = getDomainData(res.data[keyword], targetDomain);
-                                if (targetData) break;
+                                const raw = getDomainData(res.data[keyword], targetDomain);
+                                targetEntry = extractRank(raw);
+                                if (targetEntry) break;
                             }
                         }
+                        tableHTML += targetEntry
+                            ? `<td class="premium-td" style="text-align:center;">${getRankBadgeHtml(targetEntry.rank, targetEntry.url)}</td>`
+                            : `<td class="premium-td" style="text-align:center;">${getRankBadgeHtml(999)}</td>`;
 
-                        if (targetData && Array.isArray(targetData)) {
-                            tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(targetData[0], targetData[1])}</td>`;
-                        } else {
-                            tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(999)}</td>`;
-                        }
-
-                        // Add rankings for each competitor domain
+                        // Competitor domain ranks
                         results.forEach(result => {
-                            const competitorData = getDomainData(result.data ? result.data[keyword] : null, result.domain);
-                            if (competitorData && Array.isArray(competitorData)) {
-                                tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(competitorData[0], competitorData[1])}</td>`;
-                            } else if (result.error) {
-                                tableHTML += `<td class="premium-td" style="text-align: center;"><span class="premium-badge-bad">Error</span></td>`;
-                            } else {
-                                tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(999)}</td>`;
+                            if (result.error) {
+                                tableHTML += `<td class="premium-td" style="text-align:center;"><span class="premium-badge-bad">Error</span></td>`;
+                                return;
                             }
+                            const raw = getDomainData(result.data ? result.data[keyword] : null, result.domain);
+                            const entry = extractRank(raw);
+                            tableHTML += entry
+                                ? `<td class="premium-td" style="text-align:center;">${getRankBadgeHtml(entry.rank, entry.url)}</td>`
+                                : `<td class="premium-td" style="text-align:center;">${getRankBadgeHtml(999)}</td>`;
                         });
 
                         tableHTML += `</tr>`;
@@ -39835,15 +40049,6 @@ Return ONLY valid JSON in this exact format:
                 const domainsField = document.getElementById('competitor_domains');
                 if (domainsField) domainsField.value = data.top_competitor_domains.join('\n');
             }
-            
-            // Auto-trigger intersection results if we have the data
-            if (data.seo_keywords && data.top_competitor_domains) {
-                const intersectBtn = document.getElementById('getIntersectionResults2');
-                if (intersectBtn) {
-                    console.log("Auto-triggering intersection results...");
-                    setTimeout(() => intersectBtn.click(), 1000); // Small delay to ensure fields are settled
-                }
-            }
         }
 
         async function autoPopulateStrategyFields(text) {
@@ -40067,8 +40272,11 @@ Return ONLY valid JSON in this exact format:
                                 }
                                 
                                 // Expand sections for visibility
-                                forceOpenCollapsible('othersMainBtn');
+                                // Competitors Identifier is now under SEO, so open seo + competitionBtn
+                                forceOpenCollapsible('seo');
                                 forceOpenCollapsible('competitionBtn');
+                                // Also keep Others expanded in case user has other tools open there
+                                forceOpenCollapsible('othersMainBtn');
                             }
                         } catch (e) {
                             console.warn("Auto-Technical SEO/Competitor prep failed:", e);
@@ -40182,15 +40390,19 @@ Return ONLY valid JSON in this exact format:
                     console.error("Strategy Engine: Rendering failed:", renderErr);
                 }
 
-                // 6. Trigger Competitor Analysis with AI Recommendations
+                // 6. Trigger Competitor Analysis with AI Recommendations (max 3 keywords, auto-pick 2 domains)
                 if (recommendedStrategy && recommendedStrategy.target_keywords) {
                     const compKeywords = document.getElementById('competitor_keywords');
                     if (compKeywords) {
-                        const keywords = Array.isArray(recommendedStrategy.target_keywords) 
-                            ? recommendedStrategy.target_keywords.join(', ') 
-                            : recommendedStrategy.target_keywords;
-                        compKeywords.value = keywords;
-                        console.log("Triggering Competitors Identifier with AI recommendations...");
+                        let kwArray = Array.isArray(recommendedStrategy.target_keywords)
+                            ? recommendedStrategy.target_keywords
+                            : String(recommendedStrategy.target_keywords).split(/[,\n]+/).map(k => k.trim()).filter(Boolean);
+                        // Cap at 3 keywords to keep competitor SERP calls fast and reliable
+                        kwArray = kwArray.slice(0, 3);
+                        compKeywords.value = kwArray.join(', ');
+                        console.log("Strategy Engine → Competitors Identifier: using keywords:", kwArray);
+                        // Signal displayCompetitorResults to auto-select top 2 and run intersection
+                        window._strategyAutoPickCompetitors = true;
                         getCompetitors(true);
                     }
                 }
@@ -40493,6 +40705,7 @@ Return compact valid JSON only. No prose.
                 if (parsed) {
                     renderStrengths(parsed.strengths || []);
                     renderActionableRecommendations(null, parsed.recommendations || []);
+                    window._strategyExportData = { strengths: parsed.strengths || [], recommendations: parsed.recommendations || [] };
                 } else {
                     console.warn('Recommendations: could not parse JSON, hiding section.');
                     if (area) area.style.display = 'none';
@@ -40887,15 +41100,10 @@ Return compact valid JSON only. No prose.
             const area = document.getElementById('actionable-recommendations-area');
             const container = document.getElementById('actionable-recommendations-container');
 
-            // --- Resolve source of recommendations ---
             let recommendations = preloadedRecs || null;
-
-            if (!recommendations && strategy) {
-                recommendations = strategy.actionable_recommendations;
-            }
+            if (!recommendations && strategy) recommendations = strategy.actionable_recommendations;
 
             if (!recommendations) {
-                console.warn("Strategy Engine: No recommendations to render");
                 if (area) area.style.display = 'none';
                 return;
             }
@@ -40911,7 +41119,6 @@ Return compact valid JSON only. No prose.
             }
 
             if (!Array.isArray(recommendations) || recommendations.length === 0) {
-                console.warn("Strategy Engine: recommendations is empty or not an array", recommendations);
                 if (area) area.style.display = 'none';
                 return;
             }
@@ -40920,119 +41127,163 @@ Return compact valid JSON only. No prose.
             if (container) container.innerHTML = '';
             else return;
 
-            // Category configuration
             const CATEGORIES = [
-                { key: 'Content',          label: 'Content Strategy',      icon: 'fa-file-alt',       color: '#6366f1', bg: '#eef2ff' },
-                { key: 'Technical SEO',    label: 'Technical SEO',         icon: 'fa-code',           color: '#0ea5e9', bg: '#e0f2fe' },
-                { key: 'Performance',      label: 'Performance',           icon: 'fa-tachometer-alt', color: '#f59e0b', bg: '#fef3c7' },
-                { key: 'Domain & Trust',   label: 'Domain & Trust',        icon: 'fa-shield-alt',     color: '#10b981', bg: '#d1fae5' },
+                { key: 'Content',        label: 'Content Strategy', icon: 'fa-file-alt',       color: '#6366f1', bg: '#eef2ff', grad: 'linear-gradient(135deg,#6366f1,#818cf8)' },
+                { key: 'Technical SEO',  label: 'Technical SEO',    icon: 'fa-code',           color: '#0ea5e9', bg: '#e0f2fe', grad: 'linear-gradient(135deg,#0ea5e9,#38bdf8)' },
+                { key: 'Performance',    label: 'Performance',      icon: 'fa-tachometer-alt', color: '#f59e0b', bg: '#fef3c7', grad: 'linear-gradient(135deg,#f59e0b,#fbbf24)' },
+                { key: 'Domain & Trust', label: 'Domain & Trust',   icon: 'fa-shield-alt',     color: '#10b981', bg: '#d1fae5', grad: 'linear-gradient(135deg,#10b981,#34d399)' },
             ];
-
             const priorityMap = { 'High': 1, 'Medium': 2, 'Low': 3 };
 
-            // Group recommendations by category
             const grouped = {};
             CATEGORIES.forEach(cat => { grouped[cat.key] = []; });
-
             recommendations.forEach(rec => {
                 if (!rec) return;
-                // Fuzzy match category
                 const rawCat = (rec.category || 'Content').trim();
                 const matched = CATEGORIES.find(c => rawCat.toLowerCase().includes(c.key.toLowerCase()));
-                const catKey = matched ? matched.key : 'Content';
-                grouped[catKey].push(rec);
+                grouped[matched ? matched.key : 'Content'].push(rec);
             });
 
-            // Check if any non-Content categories have items (to decide layout)
-            const hasMultipleCategories = CATEGORIES.some(c => c.key !== 'Content' && grouped[c.key].length > 0);
+            // Summary stats bar
+            const highCount   = recommendations.filter(r => r.priority === 'High').length;
+            const medCount    = recommendations.filter(r => r.priority === 'Medium').length;
+            const lowCount    = recommendations.filter(r => r.priority === 'Low').length;
+            const activeCats  = CATEGORIES.filter(c => grouped[c.key].length > 0).length;
 
-            // Render section header update
             const headerEl = area.querySelector('h3');
             if (headerEl) {
-                headerEl.innerHTML = `<i class="fas fa-tasks" style="color: #6366f1;"></i> Prioritized Actionable Recommendations <span style="font-size: 0.7rem; font-weight: 500; color: #64748b; margin-left: 8px;">${recommendations.length} actions across ${CATEGORIES.filter(c => grouped[c.key].length > 0).length} areas</span>`;
+                headerEl.innerHTML = `<i class="fas fa-tasks" style="color:#6366f1;"></i> Prioritized Actionable Recommendations <span style="font-size:0.7rem;font-weight:500;color:#64748b;margin-left:8px;">${recommendations.length} actions across ${activeCats} areas</span>`;
             }
+
+            // Stats banner
+            const statsBanner = document.createElement('div');
+            statsBanner.style.cssText = `
+                display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap;
+            `;
+            statsBanner.innerHTML = `
+                <div style="flex:1;min-width:100px;background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1px solid #fecaca;border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+                    <div style="width:36px;height:36px;background:#ef4444;border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-size:1rem;flex-shrink:0;"><i class="fas fa-exclamation-circle"></i></div>
+                    <div><div style="font-size:1.5rem;font-weight:900;color:#991b1b;line-height:1;">${highCount}</div><div style="font-size:0.68rem;font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:0.05em;">High Priority</div></div>
+                </div>
+                <div style="flex:1;min-width:100px;background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1px solid #fde68a;border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+                    <div style="width:36px;height:36px;background:#f59e0b;border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-size:1rem;flex-shrink:0;"><i class="fas fa-info-circle"></i></div>
+                    <div><div style="font-size:1.5rem;font-weight:900;color:#92400e;line-height:1;">${medCount}</div><div style="font-size:0.68rem;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:0.05em;">Medium Priority</div></div>
+                </div>
+                <div style="flex:1;min-width:100px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #bbf7d0;border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+                    <div style="width:36px;height:36px;background:#10b981;border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-size:1rem;flex-shrink:0;"><i class="fas fa-check-circle"></i></div>
+                    <div><div style="font-size:1.5rem;font-weight:900;color:#065f46;line-height:1;">${lowCount}</div><div style="font-size:0.68rem;font-weight:700;color:#047857;text-transform:uppercase;letter-spacing:0.05em;">Low Priority</div></div>
+                </div>
+                <div style="flex:1;min-width:100px;background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+                    <div style="width:36px;height:36px;background:linear-gradient(135deg,#6366f1,#0ea5e9);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-size:1rem;flex-shrink:0;"><i class="fas fa-layer-group"></i></div>
+                    <div><div style="font-size:1.5rem;font-weight:900;color:#1e293b;line-height:1;">${activeCats}</div><div style="font-size:0.68rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.05em;">Focus Areas</div></div>
+                </div>
+            `;
+            container.appendChild(statsBanner);
 
             CATEGORIES.forEach(cat => {
                 const recs = grouped[cat.key];
                 if (recs.length === 0) return;
 
-                const catConfig = CATEGORIES.find(c => c.key === cat.key);
-
-                // Category header
+                // Category section header
                 const catHeader = document.createElement('div');
                 catHeader.style.cssText = `
-                    display: flex; align-items: center; gap: 10px;
-                    margin: 24px 0 12px 0;
-                    padding-bottom: 8px;
-                    border-bottom: 2px solid ${catConfig.bg};
+                    display:flex; align-items:center; gap:12px;
+                    margin:28px 0 14px 0;
+                    padding:12px 18px;
+                    background:${cat.bg};
+                    border-radius:12px;
+                    border-left:4px solid ${cat.color};
                 `;
                 catHeader.innerHTML = `
-                    <div style="width: 32px; height: 32px; border-radius: 8px; background: ${catConfig.bg}; color: ${catConfig.color}; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
-                        <i class="fas ${catConfig.icon}"></i>
+                    <div style="width:34px;height:34px;border-radius:9px;background:${cat.grad};color:white;display:flex;align-items:center;justify-content:center;font-size:0.9rem;flex-shrink:0;box-shadow:0 2px 8px ${cat.color}40;">
+                        <i class="fas ${cat.icon}"></i>
                     </div>
-                    <span style="font-size: 0.85rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em;">${catConfig.label}</span>
-                    <span style="font-size: 0.7rem; color: ${catConfig.color}; font-weight: 600; background: ${catConfig.bg}; padding: 2px 8px; border-radius: 12px;">${recs.length} action${recs.length > 1 ? 's' : ''}</span>
+                    <div style="flex:1;">
+                        <div style="font-size:0.9rem;font-weight:800;color:#1e293b;letter-spacing:0.02em;">${cat.label}</div>
+                        <div style="font-size:0.68rem;color:${cat.color};font-weight:600;">${recs.length} action${recs.length > 1 ? 's' : ''} identified</div>
+                    </div>
+                    <div style="font-size:1.4rem;font-weight:900;color:${cat.color};opacity:0.25;">${recs.length}</div>
                 `;
                 container.appendChild(catHeader);
 
-                // Sort within category
                 const sortedRecs = [...recs].sort((a, b) => (priorityMap[a.priority] || 99) - (priorityMap[b.priority] || 99));
 
                 sortedRecs.forEach((rec, idx) => {
                     const priority = rec.priority || 'Medium';
-                    const impact = rec.impact || 'Medium';
-                    const effort = rec.effort || 'Medium';
-                    const task = rec.task || 'Recommendation ' + (idx + 1);
+                    const impact   = rec.impact   || 'Medium';
+                    const effort   = rec.effort   || 'Medium';
+                    const task     = rec.task     || 'Recommendation ' + (idx + 1);
                     const description = rec.description || '';
-                    const rationale = rec.rationale || 'Part of strategic roadmap';
+                    const rationale   = rec.rationale   || 'Part of strategic roadmap';
 
-                    const priorityStyles = {
-                        'High':   { bg: '#fee2e2', text: '#991b1b', icon: 'fa-exclamation-circle' },
-                        'Medium': { bg: '#fef9c3', text: '#854d0e', icon: 'fa-info-circle' },
-                        'Low':    { bg: '#f0fdf4', text: '#166534', icon: 'fa-check-circle' }
+                    const PRIORITY_CONF = {
+                        'High':   { bg: '#fef2f2', border: '#fecaca', text: '#991b1b', badge: '#ef4444', icon: 'fa-exclamation-circle', stripe: '#ef4444' },
+                        'Medium': { bg: '#fffbeb', border: '#fde68a', text: '#92400e', badge: '#f59e0b', icon: 'fa-info-circle',       stripe: '#f59e0b' },
+                        'Low':    { bg: '#f0fdf4', border: '#bbf7d0', text: '#065f46', badge: '#10b981', icon: 'fa-check-circle',      stripe: '#10b981' },
                     };
-                    const impactColors = { 'High': '#ef4444', 'Medium': '#f59e0b', 'Low': '#10b981' };
-                    const style = priorityStyles[priority] || priorityStyles['Medium'];
-                    const impColor = impactColors[impact] || '#f59e0b';
-                    const stripeColor = priority === 'High' ? '#ef4444' : (priority === 'Medium' ? '#f59e0b' : '#10b981');
+                    const IMPACT_COLORS = { 'High': '#ef4444', 'Medium': '#f59e0b', 'Low': '#10b981' };
+                    const EFFORT_COLORS = { 'High': '#f43f5e', 'Medium': '#8b5cf6', 'Low': '#3b82f6' };
+
+                    const pc = PRIORITY_CONF[priority] || PRIORITY_CONF['Medium'];
+                    const impColor = IMPACT_COLORS[impact] || '#f59e0b';
+                    const effColor = EFFORT_COLORS[effort] || '#8b5cf6';
 
                     const card = document.createElement('div');
                     card.className = 'recommendation-card';
                     card.style.cssText = `
-                        background: white;
-                        border: 1px solid #e2e8f0;
-                        border-radius: 12px;
-                        padding: 18px 18px 18px 22px;
-                        display: flex;
-                        gap: 16px;
-                        transition: transform 0.2s, box-shadow 0.2s;
-                        box-shadow: 0 1px 3px rgba(0,0,0,0.07);
-                        position: relative;
-                        overflow: hidden;
-                        margin-bottom: 10px;
+                        background:white;
+                        border:1px solid #e2e8f0;
+                        border-radius:14px;
+                        padding:0;
+                        display:flex;
+                        flex-direction:column;
+                        transition:transform 0.2s,box-shadow 0.2s;
+                        box-shadow:0 2px 8px rgba(0,0,0,0.06);
+                        position:relative;
+                        overflow:hidden;
+                        margin-bottom:12px;
                     `;
                     card.innerHTML = `
-                        <div style="position: absolute; left: 0; top: 0; width: 4px; height: 100%; background: ${stripeColor};"></div>
-                        <div style="flex-shrink: 0; width: 38px; height: 38px; border-radius: 9px; background: ${style.bg}; color: ${style.text}; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">
-                            <i class="fas ${style.icon}"></i>
-                        </div>
-                        <div style="flex-grow: 1; min-width: 0;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
-                                <h4 style="margin: 0; font-size: 0.95rem; font-weight: 800; color: #1e293b;">${task}</h4>
-                                <div style="display: flex; gap: 6px; flex-shrink: 0;">
-                                    <span style="font-size: 0.6rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: ${style.bg}; color: ${style.text}; text-transform: uppercase; white-space: nowrap;">${priority}</span>
-                                    <span style="font-size: 0.6rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: #f1f5f9; color: #475569; text-transform: uppercase; white-space: nowrap;">Effort: ${effort}</span>
+                        <!-- Priority stripe -->
+                        <div style="position:absolute;left:0;top:0;width:5px;height:100%;background:${pc.stripe};border-radius:14px 0 0 14px;"></div>
+                        <!-- Card header -->
+                        <div style="padding:16px 18px 12px 24px;display:flex;align-items:flex-start;gap:14px;border-bottom:1px solid #f1f5f9;">
+                            <div style="flex-shrink:0;width:40px;height:40px;border-radius:10px;background:${pc.bg};color:${pc.badge};display:flex;align-items:center;justify-content:center;font-size:1.1rem;border:1px solid ${pc.border};">
+                                <i class="fas ${pc.icon}"></i>
+                            </div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+                                    <h4 style="margin:0 0 4px 0;font-size:0.97rem;font-weight:800;color:#0f172a;line-height:1.3;">${task}</h4>
+                                    <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;">
+                                        <span style="font-size:0.65rem;font-weight:800;padding:3px 9px;border-radius:20px;background:${pc.badge};color:white;text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap;">${priority}</span>
+                                        <span style="font-size:0.65rem;font-weight:700;padding:3px 9px;border-radius:20px;background:#f1f5f9;color:#475569;text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap;">#{${idx + 1}}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <p style="margin: 0 0 10px 0; font-size: 0.83rem; color: #475569; line-height: 1.55;">${description}</p>
-                            <div style="display: flex; align-items: center; gap: 14px; font-size: 0.72rem; border-top: 1px solid #f1f5f9; padding-top: 8px; flex-wrap: wrap;">
-                                <span style="color: #64748b; font-weight: 600;"><i class="fas fa-chart-line" style="color: ${impColor}; margin-right: 3px;"></i>Impact: <span style="color: ${impColor};">${impact}</span></span>
-                                <span style="color: #64748b; font-style: italic;"><strong style="font-style: normal;">Rationale:</strong> ${rationale}</span>
+                        </div>
+                        <!-- Card body -->
+                        <div style="padding:14px 18px 14px 24px;">
+                            <p style="margin:0 0 14px 0;font-size:0.85rem;color:#334155;line-height:1.6;">${description}</p>
+                            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                                <div style="display:flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:5px 10px;">
+                                    <span style="width:8px;height:8px;border-radius:50%;background:${impColor};flex-shrink:0;"></span>
+                                    <span style="font-size:0.7rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.04em;">Impact</span>
+                                    <span style="font-size:0.72rem;font-weight:800;color:${impColor};">${impact}</span>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:5px 10px;">
+                                    <i class="fas fa-wrench" style="font-size:0.65rem;color:${effColor};"></i>
+                                    <span style="font-size:0.7rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.04em;">Effort</span>
+                                    <span style="font-size:0.72rem;font-weight:800;color:${effColor};">${effort}</span>
+                                </div>
+                                <div style="flex:1;min-width:180px;display:flex;align-items:flex-start;gap:6px;background:#fafafa;border:1px solid #e2e8f0;border-radius:8px;padding:5px 10px;">
+                                    <i class="fas fa-lightbulb" style="font-size:0.65rem;color:#f59e0b;margin-top:2px;flex-shrink:0;"></i>
+                                    <span style="font-size:0.72rem;color:#64748b;line-height:1.45;"><strong style="color:#475569;">Rationale:</strong> ${rationale}</span>
+                                </div>
                             </div>
                         </div>
                     `;
-                    card.onmouseenter = () => { card.style.transform = 'translateY(-2px)'; card.style.boxShadow = '0 8px 20px -3px rgba(0,0,0,0.1)'; };
-                    card.onmouseleave = () => { card.style.transform = 'translateY(0)'; card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.07)'; };
+                    card.onmouseenter = () => { card.style.transform = 'translateY(-3px)'; card.style.boxShadow = '0 12px 28px -6px rgba(0,0,0,0.12)'; };
+                    card.onmouseleave = () => { card.style.transform = 'translateY(0)'; card.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; };
                     container.appendChild(card);
                 });
             });
@@ -41731,58 +41982,218 @@ Return compact valid JSON only. No prose.
         /* ── End Pricing Quote Generator ── */
 
         async function exportStrategyBrief() {
-
             const container = document.getElementById('strategy-results-container');
             if (!container || container.style.display === 'none') {
                 alert("Please generate a strategy first before exporting.");
                 return;
             }
 
-            const exportBtn = event ? event.target : null;
+            const exportBtn = event ? event.currentTarget || event.target : null;
             const originalText = exportBtn ? exportBtn.innerHTML : "";
-            if (exportBtn) {
-                exportBtn.disabled = true;
-                exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing PDF...';
-            }
+            if (exportBtn) { exportBtn.disabled = true; exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Building PDF...'; }
 
             try {
-                const { jsPDF } = window.jspdf;
-                const canvas = await html2canvas(container, {
-                    scale: 2, // Better quality
-                    useCORS: true,
-                    logging: false,
-                    backgroundColor: "#ffffff"
+                const exportData = window._strategyExportData || { strengths: [], recommendations: [] };
+                const recs       = exportData.recommendations || [];
+                const strengths  = exportData.strengths || [];
+                const clientDesc = (document.getElementById('strat-client-profile')?.value || '').trim();
+                const dateStr    = new Date().toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+
+                const highC = recs.filter(r => r.priority === 'High').length;
+                const medC  = recs.filter(r => r.priority === 'Medium').length;
+                const lowC  = recs.filter(r => r.priority === 'Low').length;
+
+                const CATS = [
+                    { key:'Content',        label:'Content Strategy', accent:'#6366f1', bg:'#eef2ff', light:'#c7d2fe' },
+                    { key:'Technical SEO',  label:'Technical SEO',    accent:'#0ea5e9', bg:'#e0f2fe', light:'#bae6fd' },
+                    { key:'Performance',    label:'Performance',      accent:'#f59e0b', bg:'#fef3c7', light:'#fde68a' },
+                    { key:'Domain & Trust', label:'Domain & Trust',   accent:'#10b981', bg:'#d1fae5', light:'#a7f3d0' },
+                ];
+                const PRIO = {
+                    High:   { bg:'#fef2f2', stripe:'#ef4444', badge:'#ef4444', text:'#991b1b', badgeTxt:'white' },
+                    Medium: { bg:'#fffbeb', stripe:'#f59e0b', badge:'#f59e0b', text:'#92400e', badgeTxt:'white' },
+                    Low:    { bg:'#f0fdf4', stripe:'#10b981', badge:'#10b981', text:'#065f46', badgeTxt:'white' },
+                };
+                const PRIO_ORDER = { High:1, Medium:2, Low:3 };
+                const IMP_CLR  = { High:'#ef4444', Medium:'#f59e0b', Low:'#10b981' };
+                const EFF_CLR  = { High:'#f43f5e', Medium:'#8b5cf6', Low:'#3b82f6' };
+
+                // ── Build full-width HTML for html2canvas ──────────────────
+                const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+                // Strengths HTML
+                let strengthsHTML = '';
+                if (strengths.length > 0) {
+                    const chips = strengths.filter(s=>s?.title).map(s => `
+                        <div style="background:white;border:1px solid #a7f3d0;border-radius:10px;padding:14px 16px;display:flex;align-items:flex-start;gap:10px;">
+                            <div style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:#d1fae5;color:#059669;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;">✓</div>
+                            <div>
+                                <div style="font-size:13px;font-weight:800;color:#065f46;margin-bottom:3px;">${esc(s.title)}</div>
+                                <div style="font-size:11px;color:#047857;line-height:1.5;">${esc(s.detail||'')}</div>
+                            </div>
+                        </div>`).join('');
+                    strengthsHTML = `
+                        <div style="background:#f0fdf4;border-top:4px solid #10b981;padding:32px 48px 28px;">
+                            <div style="font-size:11px;font-weight:800;color:#059669;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Strengths</div>
+                            <div style="font-size:20px;font-weight:800;color:#065f46;margin-bottom:20px;">What You're Doing Well</div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">${chips}</div>
+                        </div>`;
+                }
+
+                // Recommendations HTML
+                let recsHTML = '';
+                CATS.forEach(cat => {
+                    const catRecs = recs
+                        .filter(r => (r.category||'Content').toLowerCase().includes(cat.key.toLowerCase()))
+                        .sort((a,b)=>(PRIO_ORDER[a.priority]||99)-(PRIO_ORDER[b.priority]||99));
+                    if (!catRecs.length) return;
+
+                    const cards = catRecs.map((rec, idx) => {
+                        const p  = PRIO[rec.priority] || PRIO.Medium;
+                        const ic = IMP_CLR[rec.impact]  || '#f59e0b';
+                        const ec = EFF_CLR[rec.effort]  || '#8b5cf6';
+                        return `
+                            <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;margin-bottom:12px;display:flex;">
+                                <div style="width:6px;flex-shrink:0;background:${p.stripe};"></div>
+                                <div style="flex:1;padding:18px 20px;">
+                                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;">
+                                        <div style="font-size:14px;font-weight:800;color:#0f172a;line-height:1.35;">${esc(rec.task||'Recommendation '+(idx+1))}</div>
+                                        <div style="display:flex;gap:6px;flex-shrink:0;align-items:center;">
+                                            <span style="font-size:10px;font-weight:800;padding:4px 10px;border-radius:20px;background:${p.badge};color:${p.badgeTxt};text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">${esc(rec.priority||'Medium')}</span>
+                                            <span style="font-size:10px;font-weight:600;padding:4px 10px;border-radius:20px;background:#f1f5f9;color:#64748b;white-space:nowrap;">#${idx+1}</span>
+                                        </div>
+                                    </div>
+                                    <p style="margin:0 0 14px 0;font-size:12.5px;color:#334155;line-height:1.65;">${esc(rec.description||'')}</p>
+                                    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;border-top:1px solid #f1f5f9;">
+                                        <span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;background:${ic}18;color:${ic};border:1px solid ${ic}30;">Impact: ${esc(rec.impact||'Medium')}</span>
+                                        <span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;background:${ec}18;color:${ec};border:1px solid ${ec}30;">Effort: ${esc(rec.effort||'Medium')}</span>
+                                        ${rec.rationale ? `<span style="flex:1;min-width:200px;font-size:11px;color:#64748b;padding:4px 10px;border-radius:8px;background:#f8fafc;border:1px solid #e2e8f0;"><strong style="color:#475569;">Rationale:</strong> ${esc(rec.rationale)}</span>` : ''}
+                                    </div>
+                                </div>
+                            </div>`;
+                    }).join('');
+
+                    recsHTML += `
+                        <div style="margin-bottom:8px;">
+                            <div style="display:flex;align-items:center;gap:12px;padding:14px 20px;background:${cat.bg};border-radius:12px;border-left:5px solid ${cat.accent};margin-bottom:14px;">
+                                <div style="flex:1;">
+                                    <div style="font-size:15px;font-weight:800;color:#0f172a;">${esc(cat.label)}</div>
+                                    <div style="font-size:11px;color:${cat.accent};font-weight:600;margin-top:2px;">${catRecs.length} action${catRecs.length>1?'s':''} identified</div>
+                                </div>
+                                <div style="font-size:28px;font-weight:900;color:${cat.accent};opacity:0.2;">${catRecs.length}</div>
+                            </div>
+                            ${cards}
+                        </div>`;
                 });
 
-                const imgData = canvas.toDataURL('image/png');
+                // Stats row
+                const stats = [
+                    { val: recs.length, label:'Total Actions',   bg:'#eef2ff', accent:'#6366f1' },
+                    { val: highC,       label:'High Priority',   bg:'#fef2f2', accent:'#ef4444' },
+                    { val: medC,        label:'Medium Priority', bg:'#fffbeb', accent:'#f59e0b' },
+                    { val: lowC,        label:'Low Priority',    bg:'#f0fdf4', accent:'#10b981' },
+                    { val: strengths.length, label:'Strengths',  bg:'#ecfdf5', accent:'#059669' },
+                ].map(s => `
+                    <div style="flex:1;background:${s.bg};border-radius:12px;padding:16px 12px;text-align:center;border-top:3px solid ${s.accent};">
+                        <div style="font-size:28px;font-weight:900;color:${s.accent};line-height:1;">${s.val}</div>
+                        <div style="font-size:10px;font-weight:700;color:#64748b;margin-top:4px;text-transform:uppercase;letter-spacing:0.05em;">${s.label}</div>
+                    </div>`).join('');
+
+                const fullHTML = `
+                    <div style="font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;background:white;">
+
+                        <!-- Cover header -->
+                        <div style="background:#0f172a;padding:56px 48px 44px;position:relative;overflow:hidden;">
+                            <div style="position:absolute;top:-40px;right:-40px;width:220px;height:220px;border-radius:50%;background:rgba(99,102,241,0.12);"></div>
+                            <div style="position:absolute;bottom:-60px;right:80px;width:160px;height:160px;border-radius:50%;background:rgba(99,102,241,0.07);"></div>
+                            <div style="font-size:11px;font-weight:800;color:#6366f1;text-transform:uppercase;letter-spacing:0.15em;margin-bottom:6px;">Digimetrics</div>
+                            <div style="font-size:38px;font-weight:900;color:white;line-height:1.1;margin-bottom:8px;">Strategy Brief</div>
+                            <div style="font-size:16px;color:#93c5fd;font-weight:400;margin-bottom:24px;">AI-Powered Actionable Recommendations</div>
+                            ${clientDesc ? `<div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:12px 16px;font-size:12px;color:#cbd5e1;margin-bottom:20px;font-style:italic;">"${esc(clientDesc.slice(0,180))}${clientDesc.length>180?'…':''}"</div>` : ''}
+                            <div style="font-size:12px;color:#475569;">Generated: ${esc(dateStr)}</div>
+                        </div>
+                        <div style="height:5px;background:linear-gradient(90deg,#6366f1,#0ea5e9,#10b981);"></div>
+
+                        <!-- Stats -->
+                        <div style="padding:32px 48px 24px;background:#f8fafc;">
+                            <div style="display:flex;gap:12px;">${stats}</div>
+                        </div>
+
+                        <!-- Strengths -->
+                        ${strengthsHTML}
+
+                        <!-- Recommendations -->
+                        <div style="padding:32px 48px 48px;">
+                            <div style="font-size:11px;font-weight:800;color:#6366f1;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Recommendations</div>
+                            <div style="font-size:20px;font-weight:800;color:#0f172a;margin-bottom:6px;">Prioritized Action Plan</div>
+                            <div style="font-size:12px;color:#64748b;margin-bottom:28px;">${recs.length} actions across ${CATS.filter(c=>recsHTML.includes(c.label)).length} focus areas, ordered by priority</div>
+                            ${recsHTML}
+                        </div>
+
+                        <!-- Footer strip -->
+                        <div style="background:#0f172a;padding:16px 48px;display:flex;justify-content:space-between;align-items:center;">
+                            <div style="font-size:11px;color:#475569;">Digimetrics Strategy Brief &nbsp;·&nbsp; Confidential</div>
+                            <div style="font-size:11px;color:#475569;">${esc(dateStr)}</div>
+                        </div>
+                    </div>`;
+
+                // ── Render to canvas then slice into A4 pages ──────────────
+                const printDiv = document.createElement('div');
+                // position:absolute (NOT fixed) so the div expands to its full content height
+                printDiv.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;background:white;';
+                printDiv.innerHTML = fullHTML;
+                document.body.appendChild(printDiv);
+
+                await new Promise(r => setTimeout(r, 300)); // allow layout/fonts to settle
+
+                const fullHeight = printDiv.scrollHeight;
+                const canvas = await html2canvas(printDiv, {
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: '#ffffff',
+                    width: 794,
+                    height: fullHeight,      // capture the entire content, not just the viewport
+                    windowWidth: 794,
+                    windowHeight: fullHeight,
+                    scrollX: 0,
+                    scrollY: 0,
+                });
+                document.body.removeChild(printDiv);
+
+                // A4: 210mm × 297mm. At scale=2, 794px wide → canvas.width = 1588px
+                // 1mm = canvas.width / 210 px  →  page height in px = canvas.width / 210 * 297
+                const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF('p', 'mm', 'a4');
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = pdf.internal.pageSize.getHeight();
-                const imgWidth = canvas.width;
-                const imgHeight = canvas.height;
-                const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-                const finalWidth = imgWidth * ratio;
-                const finalHeight = imgHeight * ratio;
+                const PW = 210, PH = 297;
+                const pxPerMm  = canvas.width / PW;
+                const pageHpx  = Math.round(PH * pxPerMm);
 
-                // Center the image
-                const x = (pdfWidth - finalWidth) / 2;
-                const y = 10; // Margin from top
+                let srcY = 0, pageNum = 0;
+                while (srcY < canvas.height) {
+                    if (pageNum > 0) pdf.addPage();
 
-                pdf.setFontSize(18);
-                pdf.setTextColor(15, 23, 42); // Navy
-                pdf.text("Digimetrics Strategy Brief", x, y);
+                    const sliceH = Math.min(pageHpx, canvas.height - srcY);
+                    const slice  = document.createElement('canvas');
+                    slice.width  = canvas.width;
+                    slice.height = pageHpx;
+                    const ctx = slice.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, slice.width, slice.height);
+                    ctx.drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
 
-                pdf.addImage(imgData, 'PNG', x, y + 5, finalWidth, finalHeight);
-                pdf.save(`Digimetrics_Strategy_Brief_${Date.now()}.pdf`);
-
-            } catch (error) {
-                console.error("Export failed", error);
-                alert("Failed to export PDF: " + error.message);
-            } finally {
-                if (exportBtn) {
-                    exportBtn.disabled = false;
-                    exportBtn.innerHTML = originalText;
+                    pdf.addImage(slice.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, PW, PH);
+                    srcY += pageHpx;
+                    pageNum++;
                 }
+
+                pdf.save(`Digimetrics_Strategy_Brief_${new Date().toISOString().slice(0,10)}.pdf`);
+
+            } catch (err) {
+                console.error("Export failed", err);
+                alert("Failed to export PDF: " + err.message);
+            } finally {
+                if (exportBtn) { exportBtn.disabled = false; exportBtn.innerHTML = originalText; }
             }
         }
 
@@ -59959,6 +60370,19 @@ Move-In</h3>
                 if (badge) badge.style.display = 'none';
             }
         });
+    </script>
+
+    <script>
+        // Move Competitors Identifier from Others → SEO section so it is always visible under SEO
+        (function relocateCompetitorsSection() {
+            const comp = document.getElementById('competitorsSection');
+            const seoContent = document.querySelector('#seoSection > .content');
+            if (!comp || !seoContent) return;
+            // Insert before the last page-break inside seoSection
+            const lastPB = Array.from(seoContent.querySelectorAll(':scope > .page-break')).pop();
+            if (lastPB) seoContent.insertBefore(comp, lastPB);
+            else seoContent.appendChild(comp);
+        })();
     </script>
 </body>
 
