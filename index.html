@@ -13368,6 +13368,16 @@
                                         style="width: 100%;">
                                 </div>
                                 <div class="sem-input-item">
+                                    <label for="competitors-comp1">Competitor 1:</label>
+                                    <input type="url" id="competitors-comp1" placeholder="e.g. competitor1.com"
+                                        style="width: 100%;">
+                                </div>
+                                <div class="sem-input-item">
+                                    <label for="competitors-comp2">Competitor 2:</label>
+                                    <input type="url" id="competitors-comp2" placeholder="e.g. competitor2.com"
+                                        style="width: 100%;">
+                                </div>
+                                <div class="sem-input-item">
                                     <label for="competitors-language">Language:</label>
                                     <input type="text" id="competitors-language" value="English"
                                         placeholder="e.g., English" style="width: 100%;">
@@ -13399,7 +13409,7 @@
                             <div class="sem-card-title"><i class="fas fa-microchip"></i> Competitor Analysis</div>
                             <div class="sem-input-item">
                                 <label for="competitor_domains">Competitor Domains (one per line):</label>
-                                <textarea id="competitor_domains" placeholder="Paste domains here..."
+                                <textarea id="competitor_domains" placeholder="Paste domains here (one per line) — first 2 used..."
                                     style="min-height: 100px; width: 100%; resize: vertical;"></textarea>
                             </div>
                             <button id="getIntersectionResults2" class="config-btn-highlight"
@@ -13408,7 +13418,7 @@
                         </div>
                     </div>
 
-                    <div id="competitorsOutput" style="display:none; height:400px; overflow:auto; margin-top: 20px;">
+                    <div id="competitorsOutput" style="display:none; margin-top: 20px;">
                     </div>
                     <div id="getIntersectionResults"></div>
                     <div id="competitorsRanking" style="display:none; height:400px; overflow:auto;"></div>
@@ -16867,7 +16877,7 @@
             return btn;
         }
 
-        function showMainSection(sectionId, mainBtnId) {
+        function showMainSection(sectionId, mainBtnId, skipScroll = false) {
             const sections = ['adminSection', 'cockpitSection', 'seoSection', 'smmSection', 'semSection', 'geoSection', 'othersSection'];
             sections.forEach(id => {
                 const el = document.getElementById(id);
@@ -16877,17 +16887,17 @@
             // If cockpit, we don't have a collapsible mainBtnId
             if (sectionId === 'cockpitSection') {
                 refreshCockpitData();
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                if (!skipScroll) window.scrollTo({ top: 0, behavior: 'smooth' });
                 return;
             }
             if (sectionId === 'adminSection') {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                if (!skipScroll) window.scrollTo({ top: 0, behavior: 'smooth' });
                 return;
             }
             if (mainBtnId) {
                 forceOpenCollapsible(mainBtnId);
             }
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (!skipScroll) window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function showAdminOnly(event) {
@@ -18940,9 +18950,9 @@
             showMainSection('semSection', 'semButton');
         }
 
-        function showOthersOnly(event) {
+        function showOthersOnly(event, skipScroll = false) {
             if (event) event.preventDefault();
-            showMainSection('othersSection', 'othersMainBtn');
+            showMainSection('othersSection', 'othersMainBtn', skipScroll);
         }
 
         function showGeoOnly(event) {
@@ -18965,7 +18975,7 @@
 
         function openTechnicalSeo(event, skipScroll = false) {
             if (event) event.preventDefault();
-            showMainSection('seoSection', 'seo');
+            showMainSection('seoSection', 'seo', skipScroll);
             deactivateAllButtons();
             forceOpenCollapsible('seo');
             const btn = forceOpenCollapsible('technicalButton');
@@ -18977,13 +18987,13 @@
             closeJourneyModal();
         }
 
-        function openCrawlerSimulator(event) {
+        function openCrawlerSimulator(event, skipScroll = false) {
             if (event) event.preventDefault();
-            showMainSection('seoSection', 'seo');
+            showMainSection('seoSection', 'seo', skipScroll);
             deactivateAllButtons();
             forceOpenCollapsible('seo');
             const btn = forceOpenCollapsible('crawlerButton');
-            if (btn) btn.scrollIntoView({ behavior: 'smooth' });
+            if (btn && !skipScroll) btn.scrollIntoView({ behavior: 'smooth' });
 
             if (event && event.currentTarget) {
                 event.currentTarget.classList.add('active-menu');
@@ -18994,7 +19004,7 @@
 
         function openSchemaGenerator(event, skipScroll = false) {
             if (event) event.preventDefault();
-            showMainSection('seoSection', 'seo');
+            showMainSection('seoSection', 'seo', skipScroll);
             deactivateAllButtons();
             forceOpenCollapsible('seo');
             const btn = forceOpenCollapsible('schemaGeneratorButton');
@@ -19160,7 +19170,7 @@
 
         function openCompetitors(event, skipScroll = false) {
             if (event) event.preventDefault();
-            showOthersOnly(event);
+            showOthersOnly(event, skipScroll);
             deactivateAllButtons();
             forceOpenCollapsible('othersMainBtn');
             const btn = forceOpenCollapsible('competitionBtn');
@@ -32438,6 +32448,35 @@ ${selectedText}
 
             const keywordsInput = document.getElementById('competitor_keywords').value;
             const keywords = keywordsInput.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+            
+            const comp1 = document.getElementById('competitors-comp1').value.trim();
+            const comp2 = document.getElementById('competitors-comp2').value.trim();
+            const manualComps = [comp1, comp2].filter(Boolean);
+
+            // If no keywords but manual competitors provided, just populate and move to step 2
+            if (keywords.length === 0 && manualComps.length > 0) {
+                const domainTextarea = document.getElementById('competitor_domains');
+                domainTextarea.value = manualComps.join('\n');
+                updateKeywordAnalysisLoader("Direct Comparison", "Manual competitors added. Ready for Step 2.", true);
+                setTimeout(() => updateKeywordAnalysisLoader("", "", false), 2000);
+                
+                if (getCompBtn) {
+                    getCompBtn.disabled = false;
+                    getCompBtn.innerText = "Step 1: Get Competitors";
+                }
+                return;
+            }
+
+            if (keywords.length === 0) {
+                alert("Please enter some keywords to discover competitors, or provide specific competitors above.");
+                if (getCompBtn) {
+                    getCompBtn.disabled = false;
+                    getCompBtn.innerText = "Step 1: Get Competitors";
+                }
+                updateKeywordAnalysisLoader("", "", false);
+                return;
+            }
+            
             const competitorsLanguage = document.getElementById("competitors-language").value;
             const competitorsLocation = document.getElementById("competitors-location").value;
 
@@ -32491,9 +32530,11 @@ ${selectedText}
                     }
                 }
 
-                if (Object.keys(allResults).length === 0) {
-                    throw new Error("No results returned from any keyword batch.");
-                }
+                // If we have manual competitors, ensure they are in the results even if not found in SERP
+                manualComps.forEach(c => {
+                    const cleanC = c.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '');
+                    if (!allResults[cleanC]) allResults[cleanC] = { "Direct Input": "Manual" };
+                });
 
                 displayCompetitorResults(allResults);
                 document.getElementById("competitorsOutput").style.display = "block";
@@ -32629,7 +32670,7 @@ ${selectedText}
             updateKeywordAnalysisLoader("Analyzing Overlaps", `Checking intersections for domains...`);
 
             var domains = document.getElementById('competitor_domains').value;
-            var domainsArray = domains.split(/[,\n]+/).map(domain => domain.trim()).filter(domain => domain !== "");
+            var domainsArray = domains.split(/[,\n]+/).map(domain => domain.trim()).filter(domain => domain !== "").slice(0, 2);
 
             var location = document.getElementById('competitors-location').value;
             var language = document.getElementById('competitors-language').value;
@@ -32720,24 +32761,34 @@ ${selectedText}
 
             // Collect all unique keywords from the results
             const allKeywords = new Set();
+            const metadataKeys = ['status', 'message', 'statusCode', 'id', 'user', 'location', 'language', 'body'];
+            
+            console.log("Processing results for table:", results);
+
             results.forEach(result => {
                 if (result.data && typeof result.data === 'object') {
-                    Object.keys(result.data).forEach(keyword => {
-                        // Avoid metadata fields if any
-                        if (keyword && typeof result.data[keyword] === 'object') {
-                            allKeywords.add(keyword);
+                    // Check if data is nested in a 'results' or 'data' field (common in some APIs)
+                    const dataToParse = result.data.results || result.data.data || result.data;
+                    
+                    Object.keys(dataToParse).forEach(keyword => {
+                        if (keyword && !metadataKeys.includes(keyword.toLowerCase())) {
+                            // Accept any truthy value — rank entries can be objects, arrays, or numbers
+                            if (dataToParse[keyword] !== null && dataToParse[keyword] !== undefined) {
+                                allKeywords.add(keyword);
+                            }
                         }
                     });
                 }
             });
 
             if (allKeywords.size === 0) {
+                console.warn("No keywords found in results:", results);
                 tableHTML += `
                     <tr>
                         <td colspan="${results.length + 2}" class="premium-td" style="text-align: center; padding: 60px 20px;">
                             <div style="font-size: 40px; color: #ddd; margin-bottom: 15px;"><i class="fas fa-search-minus"></i></div>
                             <div style="font-size: 16px; font-weight: 500; color: #5f6368;">No ranking overlaps found.</div>
-                            <div style="font-size: 13px; color: #70757a; margin-top: 5px;">Try using more common competitor domains or checking your Target Domain.</div>
+                            <div style="font-size: 13px; color: #70757a; margin-top: 5px;">Try using different competitors or check your Target Domain.</div>
                         </td>
                     </tr>
                 `;
@@ -39813,7 +39864,8 @@ Return ONLY valid JSON in this exact format:
                                     compTarget.value = getBaseDomain(targetUrl);
                                 }
                                 
-                                // Expand section for visibility
+                                // Expand sections for visibility
+                                forceOpenCollapsible('othersMainBtn');
                                 forceOpenCollapsible('competitionBtn');
                             }
                         } catch (e) {
@@ -40226,9 +40278,9 @@ Return ONLY valid JSON in this exact format:
                             ${keywords.map(kw => kw.trim()).filter(Boolean).map(kw => `
                                 <tr class="strategy-kw-row" data-keyword="${kw.trim().toLowerCase()}" style="border-bottom: 1px solid #f8fafc; transition: background 0.2s;">
                                     <td style="padding: 10px 12px; color: #334155; font-weight: 600; word-break: break-word; border-right: 1px solid #f1f5f9;" title="${kw}">${kw}</td>
-                                    <td class="v-val" data-value="0" style="padding: 10px 5px; text-align: center; color: #10b981; font-weight: 700; border-right: 1px solid #f1f5f9;">...</td>
-                                    <td class="d-val" data-value="0" style="padding: 10px 5px; text-align: center; color: #f97316; font-weight: 700; border-right: 1px solid #f1f5f9;">...</td>
-                                    <td class="r-val" data-value="101" style="padding: 10px 5px; text-align: center; color: #6366f1; font-weight: 700;">-</td>
+                                    <td class="v-val" data-value="0" style="padding: 10px 5px; text-align: center; color: #94a3b8; font-weight: 700; border-right: 1px solid #f1f5f9;"><i class="fas fa-circle-notch fa-spin" style="font-size:0.75rem;"></i></td>
+                                    <td class="d-val" data-value="0" style="padding: 10px 5px; text-align: center; color: #94a3b8; font-weight: 700; border-right: 1px solid #f1f5f9;"><i class="fas fa-circle-notch fa-spin" style="font-size:0.75rem;"></i></td>
+                                    <td class="r-val" data-value="101" style="padding: 10px 5px; text-align: center; color: #94a3b8; font-weight: 700;"><i class="fas fa-circle-notch fa-spin" style="font-size:0.75rem;"></i></td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -40463,14 +40515,79 @@ Return ONLY valid JSON in this exact format:
             const rankMap = {};
             
             try {
-                // 1. Fetch Volume/Difficulty Chunks (parallel is okay for metrics as they are faster)
+                // Helper: paint a specific set of keywords into their table rows immediately
+                const paintRows = (kwSet = null) => {
+                    document.querySelectorAll('.strategy-kw-row').forEach(row => {
+                        const kwAttr = row.getAttribute('data-keyword');
+                        const kw = cleanKeyword(kwAttr);
+
+                        // If a specific set is given, only repaint those rows
+                        if (kwSet && !kwSet.has(kw)) return;
+
+                        const mData = metricMap[kw];
+                        const rank = rankMap[kw];
+
+                        const vVal = row.querySelector('.v-val');
+                        const dVal = row.querySelector('.d-val');
+                        const rVal = row.querySelector('.r-val');
+
+                        // Vol + KD columns
+                        if (vVal && dVal) {
+                            if (mData !== undefined) {
+                                const vol = mData.vol;
+                                const diff = mData.diff;
+
+                                vVal.innerHTML = vol >= 1000 ? (vol/1000).toFixed(1) + 'k' : (vol || '0');
+                                vVal.setAttribute('data-value', vol);
+                                vVal.style.color = vol > 0 ? '#10b981' : '#94a3b8';
+                                vVal.style.opacity = '1';
+
+                                dVal.innerHTML = diff || '0';
+                                dVal.setAttribute('data-value', diff);
+                                dVal.style.opacity = '1';
+                                if (diff > 50) dVal.style.color = '#ef4444';
+                                else if (diff > 30) dVal.style.color = '#f59e0b';
+                                else dVal.style.color = '#10b981';
+                            }
+                            // If still no metric data, leave spinner running
+                        }
+
+                        // Rank column — only update when rank data is available
+                        if (rVal && rankMap.hasOwnProperty(kw)) {
+                            const r = rank;
+                            if (r !== undefined && r !== null) {
+                                rVal.innerHTML = r <= 100 ? r : '100+';
+                                rVal.setAttribute('data-value', r);
+                                rVal.style.color = r <= 10 ? '#10b981' : (r <= 30 ? '#f59e0b' : '#6366f1');
+                                rVal.style.opacity = '1';
+                            } else {
+                                rVal.innerHTML = '-';
+                                rVal.style.color = '#94a3b8';
+                                rVal.style.opacity = '0.5';
+                            }
+                        }
+                    });
+                };
+
+                // Helper: mark remaining spinners as no-data once all fetches are done
+                const resolveRemainingSpinners = () => {
+                    document.querySelectorAll('.strategy-kw-row').forEach(row => {
+                        const vVal = row.querySelector('.v-val');
+                        const dVal = row.querySelector('.d-val');
+                        const rVal = row.querySelector('.r-val');
+                        if (vVal && vVal.querySelector('i')) { vVal.innerHTML = '—'; vVal.style.color = '#94a3b8'; vVal.style.opacity = '0.5'; }
+                        if (dVal && dVal.querySelector('i')) { dVal.innerHTML = '—'; dVal.style.color = '#94a3b8'; dVal.style.opacity = '0.5'; }
+                        if (rVal && rVal.querySelector('i')) { rVal.innerHTML = '-'; rVal.style.color = '#94a3b8'; rVal.style.opacity = '0.5'; }
+                    });
+                };
+
+                // 1. Fetch Volume/Difficulty using mangoolsKeywords — paint each chunk immediately as it arrives
                 const metricPromises = metricChunks.map(async (chunk) => {
                     try {
-                        const response = await fetch('https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday', {
+                        const response = await fetch('https://gr8ar6zc4e.execute-api.ap-southeast-1.amazonaws.com/mangoolsKeywords', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                action: 'get_keyword_metrics_batch',
                                 keywords: chunk,
                                 location: location,
                                 language: language
@@ -40478,29 +40595,30 @@ Return ONLY valid JSON in this exact format:
                         });
 
                         const result = await response.json();
-                        let results = [];
-                        if (result.body) {
-                            const body = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
-                            results = body.results || [];
-                        } else {
-                            results = result.results || [];
-                        }
+                        const bodyData = result.body
+                            ? (typeof result.body === 'string' ? JSON.parse(result.body) : result.body)
+                            : result;
 
-                        results.forEach(r => {
-                            if (r.keyword && r.metrics) {
-                                const cleanedKw = cleanKeyword(r.keyword);
+                        const updatedKws = new Set();
+                        for (const kw in bodyData) {
+                            const entry = bodyData[kw];
+                            if (entry && typeof entry === 'object') {
+                                const cleanedKw = cleanKeyword(kw);
                                 metricMap[cleanedKw] = {
-                                    vol: r.metrics.volume !== undefined ? r.metrics.volume : 0,
-                                    diff: r.metrics.difficulty !== undefined ? r.metrics.difficulty : 0
+                                    vol: entry.search_volume ?? entry.volume ?? 0,
+                                    diff: entry.difficulty ?? entry.competition ?? 0
                                 };
+                                updatedKws.add(cleanedKw);
                             }
-                        });
+                        }
+                        // Paint only the rows from this chunk immediately
+                        paintRows(updatedKws);
                     } catch (err) {
                         console.error("Error fetching metrics chunk:", err);
                     }
                 });
 
-                // 2. Fetch Rankings SEQUENTIALLY to avoid 504 timeouts from the SERP backend
+                // 2. Fetch Rankings SEQUENTIALLY — paint rank column after each chunk
                 const userEmail = localStorage.getItem('googleUser') ? JSON.parse(localStorage.getItem('googleUser')).email : 'guest';
                 for (let i = 0; i < rankingChunks.length; i++) {
                     const chunk = rankingChunks[i];
@@ -40526,76 +40644,29 @@ Return ONLY valid JSON in this exact format:
                         
                         if (!results) continue;
 
+                        const updatedRankKws = new Set();
                         for (const domain in results) {
                             const currentBase = getBaseDomain(domain);
                             if (currentBase && targetBase && (currentBase.includes(targetBase) || targetBase.includes(currentBase))) {
                                 const kwRanks = results[domain];
                                 for (const kw in kwRanks) {
-                                    rankMap[cleanKeyword(kw)] = kwRanks[kw];
+                                    const cleanedKw = cleanKeyword(kw);
+                                    rankMap[cleanedKw] = kwRanks[kw];
+                                    updatedRankKws.add(cleanedKw);
                                 }
                             }
                         }
+                        // Paint rank column for this chunk immediately
+                        paintRows(updatedRankKws);
                     } catch (err) {
                         console.error("Error fetching ranking chunk:", err);
                     }
                 }
 
                 await Promise.all(metricPromises);
+                // Clear any remaining spinners for keywords that returned no data
+                resolveRemainingSpinners();
 
-                // Update UI for each row
-                document.querySelectorAll('.strategy-kw-row').forEach(row => {
-                    const kwAttr = row.getAttribute('data-keyword');
-                    const kw = cleanKeyword(kwAttr);
-                    
-                    const mData = metricMap[kw];
-                    const rank = rankMap[kw];
-                    
-                    const vVal = row.querySelector('.v-val');
-                    const dVal = row.querySelector('.d-val');
-                    const rVal = row.querySelector('.r-val');
-                    
-                    if (vVal && dVal) {
-                        if (mData) {
-                            const vol = mData.vol;
-                            const diff = mData.diff;
-                            
-                            vVal.innerText = vol >= 1000 ? (vol/1000).toFixed(1) + 'k' : (vol || '0');
-                            vVal.setAttribute('data-value', vol);
-                            vVal.style.color = vol > 0 ? '#10b981' : '#94a3b8';
-                            vVal.style.opacity = '1';
-                            
-                            dVal.innerText = diff || '0';
-                            dVal.setAttribute('data-value', diff);
-                            dVal.style.opacity = '1';
-                            
-                            // Color coding difficulty
-                            if (diff > 50) dVal.style.color = '#ef4444';
-                            else if (diff > 30) dVal.style.color = '#f59e0b';
-                            else dVal.style.color = '#10b981';
-                        } else {
-                            // If no data found, set to 0 with low opacity
-                            vVal.innerText = '—';
-                            dVal.innerText = '—';
-                            vVal.style.opacity = '0.5';
-                            dVal.style.opacity = '0.5';
-                            vVal.style.color = '#94a3b8';
-                            dVal.style.color = '#94a3b8';
-                        }
-                    }
-
-                    if (rVal) {
-                        if (rank !== undefined && rank !== null) {
-                            rVal.innerText = rank <= 100 ? rank : '100+';
-                            rVal.setAttribute('data-value', rank);
-                            rVal.style.color = rank <= 10 ? '#10b981' : (rank <= 30 ? '#f59e0b' : '#6366f1');
-                            rVal.style.opacity = '1';
-                        } else {
-                            rVal.innerText = '-';
-                            rVal.style.opacity = '0.5';
-                        }
-                    }
-                });
-                
                 updateStrategyStatus("Keywords Enriched with Real-time Metrics", 100);
                 setTimeout(() => updateStrategyStatus(null, null, false), 3000);
             } catch (error) {
