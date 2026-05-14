@@ -32426,7 +32426,7 @@ ${selectedText}
             });
         }
 
-        function getCompetitors(keepLoader = false) {
+        async function getCompetitors(keepLoader = false) {
             console.log("getCompetitors() called, keepLoader:", keepLoader);
             const getCompBtn = document.getElementById("getCompetitorsBtn");
             if (getCompBtn) {
@@ -32454,43 +32454,62 @@ ${selectedText}
             }
 
             const userEmail = localStorage.getItem('googleUser') ? JSON.parse(localStorage.getItem('googleUser')).email : 'guest';
+            const allResults = {};
+            const batchSize = 3; // Small batches to avoid 504 timeouts
+            
+            try {
+                for (let i = 0; i < keywords.length; i += batchSize) {
+                    const batch = keywords.slice(i, i + batchSize);
+                    const progress = Math.min(100, Math.round(((i + batch.length) / keywords.length) * 100));
+                    
+                    updateKeywordAnalysisLoader("Identifying Competitors", `Scouting top results for batch ${Math.floor(i/batchSize) + 1} (${progress}%)...`);
+                    
+                    const response = await fetch("https://itzj193chl.execute-api.ap-southeast-1.amazonaws.com/serpCompetitors", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            id: 'comp_' + Date.now(),
+                            user: userEmail,
+                            keywords: batch,
+                            location: competitorsLocation,
+                            language: competitorsLanguage
+                        })
+                    });
 
-            fetch("https://itzj193chl.execute-api.ap-southeast-1.amazonaws.com/serpCompetitors", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    id: 'comp_' + Date.now(),
-                    user: userEmail,
-                    keywords: keywords,
-                    location: competitorsLocation,
-                    language: competitorsLanguage
-                })
-            })
-                .then(response => {
                     if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
+                        console.warn(`Batch ${i/batchSize} failed with status: ${response.status}`);
+                        continue; // Try next batch
                     }
-                    return response.json();
-                })
-                .then(data => {
-                    displayCompetitorResults(data.body);
-                    document.getElementById("competitorsOutput").style.display = "block";
-                    updateCollapsibleState('competitionBtn', 'success');
-                })
-                .catch(error => {
-                    console.error("Error fetching competitors:", error);
-                    document.getElementById("competitorsOutput").innerHTML = `<div class="premium-badge-bad" style="padding: 15px; border-radius: 8px;">Error fetching competitors: ${error.message}</div>`;
-                    updateCollapsibleState('competitionBtn', 'error');
-                })
-                .finally(() => {
-                    if (getCompBtn) {
-                        getCompBtn.disabled = false;
-                        getCompBtn.innerText = "Step 1: Get Competitors";
+
+                    const data = await response.json();
+                    const batchResults = data.body || {};
+                    
+                    // Merge results into allResults
+                    for (const domain in batchResults) {
+                        if (!allResults[domain]) allResults[domain] = {};
+                        Object.assign(allResults[domain], batchResults[domain]);
                     }
-                    if (!keepLoader) updateKeywordAnalysisLoader("", "", false);
-                });
+                }
+
+                if (Object.keys(allResults).length === 0) {
+                    throw new Error("No results returned from any keyword batch.");
+                }
+
+                displayCompetitorResults(allResults);
+                document.getElementById("competitorsOutput").style.display = "block";
+                updateCollapsibleState('competitionBtn', 'success');
+
+            } catch (error) {
+                console.error("Error fetching competitors:", error);
+                document.getElementById("competitorsOutput").innerHTML = `<div class="premium-badge-bad" style="padding: 15px; border-radius: 8px;">Error fetching competitors: ${error.message}</div>`;
+                updateCollapsibleState('competitionBtn', 'error');
+            } finally {
+                if (getCompBtn) {
+                    getCompBtn.disabled = false;
+                    getCompBtn.innerText = "Step 1: Get Competitors";
+                }
+                if (!keepLoader) updateKeywordAnalysisLoader("", "", false);
+            }
         }
 
         function displayCompetitorResults(results) {
@@ -32603,6 +32622,7 @@ ${selectedText}
                 return;
             }
             const btn = document.getElementById('getIntersectionResults2');
+            const originalText = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Getting Results..';
 
@@ -32615,37 +32635,66 @@ ${selectedText}
             var language = document.getElementById('competitors-language').value;
             const target1Value = document.getElementById('competitors-target1').value;
 
-            const apiCalls = domainsArray.map(domain => {
-                const requestBody = {
-                    "language": language,
-                    "location": location,
-                    "target1": target1Value,
-                    "target2": domain
-                };
-
-                return fetch('https://8llvcx7m6e.execute-api.ap-southeast-1.amazonaws.com/domainIntersection', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody)
-                })
-                    .then(response => {
+            const results = [];
+            
+            // Process domains sequentially to avoid overwhelming the backend and handle retries
+            for (let i = 0; i < domainsArray.length; i++) {
+                const domain = domainsArray[i];
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Analyzing ${domain} (${i + 1}/${domainsArray.length})...`;
+                updateKeywordAnalysisLoader("Analyzing Overlaps", `Analyzing ${domain}...`);
+                
+                let data = null;
+                let retryCount = 0;
+                const maxRetries = 2;
+                
+                while (retryCount <= maxRetries) {
+                    try {
+                        const response = await fetch('https://8llvcx7m6e.execute-api.ap-southeast-1.amazonaws.com/domainIntersection', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                "language": language,
+                                "location": location,
+                                "target1": target1Value,
+                                "target2": domain
+                            })
+                        });
+                        
+                        if (response.status === 504 || response.status === 429) {
+                            throw new Error(`Server busy (Status ${response.status})`);
+                        }
+                        
                         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-                        return response.json();
-                    })
-                    .then(data => ({ domain: domain, data: data }))
-                    .catch(error => {
-                        console.error(`Error fetching intersection results for ${domain}:`, error);
-                        return { domain: domain, error: error };
-                    });
-            });
+                        
+                        data = await response.json();
+                        break; // Success
+                    } catch (error) {
+                        console.error(`Attempt ${retryCount + 1} failed for ${domain}:`, error);
+                        retryCount++;
+                        if (retryCount <= maxRetries) {
+                            const delay = retryCount * 2000;
+                            updateKeywordAnalysisLoader("Retrying...", `Server busy. Retrying ${domain} in ${delay/1000}s...`);
+                            await new Promise(r => setTimeout(r, delay));
+                        } else {
+                            results.push({ domain: domain, error: error });
+                        }
+                    }
+                }
+                
+                if (data) {
+                    // Lambda might return results in a body field
+                    const parsedData = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
+                    results.push({ domain: domain, data: parsedData });
+                }
+            }
 
             try {
-                const results = await Promise.all(apiCalls);
+                console.log("Domain Intersection Results:", results);
                 displayIntersectionResults(results);
                 document.getElementById('getIntersectionResults').style.display = 'block';
             } finally {
                 btn.disabled = false;
-                btn.innerText = "Step 2: Get Intersection Results";
+                btn.innerHTML = "Step 2: Get Intersection Results";
                 updateKeywordAnalysisLoader("", "", false);
             }
         }
@@ -32672,62 +32721,82 @@ ${selectedText}
             // Collect all unique keywords from the results
             const allKeywords = new Set();
             results.forEach(result => {
-                if (result.data) {
-                    Object.keys(result.data).forEach(keyword => allKeywords.add(keyword));
+                if (result.data && typeof result.data === 'object') {
+                    Object.keys(result.data).forEach(keyword => {
+                        // Avoid metadata fields if any
+                        if (keyword && typeof result.data[keyword] === 'object') {
+                            allKeywords.add(keyword);
+                        }
+                    });
                 }
             });
 
-            // Iterate over each unique keyword and create a row
-            allKeywords.forEach(keyword => {
-                try {
-                    tableHTML += `
-                        <tr class="premium-tr">
-                            <td class="premium-td" style="font-weight: 500; color: #1a73e8;">${keyword}</td>
-                    `;
-
-                    const targetDomain = document.getElementById("competitors-target1").value;
-
-                    // Helper to find rank data for a domain
-                    const getDomainData = (obj, domain) => {
-                        if (!obj) return null;
-                        // Try exact match first
-                        if (obj[domain]) return obj[domain];
-                        // Try matching without www. or protocol
-                        const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase();
-                        for (let key in obj) {
-                            const cleanKey = key.replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase();
-                            if (cleanKey === cleanDomain && Array.isArray(obj[key])) return obj[key];
-                        }
-                        // Fallback to any key that looks like domain data (array of 2 elements) 
-                        // and isn't a known metadata field, but only if we can't find the domain
-                        return null;
-                    };
-
-                    // Get target1 data (Target Domain)
-                    const targetData = getDomainData(results[0].data ? results[0].data[keyword] : null, targetDomain);
-                    if (targetData && Array.isArray(targetData)) {
-                        tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(targetData[0], targetData[1])}</td>`;
-                    } else {
-                        tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(999)}</td>`;
+            if (allKeywords.size === 0) {
+                tableHTML += `
+                    <tr>
+                        <td colspan="${results.length + 2}" class="premium-td" style="text-align: center; padding: 60px 20px;">
+                            <div style="font-size: 40px; color: #ddd; margin-bottom: 15px;"><i class="fas fa-search-minus"></i></div>
+                            <div style="font-size: 16px; font-weight: 500; color: #5f6368;">No ranking overlaps found.</div>
+                            <div style="font-size: 13px; color: #70757a; margin-top: 5px;">Try using more common competitor domains or checking your Target Domain.</div>
+                        </td>
+                    </tr>
+                `;
+            } else {
+                const targetDomain = document.getElementById("competitors-target1").value;
+                
+                // Helper to find rank data for a domain
+                const getDomainData = (obj, domain) => {
+                    if (!obj) return null;
+                    if (obj[domain]) return obj[domain];
+                    const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase();
+                    for (let key in obj) {
+                        const cleanKey = key.replace(/^(https?:\/\/)?(www\.)?/, '').toLowerCase();
+                        if (cleanKey === cleanDomain && Array.isArray(obj[key])) return obj[key];
                     }
+                    return null;
+                };
 
-                    // Add rankings for each competitor domain
-                    results.forEach(result => {
-                        const competitorData = getDomainData(result.data ? result.data[keyword] : null, result.domain);
-                        if (competitorData && Array.isArray(competitorData)) {
-                            tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(competitorData[0], competitorData[1])}</td>`;
-                        } else if (result.error) {
-                            tableHTML += `<td class="premium-td" style="text-align: center;"><span class="premium-badge-bad">Error</span></td>`;
+                // Iterate over each unique keyword and create a row
+                allKeywords.forEach(keyword => {
+                    try {
+                        tableHTML += `
+                            <tr class="premium-tr">
+                                <td class="premium-td" style="font-weight: 500; color: #1a73e8;">${keyword}</td>
+                        `;
+
+                        // Get target1 data (Target Domain) from any result that has it
+                        let targetData = null;
+                        for (const res of results) {
+                            if (res.data && res.data[keyword]) {
+                                targetData = getDomainData(res.data[keyword], targetDomain);
+                                if (targetData) break;
+                            }
+                        }
+
+                        if (targetData && Array.isArray(targetData)) {
+                            tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(targetData[0], targetData[1])}</td>`;
                         } else {
                             tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(999)}</td>`;
                         }
-                    });
 
-                    tableHTML += `</tr>`;
-                } catch (e) {
-                    console.error("Error building row for keyword:", keyword, e);
-                }
-            });
+                        // Add rankings for each competitor domain
+                        results.forEach(result => {
+                            const competitorData = getDomainData(result.data ? result.data[keyword] : null, result.domain);
+                            if (competitorData && Array.isArray(competitorData)) {
+                                tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(competitorData[0], competitorData[1])}</td>`;
+                            } else if (result.error) {
+                                tableHTML += `<td class="premium-td" style="text-align: center;"><span class="premium-badge-bad">Error</span></td>`;
+                            } else {
+                                tableHTML += `<td class="premium-td" style="text-align: center;">${getRankBadgeHtml(999)}</td>`;
+                            }
+                        });
+
+                        tableHTML += `</tr>`;
+                    } catch (e) {
+                        console.error("Error building row for keyword:", keyword, e);
+                    }
+                });
+            }
 
             tableHTML += `
                         </tbody>
@@ -39497,11 +39566,30 @@ Return ONLY valid JSON in this exact format:
                 document.getElementById('strat-seed-keywords').value = formatField(data.seed_keywords);
             }
 
-            // Checkboxes for Objectives
             if (Array.isArray(data.objectives)) {
                 document.querySelectorAll('input[name="strat-objective"]').forEach(cb => {
                     cb.checked = data.objectives.includes(cb.value);
                 });
+            }
+
+            // NEW: Populate SEO Competitor Analysis section
+            if (data.seo_keywords && Array.isArray(data.seo_keywords)) {
+                const kwField = document.getElementById('competitor_keywords');
+                if (kwField) kwField.value = data.seo_keywords.join(', ');
+            }
+            
+            if (data.top_competitor_domains && Array.isArray(data.top_competitor_domains)) {
+                const domainsField = document.getElementById('competitor_domains');
+                if (domainsField) domainsField.value = data.top_competitor_domains.join('\n');
+            }
+            
+            // Auto-trigger intersection results if we have the data
+            if (data.seo_keywords && data.top_competitor_domains) {
+                const intersectBtn = document.getElementById('getIntersectionResults2');
+                if (intersectBtn) {
+                    console.log("Auto-triggering intersection results...");
+                    setTimeout(() => intersectBtn.click(), 1000); // Small delay to ensure fields are settled
+                }
             }
         }
 
@@ -39617,7 +39705,7 @@ Return ONLY valid JSON in this exact format:
                 4. Potential Business Objectives: (Choose from: lead_generation, brand_authority, local_visibility, ecommerce_revenue, service_enquiries, niche_dominance).
                 5. Seed Keywords: 5-10 primary keywords.
 
-                Return ONLY a JSON object with keys: client_profile, target_audience, market_context, objectives (array of values), seed_keywords (comma string).`;
+                Return ONLY a JSON object with keys: client_profile, target_audience, market_context, objectives (array of values), seed_keywords (comma string), top_competitor_domains (array of 5 domains), seo_keywords (array of 3 primary keywords).`;
 
                 const response = await fetch(MONDAY_LAMBDA_URL, {
                     method: 'POST',
@@ -39722,7 +39810,7 @@ Return ONLY valid JSON in this exact format:
                                 // Pre-populate Target Domain in Competitors section
                                 const compTarget = document.getElementById('competitors-target1');
                                 if (compTarget && targetUrl) {
-                                    compTarget.value = targetUrl;
+                                    compTarget.value = getBaseDomain(targetUrl);
                                 }
                                 
                                 // Expand section for visibility
@@ -40359,18 +40447,24 @@ Return ONLY valid JSON in this exact format:
             console.log(`Enriching ${uniqueKeywords.length} unique keywords in parallel chunks...`);
             
             // Helper to fetch in chunks to avoid timeouts and ensure coverage
-            const chunkSize = 20;
-            const chunks = [];
-            for (let i = 0; i < uniqueKeywords.length; i += chunkSize) {
-                chunks.push(uniqueKeywords.slice(i, i + chunkSize));
+            const metricChunkSize = 20;
+            const metricChunks = [];
+            for (let i = 0; i < uniqueKeywords.length; i += metricChunkSize) {
+                metricChunks.push(uniqueKeywords.slice(i, i + metricChunkSize));
+            }
+
+            const rankingChunkSize = 5; // Smaller chunks for SERP lookups to avoid timeouts
+            const rankingChunks = [];
+            for (let i = 0; i < uniqueKeywords.length; i += rankingChunkSize) {
+                rankingChunks.push(uniqueKeywords.slice(i, i + rankingChunkSize));
             }
 
             const metricMap = {};
             const rankMap = {};
             
             try {
-                // 1. Fetch Volume/Difficulty Chunks
-                const metricPromises = chunks.map(async (chunk) => {
+                // 1. Fetch Volume/Difficulty Chunks (parallel is okay for metrics as they are faster)
+                const metricPromises = metricChunks.map(async (chunk) => {
                     try {
                         const response = await fetch('https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday', {
                             method: 'POST',
@@ -40406,10 +40500,13 @@ Return ONLY valid JSON in this exact format:
                     }
                 });
 
-                // 2. Fetch Rankings in parallel chunks (using serpCompetitors endpoint)
-                const rankingPromises = chunks.map(async (chunk) => {
+                // 2. Fetch Rankings SEQUENTIALLY to avoid 504 timeouts from the SERP backend
+                const userEmail = localStorage.getItem('googleUser') ? JSON.parse(localStorage.getItem('googleUser')).email : 'guest';
+                for (let i = 0; i < rankingChunks.length; i++) {
+                    const chunk = rankingChunks[i];
+                    updateStrategyStatus(`Fetching Rankings (${i + 1}/${rankingChunks.length})...`, 60 + Math.round((i / rankingChunks.length) * 30), true);
+                    
                     try {
-                        const userEmail = localStorage.getItem('googleUser') ? JSON.parse(localStorage.getItem('googleUser')).email : 'guest';
                         const response = await fetch("https://itzj193chl.execute-api.ap-southeast-1.amazonaws.com/serpCompetitors", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
@@ -40422,16 +40519,15 @@ Return ONLY valid JSON in this exact format:
                             })
                         });
 
+                        if (!response.ok) continue;
+
                         const result = await response.json();
                         const results = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
                         
-                        if (!results) return;
+                        if (!results) continue;
 
-                        // Results is { "domain": { "keyword": rank, ... }, ... }
-                        // Find our target domain with flexible matching
                         for (const domain in results) {
                             const currentBase = getBaseDomain(domain);
-                            // Match if domains are similar (e.g. extraspaceasia.com vs extraspaceasia.com.sg or www. version)
                             if (currentBase && targetBase && (currentBase.includes(targetBase) || targetBase.includes(currentBase))) {
                                 const kwRanks = results[domain];
                                 for (const kw in kwRanks) {
@@ -40442,9 +40538,9 @@ Return ONLY valid JSON in this exact format:
                     } catch (err) {
                         console.error("Error fetching ranking chunk:", err);
                     }
-                });
+                }
 
-                await Promise.all([...metricPromises, ...rankingPromises]);
+                await Promise.all(metricPromises);
 
                 // Update UI for each row
                 document.querySelectorAll('.strategy-kw-row').forEach(row => {
