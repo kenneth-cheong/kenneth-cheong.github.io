@@ -19912,6 +19912,8 @@
         let metaInsightsData = [];
         let metaAdsChartInstance = null;
         let metaDrillStack = []; // [{filterField, filterId, name}]
+        let metaSortKey = 'spend';
+        let metaSortDir = 'desc';
         let metaPriorData = null;
 
         function renderMetaTrend(elemId, current, prior, lowerIsBetter = false) {
@@ -20005,9 +20007,22 @@
             { key: 'frequency',           label: 'Frequency',   align: 'right',  on: false },
             { key: 'thumb_stop',          label: 'Thumb Stop',  align: 'right',  on: false },
             { key: 'video_completion',    label: 'Vid. Compl.', align: 'right',  on: false },
-            { key: 'quality_ranking',     label: 'Quality',     align: 'center', on: false },
-            { key: 'engagement_ranking',  label: 'Engagement',  align: 'center', on: false },
-            { key: 'conversion_ranking',  label: 'Conversion',  align: 'center', on: false },
+            { key: 'quality_ranking',     label: 'Quality',        align: 'center', on: false },
+            { key: 'engagement_ranking',  label: 'Engagement Rnk', align: 'center', on: false },
+            { key: 'conversion_ranking',  label: 'Conversion Rnk', align: 'center', on: false },
+            { key: 'link_clicks',         label: 'Link Clicks',    align: 'right',  on: false },
+            { key: 'outbound_clicks',     label: 'Outbound',       align: 'right',  on: false },
+            { key: 'outbound_clicks_ctr', label: 'Outbound CTR',   align: 'right',  on: false },
+            { key: 'unique_clicks',       label: 'Unique Clicks',  align: 'right',  on: false },
+            { key: 'unique_ctr',          label: 'Unique CTR',     align: 'right',  on: false },
+            { key: 'landing_page_views',  label: 'LP Views',       align: 'right',  on: false },
+            { key: 'purchases',           label: 'Purchases',      align: 'right',  on: false },
+            { key: 'leads',               label: 'Leads',          align: 'right',  on: false },
+            { key: 'add_to_cart',         label: 'Add to Cart',    align: 'right',  on: false },
+            { key: 'purchase_roas',       label: 'ROAS',           align: 'right',  on: false },
+            { key: 'video_30s',           label: '30s Views',      align: 'right',  on: false },
+            { key: 'video_avg_watch',     label: 'Avg Watch (s)',  align: 'right',  on: false },
+            { key: 'earl',                label: 'Ad Recall Lift', align: 'right',  on: false },
         ];
 
         function metaCurrentLevel() {
@@ -20059,12 +20074,28 @@
             renderMetaTable();
         }
 
+        function metaSortIcon(key) {
+            if (metaSortKey !== key) return '<span style="opacity:.25;margin-left:4px;">⇅</span>';
+            return metaSortDir === 'asc'
+                ? '<span style="margin-left:4px;color:#1877F2;">↑</span>'
+                : '<span style="margin-left:4px;color:#1877F2;">↓</span>';
+        }
+
+        function metaSortBy(key) {
+            if (metaSortKey === key) metaSortDir = metaSortDir === 'asc' ? 'desc' : 'asc';
+            else { metaSortKey = key; metaSortDir = 'desc'; }
+            renderMetaTableHead();
+            renderMetaTable();
+        }
+
         function renderMetaTableHead() {
-            const th = (label, align) =>
-                `<th style="padding:12px 16px;text-align:${align};font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;white-space:nowrap;">${label}</th>`;
+            const thStyle = align =>
+                `padding:12px 16px;text-align:${align};font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;white-space:nowrap;cursor:pointer;user-select:none;`;
+            const th = (label, align, key) =>
+                `<th style="${thStyle(align)}" onclick="metaSortBy('${key}')">${label}${metaSortIcon(key)}</th>`;
             const vis = metaColDefs.filter(c => c.on);
             document.getElementById('metaAdsTableHead').innerHTML =
-                `<tr>${th('Name','left')}${vis.map(c => th(c.label, c.align)).join('')}</tr>`;
+                `<tr>${th('Name','left','name')}${vis.map(c => th(c.label, c.align, c.key)).join('')}</tr>`;
         }
 
         function renderMetaBreadcrumb() {
@@ -20220,7 +20251,7 @@
             try {
                 const insightParams = {
                     level,
-                    fields: 'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,clicks,ctr,cpc,cpm,actions,cost_per_action_type,conversions,cost_per_conversion,inline_link_clicks,cost_per_inline_link_click,results,cost_per_result,reach,date_start,date_stop,objective,frequency,video_play_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,quality_ranking,engagement_rate_ranking,conversion_rate_ranking',
+                    fields: 'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,clicks,ctr,cpc,cpm,actions,cost_per_action_type,conversions,cost_per_conversion,inline_link_clicks,cost_per_inline_link_click,results,cost_per_result,reach,date_start,date_stop,objective,frequency,video_play_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,video_30_sec_watched_actions,video_avg_time_watched_actions,quality_ranking,engagement_rate_ranking,conversion_rate_ranking,link_clicks,outbound_clicks,outbound_clicks_ctr,unique_clicks,unique_ctr,landing_page_views,estimated_ad_recall_lift_rate,website_purchase_roas',
                     limit: '200'
                 };
                 if (datePreset === 'custom') {
@@ -20363,6 +20394,7 @@
 
         function resetMetaKPIs() {
             metaDrillStack = [];
+            metaSortKey = 'spend'; metaSortDir = 'desc';
             ['metaKpiSpend','metaKpiImpressions','metaKpiReach','metaKpiClicks','metaKpiCtr','metaKpiCpc','metaKpiCpm','metaKpiResults','metaKpiCostPerResult','metaKpiFrequency','metaKpiThumbStop']
                 .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
             renderMetaTableHead();
@@ -20380,9 +20412,38 @@
             const vis     = metaColDefs.filter(c => c.on);
             const totalCols = 1 + vis.length;
 
-            const rows = metaInsightsData.filter((r, i) =>
-                !filter || (r[nameKey] || '').toLowerCase().includes(filter)
-            );
+            const sortVal = (r) => {
+                const key = metaSortKey;
+                if (key === 'name') return (r[nameKey] || '').toLowerCase();
+                if (key === 'status') return r.status || r.effective_status || '';
+                if (key === 'spend') return parseFloat(r.spend || 0);
+                if (key === 'impressions') return parseInt(r.impressions || 0, 10);
+                if (key === 'reach') return parseInt(r.reach || 0, 10);
+                if (key === 'frequency') return parseFloat(r.frequency || 0);
+                if (key === 'clicks') return parseInt(r.clicks || 0, 10);
+                if (key === 'ctr') return parseFloat(r.ctr || 0);
+                if (key === 'cpc') return parseFloat(r.cpc || 0);
+                if (key === 'cpm') return parseFloat(r.cpm || 0);
+                if (key === 'results') return getMetaResults(r);
+                if (key === 'cost_per_result') return parseFloat(r.cost_per_result || 0);
+                if (key === 'thumb_stop') { const p=getVideoPlays(r), i=parseInt(r.impressions||0,10); return i?p/i:0; }
+                if (key === 'video_completion') { const a=(r.video_p100_watched_actions||[]).find(x=>x.action_type==='video_view'); const i=parseInt(r.impressions||0,10); return(a&&i)?parseFloat(a.value)/i:0; }
+                if (key === 'link_clicks') return parseInt((r.actions||[]).find(a=>a.action_type==='link_click')?.value||0,10);
+                if (key === 'landing_page_views') return parseInt((r.actions||[]).find(a=>a.action_type==='landing_page_view')?.value||0,10);
+                if (key === 'purchases') return parseInt((r.actions||[]).find(a=>a.action_type==='purchase')?.value||0,10);
+                if (key === 'leads') return parseInt((r.actions||[]).find(a=>a.action_type==='lead')?.value||0,10);
+                if (key === 'add_to_cart') return parseInt((r.actions||[]).find(a=>a.action_type==='add_to_cart')?.value||0,10);
+                if (key === 'video_30s') { const a=(r.video_30_sec_watched_actions||[]).find(x=>x.action_type==='video_view'); return a?parseFloat(a.value):0; }
+                return 0;
+            };
+
+            const rows = metaInsightsData
+                .filter(r => !filter || (r[nameKey] || '').toLowerCase().includes(filter))
+                .sort((a, b) => {
+                    const av = sortVal(a), bv = sortVal(b);
+                    if (typeof av === 'string') return metaSortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+                    return metaSortDir === 'asc' ? av - bv : bv - av;
+                });
 
             // Conditional formatting: spend percentiles
             const spends = rows.map(r => parseFloat(r.spend || 0));
@@ -20426,6 +20487,49 @@
                     case 'quality_ranking':    return r.quality_ranking || '—';
                     case 'engagement_ranking': return r.engagement_rate_ranking || '—';
                     case 'conversion_ranking': return r.conversion_rate_ranking || '—';
+                    case 'link_clicks': {
+                        const a = (r.actions||[]).find(x=>x.action_type==='link_click');
+                        return a ? parseInt(a.value,10).toLocaleString() : '—';
+                    }
+                    case 'outbound_clicks': {
+                        const a = (r.outbound_clicks||[]).find(x=>x.action_type==='outbound_click');
+                        return a ? parseInt(a.value,10).toLocaleString() : (r.outbound_clicks_ctr ? '—' : '—');
+                    }
+                    case 'outbound_clicks_ctr': {
+                        const a = (r.outbound_clicks_ctr||[]).find(x=>x.action_type==='outbound_click');
+                        return a ? parseFloat(a.value).toFixed(2)+'%' : '—';
+                    }
+                    case 'unique_clicks':  return r.unique_clicks ? parseInt(r.unique_clicks,10).toLocaleString() : '—';
+                    case 'unique_ctr':     return r.unique_ctr ? parseFloat(r.unique_ctr).toFixed(2)+'%' : '—';
+                    case 'landing_page_views': {
+                        const a = (r.actions||[]).find(x=>x.action_type==='landing_page_view');
+                        return a ? parseInt(a.value,10).toLocaleString() : '—';
+                    }
+                    case 'purchases': {
+                        const a = (r.actions||[]).find(x=>x.action_type==='purchase');
+                        return a ? parseInt(a.value,10).toLocaleString() : '—';
+                    }
+                    case 'leads': {
+                        const a = (r.actions||[]).find(x=>x.action_type==='lead');
+                        return a ? parseInt(a.value,10).toLocaleString() : '—';
+                    }
+                    case 'add_to_cart': {
+                        const a = (r.actions||[]).find(x=>x.action_type==='add_to_cart');
+                        return a ? parseInt(a.value,10).toLocaleString() : '—';
+                    }
+                    case 'purchase_roas': {
+                        const a = (r.website_purchase_roas||[]).find(x=>x.action_type==='omni_purchase');
+                        return a ? parseFloat(a.value).toFixed(2)+'x' : '—';
+                    }
+                    case 'video_30s': {
+                        const a = (r.video_30_sec_watched_actions||[]).find(x=>x.action_type==='video_view');
+                        return a ? parseInt(a.value,10).toLocaleString() : '—';
+                    }
+                    case 'video_avg_watch': {
+                        const a = (r.video_avg_time_watched_actions||[]).find(x=>x.action_type==='video_view');
+                        return a ? parseFloat(a.value).toFixed(1)+'s' : '—';
+                    }
+                    case 'earl': return r.estimated_ad_recall_lift_rate ? (parseFloat(r.estimated_ad_recall_lift_rate)*100).toFixed(1)+'%' : '—';
                     default: return '—';
                 }
             };
