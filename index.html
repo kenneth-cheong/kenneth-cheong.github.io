@@ -1441,6 +1441,36 @@
             color: #5f6368;
         }
 
+        /* Meta Ads Section */
+        .meta-kpi-card {
+            background: #fff;
+            border: 1px solid #eef0f2;
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .meta-kpi-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+        }
+        .meta-kpi-value {
+            font-size: 22px;
+            font-weight: 800;
+            color: #1877F2;
+            letter-spacing: -0.03em;
+        }
+        #metaAdsTable tbody tr:hover { background: #f0f6ff; }
+        #metaAdsTable tbody tr { border-bottom: 1px solid #f1f5f9; }
+        #metaAdsTable .status-active   { color: #16a34a; font-weight: 700; }
+        #metaAdsTable .status-paused   { color: #d97706; font-weight: 700; }
+        #metaAdsTable .status-archived { color: #94a3b8; font-weight: 700; }
+
         /* Kodalogic Google Ads Dashboard Styles */
         .ads-advanced-filter-bar {
             display: flex;
@@ -9970,6 +10000,7 @@
             <div class="dropdown-content">
                 <a href="#semSection" onclick="showSemOnly(event)">SEM Analysis & Generation</a>
                 <a href="#adsIntegrationSection" onclick="openGoogleAds(event)">Google Ads</a>
+                <a href="#metaAdsSection" onclick="openMetaAds(event)">Meta Ads</a>
                 <a href="#ga4IntegrationSection" onclick="openGa4Section(event)">Google Analytics 4</a>
             </div>
         </div>
@@ -17081,6 +17112,137 @@
             </div>
             <hr>
         </div>
+
+        <!-- Meta Ads Section -->
+        <div id="metaAdsSection">
+            <div class="page-break"></div>
+            <button class="collapsible" id="metaAdsBtn"><i class="fas fa-plus-square"></i><i class="fab fa-meta"></i>Meta Ads</button>
+            <div class="content" id="metaAdsContent" style="display: none; padding: 20px; position: relative;">
+
+                <!-- Auth Banner -->
+                <div id="metaAdsAuthSection" style="margin-bottom: 20px; padding: 15px; background: #e7f0fd; border-radius: 8px; border: 1px solid #b3cef5;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                        <div>
+                            <h4 style="margin: 0; color: #1877F2;"><i class="fab fa-facebook"></i> Meta Ads</h4>
+                            <p id="metaAdsAuthStatus" style="margin: 5px 0 0 0; font-size: 13px; color: #5f6368;">Not connected. Enter your Facebook App ID and connect.</p>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <input id="metaAppIdInput" type="text" placeholder="Facebook App ID" autocomplete="off"
+                                style="padding: 8px 12px; border-radius: 6px; border: 1px solid #b3cef5; font-size: 13px; outline: none; width: 200px;">
+                            <button class="btn-gradient" id="btnConnectMeta" onclick="connectMetaAds()"
+                                style="background: #1877F2; width: 180px; margin: 0;">
+                                <i class="fab fa-facebook"></i> Connect Meta Ads
+                            </button>
+                            <button id="btnDisconnectMeta" onclick="disconnectMetaAds()"
+                                style="display: none; padding: 8px 14px; border-radius: 6px; border: 1px solid #b3cef5; background: #fff; color: #1877F2; font-size: 13px; font-weight: 600; cursor: pointer;">
+                                Disconnect
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Account selector -->
+                    <div id="metaAdsAccountSelector" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #b3cef5;">
+                        <label style="font-size: 13px; color: #1877F2; font-weight: bold; display: block; margin-bottom: 8px;">Select Ad Account:</label>
+                        <select id="metaAdAccountList" onchange="selectMetaAdAccount(this.value)"
+                            style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #b3cef5; font-size: 13px; outline: none; background: #fff; cursor: pointer;">
+                            <option value="">-- Choose an Ad Account --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Dashboard (locked until connected) -->
+                <div id="metaAdsToolsArea" style="opacity: 0.4; pointer-events: none;">
+
+                    <!-- Controls bar -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #eef0f2; box-shadow: 0 2px 4px rgba(0,0,0,0.02); flex-wrap: wrap; gap: 12px;">
+                        <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                            <div>
+                                <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Date Range</label>
+                                <select id="metaDateRange" onchange="metaDateRangeChanged()"
+                                    style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc; min-width: 150px; cursor: pointer;">
+                                    <option value="last_7d">Last 7 Days</option>
+                                    <option value="last_14d">Last 14 Days</option>
+                                    <option value="last_30d" selected>Last 30 Days</option>
+                                    <option value="last_90d">Last 90 Days</option>
+                                    <option value="this_month">This Month</option>
+                                    <option value="last_month">Last Month</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Level</label>
+                                <select id="metaLevelSelect" onchange="fetchMetaInsights()"
+                                    style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc; cursor: pointer;">
+                                    <option value="campaign">Campaign</option>
+                                    <option value="adset">Ad Set</option>
+                                    <option value="ad">Ad</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <div style="position: relative;">
+                                <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 12px;"></i>
+                                <input type="text" id="metaCampaignFilter" placeholder="Filter rows..."
+                                    oninput="renderMetaTable()"
+                                    style="padding: 8px 12px 8px 32px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; width: 200px;">
+                            </div>
+                            <button onclick="exportMetaTableToCSV()"
+                                style="padding: 8px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                <i class="fas fa-download"></i> Export CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- KPI Cards -->
+                    <div id="metaKpiRow" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px;">
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Spend</div><div class="meta-kpi-value" id="metaKpiSpend">—</div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Impressions</div><div class="meta-kpi-value" id="metaKpiImpressions">—</div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Clicks</div><div class="meta-kpi-value" id="metaKpiClicks">—</div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">CTR</div><div class="meta-kpi-value" id="metaKpiCtr">—</div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">CPC</div><div class="meta-kpi-value" id="metaKpiCpc">—</div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Results</div><div class="meta-kpi-value" id="metaKpiResults">—</div></div>
+                    </div>
+
+                    <!-- Chart -->
+                    <div style="background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #eef0f2; margin-bottom: 20px;">
+                        <canvas id="metaAdsChart" height="80"></canvas>
+                    </div>
+
+                    <!-- Table -->
+                    <div style="background: #fff; border-radius: 12px; border: 1px solid #eef0f2; overflow: hidden; margin-bottom: 20px;">
+                        <div style="overflow-x: auto;">
+                            <table id="metaAdsTable" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                <thead id="metaAdsTableHead" style="background: #f8fafc;">
+                                    <tr>
+                                        <th style="padding: 12px 16px; text-align: left; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Name</th>
+                                        <th style="padding: 12px 16px; text-align: left; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Status</th>
+                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Spend</th>
+                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Impressions</th>
+                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Clicks</th>
+                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">CTR</th>
+                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">CPC</th>
+                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Results</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="metaAdsTableBody">
+                                    <tr><td colspan="8" style="padding: 40px; text-align: center; color: #94a3b8;">Connect your Meta Ads account to see data.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- AI Recommendations -->
+                    <div style="background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #eef0f2;">
+                        <h4 style="margin: 0 0 16px 0; color: #1877F2; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-lightbulb"></i> Meta Ads AI Recommendations
+                        </h4>
+                        <div id="metaAdsRecommendations">
+                            <p style="color: #94a3b8; font-size: 13px; margin: 0;">Recommendations will appear once Meta Ads is connected and data is loaded.</p>
+                        </div>
+                    </div>
+
+                </div><!-- /metaAdsToolsArea -->
+            </div>
+        </div><!-- /metaAdsSection -->
+
     </div>
 
     </div>
@@ -19663,6 +19825,341 @@
             if (btn) btn.scrollIntoView({ behavior: 'smooth' });
             closeJourneyModal();
         }
+
+        // ═══════════════════════════════════════════════════
+        //  META ADS INTEGRATION
+        // ═══════════════════════════════════════════════════
+        const META_FB_VERSION = 'v24.0';
+        let metaAccessToken = null;
+        let metaAdAccountId = null;
+        let metaInsightsData = [];
+        let metaAdsChartInstance = null;
+
+        function openMetaAds(event) {
+            if (event) event.preventDefault();
+            showMainSection('semSection', 'semButton', true);
+            const btn = forceOpenCollapsible('metaAdsBtn');
+            if (btn) setTimeout(() => btn.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+        }
+
+        function loadMetaSDK(appId) {
+            return new Promise((resolve, reject) => {
+                const old = document.getElementById('facebook-jssdk-meta');
+                if (old) old.remove();
+                window.fbAsyncInit = function () {
+                    window.FB.init({ appId, cookie: true, xfbml: false, version: META_FB_VERSION });
+                    resolve();
+                };
+                const s = document.createElement('script');
+                s.id = 'facebook-jssdk-meta';
+                s.src = 'https://connect.facebook.net/en_US/sdk.js';
+                s.onerror = () => reject(new Error('Could not load Facebook SDK.'));
+                document.body.appendChild(s);
+            });
+        }
+
+        async function connectMetaAds() {
+            const appId = document.getElementById('metaAppIdInput').value.trim();
+            if (!appId) {
+                document.getElementById('metaAdsAuthStatus').innerHTML =
+                    '<i class="fas fa-exclamation-triangle" style="color:#ea4335;"></i> Please enter your Facebook App ID first.';
+                return;
+            }
+            document.getElementById('metaAdsAuthStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading SDK…';
+            document.getElementById('btnConnectMeta').disabled = true;
+
+            try {
+                await loadMetaSDK(appId);
+                await new Promise((resolve, reject) => {
+                    window.FB.login(r => {
+                        if (r?.authResponse) resolve(r);
+                        else reject(new Error('Login cancelled or failed.'));
+                    }, { scope: 'ads_read,public_profile', return_scopes: true });
+                });
+                const me = await new Promise((resolve, reject) => {
+                    window.FB.api('/me', { fields: 'id,name' }, r => {
+                        if (r?.error) reject(new Error(r.error.message));
+                        else resolve(r);
+                    });
+                });
+                const authRes = window.FB.getAuthResponse();
+                metaAccessToken = authRes.accessToken;
+                document.getElementById('metaAdsAuthStatus').innerHTML =
+                    `<i class="fas fa-check-circle" style="color:#1877F2;"></i> Connected as <strong>${me.name}</strong>`;
+                document.getElementById('btnConnectMeta').style.display = 'none';
+                document.getElementById('btnDisconnectMeta').style.display = 'inline-flex';
+                document.getElementById('metaAppIdInput').disabled = true;
+                await fetchMetaAdAccounts();
+            } catch (err) {
+                document.getElementById('metaAdsAuthStatus').innerHTML =
+                    `<i class="fas fa-exclamation-triangle" style="color:#ea4335;"></i> ${err.message}`;
+                document.getElementById('btnConnectMeta').disabled = false;
+            }
+        }
+
+        function disconnectMetaAds() {
+            if (window.FB) window.FB.logout(() => {});
+            metaAccessToken = null;
+            metaAdAccountId = null;
+            metaInsightsData = [];
+            document.getElementById('metaAdsAuthStatus').textContent = 'Not connected. Enter your Facebook App ID and connect.';
+            document.getElementById('btnConnectMeta').style.display = '';
+            document.getElementById('btnConnectMeta').disabled = false;
+            document.getElementById('btnDisconnectMeta').style.display = 'none';
+            document.getElementById('metaAppIdInput').disabled = false;
+            document.getElementById('metaAdsAccountSelector').style.display = 'none';
+            document.getElementById('metaAdAccountList').innerHTML = '<option value="">-- Choose an Ad Account --</option>';
+            document.getElementById('metaAdsToolsArea').style.opacity = '0.4';
+            document.getElementById('metaAdsToolsArea').style.pointerEvents = 'none';
+            resetMetaKPIs();
+        }
+
+        async function fetchMetaAdAccounts() {
+            document.getElementById('metaAdsAuthStatus').innerHTML += ' — <i class="fas fa-spinner fa-spin"></i> Fetching ad accounts…';
+            const res = await new Promise(resolve => {
+                window.FB.api('/me/adaccounts', {
+                    fields: 'id,name,account_status,currency,timezone_name',
+                    access_token: metaAccessToken
+                }, resolve);
+            });
+            if (res.error) {
+                document.getElementById('metaAdsAuthStatus').innerHTML +=
+                    ` <span style="color:#ea4335;">${res.error.message}</span>`;
+                return;
+            }
+            const accounts = res.data || [];
+            const sel = document.getElementById('metaAdAccountList');
+            sel.innerHTML = '<option value="">-- Choose an Ad Account --</option>';
+            accounts.forEach(acc => {
+                const opt = document.createElement('option');
+                opt.value = acc.id;
+                opt.textContent = `${acc.name} (${acc.id}) — ${acc.currency}`;
+                sel.appendChild(opt);
+            });
+            document.getElementById('metaAdsAccountSelector').style.display = 'block';
+            // Auto-select if only one account
+            if (accounts.length === 1) {
+                sel.value = accounts[0].id;
+                selectMetaAdAccount(accounts[0].id);
+            }
+        }
+
+        function selectMetaAdAccount(accountId) {
+            if (!accountId) return;
+            metaAdAccountId = accountId;
+            document.getElementById('metaAdsToolsArea').style.opacity = '1';
+            document.getElementById('metaAdsToolsArea').style.pointerEvents = '';
+            fetchMetaInsights();
+        }
+
+        function metaDateRangeChanged() { fetchMetaInsights(); }
+
+        function metaDatePreset() {
+            const v = document.getElementById('metaDateRange').value;
+            const today = new Date();
+            const fmt = d => d.toISOString().slice(0, 10);
+            const ago = n => { const d = new Date(today); d.setDate(d.getDate() - n); return d; };
+            const maps = {
+                last_7d:    { since: fmt(ago(7)),  until: fmt(today) },
+                last_14d:   { since: fmt(ago(14)), until: fmt(today) },
+                last_30d:   { since: fmt(ago(30)), until: fmt(today) },
+                last_90d:   { since: fmt(ago(90)), until: fmt(today) },
+                this_month: { since: fmt(new Date(today.getFullYear(), today.getMonth(), 1)), until: fmt(today) },
+                last_month: (() => {
+                    const f = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                    const l = new Date(today.getFullYear(), today.getMonth(), 0);
+                    return { since: fmt(f), until: fmt(l) };
+                })()
+            };
+            return maps[v] || maps.last_30d;
+        }
+
+        async function fetchMetaInsights() {
+            if (!metaAdAccountId || !metaAccessToken) return;
+            const level  = document.getElementById('metaLevelSelect').value;
+            const { since, until } = metaDatePreset();
+            document.getElementById('metaAdsAuthStatus').innerHTML =
+                document.getElementById('metaAdsAuthStatus').innerHTML.split(' —')[0] +
+                ' — <i class="fas fa-spinner fa-spin"></i> Loading insights…';
+
+            const res = await new Promise(resolve => {
+                window.FB.api(`/${metaAdAccountId}/insights`, {
+                    access_token: metaAccessToken,
+                    level,
+                    fields: 'campaign_name,adset_name,ad_name,spend,impressions,clicks,ctr,cpc,actions,date_start,date_stop',
+                    time_range: JSON.stringify({ since, until }),
+                    limit: 200
+                }, resolve);
+            });
+
+            document.getElementById('metaAdsAuthStatus').innerHTML =
+                document.getElementById('metaAdsAuthStatus').innerHTML.replace(/ — <i.*<\/i> Loading insights…/, '');
+
+            if (res.error) {
+                document.getElementById('metaAdsTableBody').innerHTML =
+                    `<tr><td colspan="8" style="padding:20px;color:#ea4335;">${res.error.message}</td></tr>`;
+                return;
+            }
+
+            metaInsightsData = res.data || [];
+            updateMetaKPIs();
+            renderMetaTable();
+            renderMetaChart();
+            generateMetaRecommendations();
+        }
+
+        function getMetaResults(row) {
+            const actions = row.actions || [];
+            const result = actions.find(a =>
+                ['purchase', 'lead', 'complete_registration', 'submit_application'].includes(a.action_type)
+            );
+            return result ? parseInt(result.value, 10) : 0;
+        }
+
+        function updateMetaKPIs() {
+            const totals = metaInsightsData.reduce((acc, r) => {
+                acc.spend       += parseFloat(r.spend || 0);
+                acc.impressions += parseInt(r.impressions || 0, 10);
+                acc.clicks      += parseInt(r.clicks || 0, 10);
+                acc.results     += getMetaResults(r);
+                return acc;
+            }, { spend: 0, impressions: 0, clicks: 0, results: 0 });
+            const ctr = totals.impressions ? (totals.clicks / totals.impressions * 100) : 0;
+            const cpc = totals.clicks ? (totals.spend / totals.clicks) : 0;
+            document.getElementById('metaKpiSpend').textContent       = '$' + totals.spend.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            document.getElementById('metaKpiImpressions').textContent = totals.impressions.toLocaleString();
+            document.getElementById('metaKpiClicks').textContent      = totals.clicks.toLocaleString();
+            document.getElementById('metaKpiCtr').textContent         = ctr.toFixed(2) + '%';
+            document.getElementById('metaKpiCpc').textContent         = '$' + cpc.toFixed(2);
+            document.getElementById('metaKpiResults').textContent     = totals.results.toLocaleString();
+        }
+
+        function resetMetaKPIs() {
+            ['metaKpiSpend','metaKpiImpressions','metaKpiClicks','metaKpiCtr','metaKpiCpc','metaKpiResults']
+                .forEach(id => document.getElementById(id).textContent = '—');
+            document.getElementById('metaAdsTableBody').innerHTML =
+                '<tr><td colspan="8" style="padding:40px;text-align:center;color:#94a3b8;">Connect your Meta Ads account to see data.</td></tr>';
+        }
+
+        function renderMetaTable() {
+            const filter = (document.getElementById('metaCampaignFilter').value || '').toLowerCase();
+            const level  = document.getElementById('metaLevelSelect').value;
+            const nameKey = level === 'campaign' ? 'campaign_name' : level === 'adset' ? 'adset_name' : 'ad_name';
+            const rows = metaInsightsData.filter(r =>
+                !filter || (r[nameKey] || '').toLowerCase().includes(filter)
+            );
+            const statusClass = s => s === 'ACTIVE' ? 'status-active' : s === 'PAUSED' ? 'status-paused' : 'status-archived';
+            document.getElementById('metaAdsTableBody').innerHTML = rows.length === 0
+                ? '<tr><td colspan="8" style="padding:40px;text-align:center;color:#94a3b8;">No data for this filter.</td></tr>'
+                : rows.map(r => {
+                    const name    = r[nameKey] || '—';
+                    const status  = r.status || r.effective_status || '';
+                    const spend   = parseFloat(r.spend || 0).toFixed(2);
+                    const impr    = parseInt(r.impressions || 0, 10).toLocaleString();
+                    const clicks  = parseInt(r.clicks || 0, 10).toLocaleString();
+                    const ctr     = parseFloat(r.ctr || 0).toFixed(2) + '%';
+                    const cpc     = parseFloat(r.cpc || 0).toFixed(2);
+                    const results = getMetaResults(r);
+                    return `<tr>
+                        <td style="padding:10px 16px;">${name}</td>
+                        <td style="padding:10px 16px;"><span class="${statusClass(status)}">${status || '—'}</span></td>
+                        <td style="padding:10px 16px;text-align:right;">$${spend}</td>
+                        <td style="padding:10px 16px;text-align:right;">${impr}</td>
+                        <td style="padding:10px 16px;text-align:right;">${clicks}</td>
+                        <td style="padding:10px 16px;text-align:right;">${ctr}</td>
+                        <td style="padding:10px 16px;text-align:right;">$${cpc}</td>
+                        <td style="padding:10px 16px;text-align:right;">${results}</td>
+                    </tr>`;
+                }).join('');
+        }
+
+        function renderMetaChart() {
+            const ctx = document.getElementById('metaAdsChart');
+            if (!ctx) return;
+            if (metaAdsChartInstance) metaAdsChartInstance.destroy();
+            const level  = document.getElementById('metaLevelSelect').value;
+            const nameKey = level === 'campaign' ? 'campaign_name' : level === 'adset' ? 'adset_name' : 'ad_name';
+            const labels = metaInsightsData.map(r => r[nameKey] || '—').slice(0, 15);
+            const spend  = metaInsightsData.map(r => parseFloat(r.spend || 0)).slice(0, 15);
+            const clicks = metaInsightsData.map(r => parseInt(r.clicks || 0, 10)).slice(0, 15);
+            metaAdsChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Spend ($)', data: spend, backgroundColor: 'rgba(24,119,242,0.7)', borderRadius: 6, yAxisID: 'y' },
+                        { label: 'Clicks', data: clicks, backgroundColor: 'rgba(0,150,255,0.35)', borderRadius: 6, yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'top' }, title: { display: true, text: 'Meta Ads Performance' } },
+                    scales: {
+                        y:  { type: 'linear', position: 'left',  title: { display: true, text: 'Spend ($)' } },
+                        y1: { type: 'linear', position: 'right', title: { display: true, text: 'Clicks' }, grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+        }
+
+        function exportMetaTableToCSV() {
+            const level   = document.getElementById('metaLevelSelect').value;
+            const nameKey = level === 'campaign' ? 'campaign_name' : level === 'adset' ? 'adset_name' : 'ad_name';
+            const header  = ['Name','Status','Spend','Impressions','Clicks','CTR','CPC','Results'];
+            const rows    = metaInsightsData.map(r => [
+                `"${(r[nameKey] || '').replace(/"/g, '""')}"`,
+                r.status || '',
+                parseFloat(r.spend || 0).toFixed(2),
+                r.impressions || 0,
+                r.clicks || 0,
+                parseFloat(r.ctr || 0).toFixed(2) + '%',
+                parseFloat(r.cpc || 0).toFixed(2),
+                getMetaResults(r)
+            ].join(','));
+            const csv  = [header.join(','), ...rows].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a    = document.createElement('a');
+            a.href     = URL.createObjectURL(blob);
+            a.download = `meta_ads_${level}_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+        }
+
+        function generateMetaRecommendations() {
+            const recDiv = document.getElementById('metaAdsRecommendations');
+            if (!metaInsightsData.length) {
+                recDiv.innerHTML = '<p style="color:#94a3b8;font-size:13px;margin:0;">No data to analyse.</p>';
+                return;
+            }
+            const recs = [];
+            const totSpend = metaInsightsData.reduce((s, r) => s + parseFloat(r.spend || 0), 0);
+            const totClicks = metaInsightsData.reduce((s, r) => s + parseInt(r.clicks || 0, 10), 0);
+            const avgCtr = metaInsightsData.reduce((s, r) => s + parseFloat(r.ctr || 0), 0) / metaInsightsData.length;
+
+            // Low CTR
+            const lowCtr = metaInsightsData.filter(r => parseFloat(r.ctr || 0) < 1.0 && parseFloat(r.spend || 0) > 10);
+            if (lowCtr.length) recs.push({ icon: 'fa-eye-slash', colour: '#ea4335', title: 'Low CTR detected', body: `${lowCtr.length} campaign(s) have CTR below 1%. Refresh creative assets or tighten audience targeting to improve relevance.` });
+
+            // High CPC
+            const highCpc = metaInsightsData.filter(r => parseFloat(r.cpc || 0) > 3 && parseFloat(r.spend || 0) > 20);
+            if (highCpc.length) recs.push({ icon: 'fa-dollar-sign', colour: '#d97706', title: 'High CPC campaigns', body: `${highCpc.length} campaign(s) have CPC above $3. Consider refining ad creative, adjusting bids, or narrowing the audience to reduce cost-per-click.` });
+
+            // Top spender with no results
+            const noResults = metaInsightsData.filter(r => parseFloat(r.spend || 0) > 50 && getMetaResults(r) === 0);
+            if (noResults.length) recs.push({ icon: 'fa-exclamation-triangle', colour: '#ea4335', title: 'Spend with no conversions', body: `${noResults.length} campaign(s) have spent over $50 with zero conversions. Review landing page experience, offer clarity, and conversion event tracking.` });
+
+            // Good performers
+            const stars = metaInsightsData.filter(r => parseFloat(r.ctr || 0) > 2 && getMetaResults(r) > 0);
+            if (stars.length) recs.push({ icon: 'fa-star', colour: '#16a34a', title: 'Top performers', body: `${stars.length} campaign(s) have CTR above 2% and recorded conversions. Consider increasing budget on these campaigns to scale results.` });
+
+            if (!recs.length) recs.push({ icon: 'fa-check-circle', colour: '#16a34a', title: 'Performance looks stable', body: 'No critical issues detected. Continue monitoring and test new creative variations to improve CTR and conversion rates.' });
+
+            recDiv.innerHTML = recs.map(r => `
+                <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #f1f5f9;">
+                    <i class="fas ${r.icon}" style="color:${r.colour};margin-top:2px;flex-shrink:0;"></i>
+                    <div><strong style="color:#1e293b;">${r.title}</strong><p style="margin:4px 0 0;font-size:13px;color:#475569;">${r.body}</p></div>
+                </div>`).join('');
+        }
+        // ═══════════════════════════════════════════════════
 
         function openGoogleAds(event) {
             if (event) event.preventDefault();
@@ -61506,6 +62003,7 @@ Move-In</h3>
             // SEM Tools
             { name: 'SEM Analysis & Generation', category: 'SEM', section: 'semSection', collapsible: null, desc: 'Analyse paid search landscape and generate campaign structures, ad copy, and bidding recommendations.' },
             { name: 'Google Ads', category: 'SEM', section: 'semSection', collapsible: 'adsIntegrationSection', desc: 'Connect your Google Ads account to review campaign performance, spend, and conversion data alongside your SEO insights.' },
+            { name: 'Meta Ads', category: 'SEM', section: 'semSection', collapsible: 'metaAdsBtn', desc: 'Connect your Meta Ads account to analyse Facebook and Instagram campaign performance — spend, impressions, CTR, CPC, and conversions.' },
             { name: 'Google Analytics 4', category: 'SEM', section: 'semSection', collapsible: 'ga4IntegrationSection', desc: 'Pull GA4 traffic and behaviour data into your workflow to correlate organic and paid efforts with on-site outcomes.' },
 
             // Other Tools
