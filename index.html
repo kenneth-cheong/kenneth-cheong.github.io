@@ -1465,6 +1465,7 @@
             color: #1877F2;
             letter-spacing: -0.03em;
         }
+        #metaAdsTable thead th { background: #f8fafc !important; color: #475569 !important; font-weight: 700; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
         #metaAdsTable tbody tr:hover { background: #f0f6ff; }
         #metaAdsTable tbody tr { border-bottom: 1px solid #f1f5f9; }
         #metaAdsTable .status-active   { color: #16a34a; font-weight: 700; }
@@ -17159,13 +17160,25 @@
                             <div>
                                 <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Date Range</label>
                                 <select id="metaDateRange" onchange="metaDateRangeChanged()"
-                                    style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc; min-width: 150px; cursor: pointer;">
+                                    style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc; min-width: 170px; cursor: pointer;">
+                                    <option value="today">Today</option>
+                                    <option value="yesterday">Yesterday</option>
+                                    <option value="this_week_mon_today">This Week (Mon–Today)</option>
+                                    <option value="this_week_sun_today">This Week (Sun–Today)</option>
+                                    <option value="last_week_mon_sun">Last Week (Mon–Sun)</option>
+                                    <option value="last_week_sun_sat">Last Week (Sun–Sat)</option>
                                     <option value="last_7d">Last 7 Days</option>
                                     <option value="last_14d">Last 14 Days</option>
+                                    <option value="last_28d">Last 28 Days</option>
                                     <option value="last_30d" selected>Last 30 Days</option>
                                     <option value="last_90d">Last 90 Days</option>
                                     <option value="this_month">This Month</option>
                                     <option value="last_month">Last Month</option>
+                                    <option value="this_quarter">This Quarter</option>
+                                    <option value="last_quarter">Last Quarter</option>
+                                    <option value="this_year">This Year</option>
+                                    <option value="last_year">Last Year</option>
+                                    <option value="lifetime">Lifetime</option>
                                 </select>
                             </div>
                             <div>
@@ -19939,30 +19952,10 @@
 
         function metaDateRangeChanged() { fetchMetaInsights(); }
 
-        function metaDatePreset() {
-            const v = document.getElementById('metaDateRange').value;
-            const today = new Date();
-            const fmt = d => d.toISOString().slice(0, 10);
-            const ago = n => { const d = new Date(today); d.setDate(d.getDate() - n); return d; };
-            const maps = {
-                last_7d:    { since: fmt(ago(7)),  until: fmt(today) },
-                last_14d:   { since: fmt(ago(14)), until: fmt(today) },
-                last_30d:   { since: fmt(ago(30)), until: fmt(today) },
-                last_90d:   { since: fmt(ago(90)), until: fmt(today) },
-                this_month: { since: fmt(new Date(today.getFullYear(), today.getMonth(), 1)), until: fmt(today) },
-                last_month: (() => {
-                    const f = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-                    const l = new Date(today.getFullYear(), today.getMonth(), 0);
-                    return { since: fmt(f), until: fmt(l) };
-                })()
-            };
-            return maps[v] || maps.last_30d;
-        }
-
         async function fetchMetaInsights() {
             if (!metaAdAccountId || !metaAccessToken) return;
-            const level  = document.getElementById('metaLevelSelect').value;
-            const { since, until } = metaDatePreset();
+            const level      = document.getElementById('metaLevelSelect').value;
+            const datePreset = document.getElementById('metaDateRange').value;
             document.getElementById('metaAdsAuthStatus').innerHTML =
                 document.getElementById('metaAdsAuthStatus').innerHTML.split(' —')[0] +
                 ' — <i class="fas fa-spinner fa-spin"></i> Loading insights…';
@@ -19972,7 +19965,7 @@
                 const firstPage = await metaGet(`/${metaAdAccountId}/insights`, {
                     level,
                     fields: 'campaign_name,adset_name,ad_name,spend,impressions,clicks,ctr,cpc,cpm,actions,cost_per_action_type,conversions,cost_per_conversion,inline_link_clicks,cost_per_inline_link_click,results,cost_per_result,reach,date_start,date_stop,objective',
-                    time_range: JSON.stringify({ since, until }),
+                    date_preset: datePreset,
                     limit: '200'
                 });
                 allData = firstPage.data || [];
