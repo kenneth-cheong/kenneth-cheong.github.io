@@ -1474,10 +1474,15 @@
         #metaAdsTable .status-paused   { color: #d97706; font-weight: 700; }
         #metaAdsTable .status-archived { color: #94a3b8; font-weight: 700; }
         .meta-col-picker { position: relative; display: inline-block; }
-        .meta-col-menu { position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 8px; min-width: 180px; z-index: 200; display: none; }
-        .meta-col-menu.open { display: block; }
+        .meta-col-menu { position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12); min-width: 210px; z-index: 200; display: none; overflow: hidden; }
+        .meta-col-menu.open { display: flex; flex-direction: column; }
+        .meta-col-menu-search { padding: 8px; border-bottom: 1px solid #f1f5f9; }
+        .meta-col-menu-search input { width: 100%; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; outline: none; color: #1e293b; }
+        .meta-col-menu-search input:focus { border-color: #1877F2; }
+        .meta-col-menu-list { overflow-y: auto; max-height: 280px; padding: 4px 8px 8px; }
         .meta-col-menu label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 13px; color: #1e293b; cursor: pointer; user-select: none; }
         .meta-col-menu label:hover { background: #f1f5f9; }
+        .meta-col-menu label.hidden { display: none; }
         .meta-breadcrumb { display: none; align-items: center; gap: 6px; font-size: 13px; color: #64748b; margin-bottom: 10px; flex-wrap: wrap; padding: 8px 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
         .meta-breadcrumb .bc-link { color: #1877F2; cursor: pointer; }
         .meta-breadcrumb .bc-link:hover { text-decoration: underline; }
@@ -20048,6 +20053,14 @@
             const menu = document.getElementById('metaColMenu');
             if (!menu.dataset.built) {
                 menu.dataset.built = '1';
+
+                // Search box
+                const searchWrap = document.createElement('div');
+                searchWrap.className = 'meta-col-menu-search';
+                searchWrap.innerHTML = `<input type="text" placeholder="Search columns…" oninput="filterMetaCols(this.value)">`;
+                menu.appendChild(searchWrap);
+
+                // Preset bar
                 const presetBar = document.createElement('div');
                 presetBar.className = 'meta-preset-bar';
                 presetBar.innerHTML = `
@@ -20057,15 +20070,31 @@
                     <button class="meta-preset-btn" onclick="applyMetaPreset('ecommerce',this)">eCommerce</button>
                 `;
                 menu.appendChild(presetBar);
+
+                // Scrollable list
+                const list = document.createElement('div');
+                list.className = 'meta-col-menu-list';
+                list.id = 'metaColMenuList';
                 metaColDefs.forEach(col => {
                     const lbl = document.createElement('label');
+                    lbl.dataset.col = col.key;
                     lbl.innerHTML = `<input type="checkbox" data-col="${col.key}" ${col.on ? 'checked' : ''} onchange="toggleMetaCol('${col.key}')"> ${col.label}`;
-                    menu.appendChild(lbl);
+                    list.appendChild(lbl);
                 });
+                menu.appendChild(list);
+
                 menu.addEventListener('click', e => e.stopPropagation());
                 document.addEventListener('click', () => menu.classList.remove('open'));
             }
             menu.classList.toggle('open');
+        }
+
+        function filterMetaCols(q) {
+            const term = q.trim().toLowerCase();
+            document.querySelectorAll('#metaColMenuList label').forEach(lbl => {
+                const name = (lbl.dataset.col + ' ' + lbl.textContent).toLowerCase();
+                lbl.classList.toggle('hidden', term.length > 0 && !name.includes(term));
+            });
         }
 
         function toggleMetaCol(key) {
@@ -20252,7 +20281,7 @@
             try {
                 const insightParams = {
                     level,
-                    fields: 'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,clicks,ctr,cpc,cpm,actions,cost_per_action_type,conversions,cost_per_conversion,inline_link_clicks,cost_per_inline_link_click,results,cost_per_result,reach,date_start,date_stop,objective,frequency,video_play_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,video_30_sec_watched_actions,video_avg_time_watched_actions,quality_ranking,engagement_rate_ranking,conversion_rate_ranking,link_clicks,outbound_clicks,outbound_clicks_ctr,unique_clicks,unique_ctr,landing_page_views,estimated_ad_recall_lift_rate,website_purchase_roas',
+                    fields: 'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,clicks,ctr,cpc,cpm,actions,action_values,cost_per_action_type,conversions,cost_per_conversion,inline_link_clicks,cost_per_inline_link_click,results,cost_per_result,reach,date_start,date_stop,objective,frequency,video_play_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,video_30_sec_watched_actions,video_avg_time_watched_actions,quality_ranking,engagement_rate_ranking,conversion_rate_ranking,outbound_clicks,unique_clicks,unique_ctr,website_purchase_roas',
                     limit: '200'
                 };
                 if (datePreset === 'custom') {
@@ -20530,7 +20559,10 @@
                         const a = (r.video_avg_time_watched_actions||[]).find(x=>x.action_type==='video_view');
                         return a ? parseFloat(a.value).toFixed(1)+'s' : '—';
                     }
-                    case 'earl': return r.estimated_ad_recall_lift_rate ? (parseFloat(r.estimated_ad_recall_lift_rate)*100).toFixed(1)+'%' : '—';
+                    case 'earl': {
+                        const a = (r.actions||[]).find(x=>x.action_type==='estimated_ad_recall_lift');
+                        return a ? parseFloat(a.value).toFixed(0) : '—';
+                    }
                     default: return '—';
                 }
             };
