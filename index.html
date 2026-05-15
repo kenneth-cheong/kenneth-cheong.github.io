@@ -1482,6 +1482,20 @@
         .meta-breadcrumb .bc-link { color: #1877F2; cursor: pointer; }
         .meta-breadcrumb .bc-link:hover { text-decoration: underline; }
         .meta-breadcrumb .bc-sep { color: #cbd5e1; }
+        .meta-kpi-trend { font-size: 11px; font-weight: 600; margin-top: 2px; min-height: 16px; }
+        .meta-kpi-trend.up { color: #16a34a; }
+        .meta-kpi-trend.down { color: #ea4335; }
+        .meta-kpi-trend.neutral { color: #94a3b8; }
+        .meta-funnel-stage { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+        .meta-funnel-label { font-size:12px; color:#64748b; font-weight:600; width:90px; text-align:right; flex-shrink:0; }
+        .meta-funnel-bar-wrap { flex:1; background:#f1f5f9; border-radius:6px; height:26px; overflow:hidden; }
+        .meta-funnel-bar { height:100%; border-radius:6px; display:flex; align-items:center; padding:0 10px; color:#fff; font-size:11px; font-weight:700; transition:width .6s ease; white-space:nowrap; overflow:hidden; }
+        .meta-funnel-val { font-size:12px; font-weight:700; color:#1e293b; width:70px; flex-shrink:0; }
+        .meta-funnel-pct { font-size:11px; color:#94a3b8; width:48px; flex-shrink:0; }
+        .meta-preset-bar { display:flex; gap:4px; padding:6px 6px 8px; border-bottom:1px solid #f1f5f9; flex-wrap:wrap; }
+        .meta-preset-btn { padding:3px 9px; border-radius:999px; border:1px solid #e2e8f0; background:#f8fafc; font-size:11px; font-weight:600; cursor:pointer; color:#475569; transition:all .15s; }
+        .meta-preset-btn:hover { border-color:#1877F2; color:#1877F2; }
+        .meta-preset-btn.active { background:#1877F2; border-color:#1877F2; color:#fff; }
 
         /* Kodalogic Google Ads Dashboard Styles */
         .ads-advanced-filter-bar {
@@ -17215,6 +17229,20 @@
                                     <option value="ad">Ad</option>
                                 </select>
                             </div>
+                            <div>
+                                <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;text-transform:uppercase;">Breakdown</label>
+                                <select id="metaBreakdown" onchange="fetchMetaInsights()"
+                                    style="padding:8px 12px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;color:#1e293b;outline:none;background:#f8fafc;cursor:pointer;">
+                                    <option value="">None</option>
+                                    <option value="publisher_platform">Platform</option>
+                                    <option value="placement">Placement</option>
+                                    <option value="age,gender">Age &amp; Gender</option>
+                                    <option value="device_platform">Device</option>
+                                    <option value="country">Country</option>
+                                    <option value="region">Region</option>
+                                    <option value="hourly_stats_aggregated_by_advertiser_time_zone">Hour of Day</option>
+                                </select>
+                            </div>
                         </div>
                         <div style="display: flex; gap: 10px; align-items: center;">
                             <div style="position: relative;">
@@ -17241,20 +17269,28 @@
 
                     <!-- KPI Cards -->
                     <div id="metaKpiRow" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px;">
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">Spend</div><div class="meta-kpi-value" id="metaKpiSpend">—</div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">Impressions</div><div class="meta-kpi-value" id="metaKpiImpressions">—</div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">Reach</div><div class="meta-kpi-value" id="metaKpiReach">—</div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">Clicks</div><div class="meta-kpi-value" id="metaKpiClicks">—</div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">CTR</div><div class="meta-kpi-value" id="metaKpiCtr">—</div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">CPC</div><div class="meta-kpi-value" id="metaKpiCpc">—</div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">CPM</div><div class="meta-kpi-value" id="metaKpiCpm">—</div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">Results</div><div class="meta-kpi-value" id="metaKpiResults">—</div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">Cost / Result</div><div class="meta-kpi-value" id="metaKpiCostPerResult">—</div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Spend</div><div class="meta-kpi-value" id="metaKpiSpend">—</div><div class="meta-kpi-trend" id="metaKpiSpendTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Impressions</div><div class="meta-kpi-value" id="metaKpiImpressions">—</div><div class="meta-kpi-trend" id="metaKpiImpressionsTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Reach</div><div class="meta-kpi-value" id="metaKpiReach">—</div><div class="meta-kpi-trend" id="metaKpiReachTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Clicks</div><div class="meta-kpi-value" id="metaKpiClicks">—</div><div class="meta-kpi-trend" id="metaKpiClicksTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">CTR</div><div class="meta-kpi-value" id="metaKpiCtr">—</div><div class="meta-kpi-trend" id="metaKpiCtrTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">CPC</div><div class="meta-kpi-value" id="metaKpiCpc">—</div><div class="meta-kpi-trend" id="metaKpiCpcTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">CPM</div><div class="meta-kpi-value" id="metaKpiCpm">—</div><div class="meta-kpi-trend" id="metaKpiCpmTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Results</div><div class="meta-kpi-value" id="metaKpiResults">—</div><div class="meta-kpi-trend" id="metaKpiResultsTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Cost / Result</div><div class="meta-kpi-value" id="metaKpiCostPerResult">—</div><div class="meta-kpi-trend" id="metaKpiCostPerResultTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Frequency</div><div class="meta-kpi-value" id="metaKpiFrequency">—</div><div class="meta-kpi-trend" id="metaKpiFrequencyTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Thumb Stop %</div><div class="meta-kpi-value" id="metaKpiThumbStop">—</div><div class="meta-kpi-trend" id="metaKpiThumbStopTrend"></div></div>
                     </div>
 
-                    <!-- Chart -->
-                    <div style="background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #eef0f2; margin-bottom: 20px;">
-                        <canvas id="metaAdsChart" height="80"></canvas>
+                    <!-- Chart + Funnel -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+                        <div style="background:#fff;border-radius:12px;padding:20px;border:1px solid #eef0f2;">
+                            <canvas id="metaAdsChart" height="120"></canvas>
+                        </div>
+                        <div style="background:#fff;border-radius:12px;padding:20px;border:1px solid #eef0f2;">
+                            <h4 style="margin:0 0 16px;font-size:13px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;">Funnel</h4>
+                            <div id="metaFunnel"></div>
+                        </div>
                     </div>
 
                     <!-- Table -->
@@ -19876,18 +19912,102 @@
         let metaInsightsData = [];
         let metaAdsChartInstance = null;
         let metaDrillStack = []; // [{filterField, filterId, name}]
+        let metaPriorData = null;
+
+        function renderMetaTrend(elemId, current, prior, lowerIsBetter = false) {
+            const el = document.getElementById(elemId);
+            if (!el) return;
+            if (prior === null || prior === undefined || prior === 0 || isNaN(prior)) { el.textContent = ''; return; }
+            const pct = (current - prior) / Math.abs(prior) * 100;
+            if (Math.abs(pct) < 0.1) { el.className = 'meta-kpi-trend neutral'; el.textContent = '— vs prior'; return; }
+            const isUp = pct > 0;
+            const isGood = lowerIsBetter ? !isUp : isUp;
+            el.className = 'meta-kpi-trend ' + (isGood ? 'up' : 'down');
+            el.textContent = `${isUp ? '▲' : '▼'} ${Math.abs(pct).toFixed(1)}% vs prior`;
+        }
+
+        function getPriorPeriodRange(datePreset) {
+            const today = new Date();
+            const fmt = d => d.toISOString().slice(0,10);
+            const ago = n => { const d = new Date(today); d.setDate(d.getDate()-n); return d; };
+            const dayMap = { last_7d:7, last_14d:14, last_28d:28, last_30d:30, last_90d:90, today:1, yesterday:1, last_week_mon_sun:7, last_week_sun_sat:7 };
+            const n = dayMap[datePreset];
+            if (!n) return null;
+            if (datePreset === 'yesterday') return { since: fmt(ago(2)), until: fmt(ago(2)) };
+            return { since: fmt(ago(n*2)), until: fmt(ago(n+1)) };
+        }
+
+        function renderMetaFunnel() {
+            const el = document.getElementById('metaFunnel');
+            if (!el) return;
+            if (!metaInsightsData.length) { el.innerHTML = '<p style="color:#94a3b8;font-size:13px;">No data.</p>'; return; }
+            const totals = metaInsightsData.reduce((a,r) => {
+                a.impr    += parseInt(r.impressions||0,10);
+                a.reach   += parseInt(r.reach||0,10);
+                a.clicks  += parseInt(r.clicks||0,10);
+                a.results += getMetaResults(r);
+                return a;
+            }, {impr:0, reach:0, clicks:0, results:0});
+            const max = totals.impr || 1;
+            const stages = [
+                { label:'Impressions', val:totals.impr,    color:'#1877F2', pctOf:null },
+                { label:'Reach',       val:totals.reach,   color:'#3b82f6', pctOf:totals.impr },
+                { label:'Clicks',      val:totals.clicks,  color:'#6366f1', pctOf:totals.impr },
+                { label:'Results',     val:totals.results, color:'#8b5cf6', pctOf:totals.clicks },
+            ];
+            el.innerHTML = stages.map(s => {
+                const w = Math.max(4, (s.val / max * 100));
+                const pct = s.pctOf ? (s.pctOf > 0 ? (s.val/s.pctOf*100).toFixed(1)+'%' : '—') : '';
+                const fmtVal = s.val >= 1000 ? (s.val/1000).toFixed(1)+'K' : s.val.toLocaleString();
+                return `<div class="meta-funnel-stage">
+                    <div class="meta-funnel-label">${s.label}</div>
+                    <div class="meta-funnel-bar-wrap">
+                        <div class="meta-funnel-bar" style="width:${w}%;background:${s.color};">${w>15?fmtVal:''}</div>
+                    </div>
+                    <div class="meta-funnel-val">${w<=15?fmtVal:''}</div>
+                    <div class="meta-funnel-pct">${pct}</div>
+                </div>`;
+            }).join('');
+        }
+
+        const metaColumnPresets = {
+            performance: ['status','spend','impressions','ctr','cpc','results','cost_per_result'],
+            delivery:    ['status','impressions','reach','frequency','cpm'],
+            video:       ['status','spend','impressions','thumb_stop','video_completion'],
+            ecommerce:   ['status','spend','impressions','clicks','results','cost_per_result'],
+        };
+
+        function applyMetaPreset(name, btn) {
+            document.querySelectorAll('.meta-preset-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            const cols = metaColumnPresets[name];
+            if (!cols) return;
+            metaColDefs.forEach(c => { c.on = cols.includes(c.key); });
+            document.querySelectorAll('#metaColMenu input[type=checkbox]').forEach(cb => {
+                const key = cb.getAttribute('data-col');
+                if (key) cb.checked = metaColDefs.find(c=>c.key===key)?.on ?? false;
+            });
+            renderMetaTableHead();
+            renderMetaTable();
+        }
 
         const metaColDefs = [
-            { key: 'status',          label: 'Status',      align: 'left',  on: true },
-            { key: 'spend',           label: 'Spend',       align: 'right', on: true },
-            { key: 'impressions',     label: 'Impressions', align: 'right', on: true },
-            { key: 'reach',           label: 'Reach',       align: 'right', on: true },
-            { key: 'clicks',          label: 'Clicks',      align: 'right', on: true },
-            { key: 'ctr',             label: 'CTR',         align: 'right', on: true },
-            { key: 'cpc',             label: 'CPC',         align: 'right', on: true },
-            { key: 'cpm',             label: 'CPM',         align: 'right', on: false },
-            { key: 'results',         label: 'Results',     align: 'right', on: true },
-            { key: 'cost_per_result', label: 'Cost/Result', align: 'right', on: true },
+            { key: 'status',              label: 'Status',      align: 'left',   on: true  },
+            { key: 'spend',               label: 'Spend',       align: 'right',  on: true  },
+            { key: 'impressions',         label: 'Impressions', align: 'right',  on: true  },
+            { key: 'reach',               label: 'Reach',       align: 'right',  on: true  },
+            { key: 'clicks',              label: 'Clicks',      align: 'right',  on: true  },
+            { key: 'ctr',                 label: 'CTR',         align: 'right',  on: true  },
+            { key: 'cpc',                 label: 'CPC',         align: 'right',  on: true  },
+            { key: 'cpm',                 label: 'CPM',         align: 'right',  on: false },
+            { key: 'results',             label: 'Results',     align: 'right',  on: true  },
+            { key: 'cost_per_result',     label: 'Cost/Result', align: 'right',  on: true  },
+            { key: 'frequency',           label: 'Frequency',   align: 'right',  on: false },
+            { key: 'thumb_stop',          label: 'Thumb Stop',  align: 'right',  on: false },
+            { key: 'video_completion',    label: 'Vid. Compl.', align: 'right',  on: false },
+            { key: 'quality_ranking',     label: 'Quality',     align: 'center', on: false },
+            { key: 'engagement_ranking',  label: 'Engagement',  align: 'center', on: false },
+            { key: 'conversion_ranking',  label: 'Conversion',  align: 'center', on: false },
         ];
 
         function metaCurrentLevel() {
@@ -19896,6 +20016,14 @@
             return document.getElementById('metaLevelSelect').value;
         }
         function metaNameKey() {
+            const breakdown = document.getElementById('metaBreakdown')?.value;
+            if (breakdown === 'publisher_platform') return 'publisher_platform';
+            if (breakdown === 'placement') return 'placement';
+            if (breakdown === 'age,gender') return 'age';
+            if (breakdown === 'device_platform') return 'device_platform';
+            if (breakdown === 'country') return 'country';
+            if (breakdown === 'region') return 'region';
+            if (breakdown === 'hourly_stats_aggregated_by_advertiser_time_zone') return 'hourly_stats_aggregated_by_advertiser_time_zone';
             const lvl = metaCurrentLevel();
             return lvl === 'campaign' ? 'campaign_name' : lvl === 'adset' ? 'adset_name' : 'ad_name';
         }
@@ -19905,9 +20033,18 @@
             const menu = document.getElementById('metaColMenu');
             if (!menu.dataset.built) {
                 menu.dataset.built = '1';
+                const presetBar = document.createElement('div');
+                presetBar.className = 'meta-preset-bar';
+                presetBar.innerHTML = `
+                    <button class="meta-preset-btn active" onclick="applyMetaPreset('performance',this)">Performance</button>
+                    <button class="meta-preset-btn" onclick="applyMetaPreset('delivery',this)">Delivery</button>
+                    <button class="meta-preset-btn" onclick="applyMetaPreset('video',this)">Video</button>
+                    <button class="meta-preset-btn" onclick="applyMetaPreset('ecommerce',this)">eCommerce</button>
+                `;
+                menu.appendChild(presetBar);
                 metaColDefs.forEach(col => {
                     const lbl = document.createElement('label');
-                    lbl.innerHTML = `<input type="checkbox" ${col.on ? 'checked' : ''} onchange="toggleMetaCol('${col.key}')"> ${col.label}`;
+                    lbl.innerHTML = `<input type="checkbox" data-col="${col.key}" ${col.on ? 'checked' : ''} onchange="toggleMetaCol('${col.key}')"> ${col.label}`;
                     menu.appendChild(lbl);
                 });
                 document.addEventListener('click', () => menu.classList.remove('open'));
@@ -20083,7 +20220,7 @@
             try {
                 const insightParams = {
                     level,
-                    fields: 'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,clicks,ctr,cpc,cpm,actions,cost_per_action_type,conversions,cost_per_conversion,inline_link_clicks,cost_per_inline_link_click,results,cost_per_result,reach,date_start,date_stop,objective',
+                    fields: 'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,clicks,ctr,cpc,cpm,actions,cost_per_action_type,conversions,cost_per_conversion,inline_link_clicks,cost_per_inline_link_click,results,cost_per_result,reach,date_start,date_stop,objective,frequency,video_play_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,quality_ranking,engagement_rate_ranking,conversion_rate_ranking',
                     limit: '200'
                 };
                 if (datePreset === 'custom') {
@@ -20099,6 +20236,8 @@
                         field: d.filterField, operator: 'IN', value: [d.filterId]
                     })));
                 }
+                const breakdown = document.getElementById('metaBreakdown').value;
+                if (breakdown) insightParams.breakdowns = breakdown;
                 const firstPage = await metaGet(`/${metaAdAccountId}/insights`, insightParams);
                 allData = firstPage.data || [];
                 let nextUrl = firstPage.paging?.next || null;
@@ -20108,6 +20247,17 @@
                     if (nextJson.error) throw new Error(nextJson.error.message);
                     allData = allData.concat(nextJson.data || []);
                     nextUrl = nextJson.paging?.next || null;
+                }
+                // Fetch prior period for trend comparison
+                metaPriorData = null;
+                const priorRange = getPriorPeriodRange(datePreset);
+                if (priorRange) {
+                    try {
+                        const priorParams = { ...insightParams, time_range: JSON.stringify(priorRange) };
+                        delete priorParams.date_preset;
+                        const priorPage = await metaGet(`/${metaAdAccountId}/insights`, priorParams);
+                        metaPriorData = priorPage.data || [];
+                    } catch(e) { metaPriorData = null; }
                 }
             } catch (err) {
                 document.getElementById('metaAdsTableBody').innerHTML =
@@ -20126,6 +20276,7 @@
             renderMetaTable();
             renderMetaBreadcrumb();
             renderMetaChart();
+            renderMetaFunnel();
             generateMetaRecommendations();
         }
 
@@ -20137,19 +20288,38 @@
             return result ? parseInt(result.value, 10) : 0;
         }
 
-        function updateMetaKPIs() {
-            const totals = metaInsightsData.reduce((acc, r) => {
+        function getVideoPlays(r) {
+            const acts = r.video_play_actions || [];
+            const v = acts.find(a => a.action_type === 'video_view');
+            return v ? parseFloat(v.value) : 0;
+        }
+        function getVideoCompletion(r) {
+            const acts = r.video_p100_watched_actions || [];
+            const v = acts.find(a => a.action_type === 'video_view');
+            const impr = parseInt(r.impressions || 0, 10);
+            return (v && impr) ? (parseFloat(v.value) / impr * 100) : 0;
+        }
+
+        function calcMetaTotals(data) {
+            return data.reduce((acc, r) => {
                 acc.spend       += parseFloat(r.spend || 0);
                 acc.impressions += parseInt(r.impressions || 0, 10);
                 acc.reach       += parseInt(r.reach || 0, 10);
                 acc.clicks      += parseInt(r.clicks || 0, 10);
                 acc.results     += getMetaResults(r);
+                acc.videoPlays  += getVideoPlays(r);
                 return acc;
-            }, { spend: 0, impressions: 0, reach: 0, clicks: 0, results: 0 });
+            }, { spend: 0, impressions: 0, reach: 0, clicks: 0, results: 0, videoPlays: 0 });
+        }
+
+        function updateMetaKPIs() {
+            const totals = calcMetaTotals(metaInsightsData);
             const ctr = totals.impressions ? (totals.clicks / totals.impressions * 100) : 0;
             const cpc = totals.clicks ? (totals.spend / totals.clicks) : 0;
             const cpm = totals.impressions ? (totals.spend / totals.impressions * 1000) : 0;
             const costPerResult = totals.results ? (totals.spend / totals.results) : 0;
+            const frequency = totals.reach ? (totals.impressions / totals.reach) : 0;
+            const thumbStop = totals.impressions ? (totals.videoPlays / totals.impressions * 100) : 0;
             const fmt$ = v => '$' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
             document.getElementById('metaKpiSpend').textContent         = fmt$(totals.spend);
             document.getElementById('metaKpiImpressions').textContent   = totals.impressions.toLocaleString();
@@ -20160,12 +20330,41 @@
             document.getElementById('metaKpiCpm').textContent           = fmt$(cpm);
             document.getElementById('metaKpiResults').textContent       = totals.results.toLocaleString();
             document.getElementById('metaKpiCostPerResult').textContent = totals.results ? fmt$(costPerResult) : '—';
+            document.getElementById('metaKpiFrequency').textContent     = totals.reach ? frequency.toFixed(2) : '—';
+            document.getElementById('metaKpiThumbStop').textContent     = totals.impressions ? thumbStop.toFixed(1) + '%' : '—';
+
+            // Trend arrows
+            if (metaPriorData && metaPriorData.length) {
+                const p = calcMetaTotals(metaPriorData);
+                const pCtr = p.impressions ? (p.clicks / p.impressions * 100) : 0;
+                const pCpc = p.clicks ? (p.spend / p.clicks) : 0;
+                const pCpm = p.impressions ? (p.spend / p.impressions * 1000) : 0;
+                const pCpr = p.results ? (p.spend / p.results) : 0;
+                const pFreq = p.reach ? (p.impressions / p.reach) : 0;
+                const pThumb = p.impressions ? (p.videoPlays / p.impressions * 100) : 0;
+                renderMetaTrend('metaKpiSpendTrend',         totals.spend,       p.spend);
+                renderMetaTrend('metaKpiImpressionsTrend',   totals.impressions, p.impressions);
+                renderMetaTrend('metaKpiReachTrend',         totals.reach,       p.reach);
+                renderMetaTrend('metaKpiClicksTrend',        totals.clicks,      p.clicks);
+                renderMetaTrend('metaKpiCtrTrend',           ctr,                pCtr);
+                renderMetaTrend('metaKpiCpcTrend',           cpc,                pCpc,  true);
+                renderMetaTrend('metaKpiCpmTrend',           cpm,                pCpm,  true);
+                renderMetaTrend('metaKpiResultsTrend',       totals.results,     p.results);
+                renderMetaTrend('metaKpiCostPerResultTrend', costPerResult,      pCpr,  true);
+                renderMetaTrend('metaKpiFrequencyTrend',     frequency,          pFreq);
+                renderMetaTrend('metaKpiThumbStopTrend',     thumbStop,          pThumb);
+            } else {
+                ['metaKpiSpendTrend','metaKpiImpressionsTrend','metaKpiReachTrend','metaKpiClicksTrend',
+                 'metaKpiCtrTrend','metaKpiCpcTrend','metaKpiCpmTrend','metaKpiResultsTrend',
+                 'metaKpiCostPerResultTrend','metaKpiFrequencyTrend','metaKpiThumbStopTrend']
+                .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+            }
         }
 
         function resetMetaKPIs() {
             metaDrillStack = [];
-            ['metaKpiSpend','metaKpiImpressions','metaKpiReach','metaKpiClicks','metaKpiCtr','metaKpiCpc','metaKpiCpm','metaKpiResults','metaKpiCostPerResult']
-                .forEach(id => document.getElementById(id).textContent = '—');
+            ['metaKpiSpend','metaKpiImpressions','metaKpiReach','metaKpiClicks','metaKpiCtr','metaKpiCpc','metaKpiCpm','metaKpiResults','metaKpiCostPerResult','metaKpiFrequency','metaKpiThumbStop']
+                .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
             renderMetaTableHead();
             document.getElementById('metaAdsTableBody').innerHTML =
                 '<tr><td colspan="11" style="padding:40px;text-align:center;color:#94a3b8;">Connect your Meta Ads account to see data.</td></tr>';
@@ -20176,7 +20375,8 @@
             const filter  = (document.getElementById('metaCampaignFilter').value || '').toLowerCase();
             const nameKey = metaNameKey();
             const level   = metaCurrentLevel();
-            const drillable = level !== 'ad';
+            const breakdown = document.getElementById('metaBreakdown')?.value;
+            const drillable = level !== 'ad' && !breakdown;
             const vis     = metaColDefs.filter(c => c.on);
             const totalCols = 1 + vis.length;
 
@@ -20184,15 +20384,22 @@
                 !filter || (r[nameKey] || '').toLowerCase().includes(filter)
             );
 
+            // Conditional formatting: spend percentiles
+            const spends = rows.map(r => parseFloat(r.spend || 0));
+            const sortedSpends = [...spends].sort((a,b) => a - b);
+            const p80 = sortedSpends[Math.floor(sortedSpends.length * 0.8)] ?? 0;
+            const p20 = sortedSpends[Math.floor(sortedSpends.length * 0.2)] ?? 0;
+
             const statusClass = s => s === 'ACTIVE' ? 'status-active' : s === 'PAUSED' ? 'status-paused' : 'status-archived';
             const fmt$ = v => '$' + parseFloat(v || 0).toFixed(2);
 
             const cellVal = (col, r) => {
                 const results = getMetaResults(r);
                 switch (col.key) {
-                    case 'status':
+                    case 'status': {
                         const s = r.status || r.effective_status || '';
                         return `<span class="${statusClass(s)}">${s || '—'}</span>`;
+                    }
                     case 'spend':        return fmt$(r.spend);
                     case 'impressions':  return parseInt(r.impressions || 0, 10).toLocaleString();
                     case 'reach':        return parseInt(r.reach || 0, 10).toLocaleString();
@@ -20204,6 +20411,21 @@
                     case 'cost_per_result':
                         return r.cost_per_result ? fmt$(r.cost_per_result)
                              : results ? fmt$(parseFloat(r.spend || 0) / results) : '—';
+                    case 'frequency':    return parseFloat(r.frequency || 0).toFixed(2);
+                    case 'thumb_stop': {
+                        const plays = getVideoPlays(r);
+                        const impr = parseInt(r.impressions || 0, 10);
+                        return impr ? (plays / impr * 100).toFixed(1) + '%' : '—';
+                    }
+                    case 'video_completion': {
+                        const acts = r.video_p100_watched_actions || [];
+                        const v = acts.find(a => a.action_type === 'video_view');
+                        const impr = parseInt(r.impressions || 0, 10);
+                        return (v && impr) ? (parseFloat(v.value) / impr * 100).toFixed(1) + '%' : '—';
+                    }
+                    case 'quality_ranking':    return r.quality_ranking || '—';
+                    case 'engagement_ranking': return r.engagement_rate_ranking || '—';
+                    case 'conversion_ranking': return r.conversion_rate_ranking || '—';
                     default: return '—';
                 }
             };
@@ -20214,11 +20436,15 @@
                     const name = r[nameKey] || '—';
                     const drillClick = drillable ? `onclick="metaDrillInto(${metaInsightsData.indexOf(r)})"` : '';
                     const trClass = drillable ? 'meta-drillable' : '';
+                    const rowSpend = parseFloat(r.spend || 0);
+                    const rowBg = rows.length > 4 && rowSpend >= p80 ? 'background:rgba(22,163,74,0.05);'
+                                : rows.length > 4 && rowSpend <= p20 && rowSpend > 0 ? 'background:rgba(234,67,53,0.04);'
+                                : '';
                     const cells = vis.map(col =>
                         `<td style="padding:10px 16px;text-align:${col.align};">${cellVal(col, r)}</td>`
                     ).join('');
                     const drillIcon = drillable ? ` <i class="fas fa-chevron-right" style="font-size:10px;color:#94a3b8;margin-left:4px;"></i>` : '';
-                    return `<tr class="${trClass}" ${drillClick}>
+                    return `<tr class="${trClass}" ${drillClick} style="${rowBg}">
                         <td class="meta-name-cell" style="padding:10px 16px;">${name}${drillIcon}</td>
                         ${cells}
                     </tr>`;
@@ -20229,8 +20455,7 @@
             const ctx = document.getElementById('metaAdsChart');
             if (!ctx) return;
             if (metaAdsChartInstance) metaAdsChartInstance.destroy();
-            const level  = document.getElementById('metaLevelSelect').value;
-            const nameKey = level === 'campaign' ? 'campaign_name' : level === 'adset' ? 'adset_name' : 'ad_name';
+            const nameKey = metaNameKey();
             const labels = metaInsightsData.map(r => r[nameKey] || '—').slice(0, 15);
             const spend  = metaInsightsData.map(r => parseFloat(r.spend || 0)).slice(0, 15);
             const clicks = metaInsightsData.map(r => parseInt(r.clicks || 0, 10)).slice(0, 15);
