@@ -8209,59 +8209,129 @@
         }
 
         /* Tool Search Modal */
+        @keyframes tsModalIn {
+            from { opacity: 0; transform: translateY(-16px) scale(0.98); }
+            to   { opacity: 1; transform: translateY(0)     scale(1); }
+        }
         #toolSearchModal {
             display: none;
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
+            inset: 0;
+            background: rgba(10, 15, 30, 0.72);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
             z-index: 10000;
             padding: 20px;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 56px;
         }
         #toolSearchModal.active {
             display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            padding-top: 60px;
+            animation: tsModalIn 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
         }
         .tool-search-container {
-            background: white;
-            border-radius: 12px;
-            width: 100%;
-            max-width: 500px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            background: rgba(255, 255, 255, 0.97);
+            border-radius: 16px;
+            width: calc(100vw - 48px);
+            max-width: 100%;
+            box-shadow: 0 32px 80px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255,255,255,0.08);
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            max-height: 70vh;
+            max-height: 82vh;
         }
+        /* ── Search bar ── */
         .tool-search-input-wrapper {
-            padding: 16px;
-            border-bottom: 1px solid #e2e8f0;
+            padding: 14px 18px;
+            border-bottom: 1px solid #e8edf5;
             display: flex;
             align-items: center;
             gap: 12px;
+            background: #fff;
         }
         .tool-search-input-wrapper i {
-            color: #94a3b8;
-            font-size: 18px;
+            color: #004c9d;
+            font-size: 17px;
+            flex-shrink: 0;
         }
         #toolSearchInput {
             flex: 1;
             border: none;
             outline: none;
             font-size: 16px;
+            font-weight: 500;
             padding: 0;
-            color: #1e293b;
+            color: #0f172a;
+            background: transparent;
+            letter-spacing: -0.01em;
         }
         #toolSearchInput::placeholder {
-            color: #cbd5e1;
+            color: #b0bec5;
+            font-weight: 400;
         }
+        .tool-search-kbd {
+            font-size: 11px;
+            color: #94a3b8;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            padding: 2px 7px;
+            font-family: monospace;
+            flex-shrink: 0;
+        }
+        /* ── Category filter pills ── */
+        .tool-search-filters {
+            display: flex;
+            gap: 6px;
+            padding: 9px 14px;
+            border-bottom: 1px solid #e8edf5;
+            background: #f8fafc;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .tool-search-filters::-webkit-scrollbar { display: none; }
+        .ts-pill {
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            padding: 3px 10px;
+            border-radius: 999px;
+            border: 1.5px solid transparent;
+            cursor: pointer;
+            transition: all 0.15s;
+            opacity: 0.55;
+            background: transparent;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .ts-pill:hover { opacity: 0.85; }
+        .ts-pill.active { opacity: 1; }
+        .ts-pill.pill-all    { border-color: #64748b; color: #334155; }
+        .ts-pill.pill-all.active { background: #334155; color: #fff; }
+        .ts-pill.pill-seo    { border-color: #3b82f6; color: #1d4ed8; }
+        .ts-pill.pill-seo.active { background: #3b82f6; color: #fff; }
+        .ts-pill.pill-smm    { border-color: #ec4899; color: #be185d; }
+        .ts-pill.pill-smm.active { background: #ec4899; color: #fff; }
+        .ts-pill.pill-geo    { border-color: #10b981; color: #047857; }
+        .ts-pill.pill-geo.active { background: #10b981; color: #fff; }
+        .ts-pill.pill-sem    { border-color: #f59e0b; color: #b45309; }
+        .ts-pill.pill-sem.active { background: #f59e0b; color: #fff; }
+        .ts-pill.pill-others { border-color: #8b5cf6; color: #6d28d9; }
+        .ts-pill.pill-others.active { background: #8b5cf6; color: #fff; }
+        .ts-pill.pill-admin  { border-color: #ef4444; color: #b91c1c; }
+        .ts-pill.pill-admin.active { background: #ef4444; color: #fff; }
+        /* ── Results grid ── */
         .tool-search-results {
             overflow-y: auto;
             flex: 1;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+            gap: 10px;
+            padding: 14px;
+            align-content: start;
         }
         .tool-search-results:empty::after {
             content: 'No tools found';
@@ -8270,27 +8340,98 @@
             text-align: center;
             color: #94a3b8;
             font-size: 14px;
+            grid-column: 1 / -1;
         }
         .tool-search-item {
-            padding: 12px 16px;
-            border-bottom: 1px solid #f1f5f9;
+            padding: 14px 10px;
+            border: 1.5px solid transparent;
+            border-radius: 12px;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 5px;
+            min-height: 78px;
         }
         .tool-search-item:hover {
-            background: #f8fafc;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.14);
+            filter: brightness(0.95) saturate(1.1);
         }
         .tool-search-item-name {
-            font-weight: 600;
-            color: #1e293b;
-            font-size: 14px;
+            font-weight: 700;
+            font-size: 11.5px;
+            line-height: 1.35;
+            letter-spacing: -0.01em;
         }
         .tool-search-item-category {
+            font-size: 9.5px;
+            font-weight: 800;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            opacity: 0.55;
+        }
+        /* Category colour themes */
+        .tool-search-item.cat-seo    { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
+        .tool-search-item.cat-smm    { background: #fce7f3; border-color: #f9a8d4; color: #9d174d; }
+        .tool-search-item.cat-geo    { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+        .tool-search-item.cat-sem    { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+        .tool-search-item.cat-others { background: #ede9fe; border-color: #c4b5fd; color: #4c1d95; }
+        .tool-search-item.cat-admin  { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+        /* ── Preview panel ── */
+        .tool-search-preview {
+            border-top: 1px solid #e8edf5;
+            padding: 10px 18px;
+            min-height: 46px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f8fafc;
+        }
+        .tool-search-preview-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: #e2e8f0;
+            color: #64748b;
+            font-size: 13px;
+            transition: background 0.2s, color 0.2s;
+        }
+        .tool-search-preview.has-tool .tool-search-preview-icon {
+            background: #004c9d;
+            color: #fff;
+        }
+        .tool-search-preview-body {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            min-width: 0;
+        }
+        .tool-search-preview-name {
             font-size: 12px;
+            font-weight: 700;
+            color: #004c9d;
+            display: none;
+        }
+        .tool-search-preview.has-tool .tool-search-preview-name {
+            display: block;
+        }
+        .tool-search-preview-text {
+            font-size: 12.5px;
             color: #94a3b8;
+            font-style: italic;
+            line-height: 1.45;
+        }
+        .tool-search-preview.has-tool .tool-search-preview-text {
+            color: #475569;
+            font-style: normal;
         }
 
         /* Style the navbar */
@@ -9895,8 +10036,25 @@
             <div class="tool-search-input-wrapper">
                 <i class="fas fa-search"></i>
                 <input type="text" id="toolSearchInput" placeholder="Search tools..." oninput="filterTools(this.value)">
+                <span class="tool-search-kbd">ESC</span>
+            </div>
+            <div class="tool-search-filters" id="toolSearchFilters">
+                <button class="ts-pill pill-all active" onclick="filterByCategory('all', this)">All</button>
+                <button class="ts-pill pill-seo"    onclick="filterByCategory('SEO', this)">SEO</button>
+                <button class="ts-pill pill-smm"    onclick="filterByCategory('SMM', this)">SMM</button>
+                <button class="ts-pill pill-geo"    onclick="filterByCategory('GEO', this)">GEO</button>
+                <button class="ts-pill pill-sem"    onclick="filterByCategory('SEM', this)">SEM</button>
+                <button class="ts-pill pill-others" onclick="filterByCategory('Others', this)">Others</button>
+                <button class="ts-pill pill-admin"  onclick="filterByCategory('Admin', this)">Admin</button>
             </div>
             <div class="tool-search-results" id="toolSearchResults"></div>
+            <div class="tool-search-preview" id="toolSearchPreview">
+                <div class="tool-search-preview-icon"><i class="fas fa-lightbulb"></i></div>
+                <div class="tool-search-preview-body">
+                    <span class="tool-search-preview-name" id="toolSearchPreviewName"></span>
+                    <span class="tool-search-preview-text" id="toolSearchPreviewText">Hover over a tool to see what it does</span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -13698,8 +13856,7 @@
         <div class="content">
             <div id="competitorsSection">
                 <div class="page-break"></div>
-                <button class="collapsible" id="competitionBtn"><i class="fas fa-plus-square"></i><i
-                        class="fas fa-search"></i>Competitors Identifier</button>
+                <button class="collapsible" id="competitionBtn"><i class="fas fa-plus-square"></i>Competitors Identifier</button>
                 <div class="content" id="competitors_content">
                     <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: stretch;">
                         <div class="competitors-glass-card" style="flex: 1; min-width: 350px; margin: 0;">
@@ -61321,47 +61478,47 @@ Move-In</h3>
         // Tool Search Functionality
         const toolsList = [
             // SEO Tools
-            { name: 'Page Technical & Domain Analysis', category: 'SEO', section: 'seoSection', collapsible: 'siteAnalysisToggle' },
-            { name: 'Technical SEO', category: 'SEO', section: 'seoSection', collapsible: 'technicalButton' },
-            { name: 'Keyword Analysis', category: 'SEO', section: 'seoSection', collapsible: 'keywordAnalysisBtn' },
-            { name: 'Competitors Identifier', category: 'SEO', section: 'seoSection', collapsible: 'competitionBtn' },
-            { name: 'Keyword Mapping', category: 'SEO', section: 'seoSection', collapsible: 'keyword_mapping' },
-            { name: 'Digimetrics Strategy Engine', category: 'SEO', section: 'seoSection', collapsible: 'strategyEngineBtn' },
-            { name: 'On-Page Optimisation', category: 'SEO', section: 'seoSection', collapsible: 'onPageButton' },
-            { name: 'Schema Generator', category: 'SEO', section: 'seoSection', collapsible: 'schemaGeneratorButton' },
-            { name: 'Internal Anchor Text Cleaner', category: 'SEO', section: 'seoSection', collapsible: 'anchorTextCleanerBtn' },
-            { name: 'Rank Checker', category: 'SEO', section: 'seoSection', collapsible: 'rankCheckerButton' },
-            { name: 'SEO Pricing Quote Generator', category: 'SEO', section: 'seoSection', collapsible: null },
-            { name: 'Google Crawler Simulator', category: 'SEO', section: 'seoSection', collapsible: null },
+            { name: 'Page Technical & Domain Analysis', category: 'SEO', section: 'seoSection', collapsible: 'siteAnalysisToggle', desc: 'Audit core technical metrics and domain authority signals — crawlability, indexability, page speed, and domain health at a glance.' },
+            { name: 'Technical SEO', category: 'SEO', section: 'seoSection', collapsible: 'technicalButton', desc: 'Diagnose and fix site-wide technical issues including broken links, redirect chains, structured data errors, and Core Web Vitals.' },
+            { name: 'Keyword Analysis', category: 'SEO', section: 'seoSection', collapsible: 'keywordAnalysisBtn', desc: 'Analyse keyword volume, difficulty, and intent to surface high-opportunity terms worth targeting for organic growth.' },
+            { name: 'Competitors Identifier', category: 'SEO', section: 'seoSection', collapsible: 'competitionBtn', desc: 'Identify your real organic competitors and benchmark their keyword footprint, authority, and content strategy against yours.' },
+            { name: 'Keyword Mapping', category: 'SEO', section: 'seoSection', collapsible: 'keyword_mapping', desc: 'Assign target keywords to specific pages to prevent cannibalisation and create a clear, structured content hierarchy.' },
+            { name: 'Digimetrics Strategy Engine', category: 'SEO', section: 'seoSection', collapsible: 'strategyEngineBtn', desc: 'Generate a data-driven SEO roadmap by combining insights from audits, keywords, and competitors into a prioritised action plan.' },
+            { name: 'On-Page Optimisation', category: 'SEO', section: 'seoSection', collapsible: 'onPageButton', desc: 'Optimise titles, meta descriptions, headings, and body content for target keywords to improve relevance and click-through rates.' },
+            { name: 'Schema Generator', category: 'SEO', section: 'seoSection', collapsible: 'schemaGeneratorButton', desc: 'Build and validate structured data markup (JSON-LD) to enhance rich snippet eligibility in search results.' },
+            { name: 'Internal Anchor Text Cleaner', category: 'SEO', section: 'seoSection', collapsible: 'anchorTextCleanerBtn', desc: 'Identify and correct over-optimised or generic internal anchor text to improve link equity distribution and crawl efficiency.' },
+            { name: 'Rank Checker', category: 'SEO', section: 'seoSection', collapsible: 'rankCheckerButton', desc: 'Track keyword rankings across search engines and locations to monitor performance trends and spot movement opportunities.' },
+            { name: 'SEO Pricing Quote Generator', category: 'SEO', section: 'seoSection', collapsible: null, desc: 'Generate professional, itemised SEO service quotes based on scope, deliverables, and client requirements.' },
+            { name: 'Google Crawler Simulator', category: 'SEO', section: 'seoSection', collapsible: null, desc: 'Simulate how Googlebot renders and reads your pages to expose JavaScript rendering issues and hidden content problems.' },
 
             // SMM Tools
-            { name: 'Social Media Suggested Keywords', category: 'SMM', section: 'smmSection', collapsible: 'smsButton' },
-            { name: 'Content Pillar Framework', category: 'SMM', section: 'smmSection', collapsible: 'pillarFrameworkButton' },
-            { name: 'Caption Generator', category: 'SMM', section: 'smmSection', collapsible: 'contentGeneratorButton' },
-            { name: 'Social Media Response Generator', category: 'SMM', section: 'smmSection', collapsible: 'smmReplyButton' },
+            { name: 'Social Media Suggested Keywords', category: 'SMM', section: 'smmSection', collapsible: 'smsButton', desc: 'Discover trending hashtags and topic keywords tailored to your brand for use across social platforms.' },
+            { name: 'Content Pillar Framework', category: 'SMM', section: 'smmSection', collapsible: 'pillarFrameworkButton', desc: 'Structure your social content strategy around core themes and sub-topics to maintain consistency and broaden reach.' },
+            { name: 'Caption Generator', category: 'SMM', section: 'smmSection', collapsible: 'contentGeneratorButton', desc: 'Generate platform-ready captions with the right tone, hashtags, and CTAs for Instagram, LinkedIn, Facebook, and more.' },
+            { name: 'Social Media Response Generator', category: 'SMM', section: 'smmSection', collapsible: 'smmReplyButton', desc: 'Craft prompt, on-brand replies to comments and messages to maintain community engagement and reputation.' },
 
             // GEO Tools
-            { name: 'llms.txt Generator', category: 'GEO', section: 'geoSection', collapsible: 'geoToSchemaBtn' },
-            { name: 'AI Discovery Audit', category: 'GEO', section: 'geoSection', collapsible: 'discoveryAuditBtn' },
-            { name: 'AI Mentions', category: 'GEO', section: 'geoSection', collapsible: 'discoveryKeywordsBtn' },
-            { name: 'GEO On-Page Optimisation', category: 'GEO', section: 'geoSection', collapsible: 'geoOnPageBtn' },
+            { name: 'llms.txt Generator', category: 'GEO', section: 'geoSection', collapsible: 'geoToSchemaBtn', desc: 'Create an llms.txt file that guides AI language models on how to understand and represent your site accurately.' },
+            { name: 'AI Discovery Audit', category: 'GEO', section: 'geoSection', collapsible: 'discoveryAuditBtn', desc: 'Audit how well your brand surfaces in AI-generated answers and identify gaps in your generative engine optimisation.' },
+            { name: 'AI Mentions', category: 'GEO', section: 'geoSection', collapsible: 'discoveryKeywordsBtn', desc: 'Track where and how often your brand is mentioned in AI model responses across key prompts and topics.' },
+            { name: 'GEO On-Page Optimisation', category: 'GEO', section: 'geoSection', collapsible: 'geoOnPageBtn', desc: 'Optimise page content specifically for inclusion in AI-generated summaries and large language model training signals.' },
 
             // SEM Tools
-            { name: 'SEM Analysis & Generation', category: 'SEM', section: 'semSection', collapsible: null },
-            { name: 'Google Ads', category: 'SEM', section: 'semSection', collapsible: 'adsIntegrationSection' },
-            { name: 'Google Analytics 4', category: 'SEM', section: 'semSection', collapsible: 'ga4IntegrationSection' },
+            { name: 'SEM Analysis & Generation', category: 'SEM', section: 'semSection', collapsible: null, desc: 'Analyse paid search landscape and generate campaign structures, ad copy, and bidding recommendations.' },
+            { name: 'Google Ads', category: 'SEM', section: 'semSection', collapsible: 'adsIntegrationSection', desc: 'Connect your Google Ads account to review campaign performance, spend, and conversion data alongside your SEO insights.' },
+            { name: 'Google Analytics 4', category: 'SEM', section: 'semSection', collapsible: 'ga4IntegrationSection', desc: 'Pull GA4 traffic and behaviour data into your workflow to correlate organic and paid efforts with on-site outcomes.' },
 
             // Other Tools
-            { name: 'Google Search Console', category: 'Others', section: 'othersSection', collapsible: 'gscIntegrationSection' },
-            { name: 'Persona Generator', category: 'Others', section: 'othersSection', collapsible: 'persona' },
-            { name: 'Media Plan', category: 'Others', section: 'othersSection', collapsible: null },
-            { name: 'Content Check', category: 'Others', section: 'othersSection', collapsible: null },
-            { name: 'Landing Page Audit', category: 'Others', section: 'othersSection', collapsible: 'landingPageAudit' },
-            { name: 'AI Content Optimiser', category: 'Others', section: 'othersSection', collapsible: null },
+            { name: 'Google Search Console', category: 'Others', section: 'othersSection', collapsible: 'gscIntegrationSection', desc: 'Import GSC data to analyse impressions, clicks, average position, and crawl errors directly within the platform.' },
+            { name: 'Persona Generator', category: 'Others', section: 'othersSection', collapsible: 'persona', desc: 'Build detailed audience personas based on demographic, psychographic, and behavioural inputs to guide content strategy.' },
+            { name: 'Media Plan', category: 'Others', section: 'othersSection', collapsible: null, desc: 'Create structured media plans that allocate budget and channels across campaigns for maximum reach and ROI.' },
+            { name: 'Content Check', category: 'Others', section: 'othersSection', collapsible: null, desc: 'Evaluate existing content for readability, keyword coverage, uniqueness, and alignment with SEO best practices.' },
+            { name: 'Landing Page Audit', category: 'Others', section: 'othersSection', collapsible: 'landingPageAudit', desc: 'Assess landing pages for conversion rate optimisation, messaging clarity, technical performance, and SEO readiness.' },
+            { name: 'AI Content Optimiser', category: 'Others', section: 'othersSection', collapsible: null, desc: 'Refine AI-generated or human-written content to improve naturalness, keyword integration, and search intent alignment.' },
 
             // Admin Tools
-            { name: 'Credits', category: 'Admin', section: null, collapsible: 'mangoolsQuota' },
-            { name: 'Admin', category: 'Admin', section: 'adminSection', collapsible: null },
+            { name: 'Credits', category: 'Admin', section: null, collapsible: 'mangoolsQuota', desc: 'View your remaining API credits and usage quota across connected data providers.' },
+            { name: 'Admin', category: 'Admin', section: 'adminSection', collapsible: null, desc: 'Manage account settings, API keys, user permissions, and platform configuration options.' },
         ];
 
         function openToolSearch(e) {
@@ -61375,40 +61532,83 @@ Move-In</h3>
             if (e && e.target.id !== 'toolSearchModal') return;
             document.getElementById('toolSearchModal').classList.remove('active');
             document.getElementById('toolSearchInput').value = '';
+            activeCategory = 'all';
+            document.querySelectorAll('.ts-pill').forEach(p => p.classList.remove('active'));
+            const allPill = document.querySelector('.ts-pill.pill-all');
+            if (allPill) allPill.classList.add('active');
         }
 
-        function renderAllTools() {
-            const resultsDiv = document.getElementById('toolSearchResults');
-            resultsDiv.innerHTML = toolsList.map((tool, idx) => `
-                <div class="tool-search-item" onclick="selectTool(${idx})">
-                    <div class="tool-search-item-name">${tool.name}</div>
-                    <div class="tool-search-item-category">${tool.category}</div>
-                </div>
-            `).join('');
+        function catClass(category) {
+            return 'cat-' + category.toLowerCase().replace(/[^a-z]/g, '');
         }
 
-        function filterTools(query) {
-            const resultsDiv = document.getElementById('toolSearchResults');
-            const filtered = toolsList.filter(tool =>
-                tool.name.toLowerCase().includes(query.toLowerCase()) ||
-                tool.category.toLowerCase().includes(query.toLowerCase())
-            );
+        let activeCategory = 'all';
 
-            if (filtered.length === 0) {
-                resultsDiv.innerHTML = '';
-                return;
+        function setPreview(tool) {
+            const panel = document.getElementById('toolSearchPreview');
+            const nameEl = document.getElementById('toolSearchPreviewName');
+            const textEl = document.getElementById('toolSearchPreviewText');
+            const icon   = panel.querySelector('.tool-search-preview-icon i');
+            if (tool) {
+                panel.classList.add('has-tool');
+                nameEl.textContent = tool.name;
+                textEl.textContent = tool.desc || '';
+                icon.className = 'fas fa-arrow-right';
+            } else {
+                panel.classList.remove('has-tool');
+                nameEl.textContent = '';
+                textEl.textContent = 'Hover over a tool to see what it does';
+                icon.className = 'fas fa-lightbulb';
             }
+        }
 
-            resultsDiv.innerHTML = filtered.map((tool) => {
-                const fullIdx = toolsList.indexOf(tool);
-                return `
-                    <div class="tool-search-item" onclick="selectTool(${fullIdx})">
+        function toolCard(tool, idx) {
+            return `<div class="tool-search-item ${catClass(tool.category)}"
+                        onclick="selectTool(${idx})"
+                        onmouseenter="setPreview(toolsList[${idx}])"
+                        onmouseleave="setPreview(null)">
                         <div class="tool-search-item-name">${tool.name}</div>
                         <div class="tool-search-item-category">${tool.category}</div>
-                    </div>
-                `;
-            }).join('');
+                    </div>`;
         }
+
+        function getFilteredList(query) {
+            const q = query.toLowerCase();
+            return toolsList.filter(tool => {
+                const matchCat   = activeCategory === 'all' || tool.category === activeCategory;
+                const matchQuery = !query ||
+                    tool.name.toLowerCase().includes(q) ||
+                    tool.category.toLowerCase().includes(q) ||
+                    (tool.desc && tool.desc.toLowerCase().includes(q));
+                return matchCat && matchQuery;
+            });
+        }
+
+        function renderTools() {
+            const query = document.getElementById('toolSearchInput').value;
+            const resultsDiv = document.getElementById('toolSearchResults');
+            setPreview(null);
+            const filtered = getFilteredList(query);
+            resultsDiv.innerHTML = filtered.map(tool => toolCard(tool, toolsList.indexOf(tool))).join('');
+        }
+
+        function renderAllTools() { renderTools(); }
+
+        function filterTools(query) { renderTools(); }
+
+        function filterByCategory(cat, btn) {
+            activeCategory = cat;
+            document.querySelectorAll('.ts-pill').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            renderTools();
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('toolSearchModal');
+                if (modal && modal.classList.contains('active')) closeToolSearch();
+            }
+        });
 
         function selectTool(idx) {
             const tool = toolsList[idx];
