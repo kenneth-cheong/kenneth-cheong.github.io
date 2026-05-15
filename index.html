@@ -17127,7 +17127,7 @@
                             <p id="metaAdsAuthStatus" style="margin: 5px 0 0 0; font-size: 13px; color: #5f6368;">Not connected. Enter your Facebook App ID and connect.</p>
                         </div>
                         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                            <input id="metaAppIdInput" type="text" placeholder="Facebook App ID" autocomplete="off"
+                            <input id="metaAppIdInput" type="text" placeholder="Facebook App ID" autocomplete="off" value="1116760423638082"
                                 style="padding: 8px 12px; border-radius: 6px; border: 1px solid #b3cef5; font-size: 13px; outline: none; width: 200px;">
                             <button class="btn-gradient" id="btnConnectMeta" onclick="connectMetaAds()"
                                 style="background: #1877F2; width: 180px; margin: 0;">
@@ -17192,13 +17192,16 @@
                     </div>
 
                     <!-- KPI Cards -->
-                    <div id="metaKpiRow" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px;">
+                    <div id="metaKpiRow" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px;">
                         <div class="meta-kpi-card"><div class="meta-kpi-label">Spend</div><div class="meta-kpi-value" id="metaKpiSpend">—</div></div>
                         <div class="meta-kpi-card"><div class="meta-kpi-label">Impressions</div><div class="meta-kpi-value" id="metaKpiImpressions">—</div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Reach</div><div class="meta-kpi-value" id="metaKpiReach">—</div></div>
                         <div class="meta-kpi-card"><div class="meta-kpi-label">Clicks</div><div class="meta-kpi-value" id="metaKpiClicks">—</div></div>
                         <div class="meta-kpi-card"><div class="meta-kpi-label">CTR</div><div class="meta-kpi-value" id="metaKpiCtr">—</div></div>
                         <div class="meta-kpi-card"><div class="meta-kpi-label">CPC</div><div class="meta-kpi-value" id="metaKpiCpc">—</div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">CPM</div><div class="meta-kpi-value" id="metaKpiCpm">—</div></div>
                         <div class="meta-kpi-card"><div class="meta-kpi-label">Results</div><div class="meta-kpi-value" id="metaKpiResults">—</div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Cost / Result</div><div class="meta-kpi-value" id="metaKpiCostPerResult">—</div></div>
                     </div>
 
                     <!-- Chart -->
@@ -17216,14 +17219,17 @@
                                         <th style="padding: 12px 16px; text-align: left; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Status</th>
                                         <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Spend</th>
                                         <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Impressions</th>
+                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Reach</th>
                                         <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Clicks</th>
                                         <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">CTR</th>
                                         <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">CPC</th>
+                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">CPM</th>
                                         <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Results</th>
+                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Cost/Result</th>
                                     </tr>
                                 </thead>
                                 <tbody id="metaAdsTableBody">
-                                    <tr><td colspan="8" style="padding: 40px; text-align: center; color: #94a3b8;">Connect your Meta Ads account to see data.</td></tr>
+                                    <tr><td colspan="11" style="padding: 40px; text-align: center; color: #94a3b8;">Connect your Meta Ads account to see data.</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -19829,7 +19835,7 @@
         // ═══════════════════════════════════════════════════
         //  META ADS INTEGRATION
         // ═══════════════════════════════════════════════════
-        const META_FB_VERSION = 'v24.0';
+        const META_FB_VERSION = 'v23.0';
         let metaAccessToken = null;
         let metaAdAccountId = null;
         let metaInsightsData = [];
@@ -19986,7 +19992,7 @@
                 window.FB.api(`/${metaAdAccountId}/insights`, {
                     access_token: metaAccessToken,
                     level,
-                    fields: 'campaign_name,adset_name,ad_name,spend,impressions,clicks,ctr,cpc,actions,date_start,date_stop',
+                    fields: 'campaign_name,adset_name,ad_name,spend,impressions,clicks,ctr,cpc,cpm,actions,cost_per_action_type,conversions,cost_per_conversion,inline_link_clicks,cost_per_inline_link_click,results,cost_per_result,reach,date_start,date_stop,objective',
                     time_range: JSON.stringify({ since, until }),
                     limit: 200
                 }, resolve);
@@ -20020,25 +20026,32 @@
             const totals = metaInsightsData.reduce((acc, r) => {
                 acc.spend       += parseFloat(r.spend || 0);
                 acc.impressions += parseInt(r.impressions || 0, 10);
+                acc.reach       += parseInt(r.reach || 0, 10);
                 acc.clicks      += parseInt(r.clicks || 0, 10);
                 acc.results     += getMetaResults(r);
                 return acc;
-            }, { spend: 0, impressions: 0, clicks: 0, results: 0 });
+            }, { spend: 0, impressions: 0, reach: 0, clicks: 0, results: 0 });
             const ctr = totals.impressions ? (totals.clicks / totals.impressions * 100) : 0;
             const cpc = totals.clicks ? (totals.spend / totals.clicks) : 0;
-            document.getElementById('metaKpiSpend').textContent       = '$' + totals.spend.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-            document.getElementById('metaKpiImpressions').textContent = totals.impressions.toLocaleString();
-            document.getElementById('metaKpiClicks').textContent      = totals.clicks.toLocaleString();
-            document.getElementById('metaKpiCtr').textContent         = ctr.toFixed(2) + '%';
-            document.getElementById('metaKpiCpc').textContent         = '$' + cpc.toFixed(2);
-            document.getElementById('metaKpiResults').textContent     = totals.results.toLocaleString();
+            const cpm = totals.impressions ? (totals.spend / totals.impressions * 1000) : 0;
+            const costPerResult = totals.results ? (totals.spend / totals.results) : 0;
+            const fmt$ = v => '$' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            document.getElementById('metaKpiSpend').textContent         = fmt$(totals.spend);
+            document.getElementById('metaKpiImpressions').textContent   = totals.impressions.toLocaleString();
+            document.getElementById('metaKpiReach').textContent         = totals.reach.toLocaleString();
+            document.getElementById('metaKpiClicks').textContent        = totals.clicks.toLocaleString();
+            document.getElementById('metaKpiCtr').textContent           = ctr.toFixed(2) + '%';
+            document.getElementById('metaKpiCpc').textContent           = fmt$(cpc);
+            document.getElementById('metaKpiCpm').textContent           = fmt$(cpm);
+            document.getElementById('metaKpiResults').textContent       = totals.results.toLocaleString();
+            document.getElementById('metaKpiCostPerResult').textContent = totals.results ? fmt$(costPerResult) : '—';
         }
 
         function resetMetaKPIs() {
-            ['metaKpiSpend','metaKpiImpressions','metaKpiClicks','metaKpiCtr','metaKpiCpc','metaKpiResults']
+            ['metaKpiSpend','metaKpiImpressions','metaKpiReach','metaKpiClicks','metaKpiCtr','metaKpiCpc','metaKpiCpm','metaKpiResults','metaKpiCostPerResult']
                 .forEach(id => document.getElementById(id).textContent = '—');
             document.getElementById('metaAdsTableBody').innerHTML =
-                '<tr><td colspan="8" style="padding:40px;text-align:center;color:#94a3b8;">Connect your Meta Ads account to see data.</td></tr>';
+                '<tr><td colspan="11" style="padding:40px;text-align:center;color:#94a3b8;">Connect your Meta Ads account to see data.</td></tr>';
         }
 
         function renderMetaTable() {
@@ -20050,25 +20063,31 @@
             );
             const statusClass = s => s === 'ACTIVE' ? 'status-active' : s === 'PAUSED' ? 'status-paused' : 'status-archived';
             document.getElementById('metaAdsTableBody').innerHTML = rows.length === 0
-                ? '<tr><td colspan="8" style="padding:40px;text-align:center;color:#94a3b8;">No data for this filter.</td></tr>'
+                ? '<tr><td colspan="11" style="padding:40px;text-align:center;color:#94a3b8;">No data for this filter.</td></tr>'
                 : rows.map(r => {
-                    const name    = r[nameKey] || '—';
-                    const status  = r.status || r.effective_status || '';
-                    const spend   = parseFloat(r.spend || 0).toFixed(2);
-                    const impr    = parseInt(r.impressions || 0, 10).toLocaleString();
-                    const clicks  = parseInt(r.clicks || 0, 10).toLocaleString();
-                    const ctr     = parseFloat(r.ctr || 0).toFixed(2) + '%';
-                    const cpc     = parseFloat(r.cpc || 0).toFixed(2);
-                    const results = getMetaResults(r);
+                    const name          = r[nameKey] || '—';
+                    const status        = r.status || r.effective_status || '';
+                    const spend         = parseFloat(r.spend || 0).toFixed(2);
+                    const impr          = parseInt(r.impressions || 0, 10).toLocaleString();
+                    const reach         = parseInt(r.reach || 0, 10).toLocaleString();
+                    const clicks        = parseInt(r.clicks || 0, 10).toLocaleString();
+                    const ctr           = parseFloat(r.ctr || 0).toFixed(2) + '%';
+                    const cpc           = parseFloat(r.cpc || 0).toFixed(2);
+                    const cpm           = parseFloat(r.cpm || 0).toFixed(2);
+                    const results       = getMetaResults(r);
+                    const costPerResult = r.cost_per_result ? '$' + parseFloat(r.cost_per_result).toFixed(2) : (results ? '$' + (parseFloat(r.spend || 0) / results).toFixed(2) : '—');
                     return `<tr>
                         <td style="padding:10px 16px;">${name}</td>
                         <td style="padding:10px 16px;"><span class="${statusClass(status)}">${status || '—'}</span></td>
                         <td style="padding:10px 16px;text-align:right;">$${spend}</td>
                         <td style="padding:10px 16px;text-align:right;">${impr}</td>
+                        <td style="padding:10px 16px;text-align:right;">${reach}</td>
                         <td style="padding:10px 16px;text-align:right;">${clicks}</td>
                         <td style="padding:10px 16px;text-align:right;">${ctr}</td>
                         <td style="padding:10px 16px;text-align:right;">$${cpc}</td>
+                        <td style="padding:10px 16px;text-align:right;">$${cpm}</td>
                         <td style="padding:10px 16px;text-align:right;">${results}</td>
+                        <td style="padding:10px 16px;text-align:right;">${costPerResult}</td>
                     </tr>`;
                 }).join('');
         }
@@ -20105,17 +20124,24 @@
         function exportMetaTableToCSV() {
             const level   = document.getElementById('metaLevelSelect').value;
             const nameKey = level === 'campaign' ? 'campaign_name' : level === 'adset' ? 'adset_name' : 'ad_name';
-            const header  = ['Name','Status','Spend','Impressions','Clicks','CTR','CPC','Results'];
-            const rows    = metaInsightsData.map(r => [
-                `"${(r[nameKey] || '').replace(/"/g, '""')}"`,
-                r.status || '',
-                parseFloat(r.spend || 0).toFixed(2),
-                r.impressions || 0,
-                r.clicks || 0,
-                parseFloat(r.ctr || 0).toFixed(2) + '%',
-                parseFloat(r.cpc || 0).toFixed(2),
-                getMetaResults(r)
-            ].join(','));
+            const header  = ['Name','Status','Spend','Impressions','Reach','Clicks','CTR','CPC','CPM','Results','Cost/Result'];
+            const rows    = metaInsightsData.map(r => {
+                const results = getMetaResults(r);
+                const cpr = results ? (parseFloat(r.spend || 0) / results).toFixed(2) : '';
+                return [
+                    `"${(r[nameKey] || '').replace(/"/g, '""')}"`,
+                    r.status || '',
+                    parseFloat(r.spend || 0).toFixed(2),
+                    r.impressions || 0,
+                    r.reach || 0,
+                    r.clicks || 0,
+                    parseFloat(r.ctr || 0).toFixed(2) + '%',
+                    parseFloat(r.cpc || 0).toFixed(2),
+                    parseFloat(r.cpm || 0).toFixed(2),
+                    results,
+                    cpr
+                ].join(',');
+            });
             const csv  = [header.join(','), ...rows].join('\n');
             const blob = new Blob([csv], { type: 'text/csv' });
             const a    = document.createElement('a');
