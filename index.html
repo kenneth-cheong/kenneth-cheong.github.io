@@ -1468,9 +1468,20 @@
         #metaAdsTable thead th { background: #f8fafc !important; color: #475569 !important; font-weight: 700; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
         #metaAdsTable tbody tr:hover { background: #f0f6ff; }
         #metaAdsTable tbody tr { border-bottom: 1px solid #f1f5f9; }
+        #metaAdsTable tbody tr.meta-drillable { cursor: pointer; }
+        #metaAdsTable tbody tr.meta-drillable:hover td.meta-name-cell { color: #1877F2; text-decoration: underline; }
         #metaAdsTable .status-active   { color: #16a34a; font-weight: 700; }
         #metaAdsTable .status-paused   { color: #d97706; font-weight: 700; }
         #metaAdsTable .status-archived { color: #94a3b8; font-weight: 700; }
+        .meta-col-picker { position: relative; display: inline-block; }
+        .meta-col-menu { position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12); padding: 8px; min-width: 180px; z-index: 200; display: none; }
+        .meta-col-menu.open { display: block; }
+        .meta-col-menu label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 13px; color: #1e293b; cursor: pointer; user-select: none; }
+        .meta-col-menu label:hover { background: #f1f5f9; }
+        .meta-breadcrumb { display: none; align-items: center; gap: 6px; font-size: 13px; color: #64748b; margin-bottom: 10px; flex-wrap: wrap; padding: 8px 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .meta-breadcrumb .bc-link { color: #1877F2; cursor: pointer; }
+        .meta-breadcrumb .bc-link:hover { text-decoration: underline; }
+        .meta-breadcrumb .bc-sep { color: #cbd5e1; }
 
         /* Kodalogic Google Ads Dashboard Styles */
         .ads-advanced-filter-bar {
@@ -17212,6 +17223,15 @@
                                     oninput="renderMetaTable()"
                                     style="padding: 8px 12px 8px 32px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; width: 200px;">
                             </div>
+                            <div class="meta-col-picker">
+                                <button onclick="toggleMetaColPicker(event)"
+                                    style="padding: 8px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                    <i class="fas fa-columns"></i> Columns
+                                </button>
+                                <div class="meta-col-menu" id="metaColMenu">
+                                    <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;padding:4px 8px 6px;">Show / hide columns</div>
+                                </div>
+                            </div>
                             <button onclick="exportMetaTableToCSV()"
                                 style="padding: 8px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
                                 <i class="fas fa-download"></i> Export CSV
@@ -17239,23 +17259,10 @@
 
                     <!-- Table -->
                     <div style="background: #fff; border-radius: 12px; border: 1px solid #eef0f2; overflow: hidden; margin-bottom: 20px;">
+                        <div id="metaBreadcrumb" class="meta-breadcrumb" style="margin:12px 16px 0;"></div>
                         <div style="overflow-x: auto;">
                             <table id="metaAdsTable" style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                                <thead id="metaAdsTableHead" style="background: #f8fafc;">
-                                    <tr>
-                                        <th style="padding: 12px 16px; text-align: left; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Name</th>
-                                        <th style="padding: 12px 16px; text-align: left; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Status</th>
-                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Spend</th>
-                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Impressions</th>
-                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Reach</th>
-                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Clicks</th>
-                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">CTR</th>
-                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">CPC</th>
-                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">CPM</th>
-                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Results</th>
-                                        <th style="padding: 12px 16px; text-align: right; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0;">Cost/Result</th>
-                                    </tr>
-                                </thead>
+                                <thead id="metaAdsTableHead" style="background: #f8fafc;"></thead>
                                 <tbody id="metaAdsTableBody">
                                     <tr><td colspan="11" style="padding: 40px; text-align: center; color: #94a3b8;">Connect your Meta Ads account to see data.</td></tr>
                                 </tbody>
@@ -19868,6 +19875,95 @@
         let metaAdAccountId = null;
         let metaInsightsData = [];
         let metaAdsChartInstance = null;
+        let metaDrillStack = []; // [{filterField, filterId, name}]
+
+        const metaColDefs = [
+            { key: 'status',          label: 'Status',      align: 'left',  on: true },
+            { key: 'spend',           label: 'Spend',       align: 'right', on: true },
+            { key: 'impressions',     label: 'Impressions', align: 'right', on: true },
+            { key: 'reach',           label: 'Reach',       align: 'right', on: true },
+            { key: 'clicks',          label: 'Clicks',      align: 'right', on: true },
+            { key: 'ctr',             label: 'CTR',         align: 'right', on: true },
+            { key: 'cpc',             label: 'CPC',         align: 'right', on: true },
+            { key: 'cpm',             label: 'CPM',         align: 'right', on: false },
+            { key: 'results',         label: 'Results',     align: 'right', on: true },
+            { key: 'cost_per_result', label: 'Cost/Result', align: 'right', on: true },
+        ];
+
+        function metaCurrentLevel() {
+            if (metaDrillStack.length === 1) return 'adset';
+            if (metaDrillStack.length >= 2) return 'ad';
+            return document.getElementById('metaLevelSelect').value;
+        }
+        function metaNameKey() {
+            const lvl = metaCurrentLevel();
+            return lvl === 'campaign' ? 'campaign_name' : lvl === 'adset' ? 'adset_name' : 'ad_name';
+        }
+
+        function toggleMetaColPicker(e) {
+            e.stopPropagation();
+            const menu = document.getElementById('metaColMenu');
+            if (!menu.dataset.built) {
+                menu.dataset.built = '1';
+                metaColDefs.forEach(col => {
+                    const lbl = document.createElement('label');
+                    lbl.innerHTML = `<input type="checkbox" ${col.on ? 'checked' : ''} onchange="toggleMetaCol('${col.key}')"> ${col.label}`;
+                    menu.appendChild(lbl);
+                });
+                document.addEventListener('click', () => menu.classList.remove('open'));
+            }
+            menu.classList.toggle('open');
+        }
+
+        function toggleMetaCol(key) {
+            const col = metaColDefs.find(c => c.key === key);
+            if (col) col.on = !col.on;
+            renderMetaTableHead();
+            renderMetaTable();
+        }
+
+        function renderMetaTableHead() {
+            const th = (label, align) =>
+                `<th style="padding:12px 16px;text-align:${align};font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;white-space:nowrap;">${label}</th>`;
+            const vis = metaColDefs.filter(c => c.on);
+            document.getElementById('metaAdsTableHead').innerHTML =
+                `<tr>${th('Name','left')}${vis.map(c => th(c.label, c.align)).join('')}</tr>`;
+        }
+
+        function renderMetaBreadcrumb() {
+            const bc = document.getElementById('metaBreadcrumb');
+            if (metaDrillStack.length === 0) { bc.style.display = 'none'; return; }
+            bc.style.display = 'flex';
+            const parts = [`<span class="bc-link" onclick="metaDrillBack(0)">All</span>`];
+            metaDrillStack.forEach((d, i) => {
+                parts.push('<span class="bc-sep">&#x203A;</span>');
+                if (i < metaDrillStack.length - 1) {
+                    parts.push(`<span class="bc-link" onclick="metaDrillBack(${i + 1})">${d.name}</span>`);
+                } else {
+                    parts.push(`<strong>${d.name}</strong>`);
+                }
+            });
+            bc.innerHTML = parts.join(' ');
+        }
+
+        function metaDrillInto(idx) {
+            const row = metaInsightsData[idx];
+            const level = metaCurrentLevel();
+            if (level === 'ad') return;
+            const filterField = level === 'campaign' ? 'campaign.id' : 'adset.id';
+            const filterId    = level === 'campaign' ? row.campaign_id : row.adset_id;
+            const name        = row[metaNameKey()] || '—';
+            if (!filterId) return;
+            metaDrillStack.push({ filterField, filterId, name });
+            document.getElementById('metaLevelSelect').disabled = true;
+            fetchMetaInsights();
+        }
+
+        function metaDrillBack(n) {
+            metaDrillStack = metaDrillStack.slice(0, n);
+            if (metaDrillStack.length === 0) document.getElementById('metaLevelSelect').disabled = false;
+            fetchMetaInsights();
+        }
 
         function openMetaAds(event) {
             if (event) event.preventDefault();
@@ -19972,7 +20068,7 @@
 
         async function fetchMetaInsights() {
             if (!metaAdAccountId || !metaAccessToken) return;
-            const level      = document.getElementById('metaLevelSelect').value;
+            const level      = metaCurrentLevel();
             const datePreset = document.getElementById('metaDateRange').value;
             if (datePreset === 'custom') {
                 const since = document.getElementById('metaCustomSince').value;
@@ -19987,7 +20083,7 @@
             try {
                 const insightParams = {
                     level,
-                    fields: 'campaign_name,adset_name,ad_name,spend,impressions,clicks,ctr,cpc,cpm,actions,cost_per_action_type,conversions,cost_per_conversion,inline_link_clicks,cost_per_inline_link_click,results,cost_per_result,reach,date_start,date_stop,objective',
+                    fields: 'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,clicks,ctr,cpc,cpm,actions,cost_per_action_type,conversions,cost_per_conversion,inline_link_clicks,cost_per_inline_link_click,results,cost_per_result,reach,date_start,date_stop,objective',
                     limit: '200'
                 };
                 if (datePreset === 'custom') {
@@ -19997,6 +20093,11 @@
                     });
                 } else {
                     insightParams.date_preset = datePreset;
+                }
+                if (metaDrillStack.length > 0) {
+                    insightParams.filtering = JSON.stringify(metaDrillStack.map(d => ({
+                        field: d.filterField, operator: 'IN', value: [d.filterId]
+                    })));
                 }
                 const firstPage = await metaGet(`/${metaAdAccountId}/insights`, insightParams);
                 allData = firstPage.data || [];
@@ -20021,7 +20122,9 @@
 
             metaInsightsData = allData;
             updateMetaKPIs();
+            renderMetaTableHead();
             renderMetaTable();
+            renderMetaBreadcrumb();
             renderMetaChart();
             generateMetaRecommendations();
         }
@@ -20060,46 +20163,64 @@
         }
 
         function resetMetaKPIs() {
+            metaDrillStack = [];
             ['metaKpiSpend','metaKpiImpressions','metaKpiReach','metaKpiClicks','metaKpiCtr','metaKpiCpc','metaKpiCpm','metaKpiResults','metaKpiCostPerResult']
                 .forEach(id => document.getElementById(id).textContent = '—');
+            renderMetaTableHead();
             document.getElementById('metaAdsTableBody').innerHTML =
                 '<tr><td colspan="11" style="padding:40px;text-align:center;color:#94a3b8;">Connect your Meta Ads account to see data.</td></tr>';
+            document.getElementById('metaBreadcrumb').style.display = 'none';
         }
 
         function renderMetaTable() {
-            const filter = (document.getElementById('metaCampaignFilter').value || '').toLowerCase();
-            const level  = document.getElementById('metaLevelSelect').value;
-            const nameKey = level === 'campaign' ? 'campaign_name' : level === 'adset' ? 'adset_name' : 'ad_name';
-            const rows = metaInsightsData.filter(r =>
+            const filter  = (document.getElementById('metaCampaignFilter').value || '').toLowerCase();
+            const nameKey = metaNameKey();
+            const level   = metaCurrentLevel();
+            const drillable = level !== 'ad';
+            const vis     = metaColDefs.filter(c => c.on);
+            const totalCols = 1 + vis.length;
+
+            const rows = metaInsightsData.filter((r, i) =>
                 !filter || (r[nameKey] || '').toLowerCase().includes(filter)
             );
+
             const statusClass = s => s === 'ACTIVE' ? 'status-active' : s === 'PAUSED' ? 'status-paused' : 'status-archived';
+            const fmt$ = v => '$' + parseFloat(v || 0).toFixed(2);
+
+            const cellVal = (col, r) => {
+                const results = getMetaResults(r);
+                switch (col.key) {
+                    case 'status':
+                        const s = r.status || r.effective_status || '';
+                        return `<span class="${statusClass(s)}">${s || '—'}</span>`;
+                    case 'spend':        return fmt$(r.spend);
+                    case 'impressions':  return parseInt(r.impressions || 0, 10).toLocaleString();
+                    case 'reach':        return parseInt(r.reach || 0, 10).toLocaleString();
+                    case 'clicks':       return parseInt(r.clicks || 0, 10).toLocaleString();
+                    case 'ctr':          return parseFloat(r.ctr || 0).toFixed(2) + '%';
+                    case 'cpc':          return fmt$(r.cpc);
+                    case 'cpm':          return fmt$(r.cpm);
+                    case 'results':      return results;
+                    case 'cost_per_result':
+                        return r.cost_per_result ? fmt$(r.cost_per_result)
+                             : results ? fmt$(parseFloat(r.spend || 0) / results) : '—';
+                    default: return '—';
+                }
+            };
+
             document.getElementById('metaAdsTableBody').innerHTML = rows.length === 0
-                ? '<tr><td colspan="11" style="padding:40px;text-align:center;color:#94a3b8;">No data for this filter.</td></tr>'
-                : rows.map(r => {
-                    const name          = r[nameKey] || '—';
-                    const status        = r.status || r.effective_status || '';
-                    const spend         = parseFloat(r.spend || 0).toFixed(2);
-                    const impr          = parseInt(r.impressions || 0, 10).toLocaleString();
-                    const reach         = parseInt(r.reach || 0, 10).toLocaleString();
-                    const clicks        = parseInt(r.clicks || 0, 10).toLocaleString();
-                    const ctr           = parseFloat(r.ctr || 0).toFixed(2) + '%';
-                    const cpc           = parseFloat(r.cpc || 0).toFixed(2);
-                    const cpm           = parseFloat(r.cpm || 0).toFixed(2);
-                    const results       = getMetaResults(r);
-                    const costPerResult = r.cost_per_result ? '$' + parseFloat(r.cost_per_result).toFixed(2) : (results ? '$' + (parseFloat(r.spend || 0) / results).toFixed(2) : '—');
-                    return `<tr>
-                        <td style="padding:10px 16px;">${name}</td>
-                        <td style="padding:10px 16px;"><span class="${statusClass(status)}">${status || '—'}</span></td>
-                        <td style="padding:10px 16px;text-align:right;">$${spend}</td>
-                        <td style="padding:10px 16px;text-align:right;">${impr}</td>
-                        <td style="padding:10px 16px;text-align:right;">${reach}</td>
-                        <td style="padding:10px 16px;text-align:right;">${clicks}</td>
-                        <td style="padding:10px 16px;text-align:right;">${ctr}</td>
-                        <td style="padding:10px 16px;text-align:right;">$${cpc}</td>
-                        <td style="padding:10px 16px;text-align:right;">$${cpm}</td>
-                        <td style="padding:10px 16px;text-align:right;">${results}</td>
-                        <td style="padding:10px 16px;text-align:right;">${costPerResult}</td>
+                ? `<tr><td colspan="${totalCols}" style="padding:40px;text-align:center;color:#94a3b8;">No data for this selection.</td></tr>`
+                : rows.map((r, i) => {
+                    const name = r[nameKey] || '—';
+                    const drillClick = drillable ? `onclick="metaDrillInto(${metaInsightsData.indexOf(r)})"` : '';
+                    const trClass = drillable ? 'meta-drillable' : '';
+                    const cells = vis.map(col =>
+                        `<td style="padding:10px 16px;text-align:${col.align};">${cellVal(col, r)}</td>`
+                    ).join('');
+                    const drillIcon = drillable ? ` <i class="fas fa-chevron-right" style="font-size:10px;color:#94a3b8;margin-left:4px;"></i>` : '';
+                    return `<tr class="${trClass}" ${drillClick}>
+                        <td class="meta-name-cell" style="padding:10px 16px;">${name}${drillIcon}</td>
+                        ${cells}
                     </tr>`;
                 }).join('');
         }
