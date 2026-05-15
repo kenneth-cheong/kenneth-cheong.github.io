@@ -1465,7 +1465,7 @@
             color: #1877F2;
             letter-spacing: -0.03em;
         }
-        #metaAdsTable thead th { background: #f8fafc !important; color: #475569 !important; font-weight: 700; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
+        #metaAdsTable thead th { background: #f8fafc !important; color: #475569 !important; font-weight: 700; border-bottom: 2px solid #e2e8f0; white-space: nowrap; position: sticky; top: 0; z-index: 2; }
         #metaAdsTable tbody tr:hover { background: #f0f6ff; }
         #metaAdsTable tbody tr { border-bottom: 1px solid #f1f5f9; }
         #metaAdsTable tbody tr.meta-drillable { cursor: pointer; }
@@ -17296,7 +17296,7 @@
                     <!-- Table -->
                     <div style="background: #fff; border-radius: 12px; border: 1px solid #eef0f2; overflow: hidden; margin-bottom: 20px;">
                         <div id="metaBreadcrumb" class="meta-breadcrumb" style="margin:12px 16px 0;"></div>
-                        <div style="overflow-x: auto;">
+                        <div style="overflow-x: auto; overflow-y: auto; max-height: 520px;">
                             <table id="metaAdsTable" style="width: 100%; border-collapse: collapse; font-size: 13px;">
                                 <thead id="metaAdsTableHead" style="background: #f8fafc;"></thead>
                                 <tbody id="metaAdsTableBody">
@@ -20062,6 +20062,7 @@
                     lbl.innerHTML = `<input type="checkbox" data-col="${col.key}" ${col.on ? 'checked' : ''} onchange="toggleMetaCol('${col.key}')"> ${col.label}`;
                     menu.appendChild(lbl);
                 });
+                menu.addEventListener('click', e => e.stopPropagation());
                 document.addEventListener('click', () => menu.classList.remove('open'));
             }
             menu.classList.toggle('open');
@@ -20618,33 +20619,40 @@
                 recDiv.innerHTML = '<p style="color:#94a3b8;font-size:13px;margin:0;">No data to analyse.</p>';
                 return;
             }
+            const nameKey = metaCurrentLevel() === 'campaign' ? 'campaign_name' : metaCurrentLevel() === 'adset' ? 'adset_name' : 'ad_name';
             const recs = [];
-            const totSpend = metaInsightsData.reduce((s, r) => s + parseFloat(r.spend || 0), 0);
-            const totClicks = metaInsightsData.reduce((s, r) => s + parseInt(r.clicks || 0, 10), 0);
-            const avgCtr = metaInsightsData.reduce((s, r) => s + parseFloat(r.ctr || 0), 0) / metaInsightsData.length;
+
+            function nameChips(rows, max = 4) {
+                const names = rows.map(r => r[nameKey] || r.campaign_name || r.adset_name || r.ad_name || 'Unknown');
+                const shown = names.slice(0, max);
+                const rest = names.length - max;
+                let html = shown.map(n => `<span style="display:inline-block;background:#f1f5f9;border-radius:4px;padding:2px 7px;font-size:11px;color:#334155;margin:2px 2px 0 0;">${n}</span>`).join('');
+                if (rest > 0) html += `<span style="font-size:11px;color:#94a3b8;margin-left:2px;">+${rest} more</span>`;
+                return `<div style="margin-top:6px;">${html}</div>`;
+            }
 
             // Low CTR
             const lowCtr = metaInsightsData.filter(r => parseFloat(r.ctr || 0) < 1.0 && parseFloat(r.spend || 0) > 10);
-            if (lowCtr.length) recs.push({ icon: 'fa-eye-slash', colour: '#ea4335', title: 'Low CTR detected', body: `${lowCtr.length} campaign(s) have CTR below 1%. Refresh creative assets or tighten audience targeting to improve relevance.` });
+            if (lowCtr.length) recs.push({ icon: 'fa-eye-slash', colour: '#ea4335', title: 'Low CTR detected', body: `${lowCtr.length} item(s) have CTR below 1%. Refresh creative assets or tighten audience targeting to improve relevance.`, chips: nameChips(lowCtr) });
 
             // High CPC
             const highCpc = metaInsightsData.filter(r => parseFloat(r.cpc || 0) > 3 && parseFloat(r.spend || 0) > 20);
-            if (highCpc.length) recs.push({ icon: 'fa-dollar-sign', colour: '#d97706', title: 'High CPC campaigns', body: `${highCpc.length} campaign(s) have CPC above $3. Consider refining ad creative, adjusting bids, or narrowing the audience to reduce cost-per-click.` });
+            if (highCpc.length) recs.push({ icon: 'fa-dollar-sign', colour: '#d97706', title: 'High CPC', body: `${highCpc.length} item(s) have CPC above $3. Consider refining ad creative, adjusting bids, or narrowing the audience.`, chips: nameChips(highCpc) });
 
             // Top spender with no results
             const noResults = metaInsightsData.filter(r => parseFloat(r.spend || 0) > 50 && getMetaResults(r) === 0);
-            if (noResults.length) recs.push({ icon: 'fa-exclamation-triangle', colour: '#ea4335', title: 'Spend with no conversions', body: `${noResults.length} campaign(s) have spent over $50 with zero conversions. Review landing page experience, offer clarity, and conversion event tracking.` });
+            if (noResults.length) recs.push({ icon: 'fa-exclamation-triangle', colour: '#ea4335', title: 'Spend with no conversions', body: `${noResults.length} item(s) have spent over $50 with zero conversions. Review landing page, offer clarity, and conversion event tracking.`, chips: nameChips(noResults) });
 
             // Good performers
             const stars = metaInsightsData.filter(r => parseFloat(r.ctr || 0) > 2 && getMetaResults(r) > 0);
-            if (stars.length) recs.push({ icon: 'fa-star', colour: '#16a34a', title: 'Top performers', body: `${stars.length} campaign(s) have CTR above 2% and recorded conversions. Consider increasing budget on these campaigns to scale results.` });
+            if (stars.length) recs.push({ icon: 'fa-star', colour: '#16a34a', title: 'Top performers', body: `${stars.length} item(s) have CTR above 2% and recorded conversions. Consider increasing budget to scale results.`, chips: nameChips(stars) });
 
-            if (!recs.length) recs.push({ icon: 'fa-check-circle', colour: '#16a34a', title: 'Performance looks stable', body: 'No critical issues detected. Continue monitoring and test new creative variations to improve CTR and conversion rates.' });
+            if (!recs.length) recs.push({ icon: 'fa-check-circle', colour: '#16a34a', title: 'Performance looks stable', body: 'No critical issues detected. Continue monitoring and test new creative variations to improve CTR and conversion rates.', chips: '' });
 
             recDiv.innerHTML = recs.map(r => `
                 <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #f1f5f9;">
                     <i class="fas ${r.icon}" style="color:${r.colour};margin-top:2px;flex-shrink:0;"></i>
-                    <div><strong style="color:#1e293b;">${r.title}</strong><p style="margin:4px 0 0;font-size:13px;color:#475569;">${r.body}</p></div>
+                    <div><strong style="color:#1e293b;">${r.title}</strong><p style="margin:4px 0 0;font-size:13px;color:#475569;">${r.body}</p>${r.chips}</div>
                 </div>`).join('');
         }
         // ═══════════════════════════════════════════════════
