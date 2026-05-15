@@ -17178,8 +17178,22 @@
                                     <option value="last_quarter">Last Quarter</option>
                                     <option value="this_year">This Year</option>
                                     <option value="last_year">Last Year</option>
-                                    <option value="lifetime">Lifetime</option>
+                                    <option value="maximum">Maximum (All Time)</option>
+                                    <option value="custom">Custom Range…</option>
                                 </select>
+                            </div>
+                            <!-- Custom date pickers (shown only when Custom is selected) -->
+                            <div id="metaCustomRange" style="display:none; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+                                <div>
+                                    <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">From</label>
+                                    <input type="date" id="metaCustomSince" onchange="fetchMetaInsights()"
+                                        style="padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc;">
+                                </div>
+                                <div>
+                                    <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">To</label>
+                                    <input type="date" id="metaCustomUntil" onchange="fetchMetaInsights()"
+                                        style="padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc;">
+                                </div>
                             </div>
                             <div>
                                 <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Level</label>
@@ -19950,24 +19964,41 @@
             fetchMetaInsights();
         }
 
-        function metaDateRangeChanged() { fetchMetaInsights(); }
+        function metaDateRangeChanged() {
+            const v = document.getElementById('metaDateRange').value;
+            document.getElementById('metaCustomRange').style.display = v === 'custom' ? 'flex' : 'none';
+            if (v !== 'custom') fetchMetaInsights();
+        }
 
         async function fetchMetaInsights() {
             if (!metaAdAccountId || !metaAccessToken) return;
             const level      = document.getElementById('metaLevelSelect').value;
             const datePreset = document.getElementById('metaDateRange').value;
+            if (datePreset === 'custom') {
+                const since = document.getElementById('metaCustomSince').value;
+                const until = document.getElementById('metaCustomUntil').value;
+                if (!since || !until) return;
+            }
             document.getElementById('metaAdsAuthStatus').innerHTML =
                 document.getElementById('metaAdsAuthStatus').innerHTML.split(' —')[0] +
                 ' — <i class="fas fa-spinner fa-spin"></i> Loading insights…';
 
             let allData = [];
             try {
-                const firstPage = await metaGet(`/${metaAdAccountId}/insights`, {
+                const insightParams = {
                     level,
                     fields: 'campaign_name,adset_name,ad_name,spend,impressions,clicks,ctr,cpc,cpm,actions,cost_per_action_type,conversions,cost_per_conversion,inline_link_clicks,cost_per_inline_link_click,results,cost_per_result,reach,date_start,date_stop,objective',
-                    date_preset: datePreset,
                     limit: '200'
-                });
+                };
+                if (datePreset === 'custom') {
+                    insightParams.time_range = JSON.stringify({
+                        since: document.getElementById('metaCustomSince').value,
+                        until: document.getElementById('metaCustomUntil').value
+                    });
+                } else {
+                    insightParams.date_preset = datePreset;
+                }
+                const firstPage = await metaGet(`/${metaAdAccountId}/insights`, insightParams);
                 allData = firstPage.data || [];
                 let nextUrl = firstPage.paging?.next || null;
                 while (nextUrl) {
