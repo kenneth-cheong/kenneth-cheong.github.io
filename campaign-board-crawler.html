@@ -2040,7 +2040,7 @@
         function renderAuditorView(filtered) {
             const groups = {};
             filtered.forEach(i => {
-                if (!groups[i.bId]) groups[i.bId] = { id: i.bId, name: i.bName, folder: i.fName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 }, masterName: i.masterName, csmCampaignStatus: i.csmCampaignStatus };
+                if (!groups[i.bId]) groups[i.bId] = { id: i.bId, name: i.bName, folder: i.fName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 }, masterName: i.masterName, masterStatus: i.masterStatus, csmCampaignStatus: i.csmCampaignStatus };
                 groups[i.bId].items.push(i);
                 groups[i.bId].counts[i.status === '2w' ? 'v2w' : i.status]++;
             });
@@ -2067,15 +2067,13 @@
                     <td colspan="9">
                         <div class="board-info">
                             <i class="fas fa-chevron-down board-chevron"></i>
-                            <div style="display: flex; flex-direction: column; gap: 2px;">
-                                <span>${g.name} <span class="folder-sub">in ${g.folder}</span></span>
-                                ${g.masterName && g.masterName !== '-' && g.masterName !== '...' ? `<span style="font-size: 10px; color: var(--muted);"><i class="fas fa-link" style="margin-right: 3px; opacity: 0.5;"></i>${g.masterName}</span>` : ''}
-                            </div>
-                            <div style="display: flex; gap: 4px; margin-left: 12px; align-items: center;">
+                            <span>${g.name} <span class="folder-sub">in ${g.folder}</span></span>
+                            <div style="display: flex; gap: 4px; margin-left: 12px; align-items: center; flex-wrap: wrap;">
                                 ${g.counts.overdue > 0 ? `<span class="board-tag overdue">${g.counts.overdue} Overdue</span>` : ''}
                                 ${g.counts.soon > 0 ? `<span class="board-tag soon">${g.counts.soon} Soon</span>` : ''}
                                 ${g.counts.v2w > 0 ? `<span class="board-tag v2w">${g.counts.v2w} 2W</span>` : ''}
-                                ${g.csmCampaignStatus ? `<span class="board-tag" style="background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);">${g.csmCampaignStatus}</span>` : ''}
+                                ${g.masterName && g.masterName !== '-' && g.masterName !== '...' ? `<span class="board-tag" style="background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${g.masterName.replace(/"/g, '&quot;')}"><i class="fas fa-link" style="margin-right: 4px; opacity: 0.7;"></i>${g.masterName}</span>` : ''}
+                                ${(g.masterStatus && g.masterStatus !== '-' && g.masterStatus !== '...') || g.csmCampaignStatus ? `<span class="board-tag" style="background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);">${g.masterStatus && g.masterStatus !== '-' && g.masterStatus !== '...' ? g.masterStatus : g.csmCampaignStatus}</span>` : ''}
                             </div>
                         </div>
                     </td>
@@ -2178,21 +2176,20 @@
                         const isCampaignExpanded = state.expandedManagerBoardIds.has(compoundId);
 
                         const cMasterName = c.items[0]?.masterName;
+                        const cMasterStatus = c.items[0]?.masterStatus;
                         const cCsmStatus = c.items[0]?.csmCampaignStatus;
                         tableHtml += `
                         <tr class="campaign-sub-header" onclick="toggleManagerBoardExpansion('${compoundId.replace(/'/g, "\\'")}')">
                             <td colspan="9">
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <i class="fas ${isCampaignExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="width: 12px; opacity: 0.5;"></i>
-                                    <div style="display: flex; flex-direction: column; gap: 2px;">
-                                        <span>${c.name} <span class="folder-sub">in ${c.folder}</span></span>
-                                        ${cMasterName && cMasterName !== '-' && cMasterName !== '...' ? `<span style="font-size: 10px; color: var(--muted);"><i class="fas fa-link" style="margin-right: 3px; opacity: 0.5;"></i>${cMasterName}</span>` : ''}
-                                    </div>
-                                    <div style="display: flex; gap: 4px; margin-left: 12px; align-items: center;">
+                                    <span>${c.name} <span class="folder-sub">in ${c.folder}</span></span>
+                                    <div style="display: flex; gap: 4px; margin-left: 12px; align-items: center; flex-wrap: wrap;">
                                         ${c.counts.overdue > 0 ? `<span class="board-tag overdue">${c.counts.overdue} Overdue</span>` : ''}
                                         ${c.counts.soon > 0 ? `<span class="board-tag soon">${c.counts.soon} Soon</span>` : ''}
                                         ${c.counts.v2w > 0 ? `<span class="board-tag v2w">${c.counts.v2w} 2W</span>` : ''}
-                                        ${cCsmStatus ? `<span class="board-tag" style="background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);">${cCsmStatus}</span>` : ''}
+                                        ${cMasterName && cMasterName !== '-' && cMasterName !== '...' ? `<span class="board-tag" style="background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${cMasterName.replace(/"/g, '&quot;')}"><i class="fas fa-link" style="margin-right: 4px; opacity: 0.7;"></i>${cMasterName}</span>` : ''}
+                                        ${(cMasterStatus && cMasterStatus !== '-' && cMasterStatus !== '...') || cCsmStatus ? `<span class="board-tag" style="background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);">${cMasterStatus && cMasterStatus !== '-' && cMasterStatus !== '...' ? cMasterStatus : cCsmStatus}</span>` : ''}
                                     </div>
                                     <span style="font-size: 10px; opacity: 0.6; margin-left: auto;">${c.items.length} tasks</span>
                                 </div>
