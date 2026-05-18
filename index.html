@@ -10115,21 +10115,20 @@
             background: #2563eb;
             color: #ffffff !important;
             border-color: #2563eb;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
         }
         .nav-item.nav-cat-toggle.nav-toggle-active > a:hover {
             background: #1d4ed8;
             border-color: #1d4ed8;
         }
         .nav-item.nav-cat-toggle.nav-toggle-inactive > a {
-            background: #f1f5f9;
+            background: transparent;
             color: #94a3b8 !important;
-            border-color: #e2e8f0;
-            opacity: 0.75;
+            border-color: #cbd5e1;
         }
         .nav-item.nav-cat-toggle.nav-toggle-inactive > a:hover {
-            background: #e2e8f0;
+            border-color: #94a3b8;
             color: #64748b !important;
-            opacity: 1;
         }
         /* Hide dropdowns when in toggle mode */
         .nav-item.nav-cat-toggle .dropdown-content {
@@ -10147,7 +10146,7 @@
 
     <div id="navbar" class="navbar">
         <div class="logo-container" id="logo" style="cursor: pointer;" onclick="window.location.reload()">
-            <img src="Digimetrics Logo-02.png" alt="Extra Space Asia Logo">
+            <img src="Digimetrics Logo-02.png" alt="Digimetrics Logo">
         </div>
 
         <button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle navigation menu">
@@ -10155,7 +10154,7 @@
         </button>
 
         <div class="nav-item" id="searchNavItem" style="margin-left: 20px;">
-            <a href="#" onclick="openToolSearch(event)" style="color: #6366f1;" title="Search tools">
+            <a href="#" onclick="openToolSearch(event)" style="color: #ffffff;" title="Search tools">
                 <i class="fas fa-search"></i>
             </a>
         </div>
@@ -62420,9 +62419,12 @@ Move-In</h3>
                 });
             } else {
                 applyToggleModeToNav(true);
-                basicCardsContainers.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.style.display = 'none';
+                // Show the card grid in advanced/intermediate mode too; activate all cards
+                const cardsContainer = document.getElementById('basicModeCardsContainer');
+                if (cardsContainer) cardsContainer.style.display = 'grid';
+                document.querySelectorAll('.basic-selector-card').forEach(card => {
+                    card.classList.add('active');
+                    card.style.display = '';
                 });
                 basicButtons.forEach(id => {
                     const b = document.getElementById(id);
@@ -62442,28 +62444,39 @@ Move-In</h3>
         }
 
         const CATEGORY_NAV_CONFIG = [
-            { navId: 'seoNavItem',    sectionId: 'seoSection' },
-            { navId: 'smmNavItem',    sectionId: 'smmSection' },
-            { navId: 'geoNavItem',    sectionId: 'geoSection' },
-            { navId: 'semNavItem',    sectionId: 'semSection' },
-            { navId: 'othersNavItem', sectionId: 'othersSection' },
+            { navId: 'seoNavItem',    sectionId: 'seoSection',    cardCategory: 'SEO' },
+            { navId: 'smmNavItem',    sectionId: 'smmSection',    cardCategory: 'SMM' },
+            { navId: 'geoNavItem',    sectionId: 'geoSection',    cardCategory: 'GEO' },
+            { navId: 'semNavItem',    sectionId: 'semSection',    cardCategory: 'SEM' },
+            { navId: 'othersNavItem', sectionId: 'othersSection', cardCategory: 'Others' },
         ];
 
-        function toggleCatSection(sectionId, navItem) {
+        function setCategoryCardsVisible(category, visible) {
+            document.querySelectorAll('.basic-selector-card').forEach(card => {
+                const tag = card.querySelector('.card-pill-tag');
+                if (tag && tag.textContent.trim() === category) {
+                    card.style.display = visible ? '' : 'none';
+                }
+            });
+        }
+
+        function toggleCatSection(sectionId, cardCategory, navItem) {
             const section = document.getElementById(sectionId);
             if (!section) return;
             const isActive = navItem.classList.contains('nav-toggle-active');
             if (isActive) {
                 navItem.classList.replace('nav-toggle-active', 'nav-toggle-inactive');
                 section.style.display = 'none';
+                setCategoryCardsVisible(cardCategory, false);
             } else {
                 navItem.classList.replace('nav-toggle-inactive', 'nav-toggle-active');
                 section.style.display = 'block';
+                setCategoryCardsVisible(cardCategory, true);
             }
         }
 
         function applyToggleModeToNav(enable) {
-            CATEGORY_NAV_CONFIG.forEach(({ navId, sectionId }) => {
+            CATEGORY_NAV_CONFIG.forEach(({ navId, sectionId, cardCategory }) => {
                 const navItem = document.getElementById(navId);
                 if (!navItem) return;
                 const link = navItem.querySelector(':scope > a');
@@ -62473,7 +62486,7 @@ Move-In</h3>
                     navItem.classList.add('nav-cat-toggle', 'nav-toggle-active');
                     navItem.classList.remove('nav-toggle-inactive');
                     link._origOnclick = link.onclick;
-                    link.onclick = (e) => { e.preventDefault(); toggleCatSection(sectionId, navItem); };
+                    link.onclick = (e) => { e.preventDefault(); toggleCatSection(sectionId, cardCategory, navItem); };
                 } else {
                     navItem.classList.remove('nav-cat-toggle', 'nav-toggle-active', 'nav-toggle-inactive');
                     if (link._origOnclick !== undefined) {
