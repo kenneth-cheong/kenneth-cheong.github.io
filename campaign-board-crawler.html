@@ -1486,9 +1486,8 @@
                                 <tr>
                                     <th class="sortable" onclick="handleSort('name')" id="sort-name">Item Name</th>
                                     <th class="sortable" onclick="handleSort('person')" id="sort-person">Person</th>
-                                    <th class="sortable" onclick="handleSort('csManager')" id="sort-csManager">CS
-                                        Manager
-                                    </th>
+                                    <th class="sortable" onclick="handleSort('csManager')" id="sort-csManager">CS Manager</th>
+                                    <th class="sortable" onclick="handleSort('csmCampaignStatus')">[CSM] Campaign Status</th>
                                     <th class="sortable" onclick="handleSort('masterStatus')">Campaign Status</th>
                                     <th class="sortable" onclick="handleSort('masterTimeline')">Timeline</th>
                                     <th class="sortable" onclick="handleSort('deadline')" id="sort-deadline"
@@ -1852,14 +1851,15 @@
                                         items { 
                                             id 
                                             name 
-                                            column_values { 
+                                            column_values {
                                                 id
                                                 text
                                                 type
-                                                ...on StatusValue{label} 
-                                                ...on DateValue{date} 
-                                                ...on TimelineValue{from to} 
-                                            } 
+                                                column { title }
+                                                ...on StatusValue{label}
+                                                ...on DateValue{date}
+                                                ...on TimelineValue{from to}
+                                            }
                                         } 
                                     } 
                                 } 
@@ -1886,6 +1886,10 @@
                             const dv = i.column_values.find(cv => cv.date || cv.to);
                             const st = i.column_values.find(cv => cv.label !== undefined); // Find status label
                             const assigned = i.column_values.find(cv => cv.type === 'people' || cv.type === 'multiple-person');
+                            const csmStatusCol = i.column_values.find(cv => {
+                                const t = (cv.column?.title || '').toLowerCase();
+                                return t.includes('[csm]') && t.includes('campaign status');
+                            });
 
                             // Get Master Data (CSM, Status, Timeline)
                             const masterData = getMasterDataFromMap(b.name, b.id);
@@ -1923,6 +1927,8 @@
                                 csManagers: masterData.csm,
                                 masterStatus: masterData.status,
                                 masterTimeline: masterData.timeline,
+                                masterName: masterData.masterName,
+                                csmCampaignStatus: csmStatusCol?.label || '',
                                 status: status,
                                 itemStatus: st?.label || ''
                             };
@@ -2059,7 +2065,7 @@
                 const isExpanded = state.expandedBoardIds.has(g.id);
                 html += `
                 <tr class="board-group-header ${!isExpanded ? 'is-collapsed' : ''}" onclick="toggleBoardExpansion('${g.id}')">
-                    <td colspan="9">
+                    <td colspan="10">
                         <div class="board-info">
                             <i class="fas fa-chevron-down board-chevron"></i>
                             <span>${g.name} <span class="folder-sub">in ${g.folder}</span></span>
@@ -2161,7 +2167,7 @@
                     const sortedCampaigns = sortCampaignGroups(Object.values(s.campaigns));
 
                     if (selectedNames.length > 1) {
-                        tableHtml += `<tr class="staff-group-header"><td colspan="9"><i class="fas fa-user-circle" style="margin-right:8px;"></i>${s.name}</td></tr>`;
+                        tableHtml += `<tr class="staff-group-header"><td colspan="10"><i class="fas fa-user-circle" style="margin-right:8px;"></i>${s.name}</td></tr>`;
                     }
 
                     sortedCampaigns.forEach(c => {
@@ -2170,7 +2176,7 @@
 
                         tableHtml += `
                         <tr class="campaign-sub-header" onclick="toggleManagerBoardExpansion('${compoundId.replace(/'/g, "\\'")}')">
-                            <td colspan="9">
+                            <td colspan="10">
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <i class="fas ${isCampaignExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="width: 12px; opacity: 0.5;"></i>
                                     <span>${c.name} <span class="folder-sub">in ${c.folder}</span></span>
@@ -2201,7 +2207,7 @@
                     });
                 });
             } else if (sortedStaff.length > 0) {
-                tableHtml = '<tr><td colspan="9" style="text-align:center; padding: 60px; color: var(--muted);"><i class="fas fa-mouse-pointer" style="display:block; font-size: 24px; margin-bottom: 12px; opacity:0.3;"></i> Select a staff card above to see detailed tasks</td></tr>';
+                tableHtml = '<tr><td colspan="10" style="text-align:center; padding: 60px; color: var(--muted);"><i class="fas fa-mouse-pointer" style="display:block; font-size: 24px; margin-bottom: 12px; opacity:0.3;"></i> Select a staff card above to see detailed tasks</td></tr>';
             }
 
             body.innerHTML = tableHtml;
@@ -2228,10 +2234,14 @@
                     <div class="expansion-trigger" onclick="toggleItemExpansion('${i.id}')">
                         <i class="fas fa-chevron-right"></i>
                     </div>
-                    <a href="https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}" target="_blank" class="item-link">${i.name} <i class="fas fa-external-link-alt" style="font-size:0.8em"></i></a>
+                    <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                        <a href="https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}" target="_blank" class="item-link">${i.name} <i class="fas fa-external-link-alt" style="font-size:0.8em"></i></a>
+                        ${i.masterName && i.masterName !== '-' && i.masterName !== '...' ? `<span style="font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${i.masterName.replace(/"/g, '&quot;')}"><i class="fas fa-link" style="margin-right: 3px; opacity: 0.5;"></i>${i.masterName}</span>` : ''}
+                    </div>
                 </td>
                 <td><div class="person-badge"><i class="far fa-user"></i> ${i.people.join(', ')}</div></td>
                 <td><div class="person-badge" style="border-color:var(--success); color:var(--success)"><i class="fas fa-user-shield"></i> ${i.csManagers.join(', ')}</div></td>
+                <td style="font-size: 11px;">${i.csmCampaignStatus ? `<span class="status-tag status-other" style="background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border);">${i.csmCampaignStatus}</span>` : '-'}</td>
                 <td style="font-size: 11px;">${i.masterStatus && i.masterStatus !== '-' ? `<span class="status-tag status-other" style="background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border);">${i.masterStatus}</span>` : '-'}</td>
                 <td style="font-size: 10px; color: var(--muted);">${i.masterTimeline || '-'}</td>
                 <td style="text-align: center; color: var(--muted); font-family: monospace;">${i.deadlineDisplay}</td>
@@ -2244,7 +2254,7 @@
             if (state.expandedItemIds.has(i.id)) {
                 html += `
                 <tr class="item-updates-row">
-                    <td colspan="9" style="padding: 0; border: none;">
+                    <td colspan="10" style="padding: 0; border: none;">
                         <div class="updates-container">
                             ${renderUpdates(i.id)}
                         </div>
@@ -2681,13 +2691,14 @@
 
             if (!bestMatch || maxSpecificity <= 3) {
                 const placeholder = state.masterDataLoaded ? '-' : '...';
-                return { csm: [placeholder], timeline: placeholder, status: placeholder };
+                return { csm: [placeholder], timeline: placeholder, status: placeholder, masterName: placeholder };
             }
 
             return {
                 csm: bestMatch.csm,
                 timeline: bestMatch.timeline,
-                status: bestMatch.status
+                status: bestMatch.status,
+                masterName: bestMatch.name
             };
         }
 
@@ -2700,6 +2711,7 @@
                         i.csManagers = mapped.csm;
                         i.masterStatus = mapped.status;
                         i.masterTimeline = mapped.timeline;
+                        i.masterName = mapped.masterName;
                         changed = true;
                     }
                 }
