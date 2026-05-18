@@ -63393,54 +63393,66 @@ Move-In</h3>
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url })
             });
+            // Wrap any fetch with a timeout so one slow API can't block everything
+            const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout after ' + ms + 'ms')), ms))]);
 
-            // ── Phase 1: fire all requests in parallel ──────────────────────────
+            // getHtml Lambda throttles with >3 simultaneous calls → empty responses.
+            // Fix: run homepage HTML + robots.txt concurrently with API calls (only 2 getHtml at once),
+            // then run the remaining small txt files after Phase 1 completes.
+            const homeHtmlP  = withTimeout(getHtml(rootDomain), 30000);
+            const robotsP    = withTimeout(getHtml(rootDomain + '/robots.txt'), 20000);
+
+            // ── Phase 1: API calls (no getHtml — different backends, no throttling) ──
             const [
-                siteRes, daRes, auditRes, desktopRes, sslRes, gtRes,
-                htmlRes, robotsRes, llmsRes, llmsFullRes, catsRes,
-                notFoundRes, httpRedirectRes
+                siteRes, daRes, auditRes, desktopRes, sslRes, gtRes
             ] = await Promise.allSettled([
-                // Site data: title, description, backlinks, spam, referring domains
-                // Uses bare domain (no protocol/www) — same as fetchDomainMetrics()
-                fetch('https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new', {
+                // Site data: title, description, backlinks, h1/h2, spam, referring domains, schema
+                withTimeout(fetch('https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: baseDomain })
-                }),
-                // Domain Authority (Moz) — uses { domain: baseDomain }
-                fetch('https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new', {
+                }), 25000),
+                // Domain Authority (Moz)
+                withTimeout(fetch('https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ domain: baseDomain })
-                }),
-                // PageSpeed mobile + sitemap + robots content
-                fetch('https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit', {
+                }), 25000),
+                // PageSpeed mobile + sitemap
+                withTimeout(fetch('https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: rootDomain })
-                }),
-                // PageSpeed desktop — same endpoint with strategy hint
-                fetch('https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit', {
+                }), 60000),
+                // PageSpeed desktop
+                withTimeout(fetch('https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: rootDomain, strategy: 'desktop' })
-                }),
-                fetch('https://2kxt49bwp1.execute-api.ap-southeast-1.amazonaws.com/checkSsl', {
+                }), 60000),
+                withTimeout(fetch('https://2kxt49bwp1.execute-api.ap-southeast-1.amazonaws.com/checkSsl', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: domain })
-                }),
-                fetch('https://y5830908vh.execute-api.ap-southeast-1.amazonaws.com/gtmetrix', {
+                }), 20000),
+                // GTmetrix can take 60–90s
+                withTimeout(fetch('https://y5830908vh.execute-api.ap-southeast-1.amazonaws.com/gtmetrix', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: rootDomain })
-                }),
-                getHtml(rootDomain),
-                getHtml(rootDomain + '/robots.txt'),
-                getHtml(rootDomain + '/llms.txt'),
-                getHtml(rootDomain + '/llms-full.txt'),
-                getHtml(rootDomain + '/cats.txt'),
-                getHtml(notFoundPath),
-                getHtml(httpUrl),
+                }), 90000),
             ]);
 
-            // ── 1. Site data: title, desc, backlinks, spam, referring domains ────
+            // Collect homepage HTML + robots (ran concurrently with Phase 1, should be done by now)
+            const [htmlRes, robotsRes] = await Promise.allSettled([homeHtmlP, robotsP]);
+
+            // ── Phase 2: remaining small getHtml calls (homepage HTML done → Lambda has capacity) ──
+            const [llmsRes, llmsFullRes, catsRes, notFoundRes, httpRedirectRes] = await Promise.allSettled([
+                withTimeout(getHtml(rootDomain + '/llms.txt'), 15000),
+                withTimeout(getHtml(rootDomain + '/llms-full.txt'), 15000),
+                withTimeout(getHtml(rootDomain + '/cats.txt'), 15000),
+                withTimeout(getHtml(notFoundPath), 15000),
+                withTimeout(getHtml(httpUrl), 15000),
+            ]);
+
+            // ── 1. Site data: title, desc, backlinks, h1/h2, spam, referring domains, schema ────
             let pageText = '';
             try {
+                if (siteRes.status === 'rejected') throw siteRes.reason;
                 const raw = await siteRes.value.json();
                 const d   = parseLambdaResponse(raw);
                 setF('fa_metatitle',  d.title);
@@ -63448,71 +63460,93 @@ Move-In</h3>
                 if (d.backlinks          != null) setF('fa_backlinks', d.backlinks);
                 if (d.backlinks_spam_score != null) setF('fa_spam',    d.backlinks_spam_score);
                 if (d.referring_domains  != null) setF('fa_refdomains', d.referring_domains);
+                // siteRes h1/h2 can be a count, array of text, or empty string
+                const toCount = v => Array.isArray(v) ? v.length : (v !== '' && v != null ? v : null);
+                const h1c = toCount(d.h1), h2c = toCount(d.h2);
+                if (h1c != null) setF('fa_h1', h1c);
+                if (h2c != null) setF('fa_h2', h2c);
                 if (d.schema && d.schema !== 'None') setF('fa_structdata', 'Yes');
-                step('sitedata', true, 'Meta / Backlinks / Schema');
-            } catch(e) { step('sitedata', false, 'Meta / Backlinks / Schema'); }
+                step('sitedata', true, 'Meta / Backlinks / H1-H2 / Schema');
+            } catch(e) { console.error('[FA] siteRes error:', e); step('sitedata', false, 'Meta / Backlinks / Schema: ' + e.message); }
 
             // ── 2. Domain Authority (Moz) ────────────────────────────────────────
             try {
+                if (daRes.status === 'rejected') throw daRes.reason;
                 const data = await daRes.value.json();
+                console.log('[FA] daRes:', data);
                 // Response is { domain_authority: N, page_authority: N } directly
                 if (data.domain_authority != null) setF('fa_da', data.domain_authority);
                 step('da', data.domain_authority != null, 'Domain Authority');
-            } catch(e) { step('da', false, 'Domain Authority'); }
+            } catch(e) { console.error('[FA] daRes error:', e); step('da', false, 'Domain Authority: ' + e.message); }
 
             // ── 3. PageSpeed mobile + sitemap + availability ─────────────────────
             try {
+                if (auditRes.status === 'rejected') throw auditRes.reason;
                 const d = parseLambdaResponse(await auditRes.value.json());
-                if (d.pagespeed) setF('fa_psm', d.pagespeed);
+                console.log('[FA] auditRes parsed:', d);
+                if (d.pagespeed != null) setF('fa_psm', d.pagespeed);
                 setF('fa_uptime',  'Monitoring');
                 setF('fa_sitemap', (d.sitemap && d.sitemap !== 'Not Found') ? 'Present' : 'Missing');
-                step('pagespeed', true, 'PageSpeed (Mobile)');
+                step('pagespeed', d.pagespeed != null, 'PageSpeed Mobile' + (d.pagespeed != null ? ': ' + d.pagespeed : ' (not returned)'));
                 step('sitemap',   true, 'Sitemap');
             } catch(e) {
-                step('pagespeed', false, 'PageSpeed (Mobile)');
-                step('sitemap',   false, 'Sitemap');
+                console.error('[FA] auditRes error:', e);
+                step('pagespeed', false, 'PageSpeed (Mobile): ' + e.message);
+                step('sitemap',   false, 'Sitemap: ' + e.message);
             }
 
             // ── 4. PageSpeed desktop ─────────────────────────────────────────────
             try {
+                if (desktopRes.status === 'rejected') throw desktopRes.reason;
                 const d        = parseLambdaResponse(await desktopRes.value.json());
+                console.log('[FA] desktopRes parsed:', d);
                 const mobileEl = document.getElementById('fa_psm');
                 const mobileVal = mobileEl ? mobileEl.value : '';
-                if (d.pagespeed && String(d.pagespeed) !== mobileVal) {
+                if (d.pagespeed != null && String(d.pagespeed) !== mobileVal) {
                     setF('fa_psd', d.pagespeed);
-                    step('desktop', true, 'PageSpeed Desktop');
+                    step('desktop', true, 'PageSpeed Desktop: ' + d.pagespeed);
                 } else {
-                    step('desktop', false, 'PageSpeed Desktop (Lambda needs strategy=desktop support)');
+                    step('desktop', false, 'PageSpeed Desktop (Lambda ignores strategy param — same as mobile)');
                 }
-            } catch(e) { step('desktop', false, 'PageSpeed Desktop (Lambda needs strategy=desktop support)'); }
+            } catch(e) { console.error('[FA] desktopRes error:', e); step('desktop', false, 'PageSpeed Desktop: ' + e.message); }
 
             // ── 5. SSL ───────────────────────────────────────────────────────────
             let sslPass = false;
             try {
+                if (sslRes.status === 'rejected') throw sslRes.reason;
                 const data = await sslRes.value.json();
+                console.log('[FA] sslRes:', data);
                 sslPass = !!(data.message && data.message.toLowerCase().includes('valid'));
                 setF('fa_ssl', sslPass ? 'pass' : 'fail');
                 step('ssl', true, 'SSL');
-            } catch(e) { step('ssl', false, 'SSL'); }
+            } catch(e) { console.error('[FA] sslRes error:', e); step('ssl', false, 'SSL: ' + e.message); }
 
             // ── 6. GTmetrix ──────────────────────────────────────────────────────
             try {
+                if (gtRes.status === 'rejected') throw gtRes.reason;
                 const d     = parseLambdaResponse(await gtRes.value.json());
+                console.log('[FA] gtRes parsed:', d);
                 const grade = d?.data?.attributes?.gtmetrix_grade;
                 if (grade) setF('fa_gtmetrix', grade);
-                step('gtmetrix', !!grade, 'GTmetrix Grade');
-            } catch(e) { step('gtmetrix', false, 'GTmetrix Grade'); }
+                step('gtmetrix', !!grade, 'GTmetrix Grade' + (grade ? ': ' + grade : ' (not returned)'));
+            } catch(e) { console.error('[FA] gtRes error:', e); step('gtmetrix', false, 'GTmetrix: ' + e.message); }
 
-            // ── 7. HTML: H1/H2, semantic, GA4, CDN, RankMath, Wordfence, JSON-LD ─
+            // ── 7. HTML: GA4, CDN, semantic, RankMath, Wordfence, JSON-LD, page text ─
+            // H1/H2/schema come from siteRes; this block handles script-level checks
             try {
+                if (htmlRes.status === 'rejected') throw htmlRes.reason;
                 const htmlData = await htmlRes.value.json();
-                const html = htmlData.body || '';
+                const html = typeof htmlData.body === 'string' ? htmlData.body : '';
+                console.log('[FA] htmlRes body length:', html.length);
                 if (html.length > 200) {
                     const doc = new DOMParser().parseFromString(html, 'text/html');
                     pageText  = doc.body ? doc.body.innerText : '';
 
-                    setF('fa_h1', doc.querySelectorAll('h1').length);
-                    setF('fa_h2', doc.querySelectorAll('h2').length);
+                    // H1/H2 fallback from HTML (siteRes returns "" for JS-rendered sites)
+                    if (!document.getElementById('fa_h1').value)
+                        setF('fa_h1', doc.querySelectorAll('h1').length);
+                    if (!document.getElementById('fa_h2').value)
+                        setF('fa_h2', doc.querySelectorAll('h2').length);
 
                     const semFound = ['header','footer','main','nav'].filter(t => !!doc.querySelector(t)).length;
                     setF('fa_semantic', semFound >= 2 ? 'Yes' : 'No');
@@ -63542,9 +63576,12 @@ Move-In</h3>
                         setF('fa_structdata', 'Yes');
                     else if (!document.getElementById('fa_structdata').value)
                         setF('fa_structdata', 'No');
+
+                    step('html', true, 'GA4 / CDN / Semantic (HTML parsed, ' + Math.round(html.length/1024) + 'KB)');
+                } else {
+                    step('html', false, 'HTML empty — GA4/CDN/Semantic skipped');
                 }
-                step('html', true, 'H1/H2 / Semantic / GA4 / CDN');
-            } catch(e) { step('html', false, 'H1/H2 / Semantic / GA4 / CDN'); }
+            } catch(e) { step('html', false, 'HTML parse failed: ' + e.message); }
 
             // ── 8. robots.txt + LLM bot check ───────────────────────────────────
             try {
@@ -63576,11 +63613,15 @@ Move-In</h3>
 
             // ── 10. Custom 404 ───────────────────────────────────────────────────
             try {
+                if (notFoundRes.status === 'rejected') throw notFoundRes.reason;
                 const body = ((await notFoundRes.value.json()).body || '').trim();
-                setF('fa_404', (body.length > 400 && !body.toLowerCase().includes('cannot get') && body.includes('<'))
-                    ? 'Configured' : 'Not Configured');
+                const configured = body.length > 400 && !body.toLowerCase().includes('cannot get') && body.includes('<');
+                setF('fa_404', configured ? 'Configured' : 'Not Configured');
                 step('404', true, 'Custom 404 Page');
-            } catch(e) { step('404', false, 'Custom 404 Page'); }
+            } catch(e) {
+                // Timeout or error — can't determine, leave blank so user checks manually
+                step('404', false, 'Custom 404 Page (check manually): ' + e.message);
+            }
 
             // ── 11. HTTP→HTTPS redirect ──────────────────────────────────────────
             try {
