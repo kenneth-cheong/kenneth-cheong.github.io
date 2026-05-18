@@ -10102,6 +10102,39 @@
             color: #64748b;
             line-height: 1.4;
         }
+
+        /* Advanced/Intermediate mode: category toggle pills in navbar */
+        .nav-item.nav-cat-toggle > a {
+            border-radius: 20px;
+            padding: 5px 14px !important;
+            font-weight: 600;
+            transition: background 0.2s, color 0.2s, opacity 0.2s;
+            border: 2px solid transparent;
+        }
+        .nav-item.nav-cat-toggle.nav-toggle-active > a {
+            background: #2563eb;
+            color: #ffffff !important;
+            border-color: #2563eb;
+        }
+        .nav-item.nav-cat-toggle.nav-toggle-active > a:hover {
+            background: #1d4ed8;
+            border-color: #1d4ed8;
+        }
+        .nav-item.nav-cat-toggle.nav-toggle-inactive > a {
+            background: #f1f5f9;
+            color: #94a3b8 !important;
+            border-color: #e2e8f0;
+            opacity: 0.75;
+        }
+        .nav-item.nav-cat-toggle.nav-toggle-inactive > a:hover {
+            background: #e2e8f0;
+            color: #64748b !important;
+            opacity: 1;
+        }
+        /* Hide dropdowns when in toggle mode */
+        .nav-item.nav-cat-toggle .dropdown-content {
+            display: none !important;
+        }
     </style>
 </head>
 
@@ -62320,6 +62353,7 @@ Move-In</h3>
             ];
 
             if (isBasic) {
+                applyToggleModeToNav(false);
                 basicCardsContainers.forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.style.display = 'grid';
@@ -62385,6 +62419,7 @@ Move-In</h3>
                     });
                 });
             } else {
+                applyToggleModeToNav(true);
                 basicCardsContainers.forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.style.display = 'none';
@@ -62404,6 +62439,49 @@ Move-In</h3>
                     if (c) c.style.display = 'block';
                 });
             }
+        }
+
+        const CATEGORY_NAV_CONFIG = [
+            { navId: 'seoNavItem',    sectionId: 'seoSection' },
+            { navId: 'smmNavItem',    sectionId: 'smmSection' },
+            { navId: 'geoNavItem',    sectionId: 'geoSection' },
+            { navId: 'semNavItem',    sectionId: 'semSection' },
+            { navId: 'othersNavItem', sectionId: 'othersSection' },
+        ];
+
+        function toggleCatSection(sectionId, navItem) {
+            const section = document.getElementById(sectionId);
+            if (!section) return;
+            const isActive = navItem.classList.contains('nav-toggle-active');
+            if (isActive) {
+                navItem.classList.replace('nav-toggle-active', 'nav-toggle-inactive');
+                section.style.display = 'none';
+            } else {
+                navItem.classList.replace('nav-toggle-inactive', 'nav-toggle-active');
+                section.style.display = 'block';
+            }
+        }
+
+        function applyToggleModeToNav(enable) {
+            CATEGORY_NAV_CONFIG.forEach(({ navId, sectionId }) => {
+                const navItem = document.getElementById(navId);
+                if (!navItem) return;
+                const link = navItem.querySelector(':scope > a');
+                if (!link) return;
+
+                if (enable) {
+                    navItem.classList.add('nav-cat-toggle', 'nav-toggle-active');
+                    navItem.classList.remove('nav-toggle-inactive');
+                    link._origOnclick = link.onclick;
+                    link.onclick = (e) => { e.preventDefault(); toggleCatSection(sectionId, navItem); };
+                } else {
+                    navItem.classList.remove('nav-cat-toggle', 'nav-toggle-active', 'nav-toggle-inactive');
+                    if (link._origOnclick !== undefined) {
+                        link.onclick = link._origOnclick;
+                        delete link._origOnclick;
+                    }
+                }
+            });
         }
 
         function selectBasicSection(sectionKey, forceState) {
