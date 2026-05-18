@@ -1487,7 +1487,6 @@
                                     <th class="sortable" onclick="handleSort('name')" id="sort-name">Item Name</th>
                                     <th class="sortable" onclick="handleSort('person')" id="sort-person">Person</th>
                                     <th class="sortable" onclick="handleSort('csManager')" id="sort-csManager">CS Manager</th>
-                                    <th class="sortable" onclick="handleSort('csmCampaignStatus')">[CSM] Campaign Status</th>
                                     <th class="sortable" onclick="handleSort('masterStatus')">Campaign Status</th>
                                     <th class="sortable" onclick="handleSort('masterTimeline')">Timeline</th>
                                     <th class="sortable" onclick="handleSort('deadline')" id="sort-deadline"
@@ -2041,7 +2040,7 @@
         function renderAuditorView(filtered) {
             const groups = {};
             filtered.forEach(i => {
-                if (!groups[i.bId]) groups[i.bId] = { id: i.bId, name: i.bName, folder: i.fName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 } };
+                if (!groups[i.bId]) groups[i.bId] = { id: i.bId, name: i.bName, folder: i.fName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 }, masterName: i.masterName, csmCampaignStatus: i.csmCampaignStatus };
                 groups[i.bId].items.push(i);
                 groups[i.bId].counts[i.status === '2w' ? 'v2w' : i.status]++;
             });
@@ -2065,14 +2064,18 @@
                 const isExpanded = state.expandedBoardIds.has(g.id);
                 html += `
                 <tr class="board-group-header ${!isExpanded ? 'is-collapsed' : ''}" onclick="toggleBoardExpansion('${g.id}')">
-                    <td colspan="10">
+                    <td colspan="9">
                         <div class="board-info">
                             <i class="fas fa-chevron-down board-chevron"></i>
-                            <span>${g.name} <span class="folder-sub">in ${g.folder}</span></span>
-                            <div style="display: flex; gap: 4px; margin-left: 12px;">
+                            <div style="display: flex; flex-direction: column; gap: 2px;">
+                                <span>${g.name} <span class="folder-sub">in ${g.folder}</span></span>
+                                ${g.masterName && g.masterName !== '-' && g.masterName !== '...' ? `<span style="font-size: 10px; color: var(--muted);"><i class="fas fa-link" style="margin-right: 3px; opacity: 0.5;"></i>${g.masterName}</span>` : ''}
+                            </div>
+                            <div style="display: flex; gap: 4px; margin-left: 12px; align-items: center;">
                                 ${g.counts.overdue > 0 ? `<span class="board-tag overdue">${g.counts.overdue} Overdue</span>` : ''}
                                 ${g.counts.soon > 0 ? `<span class="board-tag soon">${g.counts.soon} Soon</span>` : ''}
                                 ${g.counts.v2w > 0 ? `<span class="board-tag v2w">${g.counts.v2w} 2W</span>` : ''}
+                                ${g.csmCampaignStatus ? `<span class="board-tag" style="background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);">${g.csmCampaignStatus}</span>` : ''}
                             </div>
                         </div>
                     </td>
@@ -2167,23 +2170,29 @@
                     const sortedCampaigns = sortCampaignGroups(Object.values(s.campaigns));
 
                     if (selectedNames.length > 1) {
-                        tableHtml += `<tr class="staff-group-header"><td colspan="10"><i class="fas fa-user-circle" style="margin-right:8px;"></i>${s.name}</td></tr>`;
+                        tableHtml += `<tr class="staff-group-header"><td colspan="9"><i class="fas fa-user-circle" style="margin-right:8px;"></i>${s.name}</td></tr>`;
                     }
 
                     sortedCampaigns.forEach(c => {
                         const compoundId = `${s.name}-${c.id}`;
                         const isCampaignExpanded = state.expandedManagerBoardIds.has(compoundId);
 
+                        const cMasterName = c.items[0]?.masterName;
+                        const cCsmStatus = c.items[0]?.csmCampaignStatus;
                         tableHtml += `
                         <tr class="campaign-sub-header" onclick="toggleManagerBoardExpansion('${compoundId.replace(/'/g, "\\'")}')">
-                            <td colspan="10">
+                            <td colspan="9">
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <i class="fas ${isCampaignExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="width: 12px; opacity: 0.5;"></i>
-                                    <span>${c.name} <span class="folder-sub">in ${c.folder}</span></span>
-                                    <div style="display: flex; gap: 4px; margin-left: 12px;">
+                                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                                        <span>${c.name} <span class="folder-sub">in ${c.folder}</span></span>
+                                        ${cMasterName && cMasterName !== '-' && cMasterName !== '...' ? `<span style="font-size: 10px; color: var(--muted);"><i class="fas fa-link" style="margin-right: 3px; opacity: 0.5;"></i>${cMasterName}</span>` : ''}
+                                    </div>
+                                    <div style="display: flex; gap: 4px; margin-left: 12px; align-items: center;">
                                         ${c.counts.overdue > 0 ? `<span class="board-tag overdue">${c.counts.overdue} Overdue</span>` : ''}
                                         ${c.counts.soon > 0 ? `<span class="board-tag soon">${c.counts.soon} Soon</span>` : ''}
                                         ${c.counts.v2w > 0 ? `<span class="board-tag v2w">${c.counts.v2w} 2W</span>` : ''}
+                                        ${cCsmStatus ? `<span class="board-tag" style="background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);">${cCsmStatus}</span>` : ''}
                                     </div>
                                     <span style="font-size: 10px; opacity: 0.6; margin-left: auto;">${c.items.length} tasks</span>
                                 </div>
@@ -2207,7 +2216,7 @@
                     });
                 });
             } else if (sortedStaff.length > 0) {
-                tableHtml = '<tr><td colspan="10" style="text-align:center; padding: 60px; color: var(--muted);"><i class="fas fa-mouse-pointer" style="display:block; font-size: 24px; margin-bottom: 12px; opacity:0.3;"></i> Select a staff card above to see detailed tasks</td></tr>';
+                tableHtml = '<tr><td colspan="9" style="text-align:center; padding: 60px; color: var(--muted);"><i class="fas fa-mouse-pointer" style="display:block; font-size: 24px; margin-bottom: 12px; opacity:0.3;"></i> Select a staff card above to see detailed tasks</td></tr>';
             }
 
             body.innerHTML = tableHtml;
@@ -2234,14 +2243,10 @@
                     <div class="expansion-trigger" onclick="toggleItemExpansion('${i.id}')">
                         <i class="fas fa-chevron-right"></i>
                     </div>
-                    <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
-                        <a href="https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}" target="_blank" class="item-link">${i.name} <i class="fas fa-external-link-alt" style="font-size:0.8em"></i></a>
-                        ${i.masterName && i.masterName !== '-' && i.masterName !== '...' ? `<span style="font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${i.masterName.replace(/"/g, '&quot;')}"><i class="fas fa-link" style="margin-right: 3px; opacity: 0.5;"></i>${i.masterName}</span>` : ''}
-                    </div>
+                    <a href="https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}" target="_blank" class="item-link">${i.name} <i class="fas fa-external-link-alt" style="font-size:0.8em"></i></a>
                 </td>
                 <td><div class="person-badge"><i class="far fa-user"></i> ${i.people.join(', ')}</div></td>
                 <td><div class="person-badge" style="border-color:var(--success); color:var(--success)"><i class="fas fa-user-shield"></i> ${i.csManagers.join(', ')}</div></td>
-                <td style="font-size: 11px;">${i.csmCampaignStatus ? `<span class="status-tag status-other" style="background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border);">${i.csmCampaignStatus}</span>` : '-'}</td>
                 <td style="font-size: 11px;">${i.masterStatus && i.masterStatus !== '-' ? `<span class="status-tag status-other" style="background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border);">${i.masterStatus}</span>` : '-'}</td>
                 <td style="font-size: 10px; color: var(--muted);">${i.masterTimeline || '-'}</td>
                 <td style="text-align: center; color: var(--muted); font-family: monospace;">${i.deadlineDisplay}</td>
@@ -2254,7 +2259,7 @@
             if (state.expandedItemIds.has(i.id)) {
                 html += `
                 <tr class="item-updates-row">
-                    <td colspan="10" style="padding: 0; border: none;">
+                    <td colspan="9" style="padding: 0; border: none;">
                         <div class="updates-container">
                             ${renderUpdates(i.id)}
                         </div>
