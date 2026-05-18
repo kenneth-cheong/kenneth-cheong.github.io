@@ -8054,18 +8054,9 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
             }
 
             function setupAutoSave() {
-                const titleEl = document.getElementById('current-slide-title');
-                const bodyEl = document.getElementById('current-slide-body');
-
-                const handleInput = () => {
-                    if (activeSlideIndex === -1) return;
-                    slidesData[activeSlideIndex].title = titleEl.innerText;
-                    slidesData[activeSlideIndex].body = bodyEl.innerHTML;
-
-                    updateActiveThumbnail();
-                };
-                titleEl.addEventListener('input', handleInput);
-                bodyEl.addEventListener('input', handleInput);
+                // Block editing is handled via onblur → TenderAI.Utils.updateBlockContent on each
+                // contenteditable block element. The legacy #current-slide-title and #current-slide-body
+                // elements are replaced by renderSlideCanvas, so no listeners are needed here.
             }
 
             function moveChatUI(target) {
@@ -9198,17 +9189,65 @@ PROPOSED TEAM:
 ${teamContext}
 `.trim().substring(0, 30000); // Reduced safety limit to avoid truncation issues
 
-                // Define slide batches (Total 8 slides)
+                // Slide definitions with block-type hints so the AI generates structured blocks directly
                 const slidesToGenerate = [
-                    { title: "Cover Slide", goal: "Compelling project title, client name, date. Theme: dark" },
-                    { title: "Executive Summary", goal: "The Challenge, Our Proposed Response, and Measurable Outcomes" },
-                    { title: "Client Understanding", goal: "Specific insights and pain points derived from the knowledge base" },
-                    { title: "Solution Architecture", goal: "High-level phased approach with deliverables and timeline" },
-                    { title: "Why MediaOne?", goal: "Key differentiators using REAL proof metrics from the knowledge base" },
-                    { title: "Project Team", goal: "Professional bios of the team members listed in the knowledge base" },
-                    { title: "Implementation Roadmap", goal: "Critical milestones and phased timeline (Months 1-12)" },
-                    { title: "Commercial Summary", goal: "Value-based summary, ROI, and investment overview" }
+                    {
+                        title: "Cover Slide",
+                        goal: "Compelling project title, client name, tagline, and date",
+                        theme: "dark",
+                        blockHints: "Use a 'title' block for the project name and a 'rich_text' block for the client name, tagline, and date. Keep it brief and impactful."
+                    },
+                    {
+                        title: "Executive Summary",
+                        goal: "The Challenge, Our Proposed Response, and Measurable Outcomes",
+                        theme: "light",
+                        blockHints: "Use a 'title' block, then 'kpi_cards' (3–4 items: key outcome metrics or win themes), then a brief 'rich_text' block summarising the opportunity."
+                    },
+                    {
+                        title: "Client Understanding",
+                        goal: "Specific client pain points and business context derived from the knowledge base",
+                        theme: "light",
+                        blockHints: "Use a 'title' block, then a 'rich_text' block with 4–5 bullets of specific client challenges, then optionally a 'table' with columns 'Challenge' and 'Our Response'."
+                    },
+                    {
+                        title: "Solution Architecture",
+                        goal: "High-level phased approach with key deliverables per phase",
+                        theme: "light",
+                        blockHints: "Use a 'title' block, then a 'timeline' block with 3–4 phases (each with a date like 'Month 1–2' and a short event description of key deliverables)."
+                    },
+                    {
+                        title: "Why MediaOne?",
+                        goal: "Key differentiators and REAL proof metrics from the knowledge base",
+                        theme: "light",
+                        blockHints: "Use a 'title' block, then 'kpi_cards' (4–5 items using real metrics like '20+ Years', 'Certified Partner', specific client names), then a short 'rich_text' block."
+                    },
+                    {
+                        title: "Project Team",
+                        goal: "Professional profiles of the team members listed in the knowledge base",
+                        theme: "light",
+                        blockHints: "Use a 'title' block, then a 'team' block with members array. Each member must have 'name' and 'role' from the knowledge base team list."
+                    },
+                    {
+                        title: "Implementation Roadmap",
+                        goal: "Critical milestones and phased timeline across Months 1–12",
+                        theme: "light",
+                        blockHints: "Use a 'title' block, then a 'timeline' block with 6–8 steps. Each step has a 'date' (e.g. 'Month 1', 'Month 3–4') and an 'event' describing the milestone."
+                    },
+                    {
+                        title: "Commercial Summary",
+                        goal: "Value-based investment overview, ROI highlights, and next steps",
+                        theme: "light",
+                        blockHints: "Use a 'title' block, then 'kpi_cards' for 3–4 ROI/investment highlights, then a 'rich_text' block with next steps or call to action."
+                    }
                 ];
+
+                const BLOCK_SCHEMA_REFERENCE = `AVAILABLE BLOCK TYPES (use exactly these type names and content shapes):
+• { "type": "title", "content": { "text": "Slide headline" } }
+• { "type": "rich_text", "content": { "html": "<ul><li>Point 1</li><li>Point 2</li></ul>" } }
+• { "type": "kpi_cards", "content": { "items": [{ "label": "Metric Name", "value": "20+", "subtext": "brief context" }] } }
+• { "type": "table", "content": { "headers": ["Column A", "Column B"], "rows": [["cell", "cell"]] } }
+• { "type": "timeline", "content": { "steps": [{ "date": "Month 1–2", "event": "Description of milestone" }] } }
+• { "type": "team", "content": { "members": [{ "name": "Full Name", "role": "Job Title" }] } }`;
 
                 let totalGenerated = 0;
 
@@ -9216,15 +9255,26 @@ ${teamContext}
                     const slideDef = slidesToGenerate[i];
                     if (text) text.innerText = `Drafting Slide ${i + 1}/${slidesToGenerate.length}...`;
 
-                    const slidePrompt = `TASK: Generate high-quality content for a tender presentation section.\n
+                    const slidePrompt = `TASK: Generate structured block content for a tender presentation slide.
+
 SLIDE TO GENERATE:
 Title: ${slideDef.title}
 Goal: ${slideDef.goal}
+Theme: ${slideDef.theme}
+Layout Guidance: ${slideDef.blockHints}
 
-INSTRUCTIONS:
-1. Return a valid JSON array of 1 or more slide objects. If the content for this section is extensive, split it logically across 2-3 slides to avoid overcrowding and clipping.\n2. The object MUST have: "title", "body" (HTML content), and "theme" ("light" or "dark").
-3. Use SIMPLE structural HTML. No complex styles, no colors, no custom layouts yet. Focus on text accuracy and strategic insights.\n4. Use the PROJECT KNOWLEDGE BASE provided below for specific details.
-4. AVOID CLIPPING: Keep each slide concise. A single slide should not have more than 6 bullet points or 1 medium table. If you have more content, return multiple slide objects for this section.\n5. NO preamble, NO explanation. Just the raw JSON array [{}].`;
+${BLOCK_SCHEMA_REFERENCE}
+
+OUTPUT RULES:
+1. Return ONLY a raw JSON array of 1–2 slide objects. No preamble, no explanation, no markdown code fences.
+2. Each slide object must have: "title" (string), "theme" ("light" or "dark"), "blocks" (array of block objects from the schema above).
+3. Always start with a "title" block as the first block.
+4. Keep rich_text concise — max 5 bullet points per block. Split into a second slide object if content exceeds this.
+5. Use REAL names, metrics, and details from the PROJECT KNOWLEDGE BASE below.
+6. For "team" blocks, use member names and roles exactly as listed in the knowledge base.
+
+Example output shape:
+[{ "title": "Slide Name", "theme": "light", "blocks": [{ "type": "title", "content": { "text": "Slide Name" } }, { "type": "kpi_cards", "content": { "items": [{ "label": "Experience", "value": "20+", "subtext": "Years in SEO" }] } }] }]`;
 
                     try {
                         const response = await fetch(API_BASE_URL, {
@@ -9268,11 +9318,26 @@ INSTRUCTIONS:
 
                         if (batchSlides.length > 0) {
                             batchSlides.forEach(s => {
+                                // Build blocks array: prefer AI-generated blocks, fall back to legacy title+body
+                                const blocks = [];
+                                if (Array.isArray(s.blocks) && s.blocks.length > 0) {
+                                    s.blocks.forEach(b => {
+                                        if (b.type && b.content) {
+                                            blocks.push(TenderAI.Schema.createBlock(b.type, b.content));
+                                        }
+                                    });
+                                } else {
+                                    // Legacy fallback: AI returned old {title, body} format
+                                    if (s.title) blocks.push(TenderAI.Schema.createBlock('title', { text: s.title }));
+                                    if (s.body) blocks.push(TenderAI.Schema.createBlock('rich_text', { html: s.body }));
+                                }
+
                                 slidesData.push({
                                     id: Date.now() + Math.random(),
                                     title: s.title || slideDef.title,
-                                    body: s.body || "<p>Content generated.</p>",
-                                    theme: s.theme || "light"
+                                    theme: s.theme || slideDef.theme || "light",
+                                    layout: 'standard',
+                                    blocks: blocks
                                 });
                                 totalGenerated++;
                             });
@@ -9289,7 +9354,7 @@ INSTRUCTIONS:
                         addChatMessage(`⚠️ Slide ${i + 1} failed: ${error.message}`, "ai");
                     }
 
-                    await new Promise(r => setTimeout(r, 300));
+                    await new Promise(r => setTimeout(r, 200));
                 }
 
                 updateValueAddScorecard();
@@ -9604,7 +9669,8 @@ ${JSON.stringify(slide.blocks)}`;
                                 proofBank: getProofBank(),
                                 aiAgents: getAIAgents(),
                                 globalSubmissions: sanitizeSubmissions(globalSubmissions),
-                                wizardPrompts: WIZARD_STEPS.map(s => ({ id: s.id, prompt: s.prompt }))
+                                wizardPrompts: WIZARD_STEPS.map(s => ({ id: s.id, prompt: s.prompt })),
+                                userPreferences: { llm: currentLLM }
                             }
                         };
 
@@ -9831,7 +9897,16 @@ ${JSON.stringify(slide.blocks)}`;
                             renderAIAgents();
                         }
 
-                        // 7. Initialize State
+                        // 7. Restore User Preferences
+                        if (result.userPreferences?.llm) {
+                            currentLLM = result.userPreferences.llm;
+                            localStorage.setItem('tenderLLM', currentLLM);
+                            document.querySelectorAll('.model-btn').forEach(btn => {
+                                btn.classList.toggle('active', btn.dataset.model === currentLLM);
+                            });
+                        }
+
+                        // 8. Initialize State
                         isDataLoaded = true; // Release the save guard
                         goToStep(0);
                         updateCloudStatus('synced');
