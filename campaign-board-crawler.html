@@ -2866,17 +2866,23 @@
             hideStatusDropdown();
             document.removeEventListener('click', onStatusOutsideClick, true);
             const ids = [...state.selectedItemIds];
-            const items = ids.map(id => state.auditedItems.find(i => i.id === id)).filter(Boolean);
+            const items = ids.map(id => state.auditedItems.find(i => i.id === id))
+                            .filter(item => item && item.statusColumnId);
             items.forEach(item => item.itemStatus = label);
             clearSelection();
             showToast(`Updating ${items.length} item${items.length !== 1 ? 's' : ''}…`);
+
             let failed = 0;
-            await Promise.all(items.map(async item => {
-                try {
-                    await monday(`mutation($b:ID!,$i:ID!,$c:String!,$v:String!){ change_simple_column_value(board_id:$b,item_id:$i,column_id:$c,value:$v){ id } }`,
-                        { b: item.bId, i: item.id, c: item.statusColumnId, v: label }, false);
-                } catch(e) { failed++; }
-            }));
+            const BATCH = 5;
+            for (let i = 0; i < items.length; i += BATCH) {
+                await Promise.all(items.slice(i, i + BATCH).map(async item => {
+                    try {
+                        await monday(
+                            `mutation($b:ID!,$i:ID!,$c:String!,$v:String!){ change_simple_column_value(board_id:$b,item_id:$i,column_id:$c,value:$v){ id } }`,
+                            { b: item.bId, i: item.id, c: item.statusColumnId, v: label }, false);
+                    } catch(e) { failed++; }
+                }));
+            }
             showToast(failed ? `Done with ${failed} failure(s)` : `${items.length} item${items.length !== 1 ? 's' : ''} → "${label}"`);
         }
 
