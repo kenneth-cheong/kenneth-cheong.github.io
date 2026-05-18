@@ -10138,9 +10138,41 @@
         .nav-item.nav-cat-toggle .dropdown-content {
             display: none !important;
         }
-        /* Advanced/Intermediate mode: hide all collapsible buttons, show content directly */
+        /* Advanced/Intermediate mode: convert collapsibles to static section headers */
         body.advanced-mode .collapsible,
         body.advanced-mode .strat-collapsible {
+            pointer-events: none !important;
+            cursor: default !important;
+            background: transparent !important;
+            border: none !important;
+            border-bottom: 2px solid #e2e8f0 !important;
+            border-radius: 0 !important;
+            padding: 18px 0 10px 0 !important;
+            font-size: 1rem !important;
+            font-weight: 700 !important;
+            color: #1e293b !important;
+            box-shadow: none !important;
+            margin-bottom: 14px !important;
+            width: 100% !important;
+            text-align: left !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+        }
+        /* Hide the expand/collapse icons */
+        body.advanced-mode .collapsible .fa-plus-square,
+        body.advanced-mode .collapsible .fa-minus-square,
+        body.advanced-mode .strat-collapsible .fa-plus-square,
+        body.advanced-mode .strat-collapsible .fa-minus-square {
+            display: none !important;
+        }
+        /* Hide the 5 main category collapsibles — replaced by nav pills */
+        body.advanced-mode #seo,
+        body.advanced-mode #smm,
+        body.advanced-mode #semButton,
+        body.advanced-mode #geoMainBtn,
+        body.advanced-mode #othersMainBtn,
+        body.advanced-mode #geoToSchemaBtn {
             display: none !important;
         }
         body.advanced-mode .page-break {
@@ -62619,27 +62651,15 @@ Move-In</h3>
                     card.style.display = '';
                 });
 
-                // Force all tool content divs visible (collapsible buttons are hidden via CSS body class)
-                [
-                    // SEO
-                    'strategy-engine-content', 'pricing-quote-content', 'siteAnalysisContent',
-                    'keywordMapping', 'keywordAnalysis', 'crawlerSimulator', 'technicalSeo',
-                    'schema', 'onPageSection', 'rankChecker', 'anchorTextCleanerContent',
-                    'aiContentOptimiser',
-                    // SMM
-                    'socialMedia', 'socialMediaStrategyContent', 'pillarFrameworkContent',
-                    'contentGenerator', 'smmReplyContent',
-                    // SEM
-                    'SEM', 'gscContent', 'metaAdsContent',
-                    // GEO
-                    'geoMainContent', 'geoUtilitiesSection', 'discoveryAuditSection',
-                    'discoveryKeywordsSection', 'geoOnPageContent',
-                    // Others
-                    'othersMainContent', 'competitors_content', 'persona_content',
-                    'mediaplan', 'content_check_content', 'landingPageAudit',
-                ].forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.style.display = 'block';
+                // Force every collapsible's content div open so tool sections are accessible.
+                // Buttons are visually hidden by the body.advanced-mode CSS rule, but the
+                // DOM traversal in forceOpenCollapsible still works on hidden elements.
+                document.querySelectorAll('.collapsible, .strat-collapsible').forEach(btn => {
+                    const content = btn.closest('.collapsible-wrapper')?.nextElementSibling
+                                    || btn.nextElementSibling;
+                    if (content && content.classList.contains('content')) {
+                        content.style.display = 'block';
+                    }
                 });
             }
         }
