@@ -10051,8 +10051,6 @@
             border-radius: 6px 0 0 6px;
         }
         .basic-selector-card .card-pill-tag {
-            background: #f1f5f9;
-            color: #64748b;
             font-size: 0.75rem;
             font-weight: 700;
             padding: 4px 10px;
@@ -10061,11 +10059,17 @@
             letter-spacing: 0.5px;
             margin-left: auto;
             transition: all 0.3s ease;
+            /* default fallback */
+            background: #f1f5f9;
+            color: #64748b;
         }
-        .basic-selector-card.active .card-pill-tag {
-            background: #dbeafe;
-            color: #2563eb;
-        }
+        /* Per-category pill colours */
+        .basic-selector-card .card-pill-tag[data-cat="SEO"]    { background: #dbeafe; color: #1d4ed8; }
+        .basic-selector-card .card-pill-tag[data-cat="SMM"]    { background: #d1fae5; color: #047857; }
+        .basic-selector-card .card-pill-tag[data-cat="GEO"]    { background: #f3e8ff; color: #6d28d9; }
+        .basic-selector-card .card-pill-tag[data-cat="SEM"]    { background: #fef3c7; color: #b45309; }
+        .basic-selector-card .card-pill-tag[data-cat="Others"] { background: #fee2e2; color: #b91c1c; }
+        /* Keep colours on active cards (no override needed — colours stay) */
         .basic-selector-card .card-icon {
             width: 52px;
             height: 52px;
@@ -10132,6 +10136,14 @@
         }
         /* Hide dropdowns when in toggle mode */
         .nav-item.nav-cat-toggle .dropdown-content {
+            display: none !important;
+        }
+        /* Advanced/Intermediate mode: hide all collapsible buttons, show content directly */
+        body.advanced-mode .collapsible,
+        body.advanced-mode .strat-collapsible {
+            display: none !important;
+        }
+        body.advanced-mode .page-break {
             display: none !important;
         }
     </style>
@@ -11221,7 +11233,7 @@
                 <h4>AI Strategy Engine</h4>
                 <p>AI-powered strategy formulation & keyword mapping</p>
             </div>
-            <span class="card-pill-tag">SEO</span>
+            <span class="card-pill-tag" data-cat="SEO">SEO</span>
         </div>
         <div class="basic-selector-card" onclick="selectBasicSection('pricingQuote')">
             <div class="card-icon" style="background: #e0e7ff; color: #4f46e5;"><i class="fas fa-calculator"></i></div>
@@ -11229,7 +11241,7 @@
                 <h4>SEO Pricing Quote</h4>
                 <p>Itemised quote builder & cluster pricing</p>
             </div>
-            <span class="card-pill-tag">SEO</span>
+            <span class="card-pill-tag" data-cat="SEO">SEO</span>
         </div>
         <div class="basic-selector-card" onclick="selectBasicSection('siteAnalysis')">
             <div class="card-icon" style="background: #fef3c7; color: #d97706;"><i class="fas fa-chart-line"></i></div>
@@ -11237,7 +11249,7 @@
                 <h4>Domain Analysis</h4>
                 <p>Page technical metrics & domain health audit</p>
             </div>
-            <span class="card-pill-tag">SEO</span>
+            <span class="card-pill-tag" data-cat="SEO">SEO</span>
         </div>
         <div class="basic-selector-card" onclick="selectBasicSection('technicalSeo')">
             <div class="card-icon" style="background: #fee2e2; color: #dc2626;"><i class="fas fa-tools"></i></div>
@@ -11245,7 +11257,7 @@
                 <h4>Technical SEO</h4>
                 <p>Diagnose and fix site-wide technical issues</p>
             </div>
-            <span class="card-pill-tag">SEO</span>
+            <span class="card-pill-tag" data-cat="SEO">SEO</span>
         </div>
         <div class="basic-selector-card active" onclick="selectBasicSection('competitors')">
             <div class="card-icon" style="background: #e0e7ff; color: #4f46e5;"><i class="fas fa-trophy"></i></div>
@@ -11253,7 +11265,7 @@
                 <h4>Competitors Identifier</h4>
                 <p>Identify top competitors and analyze their keyword overlap</p>
             </div>
-            <span class="card-pill-tag">SEO</span>
+            <span class="card-pill-tag" data-cat="SEO">SEO</span>
         </div>
 
         <!-- SMM Cards -->
@@ -11263,7 +11275,7 @@
                 <h4>Suggested Keywords Strategy</h4>
                 <p>Discover trending hashtags and topic keywords tailored to your brand</p>
             </div>
-            <span class="card-pill-tag">SMM</span>
+            <span class="card-pill-tag" data-cat="SMM">SMM</span>
         </div>
 
         <!-- GEO Cards -->
@@ -11273,7 +11285,7 @@
                 <h4>AI Discovery Audit</h4>
                 <p>Audit how well your brand surfaces in AI-generated answers</p>
             </div>
-            <span class="card-pill-tag">GEO</span>
+            <span class="card-pill-tag" data-cat="GEO">GEO</span>
         </div>
         <div class="basic-selector-card" onclick="selectBasicSection('discoveryKeywords')">
             <div class="card-icon" style="background: #fef3c7; color: #d97706;"><i class="fas fa-search-dollar"></i></div>
@@ -11281,7 +11293,7 @@
                 <h4>AI Mentions</h4>
                 <p>Track where and how often your brand is mentioned in AI models</p>
             </div>
-            <span class="card-pill-tag">GEO</span>
+            <span class="card-pill-tag" data-cat="GEO">GEO</span>
         </div>
 
         <!-- Others Cards -->
@@ -11291,7 +11303,7 @@
                 <h4>Persona Generator</h4>
                 <p>Build AI-driven buyer personas & marketing angles</p>
             </div>
-            <span class="card-pill-tag">Others</span>
+            <span class="card-pill-tag" data-cat="Others">Others</span>
         </div>
         <div class="basic-selector-card" onclick="selectBasicSection('mediaPlan')">
             <div class="card-icon" style="background: #fee2e2; color: #dc2626;"><i class="fas fa-bullseye"></i></div>
@@ -11299,7 +11311,7 @@
                 <h4>Media Plan</h4>
                 <p>Generate multi-channel media strategy and budget allocation</p>
             </div>
-            <span class="card-pill-tag">Others</span>
+            <span class="card-pill-tag" data-cat="Others">Others</span>
         </div>
         <div class="basic-selector-card" onclick="selectBasicSection('landingPageAudit')">
             <div class="card-icon" style="background: #e0e7ff; color: #4338ca;"><i class="fas fa-clipboard-check"></i></div>
@@ -11307,9 +11319,179 @@
                 <h4>Landing Page Audit</h4>
                 <p>Evaluate landing pages for conversion rate optimization</p>
             </div>
-            <span class="card-pill-tag">Others</span>
+            <span class="card-pill-tag" data-cat="Others">Others</span>
         </div>
     </div>
+
+<!-- Advanced / Intermediate Mode Selector Cards -->
+<div id="advancedModeCardsContainer" style="display: none; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(240px, calc(25% - 16px))), 1fr)); gap: 20px; margin-bottom: 30px; margin-top: 20px;">
+
+    <!-- SEO -->
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('strategyEngineSection', this)">
+        <div class="card-icon"><i class="fas fa-magic"></i></div>
+        <div class="card-info"><h4>AI Strategy Engine</h4><p>AI-powered strategy formulation & keyword mapping</p></div>
+        <span class="card-pill-tag" data-cat="SEO">SEO</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('seoTime2RankSection', this)">
+        <div class="card-icon" style="background:#d1fae5;color:#059669"><i class="fas fa-clock"></i></div>
+        <div class="card-info"><h4>Time to Rank</h4><p>Forecast how long keywords will take to reach Page 1</p></div>
+        <span class="card-pill-tag" data-cat="SEO">SEO</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('pricingQuoteSection', this)">
+        <div class="card-icon" style="background:#e0e7ff;color:#4f46e5"><i class="fas fa-calculator"></i></div>
+        <div class="card-info"><h4>SEO Pricing Quote</h4><p>Itemised quote builder & cluster pricing</p></div>
+        <span class="card-pill-tag" data-cat="SEO">SEO</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('siteAnalysisSection', this)">
+        <div class="card-icon" style="background:#fef3c7;color:#d97706"><i class="fas fa-chart-line"></i></div>
+        <div class="card-info"><h4>Domain Analysis</h4><p>Page technical metrics & domain health audit</p></div>
+        <span class="card-pill-tag" data-cat="SEO">SEO</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('keywordMappingSection', this)">
+        <div class="card-icon" style="background:#f3e8ff;color:#7c3aed"><i class="fas fa-map"></i></div>
+        <div class="card-info"><h4>Keyword Mapping</h4><p>Assign keywords to pages to prevent cannibalisation</p></div>
+        <span class="card-pill-tag" data-cat="SEO">SEO</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('keywordAnalysisSection', this)">
+        <div class="card-icon" style="background:#dbeafe;color:#2563eb"><i class="fas fa-search"></i></div>
+        <div class="card-info"><h4>Keyword Analysis</h4><p>Volume, difficulty & intent for high-opportunity terms</p></div>
+        <span class="card-pill-tag" data-cat="SEO">SEO</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('crawlerSimulatorSection', this)">
+        <div class="card-icon" style="background:#fee2e2;color:#dc2626"><i class="fas fa-spider"></i></div>
+        <div class="card-info"><h4>Google Crawler Simulator</h4><p>Simulate how Googlebot renders your pages</p></div>
+        <span class="card-pill-tag" data-cat="SEO">SEO</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('technicalSeoSection', this)">
+        <div class="card-icon" style="background:#fee2e2;color:#dc2626"><i class="fas fa-tools"></i></div>
+        <div class="card-info"><h4>Technical SEO</h4><p>Diagnose and fix site-wide technical issues</p></div>
+        <span class="card-pill-tag" data-cat="SEO">SEO</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('schemaGeneratorSection', this)">
+        <div class="card-icon" style="background:#d1fae5;color:#059669"><i class="fas fa-code"></i></div>
+        <div class="card-info"><h4>Schema Generator</h4><p>Build JSON-LD structured data for rich snippets</p></div>
+        <span class="card-pill-tag" data-cat="SEO">SEO</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('onPageOptimisationSection', this)">
+        <div class="card-icon" style="background:#e0e7ff;color:#4338ca"><i class="fas fa-file-alt"></i></div>
+        <div class="card-info"><h4>On-Page Optimisation</h4><p>Optimise titles, meta & headings for target keywords</p></div>
+        <span class="card-pill-tag" data-cat="SEO">SEO</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('rankCheckerSection', this)">
+        <div class="card-icon" style="background:#f3e8ff;color:#7c3aed"><i class="fas fa-chart-bar"></i></div>
+        <div class="card-info"><h4>Rank Checker</h4><p>Track keyword rankings across search engines</p></div>
+        <span class="card-pill-tag" data-cat="SEO">SEO</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('anchorTextCleanerSection', this)">
+        <div class="card-icon" style="background:#ccfbf1;color:#0d9488"><i class="fas fa-broom"></i></div>
+        <div class="card-info"><h4>Anchor Text Cleaner</h4><p>Fix over-optimised internal anchor text</p></div>
+        <span class="card-pill-tag" data-cat="SEO">SEO</span>
+    </div>
+
+    <!-- SMM -->
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('socialMediaStrategyContent', this)">
+        <div class="card-icon" style="background:#d1fae5;color:#059669"><i class="fas fa-key"></i></div>
+        <div class="card-info"><h4>Social Keywords Strategy</h4><p>Trending hashtags & topic keywords for your brand</p></div>
+        <span class="card-pill-tag" data-cat="SMM">SMM</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('pillarFrameworkContent', this)">
+        <div class="card-icon" style="background:#dbeafe;color:#2563eb"><i class="fas fa-sitemap"></i></div>
+        <div class="card-info"><h4>Content Pillar Framework</h4><p>Core themes & sub-topics for consistent social content</p></div>
+        <span class="card-pill-tag" data-cat="SMM">SMM</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('contentGenerator', this)">
+        <div class="card-icon" style="background:#fef3c7;color:#d97706"><i class="fas fa-pencil-alt"></i></div>
+        <div class="card-info"><h4>Caption Generator</h4><p>Platform-ready captions with hashtags & CTAs</p></div>
+        <span class="card-pill-tag" data-cat="SMM">SMM</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('smmReplyContent', this)">
+        <div class="card-icon" style="background:#e0e7ff;color:#4f46e5"><i class="fas fa-comments"></i></div>
+        <div class="card-info"><h4>Response Generator</h4><p>On-brand replies to comments & messages</p></div>
+        <span class="card-pill-tag" data-cat="SMM">SMM</span>
+    </div>
+
+    <!-- GEO -->
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('geoUtilitiesSection', this)">
+        <div class="card-icon" style="background:#fef3c7;color:#d97706"><i class="fas fa-file-alt"></i></div>
+        <div class="card-info"><h4>llms.txt Generator</h4><p>Guide AI models to understand your site accurately</p></div>
+        <span class="card-pill-tag" data-cat="GEO">GEO</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('discoveryAuditSection', this)">
+        <div class="card-icon" style="background:#e0e7ff;color:#4f46e5"><i class="fas fa-microchip"></i></div>
+        <div class="card-info"><h4>AI Discovery Audit</h4><p>Audit how well your brand surfaces in AI answers</p></div>
+        <span class="card-pill-tag" data-cat="GEO">GEO</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('discoveryKeywordsSection', this)">
+        <div class="card-icon" style="background:#fef3c7;color:#d97706"><i class="fas fa-search-dollar"></i></div>
+        <div class="card-info"><h4>AI Mentions</h4><p>Track brand mentions across AI model responses</p></div>
+        <span class="card-pill-tag" data-cat="GEO">GEO</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('geoOnPageSection', this)">
+        <div class="card-icon" style="background:#d1fae5;color:#059669"><i class="fas fa-file-invoice"></i></div>
+        <div class="card-info"><h4>GEO On-Page Optimisation</h4><p>Optimise content for AI-generated summaries</p></div>
+        <span class="card-pill-tag" data-cat="GEO">GEO</span>
+    </div>
+
+    <!-- SEM -->
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('semAdsContent', this)">
+        <div class="card-icon" style="background:#fee2e2;color:#dc2626"><i class="fas fa-ad"></i></div>
+        <div class="card-info"><h4>SEM Analysis & Generation</h4><p>Campaign structures, ad copy & bidding recommendations</p></div>
+        <span class="card-pill-tag" data-cat="SEM">SEM</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('adsIntegrationSection', this)">
+        <div class="card-icon" style="background:#fef3c7;color:#d97706"><i class="fab fa-google"></i></div>
+        <div class="card-info"><h4>Google Ads</h4><p>Campaign performance, spend & conversion data</p></div>
+        <span class="card-pill-tag" data-cat="SEM">SEM</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('metaAdsSection', this)">
+        <div class="card-icon" style="background:#dbeafe;color:#1877F2"><i class="fab fa-facebook"></i></div>
+        <div class="card-info"><h4>Meta Ads</h4><p>Facebook & Instagram campaign performance analysis</p></div>
+        <span class="card-pill-tag" data-cat="SEM">SEM</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('ga4IntegrationSection', this)">
+        <div class="card-icon" style="background:#d1fae5;color:#059669"><i class="fas fa-chart-area"></i></div>
+        <div class="card-info"><h4>Google Analytics 4</h4><p>GA4 traffic & behaviour correlated with organic efforts</p></div>
+        <span class="card-pill-tag" data-cat="SEM">SEM</span>
+    </div>
+
+    <!-- Others -->
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('competitorsSection', this)">
+        <div class="card-icon" style="background:#e0e7ff;color:#4f46e5"><i class="fas fa-trophy"></i></div>
+        <div class="card-info"><h4>Competitors Identifier</h4><p>Identify top competitors & analyse keyword overlap</p></div>
+        <span class="card-pill-tag" data-cat="Others">Others</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('gscIntegrationSection', this)">
+        <div class="card-icon" style="background:#fee2e2;color:#dc2626"><i class="fab fa-google"></i></div>
+        <div class="card-info"><h4>Google Search Console</h4><p>GSC performance data & strategic recommendations</p></div>
+        <span class="card-pill-tag" data-cat="Others">Others</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('persona_content', this)">
+        <div class="card-icon" style="background:#fef3c7;color:#d97706"><i class="fas fa-user-check"></i></div>
+        <div class="card-info"><h4>Persona Generator</h4><p>AI-driven buyer personas & marketing angles</p></div>
+        <span class="card-pill-tag" data-cat="Others">Others</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('mediaplan', this)">
+        <div class="card-icon" style="background:#fee2e2;color:#dc2626"><i class="fas fa-bullseye"></i></div>
+        <div class="card-info"><h4>Media Plan</h4><p>Multi-channel media strategy & budget allocation</p></div>
+        <span class="card-pill-tag" data-cat="Others">Others</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('content_check_content', this)">
+        <div class="card-icon" style="background:#d1fae5;color:#059669"><i class="fas fa-spell-check"></i></div>
+        <div class="card-info"><h4>Content Check</h4><p>Audit content quality, readability & SEO alignment</p></div>
+        <span class="card-pill-tag" data-cat="Others">Others</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('landingPageAuditSection', this)">
+        <div class="card-icon" style="background:#e0e7ff;color:#4338ca"><i class="fas fa-clipboard-check"></i></div>
+        <div class="card-info"><h4>Landing Page Audit</h4><p>Evaluate pages for conversion rate optimisation</p></div>
+        <span class="card-pill-tag" data-cat="Others">Others</span>
+    </div>
+    <div class="basic-selector-card active" onclick="toggleAdvancedSection('aiContentOptimiserSection', this)">
+        <div class="card-icon" style="background:#f3e8ff;color:#7c3aed"><i class="fas fa-robot"></i></div>
+        <div class="card-info"><h4>AI Content Optimiser</h4><p>Competitor content comparison & recommendations</p></div>
+        <span class="card-pill-tag" data-cat="Others">Others</span>
+    </div>
+
+</div>
 
     <div id="seoSection">
         <button class="collapsible" id="seo"><i class="fas fa-plus-square"></i>Search Engine Optimisation (SEO)</button>
@@ -13526,7 +13708,7 @@
         <div class="page-break"></div>
         <button class="collapsible" id="geoMainBtn"><i class="fas fa-plus-square"></i><i class="fas fa-robot"></i>
             Generative Engine Optimisation (GEO)</button>
-        <div class="content">
+        <div class="content" id="geoMainContent">
 
             <!-- Standalone Shortcut Button -->
             <button class="collapsible" id="geoToSchemaBtn" onclick="triggerSchemaFromGeo()"
@@ -13975,7 +14157,7 @@
                     <i class="fas fa-plus-square"></i><i class="fas fa-file-invoice"></i> GEO On-Page
                     Optimisation
                 </button>
-                <div class="content">
+                <div class="content" id="geoOnPageContent">
                     <div class="geo-card" style="margin-top: 10px;">
                         <div class="geo-input-group">
                             <div class="geo-input-item">
@@ -14141,7 +14323,7 @@
         <div class="page-break"></div>
         <button class="collapsible" id="othersMainBtn"><i class="fas fa-plus-square"></i><i
                 class="fas fa-tools"></i>Others</button>
-        <div class="content">
+        <div class="content" id="othersMainContent">
 
             <div id="competitorsSection">
                 <div class="page-break"></div>
@@ -62353,6 +62535,10 @@ Move-In</h3>
 
             if (isBasic) {
                 applyToggleModeToNav(false);
+                document.body.classList.remove('advanced-mode');
+                // Hide advanced cards
+                const advCards = document.getElementById('advancedModeCardsContainer');
+                if (advCards) advCards.style.display = 'none';
                 basicCardsContainers.forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.style.display = 'grid';
@@ -62419,26 +62605,41 @@ Move-In</h3>
                 });
             } else {
                 applyToggleModeToNav(true);
-                // Show the card grid in advanced/intermediate mode too; activate all cards
-                const cardsContainer = document.getElementById('basicModeCardsContainer');
-                if (cardsContainer) cardsContainer.style.display = 'grid';
-                document.querySelectorAll('.basic-selector-card').forEach(card => {
+                document.body.classList.add('advanced-mode');
+
+                // Hide basic cards, show advanced cards
+                const basicCards = document.getElementById('basicModeCardsContainer');
+                if (basicCards) basicCards.style.display = 'none';
+                const advCards = document.getElementById('advancedModeCardsContainer');
+                if (advCards) advCards.style.display = 'grid';
+
+                // Activate all advanced cards and reset their display
+                document.querySelectorAll('#advancedModeCardsContainer .basic-selector-card').forEach(card => {
                     card.classList.add('active');
                     card.style.display = '';
                 });
-                basicButtons.forEach(id => {
-                    const b = document.getElementById(id);
-                    if (b) b.style.display = '';
-                });
-                // Restore content visibility for all sections
+
+                // Force all tool content divs visible (collapsible buttons are hidden via CSS body class)
                 [
-                    'strategy-engine-content', 'pricing-quote-content', 'siteAnalysisContent', 'technicalSeo',
-                    'socialMediaStrategyContent', 'pillarFrameworkContent', 'contentGenerator', 'smmReplyContent',
-                    'semAdsContent', 'discoveryAuditSection', 'discoveryKeywordsSection',
-                    'competitors_content', 'persona_content', 'mediaplan', 'content_check_content', 'landingPageAudit', 'aiContentOptimiser'
+                    // SEO
+                    'strategy-engine-content', 'pricing-quote-content', 'siteAnalysisContent',
+                    'keywordMapping', 'keywordAnalysis', 'crawlerSimulator', 'technicalSeo',
+                    'schema', 'onPageSection', 'rankChecker', 'anchorTextCleanerContent',
+                    'aiContentOptimiser',
+                    // SMM
+                    'socialMedia', 'socialMediaStrategyContent', 'pillarFrameworkContent',
+                    'contentGenerator', 'smmReplyContent',
+                    // SEM
+                    'SEM', 'gscContent', 'metaAdsContent',
+                    // GEO
+                    'geoMainContent', 'geoUtilitiesSection', 'discoveryAuditSection',
+                    'discoveryKeywordsSection', 'geoOnPageContent',
+                    // Others
+                    'othersMainContent', 'competitors_content', 'persona_content',
+                    'mediaplan', 'content_check_content', 'landingPageAudit',
                 ].forEach(id => {
-                    const c = document.getElementById(id);
-                    if (c) c.style.display = 'block';
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = 'block';
                 });
             }
         }
@@ -62460,6 +62661,28 @@ Move-In</h3>
             });
         }
 
+        function setAdvancedCategoryCardsVisible(category, visible) {
+            document.querySelectorAll('#advancedModeCardsContainer .basic-selector-card').forEach(card => {
+                const tag = card.querySelector('.card-pill-tag');
+                if (tag && tag.textContent.trim() === category) {
+                    card.style.display = visible ? '' : 'none';
+                }
+            });
+        }
+
+        function toggleAdvancedSection(sectionId, cardEl) {
+            const section = document.getElementById(sectionId);
+            if (!section) return;
+            const isActive = cardEl.classList.contains('active');
+            if (isActive) {
+                cardEl.classList.remove('active');
+                section.style.display = 'none';
+            } else {
+                cardEl.classList.add('active');
+                section.style.display = 'block';
+            }
+        }
+
         function toggleCatSection(sectionId, cardCategory, navItem) {
             const section = document.getElementById(sectionId);
             if (!section) return;
@@ -62468,10 +62691,12 @@ Move-In</h3>
                 navItem.classList.replace('nav-toggle-active', 'nav-toggle-inactive');
                 section.style.display = 'none';
                 setCategoryCardsVisible(cardCategory, false);
+                setAdvancedCategoryCardsVisible(cardCategory, false);
             } else {
                 navItem.classList.replace('nav-toggle-inactive', 'nav-toggle-active');
                 section.style.display = 'block';
                 setCategoryCardsVisible(cardCategory, true);
+                setAdvancedCategoryCardsVisible(cardCategory, true);
             }
         }
 
