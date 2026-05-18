@@ -2248,6 +2248,41 @@
             color: #4338ca;
         }
 
+        .team-badge {
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-size: 0.6rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+        .team-badge-all      { background: #f1f5f9; color: #475569; }
+        .team-badge-seo      { background: #d1fae5; color: #065f46; }
+        .team-badge-paid     { background: #fef3c7; color: #92400e; }
+        .team-badge-social   { background: #fce7f3; color: #9d174d; }
+        .team-badge-content  { background: #ede9fe; color: #5b21b6; }
+        .team-badge-bd       { background: #dbeafe; color: #1e40af; }
+
+        .memory-filter-tabs {
+            display: flex;
+            gap: 6px;
+            padding: 12px 32px 0;
+            flex-wrap: wrap;
+        }
+        .memory-filter-tab {
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .memory-filter-tab:hover { border-color: #cbd5e1; background: #f1f5f9; }
+        .memory-filter-tab.active { background: #1e293b; color: #fff; border-color: #1e293b; }
+
         .insight-date {
             color: var(--text-muted);
         }
@@ -2430,6 +2465,17 @@
                     <div class="form-group">
                         <label>Client Email (for filtering items)</label>
                         <input type="text" id="clientEmail" placeholder="Enter client email">
+                    </div>
+                    <div class="form-group" style="margin-top: 12px;">
+                        <label>My Team</label>
+                        <select id="userTeamSelect" class="sidebar-select" style="width:100%;">
+                            <option value="All Teams">All Teams</option>
+                            <option value="SEO">SEO</option>
+                            <option value="Paid Ads">Paid Ads</option>
+                            <option value="Social Media">Social Media</option>
+                            <option value="Content">Content</option>
+                            <option value="BD">BD</option>
+                        </select>
                     </div>
                     <div class="form-group" style="margin-top: 12px; display: flex; align-items: center; justify-content: space-between; background: #f1f5f9; padding: 10px; border-radius: 10px;">
                         <div>
@@ -3660,6 +3706,7 @@
 
             document.getElementById('mondayApiKey').value = localStorage.getItem('mondayApiKey') || '';
             document.getElementById('clientEmail').value = localStorage.getItem('clientEmail') || "";
+            document.getElementById('userTeamSelect').value = localStorage.getItem('userTeam') || 'All Teams';
             document.getElementById('privateMemoryMode').checked = localStorage.getItem('privateMemoryMode') === 'true';
             const vsId = localStorage.getItem('vectorStoreId') || "";
             document.getElementById('vectorStoreId').value = vsId;
@@ -3831,6 +3878,7 @@
         function saveSettings() {
             const mondayKey = document.getElementById('mondayApiKey').value.trim();
             localStorage.setItem('clientEmail', document.getElementById('clientEmail').value.trim());
+            localStorage.setItem('userTeam', document.getElementById('userTeamSelect').value);
             localStorage.setItem('privateMemoryMode', document.getElementById('privateMemoryMode').checked);
             localStorage.setItem('vectorStoreId', document.getElementById('vectorStoreId').value.trim());
             const contextUrls = document.getElementById('contextUrls').value.trim();
@@ -7113,7 +7161,14 @@ CRITICAL CONTACT RULE:
             - If multiple campaigns are loaded, fetch all of them and combine the results.
 
             LEARNED MEMORIES (Context):
-            ${JSON.stringify(learnedInsights.map(i => `[${i.tag}] ${i.text}`))}
+            ${(() => {
+                const userTeam = localStorage.getItem('userTeam') || 'All Teams';
+                const relevant = learnedInsights.filter(i => {
+                    const t = i.team || 'All Teams';
+                    return t === 'All Teams' || t === userTeam;
+                });
+                return JSON.stringify(relevant.map(i => `[${i.tag}][${i.team || 'All Teams'}] ${i.text}`));
+            })()}
 
             CURRENT CONTEXT:
             - GSC Sites (${gscSites.length} selected): ${gscSite || 'None selected'}
@@ -7289,6 +7344,7 @@ CRITICAL CONTACT RULE:
                 // Handle Automated Memory Updates
                 if (data.memory_updates && data.memory_updates.length > 0) {
                     const currentUser = (localStorage.getItem('clientEmail') || "System").split('@')[0];
+                    const currentTeam = localStorage.getItem('userTeam') || 'All Teams';
                     data.memory_updates.forEach(updateStr => {
                         try {
                             const jsonStr = updateStr.replace('MEM_SAVE: ', '');
@@ -7296,6 +7352,7 @@ CRITICAL CONTACT RULE:
                             insight.date = new Date().toLocaleDateString();
                             insight.source = "AI Learned";
                             insight.user = currentUser;
+                            insight.team = insight.team || currentTeam;
                             insight.id = Date.now() + Math.random();
                             learnedInsights.unshift(insight);
                         } catch (e) { console.error("Memory parsing error", e); }
@@ -7661,7 +7718,7 @@ CRITICAL CONTACT RULE:
                         <textarea id="quickAddInput"
                             placeholder="Add something to AI memory (e.g., 'User prefers dark mode' or 'Project X deadline is June 30')..."
                             style="width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.85rem; resize: none; min-height: 40px; font-family: inherit;"></textarea>
-                        <div style="display: flex; gap: 8px;">
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                             <select id="quickAddTag"
                                 style="padding: 4px 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.75rem; background: #fff; color: #64748b; font-weight: 600;">
                                 <option value="Preference">Preference</option>
@@ -7669,9 +7726,17 @@ CRITICAL CONTACT RULE:
                                 <option value="Fact">Fact</option>
                                 <option value="General">General</option>
                             </select>
+                            <select id="quickAddTeam"
+                                style="padding: 4px 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.75rem; background: #fff; color: #64748b; font-weight: 600;">
+                                <option value="All Teams">All Teams</option>
+                                <option value="SEO">SEO</option>
+                                <option value="Paid Ads">Paid Ads</option>
+                                <option value="Social Media">Social Media</option>
+                                <option value="Content">Content</option>
+                                <option value="BD">BD</option>
+                            </select>
                             <span style="font-size: 0.7rem; color: #94a3b8; display: flex; align-items: center;">
-                                <i class="fas fa-info-circle" style="margin-right: 4px;"></i> The AI also learns
-                                automatically from your chats.
+                                <i class="fas fa-info-circle" style="margin-right: 4px;"></i> The AI also learns automatically from your chats.
                             </span>
                         </div>
                     </div>
@@ -7680,6 +7745,15 @@ CRITICAL CONTACT RULE:
                         <i class="fas fa-plus"></i> Add
                     </button>
                 </div>
+            </div>
+            <div class="memory-filter-tabs" id="memoryFilterTabs">
+                <button class="memory-filter-tab active" onclick="setMemoryFilter('All')" data-filter="All">All</button>
+                <button class="memory-filter-tab" onclick="setMemoryFilter('All Teams')" data-filter="All Teams">All Teams</button>
+                <button class="memory-filter-tab" onclick="setMemoryFilter('SEO')" data-filter="SEO">SEO</button>
+                <button class="memory-filter-tab" onclick="setMemoryFilter('Paid Ads')" data-filter="Paid Ads">Paid Ads</button>
+                <button class="memory-filter-tab" onclick="setMemoryFilter('Social Media')" data-filter="Social Media">Social Media</button>
+                <button class="memory-filter-tab" onclick="setMemoryFilter('Content')" data-filter="Content">Content</button>
+                <button class="memory-filter-tab" onclick="setMemoryFilter('BD')" data-filter="BD">BD</button>
             </div>
             <div class="insights-list" id="insightsList">
                 <!-- Insights will be injected here -->
@@ -7695,6 +7769,29 @@ CRITICAL CONTACT RULE:
 
     <script>
         let learnedInsights = JSON.parse(localStorage.getItem('chatBotInsights')) || [];
+        let memoryTeamFilter = 'All';
+
+        const TEAM_BADGE_CLASS = {
+            'All Teams':    'team-badge-all',
+            'SEO':          'team-badge-seo',
+            'Paid Ads':     'team-badge-paid',
+            'Social Media': 'team-badge-social',
+            'Content':      'team-badge-content',
+            'BD':           'team-badge-bd'
+        };
+
+        function getTeamBadgeClass(team) {
+            return TEAM_BADGE_CLASS[team] || 'team-badge-all';
+        }
+
+        function setMemoryFilter(filter) {
+            memoryTeamFilter = filter;
+            document.querySelectorAll('.memory-filter-tab').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.filter === filter);
+            });
+            renderInsights();
+        }
+
         // Initial cloud pull
         setTimeout(pullInsightsFromCloud, 1000);
 
@@ -7784,20 +7881,34 @@ CRITICAL CONTACT RULE:
 
         function renderInsights() {
             const list = document.getElementById('insightsList');
-            if (learnedInsights.length === 0) {
+
+            const filtered = memoryTeamFilter === 'All'
+                ? learnedInsights
+                : learnedInsights.filter(i => (i.team || 'All Teams') === memoryTeamFilter);
+
+            if (filtered.length === 0) {
                 list.innerHTML = `
                     <div class="empty-insights">
                         <i class="fas fa-brain"></i>
-                        <p>No insights learned yet. The AI will start taking notes as you interact with it!</p>
+                        <p>${learnedInsights.length === 0
+                            ? 'No insights learned yet. The AI will start taking notes as you interact with it!'
+                            : `No memories tagged for <strong>${memoryTeamFilter}</strong> yet.`}</p>
                     </div>
                 `;
                 return;
             }
 
-            list.innerHTML = learnedInsights.map((insight, index) => `
+            const teamOptions = ['All Teams','SEO','Paid Ads','Social Media','Content','BD']
+                .map(t => `<option value="${t}">${t}</option>`).join('');
+
+            list.innerHTML = filtered.map(insight => {
+                const team = insight.team || 'All Teams';
+                const badgeClass = getTeamBadgeClass(team);
+                return `
                 <div class="insight-card" id="insight-${insight.id}">
                     <div class="insight-meta">
                         <span class="insight-tag">${insight.tag}</span>
+                        <span class="team-badge ${badgeClass}">${team}</span>
                         <span class="insight-date">${insight.date}</span>
                         <div style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
                             <span class="insight-source" style="font-weight:700; color: #64748b; text-transform: uppercase; font-size: 0.6rem;">${insight.source || 'Manual'}</span>
@@ -7805,6 +7916,12 @@ CRITICAL CONTACT RULE:
                         </div>
                     </div>
                     <div class="insight-text" id="text-${insight.id}" contenteditable="false">${insight.text}</div>
+                    <div class="insight-team-edit" id="team-edit-${insight.id}" style="display:none; margin-bottom:8px;">
+                        <select style="padding:3px 8px; border-radius:6px; border:1px solid #cbd5e1; font-size:0.75rem; color:#334155;">
+                            ${['All Teams','SEO','Paid Ads','Social Media','Content','BD'].map(t =>
+                                `<option value="${t}" ${t === team ? 'selected' : ''}>${t}</option>`).join('')}
+                        </select>
+                    </div>
                     <div class="insight-actions">
                         <button class="insight-btn edit-btn" onclick="toggleEdit('${insight.id}')" title="Edit memory" style="color: #6366f1;">
                             <i class="fas fa-edit"></i>
@@ -7816,30 +7933,33 @@ CRITICAL CONTACT RULE:
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
-                </div>
-            `).join('');
+                </div>`
+            }).join('');
         }
 
         function toggleEdit(id) {
             const card = document.getElementById(`insight-${id}`);
             const textDiv = document.getElementById(`text-${id}`);
+            const teamEditDiv = document.getElementById(`team-edit-${id}`);
             const editBtn = card.querySelector('.edit-btn');
             const saveBtn = card.querySelector('.save-btn');
 
             const isEditing = textDiv.contentEditable === 'true';
 
             if (isEditing) {
-                // Cancel edit
+                // Cancel edit — restore original values
+                const orig = learnedInsights.find(i => i.id == id);
                 textDiv.contentEditable = 'false';
-                textDiv.innerText = learnedInsights.find(i => i.id == id).text;
+                textDiv.innerText = orig.text;
+                if (teamEditDiv) teamEditDiv.style.display = 'none';
                 editBtn.innerHTML = '<i class="fas fa-edit"></i>';
                 saveBtn.style.display = 'none';
                 card.style.borderColor = '#e2e8f0';
+                card.style.borderLeftWidth = '';
             } else {
                 // Start edit
                 textDiv.contentEditable = 'true';
                 textDiv.focus();
-                // Move cursor to end
                 const range = document.createRange();
                 const sel = window.getSelection();
                 range.selectNodeContents(textDiv);
@@ -7847,6 +7967,7 @@ CRITICAL CONTACT RULE:
                 sel.removeAllRanges();
                 sel.addRange(range);
 
+                if (teamEditDiv) teamEditDiv.style.display = 'block';
                 editBtn.innerHTML = '<i class="fas fa-times"></i>';
                 saveBtn.style.display = 'inline-block';
                 card.style.borderColor = '#6366f1';
@@ -7856,6 +7977,7 @@ CRITICAL CONTACT RULE:
 
         function saveInsight(id) {
             const textDiv = document.getElementById(`text-${id}`);
+            const teamEditDiv = document.getElementById(`team-edit-${id}`);
             const newText = textDiv.innerText.trim();
 
             if (newText === "") {
@@ -7868,6 +7990,10 @@ CRITICAL CONTACT RULE:
             insight.text = newText;
             insight.date = new Date().toLocaleDateString() + " (edited)";
             insight.user = currentUser;
+            if (teamEditDiv) {
+                const sel = teamEditDiv.querySelector('select');
+                if (sel) insight.team = sel.value;
+            }
 
             localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
             renderInsights();
@@ -7888,6 +8014,7 @@ CRITICAL CONTACT RULE:
         function quickAddInsight() {
             const input = document.getElementById('quickAddInput');
             const tagSelect = document.getElementById('quickAddTag');
+            const teamSelect = document.getElementById('quickAddTeam');
             const text = input.value.trim();
 
             if (!text) {
@@ -7896,9 +8023,11 @@ CRITICAL CONTACT RULE:
             }
 
             const tag = tagSelect.value;
+            const team = teamSelect ? teamSelect.value : 'All Teams';
             const currentUser = (localStorage.getItem('clientEmail') || "System").split('@')[0];
             learnedInsights.unshift({
                 tag: tag,
+                team: team,
                 text: text,
                 date: new Date().toLocaleDateString(),
                 source: "Manual",
