@@ -673,33 +673,25 @@
         }
 
         .typing-dot {
-            width: 8px;
-            height: 8px;
+            width: 7px;
+            height: 7px;
             background: var(--accent-blue);
             border-radius: 50%;
-            opacity: 0.6;
-            animation: bounce 1.4s infinite ease-in-out both;
+            opacity: 0.5;
+            animation: typingBounce 1.2s infinite ease-in-out;
         }
 
-        .typing-dot:nth-child(1) {
-            animation-delay: -0.32s;
-        }
+        .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-        .typing-dot:nth-child(2) {
-            animation-delay: -0.16s;
-        }
-
-        @keyframes bounce {
-
-            0%,
-            80%,
-            100% {
-                transform: scale(0);
+        @keyframes typingBounce {
+            0%, 60%, 100% {
+                transform: translateY(0);
                 opacity: 0.4;
             }
-
-            40% {
-                transform: scale(1);
+            30% {
+                transform: translateY(-6px);
                 opacity: 1;
             }
         }
@@ -2523,9 +2515,19 @@
                                     onclick="disconnectService('Gsc')" style="display:none;">Disconnect</button>
                             </div>
                             <div id="selectorGsc" style="display:none; margin-top:5px;">
-                                <select id="selectedGscSite" class="sidebar-select" onchange="saveMarketingSelection()">
-                                    <option value="">-- Select Site --</option>
-                                </select>
+                                <div class="multi-select-container" id="gscMultiSelect">
+                                    <div class="multi-select-trigger" onclick="toggleMarketingDropdown('gsc')">
+                                        <span id="gscSelectedCount">Select Sites</span>
+                                        <i class="fas fa-chevron-down"></i>
+                                    </div>
+                                    <div class="multi-select-dropdown" id="gscDropdown">
+                                        <div class="multi-select-search">
+                                            <i class="fas fa-search"></i>
+                                            <input type="text" placeholder="Search sites..." id="gscSearchInput" oninput="filterMarketingOptions('gsc')">
+                                        </div>
+                                        <div class="multi-select-options" id="gscOptionsList"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -2545,10 +2547,19 @@
                                     onclick="disconnectService('Ga4')" style="display:none;">Disconnect</button>
                             </div>
                             <div id="selectorGa4" style="display:none; margin-top:5px;">
-                                <select id="selectedGa4Property" class="sidebar-select"
-                                    onchange="saveMarketingSelection()">
-                                    <option value="">-- Select Property --</option>
-                                </select>
+                                <div class="multi-select-container" id="ga4MultiSelect">
+                                    <div class="multi-select-trigger" onclick="toggleMarketingDropdown('ga4')">
+                                        <span id="ga4SelectedCount">Select Properties</span>
+                                        <i class="fas fa-chevron-down"></i>
+                                    </div>
+                                    <div class="multi-select-dropdown" id="ga4Dropdown">
+                                        <div class="multi-select-search">
+                                            <i class="fas fa-search"></i>
+                                            <input type="text" placeholder="Search properties..." id="ga4SearchInput" oninput="filterMarketingOptions('ga4')">
+                                        </div>
+                                        <div class="multi-select-options" id="ga4OptionsList"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -2567,10 +2578,19 @@
                                     onclick="disconnectService('Ads')" style="display:none;">Disconnect</button>
                             </div>
                             <div id="selectorAds" style="display:none; margin-top:5px;">
-                                <select id="selectedAdsAccount" class="sidebar-select"
-                                    onchange="saveMarketingSelection()">
-                                    <option value="">-- Select Account --</option>
-                                </select>
+                                <div class="multi-select-container" id="adsMultiSelect">
+                                    <div class="multi-select-trigger" onclick="toggleMarketingDropdown('ads')">
+                                        <span id="adsSelectedCount">Select Accounts</span>
+                                        <i class="fas fa-chevron-down"></i>
+                                    </div>
+                                    <div class="multi-select-dropdown" id="adsDropdown">
+                                        <div class="multi-select-search">
+                                            <i class="fas fa-search"></i>
+                                            <input type="text" placeholder="Search accounts..." id="adsSearchInput" oninput="filterMarketingOptions('ads')">
+                                        </div>
+                                        <div class="multi-select-options" id="adsOptionsList"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -3910,6 +3930,14 @@
             if (container && !container.contains(e.target)) {
                 dropdown.classList.remove('active');
             }
+            // Close marketing multi-selects
+            ['gsc', 'ga4', 'ads'].forEach(key => {
+                const mc = document.getElementById(key + 'MultiSelect');
+                const dd = document.getElementById(key + 'Dropdown');
+                if (mc && dd && !mc.contains(e.target)) {
+                    dd.classList.remove('active');
+                }
+            });
         });
 
         async function fetchSERankingSites() {
@@ -4849,6 +4877,7 @@
 
         function disconnectService(service) {
             localStorage.removeItem(`googleToken_${service}`);
+            localStorage.removeItem(`googleToken_${service}_expires`);
             localStorage.removeItem(`googleRefresh_${service}`);
             if (service === 'Workspace') {
                 window.gchatAccessToken = null;
@@ -4902,22 +4931,61 @@
             }
         }
 
-        async function checkAllGoogleServices() {
-            ['Workspace', 'Gsc', 'Ga4', 'Ads'].forEach(async (s) => {
-                const token = localStorage.getItem(`googleToken_${s}`);
-                if (!token) return;
+        async function silentRefreshToken(service) {
+            const refreshToken = localStorage.getItem(`googleRefresh_${service}`);
+            const clientId = localStorage.getItem('googleClientId');
+            if (!refreshToken || !clientId) return null;
+            try {
+                const res = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'google_token_exchange',
+                        grant_type: 'refresh_token',
+                        refresh_token: refreshToken,
+                        client_id: clientId
+                    })
+                }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
 
-                // Check expiry timestamp first — avoids unnecessary 401 network calls
+                if (res.access_token) {
+                    localStorage.setItem(`googleToken_${service}`, res.access_token);
+                    const expiresIn = res.expires_in || 3600;
+                    localStorage.setItem(`googleToken_${service}_expires`, Date.now() + (expiresIn * 1000));
+                    if (res.refresh_token) localStorage.setItem(`googleRefresh_${service}`, res.refresh_token);
+                    console.log(`[GOOGLE AUTH] Silently refreshed token for ${service}`);
+                    return res.access_token;
+                }
+            } catch (e) {
+                console.warn(`[GOOGLE AUTH] Silent refresh failed for ${service}`, e);
+            }
+            return null;
+        }
+
+        async function checkAllGoogleServices() {
+            const services = ['Workspace', 'Gsc', 'Ga4', 'Ads'];
+            for (const s of services) {
+                let token = localStorage.getItem(`googleToken_${s}`);
+                const hasRefresh = !!localStorage.getItem(`googleRefresh_${s}`);
+
+                // No token and no refresh token — nothing to restore
+                if (!token && !hasRefresh) continue;
+
+                // If token is expired (or missing), try silent refresh first
                 const expiresAt = parseInt(localStorage.getItem(`googleToken_${s}_expires`) || '0', 10);
-                if (expiresAt && Date.now() > expiresAt) {
-                    console.log(`[GOOGLE AUTH] Token for ${s} has expired, clearing.`);
-                    localStorage.removeItem(`googleToken_${s}`);
-                    localStorage.removeItem(`googleToken_${s}_expires`);
-                    updateServiceUI(s, false);
-                    return;
+                const isExpired = !token || (expiresAt && Date.now() > expiresAt);
+                if (isExpired) {
+                    console.log(`[GOOGLE AUTH] Token for ${s} expired — attempting silent refresh`);
+                    token = await silentRefreshToken(s);
+                    if (!token) {
+                        // Refresh failed — clear stored tokens and mark disconnected
+                        localStorage.removeItem(`googleToken_${s}`);
+                        localStorage.removeItem(`googleToken_${s}_expires`);
+                        updateServiceUI(s, false);
+                        continue;
+                    }
                 }
 
-                // Verify with API
+                // Verify token is still valid with a lightweight API call
                 try {
                     const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                         headers: { 'Authorization': `Bearer ${token}` }
@@ -4925,20 +4993,115 @@
                     if (res.ok) {
                         updateServiceUI(s, true);
                         if (s === 'Workspace') window.gchatAccessToken = token;
-                        // Pre-load data if selectors are empty
-                        if (s !== 'Workspace') {
-                            const select = document.getElementById(`selected${s}${s === 'Gsc' ? 'Site' : (s === 'Ads' ? 'Account' : 'Property')}`);
-                            if (select && select.options.length <= 1) initializeServiceData(s);
+                        // Pre-load connector data if not yet populated
+                        const msKey = s === 'Gsc' ? 'gsc' : s === 'Ga4' ? 'ga4' : s === 'Ads' ? 'ads' : null;
+                        if (msKey && marketingMsState[msKey].options.length === 0) {
+                            initializeServiceData(s);
+                        } else if (s === 'Workspace') {
+                            initializeServiceData(s);
+                        }
+                    } else if (res.status === 401) {
+                        // Token rejected — try silent refresh once more
+                        console.log(`[GOOGLE AUTH] Token for ${s} rejected (401), trying refresh`);
+                        const newToken = await silentRefreshToken(s);
+                        if (newToken) {
+                            updateServiceUI(s, true);
+                            if (s === 'Workspace') window.gchatAccessToken = newToken;
+                            const msKey = s === 'Gsc' ? 'gsc' : s === 'Ga4' ? 'ga4' : s === 'Ads' ? 'ads' : null;
+                            if (msKey && marketingMsState[msKey].options.length === 0) initializeServiceData(s);
+                            else if (s === 'Workspace') initializeServiceData(s);
+                        } else {
+                            localStorage.removeItem(`googleToken_${s}`);
+                            localStorage.removeItem(`googleToken_${s}_expires`);
+                            updateServiceUI(s, false);
                         }
                     } else {
-                        // Token is invalid/revoked — clear it silently
-                        console.log(`[GOOGLE AUTH] Token for ${s} rejected (${res.status}), clearing.`);
-                        localStorage.removeItem(`googleToken_${s}`);
-                        localStorage.removeItem(`googleToken_${s}_expires`);
                         updateServiceUI(s, false);
                     }
-                } catch (e) { updateServiceUI(s, false); }
+                } catch (e) {
+                    // Network error — assume still connected to avoid false disconnections
+                    console.warn(`[GOOGLE AUTH] Could not verify ${s} token (network error), keeping connected`);
+                    updateServiceUI(s, true);
+                    if (s === 'Workspace') window.gchatAccessToken = token;
+                }
+            }
+        }
+
+        // --- Marketing Multi-Select State ---
+        const marketingMsState = {
+            gsc:  { options: [], selected: [] },
+            ga4:  { options: [], selected: [] },
+            ads:  { options: [], selected: [] }
+        };
+
+        function toggleMarketingDropdown(key) {
+            const dropdown = document.getElementById(key + 'Dropdown');
+            const isActive = dropdown.classList.contains('active');
+            // Close all marketing dropdowns first
+            ['gsc', 'ga4', 'ads'].forEach(k => {
+                document.getElementById(k + 'Dropdown').classList.remove('active');
+                document.getElementById(k + 'SearchInput').value = '';
+                filterMarketingOptions(k);
             });
+            if (!isActive) dropdown.classList.add('active');
+        }
+
+        function filterMarketingOptions(key) {
+            const query = document.getElementById(key + 'SearchInput').value.toLowerCase();
+            const state = marketingMsState[key];
+            const list = document.getElementById(key + 'OptionsList');
+            list.innerHTML = state.options
+                .filter(o => o.label.toLowerCase().includes(query))
+                .map(o => `
+                    <div class="multi-select-option" onclick="toggleMarketingOption('${key}', '${o.value.replace(/'/g, "\\'")}', event)">
+                        <input type="checkbox" id="mkt_${key}_${CSS.escape(o.value)}" ${state.selected.includes(o.value) ? 'checked' : ''}
+                            onclick="event.stopPropagation(); toggleMarketingOption('${key}', '${o.value.replace(/'/g, "\\'")}')">
+                        <div class="multi-select-option-text">${o.label}</div>
+                    </div>`).join('');
+            if (!list.innerHTML) list.innerHTML = '<div style="padding:10px;font-size:0.75rem;color:#94a3b8;">No results</div>';
+        }
+
+        function toggleMarketingOption(key, value, e) {
+            if (e) e.stopPropagation();
+            const state = marketingMsState[key];
+            const idx = state.selected.indexOf(value);
+            if (idx === -1) state.selected.push(value);
+            else state.selected.splice(idx, 1);
+            renderMarketingTrigger(key);
+            filterMarketingOptions(key);
+            saveMarketingSelection();
+        }
+
+        function renderMarketingTrigger(key) {
+            const state = marketingMsState[key];
+            const labels = { gsc: 'Sites', ga4: 'Properties', ads: 'Accounts' };
+            const count = state.selected.length;
+            const span = document.getElementById(key + 'SelectedCount');
+            if (count === 0) {
+                span.textContent = `Select ${labels[key]}`;
+            } else if (count === 1) {
+                const opt = state.options.find(o => o.value === state.selected[0]);
+                span.textContent = opt ? opt.label : `1 selected`;
+            } else {
+                span.textContent = `${count} ${labels[key].toLowerCase()} selected`;
+            }
+        }
+
+        function populateMarketingMultiSelect(key, options) {
+            const state = marketingMsState[key];
+            state.options = options;
+            // Restore saved selection, filtering to valid values
+            let savedRaw;
+            try { savedRaw = JSON.parse(localStorage.getItem('selectedMarketing_' + key) || '[]'); } catch(e) { savedRaw = []; }
+            // Also support legacy single-value keys
+            if (!savedRaw.length) {
+                const legacyKey = key === 'gsc' ? 'selectedGscSite' : key === 'ga4' ? 'selectedGa4Property' : 'selectedAdsAccount';
+                const legacyVal = localStorage.getItem(legacyKey);
+                if (legacyVal) savedRaw = [legacyVal];
+            }
+            state.selected = savedRaw.filter(v => options.some(o => o.value === v));
+            renderMarketingTrigger(key);
+            filterMarketingOptions(key);
         }
 
         async function fetchGscSites(token) {
@@ -4947,17 +5110,8 @@
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await res.json();
-                const select = document.getElementById('selectedGscSite');
-                select.innerHTML = '<option value="">-- Select Site --</option>';
-                if (data.siteEntry) {
-                    data.siteEntry.forEach(s => {
-                        const opt = document.createElement('option');
-                        opt.value = s.siteUrl;
-                        opt.textContent = s.siteUrl;
-                        select.appendChild(opt);
-                    });
-                    select.value = localStorage.getItem('selectedGscSite') || "";
-                }
+                const options = (data.siteEntry || []).map(s => ({ value: s.siteUrl, label: s.siteUrl }));
+                populateMarketingMultiSelect('gsc', options);
             } catch (e) { console.error("GSC fetch failed", e); }
         }
 
@@ -4969,19 +5123,15 @@
                     body: JSON.stringify({ action: 'ga4ListProperties', access_token: token })
                 }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
 
-                const select = document.getElementById('selectedGa4Property');
-                select.innerHTML = '<option value="">-- Select Property --</option>';
+                const options = [];
                 if (res.accountSummaries) {
                     res.accountSummaries.forEach(acc => {
                         acc.propertySummaries?.forEach(p => {
-                            const opt = document.createElement('option');
-                            opt.value = p.property;
-                            opt.textContent = `${acc.displayName} > ${p.displayName}`;
-                            select.appendChild(opt);
+                            options.push({ value: p.property, label: `${acc.displayName} > ${p.displayName}` });
                         });
                     });
-                    select.value = localStorage.getItem('selectedGa4Property') || "";
                 }
+                populateMarketingMultiSelect('ga4', options);
             } catch (e) { console.error("GA4 fetch failed", e); }
         }
 
@@ -4998,26 +5148,23 @@
                     })
                 }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
 
-                const select = document.getElementById('selectedAdsAccount');
-                select.innerHTML = '<option value="">-- Select Account --</option>';
+                const options = [];
                 if (res.results) {
                     res.results.forEach(r => {
                         const client = r.customerClient;
                         if (!client) return;
-                        const opt = document.createElement('option');
-                        opt.value = client.clientCustomer.replace('customers/', '');
-                        opt.textContent = client.descriptiveName || opt.value;
-                        select.appendChild(opt);
+                        const value = client.clientCustomer.replace('customers/', '');
+                        options.push({ value, label: client.descriptiveName || value });
                     });
-                    select.value = localStorage.getItem('selectedAdsAccount') || "";
                 }
+                populateMarketingMultiSelect('ads', options);
             } catch (e) { console.error("Ads fetch failed", e); }
         }
 
         function saveMarketingSelection() {
-            localStorage.setItem('selectedGscSite', document.getElementById('selectedGscSite').value);
-            localStorage.setItem('selectedGa4Property', document.getElementById('selectedGa4Property').value);
-            localStorage.setItem('selectedAdsAccount', document.getElementById('selectedAdsAccount').value);
+            localStorage.setItem('selectedMarketing_gsc', JSON.stringify(marketingMsState.gsc.selected));
+            localStorage.setItem('selectedMarketing_ga4', JSON.stringify(marketingMsState.ga4.selected));
+            localStorage.setItem('selectedMarketing_ads', JSON.stringify(marketingMsState.ads.selected));
             showToast('Property selection saved', 'success');
         }
 
@@ -6930,9 +7077,17 @@ CRITICAL CONTACT RULE:
             }
 
             // System prompt with context
-            const gscSite = localStorage.getItem('selectedGscSite') || '';
-            const ga4Prop = localStorage.getItem('selectedGa4Property') || '';
-            const adsAcc = localStorage.getItem('selectedAdsAccount') || '';
+            let gscSites, ga4Props, adsAccs;
+            try { gscSites = JSON.parse(localStorage.getItem('selectedMarketing_gsc') || '[]'); } catch(e) { gscSites = []; }
+            try { ga4Props = JSON.parse(localStorage.getItem('selectedMarketing_ga4') || '[]'); } catch(e) { ga4Props = []; }
+            try { adsAccs = JSON.parse(localStorage.getItem('selectedMarketing_ads') || '[]'); } catch(e) { adsAccs = []; }
+            // Fallback to legacy single-value keys for backward compatibility
+            if (!gscSites.length) { const v = localStorage.getItem('selectedGscSite'); if (v) gscSites = [v]; }
+            if (!ga4Props.length) { const v = localStorage.getItem('selectedGa4Property'); if (v) ga4Props = [v]; }
+            if (!adsAccs.length) { const v = localStorage.getItem('selectedAdsAccount'); if (v) adsAccs = [v]; }
+            const gscSite = gscSites.join(', ');
+            const ga4Prop = ga4Props.join(', ');
+            const adsAcc = adsAccs.join(', ');
 
             let system = `You are the MediaOne Internal Campaign Analyst. 
             You have access to live data via several tools:
@@ -6961,11 +7116,12 @@ CRITICAL CONTACT RULE:
             ${JSON.stringify(learnedInsights.map(i => `[${i.tag}] ${i.text}`))}
 
             CURRENT CONTEXT:
-            - GSC Site: ${gscSite || 'None selected'}
-            - GA4 Property: ${ga4Prop || 'None selected'}
-            - Google Ads Account: ${adsAcc || 'None selected'}
+            - GSC Sites (${gscSites.length} selected): ${gscSite || 'None selected'}
+            - GA4 Properties (${ga4Props.length} selected): ${ga4Prop || 'None selected'}
+            - Google Ads Accounts (${adsAccs.length} selected): ${adsAcc || 'None selected'}
 
-            Always format results as Markdown tables. If a marketing property is not selected, ask the user to subscribe one in the settings.
+            When multiple GSC sites, GA4 properties, or Google Ads accounts are selected, fetch and aggregate data from ALL of them and clearly label results by site/property/account.
+            Always format results as Markdown tables. If a marketing property is not selected, ask the user to select one in the settings.
 
             PRIVACY & GMAIL POLICY:
             - You have access to tools that can search Gmail and Workspace.
@@ -7088,8 +7244,11 @@ CRITICAL CONTACT RULE:
                         },
                         google_marketing_creds: {
                             siteUrl: gscSite,
+                            siteUrls: gscSites,
                             propertyId: ga4Prop,
-                            customerId: adsAcc
+                            propertyIds: ga4Props,
+                            customerId: adsAcc,
+                            customerIds: adsAccs
                         }
                     })
                 });
