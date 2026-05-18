@@ -486,6 +486,41 @@
             width: 14px;
         }
 
+        .status-picker-dropdown {
+            position: fixed;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 4px;
+            z-index: 9999;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            min-width: 180px;
+            max-height: 260px;
+            overflow-y: auto;
+        }
+        .status-picker-option {
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.15s;
+            white-space: nowrap;
+        }
+        .status-picker-option:hover { background: rgba(255,255,255,0.08); }
+        .status-picker-option.is-current { background: rgba(255,255,255,0.05); font-weight: 600; }
+        .status-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .bulk-action-bar {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 998;
+            background: var(--surface); border-top: 1px solid var(--primary);
+            padding: 10px 20px; display: none; align-items: center; gap: 12px;
+            box-shadow: 0 -4px 24px rgba(0,0,0,0.4);
+        }
+        .item-cb { cursor: pointer; width: 14px; height: 14px; accent-color: var(--primary); }
+        th.cb-col, td.cb-col { width: 32px; padding: 8px 4px 8px 16px; }
+
         .is-collapsed .board-chevron {
             transform: rotate(-90deg);
         }
@@ -1436,6 +1471,22 @@
                             </div>
                         </div>
 
+                        <div class="person-filter-wrapper">
+                            <input type="text" id="filter-csm-status-input" class="filter-input"
+                                style="width: 100%; padding: 6px 10px; font-size: 12px;"
+                                placeholder="Filter by CSM status..." onfocus="toggleCsmStatusDropdown(true)"
+                                oninput="renderCsmStatusOptions()">
+                            <div id="csm-status-dropdown" class="person-dropdown">
+                                <div id="csm-status-list" class="person-list"></div>
+                                <div class="person-controls">
+                                    <span class="person-btn" onclick="selectAllCsmStatuses()">Select All</span>
+                                    <span class="person-btn" onclick="clearCsmStatuses()">Clear</span>
+                                    <span class="person-btn" style="margin-left:auto; color:var(--muted)"
+                                        onclick="toggleCsmStatusDropdown(false)">Close</span>
+                                </div>
+                            </div>
+                        </div>
+
                         <select id="campaign-sort" class="filter-input"
                             style="width: auto; padding: 6px 10px; font-size: 12px; cursor: pointer;"
                             onchange="handleCampaignSort()">
@@ -1484,17 +1535,15 @@
                         <table style="width: 100%; border-collapse: separate; border-spacing: 0;">
                             <thead>
                                 <tr>
+                                    <th class="cb-col"><input type="checkbox" class="item-cb" id="select-all-cb" onchange="toggleSelectAll(this.checked)"></th>
                                     <th class="sortable" onclick="handleSort('name')" id="sort-name">Item Name</th>
                                     <th class="sortable" onclick="handleSort('person')" id="sort-person">Person</th>
                                     <th class="sortable" onclick="handleSort('csManager')" id="sort-csManager">CS Manager</th>
-                                    <th class="sortable" onclick="handleSort('masterStatus')">Campaign Status</th>
-                                    <th class="sortable" onclick="handleSort('masterTimeline')">Timeline</th>
                                     <th class="sortable" onclick="handleSort('deadline')" id="sort-deadline"
                                         style="text-align: center;">Deadline</th>
                                     <th class="sortable" onclick="handleSort('daysOverdue')" id="sort-daysOverdue"
                                         style="text-align: center;">Overdue</th>
-                                    <th>Board / Folder</th>
-                                    <th style="text-align: right;">Status</th>
+                                    <th style="text-align: right;">Task Status</th>
                                 </tr>
                             </thead>
                             <tbody id="results-table-body"></tbody>
@@ -1581,10 +1630,12 @@
             updateMetadata: {}, // { itemId: { page: 1, hasMore: true, loadingMore: false } }
             viewMode: 'manager',
             selectedStaffNames: new Set(),
+            boardColumnSettings: {},
             allStatusLabels: [],
             sort: { key: 'deadline', dir: 'asc' },
             campaignSort: 'name_asc',
-            filters: { text: '', people: new Set(), csManagers: new Set(), status: 'all' },
+            filters: { text: '', people: new Set(), csManagers: new Set(), status: 'all', csmStatuses: new Set() },
+            selectedItemIds: new Set(),
             excludedStatusLabels: new Set([
                 'Archive', 'Done', 'Not Needed', 'Not Needed (AI)',
                 '[MO] Done', '[MO] Not Needed'
@@ -1930,6 +1981,7 @@
                                 masterName: masterData.masterName,
                                 csmCampaignStatus: csmStatusCol?.label || '',
                                 status: status,
+                                statusColumnId: st?.id || '',
                                 itemStatus: st?.label || ''
                             };
                         }));
@@ -2063,9 +2115,15 @@
 
             sortedGroups.forEach(g => {
                 const isExpanded = state.expandedBoardIds.has(g.id);
+                const groupItemIds = g.items.map(i => i.id);
+                const allGroupSelected = groupItemIds.length > 0 && groupItemIds.every(id => state.selectedItemIds.has(id));
                 html += `
                 <tr class="board-group-header ${!isExpanded ? 'is-collapsed' : ''}" onclick="toggleBoardExpansion('${g.id}')">
-                    <td colspan="9">
+                    <td class="cb-col" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="item-cb" ${allGroupSelected ? 'checked' : ''}
+                            onchange="toggleGroupSelection('${g.id}', this.checked)">
+                    </td>
+                    <td colspan="6">
                         <div class="board-info">
                             <i class="fas fa-chevron-down board-chevron"></i>
                             <span>${g.name} <span class="folder-sub">in ${g.folder}</span></span>
@@ -2169,7 +2227,7 @@
                     const sortedCampaigns = sortCampaignGroups(Object.values(s.campaigns));
 
                     if (selectedNames.length > 1) {
-                        tableHtml += `<tr class="staff-group-header"><td colspan="9"><i class="fas fa-user-circle" style="margin-right:8px;"></i>${s.name}</td></tr>`;
+                        tableHtml += `<tr class="staff-group-header"><td colspan="7"><i class="fas fa-user-circle" style="margin-right:8px;"></i>${s.name}</td></tr>`;
                     }
 
                     sortedCampaigns.forEach(c => {
@@ -2181,7 +2239,7 @@
                         const cCsmStatus = c.items[0]?.csmCampaignStatus;
                         tableHtml += `
                         <tr class="campaign-sub-header" onclick="toggleManagerBoardExpansion('${compoundId.replace(/'/g, "\\'")}')">
-                            <td colspan="9">
+                            <td colspan="7">
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <i class="fas ${isCampaignExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="width: 12px; opacity: 0.5;"></i>
                                     <span>${c.name} <span class="folder-sub">in ${c.folder}</span></span>
@@ -2214,7 +2272,7 @@
                     });
                 });
             } else if (sortedStaff.length > 0) {
-                tableHtml = '<tr><td colspan="9" style="text-align:center; padding: 60px; color: var(--muted);"><i class="fas fa-mouse-pointer" style="display:block; font-size: 24px; margin-bottom: 12px; opacity:0.3;"></i> Select a staff card above to see detailed tasks</td></tr>';
+                tableHtml = '<tr><td colspan="7" style="text-align:center; padding: 60px; color: var(--muted);"><i class="fas fa-mouse-pointer" style="display:block; font-size: 24px; margin-bottom: 12px; opacity:0.3;"></i> Select a staff card above to see detailed tasks</td></tr>';
             }
 
             body.innerHTML = tableHtml;
@@ -2235,8 +2293,13 @@
                 daysColor = 'var(--primary)';
             }
 
+            const isChecked = state.selectedItemIds.has(i.id);
             let html = `
             <tr class="item-row ${state.expandedItemIds.has(i.id) ? 'is-expanded' : ''}">
+                <td class="cb-col" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="item-cb" data-item-cb="${i.id}" ${isChecked ? 'checked' : ''}
+                        onchange="toggleItemSelection('${i.id}')">
+                </td>
                 <td style="display: flex; align-items: center; gap: 8px;">
                     <div class="expansion-trigger" onclick="toggleItemExpansion('${i.id}')">
                         <i class="fas fa-chevron-right"></i>
@@ -2245,19 +2308,22 @@
                 </td>
                 <td><div class="person-badge"><i class="far fa-user"></i> ${i.people.join(', ')}</div></td>
                 <td><div class="person-badge" style="border-color:var(--success); color:var(--success)"><i class="fas fa-user-shield"></i> ${i.csManagers.join(', ')}</div></td>
-                <td style="font-size: 11px;">${i.masterStatus && i.masterStatus !== '-' ? `<span class="status-tag status-other" style="background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border);">${i.masterStatus}</span>` : '-'}</td>
-                <td style="font-size: 10px; color: var(--muted);">${i.masterTimeline || '-'}</td>
                 <td style="text-align: center; color: var(--muted); font-family: monospace;">${i.deadlineDisplay}</td>
                 <td style="text-align: center; font-weight: 700; color: ${daysColor}">${i.daysOverdue > 0 ? i.daysOverdue + 'd' : '-'}</td>
-                <td style="color: var(--muted); font-size: 11px;">${i.bName}</td>
-                <td style="text-align: right;"><span class="${tagClass}">${tagLabel}</span></td>
+                <td style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                    <span class="${tagClass}">${tagLabel}</span>
+                    ${i.itemStatus ? `<span class="status-tag status-other" style="cursor:pointer; background:rgba(255,255,255,0.05); color:var(--text); border:1px solid var(--border); font-size:10px;" title="Click to change status"
+                          onclick="event.stopPropagation(); showStatusDropdown('${i.id}','${i.bId}','${i.statusColumnId}',this)">
+                        ${i.itemStatus}
+                    </span>` : ''}
+                </td>
             </tr>
             `;
 
             if (state.expandedItemIds.has(i.id)) {
                 html += `
                 <tr class="item-updates-row">
-                    <td colspan="9" style="padding: 0; border: none;">
+                    <td colspan="7" style="padding: 0; border: none;">
                         <div class="updates-container">
                             ${renderUpdates(i.id)}
                         </div>
@@ -2308,6 +2374,7 @@
                     const hasMatch = i.csManagers.some(p => state.filters.csManagers.has(p));
                     if (!hasMatch) return false;
                 }
+                if (state.filters.csmStatuses.size > 0 && !state.filters.csmStatuses.has(i.masterCsmStatus || '')) return false;
                 const matchesText = i.name.toLowerCase().includes(queryText) || i.bName.toLowerCase().includes(queryText);
                 if (!matchesText) return false;
                 if (queryPerson && !i.people.some(p => p.toLowerCase().includes(queryPerson))) return false;
@@ -2728,6 +2795,231 @@
             if (changed) updateFilteredUI();
         }
 
+        // ── Bulk Selection ──────────────────────────────────────────
+        function toggleItemSelection(itemId) {
+            if (state.selectedItemIds.has(itemId)) state.selectedItemIds.delete(itemId);
+            else state.selectedItemIds.add(itemId);
+            updateBulkBar();
+            const cb = document.querySelector(`[data-item-cb="${itemId}"]`);
+            if (cb) cb.checked = state.selectedItemIds.has(itemId);
+        }
+
+        function toggleGroupSelection(bId, checked) {
+            const groupItems = state.auditedItems.filter(i => i.bId === bId);
+            groupItems.forEach(i => { if (checked) state.selectedItemIds.add(i.id); else state.selectedItemIds.delete(i.id); });
+            updateBulkBar();
+            updateFilteredUI();
+        }
+
+        function toggleSelectAll(checked) {
+            const visible = state.auditedItems.filter(i => !state.excludedStatusLabels.has(i.itemStatus));
+            visible.forEach(i => { if (checked) state.selectedItemIds.add(i.id); else state.selectedItemIds.delete(i.id); });
+            updateBulkBar();
+            updateFilteredUI();
+        }
+
+        function clearSelection() {
+            state.selectedItemIds.clear();
+            updateBulkBar();
+            updateFilteredUI();
+        }
+
+        function updateBulkBar() {
+            const bar = document.getElementById('bulk-action-bar');
+            const n = state.selectedItemIds.size;
+            if (!bar) return;
+            bar.style.display = n > 0 ? 'flex' : 'none';
+            document.getElementById('bulk-count').textContent = `${n} item${n !== 1 ? 's' : ''} selected`;
+        }
+
+        function showBulkStatusDropdown(el) {
+            const firstId = [...state.selectedItemIds][0];
+            const firstItem = state.auditedItems.find(i => i.id === firstId);
+            if (!firstItem || !firstItem.statusColumnId) return;
+            hideStatusDropdown();
+
+            const dropdown = document.createElement('div');
+            dropdown.className = 'status-picker-dropdown';
+            dropdown.id = 'status-picker-dropdown';
+            dropdown.innerHTML = '<div style="padding:8px 10px;font-size:11px;color:var(--muted);">Loading…</div>';
+            document.body.appendChild(dropdown);
+            const rect = el.getBoundingClientRect();
+            dropdown.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+            dropdown.style.left = rect.left + 'px';
+
+            fetchColumnSettings(firstItem.bId).then(settings => {
+                const col = settings[firstItem.statusColumnId];
+                if (!col || !col.options.length) {
+                    dropdown.innerHTML = '<div style="padding:8px 10px;font-size:12px;color:var(--muted);">No options available</div>';
+                    return;
+                }
+                dropdown.innerHTML = col.options.map(opt => `
+                    <div class="status-picker-option"
+                         onclick="applyBulkStatus('${opt.label.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
+                        <div class="status-color-dot" style="background:${opt.color};"></div>
+                        <span>${opt.label}</span>
+                    </div>`).join('');
+            });
+            setTimeout(() => document.addEventListener('click', onStatusOutsideClick, true), 0);
+        }
+
+        async function applyBulkStatus(label) {
+            hideStatusDropdown();
+            document.removeEventListener('click', onStatusOutsideClick, true);
+            const ids = [...state.selectedItemIds];
+            const items = ids.map(id => state.auditedItems.find(i => i.id === id)).filter(Boolean);
+            items.forEach(item => item.itemStatus = label);
+            clearSelection();
+            showToast(`Updating ${items.length} item${items.length !== 1 ? 's' : ''}…`);
+            let failed = 0;
+            await Promise.all(items.map(async item => {
+                try {
+                    await monday(`mutation($b:ID!,$i:ID!,$c:String!,$v:String!){ change_simple_column_value(board_id:$b,item_id:$i,column_id:$c,value:$v){ id } }`,
+                        { b: item.bId, i: item.id, c: item.statusColumnId, v: label }, false);
+                } catch(e) { failed++; }
+            }));
+            showToast(failed ? `Done with ${failed} failure(s)` : `${items.length} item${items.length !== 1 ? 's' : ''} → "${label}"`);
+        }
+
+        // ── CSM Status Filter ────────────────────────────────────────
+        function toggleCsmStatusDropdown(show) {
+            const d = document.getElementById('csm-status-dropdown');
+            if (show) { renderCsmStatusOptions(); d.classList.add('show'); }
+            else { d.classList.remove('show'); document.getElementById('filter-csm-status-input').value = ''; }
+        }
+
+        function renderCsmStatusOptions() {
+            const query = document.getElementById('filter-csm-status-input').value.toLowerCase();
+            const all = [...new Set(state.auditedItems.map(i => i.masterCsmStatus).filter(s => s && s !== '-' && s !== '...'))].sort();
+            const shown = all.filter(s => !query || s.toLowerCase().includes(query));
+            document.getElementById('csm-status-list').innerHTML = shown.map(s => `
+                <div class="person-item ${state.filters.csmStatuses.has(s) ? 'selected' : ''}"
+                     onclick="toggleCsmStatusFilter('${s.replace(/'/g, "\\'")}')">
+                    ${s}
+                </div>`).join('') || '<div style="padding:8px;color:var(--muted);font-size:12px;">No statuses found</div>';
+        }
+
+        function toggleCsmStatusFilter(status) {
+            if (state.filters.csmStatuses.has(status)) state.filters.csmStatuses.delete(status);
+            else state.filters.csmStatuses.add(status);
+            renderCsmStatusOptions();
+            updateFilteredUI();
+            const input = document.getElementById('filter-csm-status-input');
+            input.placeholder = state.filters.csmStatuses.size > 0
+                ? `${state.filters.csmStatuses.size} status${state.filters.csmStatuses.size > 1 ? 'es' : ''} selected`
+                : 'Filter by CSM status...';
+        }
+
+        function clearCsmStatuses() {
+            state.filters.csmStatuses.clear();
+            toggleCsmStatusDropdown(false);
+            updateFilteredUI();
+            document.getElementById('filter-csm-status-input').placeholder = 'Filter by CSM status...';
+        }
+
+        function selectAllCsmStatuses() {
+            const all = [...new Set(state.auditedItems.map(i => i.masterCsmStatus).filter(s => s && s !== '-' && s !== '...'))];
+            all.forEach(s => state.filters.csmStatuses.add(s));
+            renderCsmStatusOptions();
+            updateFilteredUI();
+        }
+
+        async function fetchColumnSettings(boardId) {
+            if (state.boardColumnSettings[boardId]) return state.boardColumnSettings[boardId];
+            const data = await monday(`query($id:[ID!]){ boards(ids:$id){ columns { id title type settings_str } } }`, { id: [boardId] }, false);
+            const columns = data.boards?.[0]?.columns || [];
+            const settings = {};
+            columns.forEach(col => {
+                if (col.type === 'color') {
+                    try {
+                        const s = JSON.parse(col.settings_str);
+                        const labels = s.labels || {};
+                        const colors = s.labels_colors || {};
+                        const positions = s.labels_positions_v2 || {};
+                        settings[col.id] = {
+                            title: col.title,
+                            options: Object.entries(labels)
+                                .filter(([, lbl]) => lbl && lbl.trim())
+                                .sort((a, b) => (positions[a[0]] ?? 99) - (positions[b[0]] ?? 99))
+                                .map(([idx, lbl]) => ({ index: idx, label: lbl, color: colors[idx]?.color || '#c4c4c4' }))
+                        };
+                    } catch(e) {}
+                }
+            });
+            state.boardColumnSettings[boardId] = settings;
+            return settings;
+        }
+
+        function showStatusDropdown(itemId, boardId, columnId, el) {
+            hideStatusDropdown();
+            if (!columnId) return;
+            const item = state.auditedItems.find(i => i.id === itemId);
+            if (!item) return;
+
+            const dropdown = document.createElement('div');
+            dropdown.className = 'status-picker-dropdown';
+            dropdown.id = 'status-picker-dropdown';
+            dropdown.innerHTML = '<div style="padding:8px 10px; font-size:11px; color:var(--muted);">Loading…</div>';
+            document.body.appendChild(dropdown);
+
+            const rect = el.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            if (spaceBelow < 120) {
+                dropdown.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+            } else {
+                dropdown.style.top = (rect.bottom + 4) + 'px';
+            }
+            dropdown.style.left = Math.max(4, rect.right - 180) + 'px';
+
+            fetchColumnSettings(boardId).then(settings => {
+                const col = settings[columnId];
+                if (!col || !col.options.length) {
+                    dropdown.innerHTML = '<div style="padding:8px 10px; font-size:12px; color:var(--muted);">No options available</div>';
+                    return;
+                }
+                dropdown.innerHTML = col.options.map(opt => `
+                    <div class="status-picker-option ${opt.label === item.itemStatus ? 'is-current' : ''}"
+                         onclick="selectItemStatus('${itemId}','${boardId}','${columnId}','${opt.label.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
+                        <div class="status-color-dot" style="background:${opt.color};"></div>
+                        <span>${opt.label}</span>
+                        ${opt.label === item.itemStatus ? '<i class="fas fa-check" style="margin-left:auto;opacity:0.5;font-size:10px;"></i>' : ''}
+                    </div>`).join('');
+            });
+
+            setTimeout(() => document.addEventListener('click', onStatusOutsideClick, true), 0);
+        }
+
+        function onStatusOutsideClick(e) {
+            const d = document.getElementById('status-picker-dropdown');
+            if (d && d.contains(e.target)) return;
+            hideStatusDropdown();
+            document.removeEventListener('click', onStatusOutsideClick, true);
+        }
+
+        function hideStatusDropdown() {
+            const d = document.getElementById('status-picker-dropdown');
+            if (d) d.remove();
+        }
+
+        async function selectItemStatus(itemId, boardId, columnId, label) {
+            hideStatusDropdown();
+            document.removeEventListener('click', onStatusOutsideClick, true);
+            const item = state.auditedItems.find(i => i.id === itemId);
+            if (!item) return;
+            const prev = item.itemStatus;
+            item.itemStatus = label;
+            updateFilteredUI();
+            try {
+                await monday(`mutation($b:ID!,$i:ID!,$c:String!,$v:String!){ change_simple_column_value(board_id:$b,item_id:$i,column_id:$c,value:$v){ id } }`,
+                    { b: boardId, i: itemId, c: columnId, v: label }, false);
+                showToast(`Status → "${label}"`);
+            } catch(e) {
+                item.itemStatus = prev;
+                updateFilteredUI();
+                showToast('Failed to update status');
+            }
+        }
+
         function toggleCSMDropdown(show) {
             const d = document.getElementById('csm-dropdown');
             if (show) {
@@ -2841,11 +3133,13 @@
         document.addEventListener('mousedown', (e) => {
             const dP = document.getElementById('person-dropdown');
             const dC = document.getElementById('csm-dropdown');
-            const wP = document.querySelector('.person-filter-wrapper:nth-of-type(1)');
-            const wC = document.querySelector('.person-filter-wrapper:nth-of-type(2)');
+            const dS = document.getElementById('csm-status-dropdown');
+            const wrappers = document.querySelectorAll('.person-filter-wrapper');
+            const wP = wrappers[0], wC = wrappers[1], wS = wrappers[2];
 
-            if (dP && dP.classList.contains('show') && !wP.contains(e.target)) togglePersonDropdown(false);
-            if (dC && dC.classList.contains('show') && !wC.contains(e.target)) toggleCSMDropdown(false);
+            if (dP && dP.classList.contains('show') && wP && !wP.contains(e.target)) togglePersonDropdown(false);
+            if (dC && dC.classList.contains('show') && wC && !wC.contains(e.target)) toggleCSMDropdown(false);
+            if (dS && dS.classList.contains('show') && wS && !wS.contains(e.target)) toggleCsmStatusDropdown(false);
         });
 
         function showError(m) { const e = document.getElementById('error-message'); e.innerText = m; e.style.display = m ? 'block' : 'none'; }
@@ -3049,6 +3343,16 @@
         });
 
     </script>
+    <div id="bulk-action-bar" class="bulk-action-bar">
+        <i class="fas fa-check-square" style="color:var(--primary);"></i>
+        <span id="bulk-count" style="font-weight:600; font-size:13px;"></span>
+        <button class="btn btn-primary" onclick="showBulkStatusDropdown(this)" style="padding:6px 14px; font-size:12px;">
+            <i class="fas fa-edit" style="margin-right:6px;"></i>Change Status
+        </button>
+        <button class="btn btn-secondary" onclick="clearSelection()" style="padding:6px 12px; font-size:12px;">
+            <i class="fas fa-times" style="margin-right:6px;"></i>Clear
+        </button>
+    </div>
 </body>
 
 </html>
