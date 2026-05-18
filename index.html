@@ -9961,6 +9961,19 @@
         }
 
         /* ===== GEO+SEO Forensic Audit ===== */
+        /* Auto-filled field highlight */
+        .fa-autofilled {
+            border-left: 3px solid #6366f1 !important;
+            background: rgba(99,102,241,0.06) !important;
+            transition: background 0.3s;
+        }
+        .fa-autofilled-label::after {
+            content: ' ✦';
+            font-size: 0.7em;
+            color: #818cf8;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
         .forensic-section-label {
             font-size: 0.78em;
             font-weight: 700;
@@ -63338,8 +63351,10 @@ Move-In</h3>
             let urlObj;
             try { urlObj = new URL(rawUrl); } catch(e) { alert('Invalid URL format.'); return; }
 
-            const rootDomain = urlObj.origin; // https://www.example.com
-            const domain     = urlObj.hostname; // www.example.com
+            const rootDomain = urlObj.origin;                                   // https://www.example.com
+            const domain     = urlObj.hostname;                                 // www.example.com
+            // bare domain without www/protocol — what 9px7sjbyyb & a7hptjtc8e expect
+            const baseDomain = domain.replace(/^www\./, '');                   // example.com
             const httpUrl    = 'http://' + domain;
             const notFoundPath = rootDomain + '/fa-audit-404-check-' + Date.now();
 
@@ -63348,15 +63363,27 @@ Move-In</h3>
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching…';
             document.getElementById('fa_auto_progress').style.display = 'block';
 
+            // Reset all autofill highlights first
+            document.querySelectorAll('.fa-autofilled').forEach(el => el.classList.remove('fa-autofilled'));
+            document.querySelectorAll('.fa-autofilled-label').forEach(el => el.classList.remove('fa-autofilled-label'));
+
             const step = (id, ok, label) => {
                 const el = document.getElementById('fa_step_' + id);
                 if (el) el.innerHTML = `<span style="color:${ok ? '#4ade80' : '#f87171'}">${ok ? '✓' : '✗'}</span> ${label}`;
             };
+
+            // setF fills the field AND adds the highlight class + marks its label
             const setF = (id, val) => {
                 if (val === null || val === undefined || val === '') return;
                 const el = document.getElementById(id);
-                if (el) el.value = val;
+                if (!el) return;
+                el.value = val;
+                el.classList.add('fa-autofilled');
+                // mark the preceding label too
+                const label = el.closest('.sem-input-item')?.querySelector('label');
+                if (label) label.classList.add('fa-autofilled-label');
             };
+
             const isValidTxt = body => {
                 const t = (body || '').trim();
                 return t.length > 20 && !t.toLowerCase().startsWith('error') &&
@@ -63373,18 +63400,23 @@ Move-In</h3>
                 htmlRes, robotsRes, llmsRes, llmsFullRes, catsRes,
                 notFoundRes, httpRedirectRes
             ] = await Promise.allSettled([
+                // Site data: title, description, backlinks, spam, referring domains
+                // Uses bare domain (no protocol/www) — same as fetchDomainMetrics()
                 fetch('https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: rootDomain })
+                    body: JSON.stringify({ url: baseDomain })
                 }),
-                fetch('https://5zdbpwaia5.execute-api.ap-southeast-1.amazonaws.com/pageDomainMetrics', {
+                // Domain Authority (Moz) — uses { domain: baseDomain }
+                fetch('https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: rootDomain, keyword: '' })
+                    body: JSON.stringify({ domain: baseDomain })
                 }),
+                // PageSpeed mobile + sitemap + robots content
                 fetch('https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: rootDomain })
                 }),
+                // PageSpeed desktop — same endpoint with strategy hint
                 fetch('https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: rootDomain, strategy: 'desktop' })
@@ -63406,34 +63438,33 @@ Move-In</h3>
                 getHtml(httpUrl),
             ]);
 
-            // ── 1. Site data ─────────────────────────────────────────────────────
-            let pageText = ''; // will fill from HTML for Copyscape
+            // ── 1. Site data: title, desc, backlinks, spam, referring domains ────
+            let pageText = '';
             try {
                 const raw = await siteRes.value.json();
-                const d = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
-                setF('fa_metatitle', d.title);
-                setF('fa_metadesc', d.description);
-                if (d.backlinks     != null) setF('fa_backlinks', d.backlinks);
-                if (d.backlinks_spam_score != null) setF('fa_spam', d.backlinks_spam_score);
-                if (d.referring_domains   != null) setF('fa_refdomains', d.referring_domains);
+                const d   = parseLambdaResponse(raw);
+                setF('fa_metatitle',  d.title);
+                setF('fa_metadesc',   d.description);
+                if (d.backlinks          != null) setF('fa_backlinks', d.backlinks);
+                if (d.backlinks_spam_score != null) setF('fa_spam',    d.backlinks_spam_score);
+                if (d.referring_domains  != null) setF('fa_refdomains', d.referring_domains);
                 if (d.schema && d.schema !== 'None') setF('fa_structdata', 'Yes');
                 step('sitedata', true, 'Meta / Backlinks / Schema');
             } catch(e) { step('sitedata', false, 'Meta / Backlinks / Schema'); }
 
-            // ── 2. Domain Authority ──────────────────────────────────────────────
+            // ── 2. Domain Authority (Moz) ────────────────────────────────────────
             try {
                 const data = await daRes.value.json();
+                // Response is { domain_authority: N, page_authority: N } directly
                 if (data.domain_authority != null) setF('fa_da', data.domain_authority);
-                step('da', true, 'Domain Authority');
+                step('da', data.domain_authority != null, 'Domain Authority');
             } catch(e) { step('da', false, 'Domain Authority'); }
 
-            // ── 3. PageSpeed mobile + sitemap ────────────────────────────────────
+            // ── 3. PageSpeed mobile + sitemap + availability ─────────────────────
             try {
-                const raw = await auditRes.value.json();
-                const d = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+                const d = parseLambdaResponse(await auditRes.value.json());
                 if (d.pagespeed) setF('fa_psm', d.pagespeed);
-                // site is up — mark as available
-                setF('fa_uptime', 'Monitoring');
+                setF('fa_uptime',  'Monitoring');
                 setF('fa_sitemap', (d.sitemap && d.sitemap !== 'Not Found') ? 'Present' : 'Missing');
                 step('pagespeed', true, 'PageSpeed (Mobile)');
                 step('sitemap',   true, 'Sitemap');
@@ -63444,19 +63475,16 @@ Move-In</h3>
 
             // ── 4. PageSpeed desktop ─────────────────────────────────────────────
             try {
-                const raw = await desktopRes.value.json();
-                const d = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
-                // Lambda returns same field name; only set desktop if value differs from mobile
+                const d        = parseLambdaResponse(await desktopRes.value.json());
                 const mobileEl = document.getElementById('fa_psm');
                 const mobileVal = mobileEl ? mobileEl.value : '';
                 if (d.pagespeed && String(d.pagespeed) !== mobileVal) {
                     setF('fa_psd', d.pagespeed);
                     step('desktop', true, 'PageSpeed Desktop');
                 } else {
-                    // Lambda doesn't support strategy param — propose new Lambda
-                    step('desktop', false, 'PageSpeed Desktop (needs dedicated Lambda)');
+                    step('desktop', false, 'PageSpeed Desktop (Lambda needs strategy=desktop support)');
                 }
-            } catch(e) { step('desktop', false, 'PageSpeed Desktop (needs dedicated Lambda)'); }
+            } catch(e) { step('desktop', false, 'PageSpeed Desktop (Lambda needs strategy=desktop support)'); }
 
             // ── 5. SSL ───────────────────────────────────────────────────────────
             let sslPass = false;
@@ -63469,26 +63497,24 @@ Move-In</h3>
 
             // ── 6. GTmetrix ──────────────────────────────────────────────────────
             try {
-                const raw = await gtRes.value.json();
-                const d = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+                const d     = parseLambdaResponse(await gtRes.value.json());
                 const grade = d?.data?.attributes?.gtmetrix_grade;
                 if (grade) setF('fa_gtmetrix', grade);
                 step('gtmetrix', !!grade, 'GTmetrix Grade');
             } catch(e) { step('gtmetrix', false, 'GTmetrix Grade'); }
 
-            // ── 7. HTML: H1/H2, semantic, GA4, RankMath, Wordfence, CDN, JSON-LD ─
+            // ── 7. HTML: H1/H2, semantic, GA4, CDN, RankMath, Wordfence, JSON-LD ─
             try {
                 const htmlData = await htmlRes.value.json();
                 const html = htmlData.body || '';
                 if (html.length > 200) {
                     const doc = new DOMParser().parseFromString(html, 'text/html');
-                    pageText = doc.body ? doc.body.innerText : '';
+                    pageText  = doc.body ? doc.body.innerText : '';
 
                     setF('fa_h1', doc.querySelectorAll('h1').length);
                     setF('fa_h2', doc.querySelectorAll('h2').length);
 
-                    const semTags  = ['header','footer','main','nav'];
-                    const semFound = semTags.filter(t => !!doc.querySelector(t)).length;
+                    const semFound = ['header','footer','main','nav'].filter(t => !!doc.querySelector(t)).length;
                     setF('fa_semantic', semFound >= 2 ? 'Yes' : 'No');
 
                     const allSrcs = [
@@ -63496,123 +63522,91 @@ Move-In</h3>
                         ...Array.from(doc.querySelectorAll('link[href]')).map(l => l.href),
                         ...Array.from(doc.querySelectorAll('img[src]')).map(i => i.src),
                     ].join(' ').toLowerCase();
-                    const scriptText = Array.from(doc.querySelectorAll('script'))
+                    const scriptTxt = Array.from(doc.querySelectorAll('script'))
                         .map(s => (s.src || '') + (s.textContent || '')).join(' ').toLowerCase();
                     const allHtml = html.toLowerCase();
 
-                    // GA4
-                    const hasGa4 = scriptText.includes('gtag') || scriptText.includes('googletagmanager');
-                    setF('fa_ga4', hasGa4 ? 'Connected' : 'Not Connected');
+                    setF('fa_ga4', (scriptTxt.includes('gtag') || scriptTxt.includes('googletagmanager'))
+                        ? 'Connected' : 'Not Connected');
 
-                    // RankMath
-                    if (scriptText.includes('rank-math') || scriptText.includes('rankmath') || allHtml.includes('rank-math')) {
+                    if (scriptTxt.includes('rank-math') || scriptTxt.includes('rankmath') || allHtml.includes('rank-math'))
                         setF('fa_rankmath', 'Installed');
-                    }
-                    // Wordfence
-                    if (scriptText.includes('wordfence') || allHtml.includes('wordfence')) {
+                    if (scriptTxt.includes('wordfence') || allHtml.includes('wordfence'))
                         setF('fa_wordfence', 'Installed');
-                    }
 
-                    // CDN detection
-                    const cdnPatterns = [
-                        'cloudflare','cloudfront.net','fastly.net','akamai','stackpath',
-                        'cdn-cgi','__cf_bm','bunnycdn','keycdn','maxcdn','edgecastcdn',
-                        'cdn.jsdelivr','cdnjs.cloudflare'
-                    ];
-                    const hasCdn = cdnPatterns.some(p => allSrcs.includes(p) || allHtml.includes(p));
-                    setF('fa_cdn', hasCdn ? 'Yes' : 'No');
+                    const cdnPatterns = ['cloudflare','cloudfront.net','fastly.net','akamai','stackpath',
+                        'cdn-cgi','__cf_bm','bunnycdn','keycdn','maxcdn','edgecastcdn','cdn.jsdelivr','cdnjs.cloudflare'];
+                    setF('fa_cdn', cdnPatterns.some(p => allSrcs.includes(p) || allHtml.includes(p)) ? 'Yes' : 'No');
 
-                    // Structured data: JSON-LD scripts
-                    if (doc.querySelectorAll('script[type="application/ld+json"]').length > 0) {
+                    if (doc.querySelectorAll('script[type="application/ld+json"]').length > 0)
                         setF('fa_structdata', 'Yes');
-                    } else if (!document.getElementById('fa_structdata').value) {
+                    else if (!document.getElementById('fa_structdata').value)
                         setF('fa_structdata', 'No');
-                    }
                 }
                 step('html', true, 'H1/H2 / Semantic / GA4 / CDN');
             } catch(e) { step('html', false, 'H1/H2 / Semantic / GA4 / CDN'); }
 
             // ── 8. robots.txt + LLM bot check ───────────────────────────────────
             try {
-                const data  = await robotsRes.value.json();
-                const robots = (data.body || '').trim();
-                const robotsOk = robots.length > 10 &&
-                    !robots.toLowerCase().startsWith('error') &&
+                const robots = ((await robotsRes.value.json()).body || '').trim();
+                const ok = robots.length > 10 && !robots.toLowerCase().startsWith('error') &&
                     !robots.includes('<!DOCTYPE') && !robots.includes('<html');
-                setF('fa_robots', robotsOk ? 'Pass' : 'Missing');
-
-                if (robotsOk) {
+                setF('fa_robots', ok ? 'Pass' : 'Missing');
+                if (ok) {
                     const lines = robots.split('\n').map(l => l.trim());
-                    let currentAgent = '';
-                    let llmBlocked   = false;
-                    const llmBots = ['gptbot','claudebot','oai-searchbot','perplexitybot','anthropic-ai'];
+                    let agent = '', blocked = false;
+                    const bots = ['gptbot','claudebot','oai-searchbot','perplexitybot','anthropic-ai'];
                     for (const line of lines) {
-                        const lower = line.toLowerCase();
-                        if (lower.startsWith('user-agent:')) {
-                            currentAgent = lower.replace('user-agent:', '').trim();
-                        } else if (lower.startsWith('disallow:') && llmBots.some(b => currentAgent.includes(b))) {
-                            if (lower.replace('disallow:', '').trim() === '/') { llmBlocked = true; break; }
-                        }
+                        const l = line.toLowerCase();
+                        if (l.startsWith('user-agent:')) agent = l.replace('user-agent:','').trim();
+                        else if (l.startsWith('disallow:') && bots.some(b => agent.includes(b)) &&
+                            l.replace('disallow:','').trim() === '/') { blocked = true; break; }
                     }
-                    setF('fa_llmblock', llmBlocked ? 'Yes' : 'No');
-                } else {
-                    setF('fa_llmblock', 'No');
-                }
+                    setF('fa_llmblock', blocked ? 'Yes' : 'No');
+                } else { setF('fa_llmblock', 'No'); }
                 step('robots', true, 'robots.txt / LLM Bots');
             } catch(e) { step('robots', false, 'robots.txt / LLM Bots'); }
 
-            // ── 9. llms.txt / llms-full.txt / cats.txt ───────────────────────────
-            try { const d = await llmsRes.value.json();     setF('fa_llmstxt',  isValidTxt(d.body) ? 'Present' : 'Missing'); } catch(e) { setF('fa_llmstxt',  'Missing'); }
-            try { const d = await llmsFullRes.value.json(); setF('fa_llmsfull', isValidTxt(d.body) ? 'Present' : 'Missing'); } catch(e) { setF('fa_llmsfull', 'Missing'); }
-            try { const d = await catsRes.value.json();     setF('fa_catstxt',  isValidTxt(d.body) ? 'Present' : 'Missing'); } catch(e) { setF('fa_catstxt',  'Missing'); }
+            // ── 9. llms / cats txt files ─────────────────────────────────────────
+            try { setF('fa_llmstxt',  isValidTxt((await llmsRes.value.json()).body)     ? 'Present' : 'Missing'); } catch(e) { setF('fa_llmstxt',  'Missing'); }
+            try { setF('fa_llmsfull', isValidTxt((await llmsFullRes.value.json()).body)  ? 'Present' : 'Missing'); } catch(e) { setF('fa_llmsfull', 'Missing'); }
+            try { setF('fa_catstxt',  isValidTxt((await catsRes.value.json()).body)      ? 'Present' : 'Missing'); } catch(e) { setF('fa_catstxt',  'Missing'); }
             step('llms', true, 'llms.txt / llms-full.txt');
             step('cats', true, 'cats.txt');
 
-            // ── 10. Custom 404 page ──────────────────────────────────────────────
+            // ── 10. Custom 404 ───────────────────────────────────────────────────
             try {
-                const data = await notFoundRes.value.json();
-                const body = (data.body || '').trim();
-                // Custom 404 = substantial HTML response (branded error page)
-                // Generic = tiny body, plain "Cannot GET", "Not Found", or <400 chars
-                const isCustom = body.length > 400 &&
-                    !body.toLowerCase().includes('cannot get') &&
-                    body.includes('<');
-                setF('fa_404', isCustom ? 'Configured' : 'Not Configured');
+                const body = ((await notFoundRes.value.json()).body || '').trim();
+                setF('fa_404', (body.length > 400 && !body.toLowerCase().includes('cannot get') && body.includes('<'))
+                    ? 'Configured' : 'Not Configured');
                 step('404', true, 'Custom 404 Page');
             } catch(e) { step('404', false, 'Custom 404 Page'); }
 
             // ── 11. HTTP→HTTPS redirect ──────────────────────────────────────────
             try {
-                const data = await httpRedirectRes.value.json();
-                const body = (data.body || '').trim();
-                // If fetching http:// returns the site's real HTML (>1000 chars with
-                // https links), the server redirected — so redirect is configured.
+                const body = ((await httpRedirectRes.value.json()).body || '').trim();
                 const redirectWorks = body.length > 500 && body.toLowerCase().includes('https');
                 setF('fa_https', redirectWorks ? 'Yes' : 'No');
                 step('redirect', true, 'HTTP→HTTPS Redirect');
             } catch(e) {
-                // Fallback: if SSL passed, redirect is almost certainly configured
                 if (sslPass) setF('fa_https', 'Yes');
                 step('redirect', sslPass, 'HTTP→HTTPS Redirect' + (sslPass ? ' (inferred from SSL)' : ''));
             }
 
-            // ── Phase 2: Copyscape via plagiarism Lambda ──────────────────────────
-            if (pageText && pageText.length > 100) {
+            // ── Phase 2: Copyscape (sequential — needs page text from phase 1) ───
+            if (pageText.length > 100) {
                 step('copyscape', false, 'Copyscape — checking…');
                 try {
-                    const resp = await fetch('https://tg6m9b7gsj.execute-api.ap-southeast-1.amazonaws.com/plagarismCheck', {
+                    const raw    = await (await fetch('https://tg6m9b7gsj.execute-api.ap-southeast-1.amazonaws.com/plagarismCheck', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ text: pageText.slice(0, 5000) })
-                    });
-                    const raw    = await resp.json();
-                    const result = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+                    })).json();
+                    const result = parseLambdaResponse(raw);
                     if (result.originality_score !== undefined) {
-                        const dupePercent = Math.round(100 - result.originality_score);
-                        setF('fa_copyscape', Math.max(0, dupePercent));
-                        step('copyscape', true, `Copyscape — ${dupePercent}% duplicate`);
-                    } else {
-                        step('copyscape', false, 'Copyscape — no score returned');
-                    }
+                        const pct = Math.max(0, Math.round(100 - result.originality_score));
+                        setF('fa_copyscape', pct);
+                        step('copyscape', true, `Copyscape — ${pct}% duplicate`);
+                    } else { step('copyscape', false, 'Copyscape — no score returned'); }
                 } catch(e) { step('copyscape', false, 'Copyscape — error'); }
             } else {
                 step('copyscape', false, 'Copyscape — page text unavailable');
@@ -63622,7 +63616,7 @@ Move-In</h3>
             btn.innerHTML = '<i class="fas fa-magic"></i> Auto-Fill';
             const progressTitle = document.querySelector('#fa_auto_progress div:first-child');
             if (progressTitle) {
-                progressTitle.innerHTML = '<i class="fas fa-check-circle" style="color:#4ade80"></i> Auto-fill complete — review fields and fill any remaining items manually.';
+                progressTitle.innerHTML = '<i class="fas fa-check-circle" style="color:#4ade80"></i> Auto-fill complete. <span style="color:#818cf8;font-weight:400;font-size:0.9em;">Fields highlighted in purple were auto-filled — review before running the audit.</span>';
                 progressTitle.style.color = '#4ade80';
             }
         }
