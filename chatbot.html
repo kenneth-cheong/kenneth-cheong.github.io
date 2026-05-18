@@ -2618,7 +2618,7 @@
                 <div class="filter-field">
                     <label style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
                         <span style="font-weight: 700; color: var(--primary-navy); font-size: 0.8rem;">
-                            <i class="fas fa-th-large" style="margin-right:5px; color: var(--accent-blue);"></i> Campaign Board Focus
+                            <i class="fas fa-th-large" style="margin-right:5px; color: var(--accent-blue);"></i> Monday Board Filter
                         </span>
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span class="label-count" id="count-msBoardDropdown" style="font-size: 0.7rem; background: #eff6ff; color: #1e40af; padding: 2px 8px; border-radius: 10px; font-weight: 700;"></span>
@@ -4650,6 +4650,18 @@
 
             if (service === 'Workspace') {
                 window.gchatAccessToken = token;
+                // Save the Google account email for memory cloud sync
+                if (!localStorage.getItem('userEmail')) {
+                    try {
+                        const uiRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (uiRes.ok) {
+                            const ui = await uiRes.json();
+                            if (ui.email) localStorage.setItem('userEmail', ui.email);
+                        }
+                    } catch (e) {}
+                }
                 await fetchGoogleChatSpaces();
                 await fetchGoogleDriveFolders();
             } else if (service === 'Gsc') {
@@ -7486,11 +7498,11 @@ CRITICAL CONTACT RULE:
         }
 
         async function pushInsightsToCloud() {
-            const isPrivate = document.getElementById('privateMemoryMode')?.checked || false;
+            const isPrivate = localStorage.getItem('privateMemoryMode') === 'true';
             let email = "global_shared_insights";
-            
+
             if (isPrivate) {
-                email = (localStorage.getItem('clientEmail') || localStorage.getItem('userEmail') || "").trim();
+                email = (localStorage.getItem('userEmail') || localStorage.getItem('clientEmail') || "").trim();
             }
 
             if (!email) return;
@@ -7512,11 +7524,11 @@ CRITICAL CONTACT RULE:
         }
 
         async function pullInsightsFromCloud() {
-            const isPrivate = document.getElementById('privateMemoryMode')?.checked || false;
+            const isPrivate = localStorage.getItem('privateMemoryMode') === 'true';
             let email = "global_shared_insights";
-            
+
             if (isPrivate) {
-                email = (localStorage.getItem('clientEmail') || localStorage.getItem('userEmail') || "").trim();
+                email = (localStorage.getItem('userEmail') || localStorage.getItem('clientEmail') || "").trim();
             }
 
             if (!email) {
@@ -7528,7 +7540,7 @@ CRITICAL CONTACT RULE:
                         list.innerHTML = `
                             <div class="empty-insights">
                                 <i class="fas fa-lock" style="color: #94a3b8; font-size: 2rem; margin-bottom: 12px;"></i>
-                                <p>Set a <b>Client Email</b> in Settings to enable cloud sync and see your memories.</p>
+                                <p>Connect Google Workspace to enable cloud sync and see your memories.</p>
                             </div>
                         `;
                     }
