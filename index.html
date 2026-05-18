@@ -17560,6 +17560,9 @@
                                 if (cockpitSel) cockpitSel.value = savedMetaAccountId;
                                 selectMetaAdAccount(savedMetaAccountId);
                             }
+                            // Re-run Meta-dependent cockpit cards now that auth is available
+                            if (typeof fetchCockpitMetaAds === 'function') fetchCockpitMetaAds();
+                            if (typeof refreshMetaAdsRecommendations === 'function') refreshMetaAdsRecommendations();
                         });
                     }
                 }, 1000);
@@ -25708,6 +25711,10 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     const suffix = cachedEmail ? ` <span style="font-size: 11px; color: #666; font-weight: normal;">(${cachedEmail})</span>` : "";
                     updateGoogleIntegrationUI(suffix);
                     console.log("Restored Google authentication from cache.");
+                    // Re-run Google-dependent cockpit cards now that auth is available
+                    if (typeof refreshGscRecommendations === 'function') refreshGscRecommendations();
+                    if (typeof refreshGa4Recommendations === 'function') refreshGa4Recommendations();
+                    if (typeof refreshAdsRecommendations === 'function') refreshAdsRecommendations();
                 } else {
                     console.log("Cached Google token expired.");
                     localStorage.removeItem('googleAccessToken');
