@@ -13726,6 +13726,1200 @@
                     <div id="generated" style="margin-top: 25px;"></div>
                 </div>
             </div>
+
+        <!-- GA4 Section -->
+        <div id="ga4IntegrationSection">
+            <button class="collapsible" id="ga4IntegrationBtn"><i class="fas fa-plus-square"></i><i
+                    class="fas fa-chart-pie"></i>Google Analytics
+                4</button>
+            <div class="content" id="ga4Content" style="display: none; padding: 20px;">
+                <div id="ga4AuthSection"
+                    style="margin-bottom: 20px; padding: 15px; background: #fff8e1; border-radius: 8px; border: 1px solid #ffe082;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div>
+                            <h4 style="margin: 0; color: #f57f17;"><i class="fas fa-chart-pie"></i> Google
+                                Analytics 4
+                            </h4>
+                            <p id="ga4AuthStatus" style="margin: 5px 0 0 0; font-size: 13px; color: #5f6368;">
+                                Not connected. Connect to your Google account to use GA4 tools.</p>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <button class="btn-gradient" id="btnConnectGa4" onclick="connectGoogleTools()"
+                                style="background: #f4b400; width: 180px; margin: 0; color: #000;">
+                                <i class="fas fa-link"></i> Connect GA4
+                            </button>
+                        </div>
+                    </div>
+                    <div id="ga4PropertySelector"
+                        style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #ffe082;">
+                        <label
+                            style="font-size: 13px; color: #f57f17; font-weight: bold; display: block; margin-bottom: 8px;">Select
+                            Account/Property:</label>
+
+                        <div class="ga4-searchable-select-container">
+                            <div style="position: relative;">
+                                <i class="fas fa-search"
+                                    style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #f4b400; font-size: 12px; opacity: 0.7;"></i>
+                                <input type="text" id="ga4PropertySearch" placeholder="Search or select properties..."
+                                    oninput="filterGa4PropertyList()" onfocus="showGa4PropertyDropdown()"
+                                    style="width: 100%; padding: 10px 10px 10px 30px; border-radius: 4px; border: 1px solid #ffe082; font-size: 14px; box-sizing: border-box; outline: none; background: #fff; cursor: pointer;">
+                                <i class="fas fa-chevron-down" onclick="toggleGa4PropertyDropdown()"
+                                    style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #f4b400; font-size: 12px; cursor: pointer; opacity: 0.8;"></i>
+                            </div>
+                            <div id="ga4PropertyDropdownResults" class="ga4-searchable-select-results">
+                                <!-- Results will be injected here -->
+                            </div>
+                        </div>
+
+                        <!-- Hidden select for compatibility -->
+                        <select id="ga4SiteList" onchange="updateSelectedGa4Property()" style="display: none;">
+                            <option value="">-- Choose a GA4 Property --</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="ga4ToolsArea" style="opacity: 0.5;">
+                    <div style="background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 20px;">
+                        <h3 style="margin-top: 0; color: #f4b400;"><i class="fas fa-chart-line"></i> Traffic
+                            Overview</h3>
+
+                        <!-- GA4 Control Bar (Ads Style) -->
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #fef3c7; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                            <div style="display: flex; gap: 15px; align-items: center;">
+                                <div>
+                                    <label
+                                        style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">Date
+                                        Range</label>
+                                    <select id="ga4DateRange" onchange="ga4DateRangeChanged()"
+                                        style="padding: 8px 12px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; background: #fff; min-width: 150px; cursor: pointer;">
+                                        <option value="today">Today</option>
+                                        <option value="yesterday">Yesterday</option>
+                                        <option value="7daysAgo">Last 7 Days</option>
+                                        <option value="28daysAgo" selected>Last 28 Days</option>
+                                        <option value="30daysAgo">Last 30 Days</option>
+                                        <option value="90daysAgo">Last 90 Days</option>
+                                        <option value="365daysAgo">Last Year</option>
+                                        <option value="CUSTOM">Custom Range</option>
+                                    </select>
+                                </div>
+                                <div id="ga4CustomDateInputs" style="display: none; align-items: flex-end; gap: 10px;">
+                                    <div>
+                                        <label
+                                            style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">Start</label>
+                                        <input type="date" id="ga4StartDate"
+                                            style="padding: 7px 10px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; background: #fff;">
+                                    </div>
+                                    <div>
+                                        <label
+                                            style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">End</label>
+                                        <input type="date" id="ga4EndDate"
+                                            style="padding: 7px 10px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; background: #fff;">
+                                    </div>
+                                    <button onclick="updateSelectedGa4Property()"
+                                        style="padding: 8px 15px; border-radius: 6px; border: none; background: #f4b400; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;">Apply</button>
+                                </div>
+
+                                <div>
+                                    <label
+                                        style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">View
+                                        By</label>
+                                    <select id="ga4Dimension" onchange="updateSelectedGa4Property()"
+                                        style="padding: 8px 12px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; background: #fff; min-width: 150px; cursor: pointer;">
+                                        <option value="date">Date</option>
+                                        <option value="pageTitle">Page Title</option>
+                                        <option value="sessionSourceMedium">Source / Medium</option>
+                                        <option value="deviceCategory">Device Category</option>
+                                        <option value="country">Country</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; gap: 15px; align-items: center;">
+                                <div style="position: relative;">
+                                    <i class="fas fa-search"
+                                        style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #f4b400; font-size: 12px; opacity: 0.7;"></i>
+                                    <input type="text" id="ga4TableFilter" placeholder="Filter rows..."
+                                        oninput="reRenderGa4Table()"
+                                        style="padding: 8px 12px 8px 32px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; width: 220px;">
+                                </div>
+
+                                <button onclick="exportGa4TableToCSV()"
+                                    style="padding: 8px 15px; border-radius: 6px; border: 1px solid #ffe082; background: #fff; font-size: 13px; cursor: pointer; color: #5f6368; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fas fa-file-csv"></i> Export CSV
+                                </button>
+
+                                <div style="position: relative;" id="ga4ColumnDropdownWrapper">
+                                    <button
+                                        onclick="document.getElementById('ga4ColumnMenu').style.display = document.getElementById('ga4ColumnMenu').style.display === 'block' ? 'none' : 'block'"
+                                        style="padding: 8px 15px; border-radius: 6px; border: 1px solid #ffe082; background: #fff; font-size: 13px; cursor: pointer; color: #5f6368; display: flex; align-items: center; gap: 8px;">
+                                        <i class="fas fa-columns"></i> Columns <i class="fas fa-caret-down"
+                                            style="font-size: 10px;"></i>
+                                    </button>
+                                    <div id="ga4ColumnMenu"
+                                        style="display: none; position: absolute; right: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 15px; width: 250px; z-index: 100; max-height: 400px; overflow-y: auto;">
+                                        <div
+                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
+                                            Metrics</div>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox"
+                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
+                                                value="activeUsers" checked> Active Users</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox"
+                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
+                                                value="totalUsers" checked> Total Users</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox"
+                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
+                                                value="sessions" checked> Sessions</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox"
+                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
+                                                value="engagedSessions" checked> Engaged Sessions</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox"
+                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
+                                                value="engagementRate" checked> Eng. Rate</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox"
+                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
+                                                value="averageSessionDuration" checked> Avg. Sess. Dur.</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox"
+                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
+                                                value="bounceRate" checked> Bounce Rate</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox"
+                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
+                                                value="screenPageViews" checked> Page Views</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox"
+                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
+                                                value="eventCount" checked> Event Count</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox"
+                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
+                                                value="conversions" checked> Conversions</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox"
+                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
+                                                value="totalRevenue" checked> Revenue</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox"
+                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
+                                                value="newUsers" checked> New Users</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="ga4InsightsData"
+                            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
+                            <!-- Active Users -->
+                            <div class="koda-kpi-card koda-bg-blue">
+                                <div class="kpi-header">
+                                    <span>Active Users</span>
+                                    <i class="fas fa-users kpi-icon"></i>
+                                </div>
+                                <div class="kpi-value" id="ga4ActiveUsers">-</div>
+                                <div class="kpi-subtext">
+                                    <span>Total Engagement</span>
+                                </div>
+                            </div>
+                            <!-- Sessions -->
+                            <div class="koda-kpi-card koda-bg-green">
+                                <div class="kpi-header">
+                                    <span>Sessions</span>
+                                    <i class="fas fa-exchange-alt kpi-icon"></i>
+                                </div>
+                                <div class="kpi-value" id="ga4Sessions">-</div>
+                                <div class="kpi-subtext">
+                                    <span>Traffic Volume</span>
+                                </div>
+                            </div>
+                            <!-- Engagement Rate -->
+                            <div class="koda-kpi-card koda-bg-purple">
+                                <div class="kpi-header">
+                                    <span>Eng. Rate</span>
+                                    <i class="fas fa-bolt kpi-icon"></i>
+                                </div>
+                                <div class="kpi-value" id="ga4EngRate">-</div>
+                                <div class="kpi-subtext">
+                                    <span>Interaction Quality</span>
+                                </div>
+                            </div>
+                            <!-- Avg Session Duration -->
+                            <div class="koda-kpi-card koda-bg-indigo">
+                                <div class="kpi-header">
+                                    <span>Avg. Sess. Dur.</span>
+                                    <i class="fas fa-clock kpi-icon"></i>
+                                </div>
+                                <div class="kpi-value" id="ga4AvgDuration">-</div>
+                                <div class="kpi-subtext">
+                                    <span>Time Per Visit</span>
+                                </div>
+                            </div>
+                            <!-- Bounce Rate -->
+                            <div class="koda-kpi-card koda-bg-red">
+                                <div class="kpi-header">
+                                    <span>Bounce Rate</span>
+                                    <i class="fas fa-door-open kpi-icon"></i>
+                                </div>
+                                <div class="kpi-value" id="ga4BounceRate">-</div>
+                                <div class="kpi-subtext">
+                                    <span>Single Page Visits</span>
+                                </div>
+                            </div>
+                            <!-- Page Views -->
+                            <div class="koda-kpi-card koda-bg-blue">
+                                <div class="kpi-header">
+                                    <span>Page Views</span>
+                                    <i class="fas fa-file-alt kpi-icon"></i>
+                                </div>
+                                <div class="kpi-value" id="ga4PageViews">-</div>
+                                <div class="kpi-subtext">
+                                    <span>Content Visibility</span>
+                                </div>
+                            </div>
+                            <!-- Event Count -->
+                            <div class="koda-kpi-card koda-bg-greyblue">
+                                <div class="kpi-header">
+                                    <span>Event Count</span>
+                                    <i class="fas fa-list-ul kpi-icon"></i>
+                                </div>
+                                <div class="kpi-value" id="ga4EventCount">-</div>
+                                <div class="kpi-subtext">
+                                    <span>Recorded Actions</span>
+                                </div>
+                            </div>
+                            <!-- Conversions -->
+                            <div class="koda-kpi-card koda-bg-orange">
+                                <div class="kpi-header">
+                                    <span>Conversions</span>
+                                    <i class="fas fa-check-circle kpi-icon"></i>
+                                </div>
+                                <div class="kpi-value" id="ga4Conversions">-</div>
+                                <div class="kpi-subtext">
+                                    <span>Goal Completion</span>
+                                </div>
+                            </div>
+                            <!-- Revenue -->
+                            <div class="koda-kpi-card koda-bg-green">
+                                <div class="kpi-header">
+                                    <span>Revenue</span>
+                                    <i class="fas fa-dollar-sign kpi-icon"></i>
+                                </div>
+                                <div class="kpi-value" id="ga4Revenue">-</div>
+                                <div class="kpi-subtext">
+                                    <span>Total Earnings</span>
+                                </div>
+                            </div>
+                            <!-- New Users Mix -->
+                            <div class="koda-kpi-card koda-bg-indigo">
+                                <div class="kpi-header">
+                                    <span>New Users Mix</span>
+                                    <i class="fas fa-user-plus kpi-icon"></i>
+                                </div>
+                                <div class="kpi-value" id="ga4NewUsersMix">-</div>
+                                <div class="kpi-subtext">
+                                    <span>Acquisition Ratio</span>
+                                </div>
+                            </div>
+                            <!-- Total Users -->
+                            <div class="koda-kpi-card koda-bg-purple">
+                                <div class="kpi-header">
+                                    <span>Total Users</span>
+                                    <i class="fas fa-users kpi-icon"></i>
+                                </div>
+                                <div class="kpi-value" id="ga4TotalUsers">-</div>
+                                <div class="kpi-subtext">
+                                    <span>Unique Visitors</span>
+                                </div>
+                            </div>
+                            <!-- Engaged Sessions -->
+                            <div class="koda-kpi-card koda-bg-teal">
+                                <div class="kpi-header">
+                                    <span>Engaged Sessions</span>
+                                    <i class="fas fa-user-clock kpi-icon"></i>
+                                </div>
+                                <div class="kpi-value" id="ga4EngagedSessions">-</div>
+                                <div class="kpi-subtext">
+                                    <span>Meaningful Visits</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 25px; padding-top: 25px; border-top: 1px solid #eee;">
+                            <canvas id="ga4TrafficChart" style="width: 100%; height: 300px; display: none;"></canvas>
+                        </div>
+
+                        <!-- GA4 Detailed Data Table -->
+                        <div id="ga4TableContainer" style="margin-top: 30px; display: none;">
+                            <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                <table id="ga4ReportTable"
+                                    style="width: 100%; border-collapse: collapse; font-size: 13px; background: #fff;">
+                                    <thead id="ga4TableHead"
+                                        style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                                        <!-- Columns will be injected here -->
+                                    </thead>
+                                    <tbody id="ga4TableBody">
+                                        <!-- Rows will be injected here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- GA4 Strategic Audit Section -->
+                        <div id="ga4AuditSection" style="margin-top: 30px; display: none;">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #f4b400;">
+                                <h3 style="margin: 0; color: #f4b400; font-size: 18px;">
+                                    <i class="fas fa-stethoscope"></i> Google Analytics 4 Strategic Insights
+                                    <span id="ga4AuditBadge"
+                                        style="background: #f4b400; color: #000; font-size: 10px; padding: 2px 8px; border-radius: 4px; vertical-align: middle; margin-left: 10px; display: none;">LIVE
+                                        INSIGHTS</span>
+                                </h3>
+                                <button id="btnRunGa4Audit" onclick="runGa4Audit()" class="btn-gradient"
+                                    style="background: #f4b400; color: #000; margin: 0; padding: 8px 15px; font-size: 12px; width: auto;">
+                                    <i class="fas fa-sync-alt"></i> Re-Run Audit
+                                </button>
+                            </div>
+
+                            <div id="ga4AuditResultsGrid"
+                                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                                <!-- Findings will be injected here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Google Ads Section -->
+        <div id="adsIntegrationSection">
+            <button class="collapsible" id="adsIntegrationBtn"><i class="fas fa-plus-square"></i><i
+                    class="fas fa-ad"></i>Google Ads</button>
+            <div class="content" id="adsContent" style="display: none; padding: 20px; position: relative;">
+                <!-- Ads Loading Overlay -->
+                <div id="adsLoadingOverlay">
+                    <div class="loader-content">
+                        <div class="spinner"></div>
+                        <p style="margin: 0; color: #1e293b; font-weight: 600; font-size: 15px;">Updating Ads
+                            Data...</p>
+                        <p style="margin: 0; color: #64748b; font-size: 12px;">This may take a few moments depending
+                            on account size.</p>
+                    </div>
+                </div>
+                <div id="adsAuthSection"
+                    style="margin-bottom: 20px; padding: 15px; background: #e6f4ea; border-radius: 8px; border: 1px solid #ceead6;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div>
+                            <h4 style="margin: 0; color: #0f9d58;"><i class="fas fa-ad"></i> Google Ads
+                            </h4>
+                            <p id="adsAuthStatus" style="margin: 5px 0 0 0; font-size: 13px; color: #5f6368;">
+                                Not connected. Connect to your Google account to use Ads tools.</p>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <button class="btn-gradient" id="btnConnectAds" onclick="connectGoogleTools()"
+                                style="background: #0f9d58; width: 180px; margin: 0;">
+                                <i class="fas fa-link"></i> Connect Ads
+                            </button>
+                        </div>
+                    </div>
+                    <div id="adsPropertySelector"
+                        style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #ceead6;">
+                        <label
+                            style="font-size: 13px; color: #0f9d58; font-weight: bold; display: block; margin-bottom: 8px;">Select
+                            Ads Account:</label>
+
+                        <div class="ads-searchable-select-container">
+                            <div style="position: relative;">
+                                <i class="fas fa-search"
+                                    style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #0f9d58; font-size: 12px; opacity: 0.7;"></i>
+                                <input type="text" id="adsCustomerSearch"
+                                    placeholder="Search or select accounts (name or ID)..."
+                                    oninput="filterAdsCustomerList()" onfocus="showAdsCustomerDropdown()"
+                                    style="width: 100%; padding: 10px 10px 10px 30px; border-radius: 4px; border: 1px solid #ceead6; font-size: 13px; box-sizing: border-box; outline: none; background: #fff; cursor: pointer;">
+                                <i class="fas fa-chevron-down" onclick="toggleAdsCustomerDropdown()"
+                                    style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #0f9d58; font-size: 12px; cursor: pointer; opacity: 0.8;"></i>
+                            </div>
+                            <div id="adsCustomerDropdownResults" class="ads-searchable-select-results">
+                                <!-- Results will be injected here -->
+                            </div>
+                        </div>
+
+                        <!-- Hidden select for compatibility -->
+                        <select id="adsSiteList" onchange="updateSelectedAdsProperty()" style="display: none;">
+                            <option value="">-- Choose an Ads Account --</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="adsToolsArea" style="opacity: 0.5;">
+                    <!-- Top Dashboard Controls -->
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #eef0f2; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                        <div style="display: flex; gap: 15px; align-items: center;">
+                            <div>
+                                <label
+                                    style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Date
+                                    Range</label>
+                                <select id="adsDateRange" onchange="adsDateRangeChanged()"
+                                    style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc; min-width: 150px; cursor: pointer;">
+                                    <option value="LAST_7_DAYS">Last 7 Days</option>
+                                    <option value="LAST_14_DAYS">Last 14 Days</option>
+                                    <option value="LAST_30_DAYS" selected>Last 30 Days</option>
+                                    <option value="LAST_90_DAYS">Last 90 Days</option>
+                                    <option value="LAST_365_DAYS">Last 365 Days</option>
+                                    <option value="THIS_MONTH">This Month</option>
+                                    <option value="LAST_MONTH">Last Month</option>
+                                    <option value="CUSTOM">Custom Range</option>
+                                </select>
+                            </div>
+                            <div id="adsCustomDateInputs" style="display: none; align-items: flex-end; gap: 10px;">
+                                <div>
+                                    <label
+                                        style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Start
+                                        Date</label>
+                                    <input type="date" id="adsStartDate"
+                                        style="padding: 7px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc;">
+                                </div>
+                                <div>
+                                    <label
+                                        style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">End
+                                        Date</label>
+                                    <input type="date" id="adsEndDate"
+                                        style="padding: 7px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc;">
+                                </div>
+                                <button onclick="updateSelectedAdsProperty(true)"
+                                    style="padding: 8px 15px; border-radius: 6px; border: none; background: #0f9d58; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;">Apply</button>
+                                <button id="btnRunAdsDiagnostics" onclick="runAdsDiagnostics()"
+                                    style="padding: 8px 15px; border-radius: 6px; border: none; background: #ea4335; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fas fa-stethoscope"></i> Account Diagnostics
+                                </button>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 15px; align-items: center;">
+                            <div style="position: relative;">
+                                <i class="fas fa-search"
+                                    style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 12px;"></i>
+                                <input type="text" id="adsCampaignFilter" placeholder="Filter campaigns..."
+                                    oninput="reRenderAdsTable()"
+                                    style="padding: 8px 12px 8px 32px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; width: 220px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Breadcrumbs Navigation (Redesigned as Filter/View Bar) -->
+                    <div id="adsBreadcrumbs"
+                        style="display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; font-size: 13px;">
+                        <!-- Active View Badge -->
+                        <div
+                            style="display: flex; align-items: center; gap: 6px; background: #f1f5f9; padding: 6px 12px; border-radius: 20px; color: #475569; font-weight: 600; border: 1px solid #e2e8f0;">
+                            <i class="fas fa-layer-group" style="color: #64748b;"></i>
+                            <span
+                                style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.7;">Viewing</span>
+                            <span id="adsCurrentViewLabel" style="color: #0f9d58;">Campaigns</span>
+                        </div>
+
+                        <!-- Active Filters (Drilldowns) -->
+                        <div id="adsFilterAccount" style="display: none; align-items: center; position: relative;">
+                            <div id="adsFilterAccountChip"
+                                onclick="event.stopPropagation(); toggleAdsHierarchyDropdown('account')"
+                                style="display: flex; align-items: center; gap: 6px; background: #fdf2f2; padding: 6px 12px; border-radius: 20px; color: #991b1b; border: 1px solid #fecaca; cursor: pointer;">
+                                <span
+                                    style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.7;">Account</span>
+                                <span id="adsBreadcrumbAccountName" style="font-weight: 600;"></span>
+                                <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 4px;"></i>
+                            </div>
+                            <div id="adsAccountDropdownMenu"
+                                style="display: none; position: absolute; left: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 10px; width: 320px; z-index: 101; max-height: 300px; overflow-y: auto;">
+                                <!-- Accounts will be rendered here -->
+                            </div>
+                        </div>
+
+                        <div id="adsFilterCampaign" style="display: none; align-items: center; position: relative;">
+                            <div id="adsFilterCampaignChip"
+                                onclick="event.stopPropagation(); toggleAdsHierarchyDropdown('campaign')"
+                                style="display: flex; align-items: center; gap: 6px; background: #e0f2fe; padding: 6px 12px; border-radius: 20px; color: #0369a1; border: 1px solid #bae6fd; cursor: pointer;">
+                                <span
+                                    style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.7;">Campaign</span>
+                                <span id="adsBreadcrumbCampaignName" style="font-weight: 600;">Select
+                                    Campaign...</span>
+                                <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 4px;"></i>
+                                <i id="adsClearCampaign" class="fas fa-times"
+                                    onclick="event.stopPropagation(); clearHierarchyLevel('campaign')"
+                                    style="cursor: pointer; margin-left: 4px; opacity: 0.6; padding: 2px; display: none;"
+                                    title="Clear Selection" onmouseover="this.style.opacity='1'"
+                                    onmouseout="this.style.opacity='0.6'"></i>
+                            </div>
+                            <div id="adsCampaignDropdownMenu"
+                                style="display: none; position: absolute; left: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 10px; width: 280px; z-index: 101; max-height: 300px; overflow-y: auto;">
+                                <!-- Checkboxes will be rendered here -->
+                            </div>
+                        </div>
+
+                        <div id="adsFilterAdGroup" style="display: none; align-items: center; position: relative;">
+                            <div id="adsFilterAdGroupChip"
+                                onclick="event.stopPropagation(); toggleAdsHierarchyDropdown('ad_group')"
+                                style="display: flex; align-items: center; gap: 6px; background: #f0fdf4; padding: 6px 12px; border-radius: 20px; color: #166534; border: 1px solid #bbf7d0; cursor: pointer;">
+                                <span
+                                    style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.7;">Ad
+                                    Group</span>
+                                <span id="adsBreadcrumbAdGroupName" style="font-weight: 600;">Select Ad
+                                    Group...</span>
+                                <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 4px;"></i>
+                                <i id="adsClearAdGroup" class="fas fa-times"
+                                    onclick="event.stopPropagation(); clearHierarchyLevel('ad_group')"
+                                    style="cursor: pointer; margin-left: 4px; opacity: 0.6; padding: 2px; display: none;"
+                                    title="Clear Selection" onmouseover="this.style.opacity='1'"
+                                    onmouseout="this.style.opacity='0.6'"></i>
+                            </div>
+                            <div id="adsAdGroupDropdownMenu"
+                                style="display: none; position: absolute; left: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 10px; width: 280px; z-index: 101; max-height: 300px; overflow-y: auto;">
+                                <!-- Checkboxes will be rendered here -->
+                            </div>
+                        </div>
+
+                        <div id="adsFilterAd" style="display: none; align-items: center; position: relative;">
+                            <div id="adsFilterAdChip"
+                                onclick="event.stopPropagation(); toggleAdsHierarchyDropdown('ad')"
+                                style="display: flex; align-items: center; gap: 6px; background: #fff7ed; padding: 6px 12px; border-radius: 20px; color: #9a3412; border: 1px solid #fed7aa; cursor: pointer;">
+                                <span
+                                    style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.7;">Ad</span>
+                                <span id="adsBreadcrumbAdName" style="font-weight: 600;">Select Ad...</span>
+                                <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 4px;"></i>
+                                <i id="adsClearAd" class="fas fa-times"
+                                    onclick="event.stopPropagation(); clearHierarchyLevel('ad')"
+                                    style="cursor: pointer; margin-left: 4px; opacity: 0.6; padding: 2px; display: none;"
+                                    title="Clear Selection" onmouseover="this.style.opacity='1'"
+                                    onmouseout="this.style.opacity='0.6'"></i>
+                            </div>
+                            <div id="adsAdDropdownMenu"
+                                style="display: none; position: absolute; left: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 10px; width: 280px; z-index: 101; max-height: 300px; overflow-y: auto;">
+                                <!-- Checkboxes will be rendered here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Filters Bar -->
+                    <div class="ads-advanced-filter-bar" id="adsAdvancedFilterBar">
+                        <div class="ads-funnel-btn" id="adsFunnelBtn" title="Advanced Filters">
+                            <i class="fas fa-filter"></i>
+                            <span class="ads-funnel-badge" id="adsFilterBadge" style="display: none;">0</span>
+                        </div>
+
+                        <div id="adsActiveFiltersContainer" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <!-- Dynamic Filter Chips -->
+                        </div>
+
+                        <div style="position: relative;">
+                            <div class="ads-add-filter-trigger" id="adsAddFilterTrigger"
+                                onclick="event.stopPropagation(); toggleAdsFilterPicker()">
+                                Add filter
+                            </div>
+
+                            <!-- Field Picker Dropdown -->
+                            <div id="adsFilterPicker" class="ads-filter-popup"
+                                style="width: 200px; top: 30px; left: 0; padding: 8px;">
+                                <div style="display: flex; flex-direction: column;">
+                                    <div class="ads-add-filter-option"
+                                        onclick="openAdsFilterConfig('campaign.name', 'Campaign name')">Campaign
+                                        name</div>
+                                    <div class="ads-add-filter-option"
+                                        onclick="openAdsFilterConfig('campaign.status', 'Campaign status')">Campaign
+                                        status</div>
+                                    <div class="ads-add-filter-option"
+                                        onclick="openAdsFilterConfig('ad_group.name', 'Ad group name')">Ad group
+                                        name</div>
+                                    <div class="ads-add-filter-option"
+                                        onclick="openAdsFilterConfig('ad_group.status', 'Ad group status')">Ad group
+                                        status</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Filter Config Popup -->
+                    <div id="adsFilterConfigPopup" class="ads-filter-popup" style="width: 320px;">
+                        <div class="ads-filter-popup-header">
+                            <div class="ads-filter-popup-title" id="adsFilterConfigTitle">Campaign name</div>
+                            <i class="fas fa-times ads-filter-popup-close" onclick="closeAdsFilterConfig()"></i>
+                        </div>
+
+                        <div id="adsFilterOperatorGroup">
+                            <select id="adsFilterOperator">
+                                <option value="contains">contains</option>
+                                <option value="not_contains">does not contain</option>
+                                <option value="equals">equals</option>
+                                <option value="not_equals">does not equal</option>
+                                <option value="starts_with">starts with</option>
+                            </select>
+                        </div>
+
+                        <div id="adsFilterValueGroup">
+                            <label>Any of the following values</label>
+                            <div style="border: 1px solid #3b82f6; border-radius: 6px; padding: 2px;">
+                                <textarea id="adsFilterValues" placeholder="Enter one value per line"
+                                    style="border: none; margin-bottom: 0;"></textarea>
+                            </div>
+                            <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Enter one value per line
+                            </div>
+                        </div>
+
+                        <div id="adsFilterStatusGroup" style="display: none;">
+                            <label
+                                style="display: block; font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 6px;">Status</label>
+                            <select id="adsFilterStatusSelect"
+                                style="width: 100%; padding: 8px; border: 1px solid #3b82f6; border-radius: 6px; background-color: white; font-size: 14px;">
+                                <option value="ALL">All</option>
+                                <option value="ENABLED">Enabled</option>
+                                <option value="PAUSED">Paused</option>
+                                <option value="ENABLED,PAUSED">Enabled, Paused</option>
+                            </select>
+                        </div>
+
+                        <div class="ads-filter-popup-footer">
+                            <button class="ads-filter-popup-btn cancel" onclick="closeAdsFilterConfig()">Cancel</button>
+                            <button class="ads-filter-popup-btn apply" onclick="applyAdvancedFilter()">Apply</button>
+                        </div>
+                    </div>
+
+                    <style>
+                        .ads-add-filter-option {
+                            padding: 8px 12px;
+                            font-size: 13px;
+                            cursor: pointer;
+                            border-radius: 4px;
+                            transition: background 0.2s;
+                        }
+
+                        .ads-add-filter-option:hover {
+                            background: #f1f5f9;
+                        }
+                    </style>
+
+
+                    <!-- Progress Over Time -->
+                    <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                        <div style="flex: 1;">
+                            <h3 class="koda-section-title">Progress Over Time</h3>
+                            <div class="koda-dashboard-grid" style="grid-template-columns: repeat(2, 1fr);">
+                                <!-- Impressions -->
+                                <div class="koda-kpi-card koda-bg-blue">
+                                    <div class="kpi-header">
+                                        <span>Impressions</span>
+                                        <i class="fas fa-eye kpi-icon"></i>
+                                    </div>
+                                    <div class="kpi-value" id="adsImpressions">-</div>
+                                    <div class="kpi-subtext">
+                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                        <span>~ 0</span>
+                                    </div>
+                                </div>
+                                <!-- Clicks -->
+                                <div class="koda-kpi-card koda-bg-red">
+                                    <div class="kpi-header">
+                                        <span>Clicks</span>
+                                        <i class="fas fa-mouse-pointer kpi-icon"></i>
+                                    </div>
+                                    <div class="kpi-value" id="adsClicks">-</div>
+                                    <div class="kpi-subtext">
+                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                        <span>~ 0</span>
+                                    </div>
+                                </div>
+                                <!-- CTR -->
+                                <div class="koda-kpi-card koda-bg-purple">
+                                    <div class="kpi-header">
+                                        <span>CTR</span>
+                                        <i class="fas fa-chart-line kpi-icon"></i>
+                                    </div>
+                                    <div class="kpi-value" id="adsCtr">-</div>
+                                    <div class="kpi-subtext">
+                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                        <span>~ 0</span>
+                                    </div>
+                                </div>
+                                <!-- Cost -->
+                                <div class="koda-kpi-card koda-bg-green">
+                                    <div class="kpi-header">
+                                        <span>Cost</span>
+                                        <i class="fas fa-credit-card kpi-icon"></i>
+                                    </div>
+                                    <div class="kpi-value" id="adsCost">-</div>
+                                    <div class="kpi-subtext">
+                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                        <span>~ $0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Conversions -->
+                        <div style="flex: 1;">
+                            <h3 class="koda-section-title">Conversions</h3>
+                            <div class="koda-dashboard-grid" style="grid-template-columns: repeat(2, 1fr);">
+                                <!-- Conversions -->
+                                <div class="koda-kpi-card koda-bg-orange">
+                                    <div class="kpi-header">
+                                        <span>Conversions</span>
+                                        <i class="fas fa-filter kpi-icon"></i>
+                                    </div>
+                                    <div class="kpi-value" id="adsConversions">-</div>
+                                    <div class="kpi-subtext">
+                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                        <span>~ 0</span>
+                                    </div>
+                                </div>
+                                <!-- Conv Rate -->
+                                <div class="koda-kpi-card koda-bg-yellow" style="color: #6a4f00;">
+                                    <div class="kpi-header">
+                                        <span>Conv. Rate</span>
+                                        <i class="fas fa-percentage kpi-icon" style="background: rgba(0,0,0,0.1);"></i>
+                                    </div>
+                                    <div class="kpi-value" id="adsConvRate">-</div>
+                                    <div class="kpi-subtext">
+                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                        <span>~ 0.00%</span>
+                                    </div>
+                                </div>
+                                <!-- Revenue -->
+                                <div class="koda-kpi-card koda-bg-indigo">
+                                    <div class="kpi-header">
+                                        <span>Revenue</span>
+                                        <i class="fas fa-money-bill-wave kpi-icon"></i>
+                                    </div>
+                                    <div class="kpi-value" id="adsRevenue">-</div>
+                                    <div class="kpi-subtext">
+                                        <span>No Data Available</span>
+                                        <span>(API Value Missing)</span>
+                                    </div>
+                                </div>
+                                <!-- Cost / Conv -->
+                                <div class="koda-kpi-card koda-bg-greyblue">
+                                    <div class="kpi-header">
+                                        <span>Cost/ Conv.</span>
+                                        <i class="fas fa-sync-alt kpi-icon"></i>
+                                    </div>
+                                    <div class="kpi-value" id="adsCostConv">-</div>
+                                    <div class="kpi-subtext">
+                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                        <span>~ $0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ads Diagnostics Results Container -->
+                    <div id="adsDiagnosticsSection"
+                        style="display: none; margin-bottom: 25px; background: #fff; border-radius: 12px; border: 1px solid #eef0f2; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3
+                                style="margin: 0; font-size: 16px; color: #1e293b; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-stethoscope" style="color: #ea4335;"></i> Account Diagnostics
+                            </h3>
+                            <button onclick="document.getElementById('adsDiagnosticsSection').style.display='none'"
+                                style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 16px;"><i
+                                    class="fas fa-times"></i></button>
+                        </div>
+                        <div id="adsDiagnosticsResultsGrid"
+                            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
+                            <!-- Results will be injected here -->
+                        </div>
+                    </div>
+
+                    <!-- Main Chart -->
+                    <div class="koda-chart-container">
+                        <div
+                            style="display: flex; justify-content: flex-end; gap: 15px; margin-bottom: 15px; padding: 5px 10px 0;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span
+                                    style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Primary
+                                    Metric</span>
+                                <select id="adsChartMetricPrimary" onchange="reRenderAdsChart()"
+                                    style="padding: 5px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px; color: #475569; outline: none; background: #f8fafc; font-weight: 600; cursor: pointer; min-width: 120px;">
+                                    <option value="metrics.clicks" selected>Clicks</option>
+                                    <option value="metrics.impressions">Impressions</option>
+                                    <option value="metrics.conversions">Conversions</option>
+                                    <option value="metrics.cost_micros">Cost</option>
+                                    <option value="metrics.ctr">CTR</option>
+                                    <option value="metrics.average_cpc">Avg. CPC</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span
+                                    style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Secondary
+                                    Metric</span>
+                                <select id="adsChartMetricSecondary" onchange="reRenderAdsChart()"
+                                    style="padding: 5px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px; color: #475569; outline: none; background: #f8fafc; font-weight: 600; cursor: pointer; min-width: 120px;">
+                                    <option value="none">None</option>
+                                    <option value="metrics.clicks">Clicks</option>
+                                    <option value="metrics.impressions">Impressions</option>
+                                    <option value="metrics.conversions" selected>Conversions</option>
+                                    <option value="metrics.cost_micros">Cost</option>
+                                    <option value="metrics.ctr">CTR</option>
+                                    <option value="metrics.average_cpc">Avg. CPC</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="height: 350px;">
+                            <canvas id="adsPerformanceChart" style="width: 100%; height: 100%; display: none;"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Campaigns Data Table Mock -->
+                    <div class="koda-mock-table-container mt-4">
+                        <div
+                            style="padding: 15px 20px; border-bottom: 1px solid #f1f3f4; display: flex; justify-content: space-between; align-items: center;">
+                            <h3 class="koda-section-title" style="margin: 0;">Campaigns <a href="#"
+                                    style="font-size: 11px; font-weight: 400; color: #1a73e8; margin-left: 10px;">View
+                                    campaign details</a></h3>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <button onclick="exportAdsTableToCSV()"
+                                    style="padding: 8px 15px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; font-size: 13px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 8px;"
+                                    title="Export the current table view to CSV">
+                                    <i class="fas fa-file-csv"></i> Export CSV
+                                </button>
+
+                                <div style="position: relative;" id="adsColumnDropdownWrapper">
+                                    <button
+                                        onclick="document.getElementById('adsColumnMenu').style.display = document.getElementById('adsColumnMenu').style.display === 'block' ? 'none' : 'block'"
+                                        style="padding: 8px 15px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; font-size: 13px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 8px;">
+                                        <i class="fas fa-columns"></i> Columns <i class="fas fa-caret-down"
+                                            style="font-size: 10px;"></i>
+                                    </button>
+                                    <div id="adsColumnMenu"
+                                        style="display: none; position: absolute; right: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 15px; width: 300px; z-index: 100; max-height: 400px; overflow-y: auto;">
+                                        <div
+                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
+                                            Primary Info</div>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="reRenderAdsTable()" value="campaign.name"
+                                                checked disabled> Campaign Name</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="adsFieldChanged()" value="campaign.status">
+                                            Status</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="adsFieldChanged()"
+                                                value="campaign.start_date"> Start Date</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="adsFieldChanged()" value="campaign.end_date">
+                                            End Date</label>
+
+                                        <div
+                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
+                                            Hierarchy & Segments</div>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="adsFieldChanged()" value="ad_group.name">
+                                            Ad Group Name</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="adsFieldChanged()"
+                                                value="ad_group_ad.ad.name"> Ad Name</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="adsFieldChanged()" value="segments.device">
+                                            Device</label>
+
+                                        <div
+                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
+                                            Core Metrics</div>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="reRenderAdsTable()"
+                                                value="metrics.impressions" checked> Impressions</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="reRenderAdsTable()" value="metrics.clicks"
+                                                checked>
+                                            Clicks</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="reRenderAdsTable()" value="metrics.ctr">
+                                            CTR</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="adsFieldChanged()"
+                                                value="metrics.average_cpc"> Avg. CPC</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="adsFieldChanged()"
+                                                value="metrics.average_cpm"> Avg. CPM</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="reRenderAdsTable()"
+                                                value="metrics.cost_micros" checked> Cost</label>
+
+                                        <div
+                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
+                                            Conversions</div>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="reRenderAdsTable()"
+                                                value="metrics.conversions"> Conversions</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="adsFieldChanged()"
+                                                value="metrics.conversions_value"> Conv. Value</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="reRenderAdsTable()"
+                                                value="metrics.cost_per_conversion" checked> Cost / Conv.</label>
+
+                                        <div
+                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
+                                            Video Perf.</div>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="adsFieldChanged()"
+                                                value="metrics.average_video_watch_time_duration_millis"> Avg. Watch
+                                            Time</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="adsFieldChanged()"
+                                                value="metrics.video_quartile_p25_rate"> 25% View Rate</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="adsFieldChanged()"
+                                                value="metrics.video_quartile_p50_rate"> 50% View Rate</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="adsFieldChanged()"
+                                                value="metrics.video_quartile_p75_rate"> 75% View Rate</label>
+                                        <label
+                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
+                                                type="checkbox" onchange="adsFieldChanged()"
+                                                value="metrics.video_quartile_p100_rate"> 100% View Rate</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table class="koda-table">
+                                <thead>
+                                    <tr>
+                                        <th>Campaign</th>
+                                        <th>Impressions</th>
+                                        <th>Clicks</th>
+                                        <th>Conversions</th>
+                                        <th>Cost</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="adsCampaignsTableBody">
+                                    <tr>
+                                        <td colspan="5" style="text-align: center; padding: 20px;">Load an
+                                            account above to populate campaign data.</td>
+                                    </tr>
+                                </tbody>
+                                <tfoot id="adsCampaignsTableFoot" style="font-weight: bold; background: #fff;">
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            <hr>
+        </div>
+
+        <!-- Meta Ads Section -->
+        <div id="metaAdsSection">
+            <div class="page-break"></div>
+            <button class="collapsible" id="metaAdsBtn"><i class="fas fa-plus-square"></i><i class="fab fa-facebook"></i>Meta Ads</button>
+            <div class="content" id="metaAdsContent" style="display: none; padding: 20px; position: relative;">
+
+                <!-- Auth Banner -->
+                <div id="metaAdsAuthSection" style="margin-bottom: 20px; padding: 15px; background: #e7f0fd; border-radius: 8px; border: 1px solid #b3cef5;">
+                    <div style="display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                        <div style="flex: 1; min-width: 260px;">
+                            <h4 style="margin: 0; color: #1877F2;"><i class="fab fa-facebook"></i> Meta Ads</h4>
+                            <p id="metaAdsAuthStatus" style="margin: 5px 0 0 0; font-size: 13px; color: #5f6368;">Paste your access token below, then click Connect.</p>
+                            <p style="margin: 6px 0 0 0; font-size: 12px; color: #94a3b8;">Get a token from <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:#1877F2;">Graph API Explorer</a> with <code>ads_read</code> permission, or copy it from your Apps Script.</p>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <input id="metaTokenInput" type="password" placeholder="Paste access token…" autocomplete="off"
+                                style="padding: 8px 12px; border-radius: 6px; border: 1px solid #b3cef5; font-size: 13px; outline: none; width: 260px;">
+                            <button class="btn-gradient" id="btnConnectMeta" onclick="connectMetaAds()"
+                                style="background: #1877F2; width: 140px; margin: 0;">
+                                <i class="fab fa-facebook"></i> Connect
+                            </button>
+                            <button id="btnDisconnectMeta" onclick="disconnectMetaAds()"
+                                style="display: none; padding: 8px 14px; border-radius: 6px; border: 1px solid #b3cef5; background: #fff; color: #1877F2; font-size: 13px; font-weight: 600; cursor: pointer;">
+                                Disconnect
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Account selector -->
+                    <div id="metaAdsAccountSelector" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #b3cef5;">
+                        <label style="font-size: 13px; color: #1877F2; font-weight: bold; display: block; margin-bottom: 8px;">Select Ad Account:</label>
+                        <select id="metaAdAccountList" onchange="selectMetaAdAccount(this.value)"
+                            style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #b3cef5; font-size: 13px; outline: none; background: #fff; cursor: pointer;">
+                            <option value="">-- Choose an Ad Account --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Dashboard (locked until connected) -->
+                <div id="metaAdsToolsArea" style="opacity: 0.4; pointer-events: none;">
+
+                    <!-- Controls bar -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #eef0f2; box-shadow: 0 2px 4px rgba(0,0,0,0.02); flex-wrap: wrap; gap: 12px;">
+                        <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                            <div>
+                                <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Date Range</label>
+                                <select id="metaDateRange" onchange="metaDateRangeChanged()"
+                                    style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc; min-width: 170px; cursor: pointer;">
+                                    <option value="today">Today</option>
+                                    <option value="yesterday">Yesterday</option>
+                                    <option value="this_week_mon_today">This Week (Mon–Today)</option>
+                                    <option value="this_week_sun_today">This Week (Sun–Today)</option>
+                                    <option value="last_week_mon_sun">Last Week (Mon–Sun)</option>
+                                    <option value="last_week_sun_sat">Last Week (Sun–Sat)</option>
+                                    <option value="last_7d">Last 7 Days</option>
+                                    <option value="last_14d">Last 14 Days</option>
+                                    <option value="last_28d">Last 28 Days</option>
+                                    <option value="last_30d" selected>Last 30 Days</option>
+                                    <option value="last_90d">Last 90 Days</option>
+                                    <option value="this_month">This Month</option>
+                                    <option value="last_month">Last Month</option>
+                                    <option value="this_quarter">This Quarter</option>
+                                    <option value="last_quarter">Last Quarter</option>
+                                    <option value="this_year">This Year</option>
+                                    <option value="last_year">Last Year</option>
+                                    <option value="maximum">Maximum (All Time)</option>
+                                    <option value="custom">Custom Range…</option>
+                                </select>
+                            </div>
+                            <!-- Custom date pickers (shown only when Custom is selected) -->
+                            <div id="metaCustomRange" style="display:none; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+                                <div>
+                                    <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">From</label>
+                                    <input type="date" id="metaCustomSince" onchange="fetchMetaInsights()"
+                                        style="padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc;">
+                                </div>
+                                <div>
+                                    <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">To</label>
+                                    <input type="date" id="metaCustomUntil" onchange="fetchMetaInsights()"
+                                        style="padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc;">
+                                </div>
+                            </div>
+                            <div>
+                                <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Level</label>
+                                <select id="metaLevelSelect" onchange="fetchMetaInsights()"
+                                    style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc; cursor: pointer;">
+                                    <option value="campaign">Campaign</option>
+                                    <option value="adset">Ad Set</option>
+                                    <option value="ad">Ad</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;text-transform:uppercase;">Breakdown</label>
+                                <select id="metaBreakdown" onchange="fetchMetaInsights()"
+                                    style="padding:8px 12px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;color:#1e293b;outline:none;background:#f8fafc;cursor:pointer;">
+                                    <option value="">None</option>
+                                    <option value="publisher_platform">Platform</option>
+                                    <option value="placement">Placement</option>
+                                    <option value="age,gender">Age &amp; Gender</option>
+                                    <option value="device_platform">Device</option>
+                                    <option value="country">Country</option>
+                                    <option value="region">Region</option>
+                                    <option value="hourly_stats_aggregated_by_advertiser_time_zone">Hour of Day</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <div style="position: relative;">
+                                <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 12px;"></i>
+                                <input type="text" id="metaCampaignFilter" placeholder="Filter rows..."
+                                    oninput="renderMetaTable()"
+                                    style="padding: 8px 12px 8px 32px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; width: 200px;">
+                            </div>
+                            <div class="meta-col-picker">
+                                <button onclick="toggleMetaColPicker(event)"
+                                    style="padding: 8px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                    <i class="fas fa-columns"></i> Columns
+                                </button>
+                                <div class="meta-col-menu" id="metaColMenu">
+                                    <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;padding:4px 8px 6px;">Show / hide columns</div>
+                                </div>
+                            </div>
+                            <button onclick="exportMetaTableToCSV()"
+                                style="padding: 8px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                <i class="fas fa-download"></i> Export CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- KPI Cards -->
+                    <div id="metaKpiRow" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px;">
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Spend</div><div class="meta-kpi-value" id="metaKpiSpend">—</div><div class="meta-kpi-trend" id="metaKpiSpendTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Impressions</div><div class="meta-kpi-value" id="metaKpiImpressions">—</div><div class="meta-kpi-trend" id="metaKpiImpressionsTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Reach</div><div class="meta-kpi-value" id="metaKpiReach">—</div><div class="meta-kpi-trend" id="metaKpiReachTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Clicks</div><div class="meta-kpi-value" id="metaKpiClicks">—</div><div class="meta-kpi-trend" id="metaKpiClicksTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">CTR</div><div class="meta-kpi-value" id="metaKpiCtr">—</div><div class="meta-kpi-trend" id="metaKpiCtrTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">CPC</div><div class="meta-kpi-value" id="metaKpiCpc">—</div><div class="meta-kpi-trend" id="metaKpiCpcTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">CPM</div><div class="meta-kpi-value" id="metaKpiCpm">—</div><div class="meta-kpi-trend" id="metaKpiCpmTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Results</div><div class="meta-kpi-value" id="metaKpiResults">—</div><div class="meta-kpi-trend" id="metaKpiResultsTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Cost / Result</div><div class="meta-kpi-value" id="metaKpiCostPerResult">—</div><div class="meta-kpi-trend" id="metaKpiCostPerResultTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Frequency</div><div class="meta-kpi-value" id="metaKpiFrequency">—</div><div class="meta-kpi-trend" id="metaKpiFrequencyTrend"></div></div>
+                        <div class="meta-kpi-card"><div class="meta-kpi-label">Thumb Stop %</div><div class="meta-kpi-value" id="metaKpiThumbStop">—</div><div class="meta-kpi-trend" id="metaKpiThumbStopTrend"></div></div>
+                    </div>
+
+                    <!-- Chart + Funnel -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+                        <div style="background:#fff;border-radius:12px;padding:20px;border:1px solid #eef0f2;">
+                            <canvas id="metaAdsChart" height="120"></canvas>
+                        </div>
+                        <div style="background:#fff;border-radius:12px;padding:20px;border:1px solid #eef0f2;">
+                            <h4 style="margin:0 0 16px;font-size:13px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;">Funnel</h4>
+                            <div id="metaFunnel"></div>
+                        </div>
+                    </div>
+
+                    <!-- Table -->
+                    <div style="background: #fff; border-radius: 12px; border: 1px solid #eef0f2; overflow: hidden; margin-bottom: 20px;">
+                        <div id="metaBreadcrumb" class="meta-breadcrumb" style="margin:12px 16px 0;"></div>
+                        <div style="overflow-x: auto; overflow-y: auto; max-height: 520px;">
+                            <table id="metaAdsTable" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                <thead id="metaAdsTableHead" style="background: #f8fafc;"></thead>
+                                <tbody id="metaAdsTableBody">
+                                    <tr><td colspan="11" style="padding: 40px; text-align: center; color: #94a3b8;">Connect your Meta Ads account to see data.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- AI Recommendations -->
+                    <div style="background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #eef0f2;">
+                        <h4 style="margin: 0 0 16px 0; color: #1877F2; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-lightbulb"></i> Meta Ads AI Recommendations
+                        </h4>
+                        <div id="metaAdsRecommendations">
+                            <p style="color: #94a3b8; font-size: 13px; margin: 0;">Recommendations will appear once Meta Ads is connected and data is loaded.</p>
+                        </div>
+                    </div>
+
+                </div><!-- /metaAdsToolsArea -->
+            </div>
+        </div><!-- /metaAdsSection -->
+
         </div>
         <hr>
     </div>
@@ -16567,1198 +17761,6 @@
             </div>
         </div>
 
-        <!-- GA4 Section -->
-        <div id="ga4IntegrationSection">
-            <button class="collapsible" id="ga4IntegrationBtn"><i class="fas fa-plus-square"></i><i
-                    class="fas fa-chart-pie"></i>Google Analytics
-                4</button>
-            <div class="content" id="ga4Content" style="display: none; padding: 20px;">
-                <div id="ga4AuthSection"
-                    style="margin-bottom: 20px; padding: 15px; background: #fff8e1; border-radius: 8px; border: 1px solid #ffe082;">
-                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h4 style="margin: 0; color: #f57f17;"><i class="fas fa-chart-pie"></i> Google
-                                Analytics 4
-                            </h4>
-                            <p id="ga4AuthStatus" style="margin: 5px 0 0 0; font-size: 13px; color: #5f6368;">
-                                Not connected. Connect to your Google account to use GA4 tools.</p>
-                        </div>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <button class="btn-gradient" id="btnConnectGa4" onclick="connectGoogleTools()"
-                                style="background: #f4b400; width: 180px; margin: 0; color: #000;">
-                                <i class="fas fa-link"></i> Connect GA4
-                            </button>
-                        </div>
-                    </div>
-                    <div id="ga4PropertySelector"
-                        style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #ffe082;">
-                        <label
-                            style="font-size: 13px; color: #f57f17; font-weight: bold; display: block; margin-bottom: 8px;">Select
-                            Account/Property:</label>
-
-                        <div class="ga4-searchable-select-container">
-                            <div style="position: relative;">
-                                <i class="fas fa-search"
-                                    style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #f4b400; font-size: 12px; opacity: 0.7;"></i>
-                                <input type="text" id="ga4PropertySearch" placeholder="Search or select properties..."
-                                    oninput="filterGa4PropertyList()" onfocus="showGa4PropertyDropdown()"
-                                    style="width: 100%; padding: 10px 10px 10px 30px; border-radius: 4px; border: 1px solid #ffe082; font-size: 14px; box-sizing: border-box; outline: none; background: #fff; cursor: pointer;">
-                                <i class="fas fa-chevron-down" onclick="toggleGa4PropertyDropdown()"
-                                    style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #f4b400; font-size: 12px; cursor: pointer; opacity: 0.8;"></i>
-                            </div>
-                            <div id="ga4PropertyDropdownResults" class="ga4-searchable-select-results">
-                                <!-- Results will be injected here -->
-                            </div>
-                        </div>
-
-                        <!-- Hidden select for compatibility -->
-                        <select id="ga4SiteList" onchange="updateSelectedGa4Property()" style="display: none;">
-                            <option value="">-- Choose a GA4 Property --</option>
-                        </select>
-                    </div>
-                </div>
-                <div id="ga4ToolsArea" style="opacity: 0.5;">
-                    <div style="background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 20px;">
-                        <h3 style="margin-top: 0; color: #f4b400;"><i class="fas fa-chart-line"></i> Traffic
-                            Overview</h3>
-
-                        <!-- GA4 Control Bar (Ads Style) -->
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #fef3c7; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
-                            <div style="display: flex; gap: 15px; align-items: center;">
-                                <div>
-                                    <label
-                                        style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">Date
-                                        Range</label>
-                                    <select id="ga4DateRange" onchange="ga4DateRangeChanged()"
-                                        style="padding: 8px 12px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; background: #fff; min-width: 150px; cursor: pointer;">
-                                        <option value="today">Today</option>
-                                        <option value="yesterday">Yesterday</option>
-                                        <option value="7daysAgo">Last 7 Days</option>
-                                        <option value="28daysAgo" selected>Last 28 Days</option>
-                                        <option value="30daysAgo">Last 30 Days</option>
-                                        <option value="90daysAgo">Last 90 Days</option>
-                                        <option value="365daysAgo">Last Year</option>
-                                        <option value="CUSTOM">Custom Range</option>
-                                    </select>
-                                </div>
-                                <div id="ga4CustomDateInputs" style="display: none; align-items: flex-end; gap: 10px;">
-                                    <div>
-                                        <label
-                                            style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">Start</label>
-                                        <input type="date" id="ga4StartDate"
-                                            style="padding: 7px 10px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; background: #fff;">
-                                    </div>
-                                    <div>
-                                        <label
-                                            style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">End</label>
-                                        <input type="date" id="ga4EndDate"
-                                            style="padding: 7px 10px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; background: #fff;">
-                                    </div>
-                                    <button onclick="updateSelectedGa4Property()"
-                                        style="padding: 8px 15px; border-radius: 6px; border: none; background: #f4b400; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;">Apply</button>
-                                </div>
-
-                                <div>
-                                    <label
-                                        style="font-size: 11px; font-weight: 600; color: #f57f17; display: block; margin-bottom: 4px; text-transform: uppercase;">View
-                                        By</label>
-                                    <select id="ga4Dimension" onchange="updateSelectedGa4Property()"
-                                        style="padding: 8px 12px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; background: #fff; min-width: 150px; cursor: pointer;">
-                                        <option value="date">Date</option>
-                                        <option value="pageTitle">Page Title</option>
-                                        <option value="sessionSourceMedium">Source / Medium</option>
-                                        <option value="deviceCategory">Device Category</option>
-                                        <option value="country">Country</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div style="display: flex; gap: 15px; align-items: center;">
-                                <div style="position: relative;">
-                                    <i class="fas fa-search"
-                                        style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #f4b400; font-size: 12px; opacity: 0.7;"></i>
-                                    <input type="text" id="ga4TableFilter" placeholder="Filter rows..."
-                                        oninput="reRenderGa4Table()"
-                                        style="padding: 8px 12px 8px 32px; border-radius: 6px; border: 1px solid #ffe082; font-size: 13px; color: #1e293b; outline: none; width: 220px;">
-                                </div>
-
-                                <button onclick="exportGa4TableToCSV()"
-                                    style="padding: 8px 15px; border-radius: 6px; border: 1px solid #ffe082; background: #fff; font-size: 13px; cursor: pointer; color: #5f6368; display: flex; align-items: center; gap: 8px;">
-                                    <i class="fas fa-file-csv"></i> Export CSV
-                                </button>
-
-                                <div style="position: relative;" id="ga4ColumnDropdownWrapper">
-                                    <button
-                                        onclick="document.getElementById('ga4ColumnMenu').style.display = document.getElementById('ga4ColumnMenu').style.display === 'block' ? 'none' : 'block'"
-                                        style="padding: 8px 15px; border-radius: 6px; border: 1px solid #ffe082; background: #fff; font-size: 13px; cursor: pointer; color: #5f6368; display: flex; align-items: center; gap: 8px;">
-                                        <i class="fas fa-columns"></i> Columns <i class="fas fa-caret-down"
-                                            style="font-size: 10px;"></i>
-                                    </button>
-                                    <div id="ga4ColumnMenu"
-                                        style="display: none; position: absolute; right: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 15px; width: 250px; z-index: 100; max-height: 400px; overflow-y: auto;">
-                                        <div
-                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
-                                            Metrics</div>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox"
-                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
-                                                value="activeUsers" checked> Active Users</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox"
-                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
-                                                value="totalUsers" checked> Total Users</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox"
-                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
-                                                value="sessions" checked> Sessions</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox"
-                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
-                                                value="engagedSessions" checked> Engaged Sessions</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox"
-                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
-                                                value="engagementRate" checked> Eng. Rate</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox"
-                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
-                                                value="averageSessionDuration" checked> Avg. Sess. Dur.</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox"
-                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
-                                                value="bounceRate" checked> Bounce Rate</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox"
-                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
-                                                value="screenPageViews" checked> Page Views</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox"
-                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
-                                                value="eventCount" checked> Event Count</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox"
-                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
-                                                value="conversions" checked> Conversions</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox"
-                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
-                                                value="totalRevenue" checked> Revenue</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox"
-                                                onchange="reRenderGa4Table(); updateGa4CardsVisibility()"
-                                                value="newUsers" checked> New Users</label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div id="ga4InsightsData"
-                            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
-                            <!-- Active Users -->
-                            <div class="koda-kpi-card koda-bg-blue">
-                                <div class="kpi-header">
-                                    <span>Active Users</span>
-                                    <i class="fas fa-users kpi-icon"></i>
-                                </div>
-                                <div class="kpi-value" id="ga4ActiveUsers">-</div>
-                                <div class="kpi-subtext">
-                                    <span>Total Engagement</span>
-                                </div>
-                            </div>
-                            <!-- Sessions -->
-                            <div class="koda-kpi-card koda-bg-green">
-                                <div class="kpi-header">
-                                    <span>Sessions</span>
-                                    <i class="fas fa-exchange-alt kpi-icon"></i>
-                                </div>
-                                <div class="kpi-value" id="ga4Sessions">-</div>
-                                <div class="kpi-subtext">
-                                    <span>Traffic Volume</span>
-                                </div>
-                            </div>
-                            <!-- Engagement Rate -->
-                            <div class="koda-kpi-card koda-bg-purple">
-                                <div class="kpi-header">
-                                    <span>Eng. Rate</span>
-                                    <i class="fas fa-bolt kpi-icon"></i>
-                                </div>
-                                <div class="kpi-value" id="ga4EngRate">-</div>
-                                <div class="kpi-subtext">
-                                    <span>Interaction Quality</span>
-                                </div>
-                            </div>
-                            <!-- Avg Session Duration -->
-                            <div class="koda-kpi-card koda-bg-indigo">
-                                <div class="kpi-header">
-                                    <span>Avg. Sess. Dur.</span>
-                                    <i class="fas fa-clock kpi-icon"></i>
-                                </div>
-                                <div class="kpi-value" id="ga4AvgDuration">-</div>
-                                <div class="kpi-subtext">
-                                    <span>Time Per Visit</span>
-                                </div>
-                            </div>
-                            <!-- Bounce Rate -->
-                            <div class="koda-kpi-card koda-bg-red">
-                                <div class="kpi-header">
-                                    <span>Bounce Rate</span>
-                                    <i class="fas fa-door-open kpi-icon"></i>
-                                </div>
-                                <div class="kpi-value" id="ga4BounceRate">-</div>
-                                <div class="kpi-subtext">
-                                    <span>Single Page Visits</span>
-                                </div>
-                            </div>
-                            <!-- Page Views -->
-                            <div class="koda-kpi-card koda-bg-blue">
-                                <div class="kpi-header">
-                                    <span>Page Views</span>
-                                    <i class="fas fa-file-alt kpi-icon"></i>
-                                </div>
-                                <div class="kpi-value" id="ga4PageViews">-</div>
-                                <div class="kpi-subtext">
-                                    <span>Content Visibility</span>
-                                </div>
-                            </div>
-                            <!-- Event Count -->
-                            <div class="koda-kpi-card koda-bg-greyblue">
-                                <div class="kpi-header">
-                                    <span>Event Count</span>
-                                    <i class="fas fa-list-ul kpi-icon"></i>
-                                </div>
-                                <div class="kpi-value" id="ga4EventCount">-</div>
-                                <div class="kpi-subtext">
-                                    <span>Recorded Actions</span>
-                                </div>
-                            </div>
-                            <!-- Conversions -->
-                            <div class="koda-kpi-card koda-bg-orange">
-                                <div class="kpi-header">
-                                    <span>Conversions</span>
-                                    <i class="fas fa-check-circle kpi-icon"></i>
-                                </div>
-                                <div class="kpi-value" id="ga4Conversions">-</div>
-                                <div class="kpi-subtext">
-                                    <span>Goal Completion</span>
-                                </div>
-                            </div>
-                            <!-- Revenue -->
-                            <div class="koda-kpi-card koda-bg-green">
-                                <div class="kpi-header">
-                                    <span>Revenue</span>
-                                    <i class="fas fa-dollar-sign kpi-icon"></i>
-                                </div>
-                                <div class="kpi-value" id="ga4Revenue">-</div>
-                                <div class="kpi-subtext">
-                                    <span>Total Earnings</span>
-                                </div>
-                            </div>
-                            <!-- New Users Mix -->
-                            <div class="koda-kpi-card koda-bg-indigo">
-                                <div class="kpi-header">
-                                    <span>New Users Mix</span>
-                                    <i class="fas fa-user-plus kpi-icon"></i>
-                                </div>
-                                <div class="kpi-value" id="ga4NewUsersMix">-</div>
-                                <div class="kpi-subtext">
-                                    <span>Acquisition Ratio</span>
-                                </div>
-                            </div>
-                            <!-- Total Users -->
-                            <div class="koda-kpi-card koda-bg-purple">
-                                <div class="kpi-header">
-                                    <span>Total Users</span>
-                                    <i class="fas fa-users kpi-icon"></i>
-                                </div>
-                                <div class="kpi-value" id="ga4TotalUsers">-</div>
-                                <div class="kpi-subtext">
-                                    <span>Unique Visitors</span>
-                                </div>
-                            </div>
-                            <!-- Engaged Sessions -->
-                            <div class="koda-kpi-card koda-bg-teal">
-                                <div class="kpi-header">
-                                    <span>Engaged Sessions</span>
-                                    <i class="fas fa-user-clock kpi-icon"></i>
-                                </div>
-                                <div class="kpi-value" id="ga4EngagedSessions">-</div>
-                                <div class="kpi-subtext">
-                                    <span>Meaningful Visits</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div style="margin-top: 25px; padding-top: 25px; border-top: 1px solid #eee;">
-                            <canvas id="ga4TrafficChart" style="width: 100%; height: 300px; display: none;"></canvas>
-                        </div>
-
-                        <!-- GA4 Detailed Data Table -->
-                        <div id="ga4TableContainer" style="margin-top: 30px; display: none;">
-                            <div style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
-                                <table id="ga4ReportTable"
-                                    style="width: 100%; border-collapse: collapse; font-size: 13px; background: #fff;">
-                                    <thead id="ga4TableHead"
-                                        style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
-                                        <!-- Columns will be injected here -->
-                                    </thead>
-                                    <tbody id="ga4TableBody">
-                                        <!-- Rows will be injected here -->
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- GA4 Strategic Audit Section -->
-                        <div id="ga4AuditSection" style="margin-top: 30px; display: none;">
-                            <div
-                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #f4b400;">
-                                <h3 style="margin: 0; color: #f4b400; font-size: 18px;">
-                                    <i class="fas fa-stethoscope"></i> Google Analytics 4 Strategic Insights
-                                    <span id="ga4AuditBadge"
-                                        style="background: #f4b400; color: #000; font-size: 10px; padding: 2px 8px; border-radius: 4px; vertical-align: middle; margin-left: 10px; display: none;">LIVE
-                                        INSIGHTS</span>
-                                </h3>
-                                <button id="btnRunGa4Audit" onclick="runGa4Audit()" class="btn-gradient"
-                                    style="background: #f4b400; color: #000; margin: 0; padding: 8px 15px; font-size: 12px; width: auto;">
-                                    <i class="fas fa-sync-alt"></i> Re-Run Audit
-                                </button>
-                            </div>
-
-                            <div id="ga4AuditResultsGrid"
-                                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
-                                <!-- Findings will be injected here -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Google Ads Section -->
-        <div id="adsIntegrationSection">
-            <button class="collapsible" id="adsIntegrationBtn"><i class="fas fa-plus-square"></i><i
-                    class="fas fa-ad"></i>Google Ads</button>
-            <div class="content" id="adsContent" style="display: none; padding: 20px; position: relative;">
-                <!-- Ads Loading Overlay -->
-                <div id="adsLoadingOverlay">
-                    <div class="loader-content">
-                        <div class="spinner"></div>
-                        <p style="margin: 0; color: #1e293b; font-weight: 600; font-size: 15px;">Updating Ads
-                            Data...</p>
-                        <p style="margin: 0; color: #64748b; font-size: 12px;">This may take a few moments depending
-                            on account size.</p>
-                    </div>
-                </div>
-                <div id="adsAuthSection"
-                    style="margin-bottom: 20px; padding: 15px; background: #e6f4ea; border-radius: 8px; border: 1px solid #ceead6;">
-                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h4 style="margin: 0; color: #0f9d58;"><i class="fas fa-ad"></i> Google Ads
-                            </h4>
-                            <p id="adsAuthStatus" style="margin: 5px 0 0 0; font-size: 13px; color: #5f6368;">
-                                Not connected. Connect to your Google account to use Ads tools.</p>
-                        </div>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <button class="btn-gradient" id="btnConnectAds" onclick="connectGoogleTools()"
-                                style="background: #0f9d58; width: 180px; margin: 0;">
-                                <i class="fas fa-link"></i> Connect Ads
-                            </button>
-                        </div>
-                    </div>
-                    <div id="adsPropertySelector"
-                        style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #ceead6;">
-                        <label
-                            style="font-size: 13px; color: #0f9d58; font-weight: bold; display: block; margin-bottom: 8px;">Select
-                            Ads Account:</label>
-
-                        <div class="ads-searchable-select-container">
-                            <div style="position: relative;">
-                                <i class="fas fa-search"
-                                    style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #0f9d58; font-size: 12px; opacity: 0.7;"></i>
-                                <input type="text" id="adsCustomerSearch"
-                                    placeholder="Search or select accounts (name or ID)..."
-                                    oninput="filterAdsCustomerList()" onfocus="showAdsCustomerDropdown()"
-                                    style="width: 100%; padding: 10px 10px 10px 30px; border-radius: 4px; border: 1px solid #ceead6; font-size: 13px; box-sizing: border-box; outline: none; background: #fff; cursor: pointer;">
-                                <i class="fas fa-chevron-down" onclick="toggleAdsCustomerDropdown()"
-                                    style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #0f9d58; font-size: 12px; cursor: pointer; opacity: 0.8;"></i>
-                            </div>
-                            <div id="adsCustomerDropdownResults" class="ads-searchable-select-results">
-                                <!-- Results will be injected here -->
-                            </div>
-                        </div>
-
-                        <!-- Hidden select for compatibility -->
-                        <select id="adsSiteList" onchange="updateSelectedAdsProperty()" style="display: none;">
-                            <option value="">-- Choose an Ads Account --</option>
-                        </select>
-                    </div>
-                </div>
-                <div id="adsToolsArea" style="opacity: 0.5;">
-                    <!-- Top Dashboard Controls -->
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #eef0f2; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
-                        <div style="display: flex; gap: 15px; align-items: center;">
-                            <div>
-                                <label
-                                    style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Date
-                                    Range</label>
-                                <select id="adsDateRange" onchange="adsDateRangeChanged()"
-                                    style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc; min-width: 150px; cursor: pointer;">
-                                    <option value="LAST_7_DAYS">Last 7 Days</option>
-                                    <option value="LAST_14_DAYS">Last 14 Days</option>
-                                    <option value="LAST_30_DAYS" selected>Last 30 Days</option>
-                                    <option value="LAST_90_DAYS">Last 90 Days</option>
-                                    <option value="LAST_365_DAYS">Last 365 Days</option>
-                                    <option value="THIS_MONTH">This Month</option>
-                                    <option value="LAST_MONTH">Last Month</option>
-                                    <option value="CUSTOM">Custom Range</option>
-                                </select>
-                            </div>
-                            <div id="adsCustomDateInputs" style="display: none; align-items: flex-end; gap: 10px;">
-                                <div>
-                                    <label
-                                        style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Start
-                                        Date</label>
-                                    <input type="date" id="adsStartDate"
-                                        style="padding: 7px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc;">
-                                </div>
-                                <div>
-                                    <label
-                                        style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">End
-                                        Date</label>
-                                    <input type="date" id="adsEndDate"
-                                        style="padding: 7px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc;">
-                                </div>
-                                <button onclick="updateSelectedAdsProperty(true)"
-                                    style="padding: 8px 15px; border-radius: 6px; border: none; background: #0f9d58; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;">Apply</button>
-                                <button id="btnRunAdsDiagnostics" onclick="runAdsDiagnostics()"
-                                    style="padding: 8px 15px; border-radius: 6px; border: none; background: #ea4335; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                                    <i class="fas fa-stethoscope"></i> Account Diagnostics
-                                </button>
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 15px; align-items: center;">
-                            <div style="position: relative;">
-                                <i class="fas fa-search"
-                                    style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 12px;"></i>
-                                <input type="text" id="adsCampaignFilter" placeholder="Filter campaigns..."
-                                    oninput="reRenderAdsTable()"
-                                    style="padding: 8px 12px 8px 32px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; width: 220px;">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Breadcrumbs Navigation (Redesigned as Filter/View Bar) -->
-                    <div id="adsBreadcrumbs"
-                        style="display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; font-size: 13px;">
-                        <!-- Active View Badge -->
-                        <div
-                            style="display: flex; align-items: center; gap: 6px; background: #f1f5f9; padding: 6px 12px; border-radius: 20px; color: #475569; font-weight: 600; border: 1px solid #e2e8f0;">
-                            <i class="fas fa-layer-group" style="color: #64748b;"></i>
-                            <span
-                                style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.7;">Viewing</span>
-                            <span id="adsCurrentViewLabel" style="color: #0f9d58;">Campaigns</span>
-                        </div>
-
-                        <!-- Active Filters (Drilldowns) -->
-                        <div id="adsFilterAccount" style="display: none; align-items: center; position: relative;">
-                            <div id="adsFilterAccountChip"
-                                onclick="event.stopPropagation(); toggleAdsHierarchyDropdown('account')"
-                                style="display: flex; align-items: center; gap: 6px; background: #fdf2f2; padding: 6px 12px; border-radius: 20px; color: #991b1b; border: 1px solid #fecaca; cursor: pointer;">
-                                <span
-                                    style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.7;">Account</span>
-                                <span id="adsBreadcrumbAccountName" style="font-weight: 600;"></span>
-                                <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 4px;"></i>
-                            </div>
-                            <div id="adsAccountDropdownMenu"
-                                style="display: none; position: absolute; left: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 10px; width: 320px; z-index: 101; max-height: 300px; overflow-y: auto;">
-                                <!-- Accounts will be rendered here -->
-                            </div>
-                        </div>
-
-                        <div id="adsFilterCampaign" style="display: none; align-items: center; position: relative;">
-                            <div id="adsFilterCampaignChip"
-                                onclick="event.stopPropagation(); toggleAdsHierarchyDropdown('campaign')"
-                                style="display: flex; align-items: center; gap: 6px; background: #e0f2fe; padding: 6px 12px; border-radius: 20px; color: #0369a1; border: 1px solid #bae6fd; cursor: pointer;">
-                                <span
-                                    style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.7;">Campaign</span>
-                                <span id="adsBreadcrumbCampaignName" style="font-weight: 600;">Select
-                                    Campaign...</span>
-                                <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 4px;"></i>
-                                <i id="adsClearCampaign" class="fas fa-times"
-                                    onclick="event.stopPropagation(); clearHierarchyLevel('campaign')"
-                                    style="cursor: pointer; margin-left: 4px; opacity: 0.6; padding: 2px; display: none;"
-                                    title="Clear Selection" onmouseover="this.style.opacity='1'"
-                                    onmouseout="this.style.opacity='0.6'"></i>
-                            </div>
-                            <div id="adsCampaignDropdownMenu"
-                                style="display: none; position: absolute; left: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 10px; width: 280px; z-index: 101; max-height: 300px; overflow-y: auto;">
-                                <!-- Checkboxes will be rendered here -->
-                            </div>
-                        </div>
-
-                        <div id="adsFilterAdGroup" style="display: none; align-items: center; position: relative;">
-                            <div id="adsFilterAdGroupChip"
-                                onclick="event.stopPropagation(); toggleAdsHierarchyDropdown('ad_group')"
-                                style="display: flex; align-items: center; gap: 6px; background: #f0fdf4; padding: 6px 12px; border-radius: 20px; color: #166534; border: 1px solid #bbf7d0; cursor: pointer;">
-                                <span
-                                    style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.7;">Ad
-                                    Group</span>
-                                <span id="adsBreadcrumbAdGroupName" style="font-weight: 600;">Select Ad
-                                    Group...</span>
-                                <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 4px;"></i>
-                                <i id="adsClearAdGroup" class="fas fa-times"
-                                    onclick="event.stopPropagation(); clearHierarchyLevel('ad_group')"
-                                    style="cursor: pointer; margin-left: 4px; opacity: 0.6; padding: 2px; display: none;"
-                                    title="Clear Selection" onmouseover="this.style.opacity='1'"
-                                    onmouseout="this.style.opacity='0.6'"></i>
-                            </div>
-                            <div id="adsAdGroupDropdownMenu"
-                                style="display: none; position: absolute; left: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 10px; width: 280px; z-index: 101; max-height: 300px; overflow-y: auto;">
-                                <!-- Checkboxes will be rendered here -->
-                            </div>
-                        </div>
-
-                        <div id="adsFilterAd" style="display: none; align-items: center; position: relative;">
-                            <div id="adsFilterAdChip"
-                                onclick="event.stopPropagation(); toggleAdsHierarchyDropdown('ad')"
-                                style="display: flex; align-items: center; gap: 6px; background: #fff7ed; padding: 6px 12px; border-radius: 20px; color: #9a3412; border: 1px solid #fed7aa; cursor: pointer;">
-                                <span
-                                    style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.7;">Ad</span>
-                                <span id="adsBreadcrumbAdName" style="font-weight: 600;">Select Ad...</span>
-                                <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 4px;"></i>
-                                <i id="adsClearAd" class="fas fa-times"
-                                    onclick="event.stopPropagation(); clearHierarchyLevel('ad')"
-                                    style="cursor: pointer; margin-left: 4px; opacity: 0.6; padding: 2px; display: none;"
-                                    title="Clear Selection" onmouseover="this.style.opacity='1'"
-                                    onmouseout="this.style.opacity='0.6'"></i>
-                            </div>
-                            <div id="adsAdDropdownMenu"
-                                style="display: none; position: absolute; left: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 10px; width: 280px; z-index: 101; max-height: 300px; overflow-y: auto;">
-                                <!-- Checkboxes will be rendered here -->
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Advanced Filters Bar -->
-                    <div class="ads-advanced-filter-bar" id="adsAdvancedFilterBar">
-                        <div class="ads-funnel-btn" id="adsFunnelBtn" title="Advanced Filters">
-                            <i class="fas fa-filter"></i>
-                            <span class="ads-funnel-badge" id="adsFilterBadge" style="display: none;">0</span>
-                        </div>
-
-                        <div id="adsActiveFiltersContainer" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                            <!-- Dynamic Filter Chips -->
-                        </div>
-
-                        <div style="position: relative;">
-                            <div class="ads-add-filter-trigger" id="adsAddFilterTrigger"
-                                onclick="event.stopPropagation(); toggleAdsFilterPicker()">
-                                Add filter
-                            </div>
-
-                            <!-- Field Picker Dropdown -->
-                            <div id="adsFilterPicker" class="ads-filter-popup"
-                                style="width: 200px; top: 30px; left: 0; padding: 8px;">
-                                <div style="display: flex; flex-direction: column;">
-                                    <div class="ads-add-filter-option"
-                                        onclick="openAdsFilterConfig('campaign.name', 'Campaign name')">Campaign
-                                        name</div>
-                                    <div class="ads-add-filter-option"
-                                        onclick="openAdsFilterConfig('campaign.status', 'Campaign status')">Campaign
-                                        status</div>
-                                    <div class="ads-add-filter-option"
-                                        onclick="openAdsFilterConfig('ad_group.name', 'Ad group name')">Ad group
-                                        name</div>
-                                    <div class="ads-add-filter-option"
-                                        onclick="openAdsFilterConfig('ad_group.status', 'Ad group status')">Ad group
-                                        status</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Advanced Filter Config Popup -->
-                    <div id="adsFilterConfigPopup" class="ads-filter-popup" style="width: 320px;">
-                        <div class="ads-filter-popup-header">
-                            <div class="ads-filter-popup-title" id="adsFilterConfigTitle">Campaign name</div>
-                            <i class="fas fa-times ads-filter-popup-close" onclick="closeAdsFilterConfig()"></i>
-                        </div>
-
-                        <div id="adsFilterOperatorGroup">
-                            <select id="adsFilterOperator">
-                                <option value="contains">contains</option>
-                                <option value="not_contains">does not contain</option>
-                                <option value="equals">equals</option>
-                                <option value="not_equals">does not equal</option>
-                                <option value="starts_with">starts with</option>
-                            </select>
-                        </div>
-
-                        <div id="adsFilterValueGroup">
-                            <label>Any of the following values</label>
-                            <div style="border: 1px solid #3b82f6; border-radius: 6px; padding: 2px;">
-                                <textarea id="adsFilterValues" placeholder="Enter one value per line"
-                                    style="border: none; margin-bottom: 0;"></textarea>
-                            </div>
-                            <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Enter one value per line
-                            </div>
-                        </div>
-
-                        <div id="adsFilterStatusGroup" style="display: none;">
-                            <label
-                                style="display: block; font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 6px;">Status</label>
-                            <select id="adsFilterStatusSelect"
-                                style="width: 100%; padding: 8px; border: 1px solid #3b82f6; border-radius: 6px; background-color: white; font-size: 14px;">
-                                <option value="ALL">All</option>
-                                <option value="ENABLED">Enabled</option>
-                                <option value="PAUSED">Paused</option>
-                                <option value="ENABLED,PAUSED">Enabled, Paused</option>
-                            </select>
-                        </div>
-
-                        <div class="ads-filter-popup-footer">
-                            <button class="ads-filter-popup-btn cancel" onclick="closeAdsFilterConfig()">Cancel</button>
-                            <button class="ads-filter-popup-btn apply" onclick="applyAdvancedFilter()">Apply</button>
-                        </div>
-                    </div>
-
-                    <style>
-                        .ads-add-filter-option {
-                            padding: 8px 12px;
-                            font-size: 13px;
-                            cursor: pointer;
-                            border-radius: 4px;
-                            transition: background 0.2s;
-                        }
-
-                        .ads-add-filter-option:hover {
-                            background: #f1f5f9;
-                        }
-                    </style>
-
-
-                    <!-- Progress Over Time -->
-                    <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-                        <div style="flex: 1;">
-                            <h3 class="koda-section-title">Progress Over Time</h3>
-                            <div class="koda-dashboard-grid" style="grid-template-columns: repeat(2, 1fr);">
-                                <!-- Impressions -->
-                                <div class="koda-kpi-card koda-bg-blue">
-                                    <div class="kpi-header">
-                                        <span>Impressions</span>
-                                        <i class="fas fa-eye kpi-icon"></i>
-                                    </div>
-                                    <div class="kpi-value" id="adsImpressions">-</div>
-                                    <div class="kpi-subtext">
-                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
-                                        <span>~ 0</span>
-                                    </div>
-                                </div>
-                                <!-- Clicks -->
-                                <div class="koda-kpi-card koda-bg-red">
-                                    <div class="kpi-header">
-                                        <span>Clicks</span>
-                                        <i class="fas fa-mouse-pointer kpi-icon"></i>
-                                    </div>
-                                    <div class="kpi-value" id="adsClicks">-</div>
-                                    <div class="kpi-subtext">
-                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
-                                        <span>~ 0</span>
-                                    </div>
-                                </div>
-                                <!-- CTR -->
-                                <div class="koda-kpi-card koda-bg-purple">
-                                    <div class="kpi-header">
-                                        <span>CTR</span>
-                                        <i class="fas fa-chart-line kpi-icon"></i>
-                                    </div>
-                                    <div class="kpi-value" id="adsCtr">-</div>
-                                    <div class="kpi-subtext">
-                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
-                                        <span>~ 0</span>
-                                    </div>
-                                </div>
-                                <!-- Cost -->
-                                <div class="koda-kpi-card koda-bg-green">
-                                    <div class="kpi-header">
-                                        <span>Cost</span>
-                                        <i class="fas fa-credit-card kpi-icon"></i>
-                                    </div>
-                                    <div class="kpi-value" id="adsCost">-</div>
-                                    <div class="kpi-subtext">
-                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
-                                        <span>~ $0.00</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Conversions -->
-                        <div style="flex: 1;">
-                            <h3 class="koda-section-title">Conversions</h3>
-                            <div class="koda-dashboard-grid" style="grid-template-columns: repeat(2, 1fr);">
-                                <!-- Conversions -->
-                                <div class="koda-kpi-card koda-bg-orange">
-                                    <div class="kpi-header">
-                                        <span>Conversions</span>
-                                        <i class="fas fa-filter kpi-icon"></i>
-                                    </div>
-                                    <div class="kpi-value" id="adsConversions">-</div>
-                                    <div class="kpi-subtext">
-                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
-                                        <span>~ 0</span>
-                                    </div>
-                                </div>
-                                <!-- Conv Rate -->
-                                <div class="koda-kpi-card koda-bg-yellow" style="color: #6a4f00;">
-                                    <div class="kpi-header">
-                                        <span>Conv. Rate</span>
-                                        <i class="fas fa-percentage kpi-icon" style="background: rgba(0,0,0,0.1);"></i>
-                                    </div>
-                                    <div class="kpi-value" id="adsConvRate">-</div>
-                                    <div class="kpi-subtext">
-                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
-                                        <span>~ 0.00%</span>
-                                    </div>
-                                </div>
-                                <!-- Revenue -->
-                                <div class="koda-kpi-card koda-bg-indigo">
-                                    <div class="kpi-header">
-                                        <span>Revenue</span>
-                                        <i class="fas fa-money-bill-wave kpi-icon"></i>
-                                    </div>
-                                    <div class="kpi-value" id="adsRevenue">-</div>
-                                    <div class="kpi-subtext">
-                                        <span>No Data Available</span>
-                                        <span>(API Value Missing)</span>
-                                    </div>
-                                </div>
-                                <!-- Cost / Conv -->
-                                <div class="koda-kpi-card koda-bg-greyblue">
-                                    <div class="kpi-header">
-                                        <span>Cost/ Conv.</span>
-                                        <i class="fas fa-sync-alt kpi-icon"></i>
-                                    </div>
-                                    <div class="kpi-value" id="adsCostConv">-</div>
-                                    <div class="kpi-subtext">
-                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
-                                        <span>~ $0.00</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Ads Diagnostics Results Container -->
-                    <div id="adsDiagnosticsSection"
-                        style="display: none; margin-bottom: 25px; background: #fff; border-radius: 12px; border: 1px solid #eef0f2; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                            <h3
-                                style="margin: 0; font-size: 16px; color: #1e293b; display: flex; align-items: center; gap: 10px;">
-                                <i class="fas fa-stethoscope" style="color: #ea4335;"></i> Account Diagnostics
-                            </h3>
-                            <button onclick="document.getElementById('adsDiagnosticsSection').style.display='none'"
-                                style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 16px;"><i
-                                    class="fas fa-times"></i></button>
-                        </div>
-                        <div id="adsDiagnosticsResultsGrid"
-                            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
-                            <!-- Results will be injected here -->
-                        </div>
-                    </div>
-
-                    <!-- Main Chart -->
-                    <div class="koda-chart-container">
-                        <div
-                            style="display: flex; justify-content: flex-end; gap: 15px; margin-bottom: 15px; padding: 5px 10px 0;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span
-                                    style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Primary
-                                    Metric</span>
-                                <select id="adsChartMetricPrimary" onchange="reRenderAdsChart()"
-                                    style="padding: 5px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px; color: #475569; outline: none; background: #f8fafc; font-weight: 600; cursor: pointer; min-width: 120px;">
-                                    <option value="metrics.clicks" selected>Clicks</option>
-                                    <option value="metrics.impressions">Impressions</option>
-                                    <option value="metrics.conversions">Conversions</option>
-                                    <option value="metrics.cost_micros">Cost</option>
-                                    <option value="metrics.ctr">CTR</option>
-                                    <option value="metrics.average_cpc">Avg. CPC</option>
-                                </select>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span
-                                    style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Secondary
-                                    Metric</span>
-                                <select id="adsChartMetricSecondary" onchange="reRenderAdsChart()"
-                                    style="padding: 5px 10px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px; color: #475569; outline: none; background: #f8fafc; font-weight: 600; cursor: pointer; min-width: 120px;">
-                                    <option value="none">None</option>
-                                    <option value="metrics.clicks">Clicks</option>
-                                    <option value="metrics.impressions">Impressions</option>
-                                    <option value="metrics.conversions" selected>Conversions</option>
-                                    <option value="metrics.cost_micros">Cost</option>
-                                    <option value="metrics.ctr">CTR</option>
-                                    <option value="metrics.average_cpc">Avg. CPC</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div style="height: 350px;">
-                            <canvas id="adsPerformanceChart" style="width: 100%; height: 100%; display: none;"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Campaigns Data Table Mock -->
-                    <div class="koda-mock-table-container mt-4">
-                        <div
-                            style="padding: 15px 20px; border-bottom: 1px solid #f1f3f4; display: flex; justify-content: space-between; align-items: center;">
-                            <h3 class="koda-section-title" style="margin: 0;">Campaigns <a href="#"
-                                    style="font-size: 11px; font-weight: 400; color: #1a73e8; margin-left: 10px;">View
-                                    campaign details</a></h3>
-                            <div style="display: flex; gap: 10px; align-items: center;">
-                                <button onclick="exportAdsTableToCSV()"
-                                    style="padding: 8px 15px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; font-size: 13px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 8px;"
-                                    title="Export the current table view to CSV">
-                                    <i class="fas fa-file-csv"></i> Export CSV
-                                </button>
-
-                                <div style="position: relative;" id="adsColumnDropdownWrapper">
-                                    <button
-                                        onclick="document.getElementById('adsColumnMenu').style.display = document.getElementById('adsColumnMenu').style.display === 'block' ? 'none' : 'block'"
-                                        style="padding: 8px 15px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; font-size: 13px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 8px;">
-                                        <i class="fas fa-columns"></i> Columns <i class="fas fa-caret-down"
-                                            style="font-size: 10px;"></i>
-                                    </button>
-                                    <div id="adsColumnMenu"
-                                        style="display: none; position: absolute; right: 0; top: 110%; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 15px; width: 300px; z-index: 100; max-height: 400px; overflow-y: auto;">
-                                        <div
-                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
-                                            Primary Info</div>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="reRenderAdsTable()" value="campaign.name"
-                                                checked disabled> Campaign Name</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()" value="campaign.status">
-                                            Status</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="campaign.start_date"> Start Date</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()" value="campaign.end_date">
-                                            End Date</label>
-
-                                        <div
-                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
-                                            Hierarchy & Segments</div>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()" value="ad_group.name">
-                                            Ad Group Name</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="ad_group_ad.ad.name"> Ad Name</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()" value="segments.device">
-                                            Device</label>
-
-                                        <div
-                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
-                                            Core Metrics</div>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="reRenderAdsTable()"
-                                                value="metrics.impressions" checked> Impressions</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="reRenderAdsTable()" value="metrics.clicks"
-                                                checked>
-                                            Clicks</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="reRenderAdsTable()" value="metrics.ctr">
-                                            CTR</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.average_cpc"> Avg. CPC</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.average_cpm"> Avg. CPM</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="reRenderAdsTable()"
-                                                value="metrics.cost_micros" checked> Cost</label>
-
-                                        <div
-                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
-                                            Conversions</div>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="reRenderAdsTable()"
-                                                value="metrics.conversions"> Conversions</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.conversions_value"> Conv. Value</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="reRenderAdsTable()"
-                                                value="metrics.cost_per_conversion" checked> Cost / Conv.</label>
-
-                                        <div
-                                            style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin: 12px 0 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;">
-                                            Video Perf.</div>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.average_video_watch_time_duration_millis"> Avg. Watch
-                                            Time</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.video_quartile_p25_rate"> 25% View Rate</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.video_quartile_p50_rate"> 50% View Rate</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.video_quartile_p75_rate"> 75% View Rate</label>
-                                        <label
-                                            style="display: flex; align-items: center; gap: 8px; padding: 4px; font-size: 12px; cursor: pointer;"><input
-                                                type="checkbox" onchange="adsFieldChanged()"
-                                                value="metrics.video_quartile_p100_rate"> 100% View Rate</label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div style="overflow-x: auto;">
-                            <table class="koda-table">
-                                <thead>
-                                    <tr>
-                                        <th>Campaign</th>
-                                        <th>Impressions</th>
-                                        <th>Clicks</th>
-                                        <th>Conversions</th>
-                                        <th>Cost</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="adsCampaignsTableBody">
-                                    <tr>
-                                        <td colspan="5" style="text-align: center; padding: 20px;">Load an
-                                            account above to populate campaign data.</td>
-                                    </tr>
-                                </tbody>
-                                <tfoot id="adsCampaignsTableFoot" style="font-weight: bold; background: #fff;">
-                                </tfoot>
-                            </table>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-            <hr>
-        </div>
-
-        <!-- Meta Ads Section -->
-        <div id="metaAdsSection">
-            <div class="page-break"></div>
-            <button class="collapsible" id="metaAdsBtn"><i class="fas fa-plus-square"></i><i class="fab fa-facebook"></i>Meta Ads</button>
-            <div class="content" id="metaAdsContent" style="display: none; padding: 20px; position: relative;">
-
-                <!-- Auth Banner -->
-                <div id="metaAdsAuthSection" style="margin-bottom: 20px; padding: 15px; background: #e7f0fd; border-radius: 8px; border: 1px solid #b3cef5;">
-                    <div style="display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-                        <div style="flex: 1; min-width: 260px;">
-                            <h4 style="margin: 0; color: #1877F2;"><i class="fab fa-facebook"></i> Meta Ads</h4>
-                            <p id="metaAdsAuthStatus" style="margin: 5px 0 0 0; font-size: 13px; color: #5f6368;">Paste your access token below, then click Connect.</p>
-                            <p style="margin: 6px 0 0 0; font-size: 12px; color: #94a3b8;">Get a token from <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:#1877F2;">Graph API Explorer</a> with <code>ads_read</code> permission, or copy it from your Apps Script.</p>
-                        </div>
-                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                            <input id="metaTokenInput" type="password" placeholder="Paste access token…" autocomplete="off"
-                                style="padding: 8px 12px; border-radius: 6px; border: 1px solid #b3cef5; font-size: 13px; outline: none; width: 260px;">
-                            <button class="btn-gradient" id="btnConnectMeta" onclick="connectMetaAds()"
-                                style="background: #1877F2; width: 140px; margin: 0;">
-                                <i class="fab fa-facebook"></i> Connect
-                            </button>
-                            <button id="btnDisconnectMeta" onclick="disconnectMetaAds()"
-                                style="display: none; padding: 8px 14px; border-radius: 6px; border: 1px solid #b3cef5; background: #fff; color: #1877F2; font-size: 13px; font-weight: 600; cursor: pointer;">
-                                Disconnect
-                            </button>
-                        </div>
-                    </div>
-                    <!-- Account selector -->
-                    <div id="metaAdsAccountSelector" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #b3cef5;">
-                        <label style="font-size: 13px; color: #1877F2; font-weight: bold; display: block; margin-bottom: 8px;">Select Ad Account:</label>
-                        <select id="metaAdAccountList" onchange="selectMetaAdAccount(this.value)"
-                            style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #b3cef5; font-size: 13px; outline: none; background: #fff; cursor: pointer;">
-                            <option value="">-- Choose an Ad Account --</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Dashboard (locked until connected) -->
-                <div id="metaAdsToolsArea" style="opacity: 0.4; pointer-events: none;">
-
-                    <!-- Controls bar -->
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid #eef0f2; box-shadow: 0 2px 4px rgba(0,0,0,0.02); flex-wrap: wrap; gap: 12px;">
-                        <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
-                            <div>
-                                <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Date Range</label>
-                                <select id="metaDateRange" onchange="metaDateRangeChanged()"
-                                    style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc; min-width: 170px; cursor: pointer;">
-                                    <option value="today">Today</option>
-                                    <option value="yesterday">Yesterday</option>
-                                    <option value="this_week_mon_today">This Week (Mon–Today)</option>
-                                    <option value="this_week_sun_today">This Week (Sun–Today)</option>
-                                    <option value="last_week_mon_sun">Last Week (Mon–Sun)</option>
-                                    <option value="last_week_sun_sat">Last Week (Sun–Sat)</option>
-                                    <option value="last_7d">Last 7 Days</option>
-                                    <option value="last_14d">Last 14 Days</option>
-                                    <option value="last_28d">Last 28 Days</option>
-                                    <option value="last_30d" selected>Last 30 Days</option>
-                                    <option value="last_90d">Last 90 Days</option>
-                                    <option value="this_month">This Month</option>
-                                    <option value="last_month">Last Month</option>
-                                    <option value="this_quarter">This Quarter</option>
-                                    <option value="last_quarter">Last Quarter</option>
-                                    <option value="this_year">This Year</option>
-                                    <option value="last_year">Last Year</option>
-                                    <option value="maximum">Maximum (All Time)</option>
-                                    <option value="custom">Custom Range…</option>
-                                </select>
-                            </div>
-                            <!-- Custom date pickers (shown only when Custom is selected) -->
-                            <div id="metaCustomRange" style="display:none; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-                                <div>
-                                    <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">From</label>
-                                    <input type="date" id="metaCustomSince" onchange="fetchMetaInsights()"
-                                        style="padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc;">
-                                </div>
-                                <div>
-                                    <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">To</label>
-                                    <input type="date" id="metaCustomUntil" onchange="fetchMetaInsights()"
-                                        style="padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc;">
-                                </div>
-                            </div>
-                            <div>
-                                <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Level</label>
-                                <select id="metaLevelSelect" onchange="fetchMetaInsights()"
-                                    style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc; cursor: pointer;">
-                                    <option value="campaign">Campaign</option>
-                                    <option value="adset">Ad Set</option>
-                                    <option value="ad">Ad</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;text-transform:uppercase;">Breakdown</label>
-                                <select id="metaBreakdown" onchange="fetchMetaInsights()"
-                                    style="padding:8px 12px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;color:#1e293b;outline:none;background:#f8fafc;cursor:pointer;">
-                                    <option value="">None</option>
-                                    <option value="publisher_platform">Platform</option>
-                                    <option value="placement">Placement</option>
-                                    <option value="age,gender">Age &amp; Gender</option>
-                                    <option value="device_platform">Device</option>
-                                    <option value="country">Country</option>
-                                    <option value="region">Region</option>
-                                    <option value="hourly_stats_aggregated_by_advertiser_time_zone">Hour of Day</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <div style="position: relative;">
-                                <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 12px;"></i>
-                                <input type="text" id="metaCampaignFilter" placeholder="Filter rows..."
-                                    oninput="renderMetaTable()"
-                                    style="padding: 8px 12px 8px 32px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; width: 200px;">
-                            </div>
-                            <div class="meta-col-picker">
-                                <button onclick="toggleMetaColPicker(event)"
-                                    style="padding: 8px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                                    <i class="fas fa-columns"></i> Columns
-                                </button>
-                                <div class="meta-col-menu" id="metaColMenu">
-                                    <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;padding:4px 8px 6px;">Show / hide columns</div>
-                                </div>
-                            </div>
-                            <button onclick="exportMetaTableToCSV()"
-                                style="padding: 8px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; color: #1e293b; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                                <i class="fas fa-download"></i> Export CSV
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- KPI Cards -->
-                    <div id="metaKpiRow" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px;">
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">Spend</div><div class="meta-kpi-value" id="metaKpiSpend">—</div><div class="meta-kpi-trend" id="metaKpiSpendTrend"></div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">Impressions</div><div class="meta-kpi-value" id="metaKpiImpressions">—</div><div class="meta-kpi-trend" id="metaKpiImpressionsTrend"></div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">Reach</div><div class="meta-kpi-value" id="metaKpiReach">—</div><div class="meta-kpi-trend" id="metaKpiReachTrend"></div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">Clicks</div><div class="meta-kpi-value" id="metaKpiClicks">—</div><div class="meta-kpi-trend" id="metaKpiClicksTrend"></div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">CTR</div><div class="meta-kpi-value" id="metaKpiCtr">—</div><div class="meta-kpi-trend" id="metaKpiCtrTrend"></div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">CPC</div><div class="meta-kpi-value" id="metaKpiCpc">—</div><div class="meta-kpi-trend" id="metaKpiCpcTrend"></div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">CPM</div><div class="meta-kpi-value" id="metaKpiCpm">—</div><div class="meta-kpi-trend" id="metaKpiCpmTrend"></div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">Results</div><div class="meta-kpi-value" id="metaKpiResults">—</div><div class="meta-kpi-trend" id="metaKpiResultsTrend"></div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">Cost / Result</div><div class="meta-kpi-value" id="metaKpiCostPerResult">—</div><div class="meta-kpi-trend" id="metaKpiCostPerResultTrend"></div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">Frequency</div><div class="meta-kpi-value" id="metaKpiFrequency">—</div><div class="meta-kpi-trend" id="metaKpiFrequencyTrend"></div></div>
-                        <div class="meta-kpi-card"><div class="meta-kpi-label">Thumb Stop %</div><div class="meta-kpi-value" id="metaKpiThumbStop">—</div><div class="meta-kpi-trend" id="metaKpiThumbStopTrend"></div></div>
-                    </div>
-
-                    <!-- Chart + Funnel -->
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-                        <div style="background:#fff;border-radius:12px;padding:20px;border:1px solid #eef0f2;">
-                            <canvas id="metaAdsChart" height="120"></canvas>
-                        </div>
-                        <div style="background:#fff;border-radius:12px;padding:20px;border:1px solid #eef0f2;">
-                            <h4 style="margin:0 0 16px;font-size:13px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;">Funnel</h4>
-                            <div id="metaFunnel"></div>
-                        </div>
-                    </div>
-
-                    <!-- Table -->
-                    <div style="background: #fff; border-radius: 12px; border: 1px solid #eef0f2; overflow: hidden; margin-bottom: 20px;">
-                        <div id="metaBreadcrumb" class="meta-breadcrumb" style="margin:12px 16px 0;"></div>
-                        <div style="overflow-x: auto; overflow-y: auto; max-height: 520px;">
-                            <table id="metaAdsTable" style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                                <thead id="metaAdsTableHead" style="background: #f8fafc;"></thead>
-                                <tbody id="metaAdsTableBody">
-                                    <tr><td colspan="11" style="padding: 40px; text-align: center; color: #94a3b8;">Connect your Meta Ads account to see data.</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- AI Recommendations -->
-                    <div style="background: #fff; border-radius: 12px; padding: 20px; border: 1px solid #eef0f2;">
-                        <h4 style="margin: 0 0 16px 0; color: #1877F2; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-lightbulb"></i> Meta Ads AI Recommendations
-                        </h4>
-                        <div id="metaAdsRecommendations">
-                            <p style="color: #94a3b8; font-size: 13px; margin: 0;">Recommendations will appear once Meta Ads is connected and data is loaded.</p>
-                        </div>
-                    </div>
-
-                </div><!-- /metaAdsToolsArea -->
-            </div>
-        </div><!-- /metaAdsSection -->
 
     </div>
 
