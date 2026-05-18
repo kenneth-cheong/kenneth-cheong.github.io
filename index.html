@@ -9974,6 +9974,34 @@
             font-weight: 700;
             letter-spacing: 0;
         }
+        @keyframes fa-spin { to { transform: rotate(360deg); } }
+        .fa-loading-field label::after {
+            content: '';
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            border: 1.5px solid rgba(99,102,241,0.25);
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: fa-spin 0.7s linear infinite;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
+        .fa-loading-field input,
+        .fa-loading-field select {
+            background: repeating-linear-gradient(
+                90deg,
+                rgba(99,102,241,0.04) 0px,
+                rgba(99,102,241,0.08) 20px,
+                rgba(99,102,241,0.04) 40px
+            );
+            background-size: 80px 100%;
+            animation: fa-shimmer 1.2s linear infinite;
+        }
+        @keyframes fa-shimmer {
+            from { background-position: -80px 0; }
+            to   { background-position: 80px 0; }
+        }
         .forensic-section-label {
             font-size: 0.78em;
             font-weight: 700;
@@ -63366,6 +63394,21 @@ Move-In</h3>
             // Reset all autofill highlights first
             document.querySelectorAll('.fa-autofilled').forEach(el => el.classList.remove('fa-autofilled'));
             document.querySelectorAll('.fa-autofilled-label').forEach(el => el.classList.remove('fa-autofilled-label'));
+            document.querySelectorAll('.fa-loading-field').forEach(el => el.classList.remove('fa-loading-field'));
+
+            // Fields that will be auto-populated — show spinner while fetching
+            const FA_AUTO_IDS = [
+                'fa_ssl','fa_da','fa_psm','fa_psd','fa_gtmetrix','fa_copyscape',
+                'fa_ga4','fa_metatitle','fa_metadesc','fa_robots','fa_404','fa_cdn',
+                'fa_uptime','fa_h1','fa_h2','fa_sitemap','fa_https','fa_structdata',
+                'fa_semantic','fa_llmblock','fa_llmstxt','fa_llmsfull','fa_catstxt',
+                'fa_backlinks','fa_refdomains','fa_spam','fa_rankmath','fa_wordfence',
+            ];
+            FA_AUTO_IDS.forEach(id => {
+                const el = document.getElementById(id);
+                const item = el?.closest('.sem-input-item');
+                if (item) item.classList.add('fa-loading-field');
+            });
 
             const step = (id, ok, label) => {
                 const el = document.getElementById('fa_step_' + id);
@@ -63379,8 +63422,9 @@ Move-In</h3>
                 if (!el) return;
                 el.value = val;
                 el.classList.add('fa-autofilled');
-                // mark the preceding label too
-                const label = el.closest('.sem-input-item')?.querySelector('label');
+                const item = el.closest('.sem-input-item');
+                if (item) item.classList.remove('fa-loading-field');
+                const label = item?.querySelector('label');
                 if (label) label.classList.add('fa-autofilled-label');
             };
 
@@ -63657,6 +63701,12 @@ Move-In</h3>
             } else {
                 step('copyscape', false, 'Copyscape — page text unavailable');
             }
+
+            // Clear any remaining spinners on fields that couldn't be populated
+            FA_AUTO_IDS.forEach(id => {
+                const item = document.getElementById(id)?.closest('.sem-input-item');
+                if (item) item.classList.remove('fa-loading-field');
+            });
 
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-magic"></i> Auto-Fill';
