@@ -2880,17 +2880,20 @@
         let currentConversationId = localStorage.getItem('chatbot_conversationId') || null;
         let chatHistory = JSON.parse(localStorage.getItem('chatbot_history') || '[]');
         // User Identity for Persistence
-        let userId = localStorage.getItem('chatbot_userId');
-        if (!userId) {
-            const clientEmail = localStorage.getItem('clientEmail');
-            if (clientEmail && clientEmail.includes('@')) {
-                // Use email-based ID for better cross-device persistence
-                userId = 'user_' + clientEmail.replace(/[^a-zA-Z0-9]/g, '_');
-            } else {
-                userId = 'user_' + Math.random().toString(36).substr(2, 9);
+        function resolveUserId() {
+            const email = localStorage.getItem('userEmail') || localStorage.getItem('clientEmail');
+            if (email && email.includes('@')) {
+                return 'user_' + email.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
             }
-            localStorage.setItem('chatbot_userId', userId);
+            // Fall back to stored random ID, or generate a new one
+            let id = localStorage.getItem('chatbot_userId');
+            if (!id) {
+                id = 'user_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('chatbot_userId', id);
+            }
+            return id;
         }
+        let userId = resolveUserId();
         console.log(`[PERSISTENCE] Active User ID: ${userId}`);
 
         function toggleHistory() {
@@ -2933,8 +2936,9 @@
                 bestTitle = firstRealMsg ? firstRealMsg.content.substring(0, 50) + '...' : 'New Conversation';
             }
 
-            const userEmail = localStorage.getItem('clientEmail') || 'Internal User';
-            const userLabel = userEmail.split('@')[0];
+            const userEmail = localStorage.getItem('userEmail') || localStorage.getItem('clientEmail') || 'Internal User';
+            const userLabel = userEmail.includes('@') ? userEmail.split('@')[0] : userEmail;
+            const userTeam = localStorage.getItem('userTeam') || 'All Teams';
 
             updateCloudStatus('syncing', 'Syncing...');
 
@@ -2951,8 +2955,10 @@
                             threadId: localStorage.getItem('threadId'),
                             mode: currentLLM,
                             title: bestTitle,
-                            userLabel: userEmail,
-                            timestamp: new Date().toISOString() // Ensure fresh timestamp on every save
+                            userLabel: userLabel,
+                            userEmail: userEmail,
+                            team: userTeam,
+                            timestamp: new Date().toISOString()
                         }
                     })
                 });
@@ -4650,7 +4656,7 @@
 
             if (service === 'Workspace') {
                 window.gchatAccessToken = token;
-                // Save the Google account email for memory cloud sync
+                // Save the Google account email for memory cloud sync and user identity
                 if (!localStorage.getItem('userEmail')) {
                     try {
                         const uiRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -4658,7 +4664,12 @@
                         });
                         if (uiRes.ok) {
                             const ui = await uiRes.json();
-                            if (ui.email) localStorage.setItem('userEmail', ui.email);
+                            if (ui.email) {
+                                localStorage.setItem('userEmail', ui.email);
+                                // Re-resolve userId now that we have an email
+                                userId = resolveUserId();
+                                console.log(`[PERSISTENCE] User ID updated to email-based: ${userId}`);
+                            }
                         }
                     } catch (e) {}
                 }
