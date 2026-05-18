@@ -63483,11 +63483,13 @@ Move-In</h3>
             try {
                 if (auditRes.status === 'rejected') throw auditRes.reason;
                 const d = parseLambdaResponse(await auditRes.value.json());
-                console.log('[FA] auditRes parsed:', d);
-                if (d.pagespeed != null) setF('fa_psm', d.pagespeed);
+                // pagespeed is returned as "16/100" string — parse out the numeric score
+                const parsePS = v => { if (v == null) return null; const n = parseInt(String(v)); return isNaN(n) ? null : n; };
+                const psm = parsePS(d.pagespeed);
+                if (psm != null) setF('fa_psm', psm);
                 setF('fa_uptime',  'Monitoring');
                 setF('fa_sitemap', (d.sitemap && d.sitemap !== 'Not Found') ? 'Present' : 'Missing');
-                step('pagespeed', d.pagespeed != null, 'PageSpeed Mobile' + (d.pagespeed != null ? ': ' + d.pagespeed : ' (not returned)'));
+                step('pagespeed', psm != null, 'PageSpeed Mobile' + (psm != null ? ': ' + psm : ' (not returned)'));
                 step('sitemap',   true, 'Sitemap');
             } catch(e) {
                 console.error('[FA] auditRes error:', e);
@@ -63498,15 +63500,18 @@ Move-In</h3>
             // ── 4. PageSpeed desktop ─────────────────────────────────────────────
             try {
                 if (desktopRes.status === 'rejected') throw desktopRes.reason;
-                const d        = parseLambdaResponse(await desktopRes.value.json());
-                console.log('[FA] desktopRes parsed:', d);
-                const mobileEl = document.getElementById('fa_psm');
-                const mobileVal = mobileEl ? mobileEl.value : '';
-                if (d.pagespeed != null && String(d.pagespeed) !== mobileVal) {
-                    setF('fa_psd', d.pagespeed);
-                    step('desktop', true, 'PageSpeed Desktop: ' + d.pagespeed);
+                const d   = parseLambdaResponse(await desktopRes.value.json());
+                const parsePS = v => { if (v == null) return null; const n = parseInt(String(v)); return isNaN(n) ? null : n; };
+                const psd = parsePS(d.pagespeed);
+                const mobileVal = document.getElementById('fa_psm')?.value || '';
+                if (psd != null && String(psd) !== mobileVal) {
+                    setF('fa_psd', psd);
+                    step('desktop', true, 'PageSpeed Desktop: ' + psd);
+                } else if (psd != null) {
+                    // Lambda returned same score as mobile — strategy param not supported
+                    step('desktop', false, 'PageSpeed Desktop: Lambda returns same score as mobile (' + psd + ')');
                 } else {
-                    step('desktop', false, 'PageSpeed Desktop (Lambda ignores strategy param — same as mobile)');
+                    step('desktop', false, 'PageSpeed Desktop: no score returned');
                 }
             } catch(e) { console.error('[FA] desktopRes error:', e); step('desktop', false, 'PageSpeed Desktop: ' + e.message); }
 
