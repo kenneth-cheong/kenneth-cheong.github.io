@@ -10134,6 +10134,14 @@
             border-color: #94a3b8;
             color: #64748b !important;
         }
+        /* Greyed-out pill for categories unavailable in current mode */
+        .nav-item.nav-cat-toggle.nav-toggle-disabled > a {
+            background: transparent;
+            color: #cbd5e1 !important;
+            border-color: #e8ecf0;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
         /* Hide dropdowns when in toggle mode */
         .nav-item.nav-cat-toggle .dropdown-content {
             display: none !important;
@@ -62561,7 +62569,8 @@ Move-In</h3>
             ];
 
             if (isBasic) {
-                applyToggleModeToNav(false);
+                applyToggleModeToNav(false); // clear any advanced-mode pill handlers first
+                applyBasicModeNav();
                 document.body.classList.remove('advanced-mode');
                 // Hide advanced cards
                 const advCards = document.getElementById('advancedModeCardsContainer');
@@ -62737,6 +62746,20 @@ Move-In</h3>
             }
         }
 
+        // Categories that have cards in basic mode
+        const BASIC_MODE_CATEGORIES = new Set(['SEO', 'SMM', 'GEO', 'Others']);
+
+        function toggleBasicCatCards(cardCategory, navItem) {
+            const isActive = navItem.classList.contains('nav-toggle-active');
+            if (isActive) {
+                navItem.classList.replace('nav-toggle-active', 'nav-toggle-inactive');
+                setCategoryCardsVisible(cardCategory, false);
+            } else {
+                navItem.classList.replace('nav-toggle-inactive', 'nav-toggle-active');
+                setCategoryCardsVisible(cardCategory, true);
+            }
+        }
+
         function applyToggleModeToNav(enable) {
             CATEGORY_NAV_CONFIG.forEach(({ navId, sectionId, cardCategory }) => {
                 const navItem = document.getElementById(navId);
@@ -62746,15 +62769,36 @@ Move-In</h3>
 
                 if (enable) {
                     navItem.classList.add('nav-cat-toggle', 'nav-toggle-active');
-                    navItem.classList.remove('nav-toggle-inactive');
+                    navItem.classList.remove('nav-toggle-inactive', 'nav-toggle-disabled');
                     link._origOnclick = link.onclick;
                     link.onclick = (e) => { e.preventDefault(); toggleCatSection(sectionId, cardCategory, navItem); };
                 } else {
-                    navItem.classList.remove('nav-cat-toggle', 'nav-toggle-active', 'nav-toggle-inactive');
+                    navItem.classList.remove('nav-cat-toggle', 'nav-toggle-active', 'nav-toggle-inactive', 'nav-toggle-disabled');
                     if (link._origOnclick !== undefined) {
                         link.onclick = link._origOnclick;
                         delete link._origOnclick;
                     }
+                }
+            });
+        }
+
+        function applyBasicModeNav() {
+            CATEGORY_NAV_CONFIG.forEach(({ navId, cardCategory }) => {
+                const navItem = document.getElementById(navId);
+                if (!navItem) return;
+                const link = navItem.querySelector(':scope > a');
+                if (!link) return;
+
+                navItem.classList.add('nav-cat-toggle');
+                navItem.classList.remove('nav-toggle-active', 'nav-toggle-inactive', 'nav-toggle-disabled');
+                link._origOnclick = link.onclick;
+
+                if (BASIC_MODE_CATEGORIES.has(cardCategory)) {
+                    navItem.classList.add('nav-toggle-active');
+                    link.onclick = (e) => { e.preventDefault(); toggleBasicCatCards(cardCategory, navItem); };
+                } else {
+                    navItem.classList.add('nav-toggle-disabled');
+                    link.onclick = (e) => e.preventDefault();
                 }
             });
         }
