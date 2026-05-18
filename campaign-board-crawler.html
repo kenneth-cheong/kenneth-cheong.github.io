@@ -1925,6 +1925,7 @@
                                 people: assigned?.text ? assigned.text.split(/, | & | and /).map(p => p.trim()) : ['Unassigned'],
                                 csManagers: masterData.csm,
                                 masterStatus: masterData.status,
+                                masterCsmStatus: masterData.csmStatus,
                                 masterTimeline: masterData.timeline,
                                 masterName: masterData.masterName,
                                 csmCampaignStatus: csmStatusCol?.label || '',
@@ -2040,7 +2041,7 @@
         function renderAuditorView(filtered) {
             const groups = {};
             filtered.forEach(i => {
-                if (!groups[i.bId]) groups[i.bId] = { id: i.bId, name: i.bName, folder: i.fName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 }, masterName: i.masterName, masterStatus: i.masterStatus, csmCampaignStatus: i.csmCampaignStatus };
+                if (!groups[i.bId]) groups[i.bId] = { id: i.bId, name: i.bName, folder: i.fName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 }, masterName: i.masterName, masterCsmStatus: i.masterCsmStatus, csmCampaignStatus: i.csmCampaignStatus };
                 groups[i.bId].items.push(i);
                 groups[i.bId].counts[i.status === '2w' ? 'v2w' : i.status]++;
             });
@@ -2073,7 +2074,7 @@
                                 ${g.counts.soon > 0 ? `<span class="board-tag soon">${g.counts.soon} Soon</span>` : ''}
                                 ${g.counts.v2w > 0 ? `<span class="board-tag v2w">${g.counts.v2w} 2W</span>` : ''}
                                 ${g.masterName && g.masterName !== '-' && g.masterName !== '...' ? `<span class="board-tag" style="background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${g.masterName.replace(/"/g, '&quot;')}"><i class="fas fa-link" style="margin-right: 4px; opacity: 0.7;"></i>${g.masterName}</span>` : ''}
-                                ${(g.masterStatus && g.masterStatus !== '-' && g.masterStatus !== '...') || g.csmCampaignStatus ? `<span class="board-tag" style="background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);">${g.masterStatus && g.masterStatus !== '-' && g.masterStatus !== '...' ? g.masterStatus : g.csmCampaignStatus}</span>` : ''}
+                                ${(g.masterCsmStatus && g.masterCsmStatus !== '-' && g.masterCsmStatus !== '...') || g.csmCampaignStatus ? `<span class="board-tag" style="background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);">${g.masterCsmStatus && g.masterCsmStatus !== '-' && g.masterCsmStatus !== '...' ? g.masterCsmStatus : g.csmCampaignStatus}</span>` : ''}
                             </div>
                         </div>
                     </td>
@@ -2176,7 +2177,7 @@
                         const isCampaignExpanded = state.expandedManagerBoardIds.has(compoundId);
 
                         const cMasterName = c.items[0]?.masterName;
-                        const cMasterStatus = c.items[0]?.masterStatus;
+                        const cMasterCsmStatus = c.items[0]?.masterCsmStatus;
                         const cCsmStatus = c.items[0]?.csmCampaignStatus;
                         tableHtml += `
                         <tr class="campaign-sub-header" onclick="toggleManagerBoardExpansion('${compoundId.replace(/'/g, "\\'")}')">
@@ -2189,7 +2190,7 @@
                                         ${c.counts.soon > 0 ? `<span class="board-tag soon">${c.counts.soon} Soon</span>` : ''}
                                         ${c.counts.v2w > 0 ? `<span class="board-tag v2w">${c.counts.v2w} 2W</span>` : ''}
                                         ${cMasterName && cMasterName !== '-' && cMasterName !== '...' ? `<span class="board-tag" style="background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${cMasterName.replace(/"/g, '&quot;')}"><i class="fas fa-link" style="margin-right: 4px; opacity: 0.7;"></i>${cMasterName}</span>` : ''}
-                                        ${(cMasterStatus && cMasterStatus !== '-' && cMasterStatus !== '...') || cCsmStatus ? `<span class="board-tag" style="background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);">${cMasterStatus && cMasterStatus !== '-' && cMasterStatus !== '...' ? cMasterStatus : cCsmStatus}</span>` : ''}
+                                        ${(cMasterCsmStatus && cMasterCsmStatus !== '-' && cMasterCsmStatus !== '...') || cCsmStatus ? `<span class="board-tag" style="background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);">${cMasterCsmStatus && cMasterCsmStatus !== '-' && cMasterCsmStatus !== '...' ? cMasterCsmStatus : cCsmStatus}</span>` : ''}
                                     </div>
                                     <span style="font-size: 10px; opacity: 0.6; margin-left: auto;">${c.items.length} tasks</span>
                                 </div>
@@ -2583,7 +2584,7 @@
                     const items = p.items || [];
                     let newEntries = 0;
                     items.forEach(item => {
-                        const csmList = [], timelineParts = [], statusParts = [], websites = [], boardIds = [];
+                        const csmList = [], timelineParts = [], statusParts = [], csmStatusParts = [], websites = [], boardIds = [];
 
                         // Extract domain from item name if present
                         const nameUrlMatch = item.name.match(/https?:\/\/[^\s]+/g);
@@ -2605,7 +2606,10 @@
                                 });
                             }
                             if (cleanTitle.includes('campaigntimeline') && cv.text) timelineParts.push(cv.text);
-                            if (cleanTitle.includes('campaignstatus') && cv.text) statusParts.push(cv.text);
+                            if (cleanTitle.includes('campaignstatus') && cv.text) {
+                                statusParts.push(cv.text);
+                                if (cleanTitle.startsWith('csm')) csmStatusParts.push(cv.text);
+                            }
                             if ((cleanTitle.includes('website') || cleanTitle.includes('url') || cleanTitle.includes('domain')) && cv.text) {
                                 const domain = cv.text.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
                                 if (domain) websites.push(domain);
@@ -2631,7 +2635,8 @@
                                 boardIds: [...new Set(boardIds)],
                                 csm: [...new Set(csmList)],
                                 timeline: timelineParts.join(" / "),
-                                status: statusParts.join(" / ")
+                                status: statusParts.join(" / "),
+                                csmStatus: csmStatusParts.join(" / ")
                             };
                             newEntries++;
                         }
@@ -2693,13 +2698,14 @@
 
             if (!bestMatch || maxSpecificity <= 3) {
                 const placeholder = state.masterDataLoaded ? '-' : '...';
-                return { csm: [placeholder], timeline: placeholder, status: placeholder, masterName: placeholder };
+                return { csm: [placeholder], timeline: placeholder, status: placeholder, csmStatus: placeholder, masterName: placeholder };
             }
 
             return {
                 csm: bestMatch.csm,
                 timeline: bestMatch.timeline,
                 status: bestMatch.status,
+                csmStatus: bestMatch.csmStatus || '',
                 masterName: bestMatch.name
             };
         }
@@ -2712,6 +2718,7 @@
                     if (mapped.csm[0] !== '...' || state.masterDataLoaded) {
                         i.csManagers = mapped.csm;
                         i.masterStatus = mapped.status;
+                        i.masterCsmStatus = mapped.csmStatus;
                         i.masterTimeline = mapped.timeline;
                         i.masterName = mapped.masterName;
                         changed = true;
