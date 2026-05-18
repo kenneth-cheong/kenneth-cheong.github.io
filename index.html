@@ -63308,25 +63308,21 @@ Move-In</h3>
 
         const FA_STORAGE_KEY = 'forensicAudits';
 
-        function openForensicAudit(e) {
-            e.preventDefault();
-            // Open GEO section
-            const geoMain = document.getElementById('geoMainBtn');
-            const geoContent = geoMain ? geoMain.nextElementSibling : null;
-            if (geoContent && !geoContent.classList.contains('active')) {
-                geoMain.click();
-            }
-            // Open forensic audit collapsible
-            const faBtn = document.getElementById('forensicAuditBtn');
-            if (faBtn) {
-                const faContent = faBtn.nextElementSibling;
-                if (faContent && !faContent.classList.contains('active')) {
-                    faBtn.click();
-                }
+        function openForensicAudit(e, skipScroll = false) {
+            if (e) e.preventDefault();
+            showGeoOnly(e);
+            deactivateAllButtons();
+            forceOpenCollapsible('geoMainBtn');
+            const btn = forceOpenCollapsible('forensicAuditBtn');
+            if (btn && !skipScroll) {
                 setTimeout(() => {
                     document.getElementById('forensicAuditSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }, 150);
             }
+            if (e && e.currentTarget) {
+                e.currentTarget.classList.add('active-menu');
+            }
+            closeJourneyModal();
         }
 
         // Set today's date on load
