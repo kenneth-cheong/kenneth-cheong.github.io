@@ -9959,6 +9959,130 @@
             align-items: center;
             gap: 4px;
         }
+
+        /* ===== GEO+SEO Forensic Audit ===== */
+        .forensic-section-label {
+            font-size: 0.78em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #60a5fa;
+            margin: 18px 0 8px 0;
+            padding-bottom: 4px;
+            border-bottom: 1px solid var(--border, #334155);
+        }
+
+        .forensic-hint {
+            font-size: 0.78em;
+            font-weight: 400;
+            color: #94a3b8;
+        }
+
+        .forensic-sf-import {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .forensic-recs-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875em;
+        }
+
+        .forensic-recs-table th {
+            background: var(--accent, #004c9d);
+            color: #fff;
+            padding: 9px 12px;
+            text-align: left;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .forensic-recs-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border, #334155);
+            vertical-align: top;
+        }
+
+        .forensic-recs-table tbody tr:nth-child(even) {
+            background: rgba(255,255,255,0.03);
+        }
+
+        .forensic-recs-table tbody tr:hover {
+            background: rgba(96,165,250,0.06);
+        }
+
+        .forensic-recs-table select,
+        .forensic-recs-table input[type="text"],
+        .forensic-recs-table input[type="date"] {
+            background: var(--input-bg, #0f172a);
+            border: 1px solid var(--border, #334155);
+            color: var(--text, #e2e8f0);
+            border-radius: 4px;
+            padding: 4px 7px;
+            font-size: 0.85em;
+            width: 100%;
+            min-width: 90px;
+        }
+
+        .forensic-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.78em;
+            font-weight: 600;
+        }
+
+        .forensic-badge-red    { background: rgba(239,68,68,0.15); color: #f87171; border:1px solid rgba(239,68,68,0.3); }
+        .forensic-badge-green  { background: rgba(34,197,94,0.12); color: #4ade80; border:1px solid rgba(34,197,94,0.25); }
+        .forensic-badge-yellow { background: rgba(234,179,8,0.12);  color: #facc15; border:1px solid rgba(234,179,8,0.25); }
+
+        .fa-tab-content {
+            display: none;
+        }
+
+        .fa-tab-content.active {
+            display: block;
+        }
+
+        .forensic-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .forensic-summary-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border, #334155);
+            border-radius: 8px;
+            padding: 12px 16px;
+        }
+
+        .forensic-summary-card .fsc-label {
+            font-size: 0.75em;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+
+        .forensic-summary-card .fsc-value {
+            font-size: 1.25em;
+            font-weight: 700;
+            color: #e2e8f0;
+        }
+
+        .forensic-summary-card .fsc-status {
+            font-size: 0.75em;
+            margin-top: 2px;
+        }
+
+        @media (max-width: 700px) {
+            .forensic-summary-grid { grid-template-columns: 1fr 1fr; }
+            .forensic-recs-table { font-size: 0.78em; }
+        }
     </style>
 </head>
 
@@ -10022,6 +10146,7 @@
                 <a href="#aiDiscoveryAudit" onclick="openAiDiscoveryAudit(event)">Ai Discovery</a>
                 <a href="#discoveryKeywordsSection" onclick="openAiMentions(event)">AI Mentions</a>
                 <a href="#geoOnPageSection" onclick="openGeoOnPage(event)">GEO On-Page Optimisation</a>
+                <a href="#forensicAuditSection" onclick="openForensicAudit(event)">GEO+SEO Forensic Audit</a>
                 <a href="#" onclick="triggerSchemaFromGeo()">Schema Generator</a>
             </div>
         </div>
@@ -13944,6 +14069,391 @@
             </div>
 
             <div class="page-break"></div>
+
+            <!-- GEO+SEO Forensic Audit -->
+            <div id="forensicAuditSection">
+                <div class="page-break"></div>
+                <button class="collapsible" id="forensicAuditBtn" onclick="toggleCollapsible(this)">
+                    <i class="fas fa-plus-square"></i><i class="fas fa-search"></i> GEO+SEO Forensic Audit
+                </button>
+                <div class="content">
+                    <div class="sem-step-card" style="margin-top:10px;">
+                        <div class="sem-card-title"><i class="fas fa-clipboard-list"></i> Audit Data Entry</div>
+
+                        <!-- Basic Info -->
+                        <div class="forensic-section-label">Basic Information</div>
+                        <div class="sem-input-group">
+                            <div class="sem-input-item">
+                                <label>Target URL</label>
+                                <input type="text" id="fa_url" placeholder="https://www.example.com">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Client Name</label>
+                                <input type="text" id="fa_client" placeholder="e.g. Acme Corp">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Audit Date</label>
+                                <input type="date" id="fa_date">
+                            </div>
+                        </div>
+
+                        <!-- Technical -->
+                        <div class="forensic-section-label">Technical</div>
+                        <div class="sem-input-group">
+                            <div class="sem-input-item">
+                                <label>SSL</label>
+                                <select id="fa_ssl">
+                                    <option value="">-- Select --</option>
+                                    <option value="pass">Pass</option>
+                                    <option value="fail">Fail</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Domain Authority (DA) <span class="forensic-hint">0–100</span></label>
+                                <input type="number" id="fa_da" min="0" max="100" placeholder="e.g. 35">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>PageSpeed Desktop <span class="forensic-hint">0–100</span></label>
+                                <input type="number" id="fa_psd" min="0" max="100" placeholder="e.g. 80">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>PageSpeed Mobile <span class="forensic-hint">0–100</span></label>
+                                <input type="number" id="fa_psm" min="0" max="100" placeholder="e.g. 60">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>GTmetrix Grade</label>
+                                <select id="fa_gtmetrix">
+                                    <option value="">-- Select --</option>
+                                    <option value="A">A</option>
+                                    <option value="B">B</option>
+                                    <option value="C">C</option>
+                                    <option value="D">D</option>
+                                    <option value="E">E</option>
+                                    <option value="F">F</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Copyscape % <span class="forensic-hint">duplicate content</span></label>
+                                <input type="number" id="fa_copyscape" min="0" max="100" placeholder="e.g. 10">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>GA4 Status</label>
+                                <select id="fa_ga4">
+                                    <option value="">-- Select --</option>
+                                    <option value="Connected">Connected</option>
+                                    <option value="Not Connected">Not Connected</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Meta Title <span class="forensic-hint">what was found</span></label>
+                                <input type="text" id="fa_metatitle" placeholder="e.g. Home | Acme Corp">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Meta Description <span class="forensic-hint">what was found</span></label>
+                                <input type="text" id="fa_metadesc" placeholder="e.g. We help businesses grow...">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>robots.txt</label>
+                                <select id="fa_robots">
+                                    <option value="">-- Select --</option>
+                                    <option value="Pass">Pass</option>
+                                    <option value="Fail">Fail</option>
+                                    <option value="Missing">Missing</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Custom 404</label>
+                                <select id="fa_404">
+                                    <option value="">-- Select --</option>
+                                    <option value="Configured">Configured</option>
+                                    <option value="Not Configured">Not Configured</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label>CDN</label>
+                                <select id="fa_cdn">
+                                    <option value="">-- Select --</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Uptimerobot</label>
+                                <select id="fa_uptime">
+                                    <option value="">-- Select --</option>
+                                    <option value="Monitoring">Monitoring</option>
+                                    <option value="Not Monitoring">Not Monitoring</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Siteliner % <span class="forensic-hint">internal duplicate</span></label>
+                                <input type="number" id="fa_siteliner" min="0" max="100" placeholder="e.g. 20">
+                            </div>
+                        </div>
+
+                        <!-- On-Page -->
+                        <div class="forensic-section-label">On-Page</div>
+                        <div class="sem-input-group">
+                            <div class="sem-input-item">
+                                <label>H1 Count</label>
+                                <input type="number" id="fa_h1" min="0" placeholder="e.g. 1">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>H2 Count</label>
+                                <input type="number" id="fa_h2" min="0" placeholder="e.g. 5">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Sitemap</label>
+                                <select id="fa_sitemap">
+                                    <option value="">-- Select --</option>
+                                    <option value="Present">Present</option>
+                                    <option value="Missing">Missing</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label>HTTP to HTTPS Redirect</label>
+                                <select id="fa_https">
+                                    <option value="">-- Select --</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- GEO Checks -->
+                        <div class="forensic-section-label">GEO Checks</div>
+                        <div class="sem-input-group">
+                            <div class="sem-input-item">
+                                <label>Structured Data</label>
+                                <select id="fa_structdata">
+                                    <option value="">-- Select --</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Semantic HTML</label>
+                                <select id="fa_semantic">
+                                    <option value="">-- Select --</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label>LLM Bot Blocking</label>
+                                <select id="fa_llmblock">
+                                    <option value="">-- Select --</option>
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label>llms.txt</label>
+                                <select id="fa_llmstxt">
+                                    <option value="">-- Select --</option>
+                                    <option value="Present">Present</option>
+                                    <option value="Missing">Missing</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label>llms-full.txt</label>
+                                <select id="fa_llmsfull">
+                                    <option value="">-- Select --</option>
+                                    <option value="Present">Present</option>
+                                    <option value="Missing">Missing</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label>cats.txt</label>
+                                <select id="fa_catstxt">
+                                    <option value="">-- Select --</option>
+                                    <option value="Present">Present</option>
+                                    <option value="Missing">Missing</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Backlinks -->
+                        <div class="forensic-section-label">Backlinks</div>
+                        <div class="sem-input-group">
+                            <div class="sem-input-item">
+                                <label>Total Backlinks</label>
+                                <input type="number" id="fa_backlinks" min="0" placeholder="e.g. 1200">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Referring Domains</label>
+                                <input type="number" id="fa_refdomains" min="0" placeholder="e.g. 85">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Organic Keywords</label>
+                                <input type="number" id="fa_orgkw" min="0" placeholder="e.g. 340">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Spam Score % <span class="forensic-hint">0–100</span></label>
+                                <input type="number" id="fa_spam" min="0" max="100" placeholder="e.g. 5">
+                            </div>
+                        </div>
+
+                        <!-- Screaming Frog -->
+                        <div class="forensic-section-label">Screaming Frog Counts</div>
+                        <div class="forensic-sf-import">
+                            <label for="fa_sfcsv" class="forensic-sf-label"><i class="fas fa-file-csv"></i> Import Screaming Frog CSV</label>
+                            <input type="file" id="fa_sfcsv" accept=".csv" onchange="parseFaSfCsv(event)" style="display:none;">
+                            <button type="button" class="config-btn-highlight" style="padding:6px 14px;font-size:0.85em;" onclick="document.getElementById('fa_sfcsv').click()"><i class="fas fa-upload"></i> Upload CSV</button>
+                            <span id="fa_sfcsv_status" style="font-size:0.82em;color:#94a3b8;margin-left:8px;"></span>
+                        </div>
+                        <div class="sem-input-group">
+                            <div class="sem-input-item">
+                                <label>Duplicate Titles</label>
+                                <input type="number" id="fa_duptitles" min="0" placeholder="0">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Duplicate Descriptions</label>
+                                <input type="number" id="fa_dupdescs" min="0" placeholder="0">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Unoptimised Metas</label>
+                                <input type="number" id="fa_unoptmeta" min="0" placeholder="0">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Canonical Tag Issues</label>
+                                <input type="number" id="fa_canonical" min="0" placeholder="0">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Hreflang Issues</label>
+                                <input type="number" id="fa_hreflang" min="0" placeholder="0">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Multiple Slash URL Issues</label>
+                                <input type="number" id="fa_multislash" min="0" placeholder="0">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>404 Response Codes</label>
+                                <input type="number" id="fa_sf404" min="0" placeholder="0">
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Structured Data Errors</label>
+                                <input type="number" id="fa_sderrors" min="0" placeholder="0">
+                            </div>
+                        </div>
+
+                        <!-- CMS Plugins -->
+                        <div class="forensic-section-label">CMS Plugins</div>
+                        <div class="sem-input-group">
+                            <div class="sem-input-item">
+                                <label>RankMath</label>
+                                <select id="fa_rankmath">
+                                    <option value="">-- Select --</option>
+                                    <option value="Installed">Installed</option>
+                                    <option value="Not Installed">Not Installed</option>
+                                    <option value="N/A">N/A</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label>Wordfence</label>
+                                <select id="fa_wordfence">
+                                    <option value="">-- Select --</option>
+                                    <option value="Installed">Installed</option>
+                                    <option value="Not Installed">Not Installed</option>
+                                    <option value="N/A">N/A</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="forensic-section-label">Notes</div>
+                        <div class="sem-input-item" style="margin-bottom:16px;">
+                            <label>Audit Notes</label>
+                            <textarea id="fa_notes" style="height:80px;" placeholder="Any additional observations or context..."></textarea>
+                        </div>
+
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;">
+                            <button type="button" class="config-btn-highlight" onclick="runForensicAudit()"><i class="fas fa-search"></i> Run Audit &amp; Generate Recommendations</button>
+                            <button type="button" class="config-btn" onclick="saveForensicAudit()"><i class="fas fa-save"></i> Save Audit</button>
+                            <button type="button" class="config-btn" onclick="clearForensicAudit()"><i class="fas fa-redo"></i> Clear Form</button>
+                            <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+                                <label style="font-size:0.85em;color:#94a3b8;">Load Past Audit:</label>
+                                <select id="fa_history_select" onchange="loadForensicAudit(this.value)" style="min-width:200px;font-size:0.85em;">
+                                    <option value="">-- Select saved audit --</option>
+                                </select>
+                                <button type="button" class="config-btn" onclick="deleteForensicAudit()" title="Delete selected audit" style="padding:5px 10px;color:#ef4444;"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results Tabs -->
+                    <div id="forensicResultsArea" style="display:none;margin-top:18px;">
+                        <div class="geo-preview-tabs" style="margin-bottom:0;">
+                            <button class="geo-tab active" onclick="switchFaTab(event,'fa_tab_recs')"><i class="fas fa-exclamation-triangle"></i> Recommendations</button>
+                            <button class="geo-tab" onclick="switchFaTab(event,'fa_tab_summary')"><i class="fas fa-chart-bar"></i> Audit Summary</button>
+                            <button class="geo-tab" onclick="switchFaTab(event,'fa_tab_history')"><i class="fas fa-history"></i> Audit Log</button>
+                        </div>
+
+                        <!-- Recommendations Tab -->
+                        <div id="fa_tab_recs" class="fa-tab-content active">
+                            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:12px 16px;background:var(--card-bg,#1e293b);border-radius:0 0 8px 8px;border:1px solid var(--border,#334155);border-top:none;">
+                                <div>
+                                    <span id="fa_rec_count" style="font-weight:700;font-size:1.05em;"></span>
+                                    <span style="color:#94a3b8;font-size:0.88em;margin-left:8px;">recommendations generated</span>
+                                </div>
+                                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                    <button type="button" class="config-btn-highlight" onclick="exportForensicPdf()"><i class="fas fa-file-pdf"></i> Export PDF</button>
+                                    <button type="button" class="config-btn" onclick="exportForensicExcel()"><i class="fas fa-file-excel"></i> Export Excel</button>
+                                </div>
+                            </div>
+                            <div style="overflow-x:auto;margin-top:12px;">
+                                <table class="forensic-recs-table" id="fa_recs_table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Error / Issue</th>
+                                            <th>Recommended Action</th>
+                                            <th>Client's Approval</th>
+                                            <th>Date Checked</th>
+                                            <th>Checked By</th>
+                                            <th>Remarks</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="fa_recs_tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Summary Tab -->
+                        <div id="fa_tab_summary" class="fa-tab-content">
+                            <div id="fa_summary_content" style="padding:16px;background:var(--card-bg,#1e293b);border:1px solid var(--border,#334155);border-radius:0 0 8px 8px;"></div>
+                        </div>
+
+                        <!-- Audit Log Tab -->
+                        <div id="fa_tab_history" class="fa-tab-content">
+                            <div style="padding:16px;background:var(--card-bg,#1e293b);border:1px solid var(--border,#334155);border-radius:0 0 8px 8px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                                    <span style="font-weight:700;">Submission / Audit History</span>
+                                    <button type="button" class="config-btn" onclick="clearAllForensicAudits()" style="color:#ef4444;font-size:0.8em;"><i class="fas fa-trash-alt"></i> Clear All</button>
+                                </div>
+                                <div style="overflow-x:auto;">
+                                    <table class="forensic-recs-table" id="fa_log_table">
+                                        <thead>
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Client</th>
+                                                <th>URL</th>
+                                                <th>Audit Date</th>
+                                                <th>Saved On</th>
+                                                <th>Issues Found</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="fa_log_tbody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- End GEO+SEO Forensic Audit -->
+
         </div>
 
         <hr>
@@ -62793,6 +63303,477 @@ Move-In</h3>
                 if (badge) badge.style.display = 'none';
             }
         });
+
+        // ===== GEO+SEO Forensic Audit =====
+
+        const FA_STORAGE_KEY = 'forensicAudits';
+
+        function openForensicAudit(e) {
+            e.preventDefault();
+            // Open GEO section
+            const geoMain = document.getElementById('geoMainBtn');
+            const geoContent = geoMain ? geoMain.nextElementSibling : null;
+            if (geoContent && !geoContent.classList.contains('active')) {
+                geoMain.click();
+            }
+            // Open forensic audit collapsible
+            const faBtn = document.getElementById('forensicAuditBtn');
+            if (faBtn) {
+                const faContent = faBtn.nextElementSibling;
+                if (faContent && !faContent.classList.contains('active')) {
+                    faBtn.click();
+                }
+                setTimeout(() => {
+                    document.getElementById('forensicAuditSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 150);
+            }
+        }
+
+        // Set today's date on load
+        (function() {
+            const d = document.getElementById('fa_date');
+            if (d) d.value = new Date().toISOString().split('T')[0];
+        })();
+
+        function faGetFormData() {
+            const v = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+            const n = id => { const el = document.getElementById(id); return el && el.value !== '' ? parseFloat(el.value) : null; };
+            return {
+                url:        v('fa_url'),
+                client:     v('fa_client'),
+                date:       v('fa_date'),
+                ssl:        v('fa_ssl'),
+                da:         n('fa_da'),
+                psd:        n('fa_psd'),
+                psm:        n('fa_psm'),
+                gtmetrix:   v('fa_gtmetrix'),
+                copyscape:  n('fa_copyscape'),
+                ga4:        v('fa_ga4'),
+                metatitle:  v('fa_metatitle'),
+                metadesc:   v('fa_metadesc'),
+                robots:     v('fa_robots'),
+                custom404:  v('fa_404'),
+                cdn:        v('fa_cdn'),
+                uptime:     v('fa_uptime'),
+                siteliner:  n('fa_siteliner'),
+                h1:         n('fa_h1'),
+                h2:         n('fa_h2'),
+                sitemap:    v('fa_sitemap'),
+                https:      v('fa_https'),
+                structdata: v('fa_structdata'),
+                semantic:   v('fa_semantic'),
+                llmblock:   v('fa_llmblock'),
+                llmstxt:    v('fa_llmstxt'),
+                llmsfull:   v('fa_llmsfull'),
+                catstxt:    v('fa_catstxt'),
+                backlinks:  n('fa_backlinks'),
+                refdomains: n('fa_refdomains'),
+                orgkw:      n('fa_orgkw'),
+                spam:       n('fa_spam'),
+                duptitles:  n('fa_duptitles'),
+                dupdescs:   n('fa_dupdescs'),
+                unoptmeta:  n('fa_unoptmeta'),
+                canonical:  n('fa_canonical'),
+                hreflang:   n('fa_hreflang'),
+                multislash: n('fa_multislash'),
+                sf404:      n('fa_sf404'),
+                sderrors:   n('fa_sderrors'),
+                rankmath:   v('fa_rankmath'),
+                wordfence:  v('fa_wordfence'),
+                notes:      v('fa_notes'),
+            };
+        }
+
+        function faSetFormData(d) {
+            const set = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined && val !== null) el.value = val; };
+            set('fa_url', d.url); set('fa_client', d.client); set('fa_date', d.date);
+            set('fa_ssl', d.ssl); set('fa_da', d.da); set('fa_psd', d.psd); set('fa_psm', d.psm);
+            set('fa_gtmetrix', d.gtmetrix); set('fa_copyscape', d.copyscape); set('fa_ga4', d.ga4);
+            set('fa_metatitle', d.metatitle); set('fa_metadesc', d.metadesc); set('fa_robots', d.robots);
+            set('fa_404', d.custom404); set('fa_cdn', d.cdn); set('fa_uptime', d.uptime);
+            set('fa_siteliner', d.siteliner); set('fa_h1', d.h1); set('fa_h2', d.h2);
+            set('fa_sitemap', d.sitemap); set('fa_https', d.https); set('fa_structdata', d.structdata);
+            set('fa_semantic', d.semantic); set('fa_llmblock', d.llmblock); set('fa_llmstxt', d.llmstxt);
+            set('fa_llmsfull', d.llmsfull); set('fa_catstxt', d.catstxt);
+            set('fa_backlinks', d.backlinks); set('fa_refdomains', d.refdomains); set('fa_orgkw', d.orgkw);
+            set('fa_spam', d.spam); set('fa_duptitles', d.duptitles); set('fa_dupdescs', d.dupdescs);
+            set('fa_unoptmeta', d.unoptmeta); set('fa_canonical', d.canonical); set('fa_hreflang', d.hreflang);
+            set('fa_multislash', d.multislash); set('fa_sf404', d.sf404); set('fa_sderrors', d.sderrors);
+            set('fa_rankmath', d.rankmath); set('fa_wordfence', d.wordfence); set('fa_notes', d.notes);
+        }
+
+        function generateForensicRecommendations(d) {
+            const recs = [];
+            const add = (error, action) => recs.push({ error, action });
+
+            if (d.ssl === 'fail') add('SSL Certificate Missing', 'Install an SSL certificate to secure the website');
+            if (d.psd !== null && d.psd < 70) add(`Poor Desktop Page Speed (score: ${d.psd})`, 'Optimise images, minify CSS/JS, and leverage browser caching to improve desktop speed');
+            if (d.psm !== null && d.psm < 50) add(`Poor Mobile Page Speed (score: ${d.psm})`, 'Implement mobile-first performance optimisations — compress images, reduce render-blocking resources');
+            if (['D','E','F'].includes(d.gtmetrix)) add(`Poor GTmetrix Grade (${d.gtmetrix})`, 'Audit server response time, reduce page size, and defer non-critical JavaScript');
+            if (d.copyscape !== null && d.copyscape > 20) add(`High Duplicate Content (${d.copyscape}%)`, 'Rewrite or canonicalise duplicate pages; implement unique, original content across all key pages');
+            if (d.ga4 === 'Not Connected') add('Google Analytics 4 Not Connected', 'Set up and verify Google Analytics 4 tracking on the website');
+            if (!d.metatitle) add('Missing Meta Title', 'Add a unique, keyword-rich meta title (50–60 characters) to every key page');
+            if (!d.metadesc) add('Missing Meta Description', 'Write compelling meta descriptions (150–160 characters) for all key pages');
+            if (d.robots === 'Fail' || d.robots === 'Missing') add('robots.txt Issue', 'Fix or create the robots.txt file and ensure it does not block important pages from being crawled');
+            if (d.custom404 === 'Not Configured') add('No Custom 404 Page', 'Create a branded 404 error page to retain visitors and maintain site experience');
+            if (d.cdn === 'No') add('No CDN Implemented', 'Set up a Content Delivery Network (CDN) to improve global load times');
+            if (d.siteliner !== null && d.siteliner > 50) add(`High Internal Duplicate Content (${d.siteliner}%)`, 'Identify and consolidate duplicate internal pages; use canonical tags where needed');
+            if (d.h1 !== null && d.h1 === 0) add('Missing H1 Tag', "Add a single H1 heading that clearly describes the page's primary topic");
+            if (d.h1 !== null && d.h1 > 1) add(`Multiple H1 Tags (${d.h1} found)`, 'Reduce H1 tags to one per page to maintain clear heading hierarchy');
+            if (d.sitemap === 'Missing') add('XML Sitemap Missing', 'Create and submit an XML sitemap to Google Search Console');
+            if (d.https === 'No') add('HTTP to HTTPS Redirect Not Set', 'Configure server-side 301 redirects from HTTP to HTTPS for all URLs');
+            if (d.structdata === 'No') add('No Structured Data Markup', 'Implement relevant schema markup (Organization, WebPage, etc.) to enhance rich snippet eligibility');
+            if (d.llmblock === 'Yes') add('LLM Bots Blocked in robots.txt', 'Review robots.txt to allow reputable LLM crawlers (GPTBot, ClaudeBot, Bingbot) for GEO visibility');
+            if (d.llmstxt === 'Missing') add('llms.txt File Missing', 'Create an llms.txt file to guide AI language models on how to understand and represent the site');
+            if (d.spam !== null && d.spam > 30) add(`High Spam Score (${d.spam}%)`, 'Audit backlink profile and disavow toxic links via Google Search Console');
+            if (d.rankmath === 'Not Installed') add('RankMath SEO Plugin Not Installed', 'Install and configure RankMath to manage on-page SEO, schema, and XML sitemaps');
+            if (d.duptitles !== null && d.duptitles > 0) add(`${d.duptitles} Duplicate Title Tags Found`, 'Audit and rewrite duplicate title tags — each page must have a unique title');
+            if (d.dupdescs !== null && d.dupdescs > 0) add(`${d.dupdescs} Duplicate Meta Descriptions Found`, 'Write unique meta descriptions for all pages with duplicates');
+            if (d.sf404 !== null && d.sf404 > 0) add(`${d.sf404} Broken Links (404) Detected`, 'Fix or redirect all broken links to relevant live pages');
+            if (d.sderrors !== null && d.sderrors > 0) add(`${d.sderrors} Structured Data Errors Detected`, "Validate and fix structured data errors using Google's Rich Results Test");
+            if (d.canonical !== null && d.canonical > 0) add(`${d.canonical} Canonical Tag Issues Found`, 'Review and correct canonical tags to prevent duplicate content confusion');
+
+            return recs;
+        }
+
+        function runForensicAudit() {
+            const d = faGetFormData();
+            const recs = generateForensicRecommendations(d);
+
+            // Show results area
+            document.getElementById('forensicResultsArea').style.display = 'block';
+
+            // Populate recommendations table
+            const tbody = document.getElementById('fa_recs_tbody');
+            tbody.innerHTML = '';
+            recs.forEach((r, i) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-weight:700;color:#60a5fa;">${i+1}</td>
+                    <td><span class="forensic-badge forensic-badge-red">${escHtml(r.error)}</span></td>
+                    <td style="min-width:220px;">${escHtml(r.action)}</td>
+                    <td><select class="fa-approval-sel" data-idx="${i}">
+                        <option value="">— Select —</option>
+                        <option value="Approved">Approved</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Declined">Declined</option>
+                        <option value="Pending">Pending</option>
+                    </select></td>
+                    <td><input type="date" class="fa-date-checked" data-idx="${i}"></td>
+                    <td><input type="text" class="fa-checked-by" data-idx="${i}" placeholder="Name"></td>
+                    <td><input type="text" class="fa-remarks" data-idx="${i}" placeholder="Remarks..."></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('fa_rec_count').textContent = recs.length;
+
+            // Render summary
+            faRenderSummary(d, recs);
+
+            // Switch to recs tab
+            document.querySelectorAll('.fa-tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById('fa_tab_recs').classList.add('active');
+            document.querySelectorAll('#forensicResultsArea .geo-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('#forensicResultsArea .geo-tab')[0].classList.add('active');
+
+            // Refresh log
+            faRenderLog();
+
+            document.getElementById('forensicResultsArea').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function faRenderSummary(d, recs) {
+            const psdStatus = d.psd === null ? '' : d.psd >= 90 ? 'green' : d.psd >= 70 ? 'yellow' : 'red';
+            const psmStatus = d.psm === null ? '' : d.psm >= 70 ? 'green' : d.psm >= 50 ? 'yellow' : 'red';
+            const daStatus  = d.da  === null ? '' : d.da  >= 50 ? 'green' : d.da  >= 30 ? 'yellow' : 'red';
+
+            const badge = (val, status) => val === null || val === '' ? '<span style="color:#64748b">—</span>' :
+                `<span class="forensic-badge forensic-badge-${status || 'yellow'}">${escHtml(String(val))}</span>`;
+
+            const sslBadge   = d.ssl === 'pass' ? badge('Pass','green') : d.ssl === 'fail' ? badge('Fail','red') : '—';
+            const gtBadge    = d.gtmetrix ? badge(d.gtmetrix, ['A','B'].includes(d.gtmetrix)?'green':['C'].includes(d.gtmetrix)?'yellow':'red') : '—';
+            const ga4Badge   = d.ga4 === 'Connected' ? badge('Connected','green') : d.ga4 === 'Not Connected' ? badge('Not Connected','red') : '—';
+            const sitemapB   = d.sitemap === 'Present' ? badge('Present','green') : d.sitemap === 'Missing' ? badge('Missing','red') : '—';
+            const httpsB     = d.https === 'Yes' ? badge('Yes','green') : d.https === 'No' ? badge('No','red') : '—';
+            const sdB        = d.structdata === 'Yes' ? badge('Yes','green') : d.structdata === 'No' ? badge('No','red') : '—';
+            const llmB       = d.llmstxt === 'Present' ? badge('Present','green') : d.llmstxt === 'Missing' ? badge('Missing','red') : '—';
+            const spamB      = d.spam === null ? '—' : badge(d.spam+'%', d.spam > 30 ? 'red' : d.spam > 15 ? 'yellow' : 'green');
+            const issueCount = recs.length;
+            const issueBadge = badge(issueCount + ' issues', issueCount === 0 ? 'green' : issueCount < 5 ? 'yellow' : 'red');
+
+            document.getElementById('fa_summary_content').innerHTML = `
+                <div style="margin-bottom:14px;">
+                    <strong style="font-size:1.05em;">${escHtml(d.client || 'Client')} — ${escHtml(d.url || 'URL')}</strong>
+                    <span style="color:#94a3b8;font-size:0.85em;margin-left:12px;">${escHtml(d.date || '')}</span>
+                </div>
+                <div class="forensic-summary-grid">
+                    <div class="forensic-summary-card"><div class="fsc-label">SSL</div><div class="fsc-value">${sslBadge}</div></div>
+                    <div class="forensic-summary-card"><div class="fsc-label">Domain Authority</div><div class="fsc-value">${d.da !== null ? badge(d.da, daStatus) : '—'}</div></div>
+                    <div class="forensic-summary-card"><div class="fsc-label">PageSpeed Desktop</div><div class="fsc-value">${d.psd !== null ? badge(d.psd, psdStatus) : '—'}</div></div>
+                    <div class="forensic-summary-card"><div class="fsc-label">PageSpeed Mobile</div><div class="fsc-value">${d.psm !== null ? badge(d.psm, psmStatus) : '—'}</div></div>
+                    <div class="forensic-summary-card"><div class="fsc-label">GTmetrix Grade</div><div class="fsc-value">${gtBadge}</div></div>
+                    <div class="forensic-summary-card"><div class="fsc-label">GA4 Status</div><div class="fsc-value">${ga4Badge}</div></div>
+                    <div class="forensic-summary-card"><div class="fsc-label">Sitemap</div><div class="fsc-value">${sitemapB}</div></div>
+                    <div class="forensic-summary-card"><div class="fsc-label">HTTPS Redirect</div><div class="fsc-value">${httpsB}</div></div>
+                    <div class="forensic-summary-card"><div class="fsc-label">Structured Data</div><div class="fsc-value">${sdB}</div></div>
+                    <div class="forensic-summary-card"><div class="fsc-label">llms.txt</div><div class="fsc-value">${llmB}</div></div>
+                    <div class="forensic-summary-card"><div class="fsc-label">Spam Score</div><div class="fsc-value">${spamB}</div></div>
+                    <div class="forensic-summary-card"><div class="fsc-label">Total Issues</div><div class="fsc-value">${issueBadge}</div></div>
+                </div>
+                ${d.notes ? `<div style="margin-top:10px;padding:10px 14px;background:rgba(255,255,255,0.04);border-radius:6px;border:1px solid var(--border,#334155);font-size:0.88em;color:#cbd5e1;"><strong>Notes:</strong> ${escHtml(d.notes)}</div>` : ''}
+            `;
+        }
+
+        function faCollectRecsWithTracking() {
+            const rows = document.querySelectorAll('#fa_recs_tbody tr');
+            const recs = [];
+            rows.forEach((tr, i) => {
+                const errorEl  = tr.querySelector('td:nth-child(2) .forensic-badge');
+                const actionEl = tr.querySelector('td:nth-child(3)');
+                const approval = tr.querySelector('.fa-approval-sel')?.value || '';
+                const dateChk  = tr.querySelector('.fa-date-checked')?.value || '';
+                const checkedBy= tr.querySelector('.fa-checked-by')?.value || '';
+                const remarks  = tr.querySelector('.fa-remarks')?.value || '';
+                recs.push({
+                    error:      errorEl ? errorEl.textContent : '',
+                    action:     actionEl ? actionEl.textContent : '',
+                    approval, dateChk, checkedBy, remarks
+                });
+            });
+            return recs;
+        }
+
+        function saveForensicAudit() {
+            const d = faGetFormData();
+            if (!d.client && !d.url) { alert('Please enter at least a Client Name or Target URL before saving.'); return; }
+            const recs = faCollectRecsWithTracking();
+            const audits = JSON.parse(localStorage.getItem(FA_STORAGE_KEY) || '[]');
+            const savedOn = new Date().toISOString();
+            const id = 'fa_' + Date.now();
+            audits.unshift({ id, savedOn, data: d, recs });
+            localStorage.setItem(FA_STORAGE_KEY, JSON.stringify(audits));
+            faPopulateHistory();
+            faRenderLog();
+            alert('Audit saved successfully!');
+        }
+
+        function faPopulateHistory() {
+            const sel = document.getElementById('fa_history_select');
+            if (!sel) return;
+            const audits = JSON.parse(localStorage.getItem(FA_STORAGE_KEY) || '[]');
+            sel.innerHTML = '<option value="">-- Select saved audit --</option>';
+            audits.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a.id;
+                opt.textContent = `${a.data.client || 'Unknown'} — ${a.data.date || '?'} (saved ${a.savedOn.slice(0,10)})`;
+                sel.appendChild(opt);
+            });
+        }
+
+        function loadForensicAudit(id) {
+            if (!id) return;
+            const audits = JSON.parse(localStorage.getItem(FA_STORAGE_KEY) || '[]');
+            const entry = audits.find(a => a.id === id);
+            if (!entry) return;
+            faSetFormData(entry.data);
+            runForensicAudit();
+            // Re-populate tracking fields after render
+            setTimeout(() => {
+                const rows = document.querySelectorAll('#fa_recs_tbody tr');
+                rows.forEach((tr, i) => {
+                    const rec = entry.recs && entry.recs[i];
+                    if (!rec) return;
+                    const sel = tr.querySelector('.fa-approval-sel'); if (sel) sel.value = rec.approval || '';
+                    const dc  = tr.querySelector('.fa-date-checked'); if (dc)  dc.value  = rec.dateChk  || '';
+                    const cb  = tr.querySelector('.fa-checked-by');   if (cb)  cb.value  = rec.checkedBy|| '';
+                    const rm  = tr.querySelector('.fa-remarks');      if (rm)  rm.value  = rec.remarks  || '';
+                });
+            }, 100);
+        }
+
+        function deleteForensicAudit() {
+            const sel = document.getElementById('fa_history_select');
+            const id = sel ? sel.value : '';
+            if (!id) { alert('Please select an audit to delete.'); return; }
+            if (!confirm('Delete this saved audit?')) return;
+            let audits = JSON.parse(localStorage.getItem(FA_STORAGE_KEY) || '[]');
+            audits = audits.filter(a => a.id !== id);
+            localStorage.setItem(FA_STORAGE_KEY, JSON.stringify(audits));
+            faPopulateHistory();
+            faRenderLog();
+        }
+
+        function clearAllForensicAudits() {
+            if (!confirm('Clear ALL saved audits? This cannot be undone.')) return;
+            localStorage.removeItem(FA_STORAGE_KEY);
+            faPopulateHistory();
+            faRenderLog();
+        }
+
+        function clearForensicAudit() {
+            ['fa_url','fa_client','fa_ssl','fa_da','fa_psd','fa_psm','fa_gtmetrix','fa_copyscape','fa_ga4',
+             'fa_metatitle','fa_metadesc','fa_robots','fa_404','fa_cdn','fa_uptime','fa_siteliner',
+             'fa_h1','fa_h2','fa_sitemap','fa_https','fa_structdata','fa_semantic','fa_llmblock',
+             'fa_llmstxt','fa_llmsfull','fa_catstxt','fa_backlinks','fa_refdomains','fa_orgkw','fa_spam',
+             'fa_duptitles','fa_dupdescs','fa_unoptmeta','fa_canonical','fa_hreflang','fa_multislash',
+             'fa_sf404','fa_sderrors','fa_rankmath','fa_wordfence','fa_notes'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = el.tagName === 'SELECT' ? '' : '';
+             });
+            document.getElementById('fa_date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('forensicResultsArea').style.display = 'none';
+        }
+
+        function faRenderLog() {
+            const tbody = document.getElementById('fa_log_tbody');
+            if (!tbody) return;
+            const audits = JSON.parse(localStorage.getItem(FA_STORAGE_KEY) || '[]');
+            tbody.innerHTML = '';
+            if (!audits.length) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#64748b;padding:20px;">No saved audits yet.</td></tr>';
+                return;
+            }
+            audits.forEach((a, i) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-weight:700;color:#60a5fa;">${i+1}</td>
+                    <td>${escHtml(a.data.client || '—')}</td>
+                    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(a.data.url||'')}">${escHtml(a.data.url || '—')}</td>
+                    <td>${escHtml(a.data.date || '—')}</td>
+                    <td>${escHtml(a.savedOn ? a.savedOn.slice(0,10) : '—')}</td>
+                    <td><span class="forensic-badge ${(a.recs||[]).length > 5 ? 'forensic-badge-red' : (a.recs||[]).length > 0 ? 'forensic-badge-yellow' : 'forensic-badge-green'}">${(a.recs||[]).length}</span></td>
+                    <td>
+                        <button type="button" class="config-btn" style="padding:3px 9px;font-size:0.8em;" onclick="loadForensicAuditById('${escHtml(a.id)}')"><i class="fas fa-folder-open"></i> Load</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function loadForensicAuditById(id) {
+            document.getElementById('fa_history_select').value = id;
+            loadForensicAudit(id);
+            document.querySelectorAll('.fa-tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById('fa_tab_recs').classList.add('active');
+            document.querySelectorAll('#forensicResultsArea .geo-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('#forensicResultsArea .geo-tab')[0].classList.add('active');
+        }
+
+        function switchFaTab(e, tabId) {
+            document.querySelectorAll('.fa-tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            document.querySelectorAll('#forensicResultsArea .geo-tab').forEach(t => t.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+        }
+
+        function parseFaSfCsv(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const lines = text.split('\n');
+                const header = lines[0] ? lines[0].split(',').map(h => h.trim().replace(/"/g,'').toLowerCase()) : [];
+                // Count rows per status/issue type
+                let dup404 = 0, dupTitles = 0, dupDescs = 0, canonical = 0, hreflang = 0;
+                const statusIdx = header.indexOf('status code') !== -1 ? header.indexOf('status code') : header.indexOf('status');
+                const typeIdx   = header.indexOf('content type') !== -1 ? header.indexOf('content type') : -1;
+                const titleIdx  = header.indexOf('title 1') !== -1 ? header.indexOf('title 1') : header.indexOf('page title');
+                const descIdx   = header.indexOf('meta description 1') !== -1 ? header.indexOf('meta description 1') : header.indexOf('meta description');
+                const canonIdx  = header.indexOf('canonical link element 1') !== -1 ? header.indexOf('canonical link element 1') : -1;
+                const titleDupIdx = header.indexOf('title 1 duplicate') !== -1 ? header.indexOf('title 1 duplicate') : -1;
+                const descDupIdx  = header.indexOf('meta description 1 duplicate') !== -1 ? header.indexOf('meta description 1 duplicate') : -1;
+
+                for (let i = 1; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue;
+                    const cols = lines[i].split(',').map(c => c.trim().replace(/"/g,''));
+                    const status = statusIdx >= 0 ? cols[statusIdx] : '';
+                    if (status === '404') dup404++;
+                    if (titleDupIdx >= 0 && cols[titleDupIdx] && cols[titleDupIdx].toLowerCase() === 'duplicate') dupTitles++;
+                    if (descDupIdx  >= 0 && cols[descDupIdx]  && cols[descDupIdx].toLowerCase()  === 'duplicate') dupDescs++;
+                    if (canonIdx >= 0 && cols[canonIdx] && cols[canonIdx].toLowerCase().includes('issue')) canonical++;
+                }
+
+                if (dup404 > 0) { const el = document.getElementById('fa_sf404'); if(el) el.value = dup404; }
+                if (dupTitles > 0) { const el = document.getElementById('fa_duptitles'); if(el) el.value = dupTitles; }
+                if (dupDescs > 0)  { const el = document.getElementById('fa_dupdescs');  if(el) el.value = dupDescs; }
+                if (canonical > 0) { const el = document.getElementById('fa_canonical'); if(el) el.value = canonical; }
+
+                document.getElementById('fa_sfcsv_status').textContent = `Parsed ${lines.length-1} rows from "${file.name}"`;
+            };
+            reader.readAsText(file);
+        }
+
+        function escHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function exportForensicPdf() {
+            const d = faGetFormData();
+            const recs = faCollectRecsWithTracking();
+            const rows = recs.map((r,i) => `<tr>
+                <td>${i+1}</td>
+                <td>${escHtml(r.error)}</td>
+                <td>${escHtml(r.action)}</td>
+                <td>${escHtml(r.approval)}</td>
+                <td>${escHtml(r.dateChk)}</td>
+                <td>${escHtml(r.checkedBy)}</td>
+                <td>${escHtml(r.remarks)}</td>
+            </tr>`).join('');
+            const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+            <title>GEO+SEO Forensic Audit — ${escHtml(d.client)}</title>
+            <style>
+                body{font-family:Arial,sans-serif;font-size:12px;color:#111;margin:30px;}
+                h1{font-size:18px;margin-bottom:4px;}
+                .meta{color:#666;font-size:11px;margin-bottom:18px;}
+                table{border-collapse:collapse;width:100%;margin-top:10px;}
+                th{background:#004c9d;color:#fff;padding:7px 10px;text-align:left;font-size:11px;}
+                td{padding:6px 10px;border-bottom:1px solid #dde;font-size:11px;vertical-align:top;}
+                tr:nth-child(even){background:#f7f8fc;}
+                .badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:#fee2e2;color:#b91c1c;}
+            </style></head><body>
+            <h1>GEO+SEO Forensic Audit Report</h1>
+            <div class="meta"><strong>Client:</strong> ${escHtml(d.client)} &nbsp;|&nbsp; <strong>URL:</strong> ${escHtml(d.url)} &nbsp;|&nbsp; <strong>Date:</strong> ${escHtml(d.date)}</div>
+            <table>
+                <thead><tr><th>#</th><th>Error / Issue</th><th>Recommended Action</th><th>Client's Approval</th><th>Date Checked</th><th>Checked By</th><th>Remarks</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+            ${d.notes ? `<p style="margin-top:18px;"><strong>Notes:</strong> ${escHtml(d.notes)}</p>` : ''}
+            <p style="margin-top:20px;color:#999;font-size:10px;">Generated on ${new Date().toLocaleDateString()}</p>
+            </body></html>`;
+            const win = window.open('', '_blank');
+            win.document.write(html);
+            win.document.close();
+            win.focus();
+            setTimeout(() => win.print(), 400);
+        }
+
+        function exportForensicExcel() {
+            const d = faGetFormData();
+            const recs = faCollectRecsWithTracking();
+            const header = ['#','Error / Issue','Recommended Action',"Client's Approval",'Date Checked','Checked By','Remarks'];
+            const rows = recs.map((r,i) => [i+1, r.error, r.action, r.approval, r.dateChk, r.checkedBy, r.remarks]);
+            let csv = [header, ...rows].map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\r\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `forensic_audit_${(d.client||'client').replace(/\s+/g,'_')}_${d.date||'nodate'}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Init on load
+        document.addEventListener('DOMContentLoaded', function() {
+            const d = document.getElementById('fa_date');
+            if (d && !d.value) d.value = new Date().toISOString().split('T')[0];
+            faPopulateHistory();
+            faRenderLog();
+        });
     </script>
 
     <script>
@@ -62837,6 +63818,8 @@ Move-In</h3>
             { name: 'Content Check', category: 'Others', section: 'othersSection', collapsible: null, desc: 'Evaluate existing content for readability, keyword coverage, uniqueness, and alignment with SEO best practices.' },
             { name: 'Landing Page Audit', category: 'Others', section: 'othersSection', collapsible: 'landingPageAudit', desc: 'Assess landing pages for conversion rate optimisation, messaging clarity, technical performance, and SEO readiness.' },
             { name: 'AI Content Optimiser', category: 'Others', section: 'othersSection', collapsible: null, desc: 'Refine AI-generated or human-written content to improve naturalness, keyword integration, and search intent alignment.' },
+
+            { name: 'GEO+SEO Forensic Audit', category: 'GEO', section: 'geoSection', collapsible: 'forensicAuditBtn', desc: 'Run a comprehensive GEO+SEO forensic audit covering technical health, on-page SEO, GEO readiness, backlinks, and Screaming Frog crawl data — with auto-generated recommendations.' },
 
             // Admin Tools
             { name: 'Credits', category: 'Admin', section: null, collapsible: 'mangoolsQuota', desc: 'View your remaining API credits and usage quota across connected data providers.' },
