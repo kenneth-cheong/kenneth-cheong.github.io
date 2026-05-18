@@ -14085,7 +14085,10 @@
                         <div class="sem-input-group">
                             <div class="sem-input-item">
                                 <label>Target URL</label>
-                                <input type="text" id="fa_url" placeholder="https://www.example.com">
+                                <div style="display:flex;gap:8px;align-items:center;">
+                                    <input type="text" id="fa_url" placeholder="https://www.example.com" style="flex:1;">
+                                    <button type="button" id="fa_auto_fill_btn" class="config-btn-highlight" style="white-space:nowrap;padding:8px 14px;" onclick="autoFillForensicAudit()"><i class="fas fa-magic"></i> Auto-Fill</button>
+                                </div>
                             </div>
                             <div class="sem-input-item">
                                 <label>Client Name</label>
@@ -14094,6 +14097,23 @@
                             <div class="sem-input-item">
                                 <label>Audit Date</label>
                                 <input type="date" id="fa_date">
+                            </div>
+                        </div>
+
+                        <!-- Auto-fill progress -->
+                        <div id="fa_auto_progress" style="display:none;margin:10px 0 16px;padding:14px 16px;background:rgba(99,102,241,0.07);border:1px solid rgba(99,102,241,0.2);border-radius:10px;">
+                            <div style="font-size:0.85em;font-weight:600;color:#818cf8;margin-bottom:10px;"><i class="fas fa-spinner fa-spin"></i> Fetching data — fields will fill as each check completes…</div>
+                            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;font-size:0.8em;" id="fa_progress_steps">
+                                <span id="fa_step_ssl">⋯ SSL</span>
+                                <span id="fa_step_da">⋯ Domain Authority</span>
+                                <span id="fa_step_pagespeed">⋯ PageSpeed (Mobile)</span>
+                                <span id="fa_step_gtmetrix">⋯ GTmetrix Grade</span>
+                                <span id="fa_step_sitedata">⋯ Meta / Backlinks / Schema</span>
+                                <span id="fa_step_html">⋯ H1/H2 / Semantic / GA4</span>
+                                <span id="fa_step_robots">⋯ robots.txt / LLM Bots</span>
+                                <span id="fa_step_llms">⋯ llms.txt / llms-full.txt</span>
+                                <span id="fa_step_cats">⋯ cats.txt</span>
+                                <span id="fa_step_sitemap">⋯ Sitemap</span>
                             </div>
                         </div>
 
@@ -63305,6 +63325,225 @@ Move-In</h3>
         });
 
         // ===== GEO+SEO Forensic Audit =====
+
+        async function autoFillForensicAudit() {
+            let rawUrl = document.getElementById('fa_url').value.trim();
+            if (!rawUrl) { alert('Please enter a Target URL first.'); return; }
+            if (!rawUrl.startsWith('http')) rawUrl = 'https://' + rawUrl;
+
+            let urlObj;
+            try { urlObj = new URL(rawUrl); } catch(e) { alert('Invalid URL format.'); return; }
+
+            const rootDomain = urlObj.origin;
+            const domain = urlObj.hostname;
+
+            const btn = document.getElementById('fa_auto_fill_btn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching…';
+            document.getElementById('fa_auto_progress').style.display = 'block';
+
+            const step = (id, ok, label) => {
+                const el = document.getElementById('fa_step_' + id);
+                if (el) el.innerHTML = `<span style="color:${ok?'#4ade80':'#f87171'}">${ok?'✓':'✗'}</span> ${label}`;
+            };
+
+            const setF = (id, val) => {
+                if (val === null || val === undefined || val === '') return;
+                const el = document.getElementById(id);
+                if (el) el.value = val;
+            };
+
+            const isValidTxt = (body) => {
+                const t = (body || '').trim();
+                return t.length > 20 && !t.toLowerCase().startsWith('error') &&
+                    !t.includes('<?xml') && !t.includes('<!DOCTYPE') && !t.includes('<html');
+            };
+
+            // Fire all requests in parallel
+            const [siteRes, daRes, auditRes, sslRes, gtRes, htmlRes, robotsRes, llmsRes, llmsFullRes, catsRes] =
+                await Promise.allSettled([
+                    fetch('https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ url: rootDomain })
+                    }),
+                    fetch('https://5zdbpwaia5.execute-api.ap-southeast-1.amazonaws.com/pageDomainMetrics', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ url: rootDomain, keyword: '' })
+                    }),
+                    fetch('https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ url: rootDomain })
+                    }),
+                    fetch('https://2kxt49bwp1.execute-api.ap-southeast-1.amazonaws.com/checkSsl', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ url: domain })
+                    }),
+                    fetch('https://y5830908vh.execute-api.ap-southeast-1.amazonaws.com/gtmetrix', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ url: rootDomain })
+                    }),
+                    fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ url: rootDomain })
+                    }),
+                    fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ url: rootDomain + '/robots.txt' })
+                    }),
+                    fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ url: rootDomain + '/llms.txt' })
+                    }),
+                    fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ url: rootDomain + '/llms-full.txt' })
+                    }),
+                    fetch('https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ url: rootDomain + '/cats.txt' })
+                    }),
+                ]);
+
+            // 1. Site data: meta title, meta desc, backlinks, spam score, referring domains, schema
+            try {
+                const raw = await siteRes.value.json();
+                const d = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+                setF('fa_metatitle', d.title);
+                setF('fa_metadesc', d.description);
+                if (d.backlinks != null) setF('fa_backlinks', d.backlinks);
+                if (d.backlinks_spam_score != null) setF('fa_spam', d.backlinks_spam_score);
+                if (d.referring_domains != null) setF('fa_refdomains', d.referring_domains);
+                if (d.schema && d.schema !== 'None') setF('fa_structdata', 'Yes');
+                step('sitedata', true, 'Meta / Backlinks / Schema');
+            } catch(e) { step('sitedata', false, 'Meta / Backlinks / Schema'); }
+
+            // 2. Domain Authority
+            try {
+                const data = await daRes.value.json();
+                if (data.domain_authority != null) setF('fa_da', data.domain_authority);
+                step('da', true, 'Domain Authority');
+            } catch(e) { step('da', false, 'Domain Authority'); }
+
+            // 3. PageSpeed (mobile) + sitemap
+            try {
+                const raw = await auditRes.value.json();
+                const d = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+                if (d.pagespeed) setF('fa_psm', d.pagespeed);
+                setF('fa_sitemap', (d.sitemap && d.sitemap !== 'Not Found') ? 'Present' : 'Missing');
+                step('pagespeed', true, 'PageSpeed (Mobile)');
+                step('sitemap', true, 'Sitemap');
+            } catch(e) {
+                step('pagespeed', false, 'PageSpeed (Mobile)');
+                step('sitemap', false, 'Sitemap');
+            }
+
+            // 4. SSL
+            try {
+                const data = await sslRes.value.json();
+                const valid = data.message && data.message.toLowerCase().includes('valid');
+                setF('fa_ssl', valid ? 'pass' : 'fail');
+                step('ssl', true, 'SSL');
+            } catch(e) { step('ssl', false, 'SSL'); }
+
+            // 5. GTmetrix grade
+            try {
+                const raw = await gtRes.value.json();
+                const d = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+                const grade = d?.data?.attributes?.gtmetrix_grade;
+                if (grade) setF('fa_gtmetrix', grade);
+                step('gtmetrix', !!grade, 'GTmetrix Grade');
+            } catch(e) { step('gtmetrix', false, 'GTmetrix Grade'); }
+
+            // 6. HTML parsing: H1, H2, semantic, GA4, RankMath, Wordfence, structured data
+            try {
+                const htmlData = await htmlRes.value.json();
+                const html = htmlData.body || '';
+                if (html.length > 200) {
+                    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+                    setF('fa_h1', doc.querySelectorAll('h1').length);
+                    setF('fa_h2', doc.querySelectorAll('h2').length);
+
+                    const semTags = ['header','footer','main','nav'];
+                    const semFound = semTags.filter(t => !!doc.querySelector(t)).length;
+                    setF('fa_semantic', semFound >= 2 ? 'Yes' : 'No');
+
+                    const scripts = Array.from(doc.querySelectorAll('script'))
+                        .map(s => (s.src || '') + (s.textContent || '')).join(' ').toLowerCase();
+                    const hasGa4 = scripts.includes('gtag') || scripts.includes('googletagmanager');
+                    setF('fa_ga4', hasGa4 ? 'Connected' : 'Not Connected');
+
+                    if (scripts.includes('rank-math') || scripts.includes('rankmath') || html.toLowerCase().includes('rank-math')) {
+                        setF('fa_rankmath', 'Installed');
+                    }
+                    if (scripts.includes('wordfence') || html.toLowerCase().includes('wordfence')) {
+                        setF('fa_wordfence', 'Installed');
+                    }
+
+                    // JSON-LD structured data (only set Yes if schema field didn't already set it)
+                    if (doc.querySelectorAll('script[type="application/ld+json"]').length > 0) {
+                        setF('fa_structdata', 'Yes');
+                    } else if (!document.getElementById('fa_structdata').value) {
+                        setF('fa_structdata', 'No');
+                    }
+                }
+                step('html', true, 'H1/H2 / Semantic / GA4');
+            } catch(e) { step('html', false, 'H1/H2 / Semantic / GA4'); }
+
+            // 7. robots.txt + LLM bot check
+            try {
+                const data = await robotsRes.value.json();
+                const robots = (data.body || '').trim();
+                const robotsOk = robots.length > 10 && !robots.toLowerCase().startsWith('error') &&
+                    !robots.includes('<!DOCTYPE') && !robots.includes('<html');
+                setF('fa_robots', robotsOk ? 'Pass' : 'Missing');
+
+                if (robotsOk) {
+                    const lines = robots.split('\n').map(l => l.trim());
+                    let currentAgent = '';
+                    let llmBlocked = false;
+                    const llmBots = ['gptbot','claudebot','oai-searchbot','perplexitybot','anthropic-ai'];
+                    for (const line of lines) {
+                        const lower = line.toLowerCase();
+                        if (lower.startsWith('user-agent:')) {
+                            currentAgent = lower.replace('user-agent:','').trim();
+                        } else if (lower.startsWith('disallow:') && llmBots.some(b => currentAgent.includes(b))) {
+                            const val = lower.replace('disallow:','').trim();
+                            if (val === '/') { llmBlocked = true; break; }
+                        }
+                    }
+                    setF('fa_llmblock', llmBlocked ? 'Yes' : 'No');
+                } else {
+                    setF('fa_llmblock', 'No');
+                }
+                step('robots', true, 'robots.txt / LLM Bots');
+            } catch(e) { step('robots', false, 'robots.txt / LLM Bots'); }
+
+            // 8. llms.txt, llms-full.txt, cats.txt
+            try {
+                const d = await llmsRes.value.json();
+                setF('fa_llmstxt', isValidTxt(d.body) ? 'Present' : 'Missing');
+            } catch(e) { setF('fa_llmstxt', 'Missing'); }
+            try {
+                const d = await llmsFullRes.value.json();
+                setF('fa_llmsfull', isValidTxt(d.body) ? 'Present' : 'Missing');
+            } catch(e) { setF('fa_llmsfull', 'Missing'); }
+            try {
+                const d = await catsRes.value.json();
+                setF('fa_catstxt', isValidTxt(d.body) ? 'Present' : 'Missing');
+            } catch(e) { setF('fa_catstxt', 'Missing'); }
+            step('llms', true, 'llms.txt / llms-full.txt');
+            step('cats', true, 'cats.txt');
+
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-magic"></i> Auto-Fill';
+            // Keep progress visible so user sees what was filled
+            const progressTitle = document.querySelector('#fa_auto_progress div:first-child');
+            if (progressTitle) {
+                progressTitle.innerHTML = '<i class="fas fa-check-circle" style="color:#4ade80"></i> Auto-fill complete — review fields, then fill in remaining items manually.';
+                progressTitle.style.color = '#4ade80';
+            }
+        }
 
         const FA_STORAGE_KEY = 'forensicAudits';
 
