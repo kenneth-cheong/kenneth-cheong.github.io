@@ -1788,22 +1788,7 @@
             `).join('');
 
             // Render Status Exclusions in BOTH locations
-            const html = state.allStatusLabels.length > 0 ? `
-                <label style="display: block; margin-bottom: 12px; font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--muted);">Exclude these statuses from audit:</label>
-                <div class="folder-grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); max-height: 400px; gap: 8px;">
-                    ${state.allStatusLabels.map(l => `
-                        <div class="folder-item ${state.excludedStatusLabels.has(l) ? 'selected' : ''}" onclick="toggleStatusExclusion('${l.replace(/'/g, "\\'")}')" style="padding: 8px 12px; background: rgba(255,255,255,0.03);">
-                            <input type="checkbox" ${state.excludedStatusLabels.has(l) ? 'checked' : ''} style="accent-color:var(--primary)">
-                            <div class="folder-name" style="font-size: 10px;">${l}</div>
-                        </div>
-                    `).join('')}
-                </div>
-            ` : '';
-
-            const area1 = document.getElementById('status-exclusions');
-            const area2 = document.getElementById('results-status-exclusions');
-            if (area1) { area1.innerHTML = html; area1.style.display = html ? 'block' : 'none'; }
-            if (area2) { area2.innerHTML = html; }
+            renderStatusExclusionsPanel();
 
             // Calculate total boards
             let total = 0;
@@ -1860,10 +1845,29 @@
             renderFolders();
         }
 
+        function renderStatusExclusionsPanel() {
+            const html = state.allStatusLabels.length > 0 ? `
+                <label style="display: block; margin-bottom: 12px; font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--muted);">Exclude these statuses from audit:</label>
+                <div class="folder-grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); max-height: 400px; gap: 8px;">
+                    ${state.allStatusLabels.map(l => `
+                        <div class="folder-item ${state.excludedStatusLabels.has(l) ? 'selected' : ''}" onclick="toggleStatusExclusion('${l.replace(/'/g, "\\'")}')" style="padding: 8px 12px; background: rgba(255,255,255,0.03);">
+                            <input type="checkbox" ${state.excludedStatusLabels.has(l) ? 'checked' : ''} style="accent-color:var(--primary)">
+                            <div class="folder-name" style="font-size: 10px;">${l}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : '';
+            const area1 = document.getElementById('status-exclusions');
+            const area2 = document.getElementById('results-status-exclusions');
+            if (area1) { area1.innerHTML = html; area1.style.display = html ? 'block' : 'none'; }
+            if (area2) { area2.innerHTML = html; }
+        }
+
         function toggleStatusExclusion(label) {
             if (state.excludedStatusLabels.has(label)) state.excludedStatusLabels.delete(label);
             else state.excludedStatusLabels.add(label);
-            renderFolders();
+            renderStatusExclusionsPanel();
+            updateFilteredUI();
         }
 
         async function startAudit() {
@@ -2015,6 +2019,11 @@
             if (state.auditedItems.length > 0) {
                 const controls = document.getElementById('results-controls');
                 controls.style.display = 'flex';
+                // Merge any item statuses not in column definitions into allStatusLabels
+                const labelSet = new Set(state.allStatusLabels);
+                state.auditedItems.forEach(i => { if (i.itemStatus && i.itemStatus.trim()) labelSet.add(i.itemStatus.trim()); });
+                state.allStatusLabels = Array.from(labelSet).sort();
+                renderStatusExclusionsPanel();
                 updateFilteredUI();
             }
 
