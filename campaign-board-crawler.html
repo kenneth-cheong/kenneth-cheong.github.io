@@ -1582,7 +1582,7 @@
             masterCampaignMap: {}, // Map of Board Name substring -> { csm: [] }
             updateMetadata: {}, // { itemId: { page: 1, hasMore: true, loadingMore: false } }
             viewMode: 'manager',
-            selectedStaffName: null,
+            selectedStaffNames: new Set(),
             allStatusLabels: [],
             sort: { key: 'deadline', dir: 'asc' },
             campaignSort: 'name_asc',
@@ -2084,8 +2084,8 @@
         }
 
         function selectStaffCard(name) {
-            if (state.selectedStaffName === name) state.selectedStaffName = null;
-            else state.selectedStaffName = name;
+            if (state.selectedStaffNames.has(name)) state.selectedStaffNames.delete(name);
+            else state.selectedStaffNames.add(name);
             updateFilteredUI();
         }
 
@@ -2134,7 +2134,7 @@
             // Render Grid
             let gridHtml = '<div class="staff-grid">';
             sortedStaff.forEach(s => {
-                const isActive = state.selectedStaffName === s.name;
+                const isActive = state.selectedStaffNames.has(s.name);
                 gridHtml += `
                 <div class="staff-card ${isActive ? 'active' : ''}" onclick="selectStaffCard('${s.name.replace(/'/g, "\\'")}')">
                     <div class="staff-name">
@@ -2154,44 +2154,51 @@
 
             // Render Details Table for Selected Staff
             let tableHtml = '';
-            if (state.selectedStaffName && staffGroups[state.selectedStaffName]) {
-                const s = staffGroups[state.selectedStaffName];
-                const sortedCampaigns = sortCampaignGroups(Object.values(s.campaigns));
+            const selectedNames = [...state.selectedStaffNames].filter(n => staffGroups[n]);
+            if (selectedNames.length > 0) {
+                selectedNames.forEach(name => {
+                    const s = staffGroups[name];
+                    const sortedCampaigns = sortCampaignGroups(Object.values(s.campaigns));
 
-                sortedCampaigns.forEach(c => {
-                    const compoundId = `${s.name}-${c.id}`;
-                    const isCampaignExpanded = state.expandedManagerBoardIds.has(compoundId);
-
-                    tableHtml += `
-                    <tr class="campaign-sub-header" onclick="toggleManagerBoardExpansion('${compoundId.replace(/'/g, "\\'")}')">
-                        <td colspan="9">
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <i class="fas ${isCampaignExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="width: 12px; opacity: 0.5;"></i>
-                                <span>${c.name} <span class="folder-sub">in ${c.folder}</span></span>
-                                <div style="display: flex; gap: 4px; margin-left: 12px;">
-                                    ${c.counts.overdue > 0 ? `<span class="board-tag overdue">${c.counts.overdue} Overdue</span>` : ''}
-                                    ${c.counts.soon > 0 ? `<span class="board-tag soon">${c.counts.soon} Soon</span>` : ''}
-                                    ${c.counts.v2w > 0 ? `<span class="board-tag v2w">${c.counts.v2w} 2W</span>` : ''}
-                                </div>
-                                <span style="font-size: 10px; opacity: 0.6; margin-left: auto;">${c.items.length} tasks</span>
-                            </div>
-                        </td>
-                    </tr>
-                    `;
-
-                    if (isCampaignExpanded) {
-                        c.items.sort((a, b) => {
-                            let vA = a[state.sort.key] || '', vB = b[state.sort.key] || '';
-                            if (state.sort.key === 'deadline') {
-                                vA = vA ? new Date(vA).getTime() : 0;
-                                vB = vB ? new Date(vB).getTime() : 0;
-                            }
-                            return state.sort.dir === 'asc' ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
-                        });
-                        c.items.forEach(i => {
-                            tableHtml += renderItemRow(i);
-                        });
+                    if (selectedNames.length > 1) {
+                        tableHtml += `<tr class="staff-group-header"><td colspan="9"><i class="fas fa-user-circle" style="margin-right:8px;"></i>${s.name}</td></tr>`;
                     }
+
+                    sortedCampaigns.forEach(c => {
+                        const compoundId = `${s.name}-${c.id}`;
+                        const isCampaignExpanded = state.expandedManagerBoardIds.has(compoundId);
+
+                        tableHtml += `
+                        <tr class="campaign-sub-header" onclick="toggleManagerBoardExpansion('${compoundId.replace(/'/g, "\\'")}')">
+                            <td colspan="9">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <i class="fas ${isCampaignExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="width: 12px; opacity: 0.5;"></i>
+                                    <span>${c.name} <span class="folder-sub">in ${c.folder}</span></span>
+                                    <div style="display: flex; gap: 4px; margin-left: 12px;">
+                                        ${c.counts.overdue > 0 ? `<span class="board-tag overdue">${c.counts.overdue} Overdue</span>` : ''}
+                                        ${c.counts.soon > 0 ? `<span class="board-tag soon">${c.counts.soon} Soon</span>` : ''}
+                                        ${c.counts.v2w > 0 ? `<span class="board-tag v2w">${c.counts.v2w} 2W</span>` : ''}
+                                    </div>
+                                    <span style="font-size: 10px; opacity: 0.6; margin-left: auto;">${c.items.length} tasks</span>
+                                </div>
+                            </td>
+                        </tr>
+                        `;
+
+                        if (isCampaignExpanded) {
+                            c.items.sort((a, b) => {
+                                let vA = a[state.sort.key] || '', vB = b[state.sort.key] || '';
+                                if (state.sort.key === 'deadline') {
+                                    vA = vA ? new Date(vA).getTime() : 0;
+                                    vB = vB ? new Date(vB).getTime() : 0;
+                                }
+                                return state.sort.dir === 'asc' ? (vA > vB ? 1 : -1) : (vA < vB ? 1 : -1);
+                            });
+                            c.items.forEach(i => {
+                                tableHtml += renderItemRow(i);
+                            });
+                        }
+                    });
                 });
             } else if (sortedStaff.length > 0) {
                 tableHtml = '<tr><td colspan="9" style="text-align:center; padding: 60px; color: var(--muted);"><i class="fas fa-mouse-pointer" style="display:block; font-size: 24px; margin-bottom: 12px; opacity:0.3;"></i> Select a staff card above to see detailed tasks</td></tr>';
@@ -2880,9 +2887,9 @@
                 return true;
             });
 
-            // If in manager view and a specific person is expanded, scope down to that person
-            if (state.viewMode === 'manager' && state.selectedStaffName) {
-                filtered = filtered.filter(i => i.people.includes(state.selectedStaffName));
+            // If in manager view and staff cards are selected, scope down to those people
+            if (state.viewMode === 'manager' && state.selectedStaffNames.size > 0) {
+                filtered = filtered.filter(i => i.people.some(p => state.selectedStaffNames.has(p)));
             }
 
             // If we have too many items, sample them to avoid token limit issues (max ~150 items)
