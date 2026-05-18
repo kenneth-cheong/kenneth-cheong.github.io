@@ -519,7 +519,7 @@
             box-shadow: 0 -4px 24px rgba(0,0,0,0.4);
         }
         .item-cb { cursor: pointer; width: 14px; height: 14px; accent-color: var(--primary); }
-        th.cb-col, td.cb-col { width: 32px; padding: 8px 4px 8px 16px; }
+        th.cb-col, td.cb-col { width: 32px; padding: 8px 8px; text-align: center; vertical-align: middle; }
 
         .is-collapsed .board-chevron {
             transform: rotate(-90deg);
@@ -2310,12 +2310,14 @@
                 <td><div class="person-badge" style="border-color:var(--success); color:var(--success)"><i class="fas fa-user-shield"></i> ${i.csManagers.join(', ')}</div></td>
                 <td style="text-align: center; color: var(--muted); font-family: monospace;">${i.deadlineDisplay}</td>
                 <td style="text-align: center; font-weight: 700; color: ${daysColor}">${i.daysOverdue > 0 ? i.daysOverdue + 'd' : '-'}</td>
-                <td style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                <td style="text-align: right; vertical-align: middle;">
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
                     <span class="${tagClass}">${tagLabel}</span>
                     ${i.itemStatus ? `<span class="status-tag status-other" style="cursor:pointer; background:rgba(255,255,255,0.05); color:var(--text); border:1px solid var(--border); font-size:10px;" title="Click to change status"
                           onclick="event.stopPropagation(); showStatusDropdown('${i.id}','${i.bId}','${i.statusColumnId}',this)">
                         ${i.itemStatus}
                     </span>` : ''}
+                    </div>
                 </td>
             </tr>
             `;
@@ -2930,21 +2932,20 @@
             const columns = data.boards?.[0]?.columns || [];
             const settings = {};
             columns.forEach(col => {
-                if (col.type === 'color') {
-                    try {
-                        const s = JSON.parse(col.settings_str);
-                        const labels = s.labels || {};
-                        const colors = s.labels_colors || {};
-                        const positions = s.labels_positions_v2 || {};
-                        settings[col.id] = {
-                            title: col.title,
-                            options: Object.entries(labels)
-                                .filter(([, lbl]) => lbl && lbl.trim())
-                                .sort((a, b) => (positions[a[0]] ?? 99) - (positions[b[0]] ?? 99))
-                                .map(([idx, lbl]) => ({ index: idx, label: lbl, color: colors[idx]?.color || '#c4c4c4' }))
-                        };
-                    } catch(e) {}
-                }
+                try {
+                    const s = JSON.parse(col.settings_str || '{}');
+                    const labels = s.labels || {};
+                    if (!Object.keys(labels).length) return;
+                    const colors = s.labels_colors || {};
+                    const positions = s.labels_positions_v2 || {};
+                    settings[col.id] = {
+                        title: col.title,
+                        options: Object.entries(labels)
+                            .filter(([, lbl]) => lbl && lbl.trim())
+                            .sort((a, b) => (positions[a[0]] ?? 99) - (positions[b[0]] ?? 99))
+                            .map(([idx, lbl]) => ({ index: idx, label: lbl, color: colors[idx]?.color || '#c4c4c4' }))
+                    };
+                } catch(e) {}
             });
             state.boardColumnSettings[boardId] = settings;
             return settings;
