@@ -2233,7 +2233,7 @@
 
         function extractCostBDName(rawText) {
             if (!rawText || rawText === 'N/A') return 'Unknown';
-            const parts = rawText.split(',').map(s => s.trim()).filter(Boolean);
+            const parts = rawText.replace(/\n/g, ',').split(',').map(s => s.trim()).filter(Boolean);
             const unique = [...new Set(parts)];
             if (unique.length === 1) {
                 const words = unique[0].split(' ');
@@ -2448,8 +2448,8 @@
                 const campaign = b.campaignName || 'N/A';
                 const month = date.toLocaleString('default', { month: 'long', year: 'numeric' });
                 
-                // Reconcile BD if needed
-                if (bd === 'Unknown' || bd === 'N/A') {
+                // Reconcile BD if needed: if bd is missing, unrecognized, or not in the Monday-derived skeleton
+                if (bd === 'Unknown' || bd === 'N/A' || !aggregated[bd]) {
                     for (const candBD in aggregated) {
                         if (aggregated[candBD].campaigns[campaign]) {
                             bd = candBD;
