@@ -33712,9 +33712,8 @@ ${selectedText}
         let currentSummarySortColumn = null;
         let summarySortAscending = true;
 
-        // ── Ahrefs API helpers ────────────────────────────────────────────────────
-        const AHREFS_API_KEY = 'Ds4AyI9xqlwk_e1OzqSth99Cp_r4NMJxzrm60N';
-        const AHREFS_BASE    = 'https://api.ahrefs.com/v3';
+        // ── Ahrefs API helpers (routed via Lambda proxy — key stored server-side) ──
+        const AHREFS_PROXY = 'https://b8cyd5ed90.execute-api.ap-southeast-1.amazonaws.com/new';
 
         // Location name → ISO-3166-1 alpha-2 country code for Ahrefs
         const AHREFS_COUNTRY_MAP = {
@@ -33734,14 +33733,18 @@ ${selectedText}
 
         async function fetchAhrefsDomainOverview(domain) {
             const target = ahrefsCleanDomain(domain);
-            const params = new URLSearchParams({
-                select: 'domain_rating,url_rating,backlinks,referring_domains,org_keywords,org_traffic',
-                target,
-                mode: 'domain',
-                output: 'json'
-            });
-            const resp = await fetch(`${AHREFS_BASE}/site-explorer/overview?${params}`, {
-                headers: { 'Authorization': `Bearer ${AHREFS_API_KEY}`, 'Accept': 'application/json' }
+            const resp = await fetch(AHREFS_PROXY, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    endpoint: 'overview',
+                    params: {
+                        select: 'domain_rating,url_rating,backlinks,referring_domains,org_keywords,org_traffic',
+                        target,
+                        mode: 'domain',
+                        output: 'json'
+                    }
+                })
             });
             if (!resp.ok) throw new Error(`Ahrefs overview HTTP ${resp.status}`);
             return resp.json();
@@ -33750,17 +33753,21 @@ ${selectedText}
         async function fetchAhrefsRankingKeywords(domain, location) {
             const target  = ahrefsCleanDomain(domain);
             const country = AHREFS_COUNTRY_MAP[location] || 'us';
-            const params  = new URLSearchParams({
-                select: 'keyword,volume,difficulty,traffic,position',
-                target,
-                mode: 'domain',
-                country,
-                limit: '100',
-                order_by: 'traffic:desc',
-                output: 'json'
-            });
-            const resp = await fetch(`${AHREFS_BASE}/site-explorer/organic-keywords?${params}`, {
-                headers: { 'Authorization': `Bearer ${AHREFS_API_KEY}`, 'Accept': 'application/json' }
+            const resp = await fetch(AHREFS_PROXY, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    endpoint: 'keywords',
+                    params: {
+                        select: 'keyword,volume,difficulty,traffic,position',
+                        target,
+                        mode: 'domain',
+                        country,
+                        limit: '100',
+                        order_by: 'traffic:desc',
+                        output: 'json'
+                    }
+                })
             });
             if (!resp.ok) throw new Error(`Ahrefs keywords HTTP ${resp.status}`);
             const json = await resp.json();
