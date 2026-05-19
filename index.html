@@ -10107,25 +10107,32 @@
             line-height: 1.4;
         }
 
-        /* Scroll-to indicator on basic mode cards */
-        .basic-selector-card .card-scroll-hint {
-            position: absolute;
-            bottom: 8px;
-            right: 10px;
-            font-size: 0.7rem;
-            color: #94a3b8;
-            display: flex;
+        /* Scroll-to button on basic mode cards */
+        .card-scroll-btn {
+            display: inline-flex;
             align-items: center;
-            gap: 3px;
-            opacity: 0;
-            transition: opacity 0.2s;
-            pointer-events: none;
+            gap: 4px;
+            margin-top: 8px;
+            padding: 3px 8px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #64748b;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
         }
-        .basic-selector-card:hover .card-scroll-hint {
-            opacity: 1;
-        }
-        .basic-selector-card.active .card-scroll-hint {
+        .card-scroll-btn:hover {
+            background: #e0e7ff;
             color: #3b82f6;
+            border-color: #bfdbfe;
+        }
+        .basic-selector-card.active .card-scroll-btn {
+            color: #3b82f6;
+            background: #eff6ff;
+            border-color: #bfdbfe;
         }
 
         /* Advanced/Intermediate mode: category toggle pills in navbar */
@@ -62904,6 +62911,38 @@ Move-In</h3>
         // Categories that have cards in basic mode
         const BASIC_MODE_CATEGORIES = new Set(['SEO', 'GEO', 'Others']);
 
+        // Wrapper div IDs for each sectionKey — always visible in basic mode
+        const BASIC_SECTION_WRAPPERS = {
+            strategyEngine: 'strategyEngineSection',
+            pricingQuote: 'pricingQuoteSection',
+            siteAnalysis: 'siteAnalysisSection',
+            technicalSeo: 'technicalSeoSection',
+            competitors: 'competitorsSection',
+            discoveryAudit: 'discoveryAuditWrapper',
+            discoveryKeywords: 'discoveryKeywordsWrapper',
+            persona: 'personaSection',
+            mediaPlan: 'mediaPlanSection',
+            landingPageAudit: 'landingPageAuditSection'
+        };
+
+        function scrollToBasicSection(event, sectionKey) {
+            event.stopPropagation(); // don't trigger card toggle
+            const wrapperId = BASIC_SECTION_WRAPPERS[sectionKey];
+            const target = wrapperId ? document.getElementById(wrapperId) : null;
+            if (!target) return;
+            // If the section is currently hidden, show it first
+            const card = [...document.querySelectorAll('#basicModeCardsContainer .basic-selector-card')]
+                .find(c => c.getAttribute('onclick').includes(sectionKey));
+            if (card && !card.classList.contains('active')) {
+                selectBasicSection(sectionKey, true);
+            }
+            setTimeout(() => {
+                const offset = 80;
+                const top = target.getBoundingClientRect().top + window.scrollY - offset;
+                window.scrollTo({ top, behavior: 'smooth' });
+            }, 50);
+        }
+
         // Ordered list of section wrapper IDs matching the basic-mode card grid order
         const BASIC_SECTION_ORDER = [
             'strategyEngineSection',
@@ -62932,15 +62971,18 @@ Move-In</h3>
                 host.appendChild(el);
             });
 
-            // Inject scroll-to hint on each basic card (once)
+            // Inject scroll-to button on each basic card (once)
             document.querySelectorAll('#basicModeCardsContainer .basic-selector-card').forEach(card => {
-                if (!card.querySelector('.card-scroll-hint')) {
-                    const hint = document.createElement('span');
-                    hint.className = 'card-scroll-hint';
-                    hint.innerHTML = '<i class="fas fa-arrow-down"></i> scroll to';
-                    card.style.position = 'relative';
-                    card.appendChild(hint);
-                }
+                if (card.querySelector('.card-scroll-btn')) return;
+                const onclickAttr = card.getAttribute('onclick') || '';
+                const match = onclickAttr.match(/selectBasicSection\(['"](\w+)['"]\)/);
+                if (!match) return;
+                const sectionKey = match[1];
+                const btn = document.createElement('button');
+                btn.className = 'card-scroll-btn';
+                btn.innerHTML = '<i class="fas fa-arrow-down"></i> Scroll to';
+                btn.setAttribute('onclick', `scrollToBasicSection(event, '${sectionKey}')`);
+                card.querySelector('.card-info').appendChild(btn);
             });
         }
 
@@ -63044,37 +63086,8 @@ Move-In</h3>
                 }
             });
 
-            // Wrapper div IDs — always visible in basic mode (unlike the hidden collapsible buttons)
-            const wrapperIds = {
-                strategyEngine: 'strategyEngineSection',
-                pricingQuote: 'pricingQuoteSection',
-                siteAnalysis: 'siteAnalysisSection',
-                technicalSeo: 'technicalSeoSection',
-                competitors: 'competitorsSection',
-                discoveryAudit: 'discoveryAuditWrapper',
-                discoveryKeywords: 'discoveryKeywordsWrapper',
-                persona: 'personaSection',
-                mediaPlan: 'mediaPlanSection',
-                landingPageAudit: 'landingPageAuditSection'
-            };
-
             if (targetCard) {
-                const alreadyActive = targetCard.classList.contains('active');
-                // If clicking an already-active card via user gesture: just scroll, don't toggle off
-                if (alreadyActive && forceState === undefined) {
-                    const wrapperId = wrapperIds[sectionKey];
-                    const scrollTarget = wrapperId
-                        ? document.getElementById(wrapperId)
-                        : document.getElementById(sections[sectionKey]?.content);
-                    if (scrollTarget) {
-                        const offset = 80;
-                        const top = scrollTarget.getBoundingClientRect().top + window.scrollY - offset;
-                        window.scrollTo({ top, behavior: 'smooth' });
-                    }
-                    return;
-                }
-
-                const isActive = (forceState !== undefined) ? forceState : true; // new clicks always activate
+                const isActive = (forceState !== undefined) ? forceState : !targetCard.classList.contains('active');
                 if (isActive) {
                     targetCard.classList.add('active');
                 } else {
@@ -63092,21 +63105,6 @@ Move-In</h3>
                         if (btnEl) {
                             if (isActive) btnEl.classList.add('active');
                             else btnEl.classList.remove('active');
-                        }
-                    }
-
-                    // Scroll to the visible wrapper div (buttons are display:none in basic mode)
-                    if (isActive && forceState === undefined) {
-                        const wrapperId = wrapperIds[sectionKey];
-                        const scrollTarget = wrapperId
-                            ? document.getElementById(wrapperId)
-                            : document.getElementById(item.content);
-                        if (scrollTarget) {
-                            setTimeout(() => {
-                                const offset = 80;
-                                const top = scrollTarget.getBoundingClientRect().top + window.scrollY - offset;
-                                window.scrollTo({ top, behavior: 'smooth' });
-                            }, 50);
                         }
                     }
                 }
