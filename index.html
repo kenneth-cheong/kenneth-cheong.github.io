@@ -63044,8 +63044,37 @@ Move-In</h3>
                 }
             });
 
+            // Wrapper div IDs — always visible in basic mode (unlike the hidden collapsible buttons)
+            const wrapperIds = {
+                strategyEngine: 'strategyEngineSection',
+                pricingQuote: 'pricingQuoteSection',
+                siteAnalysis: 'siteAnalysisSection',
+                technicalSeo: 'technicalSeoSection',
+                competitors: 'competitorsSection',
+                discoveryAudit: 'discoveryAuditWrapper',
+                discoveryKeywords: 'discoveryKeywordsWrapper',
+                persona: 'personaSection',
+                mediaPlan: 'mediaPlanSection',
+                landingPageAudit: 'landingPageAuditSection'
+            };
+
             if (targetCard) {
-                const isActive = (forceState !== undefined) ? forceState : !targetCard.classList.contains('active');
+                const alreadyActive = targetCard.classList.contains('active');
+                // If clicking an already-active card via user gesture: just scroll, don't toggle off
+                if (alreadyActive && forceState === undefined) {
+                    const wrapperId = wrapperIds[sectionKey];
+                    const scrollTarget = wrapperId
+                        ? document.getElementById(wrapperId)
+                        : document.getElementById(sections[sectionKey]?.content);
+                    if (scrollTarget) {
+                        const offset = 80;
+                        const top = scrollTarget.getBoundingClientRect().top + window.scrollY - offset;
+                        window.scrollTo({ top, behavior: 'smooth' });
+                    }
+                    return;
+                }
+
+                const isActive = (forceState !== undefined) ? forceState : true; // new clicks always activate
                 if (isActive) {
                     targetCard.classList.add('active');
                 } else {
@@ -63066,14 +63095,15 @@ Move-In</h3>
                         }
                     }
 
-                    // Scroll to the section when activated by user click (not programmatic forceState)
+                    // Scroll to the visible wrapper div (buttons are display:none in basic mode)
                     if (isActive && forceState === undefined) {
-                        const scrollTarget = item.btn
-                            ? document.getElementById(item.btn)
+                        const wrapperId = wrapperIds[sectionKey];
+                        const scrollTarget = wrapperId
+                            ? document.getElementById(wrapperId)
                             : document.getElementById(item.content);
                         if (scrollTarget) {
                             setTimeout(() => {
-                                const offset = 80; // account for sticky nav
+                                const offset = 80;
                                 const top = scrollTarget.getBoundingClientRect().top + window.scrollY - offset;
                                 window.scrollTo({ top, behavior: 'smooth' });
                             }, 50);
