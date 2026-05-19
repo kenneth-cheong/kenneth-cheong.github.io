@@ -11518,6 +11518,8 @@
     </div>
 
 </div>
+    <!-- Host container for basic mode section reordering -->
+    <div id="basicSectionsHost" style="display:none;"></div>
 
     <div id="seoSection">
         <button class="collapsible" id="seo"><i class="fas fa-plus-square"></i>Search Engine Optimisation (SEO)</button>
@@ -15131,6 +15133,7 @@
                 </div>
             </div>
             <!-- AI Discovery Audit Section -->
+            <div id="discoveryAuditWrapper">
             <button class="collapsible" id="discoveryAuditBtn" onclick="toggleCollapsible(this)">
                 <i class="fas fa-plus-square"></i><i class="fas fa-microchip"></i> AI Discovery Audit
             </button>
@@ -15255,7 +15258,10 @@
 
             </div>
 
+            </div><!-- /discoveryAuditWrapper -->
+
             <!-- [NEW] Discovery Keyword Research & AI Mentions -->
+            <div id="discoveryKeywordsWrapper">
             <button class="collapsible" id="discoveryKeywordsBtn" onclick="toggleCollapsible(this)">
                 <i class="fas fa-plus-square"></i><i class="fas fa-search-dollar"></i> AI Mentions
             </button>
@@ -15532,6 +15538,7 @@
                     </div>
                 </div>
             </div>
+            </div><!-- /discoveryKeywordsWrapper -->
 
             <div class="page-break"></div>
         </div>
@@ -62689,6 +62696,7 @@ Move-In</h3>
             ];
 
             if (isBasic) {
+                exitBasicSectionOrder(); // reset any previous ordering first
                 applyToggleModeToNav(false); // clear any advanced-mode pill handlers first
                 applyBasicModeNav();
                 document.body.classList.remove('advanced-mode');
@@ -62747,6 +62755,9 @@ Move-In</h3>
                     if (contentEl) contentEl.style.display = 'none';
                 });
 
+                // Reorder sections to match card grid order
+                enterBasicSectionOrder();
+
                 // Select defaults for each category
                 selectBasicSection('strategyEngine', true);
                 selectBasicSection('sms', true);
@@ -62765,6 +62776,9 @@ Move-In</h3>
                     });
                 });
             } else {
+                // Restore sections to their original DOM positions before advanced mode takes over
+                exitBasicSectionOrder();
+
                 applyToggleModeToNav(true);
                 document.body.classList.add('advanced-mode');
 
@@ -62868,6 +62882,47 @@ Move-In</h3>
 
         // Categories that have cards in basic mode
         const BASIC_MODE_CATEGORIES = new Set(['SEO', 'GEO', 'Others']);
+
+        // Ordered list of section wrapper IDs matching the basic-mode card grid order
+        const BASIC_SECTION_ORDER = [
+            'strategyEngineSection',
+            'pricingQuoteSection',
+            'siteAnalysisSection',
+            'technicalSeoSection',
+            'competitorsSection',
+            'discoveryAuditWrapper',
+            'discoveryKeywordsWrapper',
+            'personaSection',
+            'mediaPlanSection',
+            'landingPageAuditSection'
+        ];
+
+        // Stores original parent/nextSibling so we can restore on mode exit
+        const _basicSectionOrigins = {};
+
+        function enterBasicSectionOrder() {
+            const host = document.getElementById('basicSectionsHost');
+            if (!host) return;
+            host.style.display = 'block';
+            BASIC_SECTION_ORDER.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el || !el.parentNode) return;
+                _basicSectionOrigins[id] = { parent: el.parentNode, next: el.nextSibling };
+                host.appendChild(el);
+            });
+        }
+
+        function exitBasicSectionOrder() {
+            BASIC_SECTION_ORDER.forEach(id => {
+                const el = document.getElementById(id);
+                const origin = _basicSectionOrigins[id];
+                if (!el || !origin) return;
+                origin.parent.insertBefore(el, origin.next);
+                delete _basicSectionOrigins[id];
+            });
+            const host = document.getElementById('basicSectionsHost');
+            if (host) host.style.display = 'none';
+        }
 
         function toggleBasicCatCards(cardCategory, navItem) {
             const isActive = navItem.classList.contains('nav-toggle-active');
