@@ -10107,6 +10107,16 @@
             line-height: 1.4;
         }
 
+        /* Tool section card wrapper — consistent across all modes */
+        .tool-card-wrapper {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+
         /* Scroll-to button on basic mode cards */
         .card-scroll-btn {
             display: inline-flex;
@@ -63191,12 +63201,39 @@ Move-In</h3>
             }
         }
 
+        // Stamp .tool-card-wrapper on every tool section so they render as cards
+        // across Basic, Intermediate, and Advanced modes.
+        function applyToolCardWrappers() {
+            const wrapperIds = [
+                // SEO
+                'seoTime2RankSection', 'strategyEngineSection', 'pricingQuoteSection',
+                'siteAnalysisSection', 'technicalSeoSection', 'keywordMappingSection',
+                'keywordAnalysisSection', 'crawlerSimulatorSection', 'schemaGeneratorSection',
+                'onPageOptimisationSection', 'rankCheckerSection', 'anchorTextCleanerSection',
+                'competitorsSection',
+                // SMM
+                'socialMediaStrategy', 'pillarFrameworkContent', 'contentGenerator', 'smmReplyContent',
+                // GEO
+                'discoveryAuditWrapper', 'discoveryKeywordsWrapper', 'geoUtilitiesSection', 'geoOnPageSection',
+                // SEM
+                'semAdsContent', 'adsIntegrationSection', 'metaAdsSection', 'ga4IntegrationSection',
+                // Others
+                'personaSection', 'mediaPlanSection', 'contentCheckerSection',
+                'landingPageAuditSection', 'aiContentOptimiserSection', 'gscIntegrationSection'
+            ];
+            wrapperIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('tool-card-wrapper');
+            });
+        }
+
         // Auto-hide badge if already viewed in this session/localstorage
         window.addEventListener('DOMContentLoaded', () => {
             if (localStorage.getItem('changelog_last_viewed_v1.2.5') === 'true') {
                 const badge = document.getElementById('changelogBadge');
                 if (badge) badge.style.display = 'none';
             }
+            applyToolCardWrappers();
             const savedMode = localStorage.getItem('userExpertiseMode') || 'Basic';
             const modeLabel = document.getElementById('currentModeLabel');
             if (modeLabel) modeLabel.innerText = savedMode + ' Mode';
