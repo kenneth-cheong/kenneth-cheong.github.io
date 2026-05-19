@@ -41791,71 +41791,32 @@ Return ONLY valid JSON in this exact format:
                 status.style.display = 'block';
                 status.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Researching ' + input + '...';
 
-                // Attempt to fetch real homepage content if input looks like a URL/domain
-                let pageContent = '';
-                const looksLikeUrl = input.includes('.') || input.startsWith('http');
-                if (looksLikeUrl) {
-                    try {
-                        status.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Fetching website content...';
-                        const rawUrl = input.startsWith('http') ? input : 'https://' + input;
-                        const pageRes = await fetch('https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ url: rawUrl })
-                        });
-                        if (pageRes.ok) {
-                            const pageData = await pageRes.json();
-                            const body = typeof pageData.body === 'string' ? JSON.parse(pageData.body) : pageData.body;
-                            // Extract visible text content from the audit response
-                            const texts = [];
-                            if (body?.title) texts.push('Title: ' + body.title);
-                            if (body?.meta_description) texts.push('Meta: ' + body.meta_description);
-                            if (body?.h1_tags) texts.push('H1s: ' + (Array.isArray(body.h1_tags) ? body.h1_tags.join(', ') : body.h1_tags));
-                            if (body?.h2_tags) texts.push('H2s: ' + (Array.isArray(body.h2_tags) ? body.h2_tags.slice(0, 8).join(', ') : body.h2_tags));
-                            if (body?.body_text) texts.push('Content snippet: ' + String(body.body_text).slice(0, 1500));
-                            pageContent = texts.join('\n');
-                        }
-                    } catch (fetchErr) {
-                        console.warn('Page fetch for quick start failed, falling back to AI knowledge:', fetchErr);
-                    }
-                }
+                const prompt = `Search the web and research "${input}" to build an accurate SEO profile. Visit their website if possible.
+Return ONLY a valid JSON object (no markdown, no explanation) with these exact keys:
+{
+  "client_profile": "Specific industry and core offerings (be precise, not generic)",
+  "target_audience": "Key customer personas",
+  "market_context": "Main competitors and market trends",
+  "objectives": ["lead_generation"|"brand_authority"|"local_visibility"|"ecommerce_revenue"|"service_enquiries"|"niche_dominance"],
+  "seed_keywords": "keyword1, keyword2, keyword3, keyword4, keyword5",
+  "top_competitor_domains": ["domain1.com", "domain2.com", "domain3.com", "domain4.com", "domain5.com"],
+  "seo_keywords": ["primary keyword 1", "primary keyword 2", "primary keyword 3"]
+}`;
 
-                status.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Analyzing profile...';
-
-                const contextSection = pageContent
-                    ? `\n\nHere is real content scraped from their website — use this as the primary source of truth:\n---\n${pageContent}\n---`
-                    : '';
-
-                const prompt = `Research and provide a detailed SEO profile for "${input}".${contextSection}
-                Identify:
-                1. Client Profile: Specific industry, business model, and core offerings (be precise — not generic).
-                2. Target Audience: Key personas.
-                3. Market Context: Competitors and industry trends.
-                4. Potential Business Objectives: (Choose from: lead_generation, brand_authority, local_visibility, ecommerce_revenue, service_enquiries, niche_dominance).
-                5. Seed Keywords: 5-10 primary keywords relevant to their actual business.
-
-                Return ONLY a JSON object with keys: client_profile, target_audience, market_context, objectives (array of values), seed_keywords (comma string), top_competitor_domains (array of 5 domains), seo_keywords (array of 3 primary keywords).`;
-
-                const response = await fetch(MONDAY_LAMBDA_URL, {
+                const response = await fetch('https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        action: 'claude_chat',
-                        messages: [{ role: 'user', content: prompt }],
-                        model: 'claude-haiku-4-5',
-                        stream: false,
-                        id: 'quick_research_' + Date.now()
+                        action: 'generate',
+                        model: 'perplexity',
+                        prompt,
+                        settings: { temperature: 0.3 }
                     })
                 });
 
                 const result = await response.json();
-                let aiResponse = "";
-                if (result.response) aiResponse = result.response;
-                else if (result.reply) aiResponse = result.reply;
-                else if (result.body) {
-                    const body = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
-                    aiResponse = body.reply || body.response || body.message || (body.content && body.content[0]?.text) || "";
-                }
+                const body = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
+                const aiResponse = body.result || body.text || "";
 
                 const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
                 const data = JSON.parse(jsonMatch ? jsonMatch[0] : aiResponse);
