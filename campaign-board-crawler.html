@@ -2305,7 +2305,7 @@
                                 ${g.counts.v2w > 0 ? `<span class="board-tag v2w">${g.counts.v2w} 2W</span>` : ''}
                                 ${g.masterName && g.masterName !== '-' && g.masterName !== '...' ? `<span class="board-tag" style="background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${g.masterName.replace(/"/g, '&quot;')}"><i class="fas fa-link" style="margin-right: 4px; opacity: 0.7;"></i>${g.masterName}</span>` : ''}
                                 ${(g.masterCsmStatus && g.masterCsmStatus !== '-' && g.masterCsmStatus !== '...') || g.csmCampaignStatus ? `<span class="board-tag" style="background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);">${g.masterCsmStatus && g.masterCsmStatus !== '-' && g.masterCsmStatus !== '...' ? g.masterCsmStatus : g.csmCampaignStatus}</span>` : ''}
-                                ${g.techSummary ? `<span class="board-tag summary-pill" onclick="event.stopPropagation(); showSummaryModal(${JSON.stringify(g.name)}, ${JSON.stringify(g.techSummary)})"><i class="fas fa-file-alt" style="margin-right:4px;"></i>Summary</span>` : ''}
+                                ${g.techSummary ? `<span class="board-tag summary-pill" onclick="event.stopPropagation(); showSummaryModal('${g.id}')"><i class="fas fa-file-alt" style="margin-right:4px;"></i>Summary</span>` : ''}
                             </div>
                         </div>
                     </td>
@@ -3326,9 +3326,11 @@
             if (dS && dS.classList.contains('show') && wS && !wS.contains(e.target)) toggleCsmStatusDropdown(false);
         });
 
-        function showSummaryModal(name, summary) {
-            document.getElementById('summary-modal-title').textContent = name;
-            document.getElementById('summary-modal-body').textContent = summary;
+        function showSummaryModal(boardId) {
+            const item = state.auditedItems.find(i => i.bId === boardId);
+            if (!item) return;
+            document.getElementById('summary-modal-title').textContent = item.bName;
+            document.getElementById('summary-modal-body').textContent = item.masterTechSummary || '';
             document.getElementById('summary-modal').classList.add('show');
             document.getElementById('summary-modal-backdrop').classList.add('show');
         }
