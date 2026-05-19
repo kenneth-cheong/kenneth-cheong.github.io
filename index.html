@@ -12360,14 +12360,14 @@
                         style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
                         <!-- Metric Cards -->
                         <div class="metric-card-premium">
-                            <div class="metric-header" id="da-header">Domain Rating</div>
+                            <div class="metric-header">Domain Authority</div>
                             <div class="metric-value-large" id="da">-</div>
-                            <div class="metric-sub" id="da-sub">Ahrefs DR Score</div>
+                            <div class="metric-sub">Moz DA Score</div>
                         </div>
                         <div class="metric-card-premium">
-                            <div class="metric-header" id="pa-header">URL Rating</div>
+                            <div class="metric-header">Page Authority</div>
                             <div class="metric-value-large" id="pa">-</div>
-                            <div class="metric-sub" id="pa-sub">Ahrefs UR Score</div>
+                            <div class="metric-sub">Moz PA Score</div>
                         </div>
                         <div class="metric-card-premium">
                             <div class="metric-header">Backlinks</div>
@@ -33782,64 +33782,39 @@ ${selectedText}
         function fetchDomainMetrics(domain) {
             document.getElementById('keyword-research-analysis-button').innerText = "Analysing...";
 
-            // ── Primary: Ahrefs domain overview (DR + UR + backlinks + ref domains) ──
-            fetchAhrefsDomainOverview(domain)
-                .then(data => {
-                    const dr = data.domain_rating ?? data.domain?.domain_rating;
-                    const ur = data.url_rating    ?? data.domain?.url_rating;
-                    const bl = data.backlinks        ?? data.domain?.backlinks;
-                    const rd = data.referring_domains ?? data.domain?.referring_domains;
-                    if (dr != null) {
-                        document.getElementById('da').innerText = dr;
-                        document.getElementById('da-header').textContent = 'Domain Rating';
-                        document.getElementById('da-sub').textContent = 'Ahrefs DR Score';
-                    }
-                    if (ur != null) {
-                        document.getElementById('pa').innerText = ur;
-                        document.getElementById('pa-header').textContent = 'URL Rating';
-                        document.getElementById('pa-sub').textContent = 'Ahrefs UR Score';
-                    }
-                    if (bl != null) document.getElementById('targetBacklinks').innerText = Number(bl).toLocaleString();
-                    if (rd != null) document.getElementById('targetRefDomains').innerText = Number(rd).toLocaleString();
-                    console.log('Domain metrics loaded from Ahrefs');
-                })
-                .catch(ahrefsErr => {
-                    console.warn('Ahrefs domain overview failed — falling back to Moz:', ahrefsErr);
-                    // ── Fallback: Moz ──
-                    fetch('https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new', {
-                        method: 'POST',
-                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ domain })
-                    })
-                    .then(r => { if (!r.ok) throw new Error(`Moz HTTP ${r.status}`); return r.json(); })
-                    .then(data => {
-                        document.getElementById('da').innerText = data.domain_authority;
-                        document.getElementById('da-header').textContent = 'Domain Authority';
-                        document.getElementById('da-sub').textContent = 'Moz DA Score';
-                        document.getElementById('pa').innerText = data.page_authority;
-                        document.getElementById('pa-header').textContent = 'Page Authority';
-                        document.getElementById('pa-sub').textContent = 'Moz PA Score';
-                    })
-                    .catch(err => console.error('Moz fallback also failed:', err));
-                });
-
-            api_url = "https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new";
-            var headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json"
-            };
-            fetch(api_url, {
+            // ── 1. Moz — Domain Authority & Page Authority (unchanged) ──────────────
+            var mozUrl = "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
+            fetch(mozUrl, {
                 method: 'POST',
-                headers: headers,
-                body: JSON.stringify({ url: domain })
-            }).then(response => {
-                // Check if the response is successful
-                if (!response.ok) {
-                    throw new Error(`Error obtaining domain metrics Status: ${response.status}`);
-                }
-                return response.json();
+                headers: { "Accept": "application/json", "Content-Type": "application/json" },
+                body: JSON.stringify({ "domain": domain })
             })
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                    return response.json();
+                })
                 .then(data => {
+                    document.getElementById('da').innerText = data.domain_authority;
+                    document.getElementById('pa').innerText = data.page_authority;
+                })
+                .catch(error => console.error("Error fetching Moz data:", error));
+
+            // ── 2. DataForSEO page analysis + Ahrefs domain metrics (run in parallel) ─
+            // Ahrefs provides better backlinks/ref-domain counts; DataForSEO covers
+            // all page-level metrics that Ahrefs doesn't have (title, H1, CWV, etc.)
+            const ahrefsOverviewPromise = fetchAhrefsDomainOverview(domain)
+                .catch(e => { console.warn('Ahrefs domain overview failed — DataForSEO backlink data will be used:', e); return null; });
+
+            fetch("https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new", {
+                method: 'POST',
+                headers: { "Accept": "application/json", "Content-Type": "application/json" },
+                body: JSON.stringify({ url: domain })
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error(`Error obtaining domain metrics Status: ${response.status}`);
+                    return response.json();
+                })
+                .then(async data => {
                     console.log(data);
                     const setOrNone = (id, val, style) => {
                         const el = document.getElementById(id);
@@ -33851,11 +33826,11 @@ ${selectedText}
                             if (style) Object.assign(el.style, style);
                         }
                     };
+
+                    // Page-level metrics — DataForSEO only
                     setOrNone('targetTitle', data.body.title);
                     setOrNone('targetDescription', data.body.description);
-                    document.getElementById('targetBacklinks').innerText = data.body.backlinks;
                     document.getElementById('targetSpamScore').innerText = data.body.backlinks_spam_score;
-                    document.getElementById('targetRefDomains').innerText = data.body.referring_domains;
                     document.getElementById('targetInternalLinks').innerText = data.body.internal_links_count;
                     document.getElementById('targetExternalLinks').innerText = data.body.external_links_count;
                     setOrNone('targetH1', data.body.h1);
@@ -33866,20 +33841,23 @@ ${selectedText}
                     document.getElementById('targetSchema').innerText = data.body.schema;
                     document.getElementById('targetReadability').innerText = data.body.readability;
                     document.getElementById('targetWordCount').innerText = data.body.word_count;
+
+                    // Backlinks & referring domains — prefer Ahrefs, fall back to DataForSEO
+                    const ahrefsData = await ahrefsOverviewPromise;
+                    const bl = ahrefsData?.backlinks        ?? ahrefsData?.domain?.backlinks        ?? data.body.backlinks;
+                    const rd = ahrefsData?.referring_domains ?? ahrefsData?.domain?.referring_domains ?? data.body.referring_domains;
+                    document.getElementById('targetBacklinks').innerText = bl != null ? Number(bl).toLocaleString() : data.body.backlinks;
+                    document.getElementById('targetRefDomains').innerText = rd != null ? Number(rd).toLocaleString() : data.body.referring_domains;
+
                     updateCollapsibleState('siteAnalysisToggle', 'success');
-                    
-                    // Update the summary table if we have enough data
                     const daValue = document.getElementById('da').innerText;
                     updateDomainSummaryTable(domain, {
                         da: daValue,
-                        linking_domains: data.body.referring_domains,
-                        backlinks: data.body.backlinks
+                        linking_domains: rd ?? data.body.referring_domains,
+                        backlinks: bl ?? data.body.backlinks
                     });
                 })
-                .catch(error => {
-                    console.error("Error fetching targeted domain data:", error); // Log any errors
-                    // Handle the error gracefully, perhaps display an error message to the user
-                });
+                .catch(error => console.error("Error fetching targeted domain data:", error));
         }
 
         function updateDomainSummaryTable(domain, metrics) {
@@ -33897,7 +33875,7 @@ ${selectedText}
                     </thead>
                     <tbody>
                         <tr>
-                            <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; color: #64748b;">${document.getElementById('da-header')?.textContent || 'Domain Rating'} (${document.getElementById('da-sub')?.textContent?.replace(' Score','') || 'Ahrefs DR'})</td>
+                            <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; color: #64748b;">Domain Authority (Moz)</td>
                             <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: 700; color: #0f172a;">${metrics.da || '-'}</td>
                         </tr>
                         <tr>
