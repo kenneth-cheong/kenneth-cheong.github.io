@@ -1129,10 +1129,68 @@
             display: none;
             flex-direction: column;
             flex-shrink: 0;
+            transition: width 0.2s, max-width 0.2s;
         }
 
         .chat-sidebar.open {
             display: flex;
+        }
+
+        .chat-sidebar.expanded {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw !important;
+            max-width: 100vw !important;
+            height: 100vh;
+            z-index: 2000;
+            border-left: none;
+        }
+
+        .quick-prompts-modal {
+            display: none;
+            position: absolute;
+            bottom: 64px;
+            left: 0;
+            right: 0;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            padding: 12px;
+            flex-direction: column;
+            gap: 6px;
+            z-index: 10;
+        }
+
+        .quick-prompts-modal.open {
+            display: flex;
+        }
+
+        .quick-prompts-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+            margin-bottom: 2px;
+        }
+
+        .quick-prompt-chip {
+            background: rgba(56, 189, 248, 0.08);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 6px;
+            padding: 7px 10px;
+            font-size: 12px;
+            color: var(--text);
+            cursor: pointer;
+            text-align: left;
+            transition: background 0.15s, border-color 0.15s;
+        }
+
+        .quick-prompt-chip:hover {
+            background: rgba(56, 189, 248, 0.18);
+            border-color: var(--primary);
         }
 
         .chat-resizer {
@@ -1318,6 +1376,20 @@
 
         .chat-input-bar button:hover {
             transform: scale(1.05);
+        }
+
+        #quick-prompts-btn {
+            width: auto;
+            height: 44px;
+            background: rgba(56, 189, 248, 0.08);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            color: var(--primary);
+            padding: 0 12px;
+        }
+
+        #quick-prompts-btn:hover {
+            background: rgba(56, 189, 248, 0.18);
+            transform: none;
         }
 
         .chat-input-bar button:disabled {
@@ -1556,7 +1628,10 @@
         <div id="chat-panel" class="chat-sidebar">
             <div class="chat-header">
                 <h3><i class="fas fa-robot"></i> Campaign Analyst AI</h3>
-                <button onclick="toggleChat()"><i class="fas fa-times"></i></button>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button onclick="toggleChatExpand()" id="chat-expand-btn" title="Expand to full screen"><i class="fas fa-expand"></i></button>
+                    <button onclick="toggleChat()"><i class="fas fa-times"></i></button>
+                </div>
             </div>
             <div id="chat-messages" class="chat-messages">
                 <div class="chat-message bot">
@@ -1570,7 +1645,17 @@
                     </div>
                 </div>
             </div>
+            <div id="quick-prompts-modal" class="quick-prompts-modal">
+                <div class="quick-prompts-label"><i class="fas fa-bolt" style="margin-right:4px;"></i>Quick Prompts</div>
+                <button class="quick-prompt-chip" onclick="useQuickPrompt('Which campaigns are overdue and by how many days?')">Which campaigns are overdue and by how many days?</button>
+                <button class="quick-prompt-chip" onclick="useQuickPrompt('Summarize the campaigns due in the next 7 days.')">Summarize the campaigns due in the next 7 days.</button>
+                <button class="quick-prompt-chip" onclick="useQuickPrompt('Who has the most overdue campaigns?')">Who has the most overdue campaigns?</button>
+                <button class="quick-prompt-chip" onclick="useQuickPrompt('Give me a brief overview of each campaign based on the tech summaries.')">Give me a brief overview of each campaign based on the tech summaries.</button>
+                <button class="quick-prompt-chip" onclick="useQuickPrompt('Which campaigns have no tech summary?')">Which campaigns have no tech summary?</button>
+                <button class="quick-prompt-chip" onclick="useQuickPrompt('List all campaigns grouped by CS Manager.')">List all campaigns grouped by CS Manager.</button>
+            </div>
             <div class="chat-input-bar">
+                <button id="quick-prompts-btn" onclick="toggleQuickPrompts()" title="Quick prompts"><i class="fas fa-bolt"></i></button>
                 <textarea id="chat-input"
                     placeholder="Ask about the current campaigns... (e.g. 'Which campaigns are overdue?')"
                     onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendChatMessage(); }"></textarea>
@@ -1983,6 +2068,7 @@
                                 masterCsmStatus: masterData.csmStatus,
                                 masterTimeline: masterData.timeline,
                                 masterName: masterData.masterName,
+                                masterTechSummary: masterData.techSummary || '',
                                 csmCampaignStatus: csmStatusCol?.label || '',
                                 status: status,
                                 statusColumnId: st?.id || '',
@@ -2502,6 +2588,12 @@
             }
 
             let html = `<div class="updates-list">`;
+            if (item && item.masterTechSummary) {
+                html += `<div style="background:rgba(56,189,248,0.06); border:1px solid rgba(56,189,248,0.2); border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:12px; color:var(--muted); line-height:1.6;">
+                    <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--primary); display:block; margin-bottom:4px;"><i class="fas fa-file-alt" style="margin-right:4px;"></i>Campaign Summary</span>
+                    ${item.masterTechSummary}
+                </div>`;
+            }
             html += updateState.data.map(u => `
                 <div class="update-item">
                     <div class="update-header">
@@ -2670,6 +2762,7 @@
                             });
                         }
 
+                        let techSummary = '';
                         item.column_values.forEach(cv => {
                             const title = (cv.column?.title || "").trim();
                             const cleanTitle = title.toLowerCase().replace(/[^a-z]/g, '');
@@ -2696,6 +2789,9 @@
                                     if (trimmed && !isNaN(trimmed)) boardIds.push(trimmed);
                                 });
                             }
+                            if (title.toLowerCase().includes('[tech]') && title.toLowerCase().includes('campaign summary') && cv.text) {
+                                techSummary = cv.text.trim();
+                            }
                         });
 
                         const codeMatch = item.name.match(/\[(.*?)\]/);
@@ -2711,7 +2807,8 @@
                                 csm: [...new Set(csmList)],
                                 timeline: timelineParts.join(" / "),
                                 status: statusParts.join(" / "),
-                                csmStatus: csmStatusParts.join(" / ")
+                                csmStatus: csmStatusParts.join(" / "),
+                                techSummary: techSummary
                             };
                             newEntries++;
                         }
@@ -2773,7 +2870,7 @@
 
             if (!bestMatch || maxSpecificity <= 3) {
                 const placeholder = state.masterDataLoaded ? '-' : '...';
-                return { csm: [placeholder], timeline: placeholder, status: placeholder, csmStatus: placeholder, masterName: placeholder };
+                return { csm: [placeholder], timeline: placeholder, status: placeholder, csmStatus: placeholder, masterName: placeholder, techSummary: '' };
             }
 
             return {
@@ -2781,7 +2878,8 @@
                 timeline: bestMatch.timeline,
                 status: bestMatch.status,
                 csmStatus: bestMatch.csmStatus || '',
-                masterName: bestMatch.name
+                masterName: bestMatch.name,
+                techSummary: bestMatch.techSummary || ''
             };
         }
 
@@ -2796,6 +2894,7 @@
                         i.masterCsmStatus = mapped.csmStatus;
                         i.masterTimeline = mapped.timeline;
                         i.masterName = mapped.masterName;
+                        i.masterTechSummary = mapped.techSummary;
                         changed = true;
                     }
                 }
@@ -3138,6 +3237,7 @@
                         <span title="Campaign Status"><i class="fas fa-info-circle"></i> ${state.masterCampaignMap[r.name].status || '-'}</span>
                         <span title="Timeline"><i class="far fa-calendar-alt"></i> ${state.masterCampaignMap[r.name].timeline || '-'}</span>
                     </div>
+                    ${state.masterCampaignMap[r.name].techSummary ? `<div style="font-size:11px; color:var(--muted); line-height:1.6; padding-top:4px; border-top:1px solid var(--border);"><span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--primary); margin-right:6px;"><i class="fas fa-file-alt"></i></span>${state.masterCampaignMap[r.name].techSummary}</div>` : ''}
                 </div>
             `).join('');
         }
@@ -3165,6 +3265,34 @@
             const resizer = document.getElementById('chat-resizer');
             panel.classList.toggle('open');
             resizer.classList.toggle('open');
+            if (!panel.classList.contains('open')) {
+                panel.classList.remove('expanded');
+                resizer.style.display = '';
+                document.getElementById('chat-expand-btn').innerHTML = '<i class="fas fa-expand"></i>';
+            }
+            document.getElementById('quick-prompts-modal').classList.remove('open');
+        }
+
+        function toggleChatExpand() {
+            const panel = document.getElementById('chat-panel');
+            const resizer = document.getElementById('chat-resizer');
+            const btn = document.getElementById('chat-expand-btn');
+            const isExpanded = panel.classList.toggle('expanded');
+            resizer.style.display = isExpanded ? 'none' : '';
+            btn.innerHTML = isExpanded ? '<i class="fas fa-compress"></i>' : '<i class="fas fa-expand"></i>';
+            btn.title = isExpanded ? 'Exit full screen' : 'Expand to full screen';
+        }
+
+        function toggleQuickPrompts() {
+            document.getElementById('quick-prompts-modal').classList.toggle('open');
+        }
+
+        function useQuickPrompt(text) {
+            document.getElementById('quick-prompts-modal').classList.remove('open');
+            const input = document.getElementById('chat-input');
+            input.value = text;
+            input.focus();
+            sendChatMessage();
         }
 
         // Chat Resizing Logic
@@ -3229,7 +3357,8 @@
                 itemStatus: i.itemStatus,
                 masterStatus: i.masterStatus,
                 deadline: i.deadlineDisplay,
-                daysOverdue: i.daysOverdue
+                daysOverdue: i.daysOverdue,
+                techSummary: i.masterTechSummary || ''
             }));
 
             return {
