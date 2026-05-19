@@ -12360,14 +12360,14 @@
                         style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
                         <!-- Metric Cards -->
                         <div class="metric-card-premium">
-                            <div class="metric-header">Domain Authority</div>
+                            <div class="metric-header" id="da-header">Domain Rating</div>
                             <div class="metric-value-large" id="da">-</div>
-                            <div class="metric-sub">Moz DA Score</div>
+                            <div class="metric-sub" id="da-sub">Ahrefs DR Score</div>
                         </div>
                         <div class="metric-card-premium">
-                            <div class="metric-header">Page Authority</div>
+                            <div class="metric-header" id="pa-header">URL Rating</div>
                             <div class="metric-value-large" id="pa">-</div>
-                            <div class="metric-sub">Moz PA Score</div>
+                            <div class="metric-sub" id="pa-sub">Ahrefs UR Score</div>
                         </div>
                         <div class="metric-card-premium">
                             <div class="metric-header">Backlinks</div>
@@ -32192,54 +32192,52 @@ ${selectedText}
             document.getElementById('ranking_keywords').innerText = "Getting Ranked Keywords..";
             updateCollapsibleState('ranking_keywords', 'running');
 
-            var url = "https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords";
+            function _showRankedKeywords(body) {
+                updateCollapsibleState('ranking_keywords', 'success');
+                displayRankedKeywords(body);
+                document.getElementById('ranking_keywords').innerText = "Ranking Keywords";
+                document.getElementById("ranking_keywords").style.backgroundColor = "#10b981";
+                document.getElementById("expandRankingKeywords").style.backgroundColor = "#10b981";
+                const div  = document.getElementById("rankingKeywords");
+                const icon = document.getElementById("expandRankingKeywords").querySelector('i');
+                if (div.style.display !== "block") {
+                    div.style.display = "block";
+                    icon.classList.remove('fa-plus-square');
+                    icon.classList.add('fa-minus-square');
+                }
+            }
 
-            var headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            };
+            function _rankingKeywordsError(err) {
+                console.error("Ranking keywords failed:", err);
+                updateCollapsibleState('ranking_keywords', 'error');
+                document.getElementById('ranking_keywords').innerText = "Ranking Keywords";
+                document.getElementById("ranking_keywords").style.backgroundColor = "#004c9d";
+            }
 
-            var queryString = {
-                "target": domain,
-                "location": location,
-                "user": JSON.parse(localStorage.getItem('googleUser')).email
-            };
-
-            fetch(url, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(queryString)
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
-                    }
-                    return response.json();
+            // ── Primary: Ahrefs organic keywords ──
+            fetchAhrefsRankingKeywords(domain, location)
+                .then(body => {
+                    console.log('Ranking keywords loaded from Ahrefs');
+                    _showRankedKeywords(body);
                 })
-                .then(data => {
-                    updateCollapsibleState('ranking_keywords', 'success');
-                    displayRankedKeywords(data.body);
-                    document.getElementById('ranking_keywords').innerText = "Ranking Keywords";
-                    document.getElementById("ranking_keywords").style.backgroundColor = "#10b981";
-                    document.getElementById("expandRankingKeywords").style.backgroundColor = "#10b981";
-                    const rankingKeywordsDiv = document.getElementById("rankingKeywords");
-                    const icon = document.getElementById("expandRankingKeywords").querySelector('i');
-
-                    if (rankingKeywordsDiv.style.display === "block") {
-                        console.log('Ranking Keywords already displayed');
-
-                    } else {
-                        console.log('ranking keywords not displayed');
-                        rankingKeywordsDiv.style.display = "block"; // Show the element
-                        icon.classList.remove('fa-plus-square');
-                        icon.classList.add('fa-minus-square');
-                    }
-                })
-                .catch(error => {
-                    console.error("Error fetching data:", error);
-                    updateCollapsibleState('ranking_keywords', 'error');
-                    document.getElementById('ranking_keywords').innerText = "Ranking Keywords";  // Consistent use of innerText
-                    document.getElementById("ranking_keywords").style.backgroundColor = "#004c9d";
+                .catch(ahrefsErr => {
+                    console.warn('Ahrefs ranking keywords failed — falling back to legacy endpoint:', ahrefsErr);
+                    // ── Fallback: existing Lambda endpoint ──
+                    fetch("https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords", {
+                        method: 'POST',
+                        headers: { "Accept": "application/json", "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            "target": domain,
+                            "location": location,
+                            "user": JSON.parse(localStorage.getItem('googleUser') || '{}').email
+                        })
+                    })
+                    .then(response => {
+                        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                        return response.json();
+                    })
+                    .then(data => _showRankedKeywords(data.body))
+                    .catch(_rankingKeywordsError);
                 });
             const tooltip = event.target.querySelector('span');  // Get the tooltip span
             if (tooltip) { // Check if the span element exists
@@ -33714,37 +33712,115 @@ ${selectedText}
         let currentSummarySortColumn = null;
         let summarySortAscending = true;
 
+        // ── Ahrefs API helpers ────────────────────────────────────────────────────
+        const AHREFS_API_KEY = 'Ds4AyI9xqlwk_e1OzqSth99Cp_r4NMJxzrm60N';
+        const AHREFS_BASE    = 'https://api.ahrefs.com/v3';
+
+        // Location name → ISO-3166-1 alpha-2 country code for Ahrefs
+        const AHREFS_COUNTRY_MAP = {
+            'Singapore': 'sg', 'Australia': 'au', 'Bhutan': 'bt',
+            'Brazil': 'br', 'Canada': 'ca', 'China': 'cn', 'France': 'fr',
+            'Germany': 'de', 'Hong Kong': 'hk', 'India': 'in',
+            'Indonesia': 'id', 'Italy': 'it', 'Japan': 'jp',
+            'Malaysia': 'my', 'Mexico': 'mx', 'Netherlands': 'nl',
+            'Philippines': 'ph', 'South Korea': 'kr', 'Spain': 'es',
+            'Taiwan': 'tw', 'Thailand': 'th', 'United Kingdom': 'gb',
+            'United States': 'us', 'Vietnam': 'vn'
+        };
+
+        function ahrefsCleanDomain(raw) {
+            return raw.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0].toLowerCase();
+        }
+
+        async function fetchAhrefsDomainOverview(domain) {
+            const target = ahrefsCleanDomain(domain);
+            const params = new URLSearchParams({
+                select: 'domain_rating,url_rating,backlinks,referring_domains,org_keywords,org_traffic',
+                target,
+                mode: 'domain',
+                output: 'json'
+            });
+            const resp = await fetch(`${AHREFS_BASE}/site-explorer/overview?${params}`, {
+                headers: { 'Authorization': `Bearer ${AHREFS_API_KEY}`, 'Accept': 'application/json' }
+            });
+            if (!resp.ok) throw new Error(`Ahrefs overview HTTP ${resp.status}`);
+            return resp.json();
+        }
+
+        async function fetchAhrefsRankingKeywords(domain, location) {
+            const target  = ahrefsCleanDomain(domain);
+            const country = AHREFS_COUNTRY_MAP[location] || 'us';
+            const params  = new URLSearchParams({
+                select: 'keyword,volume,difficulty,traffic,position',
+                target,
+                mode: 'domain',
+                country,
+                limit: '100',
+                order_by: 'traffic:desc',
+                output: 'json'
+            });
+            const resp = await fetch(`${AHREFS_BASE}/site-explorer/organic-keywords?${params}`, {
+                headers: { 'Authorization': `Bearer ${AHREFS_API_KEY}`, 'Accept': 'application/json' }
+            });
+            if (!resp.ok) throw new Error(`Ahrefs keywords HTTP ${resp.status}`);
+            const json = await resp.json();
+            // Normalise to { keyword: { search_volume, rank, difficulty } }
+            const keywords = json.keywords || json.data || [];
+            if (!keywords.length) throw new Error('Ahrefs returned 0 keywords');
+            const body = {};
+            keywords.forEach(kw => {
+                body[kw.keyword] = {
+                    search_volume: kw.volume   ?? null,
+                    rank:          kw.position ?? null,
+                    difficulty:    kw.difficulty ?? null
+                };
+            });
+            return body;
+        }
+        // ─────────────────────────────────────────────────────────────────────────
+
         function fetchDomainMetrics(domain) {
             document.getElementById('keyword-research-analysis-button').innerText = "Analysing...";
 
-            //moz 
-            var url = "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new";
-            var queryString = {
-                "domain": domain
-            };
-            var headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json"
-            };
-            fetch(url, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(queryString)
-            })
-                .then(response => {
-                    // Check if the response is successful
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
-                    }
-                    return response.json();
-                })
+            // ── Primary: Ahrefs domain overview (DR + UR + backlinks + ref domains) ──
+            fetchAhrefsDomainOverview(domain)
                 .then(data => {
-                    document.getElementById('da').innerText = data.domain_authority;
-                    document.getElementById('pa').innerText = data.page_authority;
+                    const dr = data.domain_rating ?? data.domain?.domain_rating;
+                    const ur = data.url_rating    ?? data.domain?.url_rating;
+                    const bl = data.backlinks        ?? data.domain?.backlinks;
+                    const rd = data.referring_domains ?? data.domain?.referring_domains;
+                    if (dr != null) {
+                        document.getElementById('da').innerText = dr;
+                        document.getElementById('da-header').textContent = 'Domain Rating';
+                        document.getElementById('da-sub').textContent = 'Ahrefs DR Score';
+                    }
+                    if (ur != null) {
+                        document.getElementById('pa').innerText = ur;
+                        document.getElementById('pa-header').textContent = 'URL Rating';
+                        document.getElementById('pa-sub').textContent = 'Ahrefs UR Score';
+                    }
+                    if (bl != null) document.getElementById('targetBacklinks').innerText = Number(bl).toLocaleString();
+                    if (rd != null) document.getElementById('targetRefDomains').innerText = Number(rd).toLocaleString();
+                    console.log('Domain metrics loaded from Ahrefs');
                 })
-                .catch(error => {
-                    console.error("Error fetching data:", error); // Log any errors
-                    // Handle the error gracefully, perhaps display an error message to the user
+                .catch(ahrefsErr => {
+                    console.warn('Ahrefs domain overview failed — falling back to Moz:', ahrefsErr);
+                    // ── Fallback: Moz ──
+                    fetch('https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new', {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ domain })
+                    })
+                    .then(r => { if (!r.ok) throw new Error(`Moz HTTP ${r.status}`); return r.json(); })
+                    .then(data => {
+                        document.getElementById('da').innerText = data.domain_authority;
+                        document.getElementById('da-header').textContent = 'Domain Authority';
+                        document.getElementById('da-sub').textContent = 'Moz DA Score';
+                        document.getElementById('pa').innerText = data.page_authority;
+                        document.getElementById('pa-header').textContent = 'Page Authority';
+                        document.getElementById('pa-sub').textContent = 'Moz PA Score';
+                    })
+                    .catch(err => console.error('Moz fallback also failed:', err));
                 });
 
             api_url = "https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new";
@@ -33821,7 +33897,7 @@ ${selectedText}
                     </thead>
                     <tbody>
                         <tr>
-                            <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; color: #64748b;">Domain Authority (Moz)</td>
+                            <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; color: #64748b;">${document.getElementById('da-header')?.textContent || 'Domain Rating'} (${document.getElementById('da-sub')?.textContent?.replace(' Score','') || 'Ahrefs DR'})</td>
                             <td style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: 700; color: #0f172a;">${metrics.da || '-'}</td>
                         </tr>
                         <tr>
