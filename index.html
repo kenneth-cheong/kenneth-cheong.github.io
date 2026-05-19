@@ -41791,16 +41791,32 @@ Return ONLY valid JSON in this exact format:
                 status.style.display = 'block';
                 status.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Researching ' + input + '...';
 
-                const prompt = `Search the web and research "${input}" to build an accurate SEO profile. Visit their website if possible.
-Return ONLY a valid JSON object (no markdown, no explanation) with these exact keys:
+                const isUrl = input.includes('.') || input.startsWith('http');
+                const canonicalUrl = isUrl
+                    ? (input.startsWith('http') ? input : 'https://' + input)
+                    : null;
+                const prompt = canonicalUrl
+                    ? `Go to ${canonicalUrl} and read the page. Based ONLY on what you find at that exact URL, fill in this SEO profile. Do not guess or substitute a different company.
+Return ONLY a valid JSON object (no markdown, no explanation):
 {
-  "client_profile": "Specific industry and core offerings (be precise, not generic)",
+  "client_profile": "Exact industry and core offerings from the site",
+  "target_audience": "Key customer personas based on site content",
+  "market_context": "Main competitors and market trends for this specific business",
+  "objectives": ["lead_generation","brand_authority","local_visibility","ecommerce_revenue","service_enquiries","niche_dominance"],
+  "seed_keywords": "keyword1, keyword2, keyword3, keyword4, keyword5",
+  "top_competitor_domains": ["domain1.com","domain2.com","domain3.com","domain4.com","domain5.com"],
+  "seo_keywords": ["primary keyword 1","primary keyword 2","primary keyword 3"]
+}`
+                    : `Research the company "${input}" and build an accurate SEO profile.
+Return ONLY a valid JSON object (no markdown, no explanation):
+{
+  "client_profile": "Specific industry and core offerings",
   "target_audience": "Key customer personas",
   "market_context": "Main competitors and market trends",
-  "objectives": ["lead_generation"|"brand_authority"|"local_visibility"|"ecommerce_revenue"|"service_enquiries"|"niche_dominance"],
+  "objectives": ["lead_generation","brand_authority","local_visibility","ecommerce_revenue","service_enquiries","niche_dominance"],
   "seed_keywords": "keyword1, keyword2, keyword3, keyword4, keyword5",
-  "top_competitor_domains": ["domain1.com", "domain2.com", "domain3.com", "domain4.com", "domain5.com"],
-  "seo_keywords": ["primary keyword 1", "primary keyword 2", "primary keyword 3"]
+  "top_competitor_domains": ["domain1.com","domain2.com","domain3.com","domain4.com","domain5.com"],
+  "seo_keywords": ["primary keyword 1","primary keyword 2","primary keyword 3"]
 }`;
 
                 const response = await fetch('https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser', {
