@@ -553,6 +553,82 @@
             border: 1px solid rgba(56, 189, 248, 0.2);
         }
 
+        .board-tag.summary-pill {
+            background: rgba(56, 189, 248, 0.08);
+            color: var(--primary);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+        }
+
+        .board-tag.summary-pill:hover {
+            background: rgba(56, 189, 248, 0.2);
+            border-color: var(--primary);
+        }
+
+        .summary-modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 3000;
+        }
+
+        .summary-modal-backdrop.show { display: block; }
+
+        .summary-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(560px, 90vw);
+            max-height: 70vh;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            z-index: 3001;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .summary-modal.show { display: flex; }
+
+        .summary-modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .summary-modal-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+            line-height: 1.4;
+        }
+
+        .summary-modal-subtitle {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--primary);
+            margin-bottom: 4px;
+        }
+
+        .summary-modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
         .folder-sub {
             font-size: 10px;
             color: var(--muted);
@@ -2188,7 +2264,7 @@
         function renderAuditorView(filtered) {
             const groups = {};
             filtered.forEach(i => {
-                if (!groups[i.bId]) groups[i.bId] = { id: i.bId, name: i.bName, folder: i.fName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 }, masterName: i.masterName, masterCsmStatus: i.masterCsmStatus, csmCampaignStatus: i.csmCampaignStatus };
+                if (!groups[i.bId]) groups[i.bId] = { id: i.bId, name: i.bName, folder: i.fName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 }, masterName: i.masterName, masterCsmStatus: i.masterCsmStatus, csmCampaignStatus: i.csmCampaignStatus, techSummary: i.masterTechSummary || '' };
                 groups[i.bId].items.push(i);
                 groups[i.bId].counts[i.status === '2w' ? 'v2w' : i.status]++;
             });
@@ -2229,6 +2305,7 @@
                                 ${g.counts.v2w > 0 ? `<span class="board-tag v2w">${g.counts.v2w} 2W</span>` : ''}
                                 ${g.masterName && g.masterName !== '-' && g.masterName !== '...' ? `<span class="board-tag" style="background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${g.masterName.replace(/"/g, '&quot;')}"><i class="fas fa-link" style="margin-right: 4px; opacity: 0.7;"></i>${g.masterName}</span>` : ''}
                                 ${(g.masterCsmStatus && g.masterCsmStatus !== '-' && g.masterCsmStatus !== '...') || g.csmCampaignStatus ? `<span class="board-tag" style="background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);">${g.masterCsmStatus && g.masterCsmStatus !== '-' && g.masterCsmStatus !== '...' ? g.masterCsmStatus : g.csmCampaignStatus}</span>` : ''}
+                                ${g.techSummary ? `<span class="board-tag summary-pill" onclick="event.stopPropagation(); showSummaryModal(${JSON.stringify(g.name)}, ${JSON.stringify(g.techSummary)})"><i class="fas fa-file-alt" style="margin-right:4px;"></i>Summary</span>` : ''}
                             </div>
                         </div>
                     </td>
@@ -2588,12 +2665,6 @@
             }
 
             let html = `<div class="updates-list">`;
-            if (item && item.masterTechSummary) {
-                html += `<div style="background:rgba(56,189,248,0.06); border:1px solid rgba(56,189,248,0.2); border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:12px; color:var(--muted); line-height:1.6;">
-                    <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--primary); display:block; margin-bottom:4px;"><i class="fas fa-file-alt" style="margin-right:4px;"></i>Campaign Summary</span>
-                    ${item.masterTechSummary}
-                </div>`;
-            }
             html += updateState.data.map(u => `
                 <div class="update-item">
                     <div class="update-header">
@@ -3255,6 +3326,18 @@
             if (dS && dS.classList.contains('show') && wS && !wS.contains(e.target)) toggleCsmStatusDropdown(false);
         });
 
+        function showSummaryModal(name, summary) {
+            document.getElementById('summary-modal-title').textContent = name;
+            document.getElementById('summary-modal-body').textContent = summary;
+            document.getElementById('summary-modal').classList.add('show');
+            document.getElementById('summary-modal-backdrop').classList.add('show');
+        }
+
+        function closeSummaryModal() {
+            document.getElementById('summary-modal').classList.remove('show');
+            document.getElementById('summary-modal-backdrop').classList.remove('show');
+        }
+
         function showError(m) { const e = document.getElementById('error-message'); e.innerText = m; e.style.display = m ? 'block' : 'none'; }
 
         // --- Chat AI Logic ---
@@ -3494,6 +3577,19 @@
         <button class="btn btn-secondary" onclick="clearSelection()" style="padding:6px 12px; font-size:12px;">
             <i class="fas fa-times" style="margin-right:6px;"></i>Clear
         </button>
+    </div>
+
+    <!-- Campaign Summary Modal -->
+    <div id="summary-modal-backdrop" class="summary-modal-backdrop" onclick="closeSummaryModal()"></div>
+    <div id="summary-modal" class="summary-modal">
+        <div class="summary-modal-header">
+            <div>
+                <div class="summary-modal-subtitle"><i class="fas fa-file-alt" style="margin-right:4px;"></i>Campaign Summary</div>
+                <div class="summary-modal-title" id="summary-modal-title"></div>
+            </div>
+            <button onclick="closeSummaryModal()" style="background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; flex-shrink:0; padding:0;"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="summary-modal-body" id="summary-modal-body"></div>
     </div>
 </body>
 
