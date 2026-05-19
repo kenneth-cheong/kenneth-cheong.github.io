@@ -41791,13 +41791,48 @@ Return ONLY valid JSON in this exact format:
                 status.style.display = 'block';
                 status.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Researching ' + input + '...';
 
-                const prompt = `Research and provide a detailed SEO profile for "${input}". 
+                // Attempt to fetch real homepage content if input looks like a URL/domain
+                let pageContent = '';
+                const looksLikeUrl = input.includes('.') || input.startsWith('http');
+                if (looksLikeUrl) {
+                    try {
+                        status.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Fetching website content...';
+                        const rawUrl = input.startsWith('http') ? input : 'https://' + input;
+                        const pageRes = await fetch('https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: rawUrl })
+                        });
+                        if (pageRes.ok) {
+                            const pageData = await pageRes.json();
+                            const body = typeof pageData.body === 'string' ? JSON.parse(pageData.body) : pageData.body;
+                            // Extract visible text content from the audit response
+                            const texts = [];
+                            if (body?.title) texts.push('Title: ' + body.title);
+                            if (body?.meta_description) texts.push('Meta: ' + body.meta_description);
+                            if (body?.h1_tags) texts.push('H1s: ' + (Array.isArray(body.h1_tags) ? body.h1_tags.join(', ') : body.h1_tags));
+                            if (body?.h2_tags) texts.push('H2s: ' + (Array.isArray(body.h2_tags) ? body.h2_tags.slice(0, 8).join(', ') : body.h2_tags));
+                            if (body?.body_text) texts.push('Content snippet: ' + String(body.body_text).slice(0, 1500));
+                            pageContent = texts.join('\n');
+                        }
+                    } catch (fetchErr) {
+                        console.warn('Page fetch for quick start failed, falling back to AI knowledge:', fetchErr);
+                    }
+                }
+
+                status.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Analyzing profile...';
+
+                const contextSection = pageContent
+                    ? `\n\nHere is real content scraped from their website — use this as the primary source of truth:\n---\n${pageContent}\n---`
+                    : '';
+
+                const prompt = `Research and provide a detailed SEO profile for "${input}".${contextSection}
                 Identify:
-                1. Client Profile: Industry, business model, and core offerings.
+                1. Client Profile: Specific industry, business model, and core offerings (be precise — not generic).
                 2. Target Audience: Key personas.
                 3. Market Context: Competitors and industry trends.
                 4. Potential Business Objectives: (Choose from: lead_generation, brand_authority, local_visibility, ecommerce_revenue, service_enquiries, niche_dominance).
-                5. Seed Keywords: 5-10 primary keywords.
+                5. Seed Keywords: 5-10 primary keywords relevant to their actual business.
 
                 Return ONLY a JSON object with keys: client_profile, target_audience, market_context, objectives (array of values), seed_keywords (comma string), top_competitor_domains (array of 5 domains), seo_keywords (array of 3 primary keywords).`;
 
