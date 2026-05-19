@@ -62715,6 +62715,8 @@ Move-In</h3>
                 'seo', 'smm', 'semButton', 'geoMainBtn', 'othersMainBtn',
                 // SEO
                 'strategyEngineBtn', 'pricingQuoteBtn', 'siteAnalysisToggle', 'technicalButton',
+                // Technical SEO sub-collapsibles (inside technicalSeo content)
+                'gtButton', 'pageButton', 'crawlerButton',
                 // SMM
                 'smsButton', 'pillarFrameworkButton', 'contentGeneratorButton', 'smmReplyButton',
                 // GEO
@@ -62743,6 +62745,11 @@ Move-In</h3>
                 ['ga4IntegrationSection', 'adsIntegrationSection', 'metaAdsSection'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.style.display = 'none';
+                });
+                // Auto-expand Technical SEO sub-collapsible contents (headers are hidden above)
+                ['gtMetrix', 'pageAnalysis', 'crawlerSection'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = 'block';
                 });
                 if (typeof forceOpenCollapsible === 'function') {
                     forceOpenCollapsible('seo');
@@ -62792,11 +62799,12 @@ Move-In</h3>
                 selectBasicSection('discoveryAudit', true);
                 selectBasicSection('competitors', true);
 
-                const cards = document.querySelectorAll('.basic-selector-card');
-                cards.forEach(card => {
+                const basicCards = document.querySelectorAll('#basicModeCardsContainer .basic-selector-card');
+                basicCards.forEach(card => {
+                    const onclick = card.getAttribute('onclick') || '';
                     Object.keys(sectionsMap).forEach(key => {
-                        if (card.getAttribute('onclick').includes(key)) {
-                            const contentEl = document.getElementById(sectionsMap[key]);
+                        if (onclick.includes(`selectBasicSection('${key}')`)) {
+                            const contentEl = document.getElementById(sectionsMap[key].content || sectionsMap[key]);
                             if (contentEl) {
                                 contentEl.style.display = card.classList.contains('active') ? 'block' : 'none';
                             }
@@ -63078,10 +63086,14 @@ Move-In</h3>
                 aiContentOptimiser: { content: 'aiContentOptimiser', btn: 'aiContentOptimiserBtn' }
             };
 
-            const cards = document.querySelectorAll('.basic-selector-card');
+            // Scope to basicModeCardsContainer only — prevents false matches with
+            // advanced-mode cards whose section IDs contain the same substring
+            // (e.g. 'technicalSeoSection'.includes('technicalSeo') = true)
+            const cards = document.querySelectorAll('#basicModeCardsContainer .basic-selector-card');
             let targetCard = null;
+            const exactPattern = `selectBasicSection('${sectionKey}')`;
             cards.forEach(card => {
-                if (card.getAttribute('onclick').includes(sectionKey)) {
+                if ((card.getAttribute('onclick') || '').includes(exactPattern)) {
                     targetCard = card;
                 }
             });
