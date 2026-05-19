@@ -62722,9 +62722,13 @@ Move-In</h3>
                 'geoToSchemaBtn',
                 'navGeoLlmsTxt',
                 'geoUtilitiesBtn',
-                'geoUtilitiesSection',
+                'geoUtilitiesWrapper',   // replaces old geoUtilitiesSection (now wrapped)
                 'navGeoOnPage',
                 'geoOnPageSection',
+                // SMM tool wrappers not included in basic mode
+                'socialMediaStrategy', 'pillarFrameworkSection', 'contentGeneratorSection', 'smmReplySection',
+                // Others tool wrappers not included in basic mode
+                'contentCheckerSection', 'aiContentOptimiserSection',
                 // Section separator lines (float loose in basic mode)
                 'seoSectionHr', 'smmSectionHr', 'semSectionHr', 'geoSectionHr'
             ];
@@ -62831,6 +62835,13 @@ Move-In</h3>
                 Object.values(sectionsMap).forEach(contentId => {
                     const contentEl = document.getElementById(contentId);
                     if (contentEl) contentEl.style.display = 'none';
+                });
+
+                // Hide all basic section wrappers — selectBasicSection will re-show the active ones.
+                // Without this the injected card header is visible even when content is hidden.
+                Object.values(BASIC_SECTION_WRAPPERS).forEach(wrapperId => {
+                    const el = document.getElementById(wrapperId);
+                    if (el) el.style.display = 'none';
                 });
 
                 // Reorder sections to match card grid order
@@ -63090,6 +63101,7 @@ Move-In</h3>
                 const origin = _basicSectionOrigins[id];
                 if (!el || !origin) return;
                 origin.parent.insertBefore(el, origin.next);
+                el.style.display = ''; // Reset any basic-mode hide so advanced mode sees them
                 delete _basicSectionOrigins[id];
             });
             const host = document.getElementById('basicSectionsHost');
@@ -63198,6 +63210,11 @@ Move-In</h3>
 
                 const item = sections[sectionKey];
                 if (item) {
+                    // Show/hide the wrapper div so the injected header doesn't float alone
+                    const wrapperId = BASIC_SECTION_WRAPPERS[sectionKey];
+                    const wrapperEl = wrapperId ? document.getElementById(wrapperId) : null;
+                    if (wrapperEl) wrapperEl.style.display = isActive ? '' : 'none';
+
                     const contentEl = document.getElementById(item.content);
                     if (contentEl) {
                         contentEl.style.display = isActive ? 'block' : 'none';
