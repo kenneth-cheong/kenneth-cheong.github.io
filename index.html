@@ -18216,6 +18216,17 @@
                 if (el) el.style.display = (id === sectionId) ? 'block' : 'none';
             });
 
+            // basicSectionsHost holds the tool card wrappers in basic mode — hide it when
+            // navigating to cockpit or admin so its contents don't bleed through.
+            // Re-show it when navigating back to a tool section while still in basic mode.
+            const basicHost = document.getElementById('basicSectionsHost');
+            if (basicHost) {
+                const isToolSection = !['cockpitSection', 'adminSection'].includes(sectionId);
+                const isBasicMode   = document.body.classList.contains('basic-mode') ||
+                                      !document.body.classList.contains('advanced-mode');
+                basicHost.style.display = (isToolSection && isBasicMode && basicHost.children.length > 0) ? '' : 'none';
+            }
+
             // If cockpit, we don't have a collapsible mainBtnId
             if (sectionId === 'cockpitSection') {
                 refreshCockpitData();
