@@ -3471,7 +3471,18 @@
 
             const contextData = buildChatContext();
 
-            const system = `You are the Campaign Auditor AI Assistant, an expert analyst. You have access to the currently visible/filtered campaigns. Answer user questions based ONLY on this data unless general knowledge is requested. Present data clearly, use markdown tables if appropriate.\n\nCURRENT VISIBLE CAMPAIGNS CONTEXT:\n${JSON.stringify(contextData)}`;
+            const system = `You are the Campaign Auditor AI Assistant, an expert analyst for a Monday.com-based campaign management system.
+
+You have two sources of data:
+1. CURRENT VISIBLE CAMPAIGNS — pre-loaded audit data for campaigns currently shown in the auditor view.
+2. MONDAY.COM LIVE QUERIES — use the monday_graphql tool to run any GraphQL query against the Monday.com API. The account slug is "${state.slug}". Board and item IDs are available in the campaign context. Useful for: fetching recent updates, reading specific column values, looking up items not in the audit list.
+
+Prefer the pre-loaded context for questions about the visible campaigns. Use monday_graphql when you need live or more detailed data.
+
+Present data clearly. Use markdown tables where appropriate.
+
+CURRENT VISIBLE CAMPAIGNS CONTEXT:
+${JSON.stringify(contextData)}`;
 
             chatHistory.push({ role: 'user', content: text });
 
@@ -3489,7 +3500,8 @@
                         max_tokens: 4096,
                         google_access_token: null,
                         google_tokens: {},
-                        google_marketing_creds: {}
+                        google_marketing_creds: {},
+                        monday_slug: state.slug
                     })
                 });
 
