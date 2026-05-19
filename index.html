@@ -62889,13 +62889,13 @@ Move-In</h3>
                 cardEl.classList.remove('active');
                 sectionIds.forEach(id => {
                     const el = document.getElementById(id);
-                    if (el) el.classList.add('adv-hidden');
+                    if (el) el.style.display = 'none';
                 });
             } else {
                 cardEl.classList.add('active');
                 sectionIds.forEach(id => {
                     const el = document.getElementById(id);
-                    if (el) el.classList.remove('adv-hidden');
+                    if (el) el.style.display = '';
                 });
             }
         }
@@ -62906,10 +62906,10 @@ Move-In</h3>
             const isActive = cardEl.classList.contains('active');
             if (isActive) {
                 cardEl.classList.remove('active');
-                section.classList.add('adv-hidden');
+                section.style.display = 'none';
             } else {
                 cardEl.classList.add('active');
-                section.classList.remove('adv-hidden');
+                section.style.display = '';
             }
         }
 
@@ -62969,10 +62969,14 @@ Move-In</h3>
             event.stopPropagation();
             const target = document.getElementById(sectionId);
             if (!target) return;
-            // If hidden (toggled off or adv-hidden), open it first
-            if (target.style.display === 'none' || target.classList.contains('adv-hidden')) {
-                target.style.display = 'block';
-                target.classList.remove('adv-hidden');
+            // If toggled off, re-activate it (find its card and toggle back on)
+            if (target.style.display === 'none') {
+                target.style.display = '';
+                // Re-activate the card that owns this section
+                const card = document.querySelector(
+                    `#advancedModeCardsContainer .basic-selector-card[onclick*="${sectionId}"]`
+                );
+                if (card && !card.classList.contains('active')) card.classList.add('active');
             }
             // Also open parent collapsible content if needed
             let el = target.parentElement;
