@@ -1124,6 +1124,49 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
+        /* Priority indicators */
+        .priority-dot {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block;
+        }
+        .priority-dot.critical { background: var(--danger); box-shadow: 0 0 6px rgba(239,68,68,0.6); }
+        .priority-dot.high { background: #f97316; box-shadow: 0 0 5px rgba(249,115,22,0.4); }
+        .priority-dot.medium { background: var(--warning); }
+
+        .priority-badge {
+            display: inline-flex; align-items: center; gap: 3px;
+            padding: 2px 7px; border-radius: 4px; font-size: 10px;
+            font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase;
+        }
+        .priority-badge.critical { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.25); }
+        .priority-badge.high { background: rgba(249,115,22,0.15); color: #f97316; border: 1px solid rgba(249,115,22,0.25); }
+        .priority-badge.medium { background: rgba(245,158,11,0.12); color: var(--warning); border: 1px solid rgba(245,158,11,0.2); }
+
+        .staff-card.is-me {
+            border-color: rgba(16, 185, 129, 0.5) !important;
+            background: rgba(16, 185, 129, 0.04) !important;
+        }
+        .staff-card.is-me:hover { border-color: var(--success) !important; }
+
+        .my-focus-btn {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 12px; font-size: 12px; font-weight: 700;
+            border-radius: 8px; border: 1px solid var(--border);
+            background: transparent; color: var(--muted); cursor: pointer; transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .my-focus-btn:hover { border-color: var(--success); color: var(--success); }
+        .my-focus-btn.active {
+            background: rgba(16, 185, 129, 0.15); border-color: var(--success);
+            color: var(--success); box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+        }
+
+        .user-selector {
+            padding: 6px 10px; font-size: 12px; border-radius: 8px;
+            border: 1px solid var(--border); background: var(--surface);
+            color: var(--text); cursor: pointer; min-width: 140px; max-width: 180px;
+        }
+        .user-selector:focus { outline: none; border-color: var(--primary); }
+
         .expansion-trigger {
             cursor: pointer;
             width: 24px;
@@ -1642,6 +1685,7 @@
                             <option value="name_desc">Campaign: Z-A</option>
                             <option value="overdue_desc">Most Overdue First</option>
                             <option value="tasks_desc">Most Tasks First</option>
+                            <option value="priority_desc">Highest Priority First</option>
                         </select>
 
                         <button class="btn btn-secondary" onclick="toggleLookupModal(true)"
@@ -1652,6 +1696,14 @@
                         <button class="btn btn-secondary" onclick="toggleSettings()"
                             style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px;">
                             <i class="fas fa-cog"></i> Settings
+                        </button>
+
+                        <select id="user-selector" class="user-selector" onchange="setCurrentUser(this.value)" title="Select yourself to enable My Focus">
+                            <option value="">Select Me...</option>
+                        </select>
+
+                        <button id="my-focus-btn" class="my-focus-btn" onclick="toggleMyFocus()" title="Show only my campaigns, sorted by priority">
+                            <i class="fas fa-crosshairs"></i> My Focus
                         </button>
 
                         <div class="view-toggle-container">
@@ -1791,6 +1843,9 @@
             updateMetadata: {}, // { itemId: { page: 1, hasMore: true, loadingMore: false } }
             viewMode: 'manager',
             selectedStaffNames: new Set(),
+            currentUser: localStorage.getItem('current_user') || '',
+            mondayUsers: [],
+            myFocusActive: false,
             boardColumnSettings: {},
             allStatusLabels: [],
             sort: { key: 'deadline', dir: 'asc' },
@@ -1830,6 +1885,47 @@
             }
         }
 
+        function calcPriority(item) {
+            let score = 0;
+            if (item.daysOverdue > 0) score += Math.min(50 + item.daysOverdue * 5, 200);
+            else if (item.status === 'soon') score += 30;
+            else if (item.status === '2w') score += 10;
+            const statusRisk = ['stuck', 'at risk', 'blocked', 'critical', 'delayed', 'urgent'];
+            const statusText = ((item.itemStatus || '') + ' ' + (item.masterStatus || '')).toLowerCase();
+            if (statusRisk.some(k => statusText.includes(k))) score += 40;
+            const summaryRisk = ['blocked', 'urgent', 'critical', 'delayed', 'issue', 'problem', 'waiting on', 'escalat', 'stall', 'overdue', 'behind'];
+            const summaryText = (item.masterTechSummary || '').toLowerCase();
+            if (summaryRisk.some(k => summaryText.includes(k))) score += 20;
+            return score;
+        }
+
+        function getPriorityTier(score) {
+            if (score >= 100) return { label: 'Critical', cls: 'critical' };
+            if (score >= 50) return { label: 'High', cls: 'high' };
+            if (score >= 20) return { label: 'Medium', cls: 'medium' };
+            return { label: 'Low', cls: 'low' };
+        }
+
+        function renderUserSelector() {
+            const sel = document.getElementById('user-selector');
+            if (!sel) return;
+            sel.innerHTML = '<option value="">Select Me...</option>' +
+                state.mondayUsers.map(u => `<option value="${u.name.replace(/"/g, '&quot;')}" ${state.currentUser === u.name ? 'selected' : ''}>${u.name}</option>`).join('');
+        }
+
+        function setCurrentUser(name) {
+            state.currentUser = name;
+            localStorage.setItem('current_user', name);
+            if (!name) state.myFocusActive = false;
+            updateFilteredUI();
+        }
+
+        function toggleMyFocus() {
+            if (!state.currentUser) { showToast('Select yourself from the dropdown first.'); return; }
+            state.myFocusActive = !state.myFocusActive;
+            updateFilteredUI();
+        }
+
         async function connectMonday() {
             const btn = document.querySelector('#step-auth .btn');
             const key = document.getElementById('api-key').value.trim();
@@ -1840,6 +1936,13 @@
 
                 const acc = await monday(`query { account { slug } }`, {}, "Authenticating...");
                 state.slug = acc.account?.slug || 'my';
+
+                // Fetch Monday users for the identity selector
+                try {
+                    const ud = await monday(`query { users (limit: 200) { id name } }`, {}, false);
+                    state.mondayUsers = (ud.users || []).sort((a, b) => a.name.localeCompare(b.name));
+                    renderUserSelector();
+                } catch(e) { console.warn('Could not fetch Monday users', e); }
 
                 // Step 1: Fetch all boards with board_folder_id (real field in API 2024-04 schema)
                 let allBoards = [], page = 1, hasMore = true;
@@ -2254,6 +2357,10 @@
                 } else if (key === 'tasks') {
                     vA = a.items.length;
                     vB = b.items.length;
+                } else if (key === 'priority') {
+                    vA = a.items.reduce((m, i) => Math.max(m, calcPriority(i)), 0);
+                    vB = b.items.reduce((m, i) => Math.max(m, calcPriority(i)), 0);
+                    return vB - vA;
                 }
 
                 if (dir === 'asc') return vA > vB ? 1 : -1;
@@ -2368,22 +2475,39 @@
                 });
             });
 
-            const sortedStaff = Object.values(staffGroups).sort((a, b) => a.name.localeCompare(b.name));
+            // Compute max priority score per person
+            Object.values(staffGroups).forEach(s => {
+                const allItems = Object.values(s.campaigns).flatMap(c => c.items);
+                s.maxPriority = allItems.reduce((mx, i) => Math.max(mx, calcPriority(i)), 0);
+            });
+
+            const sortedStaff = Object.values(staffGroups).sort((a, b) => {
+                // Current user always first when My Focus is active
+                if (state.myFocusActive && state.currentUser) {
+                    if (a.name === state.currentUser) return -1;
+                    if (b.name === state.currentUser) return 1;
+                }
+                return b.maxPriority - a.maxPriority;
+            });
 
             // Render Grid
             let gridHtml = '<div class="staff-grid">';
             sortedStaff.forEach(s => {
                 const isActive = state.selectedStaffNames.has(s.name);
+                const isMe = state.currentUser && s.name === state.currentUser;
+                const tier = getPriorityTier(s.maxPriority);
                 gridHtml += `
-                <div class="staff-card ${isActive ? 'active' : ''}" onclick="selectStaffCard('${s.name.replace(/'/g, "\\'")}')">
+                <div class="staff-card ${isActive ? 'active' : ''} ${isMe ? 'is-me' : ''}" onclick="selectStaffCard('${s.name.replace(/'/g, "\\'")}')">
                     <div class="staff-name">
                         <i class="fas fa-user-circle"></i>
                         ${s.name}
+                        ${isMe ? '<span style="font-size:10px;color:var(--success);font-weight:600;margin-left:auto;">You</span>' : ''}
                     </div>
                     <div class="staff-stats-row">
                         ${s.overdue > 0 ? `<div class="staff-stat-badge overdue" title="Overdue">${s.overdue}</div>` : ''}
                         ${s.soon > 0 ? `<div class="staff-stat-badge soon" title="Due Soon">${s.soon}</div>` : ''}
                         ${s.v2w > 0 ? `<div class="staff-stat-badge v2w" title="Due 2W">${s.v2w}</div>` : ''}
+                        ${s.maxPriority >= 20 ? `<span class="priority-badge ${tier.cls}" style="margin-left:auto;" title="Highest priority score: ${s.maxPriority}">${tier.label}</span>` : ''}
                     </div>
                 </div>
                 `;
@@ -2410,16 +2534,21 @@
                         const cMasterName = c.items[0]?.masterName;
                         const cMasterCsmStatus = c.items[0]?.masterCsmStatus;
                         const cCsmStatus = c.items[0]?.csmCampaignStatus;
+                        const cMaxPriority = c.items.reduce((mx, i) => Math.max(mx, calcPriority(i)), 0);
+                        const cTier = getPriorityTier(cMaxPriority);
+                        const hasSummaryRisk = c.items.some(i => /blocked|urgent|critical|delayed|issue|problem|escalat|stall|overdue|behind/i.test(i.masterTechSummary || ''));
                         tableHtml += `
                         <tr class="campaign-sub-header" onclick="toggleManagerBoardExpansion('${compoundId.replace(/'/g, "\\'")}')">
                             <td colspan="7">
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <i class="fas ${isCampaignExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="width: 12px; opacity: 0.5;"></i>
+                                    ${cMaxPriority >= 20 ? `<span class="priority-dot ${cTier.cls}" title="Priority: ${cTier.label}"></span>` : ''}
                                     <span>${c.name} <span class="folder-sub">in ${c.folder}</span></span>
                                     <div style="display: flex; gap: 4px; margin-left: 12px; align-items: center; flex-wrap: wrap;">
                                         ${c.counts.overdue > 0 ? `<span class="board-tag overdue">${c.counts.overdue} Overdue</span>` : ''}
                                         ${c.counts.soon > 0 ? `<span class="board-tag soon">${c.counts.soon} Soon</span>` : ''}
                                         ${c.counts.v2w > 0 ? `<span class="board-tag v2w">${c.counts.v2w} 2W</span>` : ''}
+                                        ${hasSummaryRisk ? `<span class="board-tag" style="background:rgba(249,115,22,0.1);color:#f97316;border:1px solid rgba(249,115,22,0.2);" title="Summary contains risk signals"><i class="fas fa-exclamation-triangle" style="margin-right:3px;"></i>Risk</span>` : ''}
                                         ${cMasterName && cMasterName !== '-' && cMasterName !== '...' ? `<span class="board-tag" style="background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${cMasterName.replace(/"/g, '&quot;')}"><i class="fas fa-link" style="margin-right: 4px; opacity: 0.7;"></i>${cMasterName}</span>` : ''}
                                         ${(cMasterCsmStatus && cMasterCsmStatus !== '-' && cMasterCsmStatus !== '...') || cCsmStatus ? `<span class="board-tag" style="background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border);">${cMasterCsmStatus && cMasterCsmStatus !== '-' && cMasterCsmStatus !== '...' ? cMasterCsmStatus : cCsmStatus}</span>` : ''}
                                     </div>
@@ -2467,8 +2596,11 @@
             }
 
             const isChecked = state.selectedItemIds.has(i.id);
+            const pScore = calcPriority(i);
+            const pTier = getPriorityTier(pScore);
+            const isMyItem = state.currentUser && i.people.some(p => p === state.currentUser);
             let html = `
-            <tr class="item-row ${state.expandedItemIds.has(i.id) ? 'is-expanded' : ''}">
+            <tr class="item-row ${state.expandedItemIds.has(i.id) ? 'is-expanded' : ''}" ${isMyItem && state.myFocusActive ? 'style="background:rgba(16,185,129,0.04);"' : ''}>
                 <td class="cb-col" onclick="event.stopPropagation()">
                     <input type="checkbox" class="item-cb" data-item-cb="${i.id}" ${isChecked ? 'checked' : ''}
                         onchange="toggleItemSelection('${i.id}')">
@@ -2477,6 +2609,7 @@
                     <div class="expansion-trigger" onclick="toggleItemExpansion('${i.id}')">
                         <i class="fas fa-chevron-right"></i>
                     </div>
+                    ${pScore >= 20 ? `<span class="priority-dot ${pTier.cls}" title="Priority: ${pTier.label} (score ${pScore})"></span>` : ''}
                     <a href="https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}" target="_blank" class="item-link">${i.name} <i class="fas fa-external-link-alt" style="font-size:0.8em"></i></a>
                 </td>
                 <td><div class="person-badge"><i class="far fa-user"></i> ${i.people.join(', ')}</div></td>
@@ -2564,6 +2697,15 @@
             document.getElementById('stat-soon').innerText = liveStats.soon;
             document.getElementById('stat-2w').innerText = liveStats.v2w;
             document.getElementById('stat-items').innerText = liveStats.total;
+
+            // My Focus: filter to current user and sort by priority
+            if (state.myFocusActive && state.currentUser) {
+                filtered = filtered.filter(i => i.people.some(p => p === state.currentUser));
+                filtered.sort((a, b) => calcPriority(b) - calcPriority(a));
+            }
+
+            const mfBtn = document.getElementById('my-focus-btn');
+            if (mfBtn) mfBtn.classList.toggle('active', state.myFocusActive && !!state.currentUser);
 
             const gridContainer = document.getElementById('manager-grid-container');
             if (state.viewMode === 'manager') {
@@ -3433,6 +3575,11 @@
                 filtered = filtered.filter(i => i.people.some(p => state.selectedStaffNames.has(p)));
             }
 
+            // Apply My Focus filter
+            if (state.myFocusActive && state.currentUser) {
+                filtered = filtered.filter(i => i.people.some(p => p === state.currentUser));
+            }
+
             // If we have too many items, sample them to avoid token limit issues (max ~150 items)
             const contextItems = filtered.slice(0, 150).map(i => ({
                 campaign: i.name,
@@ -3443,11 +3590,15 @@
                 masterStatus: i.masterStatus,
                 deadline: i.deadlineDisplay,
                 daysOverdue: i.daysOverdue,
-                techSummary: i.masterTechSummary || ''
+                techSummary: i.masterTechSummary || '',
+                priorityScore: calcPriority(i),
+                priorityTier: getPriorityTier(calcPriority(i)).label
             }));
 
             return {
                 viewMode: state.viewMode,
+                currentUser: state.currentUser || null,
+                myFocusActive: state.myFocusActive,
                 totalVisibleItems: filtered.length,
                 itemsShownInContext: contextItems.length,
                 items: contextItems
