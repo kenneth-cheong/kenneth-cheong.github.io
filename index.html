@@ -10107,6 +10107,27 @@
             line-height: 1.4;
         }
 
+        /* Scroll-to indicator on basic mode cards */
+        .basic-selector-card .card-scroll-hint {
+            position: absolute;
+            bottom: 8px;
+            right: 10px;
+            font-size: 0.7rem;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+        .basic-selector-card:hover .card-scroll-hint {
+            opacity: 1;
+        }
+        .basic-selector-card.active .card-scroll-hint {
+            color: #3b82f6;
+        }
+
         /* Advanced/Intermediate mode: category toggle pills in navbar */
         .nav-item.nav-cat-toggle > a {
             border-radius: 20px;
@@ -62910,6 +62931,17 @@ Move-In</h3>
                 _basicSectionOrigins[id] = { parent: el.parentNode, next: el.nextSibling };
                 host.appendChild(el);
             });
+
+            // Inject scroll-to hint on each basic card (once)
+            document.querySelectorAll('#basicModeCardsContainer .basic-selector-card').forEach(card => {
+                if (!card.querySelector('.card-scroll-hint')) {
+                    const hint = document.createElement('span');
+                    hint.className = 'card-scroll-hint';
+                    hint.innerHTML = '<i class="fas fa-arrow-down"></i> scroll to';
+                    card.style.position = 'relative';
+                    card.appendChild(hint);
+                }
+            });
         }
 
         function exitBasicSectionOrder() {
@@ -63031,6 +63063,20 @@ Move-In</h3>
                         if (btnEl) {
                             if (isActive) btnEl.classList.add('active');
                             else btnEl.classList.remove('active');
+                        }
+                    }
+
+                    // Scroll to the section when activated by user click (not programmatic forceState)
+                    if (isActive && forceState === undefined) {
+                        const scrollTarget = item.btn
+                            ? document.getElementById(item.btn)
+                            : document.getElementById(item.content);
+                        if (scrollTarget) {
+                            setTimeout(() => {
+                                const offset = 80; // account for sticky nav
+                                const top = scrollTarget.getBoundingClientRect().top + window.scrollY - offset;
+                                window.scrollTo({ top, behavior: 'smooth' });
+                            }, 50);
                         }
                     }
                 }
