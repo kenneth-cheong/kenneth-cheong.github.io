@@ -10117,35 +10117,18 @@
             overflow: hidden;
         }
 
-        /* Inside tool-card-wrapper: direct-child collapsible shown as static section header */
+        /* Hide native collapsible buttons inside tool-card-wrapper — replaced by injected header */
         .tool-card-wrapper > .collapsible,
         .tool-card-wrapper > .strat-collapsible {
-            pointer-events: none !important;
-            cursor: default !important;
-            background: #f8fafc !important;
-            border: none !important;
-            border-bottom: 1px solid #e2e8f0 !important;
-            border-radius: 0 !important;
-            padding: 14px 20px !important;
-            font-size: 0.95rem !important;
-            font-weight: 700 !important;
-            color: #1e293b !important;
-            box-shadow: none !important;
-            margin-bottom: 0 !important;
-            width: 100% !important;
-            text-align: left !important;
-            display: flex !important;
-            align-items: center !important;
-            gap: 8px !important;
-        }
-        .tool-card-wrapper > .collapsible .fa-plus-square,
-        .tool-card-wrapper > .collapsible .fa-minus-square,
-        .tool-card-wrapper > .strat-collapsible .fa-plus-square,
-        .tool-card-wrapper > .strat-collapsible .fa-minus-square {
             display: none !important;
         }
-        /* Static header (for sections without a collapsible button) */
-        .tool-card-static-header {
+        /* Also suppress the body.advanced-mode rule that would re-show them */
+        body.advanced-mode .tool-card-wrapper > .collapsible,
+        body.advanced-mode .tool-card-wrapper > .strat-collapsible {
+            display: none !important;
+        }
+        /* Injected card header — always visible, matches the selector card label */
+        .tool-card-injected-header {
             display: flex;
             align-items: center;
             gap: 8px;
@@ -62799,10 +62782,7 @@ Move-In</h3>
                 });
                 basicButtons.forEach(id => {
                     const b = document.getElementById(id);
-                    if (!b) return;
-                    // Direct children of tool-card-wrapper are shown as static headers via CSS — don't hide them
-                    if (b.parentElement && b.parentElement.classList.contains('tool-card-wrapper')) return;
-                    b.style.display = 'none';
+                    if (b) b.style.display = 'none';
                 });
                 // Hide SEM integration sections not shown in basic mode
                 ['ga4IntegrationSection', 'adsIntegrationSection', 'metaAdsSection'].forEach(id => {
@@ -63254,40 +63234,56 @@ Move-In</h3>
 
         // Stamp .tool-card-wrapper on every tool section so they render as cards
         // across Basic, Intermediate, and Advanced modes.
+        // Headers are injected from this map so they always match the selector card labels.
         function applyToolCardWrappers() {
-            const wrapperIds = [
+            // id → { icon, title } — must stay in sync with the selector card <h4> text
+            const cardHeaderMap = {
                 // SEO
-                'seoTime2RankSection', 'strategyEngineSection', 'pricingQuoteSection',
-                'siteAnalysisSection', 'technicalSeoSection', 'keywordMappingSection',
-                'keywordAnalysisSection', 'crawlerSimulatorSection', 'schemaGeneratorSection',
-                'onPageOptimisationSection', 'rankCheckerSection', 'anchorTextCleanerSection',
-                'competitorsSection',
+                'strategyEngineSection':    { icon: 'fas fa-magic',           title: 'AI Strategy Engine' },
+                'seoTime2RankSection':      { icon: 'fas fa-clock',           title: 'Time to Rank' },
+                'pricingQuoteSection':      { icon: 'fas fa-calculator',      title: 'SEO Pricing Quote' },
+                'siteAnalysisSection':      { icon: 'fas fa-chart-line',      title: 'Domain Analysis' },
+                'technicalSeoSection':      { icon: 'fas fa-tools',           title: 'Technical SEO' },
+                'keywordMappingSection':    { icon: 'fas fa-map',             title: 'Keyword Mapping' },
+                'keywordAnalysisSection':   { icon: 'fas fa-search',          title: 'Keyword Analysis' },
+                'crawlerSimulatorSection':  { icon: 'fas fa-spider',          title: 'Google Crawler Simulator' },
+                'schemaGeneratorSection':   { icon: 'fas fa-code',            title: 'Schema Generator' },
+                'onPageOptimisationSection':{ icon: 'fas fa-file-alt',        title: 'On-Page Optimisation' },
+                'rankCheckerSection':       { icon: 'fas fa-chart-bar',       title: 'Rank Checker' },
+                'anchorTextCleanerSection': { icon: 'fas fa-broom',           title: 'Anchor Text Cleaner' },
+                'competitorsSection':       { icon: 'fas fa-trophy',          title: 'Competitors Identifier' },
                 // SMM
-                'socialMediaStrategy', 'pillarFrameworkSection', 'contentGeneratorSection', 'smmReplySection',
+                'socialMediaStrategy':      { icon: 'fas fa-key',             title: 'Social Keywords Strategy' },
+                'pillarFrameworkSection':   { icon: 'fas fa-sitemap',         title: 'Content Pillar Framework' },
+                'contentGeneratorSection':  { icon: 'fas fa-pencil-alt',      title: 'Caption Generator' },
+                'smmReplySection':          { icon: 'fas fa-comments',        title: 'Response Generator' },
                 // GEO
-                'discoveryAuditWrapper', 'discoveryKeywordsWrapper', 'geoUtilitiesWrapper', 'geoOnPageSection',
+                'geoUtilitiesWrapper':      { icon: 'fas fa-file-alt',        title: 'llms.txt Generator' },
+                'discoveryAuditWrapper':    { icon: 'fas fa-microchip',       title: 'AI Discovery Audit' },
+                'discoveryKeywordsWrapper': { icon: 'fas fa-search-dollar',   title: 'AI Mentions' },
+                'geoOnPageSection':         { icon: 'fas fa-file-invoice',    title: 'GEO On-Page Optimisation' },
                 // SEM
-                'semAdsContent', 'adsIntegrationSection', 'metaAdsSection', 'ga4IntegrationSection',
+                'semAdsContent':            { icon: 'fas fa-ad',              title: 'SEM Analysis & Generation' },
+                'adsIntegrationSection':    { icon: 'fab fa-google',          title: 'Google Ads' },
+                'metaAdsSection':           { icon: 'fab fa-facebook',        title: 'Meta Ads' },
+                'ga4IntegrationSection':    { icon: 'fas fa-chart-area',      title: 'Google Analytics 4' },
                 // Others
-                'personaSection', 'mediaPlanSection', 'contentCheckerSection',
-                'landingPageAuditSection', 'aiContentOptimiserSection', 'gscIntegrationSection'
-            ];
-            wrapperIds.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.classList.add('tool-card-wrapper');
-            });
-            // Inject static headers for sections that have no collapsible button child
-            const staticHeaders = {
-                'seoTime2RankSection': '<i class="fas fa-stopwatch"></i> SEO Time to Rank',
-                'crawlerSimulatorSection': '<i class="fas fa-spider"></i> Google Crawler Simulator',
-                'semAdsContent': '<i class="fas fa-bullhorn"></i> SEM Analysis &amp; Generation'
+                'gscIntegrationSection':    { icon: 'fab fa-google',          title: 'Google Search Console' },
+                'personaSection':           { icon: 'fas fa-user-check',      title: 'Persona Generator' },
+                'mediaPlanSection':         { icon: 'fas fa-bullseye',        title: 'Media Plan' },
+                'contentCheckerSection':    { icon: 'fas fa-spell-check',     title: 'Content Check' },
+                'landingPageAuditSection':  { icon: 'fas fa-clipboard-check', title: 'Landing Page Audit' },
+                'aiContentOptimiserSection':{ icon: 'fas fa-robot',           title: 'AI Content Optimiser' }
             };
-            Object.entries(staticHeaders).forEach(([id, html]) => {
+
+            Object.entries(cardHeaderMap).forEach(([id, { icon, title }]) => {
                 const el = document.getElementById(id);
-                if (!el || el.querySelector(':scope > .tool-card-static-header')) return;
+                if (!el) return;
+                el.classList.add('tool-card-wrapper');
+                if (el.querySelector(':scope > .tool-card-injected-header')) return;
                 const header = document.createElement('div');
-                header.className = 'tool-card-static-header';
-                header.innerHTML = html;
+                header.className = 'tool-card-injected-header';
+                header.innerHTML = `<i class="${icon}"></i> ${title}`;
                 el.insertBefore(header, el.firstChild);
             });
         }
