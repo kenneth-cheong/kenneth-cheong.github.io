@@ -62832,6 +62832,18 @@ Move-In</h3>
                     card.style.display = '';
                 });
 
+                // Inject scroll-to buttons on advanced cards (once)
+                injectScrollButtons('#advancedModeCardsContainer', card => {
+                    const onclick = card.getAttribute('onclick') || '';
+                    // toggleAdvancedSection('sectionId', this)
+                    const single = onclick.match(/toggleAdvancedSection\(['"]([^'"]+)['"]/);
+                    if (single) return `scrollToAdvancedSection(event, '${single[1]}')`;
+                    // toggleAdvancedSections(['id1','id2',...], this) — scroll to the first visible section
+                    const multi = onclick.match(/toggleAdvancedSections\(\[['"]([^'"]+)['"]/);
+                    if (multi) return `scrollToAdvancedSection(event, '${multi[1]}')`;
+                    return null;
+                });
+
                 // Force every collapsible's content div open so tool sections are accessible.
                 // Buttons are visually hidden by the body.advanced-mode CSS rule, but the
                 // DOM traversal in forceOpenCollapsible still works on hidden elements.
@@ -62936,7 +62948,7 @@ Move-In</h3>
         };
 
         function scrollToBasicSection(event, sectionKey) {
-            event.stopPropagation(); // don't trigger card toggle
+            event.stopPropagation();
             const wrapperId = BASIC_SECTION_WRAPPERS[sectionKey];
             const target = wrapperId ? document.getElementById(wrapperId) : null;
             if (!target) return;
@@ -62951,6 +62963,44 @@ Move-In</h3>
                 const top = target.getBoundingClientRect().top + window.scrollY - offset;
                 window.scrollTo({ top, behavior: 'smooth' });
             }, 50);
+        }
+
+        function scrollToAdvancedSection(event, sectionId) {
+            event.stopPropagation();
+            const target = document.getElementById(sectionId);
+            if (!target) return;
+            // If hidden (toggled off or adv-hidden), open it first
+            if (target.style.display === 'none' || target.classList.contains('adv-hidden')) {
+                target.style.display = 'block';
+                target.classList.remove('adv-hidden');
+            }
+            // Also open parent collapsible content if needed
+            let el = target.parentElement;
+            while (el && el !== document.body) {
+                if (el.classList.contains('content') && (el.style.display === 'none' || getComputedStyle(el).display === 'none')) {
+                    el.style.display = 'block';
+                }
+                el = el.parentElement;
+            }
+            setTimeout(() => {
+                const offset = 80;
+                const top = target.getBoundingClientRect().top + window.scrollY - offset;
+                window.scrollTo({ top, behavior: 'smooth' });
+            }, 50);
+        }
+
+        function injectScrollButtons(containerSelector, getScrollAttr) {
+            document.querySelectorAll(containerSelector + ' .basic-selector-card').forEach(card => {
+                if (card.querySelector('.card-scroll-btn')) return;
+                const attr = getScrollAttr(card);
+                if (!attr) return;
+                const btn = document.createElement('button');
+                btn.className = 'card-scroll-btn';
+                btn.innerHTML = '<i class="fas fa-arrow-down"></i> Scroll to';
+                btn.setAttribute('onclick', attr);
+                const info = card.querySelector('.card-info');
+                if (info) info.appendChild(btn);
+            });
         }
 
         // Ordered list of section wrapper IDs matching the basic-mode card grid order
@@ -62982,17 +63032,9 @@ Move-In</h3>
             });
 
             // Inject scroll-to button on each basic card (once)
-            document.querySelectorAll('#basicModeCardsContainer .basic-selector-card').forEach(card => {
-                if (card.querySelector('.card-scroll-btn')) return;
-                const onclickAttr = card.getAttribute('onclick') || '';
-                const match = onclickAttr.match(/selectBasicSection\(['"](\w+)['"]\)/);
-                if (!match) return;
-                const sectionKey = match[1];
-                const btn = document.createElement('button');
-                btn.className = 'card-scroll-btn';
-                btn.innerHTML = '<i class="fas fa-arrow-down"></i> Scroll to';
-                btn.setAttribute('onclick', `scrollToBasicSection(event, '${sectionKey}')`);
-                card.querySelector('.card-info').appendChild(btn);
+            injectScrollButtons('#basicModeCardsContainer', card => {
+                const match = (card.getAttribute('onclick') || '').match(/selectBasicSection\(['"](\w+)['"]\)/);
+                return match ? `scrollToBasicSection(event, '${match[1]}')` : null;
             });
         }
 
