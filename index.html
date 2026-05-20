@@ -20255,6 +20255,8 @@
         };
 
         function processSeoIntelItem(item, debug) {
+            // DEBUG: return every item as-is to confirm data fetch works
+            if (window._seoIntelDebug) return { id: item.id, name: item.name, kpi: 0, p1: 0, expected: 0, delta: 0, pctBehind: 0, pctProgress: 0, daysRemaining: 0, startDate: null, endDate: null, isBehind: false };
             const col = id => item.column_values?.find(cv => cv.id === id);
 
             // [BD]Project Type — tags column; tag name is "seo" (lowercase, no hash)
@@ -20338,18 +20340,9 @@
                     const cursorArg = cursor ? `,cursor:"${cursor}"` : '';
                     const res = await mondayCockpitQuery(`{
                         boards(ids:[${bid}]){
-                            items_page(limit:200${cursorArg}){
+                            items_page(limit:50${cursorArg}){
                                 cursor
-                                items{
-                                    id name
-                                    column_values(ids:["tags","status0","status","numbers3","numbers98","timeline5"]){
-                                        id text
-                                        ...on TagsValue{ tags{ name } }
-                                        ...on StatusValue{ label }
-                                        ...on NumbersValue{ number }
-                                        ...on TimelineValue{ from to }
-                                    }
-                                }
+                                items{ id name }
                             }
                         }
                     }`);
