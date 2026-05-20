@@ -20275,33 +20275,26 @@
                     localStorage.setItem('seoIntelBoardId', board.id);
                 }
 
-                // Paginate all items — inline board ID and cursor to avoid Lambda variable-forwarding issues
-                const bid = cockpitState.seoIntelBoardId;
+                console.log('[SEO Intel v3] starting fetch, board ID 2845615047');
+                // Paginate all items — hardcoded board ID, single-line query (Lambda quirk-proof)
                 const items = [];
                 let cursor = null;
+                let pageNum = 0;
                 do {
+                    pageNum++;
                     const cursorArg = cursor ? `,cursor:"${cursor}"` : '';
-                    // Use text-only query — most compatible with all Lambda API versions
-                    const res = await mondayCockpitQuery(`{
-                        boards(ids:["${bid}"]){
-                            items_page(limit:200${cursorArg}){
-                                cursor
-                                items{
-                                    id name
-                                    column_values(ids:["tags","status0","status","numbers3","numbers98","timeline5"]){
-                                        id text
-                                    }
-                                }
-                            }
-                        }
-                    }`);
+                    const query = `{ boards(ids:["2845615047"]){ items_page(limit:200${cursorArg}){ cursor items{ id name column_values(ids:["tags","status0","status","numbers3","numbers98","timeline5"]){ id text } } } } }`;
+                    const res = await mondayCockpitQuery(query);
+                    console.log(`[SEO Intel v3] page ${pageNum} raw:`, JSON.stringify(res).slice(0, 200));
                     const page = res?.boards?.[0]?.items_page;
-                    if (!page) break;
-                    items.push(...page.items);
+                    if (!page) { console.warn('[SEO Intel v3] page is null/undefined — breaking loop'); break; }
+                    const pageItems = page.items || [];
+                    console.log(`[SEO Intel v3] page ${pageNum}: ${pageItems.length} items, next cursor: ${page.cursor ? 'yes' : 'null'}`);
+                    items.push(...pageItems);
                     cursor = page.cursor;
                 } while (cursor);
 
-                console.log('[SEO Intel] items fetched:', items.length, items.slice(0,2).map(i=>({name:i.name,cols:i.column_values?.map(c=>c.id+':'+c.label+'|'+c.text+'|'+c.number)})));
+                console.log('[SEO Intel v3] total items fetched:', items.length);
                 const campaigns = items.map(item => processSeoIntelItem(item)).filter(Boolean);
                 console.log('[SEO Intel] qualifying campaigns:', campaigns.length);
                 cockpitState.seoIntelCache = campaigns;
