@@ -1848,7 +1848,7 @@
                 'Archive', 'Done', 'Not Needed', 'Not Needed (AI)',
                 '[MO] Done', '[MO] Not Needed'
             ]),
-            timeliness: { data: [], loaded: false, loading: false, expandedStaff: new Set(), selectedStaff: new Set(), showDeleted: false, progress: { done: 0, total: 0 } },
+            timeliness: { data: [], loaded: false, loading: false, expandedStaff: new Set(), selectedStaff: new Set(), showDeleted: false, progress: { done: 0, total: 0 }, tableSort: { key: 'delta', dir: 'desc' } },
             completionLabels: new Set(['Done', 'Completed', 'Signed Off', 'Launched', 'Live', 'Approved'])
         };
 
@@ -2828,6 +2828,13 @@
             renderTimelinessView();
         }
 
+        function sortTimelinessTable(key) {
+            const ts = state.timeliness.tableSort;
+            if (ts.key === key) ts.dir = ts.dir === 'asc' ? 'desc' : 'asc';
+            else { ts.key = key; ts.dir = key === 'delta' ? 'desc' : 'asc'; }
+            renderTimelinessView();
+        }
+
         function renderTimelinessView() {
             const container = document.getElementById('timeliness-container');
             if (!container) return;
@@ -2999,10 +3006,32 @@
 
             // Item detail table — shown when staff are selected
             if (hasSel) {
-                const th = s => `<th style="padding:9px 12px; text-align:${s==='left'?'left':'center'}; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border); white-space:nowrap;">`+(['Item','Board','Staff','Deadline','Completed','Δ'][['left','left','left','center','center','center'].indexOf(s)])+'</th>';
+                const ts = state.timeliness.tableSort;
                 const tableItems = data
                     .filter(i => i.people.some(p => sel.has(p)))
-                    .sort((a, b) => b.deltaDays - a.deltaDays);
+                    .sort((a, b) => {
+                        let vA, vB;
+                        switch (ts.key) {
+                            case 'name':      vA = a.name.toLowerCase();      vB = b.name.toLowerCase();      break;
+                            case 'board':     vA = a.bName.toLowerCase();     vB = b.bName.toLowerCase();     break;
+                            case 'staff':     vA = (a.people.find(p => sel.has(p)) || '').toLowerCase(); vB = (b.people.find(p => sel.has(p)) || '').toLowerCase(); break;
+                            case 'deadline':  vA = a.deadline || '';          vB = b.deadline || '';          break;
+                            case 'completed': vA = a.completionDate || '';    vB = b.completionDate || '';    break;
+                            default:          vA = a.deltaDays;               vB = b.deltaDays;
+                        }
+                        const cmp = vA > vB ? 1 : vA < vB ? -1 : 0;
+                        return ts.dir === 'asc' ? cmp : -cmp;
+                    });
+
+                const thBase = 'padding:9px 12px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid var(--border); cursor:pointer; user-select:none; white-space:nowrap;';
+                const th = (key, label, align = 'left') => {
+                    const active = ts.key === key;
+                    const icon = active
+                        ? `<i class="fas fa-sort-${ts.dir === 'asc' ? 'up' : 'down'}" style="margin-left:4px; font-size:9px;"></i>`
+                        : `<i class="fas fa-sort" style="margin-left:4px; font-size:9px; opacity:0.25;"></i>`;
+                    return `<th onclick="sortTimelinessTable('${key}')" style="${thBase} text-align:${align}; color:${active ? 'var(--text)' : 'var(--muted)'};">${label}${icon}</th>`;
+                };
+
                 html += `<div style="margin-top:20px;">
                     <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:10px;">
                         Item Detail — ${tableItems.length} items · ${[...sel].join(', ')}
@@ -3010,12 +3039,12 @@
                     <div style="background:var(--surface); border-radius:12px; border:1px solid var(--border); overflow:hidden;">
                         <table style="width:100%; border-collapse:separate; border-spacing:0;">
                             <thead><tr>
-                                <th style="padding:9px 12px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Item</th>
-                                <th style="padding:9px 12px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Board</th>
-                                <th style="padding:9px 12px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Staff</th>
-                                <th style="padding:9px 12px; text-align:center; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Deadline</th>
-                                <th style="padding:9px 12px; text-align:center; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Completed</th>
-                                <th style="padding:9px 12px; text-align:center; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Δ Days</th>
+                                ${th('name','Item')}
+                                ${th('board','Board')}
+                                ${th('staff','Staff')}
+                                ${th('deadline','Deadline','center')}
+                                ${th('completed','Completed','center')}
+                                ${th('delta','Δ Days','center')}
                             </tr></thead>
                             <tbody>${tableItems.map(item => {
                                 const dc = item.deltaDays > 3 ? '#f87171' : item.deltaDays > 0 ? '#fbbf24' : '#4ade80';
