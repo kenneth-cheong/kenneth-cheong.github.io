@@ -1625,26 +1625,10 @@
                         </div>
                     </div>
 
-                    <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+                    <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
                         <input type="text" id="filter-text" class="filter-input"
                             style="flex: 1; padding: 6px 10px; font-size: 12px;" placeholder="Search items or boards..."
                             oninput="updateFilteredUI()">
-
-                        <div class="person-filter-wrapper">
-                            <input type="text" id="filter-person-input" class="filter-input"
-                                style="width: 100%; padding: 6px 10px; font-size: 12px;"
-                                placeholder="Filter by people..." onfocus="togglePersonDropdown(true)"
-                                oninput="renderPersonOptions()">
-                            <div id="person-dropdown" class="person-dropdown">
-                                <div id="person-list" class="person-list"></div>
-                                <div class="person-controls">
-                                    <span class="person-btn" onclick="selectAllPeople()">Select All</span>
-                                    <span class="person-btn" onclick="clearPeople()">Clear</span>
-                                    <span class="person-btn" style="margin-left:auto; color:var(--muted)"
-                                        onclick="togglePersonDropdown(false)">Close</span>
-                                </div>
-                            </div>
-                        </div>
 
                         <div class="person-filter-wrapper">
                             <input type="text" id="filter-csm-input" class="filter-input"
@@ -1687,7 +1671,9 @@
                             <option value="tasks_desc">Most Tasks First</option>
                             <option value="priority_desc">Highest Priority First</option>
                         </select>
+                    </div>
 
+                    <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
                         <button class="btn btn-secondary" onclick="toggleLookupModal(true)"
                             style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px;">
                             <i class="fas fa-search"></i> Lookup Master
@@ -1697,6 +1683,8 @@
                             style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px;">
                             <i class="fas fa-cog"></i> Settings
                         </button>
+
+                        <div style="flex: 1;"></div>
 
                         <select id="user-selector" class="user-selector" onchange="setCurrentUser(this.value)" title="Select yourself to enable My Focus">
                             <option value="">Select Me...</option>
@@ -2440,13 +2428,7 @@
             filtered.forEach(i => {
                 i.people.forEach(person => {
                     const isDeleted = person.toLowerCase().includes('deleted');
-                    const isSelected = state.filters.people.has(person);
-
-                    // Skip "deleted" staff by default UNLESS they are explicitly selected in the filter
-                    if (isDeleted && !isSelected) return;
-
-                    // Standard filter: if other people are selected, only show them
-                    if (state.filters.people.size > 0 && !isSelected) return;
+                    if (isDeleted) return;
 
                     if (!staffGroups[person]) {
                         staffGroups[person] = {
@@ -2654,7 +2636,6 @@
             return state.auditedItems.filter(i => {
                 if (state.excludedStatusLabels.has(i.itemStatus)) return false;
                 if (state.filters.status !== 'all' && i.status !== state.filters.status) return false;
-                if (state.filters.people.size > 0 && !i.people.some(p => state.filters.people.has(p))) return false;
                 if (state.filters.csManagers.size > 0 && !i.csManagers.some(p => state.filters.csManagers.has(p))) return false;
                 if (state.filters.csmStatuses.size > 0 && !state.filters.csmStatuses.has(i.masterCsmStatus || '')) return false;
                 return i.name.toLowerCase().includes(queryText) || i.bName.toLowerCase().includes(queryText);
@@ -2888,14 +2869,6 @@
             return f;
         }
 
-        const personFilter = createDropdownFilter({
-            dropdownId: 'person-dropdown', listId: 'person-list', inputId: 'filter-person-input',
-            filterSet: state.filters.people,
-            getOptions: () => [...new Set(state.auditedItems.flatMap(i => i.people))].sort(),
-            defaultPlaceholder: 'Filter by people...', emptyMsg: 'No people found...',
-            toggleFn: 'togglePersonSelection'
-        });
-
         const csmFilter = createDropdownFilter({
             dropdownId: 'csm-dropdown', listId: 'csm-list', inputId: 'filter-csm-input',
             filterSet: state.filters.csManagers,
@@ -2903,12 +2876,6 @@
             defaultPlaceholder: 'Filter by CS/PM...', emptyMsg: 'No CS managers found...',
             toggleFn: 'toggleCSMSelection'
         });
-
-        function togglePersonDropdown(show)   { personFilter.toggle(show); }
-        function renderPersonOptions()         { personFilter.renderOptions(); }
-        function togglePersonSelection(name)   { personFilter.toggleSelection(name); }
-        function selectAllPeople()             { personFilter.selectAll(); }
-        function clearPeople()                 { personFilter.clear(); }
 
         // --- CS Manager Mapping Logic ---
         function normalizeString(str) {
@@ -3399,13 +3366,11 @@
 
         // Close dropdown when clicking outside
         document.addEventListener('mousedown', (e) => {
-            const dP = document.getElementById('person-dropdown');
             const dC = document.getElementById('csm-dropdown');
             const dS = document.getElementById('csm-status-dropdown');
             const wrappers = document.querySelectorAll('.person-filter-wrapper');
-            const wP = wrappers[0], wC = wrappers[1], wS = wrappers[2];
+            const wC = wrappers[0], wS = wrappers[1];
 
-            if (dP && dP.classList.contains('show') && wP && !wP.contains(e.target)) togglePersonDropdown(false);
             if (dC && dC.classList.contains('show') && wC && !wC.contains(e.target)) toggleCSMDropdown(false);
             if (dS && dS.classList.contains('show') && wS && !wS.contains(e.target)) toggleCsmStatusDropdown(false);
         });
