@@ -3244,6 +3244,115 @@
             margin-top: 2rem;
         }
 
+        /* ── Compulsory Slides ── */
+        .compulsory-slides-section {
+            background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+            border: 1px solid #bfdbfe;
+            border-radius: var(--radius-lg);
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .compulsory-slides-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .compulsory-slides-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .compulsory-slide-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+
+        .compulsory-slide-card:hover {
+            box-shadow: var(--shadow);
+            transform: translateY(-2px);
+        }
+
+        .compulsory-slide-preview {
+            height: 110px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .compulsory-slide-preview.dark {
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+            color: #fff;
+        }
+
+        .compulsory-slide-preview.purple {
+            background: linear-gradient(135deg, #1e1b4b 0%, #4f46e5 100%);
+            color: #fff;
+        }
+
+        .compulsory-slide-preview-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .compulsory-slide-preview-sub {
+            font-size: 0.65rem;
+            opacity: 0.7;
+            margin-top: 0.2rem;
+        }
+
+        .compulsory-slide-preview-dots {
+            position: absolute;
+            right: 0.75rem;
+            top: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 0.3rem;
+        }
+
+        .compulsory-slide-preview-dot {
+            width: 28px;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255,255,255,0.25);
+        }
+
+        .compulsory-slide-info {
+            padding: 0.875rem 1rem;
+        }
+
+        .compulsory-slide-info h4 {
+            font-size: 0.8125rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 0.25rem;
+        }
+
+        .compulsory-slide-info p {
+            font-size: 0.725rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+            margin-bottom: 0.75rem;
+        }
+
+        .compulsory-slide-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
         /* ── New Tender Wizard ── */
         .ntm-wide {
             max-width: 680px !important;
@@ -4162,6 +4271,20 @@
                     </div>
                     <button class="btn btn-primary" onclick="addProofPoint()"><i data-lucide="plus" size="16"></i> Add
                         Proof Point</button>
+                </div>
+
+                <!-- Compulsory Slides -->
+                <div class="compulsory-slides-section">
+                    <div class="compulsory-slides-header">
+                        <div style="display:flex;align-items:center;gap:0.5rem;">
+                            <i data-lucide="lock" size="15" style="color:var(--primary);"></i>
+                            <h3 style="font-size:0.875rem;font-weight:700;color:var(--text-main);margin:0;">Compulsory Slides</h3>
+                        </div>
+                        <span style="font-size:0.75rem;color:var(--text-muted);">Always include these in every proposal deck</span>
+                    </div>
+                    <div class="compulsory-slides-grid" id="compulsory-slides-grid">
+                        <!-- Populated by renderCompulsorySlides() -->
+                    </div>
                 </div>
 
                 <div style="margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
@@ -7422,6 +7545,153 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 }
             ];
 
+            const COMPULSORY_SLIDES = [
+                {
+                    id: 'digimetrics',
+                    title: 'DigiMetrics.ai',
+                    subtitle: 'Proprietary AI Intelligence Platform',
+                    description: 'Introduces our AI-powered search visibility and GEO intelligence platform — a key differentiator for data-led proposals.',
+                    previewTheme: 'purple',
+                    slide: {
+                        theme: 'dark',
+                        title: 'DigiMetrics.ai — Our Proprietary Intelligence Edge',
+                        body: `<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;height:100%;">
+<div style="display:flex;flex-direction:column;justify-content:center;">
+  <div style="display:inline-flex;align-items:center;gap:0.5rem;background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.4);border-radius:20px;padding:0.3rem 0.75rem;margin-bottom:1rem;width:fit-content;">
+    <span style="width:8px;height:8px;border-radius:50%;background:#818cf8;display:inline-block;"></span>
+    <span style="font-size:0.7rem;color:#a5b4fc;font-weight:600;letter-spacing:0.05em;">PROPRIETARY PLATFORM</span>
+  </div>
+  <h2 style="font-size:1.75rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:0.75rem;">DigiMetrics<span style="color:#818cf8;">.ai</span></h2>
+  <p style="font-size:0.8rem;color:rgba(255,255,255,0.65);line-height:1.6;margin-bottom:1rem;">Real-time AI search intelligence platform tracking your brand visibility across Google, AI Overviews, ChatGPT, Perplexity, and 10+ search surfaces — giving us an always-on edge over competitors.</p>
+  <div style="display:flex;gap:1rem;">
+    <div style="text-align:center;"><div style="font-size:1.4rem;font-weight:800;color:#818cf8;">800K+</div><div style="font-size:0.65rem;color:rgba(255,255,255,0.5);">Keywords Tracked</div></div>
+    <div style="text-align:center;"><div style="font-size:1.4rem;font-weight:800;color:#818cf8;">10+</div><div style="font-size:0.65rem;color:rgba(255,255,255,0.5);">Search Surfaces</div></div>
+    <div style="text-align:center;"><div style="font-size:1.4rem;font-weight:800;color:#818cf8;">Live</div><div style="font-size:0.65rem;color:rgba(255,255,255,0.5);">Data Feed</div></div>
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;align-content:center;">
+  <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:0.875rem;">
+    <div style="font-size:1.2rem;margin-bottom:0.4rem;">🔍</div>
+    <div style="font-size:0.75rem;font-weight:700;color:#e2e8f0;margin-bottom:0.2rem;">Search Intelligence</div>
+    <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);line-height:1.4;">Google, Bing & AI search ranking visibility in real time</div>
+  </div>
+  <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:0.875rem;">
+    <div style="font-size:1.2rem;margin-bottom:0.4rem;">🤖</div>
+    <div style="font-size:0.75rem;font-weight:700;color:#e2e8f0;margin-bottom:0.2rem;">GEO Tracking</div>
+    <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);line-height:1.4;">Monitor AI citation presence across ChatGPT, Gemini & Perplexity</div>
+  </div>
+  <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:0.875rem;">
+    <div style="font-size:1.2rem;margin-bottom:0.4rem;">📊</div>
+    <div style="font-size:0.75rem;font-weight:700;color:#e2e8f0;margin-bottom:0.2rem;">Competitor Radar</div>
+    <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);line-height:1.4;">Side-by-side share-of-voice vs your top 5 rivals</div>
+  </div>
+  <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:0.875rem;">
+    <div style="font-size:1.2rem;margin-bottom:0.4rem;">⚡</div>
+    <div style="font-size:0.75rem;font-weight:700;color:#e2e8f0;margin-bottom:0.2rem;">Automated Alerts</div>
+    <div style="font-size:0.65rem;color:rgba(255,255,255,0.5);line-height:1.4;">Instant notifications for ranking drops, algorithm shifts & opportunities</div>
+  </div>
+</div>
+</div>`
+                    }
+                },
+                {
+                    id: 'client-portal',
+                    title: 'Client Portal',
+                    subtitle: 'Real-Time Campaign Transparency',
+                    description: 'Showcases our dedicated client portal — live dashboards, reports, and direct team access for full campaign visibility.',
+                    previewTheme: 'dark',
+                    slide: {
+                        theme: 'light',
+                        title: 'Your Client Portal — Full Campaign Transparency',
+                        body: `<div style="display:grid;grid-template-columns:1.1fr 1fr;gap:1.5rem;align-items:center;">
+<div>
+  <div style="display:inline-flex;align-items:center;gap:0.5rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:0.3rem 0.75rem;margin-bottom:1rem;width:fit-content;">
+    <span style="width:7px;height:7px;border-radius:50%;background:#2563eb;display:inline-block;"></span>
+    <span style="font-size:0.7rem;color:#1d4ed8;font-weight:600;letter-spacing:0.04em;">ALWAYS-ON ACCESS</span>
+  </div>
+  <h2 style="font-size:1.6rem;font-weight:800;color:#0f172a;line-height:1.2;margin-bottom:0.75rem;">One Portal.<br>Complete Visibility.</h2>
+  <p style="font-size:0.8rem;color:#64748b;line-height:1.6;margin-bottom:1.25rem;">Your dedicated client portal gives your team 24/7 access to live campaign performance, automated reports, strategic briefs, and a direct line to the MediaOne team — no chasing, no guessing.</p>
+  <div style="display:flex;flex-direction:column;gap:0.5rem;">
+    <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.775rem;color:#1e293b;"><span style="width:18px;height:18px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-size:0.6rem;">✓</span>Live KPI dashboards updated daily</div>
+    <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.775rem;color:#1e293b;"><span style="width:18px;height:18px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-size:0.6rem;">✓</span>Auto-generated monthly & weekly reports</div>
+    <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.775rem;color:#1e293b;"><span style="width:18px;height:18px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-size:0.6rem;">✓</span>Shared strategic workspace & task tracking</div>
+    <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.775rem;color:#1e293b;"><span style="width:18px;height:18px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-size:0.6rem;">✓</span>Direct messaging with your dedicated team</div>
+    <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.775rem;color:#1e293b;"><span style="width:18px;height:18px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-size:0.6rem;">✓</span>Document vault: briefs, contracts, assets</div>
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1rem;text-align:center;">
+    <div style="font-size:1.6rem;font-weight:800;color:#2563eb;margin-bottom:0.2rem;">24/7</div>
+    <div style="font-size:0.7rem;color:#64748b;font-weight:600;">Always-On Access</div>
+  </div>
+  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1rem;text-align:center;">
+    <div style="font-size:1.6rem;font-weight:800;color:#10b981;margin-bottom:0.2rem;">Live</div>
+    <div style="font-size:0.7rem;color:#64748b;font-weight:600;">KPI Dashboards</div>
+  </div>
+  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1rem;text-align:center;">
+    <div style="font-size:1.6rem;font-weight:800;color:#7c3aed;margin-bottom:0.2rem;">Auto</div>
+    <div style="font-size:0.7rem;color:#64748b;font-weight:600;">Report Generation</div>
+  </div>
+  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1rem;text-align:center;">
+    <div style="font-size:1.6rem;font-weight:800;color:#f59e0b;margin-bottom:0.2rem;">1-on-1</div>
+    <div style="font-size:0.7rem;color:#64748b;font-weight:600;">Dedicated Team</div>
+  </div>
+</div>
+</div>`
+                    }
+                }
+            ];
+
+            function renderCompulsorySlides() {
+                const grid = document.getElementById('compulsory-slides-grid');
+                if (!grid) return;
+                grid.innerHTML = COMPULSORY_SLIDES.map(s => `
+                    <div class="compulsory-slide-card">
+                        <div class="compulsory-slide-preview ${s.previewTheme}">
+                            <div>
+                                <div class="compulsory-slide-preview-title">${s.title}</div>
+                                <div class="compulsory-slide-preview-sub">${s.subtitle}</div>
+                            </div>
+                            <div class="compulsory-slide-preview-dots">
+                                <div class="compulsory-slide-preview-dot"></div>
+                                <div class="compulsory-slide-preview-dot" style="width:18px;"></div>
+                                <div class="compulsory-slide-preview-dot" style="width:22px;"></div>
+                            </div>
+                        </div>
+                        <div class="compulsory-slide-info">
+                            <h4>${s.title}</h4>
+                            <p>${s.description}</p>
+                            <div class="compulsory-slide-actions">
+                                <button class="btn btn-primary btn-sm" onclick="insertCompulsorySlide('${s.id}')">
+                                    <i data-lucide="plus" size="13"></i> Insert into Deck
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                lucide.createIcons();
+            }
+
+            function insertCompulsorySlide(id) {
+                const def = COMPULSORY_SLIDES.find(s => s.id === id);
+                if (!def) return;
+                const newSlide = {
+                    id: Date.now(),
+                    theme: def.slide.theme,
+                    title: def.slide.title,
+                    body: def.slide.body
+                };
+                slidesData.push(newSlide);
+                activeSlideIndex = slidesData.length - 1;
+                renderThumbnails();
+                renderSlideCanvas();
+                saveProjects();
+                showToast(`"${def.title}" slide added to deck.`, 'success');
+                // Switch to slide editor so user can see it
+                const editorNav = Array.from(document.querySelectorAll('.nav-item')).find(n => n.dataset.view === 'slide-editor' || n.textContent.includes('Slide Editor'));
+                if (editorNav) editorNav.click();
+            }
+
             let proofBankData = null; // Global state for Proof Bank
 
             const teamData = [
@@ -10383,6 +10653,7 @@ ${JSON.stringify(slide.blocks)}`;
                             proofBankData = result.proofBank;
                             renderProofBank();
                         }
+                        renderCompulsorySlides();
 
                         // 5. Populate Wizard Prompts
                         if (result.wizardPrompts) {
@@ -10919,6 +11190,7 @@ ${JSON.stringify(slide.blocks)}`;
                 updateValueAddScorecard();
                 updateDeckCompleteness();
                 renderProofBank();
+                renderCompulsorySlides();
                 renderDocGrid();
                 updateSidebarFileList();
                 updateSatisfactionScores();
