@@ -20194,31 +20194,32 @@
         };
 
         function processSeoIntelItem(item) {
-            const col = id => item.column_values?.find(cv => cv.id === id);
+            // Use .text only — works regardless of which column type fragments the Lambda supports
+            const txt = id => (item.column_values?.find(cv => cv.id === id)?.text || '').trim();
 
-            // [BD]Project Type — tags column; tag name is "seo" (lowercase, no hash)
-            const tagsCol = col(SEO_INTEL_COLS.projectType);
-            const hasSeo  = tagsCol?.tags?.some(t => t.name?.toLowerCase() === 'seo')
-                          || (tagsCol?.text || '').toLowerCase().split(/[,\s]+/).includes('seo');
-            if (!hasSeo) return null;
+            // [BD]Project Type text is "seo" or "seo, sem" etc.
+            if (!txt(SEO_INTEL_COLS.projectType).toLowerCase().split(/[\s,]+/).includes('seo')) return null;
 
-            // [CSM] Campaign Status — must contain Live / Guarantee / Renewed / Lit
-            const csmStatus = (col(SEO_INTEL_COLS.campaignStatus)?.label || '').toLowerCase();
+            // [CSM] Campaign Status text e.g. "Live (Active Delivery)", "Guarantee (SEO)"
+            const csmStatus = txt(SEO_INTEL_COLS.campaignStatus).toLowerCase();
             if (!['live', 'guarantee', 'renewed', 'lit'].some(s => csmStatus.includes(s))) return null;
 
-            // SEO Campaign Type — must be "Standard"
-            const campType = (col(SEO_INTEL_COLS.campaignType)?.label || '').toLowerCase();
-            if (!campType.includes('standard')) return null;
+            // SEO Campaign Type text e.g. "Standard"
+            if (!txt(SEO_INTEL_COLS.campaignType).toLowerCase().includes('standard')) return null;
 
-            // KPI, P1, timeline
-            const kpi = Number(col(SEO_INTEL_COLS.kpiKws)?.number)  || 0;
-            const p1  = Number(col(SEO_INTEL_COLS.p1Kws)?.number)   || 0;
-            const tl  = col(SEO_INTEL_COLS.timeline);
+            // KPI and P1 — text is a plain number string e.g. "5"
+            const kpi = parseFloat(txt(SEO_INTEL_COLS.kpiKws))  || 0;
+            const p1  = parseFloat(txt(SEO_INTEL_COLS.p1Kws))   || 0;
+            if (!kpi) return null;
 
-            if (!kpi || !tl?.from || !tl?.to) return null;
+            // Timeline text is "YYYY-MM-DD - YYYY-MM-DD"
+            const tlText = txt(SEO_INTEL_COLS.timeline);
+            const tlParts = tlText.split(' - ');
+            if (tlParts.length < 2) return null;
+            const start = new Date(tlParts[0].trim());
+            const end   = new Date(tlParts[1].trim());
+            if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
 
-            const start = new Date(tl.from);
-            const end   = new Date(tl.to);
             const today = new Date();
             if (today < start) return null;
 
@@ -20234,7 +20235,7 @@
                 kpi, p1, expected, delta, pctBehind,
                 pctProgress: Math.round(pct * 100),
                 daysRemaining: Math.max(0, Math.round((end - today) / 86400000)),
-                startDate: tl.from, endDate: tl.to,
+                startDate: tlParts[0].trim(), endDate: tlParts[1].trim(),
                 isBehind: p1 < expected
             };
         }
@@ -20273,6 +20274,7 @@
                 let cursor = null;
                 do {
                     const cursorArg = cursor ? `,cursor:"${cursor}"` : '';
+                    // Use text-only query — most compatible with all Lambda API versions
                     const res = await mondayCockpitQuery(`{
                         boards(ids:["${bid}"]){
                             items_page(limit:200${cursorArg}){
@@ -20281,10 +20283,6 @@
                                     id name
                                     column_values(ids:["tags","status0","status","numbers3","numbers98","timeline5"]){
                                         id text
-                                        ...on TagsValue{ tags{ name } }
-                                        ...on StatusValue{ label }
-                                        ...on NumbersValue{ number }
-                                        ...on TimelineValue{ from to }
                                     }
                                 }
                             }
