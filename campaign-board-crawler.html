@@ -1848,7 +1848,7 @@
                 'Archive', 'Done', 'Not Needed', 'Not Needed (AI)',
                 '[MO] Done', '[MO] Not Needed'
             ]),
-            timeliness: { data: [], loaded: false, loading: false, expandedStaff: new Set(), selectedStaff: new Set(), showDeleted: false, progress: { done: 0, total: 0 }, tableSort: { key: 'delta', dir: 'desc' }, collapsedBoards: new Set() },
+            timeliness: { data: [], loaded: false, loading: false, expandedStaff: new Set(), selectedStaff: new Set(), showDeleted: false, progress: { done: 0, total: 0 }, tableSort: { key: 'delta', dir: 'desc' }, expandedBoards: new Set() },
             completionLabels: new Set(['Done', 'Completed', 'Signed Off', 'Launched', 'Live', 'Approved'])
         };
 
@@ -2836,8 +2836,8 @@
         }
 
         function toggleTimelinessBoard(bId) {
-            if (state.timeliness.collapsedBoards.has(bId)) state.timeliness.collapsedBoards.delete(bId);
-            else state.timeliness.collapsedBoards.add(bId);
+            if (state.timeliness.expandedBoards.has(bId)) state.timeliness.expandedBoards.delete(bId);
+            else state.timeliness.expandedBoards.add(bId);
             renderTimelinessView();
         }
 
@@ -3052,7 +3052,7 @@
 
                 let tbodyHtml = '';
                 boardGroups.forEach(g => {
-                    const isCollapsed = state.timeliness.collapsedBoards.has(g.bId);
+                    const isCollapsed = !state.timeliness.expandedBoards.has(g.bId);
                     const url = boardUrl(g.bId);
                     const gAvg = Math.round(g.items.reduce((s, i) => s + i.deltaDays, 0) / g.items.length);
                     const gLate = g.items.filter(i => i.deltaDays > 0).length;
