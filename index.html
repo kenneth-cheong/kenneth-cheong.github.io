@@ -20178,16 +20178,12 @@
         }
 
         // ── SEO Campaign Intelligence ─────────────────────────────────────────────
-        async function mondayCockpitQuery(query, variables = null) {
-            // Use Lambda server-side key by default (same as chatbot — no api_key override)
-            // Only include api_key if a custom override is explicitly stored for SEO intel
-            const overrideKey = localStorage.getItem('seoIntelApiKey') || '';
-            const payload = { action: 'get_monday_data', query, variables };
-            if (overrideKey) payload.api_key = overrideKey;
+        async function mondayCockpitQuery(query) {
+            // Lambda has the Monday API key in its env vars — just send the query
             const resp = await fetch(MONDAY_LAMBDA_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ action: 'get_monday_data', query })
             });
             const raw = await resp.json();
             const parsed = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
@@ -20196,53 +20192,6 @@
             return parsed?.data || parsed;
         }
 
-        function getSeoIntelApiKey() {
-            return localStorage.getItem('seoIntelApiKey') || '';
-        }
-
-        function saveSeoIntelApiKey() {
-            const key = document.getElementById('seo-intel-api-key-input')?.value?.trim();
-            if (!key) return;
-            localStorage.setItem('seoIntelApiKey', key);
-            diagnoseSeoIntelKey(key);
-        }
-
-        async function diagnoseSeoIntelKey(key) {
-            const el = document.getElementById('cockpit-seo-intel-content');
-            if (!el) return;
-            el.innerHTML = `<div style="text-align:center;padding:30px;color:#64748b;"><i class="fas fa-spinner fa-spin fa-2x"></i><p style="margin-top:12px;font-size:0.9em;">Verifying token…</p></div>`;
-            try {
-                const resp = await fetch(MONDAY_LAMBDA_URL, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'get_monday_data', api_key: key,
-                        query: '{ me { id name account { id name } } boards(ids:[2845615047]){ id name } }' })
-                });
-                const raw = await resp.json();
-                const parsed = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
-                const data = parsed?.data || parsed;
-                const me = data?.me;
-                const board = data?.boards?.[0];
-                if (board) {
-                    // Token works — proceed with full fetch
-                    fetchSeoIntel(true);
-                } else {
-                    el.innerHTML = `
-                        <div style="padding:20px;font-size:0.85rem;color:#64748b;">
-                            <p style="font-weight:700;color:#dc2626;margin-bottom:10px;"><i class="fas fa-exclamation-triangle"></i> Token can't access board 2845615047</p>
-                            ${me ? `<p style="margin-bottom:8px;">Logged in as: <b>${me.name}</b> (Account: <b>${me.account?.name || me.account?.id}</b>)</p>
-                            <p style="color:#ef4444;">This account doesn't own the <em>Integrated Campaign Info Repository</em> board.<br>
-                            You need a token from the account that owns that board.</p>` : `<p>Could not verify token identity.</p>`}
-                            <p style="margin-top:12px;color:#94a3b8;font-size:0.78em;">Open the board on Monday.com, check which workspace it belongs to, and generate a new Personal API Token while logged into that workspace.</p>
-                            <button onclick="cockpitState.seoIntelBoardId=null;localStorage.removeItem('seoIntelApiKey');fetchSeoIntel(true);" class="discovery-btn-run" style="margin-top:14px;padding:6px 14px;font-size:0.82rem;background:#6366f1;border:none;color:#fff;">
-                                <i class="fas fa-key"></i> Try a different token
-                            </button>
-                        </div>`;
-                }
-            } catch(e) {
-                console.error('Diag error:', e);
-                fetchSeoIntel(true);
-            }
-        }
 
         // Column IDs confirmed from live board inspection (board 2845615047)
         const SEO_INTEL_COLS = {
@@ -20254,38 +20203,34 @@
             timeline:       'timeline5'  // TimelineValue
         };
 
-        function processSeoIntelItem(item, debug) {
-            // DEBUG: return every item as-is to confirm data fetch works
-            if (window._seoIntelDebug) return { id: item.id, name: item.name, kpi: 0, p1: 0, expected: 0, delta: 0, pctBehind: 0, pctProgress: 0, daysRemaining: 0, startDate: null, endDate: null, isBehind: false };
+        function processSeoIntelItem(item) {
             const col = id => item.column_values?.find(cv => cv.id === id);
 
             // [BD]Project Type — tags column; tag name is "seo" (lowercase, no hash)
             const tagsCol = col(SEO_INTEL_COLS.projectType);
             const hasSeo  = tagsCol?.tags?.some(t => t.name?.toLowerCase() === 'seo')
                           || (tagsCol?.text || '').toLowerCase().split(/[,\s]+/).includes('seo');
-            if (!hasSeo) { if (debug) debug.noSeo++; return null; }
+            if (!hasSeo) return null;
 
             // [CSM] Campaign Status — must contain Live / Guarantee / Renewed / Lit
             const csmStatus = (col(SEO_INTEL_COLS.campaignStatus)?.label || '').toLowerCase();
-            if (!['live', 'guarantee', 'renewed', 'lit'].some(s => csmStatus.includes(s))) {
-                if (debug) debug.badStatus++; return null;
-            }
+            if (!['live', 'guarantee', 'renewed', 'lit'].some(s => csmStatus.includes(s))) return null;
 
             // SEO Campaign Type — must be "Standard"
             const campType = (col(SEO_INTEL_COLS.campaignType)?.label || '').toLowerCase();
-            if (!campType.includes('standard')) { if (debug) debug.notStandard++; return null; }
+            if (!campType.includes('standard')) return null;
 
             // KPI, P1, timeline
             const kpi = Number(col(SEO_INTEL_COLS.kpiKws)?.number)  || 0;
             const p1  = Number(col(SEO_INTEL_COLS.p1Kws)?.number)   || 0;
             const tl  = col(SEO_INTEL_COLS.timeline);
 
-            if (!kpi || !tl?.from || !tl?.to) { if (debug) debug.noKpiOrTimeline++; return null; }
+            if (!kpi || !tl?.from || !tl?.to) return null;
 
             const start = new Date(tl.from);
             const end   = new Date(tl.to);
             const today = new Date();
-            if (today < start) { if (debug) debug.notStarted++; return null; }
+            if (today < start) return null;
 
             const totalDays   = Math.max(1, (end - start)   / 86400000);
             const elapsedDays = Math.min(totalDays, Math.max(0, (today - start) / 86400000));
@@ -20340,59 +20285,36 @@
                     const cursorArg = cursor ? `,cursor:"${cursor}"` : '';
                     const res = await mondayCockpitQuery(`{
                         boards(ids:["${bid}"]){
-                            items_page(limit:50${cursorArg}){
+                            items_page(limit:200${cursorArg}){
                                 cursor
-                                items{ id name }
+                                items{
+                                    id name
+                                    column_values(ids:["tags","status0","status","numbers3","numbers98","timeline5"]){
+                                        id text
+                                        ...on TagsValue{ tags{ name } }
+                                        ...on StatusValue{ label }
+                                        ...on NumbersValue{ number }
+                                        ...on TimelineValue{ from to }
+                                    }
+                                }
                             }
                         }
                     }`);
-                    console.log('[SEO Intel] items_page res:', JSON.stringify(res).slice(0, 500));
-                    if (Array.isArray(res?.boards) && res.boards.length === 0) {
-                        throw new Error('__no_access__');
-                    }
                     const page = res?.boards?.[0]?.items_page;
                     if (!page) break;
                     items.push(...page.items);
                     cursor = page.cursor;
                 } while (cursor);
 
-                // Track filter drop-off for debugging
-                const debug = { total: items.length, noSeo: 0, badStatus: 0, notStandard: 0, noKpiOrTimeline: 0, notStarted: 0 };
-                console.log('[SEO Intel] items fetched:', items.length, '| first item columns:', items[0]?.column_values?.map(cv => `${cv.column?.title}: ${cv.label ?? cv.text ?? cv.number}`));
-                const campaigns = items.map(item => processSeoIntelItem(item, debug)).filter(Boolean);
-                console.log('[SEO Intel] filter debug:', debug, '| qualifying:', campaigns.length);
+                const campaigns = items.map(item => processSeoIntelItem(item)).filter(Boolean);
                 cockpitState.seoIntelCache = campaigns;
                 cockpitState.seoIntelFetchedAt = Date.now();
                 const behindCount = campaigns.filter(c => c.isBehind).length;
                 if (countEl) countEl.textContent = `${behindCount}/${campaigns.length}`;
-                renderSeoIntel(campaigns, campaigns.length === 0 ? { debug, sampleItem: items[0] } : null);
+                renderSeoIntel(campaigns);
 
             } catch (e) {
                 console.error('SEO Intel error:', e);
-                if (e.message === '__no_access__') {
-                    // Key exists but can't see the board — prompt for the right key
-                    el.innerHTML = `
-                        <div style="padding:24px;text-align:center;color:#64748b;">
-                            <i class="fab fa-monday" style="font-size:2rem;color:#6366f1;"></i>
-                            <p style="margin:12px 0 4px;font-weight:700;color:#1e293b;font-size:0.95em;">Board not accessible</p>
-                            <p style="font-size:0.82em;color:#64748b;margin-bottom:16px;">
-                                The current API key can't read board <b>2845615047</b>.<br>
-                                Enter a token that has access to the <em>Integrated Campaign Info Repository</em>.
-                            </p>
-                            <div style="display:flex;gap:8px;justify-content:center;max-width:380px;margin:0 auto;">
-                                <input type="password" id="seo-intel-api-key-input" placeholder="Monday Personal Access Token…"
-                                    style="flex:1;padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.82rem;outline:none;"
-                                    onkeydown="if(event.key==='Enter') saveSeoIntelApiKey()">
-                                <button onclick="saveSeoIntelApiKey()" class="discovery-btn-run" style="padding:7px 14px;font-size:0.82rem;background:#6366f1;border:none;color:#fff;white-space:nowrap;">
-                                    Connect
-                                </button>
-                            </div>
-                            <p style="font-size:0.75em;color:#94a3b8;margin-top:10px;">
-                                <b>monday.com → Profile → Developers → Personal API token</b>
-                            </p>
-                        </div>`;
-                    return;
-                }
                 el.innerHTML = `
                     <div style="padding:30px;text-align:center;color:#ef4444;">
                         <i class="fas fa-exclamation-triangle fa-2x"></i>
@@ -20404,15 +20326,7 @@
             }
         }
 
-        function setSeoIntelBoardId() {
-            const id = document.getElementById('seoIntelBoardIdInput')?.value?.trim();
-            if (!id) return;
-            cockpitState.seoIntelBoardId = id;
-            localStorage.setItem('seoIntelBoardId', id);
-            fetchSeoIntel(true);
-        }
-
-        function renderSeoIntel(campaigns, debugInfo) {
+        function renderSeoIntel(campaigns) {
             const el      = document.getElementById('cockpit-seo-intel-content');
             const countEl = document.getElementById('cockpit-seo-intel-count');
             if (!el) return;
@@ -20422,30 +20336,7 @@
             if (countEl) countEl.textContent = `${behind.length}/${campaigns.length}`;
 
             if (!campaigns.length) {
-                const d = debugInfo?.debug;
-                const sample = debugInfo?.sampleItem;
-                const sampleVals = sample
-                    ? sample.column_values
-                        .filter(cv => cv.label || cv.text || cv.number != null)
-                        .map(cv => `<div style="padding:3px 0;border-bottom:1px solid #f1f5f9;"><b style="color:#334155;">${cv.column?.title || cv.id}</b>: ${cv.label ?? cv.text ?? cv.number}</div>`)
-                        .join('')
-                    : '';
-                el.innerHTML = `
-                    <div style="padding:16px;font-size:0.82rem;color:#64748b;">
-                        <p style="font-weight:700;color:#dc2626;margin-bottom:12px;">No qualifying campaigns found — filter breakdown:</p>
-                        <ul style="margin:0 0 12px 18px;line-height:2;">
-                            <li>Total items fetched from board: <b style="color:#0f172a;">${d?.total ?? '—'}</b></li>
-                            <li>Dropped — no SEO in project type: <b style="color:#0f172a;">${d?.noSeo ?? '—'}</b></li>
-                            <li>Dropped — wrong campaign status: <b style="color:#0f172a;">${d?.badStatus ?? '—'}</b></li>
-                            <li>Dropped — not Standard type: <b style="color:#0f172a;">${d?.notStandard ?? '—'}</b></li>
-                            <li>Dropped — missing KPI or timeline: <b style="color:#0f172a;">${d?.noKpiOrTimeline ?? '—'}</b></li>
-                            <li>Dropped — campaign not yet started: <b style="color:#0f172a;">${d?.notStarted ?? '—'}</b></li>
-                        </ul>
-                        ${sampleVals ? `<details style="margin-top:8px;">
-                            <summary style="cursor:pointer;font-weight:600;color:#475569;padding:4px 0;">▶ Column values from "${sample.name}"</summary>
-                            <div style="margin-top:8px;font-size:0.78rem;color:#334155;max-height:200px;overflow-y:auto;">${sampleVals}</div>
-                        </details>` : `<p style="color:#94a3b8;font-size:0.78rem;">Open browser DevTools → Console for raw column data.</p>`}
-                    </div>`;
+                el.innerHTML = '<div style="padding:20px;text-align:center;color:#64748b;">No qualifying Standard SEO campaigns found.</div>';
                 return;
             }
 
