@@ -11348,7 +11348,7 @@
             </div>
             <span class="card-pill-tag" data-cat="SEO">SEO</span>
         </div>
-        <div class="basic-selector-card" onclick="selectBasicSection('siteAnalysis')">
+        <div class="basic-selector-card active" onclick="selectBasicSection('siteAnalysis')">
             <div class="card-icon" style="background: #fef3c7; color: #d97706;"><i class="fas fa-chart-line"></i></div>
             <div class="card-info">
                 <h4>Domain Analysis</h4>
@@ -11356,7 +11356,7 @@
             </div>
             <span class="card-pill-tag" data-cat="SEO">SEO</span>
         </div>
-        <div class="basic-selector-card" onclick="selectBasicSection('technicalSeo')">
+        <div class="basic-selector-card active" onclick="selectBasicSection('technicalSeo')">
             <div class="card-icon" style="background: #fee2e2; color: #dc2626;"><i class="fas fa-tools"></i></div>
             <div class="card-info">
                 <h4>Technical SEO</h4>
@@ -12373,11 +12373,13 @@
                             <div class="metric-header">Backlinks</div>
                             <div class="metric-value-large" id="targetBacklinks">-</div>
                             <div class="metric-sub" id="targetSpamScore">Spam Score: -</div>
+                            <div id="backlinkSourceBadge" style="display:none; margin-top:5px; font-size:0.7em; padding:2px 7px; border-radius:10px; font-weight:700; width:fit-content;"></div>
                         </div>
                         <div class="metric-card-premium">
                             <div class="metric-header">Ref. Domains</div>
                             <div class="metric-value-large" id="targetRefDomains">-</div>
                             <div class="metric-sub">Unique Domains</div>
+                            <div id="refDomainsSourceBadge" style="display:none; margin-top:5px; font-size:0.7em; padding:2px 7px; border-radius:10px; font-weight:700; width:fit-content;"></div>
                         </div>
                         <div class="metric-card-premium">
                             <div class="metric-header">Word Count</div>
@@ -18164,8 +18166,12 @@
         }
 
         function deactivateAllButtons() {
+            const isBasicMode = !document.body.classList.contains('advanced-mode');
             const buttons = document.querySelectorAll('button.collapsible');
             buttons.forEach(button => {
+                // In basic mode, sections inside tool-card-wrapper are managed by
+                // selectBasicSection — don't collapse them here or they'll go blank.
+                if (isBasicMode && button.closest('.tool-card-wrapper')) return;
                 button.classList.remove('active');
                 // Robust content finding
                 const content = button.closest('.collapsible-wrapper')?.nextElementSibling || button.nextElementSibling;
@@ -33866,6 +33872,19 @@ ${selectedText}
                     const rd = ahrefsData?.referring_domains ?? ahrefsData?.domain?.referring_domains ?? data.body.referring_domains;
                     document.getElementById('targetBacklinks').innerText = bl != null ? Number(bl).toLocaleString() : data.body.backlinks;
                     document.getElementById('targetRefDomains').innerText = rd != null ? Number(rd).toLocaleString() : data.body.referring_domains;
+
+                    // Source indicator badges
+                    const blSource = ahrefsData != null ? 'Ahrefs' : 'DataForSEO';
+                    const blBg    = ahrefsData != null ? '#e0f2fe' : '#f0fdf4';
+                    const blColor = ahrefsData != null ? '#0369a1' : '#16a34a';
+                    ['backlinkSourceBadge', 'refDomainsSourceBadge'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (!el) return;
+                        el.textContent = blSource;
+                        el.style.display = '';
+                        el.style.background = blBg;
+                        el.style.color = blColor;
+                    });
 
                     updateCollapsibleState('siteAnalysisToggle', 'success');
                     const daValue = document.getElementById('da').innerText;
@@ -62919,6 +62938,8 @@ Move-In</h3>
                 // Select defaults for each category
                 selectBasicSection('strategyEngine', true);
                 selectBasicSection('pricingQuote', true);
+                selectBasicSection('siteAnalysis', true);
+                selectBasicSection('technicalSeo', true);
                 selectBasicSection('discoveryAudit', true);
                 selectBasicSection('discoveryKeywords', true);
                 selectBasicSection('competitors', true);
