@@ -19954,27 +19954,52 @@
                 return;
             }
 
-            const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16','#06b6d4','#a855f7'];
-            const barH = 30;
-            canvas.parentElement.style.height = Math.max(300, sites.length * barH + 120) + 'px';
+            canvas.parentElement.style.height = '300px';
 
-            const datasets = sites.map((site, i) => ({
-                label: site,
-                data: dates.map(d => ts[site]?.[d] ?? null),
-                borderColor: COLORS[i % COLORS.length],
-                backgroundColor: COLORS[i % COLORS.length] + '18',
-                borderWidth: 2,
-                pointRadius: dates.length > 30 ? 2 : 4,
-                pointHoverRadius: 6,
-                tension: 0.35,
-                spanGaps: true,
-                fill: false
-            }));
+            const fmtDate = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const ptR = dates.length > 30 ? 2 : 4;
 
-            const fmtDate = d => {
-                const [, m, day] = d.split('-');
-                return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            };
+            // Aggregate into one line when All Sites or 10+ campaigns selected
+            const aggregate = cockpitState.selectedMoversCampaigns.size === 0 || sites.length >= 10;
+
+            let datasets, subtitleText;
+            if (aggregate) {
+                const label = cockpitState.selectedMoversCampaigns.size === 0
+                    ? `All Sites (${sites.length})`
+                    : `${sites.length} sites (avg)`;
+                subtitleText = 'Showing aggregated average across all campaigns';
+                const aggData = dates.map(d => {
+                    const vals = sites.map(s => ts[s]?.[d]).filter(v => v != null);
+                    return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 : null;
+                });
+                datasets = [{
+                    label,
+                    data: aggData,
+                    borderColor: '#6366f1',
+                    backgroundColor: '#6366f118',
+                    borderWidth: 2.5,
+                    pointRadius: ptR,
+                    pointHoverRadius: 6,
+                    tension: 0.35,
+                    spanGaps: true,
+                    fill: true
+                }];
+            } else {
+                subtitleText = null;
+                const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16','#06b6d4','#a855f7'];
+                datasets = sites.map((site, i) => ({
+                    label: site,
+                    data: dates.map(d => ts[site]?.[d] ?? null),
+                    borderColor: COLORS[i % COLORS.length],
+                    backgroundColor: COLORS[i % COLORS.length] + '18',
+                    borderWidth: 2,
+                    pointRadius: ptR,
+                    pointHoverRadius: 6,
+                    tension: 0.35,
+                    spanGaps: true,
+                    fill: false
+                }));
+            }
 
             cockpitState.trendChart = new Chart(canvas.getContext('2d'), {
                 type: 'line',
@@ -19985,9 +20010,10 @@
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
                         legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12, padding: 12 } },
+                        subtitle: subtitleText ? { display: true, text: subtitleText, font: { size: 10 }, color: '#94a3b8', padding: { bottom: 8 } } : { display: false },
                         tooltip: {
                             callbacks: {
-                                label: item => `${item.dataset.label}: #${item.raw ?? '—'}`
+                                label: item => `${item.dataset.label}: avg rank #${item.raw ?? '—'}`
                             }
                         }
                     },
